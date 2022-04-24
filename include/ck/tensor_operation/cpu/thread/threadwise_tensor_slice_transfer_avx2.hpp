@@ -53,6 +53,42 @@ struct ThreadwiseTensorSliceTransferAvx2
     {
         static_assert(SliceLengths::At(Number<VectorDim>{}) % ScalarPerVector == 0,
                       "wrong! cannot evenly divide");
+
+        int N  = src_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<0>{}];
+        int Hi = src_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}];
+        int Wi = src_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<2>{}];
+        int C  = src_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<3>{}];
+
+        int Ho = src_desc.GetTransforms()[Number<9>{}].low_lengths_[Number<1>{}];
+        int Wo = src_desc.GetTransforms()[Number<9>{}].low_lengths_[Number<2>{}];
+
+        int Fy = src_desc.GetTransforms()[Number<10>{}].low_lengths_[Number<0>{}];
+        int Fx = src_desc.GetTransforms()[Number<10>{}].low_lengths_[Number<1>{}];
+
+        int Dy = src_desc.GetTransforms()[Number<6>{}].coefficients_[Number<0>{}];
+        int Sy = src_desc.GetTransforms()[Number<6>{}].coefficients_[Number<1>{}];
+        int Dx = src_desc.GetTransforms()[Number<7>{}].coefficients_[Number<0>{}];
+        int Sx = src_desc.GetTransforms()[Number<7>{}].coefficients_[Number<1>{}];
+
+        int Py = src_desc.GetTransforms()[Number<2>{}].left_pad_length_;
+        int Px = src_desc.GetTransforms()[Number<3>{}].left_pad_length_;
+
+        printf("N:%d, Hi:%d, Wi:%d, C:%d, Ho:%d, Wo:%d, Fy:%d, Fx:%d, Dy:%d, Sy:%d, Dx:%d, Sx:%d, "
+               "Py:%d, Px:%d\n",
+               N,
+               Hi,
+               Wi,
+               C,
+               Ho,
+               Wo,
+               Fy,
+               Fx,
+               Dy,
+               Sy,
+               Dx,
+               Sx,
+               Py,
+               Px);
     }
 
     void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
@@ -87,6 +123,10 @@ struct ThreadwiseTensorSliceTransferAvx2
 
         // std::cout<<"num_access:"<<num_access<<std::endl;
 
+        std::cout << "src hidden:" << SrcDesc::GetNumOfHiddenDimension() << std::endl;
+        std::cout << "dst hidden:" << DstDesc::GetNumOfHiddenDimension() << std::endl;
+
+#if 0
         static_for<0, num_access, 1>{}([&](auto idx_1d) {
             using src_vector_type = ck::cpu::vector_type_maker_t<SrcData, ScalarPerVector>;
             using src_vector_t    = typename src_vector_type::type;
@@ -148,6 +188,75 @@ struct ThreadwiseTensorSliceTransferAvx2
                     dst_desc, dst_coord_, make_tensor_coordinate_step(dst_desc, forward_step));
             }
         });
+#endif
+        const auto src_slice_idx_zeros = typename uniform_sequence_gen<nDim, 0>::type{};
+        const auto src_slice_step      = make_tensor_coordinate_step(
+            src_desc, to_multi_index(src_slice_idx_zeros.Modify(Number<nDim - 1>{}, Number<1>{})));
+
+        const auto dst_slice_idx_zeros = typename uniform_sequence_gen<nDim, 0>::type{};
+        const auto dst_slice_step      = make_tensor_coordinate_step(
+            dst_desc, to_multi_index(dst_slice_idx_zeros.Modify(Number<nDim - 1>{}, Number<1>{})));
+
+        for(auto idx_id = 0; idx_id < num_access; idx_id++)
+        {
+            using src_vector_type = ck::cpu::vector_type_maker_t<SrcData, ScalarPerVector>;
+            using src_vector_t    = typename src_vector_type::type;
+
+            using dst_vector_type = ck::cpu::vector_type_maker_t<DstData, ScalarPerVector>;
+            using dst_vector_t    = typename dst_vector_type::type;
+
+            const bool is_src_valid =
+                coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
+
+            printf("[%s] ", is_src_valid ? "y" : "n");
+            print_multi_index(src_coord_.GetIndex());
+            printf("----");
+            // print_multi_index(src_coord_.GetHiddenIndex());
+
+            // printf(":%d", src_coord_.GetOffset());
+            // printf("\n");
+
+            // copy data from src_buf into src_vector_container
+            auto src_vector_container = src_vector_type{
+                src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), is_src_valid)};
+
+            auto dst_vector_container = dst_vector_type{};
+
+            // apply pointwise operation
+            // static_for<0, ScalarPerVector, 1>{}([&](auto i) {
+            //     element_op_(dst_vector_container.template AsType<DstData>()(i),
+            //                 src_vector_container.template AsType<SrcData>()[i]);
+            // });
+            element_op_(dst_vector_container.template AsType<dst_vector_t>(),
+                        src_vector_container.template AsType<src_vector_t>());
+
+            const bool is_dst_valid =
+                coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
+
+            printf(" -> ");
+            print_multi_index(dst_coord_.GetIndex());
+            // printf(":%d", dst_coord_.GetOffset());
+
+            // printf(", src:0x%x, dst:0x%x",
+            // *reinterpret_cast<uint32_t*>(&src_vector_container.template AsType<src_vector_t>()),
+            //                               *reinterpret_cast<uint32_t*>(&dst_vector_container.template
+            //                               AsType<dst_vector_t>()));
+            printf("\n");
+
+            // copy data from dst_vector into dst_buf
+            dst_buf.template Update<DstInMemOp, dst_vector_t>(
+                dst_coord_.GetOffset(),
+                is_dst_valid,
+                dst_vector_container.template AsType<dst_vector_t>());
+
+            // move coordinate
+            if(idx_id != num_access - 1)
+            {
+                // constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
+                move_tensor_coordinate(src_desc, src_coord_, src_slice_step);
+                move_tensor_coordinate(dst_desc, dst_coord_, dst_slice_step);
+            }
+        }
 
         // move coordinate back to slice origin (or not)
         if constexpr(SrcResetCoordinateAfterRun)

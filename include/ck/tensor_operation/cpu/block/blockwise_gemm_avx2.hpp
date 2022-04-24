@@ -13,21 +13,10 @@ namespace cpu {
 template <typename FloatA,
           typename FloatB,
           typename FloatC,
-          typename AccDataType,
+
           typename ABlockDesc,
           typename BBlockDesc,
-          typename CBlockDesc,
-
-          typename ABlockSliceLengths,
-          typename BBlockSliceLengths,
-          typename CBlockSliceLengths,
-
-          typename AThreadSliceLength,
-          typename BThreadSliceLength,
-
-          ck::index_t AThreadLoopOverDim, // thread slice loop over on block slice. 1d is enough for
-                                          // now
-          ck::index_t BThreadLoopOverDim,
+          typename CDesc,
 
           ck::index_t KPerBlock,
 
@@ -47,24 +36,14 @@ struct BlockwiseGemmAvx2_MxN
 
     static constexpr index_t nDimA = ABlockDesc::GetNumOfDimension();
     static constexpr index_t nDimB = BBlockDesc::GetNumOfDimension();
-    static constexpr index_t nDimC = CBlockDesc::GetNumOfDimension();
+    static constexpr index_t nDimC = CDesc::GetNumOfDimension();
     using IndexA                   = MultiIndex<nDimA>;
     using IndexB                   = MultiIndex<nDimB>;
     using IndexC                   = MultiIndex<nDimC>;
 
     using ACoord = decltype(make_tensor_coordinate(ABlockDesc{}, IndexA{}));
     using BCoord = decltype(make_tensor_coordinate(BBlockDesc{}, IndexB{}));
-    using CCoord = decltype(make_tensor_coordinate(CBlockDesc{}, IndexC{}));
-
-#if 0
-    constexpr BlockwiseGemmAvx2_MxN(const ABlockDesc & a_block_desc, const IndexA& a_thread_origin,
-                                    const BBlockDesc & b_block_desc, const IndexB& b_thread_origin)
-        : a_thread_coord_(make_tensor_coordinate(a_block_desc, a_thread_origin)),
-          b_thread_coord_(make_tensor_coordinate(b_block_desc, b_thread_origin)),
-    {
-
-    }
-#endif
+    using CCoord = decltype(make_tensor_coordinate(CDesc{}, IndexC{}));
 
     template <typename TensorDesc>
     constexpr auto GetLeadingElement(const TensorDesc& desc)
@@ -84,79 +63,175 @@ struct BlockwiseGemmAvx2_MxN
         }
     }
 
-    template <typename ABlockBuffer, typename BBlockBuffer, typename CBlockBuffer>
+    ck::index_t GetALeadingElement(const ABlockDesc& a_block_desc) const
+    {
+        return a_block_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}];
+    }
+
+    ck::index_t GetBLeadingElement(const BBlockDesc& b_block_desc) const
+    {
+        if constexpr(std::is_same<typename ThreadwiseGemm_Dispatch::MatrixBLayout,
+                                  ck::tensor_layout::gemm::RowMajor>::value)
+        {
+            // K * N
+            return b_block_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}];
+        }
+        else
+        {
+            // N/8 * K * 8
+            return b_block_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}] *
+                   b_block_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<2>{}];
+        }
+    }
+
+    ck::index_t GetCLeadingElement(const CDesc& c_desc) const
+    {
+        return c_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}];
+    }
+
+    ck::index_t GetMPerBlock(const ABlockDesc& a_block_desc) const
+    {
+        if constexpr(std::is_same<typename ThreadwiseGemm_Dispatch::MatrixALayout,
+                                  ck::tensor_layout::gemm::RowMajor>::value)
+        {
+            // M * K
+            return a_block_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<0>{}];
+        }
+        else
+        {
+            // K * M
+            return a_block_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}];
+        }
+    }
+
+    ck::index_t GetKPerBlock(const ABlockDesc& a_block_desc) const
+    {
+        if constexpr(std::is_same<typename ThreadwiseGemm_Dispatch::MatrixALayout,
+                                  ck::tensor_layout::gemm::RowMajor>::value)
+        {
+            // M * K
+            return a_block_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}];
+        }
+        else
+        {
+            // K * M
+            return a_block_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<0>{}];
+        }
+    }
+
+    ck::index_t GetNPerBlock(const BBlockDesc& b_block_desc) const
+    {
+        if constexpr(std::is_same<typename ThreadwiseGemm_Dispatch::MatrixBLayout,
+                                  ck::tensor_layout::gemm::RowMajor>::value)
+        {
+            // K * N
+            return b_block_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}];
+        }
+        else
+        {
+            // N/8 * K * 8
+            return b_block_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<0>{}] *
+                   b_block_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<2>{}];
+        }
+    }
+
+    ck::index_t
+    GetABlockStartOffset(const ABlockDesc& a_block_desc, const index_t i_m, const index_t) const
+    {
+        if constexpr(std::is_same<typename ThreadwiseGemm_Dispatch::MatrixALayout,
+                                  ck::tensor_layout::gemm::RowMajor>::value)
+        {
+            return i_m * a_block_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}];
+        }
+        else
+        {
+            return i_m;
+        }
+    }
+
+    ck::index_t
+    GetBBlockStartOffset(const BBlockDesc& b_block_desc, const index_t, const index_t i_n) const
+    {
+        if constexpr(std::is_same<typename ThreadwiseGemm_Dispatch::MatrixBLayout,
+                                  ck::tensor_layout::gemm::RowMajor>::value)
+        {
+            // K * N
+            return i_n;
+        }
+        else
+        {
+            // N/8 * K * 8
+            return i_n * b_block_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}];
+        }
+    }
+
+    ck::index_t
+    GetCBlockStartOffset(const CDesc& c_desc, const index_t i_m, const index_t i_n) const
+    {
+        return i_m * c_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}] + i_n;
+    }
+
+    template <typename ABlockBuffer, typename BBlockBuffer, typename CBuffer>
     void Run(const ABlockDesc& a_block_desc,
              const ABlockBuffer& a_block_buf,
-             const IndexA& a_origin,
+             const IndexA& /* a_origin */,
 
              const BBlockDesc& b_block_desc,
              const BBlockBuffer& b_block_buf,
-             const IndexB& b_origin,
+             const IndexB& /* b_origin */,
 
-             const CBlockDesc& c_block_desc,
-             CBlockBuffer& c_block_buf,
-             const IndexC& c_origin) const
+             const CDesc& c_desc,
+             CBuffer& c_buf,
+             const IndexC& /* c_origin */,
+
+             bool is_accumulate_c = true) const
     {
+        auto lda = GetALeadingElement(a_block_desc) * sizeof(FloatA);
+        auto ldb = GetBLeadingElement(b_block_desc) * sizeof(FloatB);
+        auto ldc = GetCLeadingElement(c_desc) * sizeof(FloatC);
 
-        constexpr auto m_n_block_length =
-            ck::Sequence<ABlockSliceLengths::At(AThreadLoopOverDim),
-                         BBlockSliceLengths::At(BThreadLoopOverDim)>{};
-        constexpr auto m_n_thread_length =
-            ck::Sequence<AThreadSliceLength::At(AThreadLoopOverDim),
-                         BThreadSliceLength::At(BThreadLoopOverDim)>{};
+        // printf("lda:%d, ldb:%d, ldc:%d\n", lda, ldb, ldc);
 
-        constexpr auto m_n_access_length = m_n_block_length / m_n_thread_length;
-
-        constexpr auto ordered_m_n_access_length =
-            container_reorder_given_new2old(m_n_access_length, ThreadMNAccessOrder{});
-
-        constexpr auto a_block_idx_zeros =
-            typename uniform_sequence_gen<nDimA, 0>::type{}; // starting point of the block
-        constexpr auto b_block_idx_zeros = typename uniform_sequence_gen<nDimB, 0>::type{};
-
-        constexpr auto lda = GetLeadingElement(a_block_desc) * sizeof(FloatA);
-        constexpr auto ldb = GetLeadingElement(b_block_desc) * sizeof(FloatB);
-        constexpr auto ldc = GetLeadingElement(c_block_desc) * sizeof(FloatC);
+        const auto k_per_block  = GetKPerBlock(a_block_desc);
+        const auto m_per_block  = GetMPerBlock(a_block_desc);
+        const auto n_per_block  = GetNPerBlock(b_block_desc);
+        const auto m_per_thread = ThreadwiseGemm_Dispatch::ThreadMaxMr;
+        const auto n_per_thread = ThreadwiseGemm_Dispatch::ThreadMaxNr;
 
         ck::cpu::ThreadwiseGemmParam param;
-        param.Kr    = KPerBlock;
-        param.lda   = lda;
-        param.ldb   = ldb;
-        param.ldc   = ldc;
-        param.alpha = 1.0f; // TODO
+        param.Kr          = k_per_block;
+        param.lda         = lda;
+        param.ldb         = ldb;
+        param.ldc         = ldc;
+        param.alpha       = 1.0f; // TODO
+        param.accmulate_c = is_accumulate_c ? 1 : 0;
 
-        static_ford<decltype(ordered_m_n_access_length)>{}([&](auto ordered_idx) {
-            constexpr auto origin_m_n_idx = ordered_idx.ReorderGivenOld2New(ThreadMNAccessOrder{});
+        if constexpr(std::is_same<ThreadMNAccessOrder, ck::Sequence<0, 1>>::value)
+        {
+            for(ck::index_t i_m = 0; i_m < m_per_block; i_m += m_per_thread)
+            {
+                auto current_mr = ck::math::min(m_per_block - i_m, m_per_thread);
+                param.p_a       = &a_block_buf.p_data_[GetABlockStartOffset(a_block_desc, i_m, 0)];
 
-            constexpr auto current_m_idx =
-                origin_m_n_idx.At(0) * AThreadSliceLength::At(AThreadLoopOverDim);
-            constexpr auto current_n_idx =
-                origin_m_n_idx.At(1) * BThreadSliceLength::At(BThreadLoopOverDim);
+                // printf("YYYY: %d, i_m:%d, current_mr:%d, %d, %p\n",__LINE__, i_m, current_mr,
+                // GetABlockStartOffset(a_block_desc, i_m, 0), param.p_a);fflush(stdout);
 
-            constexpr auto current_mr =
-                ck::math::min(m_n_block_length.At(0) - current_m_idx, m_n_thread_length.At(0));
-            constexpr auto current_nr =
-                ck::math::min(m_n_block_length.At(1) - current_n_idx, m_n_thread_length.At(1));
+                for(ck::index_t i_n = 0; i_n < n_per_block; i_n += n_per_thread)
+                {
+                    auto current_nr = ck::math::min(n_per_block - i_n, n_per_thread);
 
-            constexpr auto a_block_idx =
-                a_block_idx_zeros.Modify(AThreadLoopOverDim, current_m_idx);
-            constexpr auto a_block_coord =
-                make_tensor_coordinate(a_block_desc, to_multi_index(a_origin + a_block_idx));
+                    param.p_b = &b_block_buf.p_data_[GetBBlockStartOffset(b_block_desc, 0, i_n)];
+                    param.p_c = &c_buf.p_data_[GetCBlockStartOffset(c_desc, i_m, i_n)];
 
-            constexpr auto b_block_idx =
-                b_block_idx_zeros.Modify(BThreadLoopOverDim, current_n_idx);
-            constexpr auto b_block_coord =
-                make_tensor_coordinate(b_block_desc, to_multi_index(b_origin + b_block_idx));
+                    // printf("YYYY: %d, i_n:%d, current_nr:%d, %d, %p, C:%d, %p\n",__LINE__, i_n,
+                    // current_nr, GetBBlockStartOffset(b_block_desc, 0, i_n), param.p_b,
+                    //        GetCBlockStartOffset(c_desc, i_m, i_n),
+                    //        param.p_c);fflush(stdout);
 
-            constexpr auto c_block_coord =
-                make_tensor_coordinate(c_block_desc, to_multi_index(c_origin + origin_m_n_idx));
-
-            param.p_a = &a_block_buf.p_data_[a_block_coord.GetOffset()];
-            param.p_b = &b_block_buf.p_data_[b_block_coord.GetOffset()];
-            param.p_c = &c_block_buf.p_data_[c_block_coord.GetOffset()];
-
-            ThreadwiseGemm_Dispatch::Run(&param, current_mr, current_nr);
-        });
+                    ThreadwiseGemm_Dispatch::Run(&param, current_mr, current_nr);
+                }
+            }
+        }
     }
 };
 

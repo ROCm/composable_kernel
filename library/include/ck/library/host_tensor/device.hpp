@@ -121,7 +121,11 @@ template <typename... Args, typename F>
 float launch_and_time_cpu_kernel(F kernel, int nrepeat, Args... args)
 {
     WallTimer timer;
-    kernel(args...);
+
+    int nwarmup = 3;
+
+    for(int i = 0; i < nwarmup; i++)
+        kernel(args...);
 
     timer.Start();
     for(int i = 0; i < nrepeat; i++)

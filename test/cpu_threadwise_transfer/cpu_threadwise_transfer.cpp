@@ -226,6 +226,8 @@ int main(int argc, char** argv)
     static constexpr ck::index_t nDim =
         ck::remove_reference_t<decltype(input_desc)>::GetNumOfDimension();
 
+    input_desc.Print();
+
     auto threadwise_transfer = threadwise_transfer_t{input_desc,
                                                      ck::make_zero_multi_index<nDim>(),
                                                      input_cblock_desc,

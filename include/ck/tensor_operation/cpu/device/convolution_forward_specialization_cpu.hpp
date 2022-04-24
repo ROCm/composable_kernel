@@ -14,6 +14,19 @@ enum ConvolutionForwardSpecialization_t
     OddC,
 };
 
+enum ConvolutionForwardGemmKSpecialization_t
+{
+    DefaultGemmKLoop,
+    NHWC_GemmKLoopOverC, // not merge c*y*x, and c % k_per_block == 0
+};
+
+enum ConvolutionForwardBlockLoopOverSpecialization_t
+{
+    DefaultBlockLoopOver,
+    LoopOver_MNK,
+    LoopOver_MKN,
+};
+
 } // namespace device
 } // namespace cpu
 } // namespace tensor_operation

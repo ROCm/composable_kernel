@@ -313,14 +313,15 @@ void test_ukernel(ukenrel_t uk,
         float* private_c = mat_c + tid * m * n;
 
         ck::cpu::ThreadwiseGemmParam param;
-        param.p_a   = mat_a;
-        param.p_b   = mat_b;
-        param.p_c   = private_c;
-        param.Kr    = k;
-        param.lda   = (std::is_same<Row, ALayout>::value ? k : m) * sizeof(FloatA);
-        param.ldb   = (std::is_same<Row, BLayout>::value ? n : k * 8) * sizeof(FloatB);
-        param.ldc   = n * sizeof(float);
-        param.alpha = alpha;
+        param.p_a         = mat_a;
+        param.p_b         = mat_b;
+        param.p_c         = private_c;
+        param.Kr          = k;
+        param.lda         = (std::is_same<Row, ALayout>::value ? k : m) * sizeof(FloatA);
+        param.ldb         = (std::is_same<Row, BLayout>::value ? n : k * 8) * sizeof(FloatB);
+        param.ldc         = n * sizeof(float);
+        param.alpha       = alpha;
+        param.accmulate_c = 0;
 
         memset(private_c, 0, m * n * sizeof(float));
 

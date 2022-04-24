@@ -13,6 +13,8 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_avx2.hpp"
+#include "threadwise_gemm_avx2.hpp"
+#include "threadwise_tensor_slice_transfer_avx2_specialization.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -23,20 +25,21 @@ namespace device {
 template <typename InDataType,
           typename WeiDataType,
           typename OutDataType,
-          typename AccDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
           ConvolutionForwardSpecialization_t ConvForwardSpecialization,
+          ConvolutionForwardGemmKSpecialization_t GemmKSpecialization,
+          ConvolutionForwardBlockLoopOverSpecialization_t BlockLoopOverSpecialization,
           ck::index_t NumDimSpatial,
           ck::index_t MPerBlock, // block means data are designed to fit in cache (L1/L2/L3)
           ck::index_t NPerBlock,
           ck::index_t KPerBlock,
-          typename ThreadwiseGemm_Dispatch>
-
-//  bool IsGemmMPadded,
-//  bool IsGemmNPadded,
-//  bool IsGemmKPadded>
+          ck::index_t MPerThread,
+          ck::index_t NPerThread,
+          bool UseALocalBuffer,
+          bool UseBLocalBuffer,
+          bool UseCLocalBuffer>
 struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
     : public DeviceConvFwd<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>
 {
@@ -60,18 +63,89 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
 
+    static constexpr bool NonTemporalStore = false;
+
+    static constexpr auto GetBlockMNKAccessOrder()
+    {
+        if constexpr(BlockLoopOverSpecialization == DefaultBlockLoopOver ||
+                     BlockLoopOverSpecialization == LoopOver_MNK)
+            return ck::Sequence<0, 1, 2>{};
+        else if constexpr(BlockLoopOverSpecialization == LoopOver_MKN)
+            return ck::Sequence<0, 2, 1>{};
+    }
+
+    using BlockMNKAccessOrder = decltype(GetBlockMNKAccessOrder());
+
+    static constexpr auto GetThreadwiseGemm_Dispatch()
+    {
+        if constexpr(MPerThread == 4 && NPerThread == 24)
+        {
+            return ck::cpu::ThreadwiseGemmAvx2_MxN_4x24_Dispatch<
+                InDataType,
+                WeiDataType,
+                OutDataType,
+                ck::tensor_layout::gemm::RowMajor,
+                ck::tensor_layout::gemm::ColumnMajor,
+                NonTemporalStore>{};
+        }
+        else if constexpr(MPerThread == 6 && NPerThread == 16)
+        {
+            return ck::cpu::ThreadwiseGemmAvx2_MxN_6x16_Dispatch<
+                InDataType,
+                WeiDataType,
+                OutDataType,
+                ck::tensor_layout::gemm::RowMajor,
+                ck::tensor_layout::gemm::ColumnMajor,
+                NonTemporalStore>{};
+        }
+        else
+        {
+            // static_assert(false, "invalid Mr/Nr");
+        }
+    }
+
+    using ThreadwiseGemm_Dispatch = decltype(GetThreadwiseGemm_Dispatch());
+
+    static constexpr auto GetInputBlockDescriptor()
+    {
+        return make_naive_tensor_descriptor_packed(make_tuple(MPerBlock, KPerBlock));
+    }
+
+    static constexpr auto GetWeightBlockDescriptor()
+    {
+        return make_naive_tensor_descriptor_packed(make_tuple(
+            math::integer_divide_ceil(NPerBlock, ThreadwiseGemm_Dispatch::MatrixBMinVectorSize),
+            KPerBlock,
+            ThreadwiseGemm_Dispatch::MatrixBMinVectorSize));
+    }
+
+    static constexpr auto GetOutputBlockDescriptor()
+    {
+        return make_naive_tensor_descriptor_packed(make_tuple(MPerBlock, NPerBlock));
+    }
+
     static auto GetWeightTensorDescriptor(ck::index_t gemm_k, ck::index_t gemm_n)
     {
+        ck::index_t gemm_n_padded =
+            math::integer_least_multiple(gemm_n, ThreadwiseGemm_Dispatch::MatrixBMinVectorSize);
         const auto wei_gemm_n_k_grid_desc =
             make_naive_tensor_descriptor_packed(make_tuple(gemm_n, gemm_k));
 
-        const auto wei_gemm_n0_k_n1_grid_desc = transform_tensor_descriptor(
+        const auto wei_gemm_padn_k_grid_desc = transform_tensor_descriptor(
             wei_gemm_n_k_grid_desc,
-            ck::make_tuple(ck::make_unmerge_transform(
-                               ck::make_tuple(wei_gemm_n_k_grid_desc.GetLength(I0) /
-                                                  ThreadwiseGemm_Dispatch::MatrixBMinVectorSize,
-                                              ThreadwiseGemm_Dispatch::MatrixBMinVectorSize)),
-                           ck::make_pass_through_transform(wei_gemm_n_k_grid_desc.GetLength(I1))),
+            make_tuple(make_right_pad_transform(gemm_n, gemm_n_padded - gemm_n),
+                       make_pass_through_transform(gemm_k)),
+            ck::make_tuple(ck::Sequence<0>{}, ck::Sequence<1>{}),
+            ck::make_tuple(ck::Sequence<0>{}, ck::Sequence<1>{}));
+
+        const auto wei_gemm_n0_k_n1_grid_desc = transform_tensor_descriptor(
+            wei_gemm_padn_k_grid_desc,
+            ck::make_tuple(
+                ck::make_unmerge_transform(
+                    ck::make_tuple(wei_gemm_padn_k_grid_desc.GetLength(I0) /
+                                       ThreadwiseGemm_Dispatch::MatrixBMinVectorSize,
+                                   ThreadwiseGemm_Dispatch::MatrixBMinVectorSize)),
+                ck::make_pass_through_transform(wei_gemm_padn_k_grid_desc.GetLength(I1))),
             ck::make_tuple(ck::Sequence<0>{}, ck::Sequence<1>{}),
             ck::make_tuple(ck::Sequence<0, 2>{}, ck::Sequence<1>{}));
 
@@ -409,6 +483,13 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                                    std::multiplies<ck::index_t>());
     }
 
+    static index_t GetGemmN(ck::index_t K)
+    {
+        // return ck::math::integer_least_multiple(K,
+        // ThreadwiseGemm_Dispatch::MatrixBMinVectorSize);
+        return K;
+    }
+
     static auto MakeABCGridDescriptor(ck::index_t N,
                                       ck::index_t K,
                                       ck::index_t C,
@@ -423,7 +504,7 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         using namespace ck;
 
         const index_t GemmM = GetGemmM(N, output_spatial_lengths);
-        const index_t GemmN = K;
+        const index_t GemmN = GetGemmN(K);
         const index_t GemmK = GetGemmK(C, filter_spatial_lengths);
 
         // A:
@@ -474,13 +555,44 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
     using BGridDesc = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
     using CGridDesc = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
-    static constexpr bool UseCLocalBuffer = true;
+    // static constexpr bool UseCLocalBuffer = false;
+
+    using AThreadwiseCopy =
+        ck::cpu::ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC<
+            InDataType,
+            InDataType,
+            AGridDesc,
+            decltype(GetInputBlockDescriptor()),
+            InElementwiseOperation,
+            false,
+            ConvForwardSpecialization,
+            GemmKSpecialization>;
+
+    using BThreadwiseCopy =
+        ck::cpu::ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_NHWC<
+            WeiDataType,
+            WeiDataType,
+            BGridDesc,
+            decltype(GetWeightBlockDescriptor()),
+            WeiElementwiseOperation,
+            false,
+            ConvForwardSpecialization,
+            GemmKSpecialization>;
+
+    using CThreadwiseCopy = ck::cpu::ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_MxN<
+        OutDataType,
+        OutDataType,
+        CGridDesc,
+        decltype(GetOutputBlockDescriptor()),
+        OutElementwiseOperation,
+        !UseCLocalBuffer,
+        ConvForwardSpecialization,
+        GemmKSpecialization>;
 
     using GridwiseGemm =
         ck::cpu::GridwiseGemmAvx2_MxN<InDataType,              // InDataType,
                                       WeiDataType,             // WeiDataType,
                                       OutDataType,             // OutDataType,
-                                      AccDataType,             // AccDataType,
                                       AGridDesc,               // AGridDesc,
                                       BGridDesc,               // BGridDesc,
                                       CGridDesc,               // CGridDesc,
@@ -491,8 +603,13 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                                       NPerBlock,               // NPerBlock,
                                       KPerBlock,               // KPerBlock,
                                       ThreadwiseGemm_Dispatch, // ThreadwiseGemm_Dispatch,
-                                      ck::Sequence<0, 1, 2>,   // BlockMNKAccessOrder,
+                                      AThreadwiseCopy,         // AThreadwiseCopy
+                                      BThreadwiseCopy,         // BThreadwiseCopy
+                                      CThreadwiseCopy,         // CThreadwiseCopy
+                                      BlockMNKAccessOrder,     // BlockMNKAccessOrder,
                                       ck::Sequence<0, 1>,      // ThreadMNAccessOrder
+                                      UseALocalBuffer,         // UseALocalBuffer
+                                      UseBLocalBuffer,         // UseBLocalBuffer
                                       UseCLocalBuffer          // UseCLocalBuffer
                                       >;
 
@@ -580,6 +697,8 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                 throw std::runtime_error("wrong! GridwiseGemmAvx2_MxN has invalid setting");
             }
 
+            memset(arg.p_c_grid_, 0, arg.c_grid_desc_.GetElementSpaceSize());
+
             const auto kernel = ck::cpu::kernel_gemm_avx_mxn<GridwiseGemm,
                                                              InDataType,
                                                              WeiDataType,
@@ -591,21 +710,24 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                                                              BElementwiseOperation,
                                                              CElementwiseOperation>;
 
-            float ave_time = launch_and_time_cpu_kernel(kernel,
-                                                        nrepeat,
-                                                        arg.p_a_grid_,
-                                                        arg.p_b_grid_,
-                                                        arg.p_c_grid_,
-                                                        arg.a_grid_desc_,
-                                                        arg.b_grid_desc_,
-                                                        arg.c_grid_desc_,
-                                                        arg.a_element_op_,
-                                                        arg.b_element_op_,
-                                                        arg.c_element_op_);
+            float ave_time = 0;
+
+            if(nrepeat != 1)
+                ave_time = launch_and_time_cpu_kernel(kernel,
+                                                      nrepeat,
+                                                      arg.p_a_grid_,
+                                                      arg.p_b_grid_,
+                                                      arg.p_c_grid_,
+                                                      arg.a_grid_desc_,
+                                                      arg.b_grid_desc_,
+                                                      arg.c_grid_desc_,
+                                                      arg.a_element_op_,
+                                                      arg.b_element_op_,
+                                                      arg.c_element_op_);
 
             // TODO: this is for benchmark purpose, so last time we clear c buffer and calculate the
             // result
-            memset(arg.p_c_grid_, 0, arg.a_grid_desc_.GetElementSpaceSize());
+            memset(arg.p_c_grid_, 0, arg.c_grid_desc_.GetElementSpaceSize());
 
             launch_cpu_kernel(kernel,
                               arg.p_a_grid_,
@@ -657,6 +779,13 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             {
                 return false;
             }
+        }
+
+        if constexpr(GemmKSpecialization ==
+                     ConvolutionForwardGemmKSpecialization_t::NHWC_GemmKLoopOverC)
+        {
+            if(!(arg.Conv_C_ % KPerBlock == 0))
+                return false;
         }
 
         // Gridwise GEMM size
@@ -748,16 +877,25 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
 
     std::string GetTypeString() const override
     {
-        auto str = std::stringstream();
-
+        auto str                 = std::stringstream();
+        auto string_local_buffer = [](bool is_local_buffer) {
+            if(is_local_buffer)
+                return "L";
+            else
+                return "G";
+        };
         // clang-format off
         str << "DeviceConv" << std::to_string(NumDimSpatial) 
-            << "DFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K"
-            << "<"
-            << MPerBlock << ", "
-            << NPerBlock << ", "
-            << KPerBlock
-            << ">";
+            << "DFwdAvx2_NHWC_KYXC"
+            <<"_FS"<< static_cast<int>(ConvForwardSpecialization)
+            <<"_KS"<< static_cast<int>(GemmKSpecialization)
+            <<"_BS"<< static_cast<int>(BlockLoopOverSpecialization)
+            << "_BT" << MPerBlock << "x" << NPerBlock << "x" << KPerBlock
+            << "_TT" << MPerThread << "x" << NPerThread 
+            << "_A" << string_local_buffer(UseALocalBuffer)
+            << "_B" << string_local_buffer(UseBLocalBuffer)
+            << "_C" << string_local_buffer(UseCLocalBuffer)
+            ;
         // clang-format on
 
         return str.str();

@@ -9,14 +9,19 @@
 #include "reference_conv_fwd.hpp"
 #include "element_wise_operation_cpu.hpp"
 #include "dynamic_buffer_cpu.hpp"
+#include <omp.h>
 
 #define AVX2_DATA_ALIGNMENT 32
+using F32 = float;
+using F16 = ck::half_t;
 
 namespace ck {
 namespace tensor_operation {
 namespace cpu {
 namespace device {
 namespace device_conv2d_fwd_avx2_instance {
+
+using PassThrough = ck::tensor_operation::cpu::element_wise::PassThrough;
 
 void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk(
     std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>>& instances);
@@ -34,19 +39,27 @@ using OutElementOp = ck::tensor_operation::cpu::element_wise::PassThrough;
 template <typename T>
 static bool check_out(const Tensor<T>& ref, const Tensor<T>& result)
 {
-    float max_diff = 1e-6;
+    int error_count = 0;
+    float max_diff  = 1e-6;
 
     for(int i = 0; i < ref.mData.size(); ++i)
     {
         float diff = std::abs(double(ref.mData[i]) - double(result.mData[i]));
         if(max_diff < diff)
         {
-            return false;
+            error_count++;
+            printf("idx:%3d, ref:%f, res:%f (diff:%f)\n",
+                   i,
+                   double(ref.mData[i]),
+                   double(result.mData[i]),
+                   diff);
         }
     }
 
-    return true;
+    return error_count == 0;
 }
+
+float calculate_gflops() {}
 
 int main(int argc, char* argv[])
 {
@@ -54,15 +67,15 @@ int main(int argc, char* argv[])
     int init_method = 0;
 
     // Conv shape
-    ck::index_t N               = 128;
+    ck::index_t N               = 2;
     ck::index_t K               = 256;
     ck::index_t C               = 192;
     ck::index_t Y               = 3;
     ck::index_t X               = 3;
     ck::index_t Hi              = 71;
     ck::index_t Wi              = 71;
-    ck::index_t conv_stride_h   = 2;
-    ck::index_t conv_stride_w   = 2;
+    ck::index_t conv_stride_h   = 1;
+    ck::index_t conv_stride_w   = 1;
     ck::index_t conv_dilation_h = 1;
     ck::index_t conv_dilation_w = 1;
     ck::index_t in_left_pad_h   = 1;
@@ -72,7 +85,7 @@ int main(int argc, char* argv[])
 
     if(argc == 1)
     {
-        data_type   = 1;
+        data_type   = 0;
         init_method = 1;
     }
     else if(argc == 3)
@@ -110,20 +123,17 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
-    auto Run = [&](auto input_type, auto wei_type, auto out_type, auto acc_type) {
+    auto Run = [&](auto input_type, auto wei_type, auto out_type) {
         using InDataType  = decltype(input_type);
         using WeiDataType = decltype(wei_type);
         using OutDataType = decltype(out_type);
-        using AccDataType = decltype(acc_type);
 
-        using ReferenceConvBwdInstance =
-            ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
-                                                             WeiDataType,
-                                                             OutDataType,
-                                                             AccDataType,
-                                                             InElementOp,
-                                                             WeiElementOp,
-                                                             OutElementOp>;
+        using ReferenceConvFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<InDataType,
+                                                                                      WeiDataType,
+                                                                                      OutDataType,
+                                                                                      InElementOp,
+                                                                                      WeiElementOp,
+                                                                                      OutElementOp>;
 
         const ck::index_t YEff = (Y - 1) * conv_dilation_h + 1;
         const ck::index_t XEff = (X - 1) * conv_dilation_w + 1;
@@ -147,53 +157,93 @@ int main(int argc, char* argv[])
                                         std::vector<std::size_t>({C_ * H_ * W_, 1, W_ * C_, C_}));
         };
 
-        Tensor<OutDataType> out_n_ho_wo_k(f_host_tensor_descriptor(N, K, Ho, Wo));
-        Tensor<WeiDataType> wei_k_y_x_c(f_host_tensor_descriptor(K, C, Y, X));
-        Tensor<InDataType> in_n_hi_wi_c_host_result(f_host_tensor_descriptor(N, C, Hi, Wi));
-        Tensor<InDataType> in_n_hi_wi_c_device_result(f_host_tensor_descriptor(N, C, Hi, Wi));
+        Tensor<InDataType> in_n_c_hi_wi(f_host_tensor_descriptor(N, C, Hi, Wi));
+        Tensor<WeiDataType> wei_k_c_y_x(f_host_tensor_descriptor(K, C, Y, X));
+        Tensor<OutDataType> out_n_k_ho_wo_host_result(f_host_tensor_descriptor(N, K, Ho, Wo));
+        Tensor<OutDataType> out_n_k_ho_wo_device_result(f_host_tensor_descriptor(N, K, Ho, Wo));
 
-        std::cout << "in (N, C, Hi, Wi): " << in_n_hi_wi_c_host_result.mDesc << std::endl;
-        std::cout << "wei(K, C,  Y,  X): " << wei_k_y_x_c.mDesc << std::endl;
-        std::cout << "out(N, K, Ho, Wo): " << out_n_ho_wo_k.mDesc << std::endl;
+        std::cout << "in (N, C, Hi, Wi): " << in_n_c_hi_wi.mDesc << std::endl;
+        std::cout << "wei(K, C,  Y,  X): " << wei_k_c_y_x.mDesc << std::endl;
+        std::cout << "out(N, K, Ho, Wo): " << out_n_k_ho_wo_host_result.mDesc << std::endl;
+        std::cout << "LPad(H, W):" << in_left_pad_h << "," << in_left_pad_w
+                  << ", RPad(H, W):" << in_right_pad_h << "," << in_right_pad_w
+                  << ", Stride(H, W):" << conv_stride_h << ", " << conv_stride_w
+                  << ", Dilation(H, W):" << conv_dilation_h << ", " << conv_dilation_w
+                  << ", Threads:" << omp_get_max_threads() << std::endl;
 
         switch(init_method)
         {
         case 0: break;
         case 1:
-            out_n_ho_wo_k.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
-            wei_k_y_x_c.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
+
+            in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
+            // in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_1<InDataType>{});
+            wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
+            // wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{});
             break;
         case 2:
-            out_n_ho_wo_k.GenerateTensorValue(GeneratorTensor_3<OutDataType>{0.0, 1.0});
-            wei_k_y_x_c.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
+            in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_1<InDataType>{});
+            wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{});
+            break;
+        case 3:
+
+#define PACK_32(v24, v16, v8, v0) \
+    (((v24 & 0xff) << 24) | ((v16 & 0xff) << 16) | ((v8 & 0xff) << 8) | ((v0 & 0xff) << 0))
+
+            for(auto i_n = 0; i_n < N; i_n++)
+            {
+                for(auto i_c = 0; i_c < C; i_c++)
+                {
+                    for(auto i_hi = 0; i_hi < Hi; i_hi++)
+                    {
+                        for(auto i_wi = 0; i_wi < Wi; i_wi++)
+                        {
+                            uint32_t v                         = PACK_32(i_n, i_c, i_hi, i_wi);
+                            in_n_c_hi_wi(i_n, i_c, i_hi, i_wi) = *reinterpret_cast<float*>(&v);
+                        }
+                    }
+                }
+            }
+
+            for(auto i_k = 0; i_k < K; i_k++)
+            {
+                for(auto i_c = 0; i_c < C; i_c++)
+                {
+                    for(auto i_y = 0; i_y < Y; i_y++)
+                    {
+                        for(auto i_x = 0; i_x < X; i_x++)
+                        {
+                            uint32_t v                      = PACK_32(i_k, i_c, i_y, i_x);
+                            wei_k_c_y_x(i_k, i_c, i_y, i_x) = *reinterpret_cast<float*>(&v);
+                        }
+                    }
+                }
+            }
             break;
         default:
-            out_n_ho_wo_k.GenerateTensorValue(GeneratorTensor_1<OutDataType>{1});
-            wei_k_y_x_c.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
+            in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_3<InDataType>{0, 1});
+            wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-1, 1});
         }
 
-        DeviceAlignedMemCPU in_device_buf(sizeof(InDataType) *
-                                              in_n_hi_wi_c_device_result.mDesc.GetElementSpace(),
+        DeviceAlignedMemCPU in_device_buf(sizeof(InDataType) * in_n_c_hi_wi.mDesc.GetElementSpace(),
                                           AVX2_DATA_ALIGNMENT);
         DeviceAlignedMemCPU wei_device_buf(
-            sizeof(WeiDataType) * wei_k_y_x_c.mDesc.GetElementSpace(), AVX2_DATA_ALIGNMENT);
-        DeviceAlignedMemCPU out_device_buf(
-            sizeof(OutDataType) * out_n_ho_wo_k.mDesc.GetElementSpace(), AVX2_DATA_ALIGNMENT);
+            sizeof(WeiDataType) * wei_k_c_y_x.mDesc.GetElementSpace(), AVX2_DATA_ALIGNMENT);
+        DeviceAlignedMemCPU out_device_buf(sizeof(OutDataType) *
+                                               out_n_k_ho_wo_host_result.mDesc.GetElementSpace(),
+                                           AVX2_DATA_ALIGNMENT);
 
-        out_device_buf.ToDevice(out_n_ho_wo_k.mData.data());
-        wei_device_buf.ToDevice(wei_k_y_x_c.mData.data());
-        // reset input to zero
-        in_n_hi_wi_c_device_result.GenerateTensorValue(GeneratorTensor_1<InDataType>{0});
-        in_device_buf.ToDevice(in_n_hi_wi_c_device_result.mData.data());
+        in_device_buf.ToDevice(in_n_c_hi_wi.mData.data());
+        wei_device_buf.ToDevice(wei_k_c_y_x.mData.data());
 
         // get host result
         {
             auto ref_conv    = ReferenceConvFwdInstance{};
             auto ref_invoker = ref_conv.MakeInvoker();
 
-            auto ref_argument = ref_conv.MakeArgument(in_n_hi_wi_c_host_result,
-                                                      wei_k_y_x_c,
-                                                      out_n_ho_wo_k,
+            auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi,
+                                                      wei_k_c_y_x,
+                                                      out_n_k_ho_wo_host_result,
                                                       conv_filter_strides,
                                                       conv_filter_dilations,
                                                       input_left_pads,
@@ -204,9 +254,9 @@ int main(int argc, char* argv[])
             ref_invoker.Run(ref_argument);
         }
 
-        using PassThrough = ck::tensor_operation::cpu::element_wise::PassThrough;
-        using DeviceConvFwdNoOpPtr =
-            ck::tensor_operation::device::DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>;
+        using PassThrough          = ck::tensor_operation::cpu::element_wise::PassThrough;
+        using DeviceConvFwdNoOpPtr = ck::tensor_operation::cpu::device::
+            DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>;
 
         // add device Conv instances
         std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
@@ -225,7 +275,10 @@ int main(int argc, char* argv[])
         }
 
         // profile device Conv instances
-        bool success = true;
+        bool success                    = true;
+        double fastest_kernel_time      = std::numeric_limits<double>::max();
+        std::string fastest_kernel_name = "";
+        double fastest_kernel_gflops    = 0;
         for(auto& conv_ptr : conv_ptrs)
         {
             auto argument_ptr = conv_ptr->MakeArgumentPointer(
@@ -249,18 +302,30 @@ int main(int argc, char* argv[])
             if(conv_ptr->IsSupportedArgument(argument_ptr.get()))
             {
                 auto invoker_ptr = conv_ptr->MakeInvokerPointer();
-                invoker_ptr->Run(argument_ptr.get(), 1);
+                double time      = invoker_ptr->Run(argument_ptr.get(), 10);
 
-                in_device_buf.FromDevice(in_n_hi_wi_c_device_result.mData.data());
+                double total_flop = static_cast<double>(2) * N * C * Ho * Wo * K * Y * X;
 
-                if(!check_out(in_n_hi_wi_c_host_result, in_n_hi_wi_c_device_result))
+                double gflops = (total_flop * 1e-6) / time;
+
+                out_device_buf.FromDevice(out_n_k_ho_wo_device_result.mData.data());
+
+                if(!check_out(out_n_k_ho_wo_host_result, out_n_k_ho_wo_device_result))
                 {
                     std::cout << "Fail Info: " << conv_ptr->GetTypeString() << std::endl;
                     success = false;
                 }
                 else
                 {
-                    std::cout << "Pass Info: " << conv_ptr->GetTypeString() << std::endl;
+                    std::cout << "Pass Info: " << conv_ptr->GetTypeString() << ", Time:" << time
+                              << "ms, Gflops:" << gflops << std::endl;
+
+                    if(time < fastest_kernel_time)
+                    {
+                        fastest_kernel_time   = time;
+                        fastest_kernel_name   = conv_ptr->GetTypeString();
+                        fastest_kernel_gflops = gflops;
+                    }
                 }
             }
             else
@@ -269,25 +334,27 @@ int main(int argc, char* argv[])
             }
         }
 
-        if(success)
+        if(fastest_kernel_time != std::numeric_limits<double>::max())
         {
-            std::cout << "test conv2d fwd cpu : Pass" << std::endl;
-            return 0;
+            std::cout << "  fastest:" << fastest_kernel_name << ", time:" << fastest_kernel_time
+                      << "ms, Gflops:" << fastest_kernel_gflops << std::endl;
         }
-        else
-        {
-            std::cout << "test conv2d fwd cpu: Fail " << std::endl;
-            return -1;
-        }
+        return 0;
+        // if(success)
+        // {
+        //     std::cout << "test conv2d fwd cpu : Pass" << std::endl;
+        //     return 0;
+        // }
+        // else
+        // {
+        //     std::cout << "test conv2d fwd cpu: Fail " << std::endl;
+        //     return -1;
+        // }
     };
 
     if(data_type == 0)
     {
-        return Run(F32(), F32(), F32(), F32());
-    }
-    else if(data_type == 1)
-    {
-        return Run(F16(), F16(), F16(), F32());
+        return Run(F32(), F32(), F32());
     }
     else
     {

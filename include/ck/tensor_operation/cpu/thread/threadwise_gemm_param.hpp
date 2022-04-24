@@ -1,5 +1,5 @@
-#ifndef CK_THREADWISE_PARAM_HPP
-#define CK_THREADWISE_PARAM_HPP
+#ifndef CK_THREADWISE_GEMM_PARAM_HPP
+#define CK_THREADWISE_GEMM_PARAM_HPP
 
 #include "common_header.hpp"
 #include "math.hpp"
@@ -17,7 +17,7 @@ struct ThreadwiseGemmParam
     uint64_t ldb; // in unit of byte
     uint64_t ldc; // in unit of byte
     float alpha;
-    uint32_t _pack0;
+    int accmulate_c; // if 1, need load C and add into current fma. if 0, direct store out c result
 } __attribute__((packed));
 
 } // namespace cpu

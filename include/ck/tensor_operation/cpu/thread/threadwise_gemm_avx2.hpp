@@ -7,7 +7,7 @@
 #include "common_header.hpp"
 #include "../../gpu/device/tensor_layout.hpp"
 #include "math.hpp"
-#include "threadwise_param.hpp"
+#include "threadwise_gemm_param.hpp"
 
 namespace ck {
 namespace cpu {
@@ -294,6 +294,9 @@ struct ThreadwiseGemmAvx2_MxN_6x16
             ".if (m_Mr > 4)\n lea  (%%rdx, %%rdi, 1), %%r8 \n .endif\n"
             ".if (m_Mr > 5)\n lea  (%%r8,  %%rdi, 1), %%r9 \n .endif\n"
 
+            "mov    60(%[m_param]),  %%edi\n"    // accmulate_c
+            "test   %%edi,    %%edi\n"
+            "je     L_GemmAvx2_MxN_6x16_Store_C%=\n"
             "                               vaddps  (%%rax),    %%ymm0,  %%ymm0 \n"
             ".if               (m_Nr > 8)\n vaddps  32(%%rax),  %%ymm1,  %%ymm1 \n .endif\n"
             ".if (m_Mr > 1)              \n vaddps  (%%rbx),    %%ymm2,  %%ymm2 \n .endif\n"
@@ -307,6 +310,7 @@ struct ThreadwiseGemmAvx2_MxN_6x16
             ".if (m_Mr > 5)              \n vaddps  (%%r9),     %%ymm10, %%ymm10\n .endif\n"
             ".if (m_Mr > 5) && (m_Nr > 8)\n vaddps  32(%%r9),   %%ymm11, %%ymm11\n .endif\n"
 
+        "L_GemmAvx2_MxN_6x16_Store_C%=:\n"
             ".if m_NTStore == 0\n"
             "                               vmovups %%ymm0,     (%%rax)  \n"
             ".if               (m_Nr > 8)\n vmovups %%ymm1,     32(%%rax)\n .endif\n"
@@ -424,18 +428,33 @@ struct ThreadwiseGemmAvx2_MxN_6x16
         };
 
         // clang-format off
-                                        ymm0  = _mm256_loadu_ps(p_c + 0 * ldc + 0 * 8);
-        if constexpr (          Nr > 8) ymm1  = _mm256_loadu_ps(p_c + 0 * ldc + 1 * 8);
-        if constexpr (Mr > 1          ) ymm2  = _mm256_loadu_ps(p_c + 1 * ldc + 0 * 8);
-        if constexpr (Mr > 1 && Nr > 8) ymm3  = _mm256_loadu_ps(p_c + 1 * ldc + 1 * 8);
-        if constexpr (Mr > 2          ) ymm4  = _mm256_loadu_ps(p_c + 2 * ldc + 0 * 8);
-        if constexpr (Mr > 2 && Nr > 8) ymm5  = _mm256_loadu_ps(p_c + 2 * ldc + 1 * 8);
-        if constexpr (Mr > 3          ) ymm6  = _mm256_loadu_ps(p_c + 3 * ldc + 0 * 8);
-        if constexpr (Mr > 3 && Nr > 8) ymm7  = _mm256_loadu_ps(p_c + 3 * ldc + 1 * 8);
-        if constexpr (Mr > 4          ) ymm8  = _mm256_loadu_ps(p_c + 4 * ldc + 0 * 8);
-        if constexpr (Mr > 4 && Nr > 8) ymm9  = _mm256_loadu_ps(p_c + 4 * ldc + 1 * 8);
-        if constexpr (Mr > 5          ) ymm10 = _mm256_loadu_ps(p_c + 5 * ldc + 0 * 8);
-        if constexpr (Mr > 5 && Nr > 8) ymm11 = _mm256_loadu_ps(p_c + 5 * ldc + 1 * 8);
+        if(param->accmulate_c){
+                                            ymm0  = _mm256_loadu_ps(p_c + 0 * ldc + 0 * 8);
+            if constexpr (          Nr > 8) ymm1  = _mm256_loadu_ps(p_c + 0 * ldc + 1 * 8);
+            if constexpr (Mr > 1          ) ymm2  = _mm256_loadu_ps(p_c + 1 * ldc + 0 * 8);
+            if constexpr (Mr > 1 && Nr > 8) ymm3  = _mm256_loadu_ps(p_c + 1 * ldc + 1 * 8);
+            if constexpr (Mr > 2          ) ymm4  = _mm256_loadu_ps(p_c + 2 * ldc + 0 * 8);
+            if constexpr (Mr > 2 && Nr > 8) ymm5  = _mm256_loadu_ps(p_c + 2 * ldc + 1 * 8);
+            if constexpr (Mr > 3          ) ymm6  = _mm256_loadu_ps(p_c + 3 * ldc + 0 * 8);
+            if constexpr (Mr > 3 && Nr > 8) ymm7  = _mm256_loadu_ps(p_c + 3 * ldc + 1 * 8);
+            if constexpr (Mr > 4          ) ymm8  = _mm256_loadu_ps(p_c + 4 * ldc + 0 * 8);
+            if constexpr (Mr > 4 && Nr > 8) ymm9  = _mm256_loadu_ps(p_c + 4 * ldc + 1 * 8);
+            if constexpr (Mr > 5          ) ymm10 = _mm256_loadu_ps(p_c + 5 * ldc + 0 * 8);
+            if constexpr (Mr > 5 && Nr > 8) ymm11 = _mm256_loadu_ps(p_c + 5 * ldc + 1 * 8);
+        } else {
+                                            ymm0  = _mm256_xor_ps(ymm0,   ymm0);
+            if constexpr (          Nr > 8) ymm1  = _mm256_xor_ps(ymm1,   ymm1);
+            if constexpr (Mr > 1          ) ymm2  = _mm256_xor_ps(ymm2,   ymm2);
+            if constexpr (Mr > 1 && Nr > 8) ymm3  = _mm256_xor_ps(ymm3,   ymm3);
+            if constexpr (Mr > 2          ) ymm4  = _mm256_xor_ps(ymm4,   ymm4);
+            if constexpr (Mr > 2 && Nr > 8) ymm5  = _mm256_xor_ps(ymm5,   ymm5);
+            if constexpr (Mr > 3          ) ymm6  = _mm256_xor_ps(ymm6,   ymm6);
+            if constexpr (Mr > 3 && Nr > 8) ymm7  = _mm256_xor_ps(ymm7,   ymm7);
+            if constexpr (Mr > 4          ) ymm8  = _mm256_xor_ps(ymm8,   ymm8);
+            if constexpr (Mr > 4 && Nr > 8) ymm9  = _mm256_xor_ps(ymm9,   ymm9);
+            if constexpr (Mr > 5          ) ymm10 = _mm256_xor_ps(ymm10,  ymm10);
+            if constexpr (Mr > 5 && Nr > 8) ymm11 = _mm256_xor_ps(ymm11,  ymm11);
+        }
 
         while (Kr > 4){
             #pragma unroll
@@ -532,6 +551,7 @@ struct ThreadwiseGemmAvx2_MxN_6x16
         }
 
         if constexpr (NonTemporalStore) {
+                                            _mm256_stream_ps(p_c + 0 * ldc + 0 * 8, ymm1);
             if constexpr (          Nr > 8) _mm256_stream_ps(p_c + 0 * ldc + 1 * 8, ymm1);
             if constexpr (Mr > 1          ) _mm256_stream_ps(p_c + 1 * ldc + 0 * 8, ymm2);
             if constexpr (Mr > 1 && Nr > 8) _mm256_stream_ps(p_c + 1 * ldc + 1 * 8, ymm3);
@@ -830,19 +850,23 @@ struct ThreadwiseGemmAvx2_MxN_4x24
             ".if (m_Mr > 2)\n lea  (%%rbx, %%rdi, 1), %%rcx\n .endif\n"
             ".if (m_Mr > 3)\n lea  (%%rcx, %%rdi, 1), %%rdx\n .endif\n"
 
-            // "                               vaddps  (%%rax),    %%ymm0,  %%ymm0 \n"
-            // ".if               (m_Nr > 8)\n vaddps  32(%%rax),  %%ymm1,  %%ymm1 \n .endif\n"
-            // ".if               (m_Nr >16)\n vaddps  64(%%rax),  %%ymm2,  %%ymm2 \n .endif\n"
-            // ".if (m_Mr > 1)              \n vaddps  (%%rbx),    %%ymm3,  %%ymm3 \n .endif\n"
-            // ".if (m_Mr > 1) && (m_Nr > 8)\n vaddps  32(%%rbx),  %%ymm4,  %%ymm4 \n .endif\n"
-            // ".if (m_Mr > 1) && (m_Nr >16)\n vaddps  64(%%rbx),  %%ymm5,  %%ymm5 \n .endif\n"
-            // ".if (m_Mr > 2)              \n vaddps  (%%rcx),    %%ymm6,  %%ymm6 \n .endif\n"
-            // ".if (m_Mr > 2) && (m_Nr > 8)\n vaddps  32(%%rcx),  %%ymm7,  %%ymm7 \n .endif\n"
-            // ".if (m_Mr > 2) && (m_Nr >16)\n vaddps  64(%%rcx),  %%ymm8,  %%ymm8 \n .endif\n"
-            // ".if (m_Mr > 3)              \n vaddps  (%%rdx),    %%ymm9,  %%ymm9 \n .endif\n"
-            // ".if (m_Mr > 3) && (m_Nr > 8)\n vaddps  32(%%rdx),  %%ymm10, %%ymm10\n .endif\n"
-            // ".if (m_Mr > 3) && (m_Nr >16)\n vaddps  64(%%rdx),  %%ymm11, %%ymm11\n .endif\n"
+            "mov    60(%[m_param]),  %%edi\n"    // accmulate_c
+            "test   %%edi,    %%edi\n"
+            "je     L_GemmAvx2_MxN_4x24_Store_C%=\n"
+            "                               vaddps  (%%rax),    %%ymm0,  %%ymm0 \n"
+            ".if               (m_Nr > 8)\n vaddps  32(%%rax),  %%ymm1,  %%ymm1 \n .endif\n"
+            ".if               (m_Nr >16)\n vaddps  64(%%rax),  %%ymm2,  %%ymm2 \n .endif\n"
+            ".if (m_Mr > 1)              \n vaddps  (%%rbx),    %%ymm3,  %%ymm3 \n .endif\n"
+            ".if (m_Mr > 1) && (m_Nr > 8)\n vaddps  32(%%rbx),  %%ymm4,  %%ymm4 \n .endif\n"
+            ".if (m_Mr > 1) && (m_Nr >16)\n vaddps  64(%%rbx),  %%ymm5,  %%ymm5 \n .endif\n"
+            ".if (m_Mr > 2)              \n vaddps  (%%rcx),    %%ymm6,  %%ymm6 \n .endif\n"
+            ".if (m_Mr > 2) && (m_Nr > 8)\n vaddps  32(%%rcx),  %%ymm7,  %%ymm7 \n .endif\n"
+            ".if (m_Mr > 2) && (m_Nr >16)\n vaddps  64(%%rcx),  %%ymm8,  %%ymm8 \n .endif\n"
+            ".if (m_Mr > 3)              \n vaddps  (%%rdx),    %%ymm9,  %%ymm9 \n .endif\n"
+            ".if (m_Mr > 3) && (m_Nr > 8)\n vaddps  32(%%rdx),  %%ymm10, %%ymm10\n .endif\n"
+            ".if (m_Mr > 3) && (m_Nr >16)\n vaddps  64(%%rdx),  %%ymm11, %%ymm11\n .endif\n"
 
+        "L_GemmAvx2_MxN_4x24_Store_C%=:\n"
             ".if m_NTStore == 0\n"
             "                               vmovups %%ymm0,     (%%rax)  \n"
             ".if               (m_Nr > 8)\n vmovups %%ymm1,     32(%%rax)\n .endif\n"
@@ -960,18 +984,33 @@ struct ThreadwiseGemmAvx2_MxN_4x24
         };
 
         // clang-format off
-                                        ymm0  = _mm256_loadu_ps(p_c + 0 * ldc + 0 * 8);
-        if constexpr (          Nr > 8) ymm1  = _mm256_loadu_ps(p_c + 0 * ldc + 1 * 8);
-        if constexpr (          Nr >16) ymm2  = _mm256_loadu_ps(p_c + 0 * ldc + 2 * 8);
-        if constexpr (Mr > 1          ) ymm3  = _mm256_loadu_ps(p_c + 1 * ldc + 0 * 8);
-        if constexpr (Mr > 1 && Nr > 8) ymm4  = _mm256_loadu_ps(p_c + 1 * ldc + 1 * 8);
-        if constexpr (Mr > 1 && Nr >16) ymm5  = _mm256_loadu_ps(p_c + 1 * ldc + 2 * 8);
-        if constexpr (Mr > 2          ) ymm6  = _mm256_loadu_ps(p_c + 2 * ldc + 0 * 8);
-        if constexpr (Mr > 2 && Nr > 8) ymm7  = _mm256_loadu_ps(p_c + 2 * ldc + 1 * 8);
-        if constexpr (Mr > 2 && Nr >16) ymm8  = _mm256_loadu_ps(p_c + 2 * ldc + 2 * 8);
-        if constexpr (Mr > 3          ) ymm9  = _mm256_loadu_ps(p_c + 3 * ldc + 0 * 8);
-        if constexpr (Mr > 3 && Nr > 8) ymm10 = _mm256_loadu_ps(p_c + 3 * ldc + 1 * 8);
-        if constexpr (Mr > 3 && Nr >16) ymm11 = _mm256_loadu_ps(p_c + 3 * ldc + 2 * 8);
+        if(param->accmulate_c) {
+                                            ymm0  = _mm256_loadu_ps(p_c + 0 * ldc + 0 * 8);
+            if constexpr (          Nr > 8) ymm1  = _mm256_loadu_ps(p_c + 0 * ldc + 1 * 8);
+            if constexpr (          Nr >16) ymm2  = _mm256_loadu_ps(p_c + 0 * ldc + 2 * 8);
+            if constexpr (Mr > 1          ) ymm3  = _mm256_loadu_ps(p_c + 1 * ldc + 0 * 8);
+            if constexpr (Mr > 1 && Nr > 8) ymm4  = _mm256_loadu_ps(p_c + 1 * ldc + 1 * 8);
+            if constexpr (Mr > 1 && Nr >16) ymm5  = _mm256_loadu_ps(p_c + 1 * ldc + 2 * 8);
+            if constexpr (Mr > 2          ) ymm6  = _mm256_loadu_ps(p_c + 2 * ldc + 0 * 8);
+            if constexpr (Mr > 2 && Nr > 8) ymm7  = _mm256_loadu_ps(p_c + 2 * ldc + 1 * 8);
+            if constexpr (Mr > 2 && Nr >16) ymm8  = _mm256_loadu_ps(p_c + 2 * ldc + 2 * 8);
+            if constexpr (Mr > 3          ) ymm9  = _mm256_loadu_ps(p_c + 3 * ldc + 0 * 8);
+            if constexpr (Mr > 3 && Nr > 8) ymm10 = _mm256_loadu_ps(p_c + 3 * ldc + 1 * 8);
+            if constexpr (Mr > 3 && Nr >16) ymm11 = _mm256_loadu_ps(p_c + 3 * ldc + 2 * 8);
+        } else {
+                                            ymm0  = _mm256_xor_ps(ymm0,   ymm0);
+            if constexpr (          Nr > 8) ymm1  = _mm256_xor_ps(ymm1,   ymm1);
+            if constexpr (          Nr >16) ymm2  = _mm256_xor_ps(ymm2,   ymm2);
+            if constexpr (Mr > 1          ) ymm3  = _mm256_xor_ps(ymm3,   ymm3);
+            if constexpr (Mr > 1 && Nr > 8) ymm4  = _mm256_xor_ps(ymm4,   ymm4);
+            if constexpr (Mr > 1 && Nr >16) ymm5  = _mm256_xor_ps(ymm5,   ymm5);
+            if constexpr (Mr > 2          ) ymm6  = _mm256_xor_ps(ymm6,   ymm6);
+            if constexpr (Mr > 2 && Nr > 8) ymm7  = _mm256_xor_ps(ymm7,   ymm7);
+            if constexpr (Mr > 2 && Nr >16) ymm8  = _mm256_xor_ps(ymm8,   ymm8);
+            if constexpr (Mr > 3          ) ymm9  = _mm256_xor_ps(ymm9,   ymm9);
+            if constexpr (Mr > 3 && Nr > 8) ymm10 = _mm256_xor_ps(ymm10,  ymm10);
+            if constexpr (Mr > 3 && Nr >16) ymm11 = _mm256_xor_ps(ymm11,  ymm11);
+        }
 
         while (Kr > 4){
             #pragma unroll
@@ -1221,33 +1260,36 @@ struct ThreadwiseGemmAvx2_MxN_6x16_Dispatch
 
     static constexpr pThreadwiseGemmAvx2Run dispatch_table[6][2] = {
         {
-            ThreadwiseGemm_6x16_t::Run,
-            ThreadwiseGemm_6x8_t::Run,
-        },
-        {
-            ThreadwiseGemm_5x16_t::Run,
-            ThreadwiseGemm_5x8_t::Run,
-        },
-        {
-            ThreadwiseGemm_4x16_t::Run,
-            ThreadwiseGemm_4x8_t::Run,
-        },
-        {
-            ThreadwiseGemm_3x16_t::Run,
-            ThreadwiseGemm_3x8_t::Run,
-        },
-        {
-            ThreadwiseGemm_2x16_t::Run,
-            ThreadwiseGemm_2x8_t::Run,
-        },
-        {
-            ThreadwiseGemm_1x16_t::Run,
             ThreadwiseGemm_1x8_t::Run,
+            ThreadwiseGemm_1x16_t::Run,
+        },
+        {
+            ThreadwiseGemm_2x8_t::Run,
+            ThreadwiseGemm_2x16_t::Run,
+        },
+        {
+            ThreadwiseGemm_3x8_t::Run,
+            ThreadwiseGemm_3x16_t::Run,
+        },
+        {
+            ThreadwiseGemm_4x8_t::Run,
+            ThreadwiseGemm_4x16_t::Run,
+        },
+        {
+            ThreadwiseGemm_5x8_t::Run,
+            ThreadwiseGemm_5x16_t::Run,
+        },
+        {
+            ThreadwiseGemm_6x8_t::Run,
+            ThreadwiseGemm_6x16_t::Run,
         },
     };
 
     static void Run(ThreadwiseGemmParam* param, index_t mr, index_t nr)
     {
+        index_t im = mr - 1;
+        index_t in = (nr >> 3) - 1;
+        assert(im >= 0 && im <= 5 && in >= 0 && in <= 1);
         return dispatch_table[mr][nr](param);
     }
 };
@@ -1371,30 +1413,33 @@ struct ThreadwiseGemmAvx2_MxN_4x24_Dispatch
 
     static constexpr pThreadwiseGemmAvx2Run dispatch_table[4][3] = {
         {
-            ThreadwiseGemm_4x24_t::Run,
-            ThreadwiseGemm_4x16_t::Run,
-            ThreadwiseGemm_4x8_t::Run,
-        },
-        {
-            ThreadwiseGemm_3x24_t::Run,
-            ThreadwiseGemm_3x16_t::Run,
-            ThreadwiseGemm_3x8_t::Run,
-        },
-        {
-            ThreadwiseGemm_2x24_t::Run,
-            ThreadwiseGemm_2x16_t::Run,
-            ThreadwiseGemm_2x8_t::Run,
-        },
-        {
-            ThreadwiseGemm_1x24_t::Run,
-            ThreadwiseGemm_1x16_t::Run,
             ThreadwiseGemm_1x8_t::Run,
+            ThreadwiseGemm_1x16_t::Run,
+            ThreadwiseGemm_1x24_t::Run,
+        },
+        {
+            ThreadwiseGemm_2x8_t::Run,
+            ThreadwiseGemm_2x16_t::Run,
+            ThreadwiseGemm_2x24_t::Run,
+        },
+        {
+            ThreadwiseGemm_3x8_t::Run,
+            ThreadwiseGemm_3x16_t::Run,
+            ThreadwiseGemm_3x24_t::Run,
+        },
+        {
+            ThreadwiseGemm_4x8_t::Run,
+            ThreadwiseGemm_4x16_t::Run,
+            ThreadwiseGemm_4x24_t::Run,
         },
     };
 
     static void Run(ThreadwiseGemmParam* param, index_t mr, index_t nr)
     {
-        return dispatch_table[mr][nr](param);
+        index_t im = mr - 1;
+        index_t in = (nr >> 3) - 1;
+        assert(im >= 0 && im <= 3 && in >= 0 && in <= 2);
+        return dispatch_table[im][in](param);
     }
 };
 
