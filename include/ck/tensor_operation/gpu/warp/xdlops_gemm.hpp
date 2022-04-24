@@ -25,7 +25,7 @@ enum struct MfmaInstr
     mfma_f32_16x16x8bf16,
     mfma_i32_32x32x8i8,
     mfma_i32_16x16x16i8,
-    mfma_f64_16x16x4f64,
+    mfma_f64_16x16x4f64
 };
 
 template <MfmaInstr instr>

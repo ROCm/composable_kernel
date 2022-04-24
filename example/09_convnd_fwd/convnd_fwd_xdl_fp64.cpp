@@ -49,14 +49,14 @@ using DeviceConvNDFwdInstance = ck::tensor_operation::device::
         ConvFwdDefault,     // ConvForwardSpecialization
         NumDimSpatial,      // NumDimSpatial
         256,                // BlockSize
-        128,                // MPerBlock
-        128,                // NPerBlock
+        64,                // MPerBlock
+        64,                // NPerBlock
         4,                  // K0PerBlock
         2,                  // K1
         16,                 // MPerXDL
         16,                 // NPerXDL
-        4,                  // MXdlPerWave
-        4,                  // NXdlPerWave
+        2,                  // MXdlPerWave
+        2,                  // NXdlPerWave
         S<4, 64, 1>,        // ABlockTransferThreadClusterLengths_K0_M_K1
         S<1, 0, 2>,         // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,         // ABlockTransferSrcAccessOrder

@@ -63,8 +63,8 @@ struct ReferenceGemm : public device::BaseOperator
                     AccDataType v_a;
                     AccDataType v_b;
 
-                    arg.a_element_op_(v_a, static_cast<const float>(arg.a_m_k_(m, k)));
-                    arg.b_element_op_(v_b, static_cast<const float>(arg.b_k_n_(k, n)));
+                    arg.a_element_op_(v_a, static_cast<const AccDataType>(arg.a_m_k_(m, k)));
+                    arg.b_element_op_(v_b, static_cast<const AccDataType>(arg.b_k_n_(k, n)));
 
                     v_acc += v_a * v_b;
                 }
