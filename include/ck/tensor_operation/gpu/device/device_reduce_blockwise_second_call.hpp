@@ -12,8 +12,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename InDataType,
-          typename AccDataType,
+template <typename AccDataType,
           typename OutDataType,
           index_t Rank,
           index_t NumReduceDim,
@@ -44,10 +43,6 @@ struct DeviceReduceBlockWiseSecondCall
     using IndexDataType = int32_t;
 
     static constexpr bool BetaIsZero = NeedIndices;
-
-    static_assert(
-        std::is_same<InDataType, AccDataType>::value,
-        "InDataType and AccDataType should be the same to use DEviceReduceBlockWiseSecondCall!");
 
     static constexpr index_t NumInvariantDim = Rank - NumReduceDim;
 
@@ -118,17 +113,16 @@ struct DeviceReduceBlockWiseSecondCall
                  const std::vector<int>& outStrides,
                  float alpha,
                  float beta,
-                 const InDataType* in_dev,
+                 AccDataType* workspace_dev,
                  OutDataType* out_dev,
                  IndexDataType* out_indices_dev,
-                 AccDataType* workspace_dev,
                  const InElementwiseOperation& in_elementwise_op,
                  const AccElementwiseOperation& acc_elementwise_op)
             : inLengths_(inLengths),
               inStrides_(inStrides),
               outLengths_(outLengths),
               outStrides_(outStrides),
-              in_dev_{in_dev},
+              workspace_dev_{workspace_dev},
               out_dev_{out_dev},
               out_indices_dev_{out_indices_dev},
               in_elementwise_op_(in_elementwise_op),
@@ -164,7 +158,7 @@ struct DeviceReduceBlockWiseSecondCall
         AccDataType alpha_;
         AccDataType beta_;
 
-        const InDataType* in_dev_;
+        const AccDataType* workspace_dev_;
         OutDataType* out_dev_;
         IndexDataType* out_indices_dev_;
         IndexDataType* workspace_indices_dev_;
@@ -191,7 +185,7 @@ struct DeviceReduceBlockWiseSecondCall
             using InGridDesc_M_K = decltype(in_grid_desc_m_k);
             using OutGridDesc_M  = decltype(out_grid_desc_m);
 
-            using GridwiseReduce = GridwiseReduction_mk_to_m_blockwise<InDataType,
+            using GridwiseReduce = GridwiseReduction_mk_to_m_blockwise<AccDataType,
                                                                        OutDataType,
                                                                        AccDataType,
                                                                        IndexDataType,
@@ -215,7 +209,7 @@ struct DeviceReduceBlockWiseSecondCall
 
             const auto kernel = kernel_reduce_blockwise_second_call<GridwiseReduce,
                                                                     NeedIndices,
-                                                                    InDataType,
+                                                                    AccDataType,
                                                                     OutDataType,
                                                                     AccDataType,
                                                                     IndexDataType,
@@ -234,7 +228,7 @@ struct DeviceReduceBlockWiseSecondCall
                                               arg.in_elementwise_op_,
                                               arg.acc_elementwise_op_,
                                               arg.alpha_,
-                                              arg.in_dev_,
+                                              arg.workspace_dev_,
                                               arg.beta_,
                                               arg.out_dev_,
                                               arg.workspace_indices_dev_,
@@ -286,6 +280,7 @@ struct DeviceReduceBlockWiseSecondCall
                         const AccElementwiseOperation acc_elementwise_op) override
     {
         (void)reduceDims;
+        (void)in_dev;
 
         return std::make_unique<Argument>(inLengths,
                                           inStrides,
@@ -293,10 +288,9 @@ struct DeviceReduceBlockWiseSecondCall
                                           outStrides,
                                           alpha,
                                           beta,
-                                          static_cast<const InDataType*>(in_dev),
+                                          static_cast<AccDataType*>(workspace_dev),
                                           static_cast<OutDataType*>(out_dev),
                                           static_cast<IndexDataType*>(out_indices_dev),
-                                          static_cast<AccDataType*>(workspace_dev),
                                           in_elementwise_op,
                                           acc_elementwise_op);
     };

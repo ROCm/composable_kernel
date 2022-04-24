@@ -53,7 +53,6 @@ using deviceReduceMultiBlockPartialReducePtrType = DeviceReducePtr<
 
 template <typename InDataType,
           typename AccDataType,
-          typename OutDataType,
           int Rank,
           int NumReduceDim,
           ReduceTensorOp ReduceOpId,
@@ -91,7 +90,6 @@ void add_device_reduce_instance_multiblock_partial_reduce(
 
             using ReduceOpInstance = DeviceReduceMultiBlockPartialReduce<InDataType,
                                                                          AccDataType,
-                                                                         OutDataType,
                                                                          Rank,
                                                                          NumReduceDim,
                                                                          ReduceOperation,
@@ -114,10 +112,9 @@ void add_device_reduce_instance_multiblock_partial_reduce(
 };
 
 #define ADD_MULTIBLOCK_PARTIAL_REDUCE_INST_BY_TYPE(                                  \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)            \
+    inT, compT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                  \
     template void add_device_reduce_instance_multiblock_partial_reduce<inT,          \
                                                                        compT,        \
-                                                                       outT,         \
                                                                        Rank,         \
                                                                        NumReduceDim, \
                                                                        ReduceOpId,   \
@@ -127,10 +124,9 @@ void add_device_reduce_instance_multiblock_partial_reduce(
         device_op_instances)
 
 #define ADD_MULTIBLOCK_PARTIAL_REDUCE_INST_BY_ID(                                            \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                    \
+    inT, compT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                          \
     ADD_MULTIBLOCK_PARTIAL_REDUCE_INST_BY_TYPE(inT,                                          \
                                                compT,                                        \
-                                               outT,                                         \
                                                static_cast<ReduceTensorOp>(ReduceOpId),      \
                                                static_cast<NanPropagation>(NanOpt),          \
                                                static_cast<ReduceTensorIndices>(IndicesOpt), \
@@ -138,10 +134,9 @@ void add_device_reduce_instance_multiblock_partial_reduce(
                                                NumReduceDim)
 
 #define ADD_MULTIBLOCK_PARTIAL_REDUCE_INST_REF_BY_TYPE(                                      \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                    \
+    inT, compT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                          \
     extern template void add_device_reduce_instance_multiblock_partial_reduce<inT,           \
                                                                               compT,         \
-                                                                              outT,          \
                                                                               Rank,          \
                                                                               NumReduceDim,  \
                                                                               ReduceOpId,    \
@@ -155,10 +150,9 @@ void add_device_reduce_instance_multiblock_partial_reduce(
         device_op_instances)
 
 #define ADD_MULTIBLOCK_PARTIAL_REDUCE_INST_REF_BY_ID(                                            \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                        \
+    inT, compT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                              \
     ADD_MULTIBLOCK_PARTIAL_REDUCE_INST_REF_BY_TYPE(inT,                                          \
                                                    compT,                                        \
-                                                   outT,                                         \
                                                    static_cast<ReduceTensorOp>(ReduceOpId),      \
                                                    static_cast<NanPropagation>(NanOpt),          \
                                                    static_cast<ReduceTensorIndices>(IndicesOpt), \

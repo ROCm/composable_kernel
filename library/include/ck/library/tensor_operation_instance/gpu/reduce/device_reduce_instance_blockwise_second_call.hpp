@@ -39,8 +39,7 @@ using deviceReduceBlockWiseSecondCallPtrType = DeviceReducePtr<
     typename reduce_unary_operator<AccDataType, ReduceOpId, false, true>::InElementwiseOperation,
     typename reduce_unary_operator<AccDataType, ReduceOpId, false, true>::AccElementwiseOperation>;
 
-template <typename InDataType,
-          typename AccDataType,
+template <typename AccDataType,
           typename OutDataType,
           int Rank,
           int NumReduceDim,
@@ -66,10 +65,6 @@ void add_device_reduce_instance_blockwise_second_call(
 
     constexpr bool PropagateNan = (NanOpt == NanPropagation::NOT_PROPAGATE_NAN) ? false : true;
 
-    static_assert(std::is_same<InDataType, AccDataType>::value,
-                  "InDataType and AccDataType should be the same to use "
-                  "add_device_reduce_instance_blockwise_second_call!");
-
     static_for<0, std::tuple_size<reduce_configuration_1_instances>::value, 1>{}([&](auto i) {
         using cfg1 =
             remove_cvref_t<decltype(std::get<i.value>(reduce_configuration_1_instances{}))>;
@@ -80,8 +75,7 @@ void add_device_reduce_instance_blockwise_second_call(
             using cfg2 = remove_cvref_t<decltype(
                 std::get<j.value>(reduce_configuration_2_instances_blockwise_second_call{}))>;
 
-            using ReduceOpInstance = DeviceReduceBlockWiseSecondCall<InDataType,
-                                                                     AccDataType,
+            using ReduceOpInstance = DeviceReduceBlockWiseSecondCall<AccDataType,
                                                                      OutDataType,
                                                                      Rank,
                                                                      NumReduceDim,
@@ -105,9 +99,8 @@ void add_device_reduce_instance_blockwise_second_call(
 };
 
 #define ADD_BLOCKWISE_SECOND_CALL_INST_BY_TYPE(                                  \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)        \
-    template void add_device_reduce_instance_blockwise_second_call<inT,          \
-                                                                   compT,        \
+    compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)             \
+    template void add_device_reduce_instance_blockwise_second_call<compT,        \
                                                                    outT,         \
                                                                    Rank,         \
                                                                    NumReduceDim, \
@@ -118,9 +111,8 @@ void add_device_reduce_instance_blockwise_second_call(
         device_op_instances)
 
 #define ADD_BLOCKWISE_SECOND_CALL_INST_BY_ID(                                            \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                \
-    ADD_BLOCKWISE_SECOND_CALL_INST_BY_TYPE(inT,                                          \
-                                           compT,                                        \
+    compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                     \
+    ADD_BLOCKWISE_SECOND_CALL_INST_BY_TYPE(compT,                                        \
                                            outT,                                         \
                                            static_cast<ReduceTensorOp>(ReduceOpId),      \
                                            static_cast<NanPropagation>(NanOpt),          \
@@ -129,9 +121,8 @@ void add_device_reduce_instance_blockwise_second_call(
                                            NumReduceDim)
 
 #define ADD_BLOCKWISE_SECOND_CALL_INST_REF_BY_TYPE(                                          \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                    \
-    extern template void add_device_reduce_instance_blockwise_second_call<inT,               \
-                                                                          compT,             \
+    compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                         \
+    extern template void add_device_reduce_instance_blockwise_second_call<compT,             \
                                                                           outT,              \
                                                                           Rank,              \
                                                                           NumReduceDim,      \
@@ -146,9 +137,8 @@ void add_device_reduce_instance_blockwise_second_call(
         device_op_instances)
 
 #define ADD_BLOCKWISE_SECOND_CALL_INST_REF_BY_ID(                                            \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                    \
-    ADD_BLOCKWISE_SECOND_CALL_INST_REF_BY_TYPE(inT,                                          \
-                                               compT,                                        \
+    compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                         \
+    ADD_BLOCKWISE_SECOND_CALL_INST_REF_BY_TYPE(compT,                                        \
                                                outT,                                         \
                                                static_cast<ReduceTensorOp>(ReduceOpId),      \
                                                static_cast<NanPropagation>(NanOpt),          \

@@ -326,7 +326,6 @@ void profile_reduce_impl_impl(bool do_verification,
         {
             add_device_reduce_instance_multiblock_partial_reduce<InDataType,
                                                                  AccDataType,
-                                                                 OutDataType,
                                                                  Rank,
                                                                  NumReduceDim,
                                                                  ReduceOpId,
@@ -338,7 +337,6 @@ void profile_reduce_impl_impl(bool do_verification,
         if constexpr(!use_atomic_add)
         {
             add_device_reduce_instance_blockwise_second_call<AccDataType,
-                                                             AccDataType,
                                                              OutDataType,
                                                              Rank,
                                                              NumReduceDim,

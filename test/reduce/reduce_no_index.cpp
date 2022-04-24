@@ -182,7 +182,6 @@ bool test_reduce_no_index_impl(int init_method,
     {
         add_device_reduce_instance_multiblock_partial_reduce<InDataType,
                                                              AccDataType,
-                                                             OutDataType,
                                                              Rank,
                                                              NumReduceDim,
                                                              ReduceOpId,
@@ -194,7 +193,6 @@ bool test_reduce_no_index_impl(int init_method,
     if constexpr(!use_atomic_add)
     {
         add_device_reduce_instance_blockwise_second_call<AccDataType,
-                                                         AccDataType,
                                                          OutDataType,
                                                          Rank,
                                                          NumReduceDim,

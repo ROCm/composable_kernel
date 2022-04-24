@@ -14,7 +14,6 @@ namespace device {
 
 template <typename InDataType,
           typename AccDataType,
-          typename OutDataType,
           index_t Rank,
           index_t NumReduceDim,
           typename ReduceOperation,
@@ -184,16 +183,12 @@ struct DeviceReduceMultiBlockPartialReduce
                  float alpha,
                  float beta,
                  const InDataType* in_dev,
-                 OutDataType* out_dev,
-                 IndexDataType* out_indices_dev,
                  AccDataType* workspace_dev,
                  const InElementwiseOperation in_elementwise_op,
                  const AccElementwiseOperation acc_elementwise_op)
             : outLengths_{outLengths},
               outStrides_{outStrides},
               in_dev_{in_dev},
-              out_dev_{out_dev},
-              out_indices_dev_{out_indices_dev},
               workspace_dev_{workspace_dev},
               in_elementwise_op_{in_elementwise_op},
               acc_elementwise_op_{acc_elementwise_op}
@@ -253,8 +248,6 @@ struct DeviceReduceMultiBlockPartialReduce
         AccDataType beta_;
 
         const InDataType* in_dev_;
-        OutDataType* out_dev_;
-        IndexDataType* out_indices_dev_;
         AccDataType* workspace_dev_;
         IndexDataType* workspace_indices_dev_;
 
@@ -398,6 +391,8 @@ struct DeviceReduceMultiBlockPartialReduce
                         const InElementwiseOperation in_elementwise_op,
                         const AccElementwiseOperation acc_elementwise_op) override
     {
+        (void)out_dev;
+        (void)out_indices_dev;
         return std::make_unique<Argument>(inLengths,
                                           inStrides,
                                           outLengths,
@@ -406,8 +401,6 @@ struct DeviceReduceMultiBlockPartialReduce
                                           alpha,
                                           beta,
                                           static_cast<const InDataType*>(in_dev),
-                                          static_cast<OutDataType*>(out_dev),
-                                          static_cast<IndexDataType*>(out_indices_dev),
                                           static_cast<AccDataType*>(workspace_dev),
                                           in_elementwise_op,
                                           acc_elementwise_op);
