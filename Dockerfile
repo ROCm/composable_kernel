@@ -48,6 +48,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     vim \
     zlib1g-dev \
     openssh-server \
+    clang-format-10 \
     kmod && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
