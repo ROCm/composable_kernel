@@ -278,7 +278,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         // TODO make this logic more generic for more sub-dword datatype
         if constexpr(SrcVectorDim != DstVectorDim &&
                      ((is_same<half_t, remove_cvref_t<SrcData>>::value &&
-                       (is_same<half_t, remove_cvref_t<DstData>>::value || is_same<bhalf_t, remove_cvref_t<DstData>>::value)&&
+                       (is_same<half_t, remove_cvref_t<DstData>>::value ||
+                        is_same<bhalf_t, remove_cvref_t<DstData>>::value) &&
                        SrcScalarPerVector % 2 == 0 && DstScalarPerVector % 2 == 0) ||
                       (is_same<int8_t, remove_cvref_t<SrcData>>::value &&
                        is_same<int8_t, remove_cvref_t<DstData>>::value &&
@@ -340,10 +341,19 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
                 // do data transpose
                 // TODO type_convert is not used yet!!!!!
-                transpose_convert_vectors<SrcData,
-                                          DstData,
-                                          DstScalarPerVector,
-                                          SrcScalarPerVector>{}(src_vector_refs, dst_vector_refs);
+                if constexpr(is_same<remove_cvref_t<SrcData>, remove_cvref_t<DstData>>::value)
+                {
+                    transpose_vectors<SrcData, DstScalarPerVector, SrcScalarPerVector>{}(
+                        src_vector_refs, dst_vector_refs);
+                }
+                else
+                {
+                    transpose_convert_vectors<SrcData,
+                                              DstData,
+                                              DstScalarPerVector,
+                                              SrcScalarPerVector>{}(src_vector_refs,
+                                                                    dst_vector_refs);
+                }
             });
         }
         else if constexpr(SrcVectorDim == DstVectorDim && SrcScalarPerVector % 2 == 0 &&
