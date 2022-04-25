@@ -9,8 +9,7 @@ namespace device {
 template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          typename D0ReduceOperation,
-          typename D1ReduceOperation>
+          typename D1ElementwiseOperation>
 struct DeviceGemmReduce : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
@@ -27,8 +26,7 @@ struct DeviceGemmReduce : public BaseOperator
                                                               AElementwiseOperation a_element_op,
                                                               BElementwiseOperation b_element_op,
                                                               CElementwiseOperation c_element_op,
-                                                              D0ReduceOperation d0_reduce_op,
-                                                              D1ReduceOperation d1_reduce_op,
+                                                              D1ElementwiseOperation d1_element_op,
                                                               ck::index_t BatchCount = 1) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
@@ -37,13 +35,11 @@ struct DeviceGemmReduce : public BaseOperator
 template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          typename D0ReduceOperation,
-          typename D1ReduceOperation>
+          typename D1ElementwiseOperation>
 using DeviceGemmReducePtr = std::unique_ptr<DeviceGemmReduce<AElementwiseOperation,
                                                              BElementwiseOperation,
                                                              CElementwiseOperation,
-                                                             D0ReduceOperation,
-                                                             D1ReduceOperation>>;
+                                                             D1ElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation
