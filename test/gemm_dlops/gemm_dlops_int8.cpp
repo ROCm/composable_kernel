@@ -69,6 +69,7 @@ int main()
                                        PassThrough>{}(gemmPtr);
     }
 
+#if 0
     gemmPtrs.clear();
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_dlops_int8_int8_int8_km_nk_mn_instances(gemmPtrs);
@@ -123,6 +124,7 @@ int main()
                                        PassThrough>{}(gemmPtr);
     }
 
+#endif
     std::cout << "TestGemm ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
     return res ? 0 : 1;
 }

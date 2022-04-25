@@ -152,8 +152,10 @@ struct TestGemm
             }
         };
 
-        f_generate_tensor_value(a_m_k, ADataType{});
-        f_generate_tensor_value(b_k_n, BDataType{});
+        // f_generate_tensor_value(a_m_k, ADataType{});
+        // f_generate_tensor_value(b_k_n, BDataType{});
+        a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
 
         return std::make_tuple(a_m_k, b_k_n, c_m_n_host_result, c_m_n_device_result);
     }
@@ -223,10 +225,6 @@ struct TestGemm
             std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
         }
 
-        LogRangeAsType<float>(std::cout << gemmPtr->GetTypeString() + " a_host: \n", a.mData, ", ") << std::endl;
-        LogRangeAsType<float>(std::cout << gemmPtr->GetTypeString() + " b_host: \n", b.mData, ", ") << std::endl;
-        LogRangeAsType<float>(std::cout << gemmPtr->GetTypeString() + " c_host: \n", c_host.mData, ", ") << std::endl;
-        LogRangeAsType<float>(std::cout << gemmPtr->GetTypeString() + " c_device: \n", c_device.mData, ", ") << std::endl;
         return res;
     }
 };

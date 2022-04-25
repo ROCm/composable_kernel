@@ -173,8 +173,8 @@ check_err(const std::vector<T>& out,
     {
         if(out[i] != ref[i])
         {
-            std::cout << "out[" << i << "] != ref[" << i << "]: " << out[i] << " != " << ref[i]
-                      << std::endl
+            std::cout << "out[" << i << "] != ref[" << i << "]: " << static_cast<int>(out[i])
+                      << " != " << static_cast<int>(ref[i]) << std::endl
                       << msg << std::endl;
             return false;
         }
