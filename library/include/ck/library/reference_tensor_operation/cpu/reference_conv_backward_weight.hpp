@@ -70,18 +70,18 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
             constexpr auto I1 = Number<1>{};
             auto f_kcyx       = [&](auto k, auto c, auto y, auto x) {
                 float v_acc = 0;
-                for(int n = 0; n < arg.out_n_k_ho_wo_.mDesc.GetLengths()[0]; ++n)
+                for(int n = 0; n < ck::type_convert<int>(arg.out_n_k_ho_wo_.mDesc.GetLengths()[0]); ++n)
                 {
-                    for(int ho = 0; ho < arg.out_n_k_ho_wo_.mDesc.GetLengths()[2]; ++ho)
+                    for(int ho = 0; ho < ck::type_convert<int>(arg.out_n_k_ho_wo_.mDesc.GetLengths()[2]); ++ho)
                     {
                         int hi = ho * arg.conv_strides_[I0] + y * arg.conv_dilations_[I0] -
                                  arg.in_left_pads_[I0];
-                        for(int wo = 0; wo < arg.out_n_k_ho_wo_.mDesc.GetLengths()[3]; ++wo)
+                        for(int wo = 0; wo < ck::type_convert<int>(arg.out_n_k_ho_wo_.mDesc.GetLengths()[3]); ++wo)
                         {
                             int wi = wo * arg.conv_strides_[I1] + x * arg.conv_dilations_[I1] -
                                      arg.in_left_pads_[I1];
-                            if(hi >= 0 && hi < arg.in_n_c_hi_wi_.mDesc.GetLengths()[2] && wi >= 0 &&
-                               wi < arg.in_n_c_hi_wi_.mDesc.GetLengths()[3])
+                            if(hi >= 0 && hi < ck::type_convert<int>(arg.in_n_c_hi_wi_.mDesc.GetLengths()[2]) &&
+                               wi >= 0 && wi < ck::type_convert<int>(arg.in_n_c_hi_wi_.mDesc.GetLengths()[3]))
                             {
                                 float v_out;
                                 float v_in;

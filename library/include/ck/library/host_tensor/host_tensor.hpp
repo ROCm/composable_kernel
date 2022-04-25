@@ -316,7 +316,7 @@ float check_error(const Tensor<T>& ref, const Tensor<T>& result)
 
     constexpr float eps = 1e-10;
 
-    for(int i = 0; i < ref.mData.size(); ++i)
+    for(int i = 0; i < ck::type_convert<int>(ref.mData.size()); ++i)
     {
         float ref_v    = ck::type_convert<float>(ref.mData[i]);
         float result_v = ck::type_convert<float>(result.mData[i]);

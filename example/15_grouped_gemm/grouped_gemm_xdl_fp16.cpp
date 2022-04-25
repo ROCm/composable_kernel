@@ -131,7 +131,7 @@ int main(int argc, char* argv[])
 
     std::size_t flop = 0, num_btype = 0;
 
-    for(int i = 0; i < gemm_shapes.size(); i++)
+    for(int i = 0; i < ck::type_convert<int>(gemm_shapes.size()); i++)
     {
         a_tensors.push_back(Tensor<ADataType>(f_host_tensor_descriptor(
             gemm_shapes[i].M, gemm_shapes[i].K, gemm_shapes[i].StrideA, ALayout{})));
@@ -168,7 +168,7 @@ int main(int argc, char* argv[])
         }
     }
 
-    for(int i = 0; i < gemm_shapes.size(); i++)
+    for(int i = 0; i < ck::type_convert<int>(gemm_shapes.size()); i++)
     {
         a_tensors_device.emplace_back(
             std::make_unique<DeviceMem>(sizeof(ADataType) * a_tensors[i].mDesc.GetElementSpace()));
@@ -213,7 +213,7 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        for(int i = 0; i < gemm_shapes.size(); i++)
+        for(int i = 0; i < ck::type_convert<int>(gemm_shapes.size()); i++)
         {
             c_tensors_device[i]->FromDevice(c_device_tensors[i].mData.data());
             auto ref_gemm    = ReferenceGemmInstance{};

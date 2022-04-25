@@ -71,7 +71,7 @@ void profile_grouped_gemm_impl(int do_verification,
             }
         };
 
-    int group_count = Ms.size();
+    std::size_t group_count = Ms.size();
 
     if(!(group_count == Ns.size() && group_count == Ks.size() && group_count == StrideAs.size() &&
          group_count == StrideBs.size() && group_count == StrideCs.size()))
@@ -83,7 +83,7 @@ void profile_grouped_gemm_impl(int do_verification,
     std::vector<Tensor<BDataType>> b_k_n;
     std::vector<Tensor<CDataType>> c_m_n_device_results;
 
-    for(int i = 0; i < Ms.size(); i++)
+    for(int i = 0; i < ck::type_convert<int>(Ms.size()); i++)
     {
         a_m_k.push_back(
             Tensor<ADataType>(f_host_tensor_descriptor(Ms[i], Ks[i], StrideAs[i], ALayout{})));
@@ -144,7 +144,7 @@ void profile_grouped_gemm_impl(int do_verification,
 
     gemm_shapes.reserve(group_count);
 
-    for(int i = 0; i < group_count; i++)
+    for(int i = 0; i < ck::type_convert<int>(group_count); i++)
     {
         a_device_buf.emplace_back(
             std::make_unique<DeviceMem>(sizeof(ADataType) * a_m_k[i].mDesc.GetElementSpace()));
@@ -234,7 +234,7 @@ void profile_grouped_gemm_impl(int do_verification,
             float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
 
             std::size_t flop = 0, num_btype = 0;
-            for(int i = 0; i < gemm_shapes.size(); i++)
+            for(int i = 0; i < ck::type_convert<int>(gemm_shapes.size()); i++)
             {
                 flop += std::size_t(2) * Ms[i] * Ns[i] * Ks[i];
 
@@ -258,7 +258,7 @@ void profile_grouped_gemm_impl(int do_verification,
 
             if(do_verification)
             {
-                for(int i = 0; i < gemm_shapes.size(); i++)
+                for(int i = 0; i < ck::type_convert<int>(gemm_shapes.size()); i++)
                 {
 
                     c_device_buf[i]->FromDevice(c_m_n_device_results[i].mData.data());

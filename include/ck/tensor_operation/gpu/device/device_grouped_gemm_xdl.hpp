@@ -290,17 +290,18 @@ struct DeviceGroupedGemmXdl
         {
             grid_size_ = 0;
 
-            group_count_ = static_cast<int>(gemm_shapes.size());
+            group_count_ = ck::type_convert<ck::index_t>(gemm_shapes.size());
 
-            if(!(group_count_ == p_a.size() && group_count_ == p_b.size() &&
-                 group_count_ == p_c.size()))
+            if(!(group_count_ == ck::type_convert<ck::index_t>(p_a.size()) &&
+                 group_count_ == ck::type_convert<ck::index_t>(p_b.size()) &&
+                 group_count_ == ck::type_convert<ck::index_t>(p_c.size())))
             {
                 throw std::runtime_error("wrong! group_count_ != P_a/b/c.size");
             }
 
             gemm_desc_kernel_arg_.reserve(group_count_);
 
-            for(index_t i = 0; i < gemm_shapes.size(); i++)
+            for(index_t i = 0; i < ck::type_convert<index_t>(gemm_shapes.size()); i++)
             {
                 const index_t M = gemm_shapes[i].M;
                 const index_t N = gemm_shapes[i].N;
@@ -487,7 +488,7 @@ struct DeviceGroupedGemmXdl
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(arg.gemm_desc_kernel_arg_.size() != arg.group_count_)
+        if(ck::type_convert<ck::index_t>(arg.gemm_desc_kernel_arg_.size()) != arg.group_count_)
             return false;
         else
             return true;

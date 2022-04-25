@@ -45,7 +45,7 @@ static bool check_out(const Tensor<T>& ref, const Tensor<T>& result)
 {
     float max_diff = 1e-6;
 
-    for(int i = 0; i < ref.mData.size(); ++i)
+    for(int i = 0; i < ck::type_convert<int>(ref.mData.size()); ++i)
     {
         float diff = std::abs(double(ref.mData[i]) - double(result.mData[i]));
         if(max_diff < diff)

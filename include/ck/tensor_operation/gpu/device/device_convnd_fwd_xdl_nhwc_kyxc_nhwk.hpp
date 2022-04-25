@@ -862,17 +862,17 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
     static bool IsSupportedArgument(const Argument& arg)
     {
         // Input tensors can't be bigger than 2GB each.
-        constexpr std::size_t GB2 = 2 * 1e9;
+        constexpr std::size_t GB2 = 1e9;
 
-        if(arg.a_grid_desc_k0_m_k1_.GetElementSpaceSize() > GB2)
+        if(ck::type_convert<std::size_t>(arg.a_grid_desc_k0_m_k1_.GetElementSpaceSize()) > GB2)
         {
             return false;
         }
-        if(arg.b_grid_desc_k0_n_k1_.GetElementSpaceSize() > GB2)
+        if(ck::type_convert<std::size_t>(arg.b_grid_desc_k0_n_k1_.GetElementSpaceSize()) > GB2)
         {
             return false;
         }
-        if(arg.c_grid_desc_m_n_.GetElementSpaceSize() > GB2)
+        if(ck::type_convert<std::size_t>(arg.c_grid_desc_m_n_.GetElementSpaceSize()) > GB2)
         {
             return false;
         }
