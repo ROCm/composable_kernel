@@ -15,7 +15,7 @@
 
 #include "device_tensor.hpp"
 #include "device_gemm_xdl.hpp"
-#include "device_gemm_xdl_c_shuffle.hpp"
+#include "device_gemm_xdl_cshuffle.hpp"
 #include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"
 #include "gemm_specialization.hpp"
@@ -50,19 +50,23 @@ using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
 using CLayout = ck::tensor_layout::gemm::RowMajor;
 
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
+
 // clang-format off
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle<
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle<
+    ALayout,                // ALayout
+    BLayout,                // BLayout
+    CLayout,                // CLayout
     ADataType,              // ADataType
     BDataType,              // BDataType
     CDataType,              // CDataType
     AccDataType,            // AccDataType
     CDataType,              // CShuffleDataType
-    ALayout,                // ALayout
-    BLayout,                // BLayout
-    CLayout,                // CLayout
     PassThrough,            // AElementwiseOperation
     PassThrough,            // BElementwiseOperation
     PassThrough,            // CElementwiseOperation
+    GemmDefault,            // GemmSpec
+    1,                      // NumGemmKPrefetchStage
     256,                    // BlockSize
     256,                    // MPerBlock
     128,                    // NPerBlock
@@ -89,7 +93,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle
     true,                   // BBlockLdsAddExtraN
     1,                      // CShuffleMXdlPerWavePerShuffle
     1,                      // CShuffleNXdlPerWavePerShuffle
-    S<1, 1, 32, 1, 1, 8>,   // CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
+    S<1, 32, 1, 8>,         // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
     8>;                     // CBlockTransferScalarPerVector_NWaveNPerXdl
 // clang-format on
 
@@ -149,7 +153,7 @@ using DeviceReduceSumInstance =
                                                         1,
                                                         1>;
 
-struct Sub_Exp
+struct SubExp
 {
     __host__ __device__ constexpr void operator()(EltwiseComputeDataType& dst,
                                                   const EltwiseComputeDataType& src1,
@@ -174,7 +178,7 @@ using DeviceElementwiseSubExpInstance =
                                                              CDataType,
                                                              CDataType,
                                                              EltwiseComputeDataType,
-                                                             Sub_Exp,
+                                                             SubExp,
                                                              256,
                                                              8>;
 
@@ -412,7 +416,7 @@ int main(int argc, char* argv[])
                                             {StrideC, 1},
                                             {0, 1},
                                             {StrideC, 1},
-                                            Sub_Exp{});
+                                            SubExp{});
 
     if(!broadcastSubExp.IsSupportedArgument(broadcastSubExp_argument_ptr.get()))
     {
@@ -515,8 +519,8 @@ int main(int argc, char* argv[])
                          Tensor<CDataType>,
                          Tensor<CDataType>,
                          EltwiseComputeDataType,
-                         Sub_Exp,
-                         0>(host_exp_m_n, c_m_n, c_n_max, M, N, Sub_Exp{});
+                         SubExp,
+                         0>(host_exp_m_n, c_m_n, c_n_max, M, N, SubExp{});
 
         host_reduce_sum.Run(1, // alpha
                             reinterpret_cast<const HostReduceDataType*>(exp_m_n.mData.data()),

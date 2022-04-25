@@ -40,7 +40,7 @@ template <typename ADataType,
 struct GridwiseBinaryElementwise_1D
 {
     static constexpr auto I0 = Number<0>{};
-    static constexpr auto thread_desc_M0 =
+    static constexpr auto thread_desc_m0 =
         make_naive_tensor_descriptor_packed(make_tuple(Number<ScalarPerVector>{}));
 
     using PassThrough = tensor_operation::element_wise::PassThrough;
@@ -76,7 +76,7 @@ struct GridwiseBinaryElementwise_1D
             ThreadwiseTensorSliceTransfer_v2<ADataType,
                                              ComputeDataType,
                                              GridDesc_M0,
-                                             decltype(thread_desc_M0),
+                                             decltype(thread_desc_m0),
                                              Sequence<ScalarPerVector>, // SliceLengths
                                              Sequence<0>,               // DimAccessOrder
                                              0,                         // SrcVectorDim
@@ -88,7 +88,7 @@ struct GridwiseBinaryElementwise_1D
             ThreadwiseTensorSliceTransfer_v2<BDataType,
                                              ComputeDataType,
                                              GridDesc_M0,
-                                             decltype(thread_desc_M0),
+                                             decltype(thread_desc_m0),
                                              Sequence<ScalarPerVector>, // SliceLengths
                                              Sequence<0>,               // DimAccessOrder
                                              0,                         // SrcVectorDim
@@ -99,7 +99,7 @@ struct GridwiseBinaryElementwise_1D
         auto c_global_write =
             ThreadwiseTensorSliceTransfer_v1r3<ComputeDataType,
                                                CDataType,
-                                               decltype(thread_desc_M0),
+                                               decltype(thread_desc_m0),
                                                GridDesc_M0,
                                                PassThrough,
                                                Sequence<ScalarPerVector>, // SliceLengths
@@ -122,19 +122,19 @@ struct GridwiseBinaryElementwise_1D
         {
             // read and process ScalarPerVector elements
             a_global_load.Run(
-                a_grid_desc_m0, a_global_buf, thread_desc_M0, make_tuple(I0), a_thread_buf);
+                a_grid_desc_m0, a_global_buf, thread_desc_m0, make_tuple(I0), a_thread_buf);
 
             b_global_load.Run(
-                b_grid_desc_m0, b_global_buf, thread_desc_M0, make_tuple(I0), b_thread_buf);
+                b_grid_desc_m0, b_global_buf, thread_desc_m0, make_tuple(I0), b_thread_buf);
 
             static_for<0, ScalarPerVector, 1>{}([&](auto m) {
-                constexpr auto offset = thread_desc_M0.CalculateOffset(make_tuple(m));
+                constexpr auto offset = thread_desc_m0.CalculateOffset(make_tuple(m));
                 functor(c_thread_buf(Number<offset>{}),
                         a_thread_buf(Number<offset>{}),
                         b_thread_buf(Number<offset>{}));
             });
 
-            c_global_write.Run(thread_desc_M0,
+            c_global_write.Run(thread_desc_m0,
                                make_tuple(I0), // SrcSliceOriginIdx
                                c_thread_buf,
                                c_grid_desc_m0,
