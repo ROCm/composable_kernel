@@ -78,7 +78,7 @@ ConvParams::ConvParams(ck::index_t n_dim,
        input_left_pads.size() != num_dim_spatial || input_right_pads.size() != num_dim_spatial)
     {
         throw(std::runtime_error("ConvParams::GetOutputSpatialLengths: "
-								 "parameter size is different from number of declared dimensions!"));
+                                 "parameter size is different from number of declared dimensions!"));
     }
 }
 
@@ -91,7 +91,7 @@ std::vector<ck::index_t> ConvParams::GetOutputSpatialLengths() const
        input_left_pads.size() != num_dim_spatial || input_right_pads.size() != num_dim_spatial)
     {
         throw(std::runtime_error("ConvParams::GetOutputSpatialLengths: "
-								 "parameter size is different from number of declared dimensions!"));
+                                 "parameter size is different from number of declared dimensions!"));
     }
 
     std::vector<ck::index_t> out_spatial_len(num_dim_spatial, 0);
