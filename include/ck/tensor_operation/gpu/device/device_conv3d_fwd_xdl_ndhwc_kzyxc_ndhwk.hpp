@@ -18,6 +18,9 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+/*
+ * \see \link device_batched_gemm_xdl.hpp kernel_batched_gemm_xdlops_v2r3() \endlink.
+ */
 template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,
