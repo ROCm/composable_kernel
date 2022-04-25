@@ -2,6 +2,7 @@
 #include <iostream>
 #include <tuple>
 #include <vector>
+#include "gtest/gtest.h"
 
 #include "data_type.hpp"
 #include "element_wise_operation.hpp"
@@ -10,7 +11,7 @@
 
 namespace {
 
-bool test_conv2d_nhwc()
+TEST(Conv2DFwdNHWC, TestConv2D)
 {
     using namespace std::placeholders;
     using namespace ck::utils;
@@ -31,7 +32,7 @@ bool test_conv2d_nhwc()
     OpInstanceRunEngine<float, float, float> run_engine(conv_instance, reference_conv_fwd_fun);
     run_engine.SetAtol(1e-5);
     run_engine.SetRtol(1e-4);
-    return run_engine.Test(conv_ptrs);
+    EXPECT_TRUE(run_engine.Test(conv_ptrs));
 }
 
 template <typename T>
@@ -57,50 +58,34 @@ bool test_conv2d_nhwc_instances(const std::vector<test::conv::DeviceConvFwdNoOpP
     return run_engine.Test(conv_ptrs);
 }
 
-bool test_conv2d_nhwc_bf16_instances()
+TEST(Conv2DFwdNHWC, Bf16Instances)
 {
-    return test_conv2d_nhwc_instances<ck::bhalf_t>(
-        ck::utils::conv::ConvolutionFwdInstances<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t>::Get<2>());
+    EXPECT_TRUE(test_conv2d_nhwc_instances<ck::bhalf_t>(
+        ck::utils::conv::ConvolutionFwdInstances<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t>::Get<2>()));
 }
 
-bool test_conv2d_nhwc_f16_instances()
+TEST(Conv2DFwdNHWC, F16Instances)
 {
-    return test_conv2d_nhwc_instances<ck::half_t>(
-        ck::utils::conv::ConvolutionFwdInstances<ck::half_t, ck::half_t, ck::half_t>::Get<2>());
+    EXPECT_TRUE(test_conv2d_nhwc_instances<ck::half_t>(
+        ck::utils::conv::ConvolutionFwdInstances<ck::half_t, ck::half_t, ck::half_t>::Get<2>()));
 }
 
-bool test_conv2d_nhwc_f32_instances()
+TEST(Conv2DFwdNHWC, BF32Instances)
 {
-    return test_conv2d_nhwc_instances<float>(
-        ck::utils::conv::ConvolutionFwdInstances<float, float, float>::Get<2>());
+    EXPECT_TRUE(test_conv2d_nhwc_instances<float>(
+        ck::utils::conv::ConvolutionFwdInstances<float, float, float>::Get<2>()));
 }
 
-bool test_conv2d_nhwc_int8_instances()
+TEST(Conv2DFwdNHWC, F32Instances)
 {
-    return test_conv2d_nhwc_instances<int8_t>(
-        ck::utils::conv::ConvolutionFwdInstances<int8_t, int8_t, int8_t>::Get<2>());
+    EXPECT_TRUE(test_conv2d_nhwc_instances<float>(
+        ck::utils::conv::ConvolutionFwdInstances<float, float, float>::Get<2>()));
+}
+
+TEST(Conv2DFwdNHWC, Int8Instances)
+{
+    EXPECT_TRUE(test_conv2d_nhwc_instances<int8_t>(
+        ck::utils::conv::ConvolutionFwdInstances<int8_t, int8_t, int8_t>::Get<2>()));
 }
 
 } // anonymous namespace
-
-int main()
-{
-    bool res{true};
-    res = test_conv2d_nhwc();
-    std::cout << "test_conv2d_nhwc ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
-
-    res = test_conv2d_nhwc_bf16_instances();
-    std::cout << "\ntest_conv2d_nhwc_bf16_instances ..... " << (res ? "SUCCESS" : "FAILURE")
-              << std::endl;
-    res = test_conv2d_nhwc_f16_instances();
-    std::cout << "\ntest_conv2d_nhwc_f16_instances ....." << (res ? "SUCCESS" : "FAILURE")
-              << std::endl;
-    res = test_conv2d_nhwc_f32_instances();
-    std::cout << "\ntest_conv2d_nhwc_f32_instances ..... " << (res ? "SUCCESS" : "FAILURE")
-              << std::endl;
-    res = test_conv2d_nhwc_int8_instances();
-    std::cout << "\ntest_conv2d_nhwc_int8_instances ..... " << (res ? "SUCCESS" : "FAILURE")
-              << std::endl;
-
-    return res ? 0 : 1;
-}

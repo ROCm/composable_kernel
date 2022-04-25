@@ -24,6 +24,7 @@ include_directories(BEFORE
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
 add_custom_target(tests)
 
+
 function(add_test_executable TEST_NAME)
     message("adding test ${TEST_NAME}")
     add_executable(${TEST_NAME} ${ARGN})
@@ -31,6 +32,17 @@ function(add_test_executable TEST_NAME)
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
 endfunction(add_test_executable TEST_NAME)
+
+include(GoogleTest)
+
+function(add_gtest_executable TEST_NAME)
+    add_test_executable(${TEST_NAME} ${ARGN})
+    # suppress gtest warnings
+    target_compile_options(${TEST_NAME} PRIVATE -Wno-global-constructors)
+    target_link_libraries(${TEST_NAME} PRIVATE gtest_main)
+    gtest_discover_tests(${TEST_NAME})
+endfunction(add_gtest_executable TEST_NAME)
+
 
 add_subdirectory(magic_number_division)
 add_subdirectory(space_filling_curve)
