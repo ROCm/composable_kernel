@@ -327,20 +327,20 @@ int main(int argc, char* argv[])
 
     DeviceMem ws_dev(wsSizeInBytes);
 
-    auto argument_ptr =
-        reduce.MakeArgumentPointer(i_inLengths,
-                                   i_inStrides,
-                                   i_outLengths,
-                                   i_outStrides,
-                                   reduceDims,
-                                   alpha,
-                                   beta,
-                                   in_dev.GetDeviceBuffer(),
-                                   out_dev.GetDeviceBuffer(),
-                                   out_indices_dev.GetDeviceBuffer(),
-                                   ws_dev.GetDeviceBuffer(),
-                                   InElementwiseOperation{static_cast<int>(reduce_total_length)},
-                                   AccElementwiseOperation{static_cast<int>(reduce_total_length)});
+    auto argument_ptr = reduce.MakeArgumentPointer(
+        i_inLengths,
+        i_inStrides,
+        i_outLengths,
+        i_outStrides,
+        reduceDims,
+        alpha,
+        beta,
+        in_dev.GetDeviceBuffer(),
+        out_dev.GetDeviceBuffer(),
+        out_indices_dev.GetDeviceBuffer(),
+        ws_dev.GetDeviceBuffer(),
+        InElementwiseOperation{static_cast<int32_t>(reduce_total_length)},
+        AccElementwiseOperation{static_cast<int32_t>(reduce_total_length)});
 
     if(!reduce.IsSupportedArgument(argument_ptr.get()))
     {

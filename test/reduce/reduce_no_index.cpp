@@ -299,8 +299,8 @@ bool test_reduce_no_index_impl(int init_method,
 
         (void)invoker_ptr->Run(argument_ptr.get());
 
-        std::vector<int> inLengths2 = reduce_ptr->GetWorkspace2dLengths(argument_ptr.get());
-        std::vector<int> inStrides2{inLengths2[1], 1};
+        std::vector<index_t> inLengths2 = reduce_ptr->GetWorkspace2dLengths(argument_ptr.get());
+        std::vector<index_t> inStrides2{inLengths2[1], 1};
 
         for(auto& reduce2_ptr : reduce2_ptrs)
         {

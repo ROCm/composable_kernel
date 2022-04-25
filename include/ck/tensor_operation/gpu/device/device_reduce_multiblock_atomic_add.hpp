@@ -59,13 +59,13 @@ struct DeviceReduceMultiBlockAtomicAdd
                   "MultiBlockAtomicAdd method can only be used with non-indiced operation and when "
                   "having float/double output type!");
 
-    static constexpr int M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
-    static constexpr int K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
+    static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
+    static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
-    static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
-                                    const std::vector<int>& inStrides,
+    static auto MakeSrc2dDescriptor(const std::vector<index_t>& inLengths,
+                                    const std::vector<index_t>& inStrides,
                                     int blkGroupSize,
-                                    int kBlockTileIterations)
+                                    int numBlockTileIteration)
     {
         const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<numSrcDim>{});
         const auto tupleSrcStrides = make_tuple_from_array(inStrides, Number<numSrcDim>{});
@@ -109,7 +109,7 @@ struct DeviceReduceMultiBlockAtomicAdd
         const auto invariantLength = in_grid_desc_m_k.GetLength(Number<0>{});
         const auto reduceLength    = in_grid_desc_m_k.GetLength(Number<1>{});
 
-        const int reduceSizePerBlock = K_BlockTileSize * kBlockTileIterations;
+        const int reduceSizePerBlock = K_BlockTileSize * numBlockTileIteration;
         const auto inPad_M =
             math::integer_least_multiple(invariantLength, M_BlockTileSize) - invariantLength;
         const auto inPad_K = reduceSizePerBlock * blkGroupSize - reduceLength;
@@ -124,8 +124,8 @@ struct DeviceReduceMultiBlockAtomicAdd
         return (in_grid_desc_m_k_padded);
     };
 
-    static auto MakeDst1dDescriptor(const std::vector<int>& outLengths,
-                                    const std::vector<int>& outStrides)
+    static auto MakeDst1dDescriptor(const std::vector<index_t>& outLengths,
+                                    const std::vector<index_t>& outStrides)
     {
         const auto tupleDstLengths = make_tuple_from_array(outLengths, Number<numDstDim>{});
         const auto tupleDstStrides = make_tuple_from_array(outStrides, Number<numDstDim>{});
@@ -153,10 +153,10 @@ struct DeviceReduceMultiBlockAtomicAdd
 
     struct Argument : public BaseArgument
     {
-        Argument(const std::vector<int> inLengths,
-                 const std::vector<int> inStrides,
-                 const std::vector<int> outLengths,
-                 const std::vector<int> outStrides,
+        Argument(const std::vector<index_t> inLengths,
+                 const std::vector<index_t> inStrides,
+                 const std::vector<index_t> outLengths,
+                 const std::vector<index_t> outStrides,
                  const std::vector<int> reduceDims,
                  float alpha,
                  float beta,
@@ -208,7 +208,7 @@ struct DeviceReduceMultiBlockAtomicAdd
             blkGroupSize = (reduce_total_length + (K_BlockTileSize * iterations) - 1) /
                            (K_BlockTileSize * iterations);
 
-            kBlockTileIterations = iterations;
+            numBlockTileIteration = iterations;
 
             gridSize = math::integer_least_multiple(invariant_total_length, M_BlockTileSize) /
                        M_BlockTileSize * blkGroupSize;
@@ -217,10 +217,10 @@ struct DeviceReduceMultiBlockAtomicAdd
                 math::integer_least_multiple(invariant_total_length, BlockSize) / BlockSize;
         }
 
-        std::vector<int> inLengths_;
-        std::vector<int> inStrides_;
-        std::vector<int> outLengths_;
-        std::vector<int> outStrides_;
+        std::vector<index_t> inLengths_;
+        std::vector<index_t> inStrides_;
+        std::vector<index_t> outLengths_;
+        std::vector<index_t> outStrides_;
 
         AccDataType alpha_;
         AccDataType beta_;
@@ -231,13 +231,13 @@ struct DeviceReduceMultiBlockAtomicAdd
         InElementwiseOperation in_elementwise_op_;
         AccElementwiseOperation acc_elementwise_op_;
 
-        int invariant_lowest_length;
-        int reduce_lowest_length;
-        size_t invariant_total_length;
-        size_t reduce_total_length;
+        index_t invariant_lowest_length;
+        index_t reduce_lowest_length;
+        long_index_t invariant_total_length;
+        long_index_t reduce_total_length;
 
-        index_t blkGroupSize;
-        index_t kBlockTileIterations;
+        int blkGroupSize;
+        int numBlockTileIteration;
         size_t gridSize;
 
         size_t gridSize_pre;
@@ -248,7 +248,7 @@ struct DeviceReduceMultiBlockAtomicAdd
         float Run(const Argument& arg, int nrepeat = 1)
         {
             const auto in_grid_desc_m_k = DeviceReduceMultiBlockAtomicAdd::MakeSrc2dDescriptor(
-                arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.kBlockTileIterations);
+                arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
             const auto out_grid_desc_m = DeviceReduceMultiBlockAtomicAdd::MakeDst1dDescriptor(
                 arg.outLengths_, arg.outStrides_);
             using InGridDesc_M_K = decltype(in_grid_desc_m_k);
@@ -314,7 +314,7 @@ struct DeviceReduceMultiBlockAtomicAdd
                               arg.in_elementwise_op_,
                               arg.acc_elementwise_op_,
                               arg.blkGroupSize,
-                              arg.kBlockTileIterations,
+                              arg.numBlockTileIteration,
                               arg.alpha_,
                               arg.in_dev_,
                               arg.out_dev_);
@@ -380,10 +380,10 @@ struct DeviceReduceMultiBlockAtomicAdd
     };
 
     std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const std::vector<int> inLengths,
-                        const std::vector<int> inStrides,
-                        const std::vector<int> outLengths,
-                        const std::vector<int> outStrides,
+    MakeArgumentPointer(const std::vector<index_t> inLengths,
+                        const std::vector<index_t> inStrides,
+                        const std::vector<index_t> outLengths,
+                        const std::vector<index_t> outStrides,
                         const std::vector<int> reduceDims,
                         float alpha,
                         float beta,

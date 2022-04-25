@@ -33,8 +33,8 @@ struct DeviceBatchNormFwd_Input_N_H_W_C_Output_C_With_Reduce_Multiblock : public
                       (MThreadSliceSize % ScaleBiasMeanVarVectorSize == 0),
                   "Invalid thread slice sizes and/or vector sizes configuration, please check!");
 
-    static constexpr int M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
-    static constexpr int K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
+    static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
+    static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
     long_index_t GetWorkspaceSizeInBytes(index_t c, bool resultSave) override
     {
@@ -53,7 +53,7 @@ struct DeviceBatchNormFwd_Input_N_H_W_C_Output_C_With_Reduce_Multiblock : public
     };
 
     static auto MakeInOut2dDescriptor(
-        index_t n, index_t h, index_t w, index_t c, int blkGroupSize, int kBlockTileIterations)
+        index_t n, index_t h, index_t w, index_t c, int blkGroupSize, int numBlockTileIteration)
     {
         const auto tupleLengths = make_tuple(n, h, w, c);
 
@@ -69,7 +69,7 @@ struct DeviceBatchNormFwd_Input_N_H_W_C_Output_C_With_Reduce_Multiblock : public
         const auto length_m = in_out_grid_desc_m_k.GetLength(Number<0>{});
         const auto length_k = in_out_grid_desc_m_k.GetLength(Number<1>{});
 
-        const int assignedSizePerBlock = K_BlockTileSize * kBlockTileIterations;
+        const int assignedSizePerBlock = K_BlockTileSize * numBlockTileIteration;
         const auto pad_m = math::integer_least_multiple(length_m, M_BlockTileSize) - length_m;
         const auto pad_k = assignedSizePerBlock * blkGroupSize - length_k;
 
@@ -183,7 +183,7 @@ struct DeviceBatchNormFwd_Input_N_H_W_C_Output_C_With_Reduce_Multiblock : public
             blkGroupSize =
                 (n * h * w + (K_BlockTileSize * iterations) - 1) / (K_BlockTileSize * iterations);
 
-            kBlockTileIterations = iterations;
+            numBlockTileIteration = iterations;
 
             gridSize =
                 math::integer_least_multiple(c, M_BlockTileSize) / M_BlockTileSize * blkGroupSize;
@@ -209,8 +209,8 @@ struct DeviceBatchNormFwd_Input_N_H_W_C_Output_C_With_Reduce_Multiblock : public
         double exponentialAverageFactor_;
         double epsilon_;
 
-        index_t blkGroupSize;
-        index_t kBlockTileIterations;
+        int blkGroupSize;
+        int numBlockTileIteration;
         size_t gridSize;
 
         size_t gridSize_2;
@@ -223,7 +223,7 @@ struct DeviceBatchNormFwd_Input_N_H_W_C_Output_C_With_Reduce_Multiblock : public
             const auto in_out_grid_desc_m_k =
                 DeviceBatchNormFwd_Input_N_H_W_C_Output_C_With_Reduce_Multiblock::
                     MakeInOut2dDescriptor(
-                        arg.n, arg.h, arg.w, arg.c, arg.blkGroupSize, arg.kBlockTileIterations);
+                        arg.n, arg.h, arg.w, arg.c, arg.blkGroupSize, arg.numBlockTileIteration);
             const auto scale_bias_mean_var_grid_desc_m =
                 DeviceBatchNormFwd_Input_N_H_W_C_Output_C_With_Reduce_Multiblock::
                     MakeScaleBiasMeanVar1dDescriptor(arg.c);
@@ -365,7 +365,7 @@ struct DeviceBatchNormFwd_Input_N_H_W_C_Output_C_With_Reduce_Multiblock : public
                               in_element_wise_op_meansquare,
                               acc_element_wise_op_meansquare,
                               arg.blkGroupSize,
-                              arg.kBlockTileIterations,
+                              arg.numBlockTileIteration,
                               arg.in_dev_,
                               arg.resultSaveMean_,         // mean values
                               arg.resultSaveInvVariance_); // meansquare values
@@ -430,7 +430,7 @@ struct DeviceBatchNormFwd_Input_N_H_W_C_Output_C_With_Reduce_Multiblock : public
                               scale_bias_mean_var_grid_desc_m,
                               op_normalize,
                               arg.blkGroupSize,
-                              arg.kBlockTileIterations,
+                              arg.numBlockTileIteration,
                               arg.in_dev_,
                               arg.out_dev_,
                               arg.alpha_,

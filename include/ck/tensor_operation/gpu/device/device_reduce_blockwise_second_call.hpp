@@ -48,11 +48,11 @@ struct DeviceReduceBlockWiseSecondCall
 
     static constexpr index_t numDstDim = (NumInvariantDim == 0) ? 1 : NumInvariantDim;
 
-    static constexpr int M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
-    static constexpr int K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
+    static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
+    static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
-    static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
-                                    const std::vector<int>& inStrides)
+    static auto MakeSrc2dDescriptor(const std::vector<index_t>& inLengths,
+                                    const std::vector<index_t>& inStrides)
     {
         const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<2>{});
         const auto tupleSrcStrides = make_tuple_from_array(inStrides, Number<2>{});
@@ -78,8 +78,8 @@ struct DeviceReduceBlockWiseSecondCall
         return (in_grid_desc_m_k_padded);
     };
 
-    static auto MakeDst1dDescriptor(const std::vector<int>& outLengths,
-                                    const std::vector<int>& outStrides)
+    static auto MakeDst1dDescriptor(const std::vector<index_t>& outLengths,
+                                    const std::vector<index_t>& outStrides)
     {
         const auto tupleDstLengths = make_tuple_from_array(outLengths, Number<numDstDim>{});
         const auto tupleDstStrides = make_tuple_from_array(outStrides, Number<numDstDim>{});
@@ -107,10 +107,10 @@ struct DeviceReduceBlockWiseSecondCall
 
     struct Argument : public BaseArgument
     {
-        Argument(const std::vector<int>& inLengths,
-                 const std::vector<int>& inStrides,
-                 const std::vector<int>& outLengths,
-                 const std::vector<int>& outStrides,
+        Argument(const std::vector<index_t>& inLengths,
+                 const std::vector<index_t>& inStrides,
+                 const std::vector<index_t>& outLengths,
+                 const std::vector<index_t>& outStrides,
                  float alpha,
                  float beta,
                  AccDataType* workspace_dev,
@@ -150,10 +150,10 @@ struct DeviceReduceBlockWiseSecondCall
                 workspace_indices_dev_ = nullptr;
         }
 
-        std::vector<int> inLengths_;
-        std::vector<int> inStrides_;
-        std::vector<int> outLengths_;
-        std::vector<int> outStrides_;
+        std::vector<index_t> inLengths_;
+        std::vector<index_t> inStrides_;
+        std::vector<index_t> outLengths_;
+        std::vector<index_t> outStrides_;
 
         AccDataType alpha_;
         AccDataType beta_;
@@ -166,10 +166,10 @@ struct DeviceReduceBlockWiseSecondCall
         InElementwiseOperation in_elementwise_op_;
         AccElementwiseOperation acc_elementwise_op_;
 
-        int invariant_lowest_length;
-        int reduce_lowest_length;
-        size_t invariant_total_length;
-        size_t reduce_total_length;
+        index_t invariant_lowest_length;
+        index_t reduce_lowest_length;
+        long_index_t invariant_total_length;
+        long_index_t reduce_total_length;
 
         size_t gridSize;
     };
@@ -265,10 +265,10 @@ struct DeviceReduceBlockWiseSecondCall
     };
 
     std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const std::vector<int> inLengths,
-                        const std::vector<int> inStrides,
-                        const std::vector<int> outLengths,
-                        const std::vector<int> outStrides,
+    MakeArgumentPointer(const std::vector<index_t> inLengths,
+                        const std::vector<index_t> inStrides,
+                        const std::vector<index_t> outLengths,
+                        const std::vector<index_t> outStrides,
                         const std::vector<int> reduceDims,
                         float alpha,
                         float beta,

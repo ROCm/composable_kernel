@@ -35,12 +35,12 @@ namespace ck {
 
 namespace host_common {
 
-static inline std::vector<int> to_int_vector(const std::vector<size_t>& inData)
+static inline std::vector<index_t> to_int_vector(const std::vector<size_t>& inData)
 {
-    std::vector<int> outData;
+    std::vector<index_t> outData;
 
     for(auto elem : inData)
-        outData.push_back(static_cast<int>(elem));
+        outData.push_back(static_cast<index_t>(elem));
 
     return (outData);
 };

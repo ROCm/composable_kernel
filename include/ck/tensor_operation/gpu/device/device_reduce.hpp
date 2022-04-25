@@ -16,8 +16,8 @@ namespace device {
 template <typename InElementwiseOperation, typename AccElementwiseOperation>
 struct DeviceReduce : public BaseOperator
 {
-    virtual long_index_t GetWorkspaceSizeInBytes(const std::vector<int> inLengths,
-                                                 const std::vector<int> reduceDims)
+    virtual long_index_t GetWorkspaceSizeInBytes(const std::vector<index_t> inLengths,
+                                                 const std::vector<index_t> reduceDims)
     {
         (void)inLengths;
         (void)reduceDims;
@@ -27,17 +27,17 @@ struct DeviceReduce : public BaseOperator
 
     virtual bool HasFurtherCall() { return (false); };
 
-    virtual std::vector<int> GetWorkspace2dLengths(const BaseArgument* argPtr)
+    virtual std::vector<index_t> GetWorkspace2dLengths(const BaseArgument* argPtr)
     {
         (void)argPtr;
-        return (std::vector<int>{0, 0});
+        return (std::vector<index_t>{0, 0});
     };
 
     virtual std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const std::vector<int> inLengths,
-                        const std::vector<int> inStrides,
-                        const std::vector<int> outLengths,
-                        const std::vector<int> outStrides,
+    MakeArgumentPointer(const std::vector<index_t> inLengths,
+                        const std::vector<index_t> inStrides,
+                        const std::vector<index_t> outLengths,
+                        const std::vector<index_t> outStrides,
                         const std::vector<int> reduceDims,
                         float alpha,
                         float beta,

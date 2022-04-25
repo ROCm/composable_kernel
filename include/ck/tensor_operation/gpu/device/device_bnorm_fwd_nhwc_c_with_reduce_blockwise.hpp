@@ -32,8 +32,8 @@ struct DeviceBatchNormFwd_Input_N_H_W_C_Output_C_With_Reduce_Blockwise : public 
                       (MThreadSliceSize % ScaleBiasMeanVarVectorSize == 0),
                   "Invalid thread slice sizes and/or vector sizes configuration, please check!");
 
-    static constexpr int M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
-    static constexpr int K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
+    static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
+    static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
     long_index_t GetWorkspaceSizeInBytes(index_t c, bool resultSave) override
     {

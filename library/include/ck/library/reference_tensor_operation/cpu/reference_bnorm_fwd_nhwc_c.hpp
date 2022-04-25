@@ -63,7 +63,7 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                 throw std::runtime_error("Inconsistent tensor lengths!");
 
             alpha_ = alpha;
-            beta_ = beta;
+            beta_  = beta;
 
             resultSave    = (resultSaveMean != nullptr && resultSaveInvVariance != nullptr);
             resultRunning = (resultRunningMean != nullptr && resultRunningVariance != nullptr);
@@ -100,13 +100,13 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                 AccDataType meansquare = type_convert<AccDataType>(0.0f);
 
                 // compute mean, meanquare, variance, invVariance
-                for(int iN = 0; iN < arg.n; iN++)
+                for(index_t iN = 0; iN < arg.n; iN++)
                 {
                     index_t offset_N = iN * arg.h * arg.w * arg.c;
-                    for(int iH = 0; iH < arg.h; iH++)
+                    for(index_t iH = 0; iH < arg.h; iH++)
                     {
                         index_t offset_H = iH * arg.w * arg.c;
-                        for(int iW = 0; iW < arg.w; iW++)
+                        for(index_t iW = 0; iW < arg.w; iW++)
                         {
                             index_t offset_W = iW * arg.c;
 
@@ -148,13 +148,13 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                 };
 
                 // Normalization
-                for(int iN = 0; iN < arg.n; iN++)
+                for(index_t iN = 0; iN < arg.n; iN++)
                 {
                     index_t offset_N = iN * arg.h * arg.w * arg.c;
-                    for(int iH = 0; iH < arg.h; iH++)
+                    for(index_t iH = 0; iH < arg.h; iH++)
                     {
                         index_t offset_H = iH * arg.w * arg.c;
-                        for(int iW = 0; iW < arg.w; iW++)
+                        for(index_t iW = 0; iW < arg.w; iW++)
                         {
                             index_t offset_W = iW * arg.c;
 

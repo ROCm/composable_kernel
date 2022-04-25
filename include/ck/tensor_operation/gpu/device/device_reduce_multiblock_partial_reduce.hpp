@@ -50,16 +50,16 @@ struct DeviceReduceMultiBlockPartialReduce
     static constexpr index_t numDstDim = (NumInvariantDim == 0) ? 1 : NumInvariantDim;
     static constexpr bool reduceAllDim = (NumInvariantDim == 0);
 
-    static constexpr int M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
-    static constexpr int K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
+    static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
+    static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
     static constexpr int MaxBlockGroupSize = 256;
 
-    long_index_t GetWorkspaceSizeInBytes(const std::vector<int> inLengths,
+    long_index_t GetWorkspaceSizeInBytes(const std::vector<index_t> inLengths,
                                          const std::vector<int> reduceDims) override
     {
-        size_t invariant_total_length;
-        size_t reduce_total_length;
+        long_index_t invariant_total_length;
+        long_index_t reduce_total_length;
 
         auto inLengths_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inLengths, reduceDims);
 
@@ -93,10 +93,10 @@ struct DeviceReduceMultiBlockPartialReduce
 
     bool HasFurtherCall() override { return (true); };
 
-    static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
-                                    const std::vector<int>& inStrides,
+    static auto MakeSrc2dDescriptor(const std::vector<index_t>& inLengths,
+                                    const std::vector<index_t>& inStrides,
                                     int blkGroupSize,
-                                    int kBlockTileIterations)
+                                    int numBlockTileIteration)
     {
         const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<numSrcDim>{});
         const auto tupleSrcStrides = make_tuple_from_array(inStrides, Number<numSrcDim>{});
@@ -140,7 +140,7 @@ struct DeviceReduceMultiBlockPartialReduce
         const auto invariantLength = in_grid_desc_m_k.GetLength(Number<0>{});
         const auto reduceLength    = in_grid_desc_m_k.GetLength(Number<1>{});
 
-        const int reduceSizePerBlock = K_BlockTileSize * kBlockTileIterations;
+        const int reduceSizePerBlock = K_BlockTileSize * numBlockTileIteration;
         const auto inPad_M =
             math::integer_least_multiple(invariantLength, M_BlockTileSize) - invariantLength;
         const auto inPad_K = reduceSizePerBlock * blkGroupSize - reduceLength;
@@ -155,7 +155,7 @@ struct DeviceReduceMultiBlockPartialReduce
         return (in_grid_desc_m_k_padded);
     };
 
-    static auto MakeWorkspace2dDescriptor(int invariantLength, int blkGroupSize)
+    static auto MakeWorkspace2dDescriptor(index_t invariantLength, int blkGroupSize)
     {
         auto ws_desc_m_k =
             make_naive_tensor_descriptor_packed(make_tuple(invariantLength, blkGroupSize));
@@ -175,10 +175,10 @@ struct DeviceReduceMultiBlockPartialReduce
 
     struct Argument : public BaseArgument
     {
-        Argument(const std::vector<int> inLengths,
-                 const std::vector<int> inStrides,
-                 const std::vector<int> outLengths,
-                 const std::vector<int> outStrides,
+        Argument(const std::vector<index_t> inLengths,
+                 const std::vector<index_t> inStrides,
+                 const std::vector<index_t> outLengths,
+                 const std::vector<index_t> outStrides,
                  const std::vector<int> reduceDims,
                  float alpha,
                  float beta,
@@ -224,7 +224,7 @@ struct DeviceReduceMultiBlockPartialReduce
             blkGroupSize = (reduce_total_length + (K_BlockTileSize * iterations) - 1) /
                            (K_BlockTileSize * iterations);
 
-            kBlockTileIterations = iterations;
+            numBlockTileIteration = iterations;
 
             gridSize = math::integer_least_multiple(invariant_total_length, M_BlockTileSize) /
                        M_BlockTileSize * blkGroupSize;
@@ -239,10 +239,10 @@ struct DeviceReduceMultiBlockPartialReduce
                 workspace_indices_dev_ = nullptr;
         }
 
-        std::vector<int> inLengths_;
-        std::vector<int> inStrides_;
-        std::vector<int> outLengths_;
-        std::vector<int> outStrides_;
+        std::vector<index_t> inLengths_;
+        std::vector<index_t> inStrides_;
+        std::vector<index_t> outLengths_;
+        std::vector<index_t> outStrides_;
 
         AccDataType alpha_;
         AccDataType beta_;
@@ -254,13 +254,13 @@ struct DeviceReduceMultiBlockPartialReduce
         InElementwiseOperation in_elementwise_op_;
         AccElementwiseOperation acc_elementwise_op_;
 
-        int invariant_lowest_length;
-        int reduce_lowest_length;
-        size_t invariant_total_length;
-        size_t reduce_total_length;
+        index_t invariant_lowest_length;
+        index_t reduce_lowest_length;
+        long_index_t invariant_total_length;
+        long_index_t reduce_total_length;
 
-        index_t blkGroupSize;
-        index_t kBlockTileIterations;
+        int blkGroupSize;
+        int numBlockTileIteration;
         size_t gridSize;
     };
 
@@ -269,7 +269,7 @@ struct DeviceReduceMultiBlockPartialReduce
         float Run(const Argument& arg, int nrepeat = 1)
         {
             const auto in_grid_desc_m_k = DeviceReduceMultiBlockPartialReduce::MakeSrc2dDescriptor(
-                arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.kBlockTileIterations);
+                arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
             const auto ws_desc_m_k = DeviceReduceMultiBlockPartialReduce::MakeWorkspace2dDescriptor(
                 arg.invariant_total_length, arg.blkGroupSize);
             using InGridDesc_M_K    = decltype(in_grid_desc_m_k);
@@ -316,7 +316,7 @@ struct DeviceReduceMultiBlockPartialReduce
                                               arg.in_elementwise_op_,
                                               arg.acc_elementwise_op_,
                                               arg.blkGroupSize,
-                                              arg.kBlockTileIterations,
+                                              arg.numBlockTileIteration,
                                               arg.in_dev_,
                                               arg.workspace_dev_,
                                               arg.workspace_indices_dev_);
@@ -377,11 +377,11 @@ struct DeviceReduceMultiBlockPartialReduce
     };
 
     std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const std::vector<int> inLengths,
-                        const std::vector<int> inStrides,
-                        const std::vector<int> outLengths,
-                        const std::vector<int> outStrides,
-                        const std::vector<int> reduceDims,
+    MakeArgumentPointer(const std::vector<index_t> inLengths,
+                        const std::vector<index_t> inStrides,
+                        const std::vector<index_t> outLengths,
+                        const std::vector<index_t> outStrides,
+                        const std::vector<index_t> reduceDims,
                         float alpha,
                         float beta,
                         const void* in_dev,

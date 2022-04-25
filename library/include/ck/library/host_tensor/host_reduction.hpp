@@ -201,7 +201,7 @@ struct ReductionHost
         using ck::float_equal_one;
         using ck::float_equal_zero;
         using ck::type_convert;
-        using ck::host_reduce::binop_with_nan_check2;
+        using ck::host_reduce::binop_with_index_and_nan_check;
         using ck::host_reduce::ReduceOpFn2;
         using ck::host_reduce::ReduceOpZeroVal;
 
@@ -223,7 +223,7 @@ struct ReductionHost
 
                 auto currIndex = i;
 
-                binop_with_nan_check2<AccDataType, PropagateNan>(
+                binop_with_index_and_nan_check<AccDataType, IndexDataType, PropagateNan>(
                     opReduce2, accuVal, currVal, accuIndex, currIndex);
             };
 
@@ -259,7 +259,7 @@ struct ReductionHost
 
                     auto currIndex = i;
 
-                    binop_with_nan_check2<AccDataType, PropagateNan>(
+                    binop_with_index_and_nan_check<AccDataType, IndexDataType, PropagateNan>(
                         opReduce2, accuVal, currVal, accuIndex, currIndex);
                 };
 

@@ -494,8 +494,8 @@ void profile_reduce_impl_impl(bool do_verification,
                 invariant_total_length * reduce_total_length * sizeof(InDataType) +
                 invariant_total_length * sizeof(OutDataType);
 
-            std::vector<int> inLengths2 = reduce_ptr->GetWorkspace2dLengths(argument_ptr.get());
-            std::vector<int> inStrides2{inLengths2[1], 1};
+            std::vector<index_t> inLengths2 = reduce_ptr->GetWorkspace2dLengths(argument_ptr.get());
+            std::vector<index_t> inStrides2{inLengths2[1], 1};
 
             for(auto& reduce2_ptr : reduce2_ptrs)
             {
