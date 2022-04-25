@@ -7,37 +7,15 @@
 #include "element_wise_operation.hpp"
 #include "conv_fwd_util.hpp"
 #include "conv_util.hpp"
-#include "host_tensor.hpp"
-#include "tensor_layout.hpp"
-#include "check_err.hpp"
-
-// Forward declarations for conv instances.
-
-using DeviceConvFwdNoOpPtr =
-    ck::tensor_operation::device::DeviceConvFwdPtr<ck::tensor_operation::element_wise::PassThrough,
-                                                   ck::tensor_operation::element_wise::PassThrough,
-                                                   ck::tensor_operation::element_wise::PassThrough>;
-
-namespace ck {
-namespace tensor_operation {
-namespace device {
-namespace device_conv1d_fwd_instance {
-
-void add_device_conv1d_fwd_xdl_nwc_kxc_nwk_bf16_instances(std::vector<DeviceConvFwdNoOpPtr>&);
-void add_device_conv1d_fwd_xdl_nwc_kxc_nwk_f16_instances(std::vector<DeviceConvFwdNoOpPtr>&);
-void add_device_conv1d_fwd_xdl_nwc_kxc_nwk_f32_instances(std::vector<DeviceConvFwdNoOpPtr>&);
-void add_device_conv1d_fwd_xdl_nwc_kxc_nwk_int8_instances(std::vector<DeviceConvFwdNoOpPtr>&);
-
-} // namespace device_conv1d_fwd_instance
-} // namespace device
-} // namespace tensor_operation
-} // namespace ck
 
 namespace {
 
 bool test_conv1D_nwc()
 {
-    bool res{true};
+    using namespace std::placeholders;
+    using namespace ck::utils;
+    namespace ctl = ck::tensor_layout::convolution;
+
     ck::utils::conv::ConvParams params;
     params.num_dim_spatial        = 1;
     params.N                      = 2;
@@ -50,30 +28,26 @@ bool test_conv1D_nwc()
     params.input_left_pads        = std::vector<ck::index_t>{1};
     params.input_right_pads       = std::vector<ck::index_t>{1};
 
-    auto host_tensors =
-        ck::utils::conv::get_host_tensors<float,
-                                          float,
-                                          float,
-                                          ck::tensor_layout::convolution::NWC,
-                                          ck::tensor_layout::convolution::KXC,
-                                          ck::tensor_layout::convolution::NWK>(params);
-    const Tensor<float>& input   = std::get<0>(host_tensors);
-    const Tensor<float>& weights = std::get<1>(host_tensors);
-    Tensor<float>& host_output   = std::get<2>(host_tensors);
-    Tensor<float>& device_output = std::get<3>(host_tensors);
+    std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
+    test::conv::get_test_convolution_fwd_instance<1>(conv_ptrs);
+    conv::ConvFwdOpInstance<float, float, float, ctl::NWC, ctl::KCX, ctl::NWK> conv_instance(
+        params);
 
-    ck::utils::conv::run_reference_convolution_forward<1>(params, input, weights, host_output);
-    test::conv::RunConv<1>(params, input, weights, device_output);
-    res = res &&
-          ck::utils::check_err(
-              device_output.mData, host_output.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
-
-    return res;
+    auto reference_conv_fwd_fun = std::bind(
+        conv::run_reference_convolution_forward<1, float, float, float>, params, _1, _2, _3);
+    OpInstanceRunEngine<float, float, float> run_engine(conv_instance, reference_conv_fwd_fun);
+    run_engine.SetAtol(1e-5);
+    run_engine.SetRtol(1e-4);
+    return run_engine.Test(conv_ptrs);
 }
 
 template <typename T>
-bool test_conv1d_nwc_instances(const std::vector<DeviceConvFwdNoOpPtr>& conv_ptrs)
+bool test_conv1d_nwc_instances(const std::vector<test::conv::DeviceConvFwdNoOpPtr>& conv_ptrs)
 {
+    using namespace std::placeholders;
+    using namespace ck::utils;
+    namespace ctl = ck::tensor_layout::convolution;
+
     ck::utils::conv::ConvParams params;
     params.num_dim_spatial        = 1;
     params.filter_spatial_lengths = std::vector<ck::index_t>{3};
@@ -83,52 +57,36 @@ bool test_conv1d_nwc_instances(const std::vector<DeviceConvFwdNoOpPtr>& conv_ptr
     params.input_left_pads        = std::vector<ck::index_t>{1};
     params.input_right_pads       = std::vector<ck::index_t>{1};
 
-    auto host_tensors =
-        ck::utils::conv::get_host_tensors<T,
-                                          T,
-                                          T,
-                                          ck::tensor_layout::convolution::NWC,
-                                          ck::tensor_layout::convolution::KXC,
-                                          ck::tensor_layout::convolution::NWK>(params);
-    const Tensor<T>& input   = std::get<0>(host_tensors);
-    const Tensor<T>& weights = std::get<1>(host_tensors);
-    Tensor<T>& host_output   = std::get<2>(host_tensors);
-    Tensor<T>& device_output = std::get<3>(host_tensors);
+    conv::ConvFwdOpInstance<T, T, T, ctl::NWC, ctl::KCX, ctl::NWK> conv_instance(params);
 
-    ck::utils::conv::run_reference_convolution_forward<1>(params, input, weights, host_output);
-    return ck::utils::conv::run_convolution_forward_instances<1>(
-        params, conv_ptrs, input, weights, device_output, host_output);
+    auto reference_conv_fwd_fun =
+        std::bind(conv::run_reference_convolution_forward<1, T, T, T>, params, _1, _2, _3);
+    OpInstanceRunEngine<T, T, T> run_engine(conv_instance, reference_conv_fwd_fun);
+    return run_engine.Test(conv_ptrs);
 }
+
 bool test_conv1d_nwc_bf16_instances()
 {
-    std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
-    ck::tensor_operation::device::device_conv1d_fwd_instance::
-        add_device_conv1d_fwd_xdl_nwc_kxc_nwk_bf16_instances(conv_ptrs);
-    return test_conv1d_nwc_instances<ck::bhalf_t>(conv_ptrs);
+    return test_conv1d_nwc_instances<ck::bhalf_t>(
+        ck::utils::conv::ConvolutionFwdInstances<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t>::Get<1>());
 }
 
 bool test_conv1d_nwc_f16_instances()
 {
-    std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
-    ck::tensor_operation::device::device_conv1d_fwd_instance::
-        add_device_conv1d_fwd_xdl_nwc_kxc_nwk_f16_instances(conv_ptrs);
-    return test_conv1d_nwc_instances<ck::half_t>(conv_ptrs);
+    return test_conv1d_nwc_instances<ck::half_t>(
+        ck::utils::conv::ConvolutionFwdInstances<ck::half_t, ck::half_t, ck::half_t>::Get<1>());
 }
 
 bool test_conv1d_nwc_f32_instances()
 {
-    std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
-    ck::tensor_operation::device::device_conv1d_fwd_instance::
-        add_device_conv1d_fwd_xdl_nwc_kxc_nwk_f32_instances(conv_ptrs);
-    return test_conv1d_nwc_instances<float>(conv_ptrs);
+    return test_conv1d_nwc_instances<float>(
+        ck::utils::conv::ConvolutionFwdInstances<float, float, float>::Get<1>());
 }
 
 bool test_conv1d_nwc_int8_instances()
 {
-    std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
-    ck::tensor_operation::device::device_conv1d_fwd_instance::
-        add_device_conv1d_fwd_xdl_nwc_kxc_nwk_int8_instances(conv_ptrs);
-    return test_conv1d_nwc_instances<int8_t>(conv_ptrs);
+    return test_conv1d_nwc_instances<int8_t>(
+        ck::utils::conv::ConvolutionFwdInstances<int8_t, int8_t, int8_t>::Get<1>());
 }
 
 } // anonymous namespace
@@ -149,7 +107,7 @@ int main()
     std::cout << "\ntest_conv1d_nwc_f32_instances ..... " << (res ? "SUCCESS" : "FAILURE")
               << std::endl;
     res = test_conv1d_nwc_int8_instances();
-    std::cout << "\ntes_tconv1_dnw_cint_8instances ..... " << (res ? "SUCCESS" : "FAILURE")
+    std::cout << "\ntest_conv1d_nwc_int8_instances ..... " << (res ? "SUCCESS" : "FAILURE")
               << std::endl;
 
     return res ? 0 : 1;

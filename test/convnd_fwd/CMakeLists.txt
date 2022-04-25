@@ -1,17 +1,15 @@
 add_custom_target(test_convnd_fwd)
 
 add_test_executable(test_conv1d_fwd conv1d_fwd.cpp)
-target_link_libraries(test_conv1d_fwd PRIVATE host_tensor)
-target_link_libraries(test_conv1d_fwd PRIVATE device_conv1d_fwd_instance)
+target_link_libraries(test_conv1d_fwd PRIVATE host_tensor device_conv1d_fwd_instance conv_fwd_util)
+target_link_libraries(test_conv1d_fwd PRIVATE )
 add_dependencies(test_convnd_fwd test_conv1d_fwd)
 
 add_test_executable(test_conv2d_fwd conv2d_fwd.cpp)
-target_link_libraries(test_conv2d_fwd PRIVATE host_tensor)
-target_link_libraries(test_conv2d_fwd PRIVATE device_conv2d_fwd_instance)
+target_link_libraries(test_conv2d_fwd PRIVATE host_tensor device_conv2d_fwd_instance conv_fwd_util)
 add_dependencies(test_convnd_fwd test_conv2d_fwd)
 
 add_test_executable(test_conv3d_fwd conv3d_fwd.cpp)
-target_link_libraries(test_conv3d_fwd PRIVATE host_tensor)
-target_link_libraries(test_conv3d_fwd PRIVATE device_conv3d_fwd_instance)
+target_link_libraries(test_conv3d_fwd PRIVATE host_tensor device_conv3d_fwd_instance conv_fwd_util)
 add_dependencies(test_convnd_fwd test_conv3d_fwd)
 
