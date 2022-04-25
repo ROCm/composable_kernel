@@ -369,7 +369,7 @@ struct DeviceBatchedGemmXdl
                   DeviceBatchedGemmXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB)},
               c_grid_desc_m_n_{DeviceBatchedGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC)},
               c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
-              compute_ptr_offset_of_batch{a_grid_desc_k0_m_k1_.GetElementSpaceSize(),
+              compute_ptr_offset_of_batch_{a_grid_desc_k0_m_k1_.GetElementSpaceSize(),
                                           b_grid_desc_k0_n_k1_.GetElementSpaceSize(),
                                           c_grid_desc_m_n_.GetElementSpaceSize()},
               block_2_ctile_map_{},
@@ -398,7 +398,7 @@ struct DeviceBatchedGemmXdl
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
         CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
-        ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch;
+        ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch_;
         Block2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
@@ -477,7 +477,7 @@ struct DeviceBatchedGemmXdl
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
                                                   arg.c_element_op_,
-                                                  arg.compute_ptr_offset_of_batch,
+                                                  arg.compute_ptr_offset_of_batch_,
                                                   arg.block_2_ctile_map_);
             }
             else
@@ -511,7 +511,7 @@ struct DeviceBatchedGemmXdl
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
                                                   arg.c_element_op_,
-                                                  arg.compute_ptr_offset_of_batch,
+                                                  arg.compute_ptr_offset_of_batch_,
                                                   arg.block_2_ctile_map_);
             }
 
