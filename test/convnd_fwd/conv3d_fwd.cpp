@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <tuple>
 #include <vector>
+#include "gtest/gtest.h"
 
 #include "data_type.hpp"
 #include "element_wise_operation.hpp"
@@ -11,7 +12,7 @@
 
 namespace {
 
-bool test_conv3d_ndhwc()
+TEST(Conv3DFwdNDHWC, TestConv3D)
 {
     using namespace std::placeholders;
     using namespace ck::utils;
@@ -39,10 +40,10 @@ bool test_conv3d_ndhwc()
     OpInstanceRunEngine<float, float, float> run_engine(conv_instance, reference_conv_fwd_fun);
     run_engine.SetAtol(1e-5);
     run_engine.SetRtol(1e-4);
-    return run_engine.Test(conv_ptrs);
+    EXPECT_TRUE(run_engine.Test(conv_ptrs));
 }
 
-bool test_conv3d_ndhwc_2gb_input()
+TEST(Conv3DFwdNDHWC, InputOver2GB)
 {
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
     using namespace ck::utils;
@@ -79,10 +80,10 @@ bool test_conv3d_ndhwc_2gb_input()
                                                      PassThrough{},
                                                      PassThrough{},
                                                      PassThrough{});
-    return !(conv_ptrs.back()->IsSupportedArgument(arg.get()));
+    EXPECT_FALSE(conv_ptrs.back()->IsSupportedArgument(arg.get()));
 }
 
-bool test_conv3d_ndhwc_2gb_filters()
+TEST(Conv3DFwdNDHWC, FiltersOver2GB)
 {
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
     using namespace ck::utils;
@@ -119,10 +120,10 @@ bool test_conv3d_ndhwc_2gb_filters()
                                                      PassThrough{},
                                                      PassThrough{},
                                                      PassThrough{});
-    return !(conv_ptrs.back()->IsSupportedArgument(arg.get()));
+    EXPECT_FALSE(conv_ptrs.back()->IsSupportedArgument(arg.get()));
 }
 
-bool test_conv3d_ndhwc_2gb_output()
+TEST(Conv3DFwdNDHWC, OutputOver2GB)
 {
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
     using namespace ck::utils;
@@ -158,7 +159,7 @@ bool test_conv3d_ndhwc_2gb_output()
                                                      PassThrough{},
                                                      PassThrough{},
                                                      PassThrough{});
-    return !(conv_ptrs.back()->IsSupportedArgument(arg.get()));
+    EXPECT_FALSE(conv_ptrs.back()->IsSupportedArgument(arg.get()));
 }
 
 template <typename T>
@@ -186,60 +187,28 @@ bool test_conv3d_ndhwc_instances(const std::vector<test::conv::DeviceConvFwdNoOp
     return run_engine.Test(conv_ptrs);
 }
 
-bool test_conv3d_ndhwc_bf16_instances()
+TEST(Conv3DFwdNDHWC, Bf16Instances)
 {
-    return test_conv3d_ndhwc_instances<ck::bhalf_t>(
-        ck::utils::conv::ConvolutionFwdInstances<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t>::Get<3>());
+    EXPECT_TRUE(test_conv3d_ndhwc_instances<ck::bhalf_t>(
+        ck::utils::conv::ConvolutionFwdInstances<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t>::Get<3>()));
 }
 
-bool test_conv3d_ndhwc_f16_instances()
+TEST(Conv3DFwdNDHWC, F16Instances)
 {
-    return test_conv3d_ndhwc_instances<ck::half_t>(
-        ck::utils::conv::ConvolutionFwdInstances<ck::half_t, ck::half_t, ck::half_t>::Get<3>());
+    EXPECT_TRUE(test_conv3d_ndhwc_instances<ck::half_t>(
+        ck::utils::conv::ConvolutionFwdInstances<ck::half_t, ck::half_t, ck::half_t>::Get<3>()));
 }
 
-bool test_conv3d_ndhwc_f32_instances()
+TEST(Conv3DFwdNDHWC, F32Instances)
 {
-    return test_conv3d_ndhwc_instances<float>(
-        ck::utils::conv::ConvolutionFwdInstances<float, float, float>::Get<3>());
+    EXPECT_TRUE(test_conv3d_ndhwc_instances<float>(
+        ck::utils::conv::ConvolutionFwdInstances<float, float, float>::Get<3>()));
 }
 
-bool test_conv3d_ndhwc_int8_instances()
+TEST(Conv3DFwdNDHWC, Int8Instances)
 {
-    return test_conv3d_ndhwc_instances<int8_t>(
-        ck::utils::conv::ConvolutionFwdInstances<int8_t, int8_t, int8_t>::Get<3>());
+    EXPECT_TRUE(test_conv3d_ndhwc_instances<int8_t>(
+        ck::utils::conv::ConvolutionFwdInstances<int8_t, int8_t, int8_t>::Get<3>()));
 }
 
 } // anonymous namespace
-
-int main()
-{
-    bool res{true};
-    res = test_conv3d_ndhwc();
-    std::cout << "test_conv3d_ndhwc ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
-
-    res = test_conv3d_ndhwc_2gb_input();
-    std::cout << "\ntest_conv3d_ndhwc_2gb_input ..... " << (res ? "SUCCESS" : "FAILURE")
-              << std::endl;
-    res = test_conv3d_ndhwc_2gb_filters();
-    std::cout << "\ntest_conv3d_ndhwc_2gb_filters ..... " << (res ? "SUCCESS" : "FAILURE")
-              << std::endl;
-    res = test_conv3d_ndhwc_2gb_output();
-    std::cout << "\ntest_conv3d_ndhwc_2gb_output ..... " << (res ? "SUCCESS" : "FAILURE")
-              << std::endl;
-
-    res = test_conv3d_ndhwc_bf16_instances();
-    std::cout << "\ntest_conv3d_ndhwc_bf16_instances ..... " << (res ? "SUCCESS" : "FAILURE")
-              << std::endl;
-    res = test_conv3d_ndhwc_f16_instances();
-    std::cout << "\ntest_conv3d_ndhwc_f16_instances ..... " << (res ? "SUCCESS" : "FAILURE")
-              << std::endl;
-    res = test_conv3d_ndhwc_f32_instances();
-    std::cout << "\ntest_conv3d_ndhwc_f32_instances ..... " << (res ? "SUCCESS" : "FAILURE")
-              << std::endl;
-    res = test_conv3d_ndhwc_int8_instances();
-    std::cout << "\ntest_conv3d_ndhwc_int8_instances ..... " << (res ? "SUCCESS" : "FAILURE")
-              << std::endl;
-
-    return res ? 0 : 1;
-}

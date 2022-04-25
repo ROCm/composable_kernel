@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include <tuple>
 #include <vector>
+#include "gtest/gtest.h"
 
 #include "data_type.hpp"
 #include "element_wise_operation.hpp"
@@ -10,7 +11,7 @@
 
 namespace {
 
-bool test_conv1D_nwc()
+TEST(Conv1DFwdNWC, TestConv1D)
 {
     using namespace std::placeholders;
     using namespace ck::utils;
@@ -38,7 +39,7 @@ bool test_conv1D_nwc()
     OpInstanceRunEngine<float, float, float> run_engine(conv_instance, reference_conv_fwd_fun);
     run_engine.SetAtol(1e-5);
     run_engine.SetRtol(1e-4);
-    return run_engine.Test(conv_ptrs);
+    EXPECT_TRUE(run_engine.Test(conv_ptrs));
 }
 
 template <typename T>
@@ -65,50 +66,28 @@ bool test_conv1d_nwc_instances(const std::vector<test::conv::DeviceConvFwdNoOpPt
     return run_engine.Test(conv_ptrs);
 }
 
-bool test_conv1d_nwc_bf16_instances()
+TEST(Conv1DFwdNWC, Bf16Iinstances)
 {
-    return test_conv1d_nwc_instances<ck::bhalf_t>(
-        ck::utils::conv::ConvolutionFwdInstances<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t>::Get<1>());
+    EXPECT_TRUE(test_conv1d_nwc_instances<ck::bhalf_t>(
+        ck::utils::conv::ConvolutionFwdInstances<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t>::Get<1>()));
 }
 
-bool test_conv1d_nwc_f16_instances()
+TEST(Conv1DFwdNWC, F16Instances)
 {
-    return test_conv1d_nwc_instances<ck::half_t>(
-        ck::utils::conv::ConvolutionFwdInstances<ck::half_t, ck::half_t, ck::half_t>::Get<1>());
+    EXPECT_TRUE(test_conv1d_nwc_instances<ck::half_t>(
+        ck::utils::conv::ConvolutionFwdInstances<ck::half_t, ck::half_t, ck::half_t>::Get<1>()));
 }
 
-bool test_conv1d_nwc_f32_instances()
+TEST(Conv1DFwdNWC, F32Instances)
 {
-    return test_conv1d_nwc_instances<float>(
-        ck::utils::conv::ConvolutionFwdInstances<float, float, float>::Get<1>());
+    EXPECT_TRUE(test_conv1d_nwc_instances<float>(
+        ck::utils::conv::ConvolutionFwdInstances<float, float, float>::Get<1>()));
 }
 
-bool test_conv1d_nwc_int8_instances()
+TEST(Conv1DFwdNWC, Int8Instances)
 {
-    return test_conv1d_nwc_instances<int8_t>(
-        ck::utils::conv::ConvolutionFwdInstances<int8_t, int8_t, int8_t>::Get<1>());
+    EXPECT_TRUE(test_conv1d_nwc_instances<int8_t>(
+        ck::utils::conv::ConvolutionFwdInstances<int8_t, int8_t, int8_t>::Get<1>()));
 }
 
 } // anonymous namespace
-
-int main()
-{
-    bool res{true};
-    res = test_conv1D_nwc();
-    std::cout << "test_conv1D_nwc ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
-
-    res = test_conv1d_nwc_bf16_instances();
-    std::cout << "\nTestConv1DNWCBF16Instances ..... " << (res ? "SUCCESS" : "FAILURE")
-              << std::endl;
-    res = test_conv1d_nwc_f16_instances();
-    std::cout << "\ntest_conv1d_nwc_f16_instances ..... " << (res ? "SUCCESS" : "FAILURE")
-              << std::endl;
-    res = test_conv1d_nwc_f32_instances();
-    std::cout << "\ntest_conv1d_nwc_f32_instances ..... " << (res ? "SUCCESS" : "FAILURE")
-              << std::endl;
-    res = test_conv1d_nwc_int8_instances();
-    std::cout << "\ntest_conv1d_nwc_int8_instances ..... " << (res ? "SUCCESS" : "FAILURE")
-              << std::endl;
-
-    return res ? 0 : 1;
-}
