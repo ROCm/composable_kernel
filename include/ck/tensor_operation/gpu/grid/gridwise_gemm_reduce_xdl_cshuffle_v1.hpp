@@ -8,6 +8,7 @@
 #include "blockwise_tensor_slice_transfer_v6r1.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 #include "gridwise_gemm_pipeline_v1.hpp"
+#include "reduction_functions_threadwise.hpp"
 
 namespace ck {
 
@@ -836,8 +837,27 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                     c_grid_desc_mblock_mperblock_nblock_nperblock,
                     c_grid_buf);
 
-                auto d0_reduce_op = D0ReduceOperation{};
-                auto d1_reduce_op = D1ReduceOperation{};
+                using ThreadwiseReduce_D0 =
+                    ThreadwiseReduction<FloatReduceAcc,
+                                        decltype(c_reduce_thread_desc_mperblock_nperblock),
+                                        decltype(d_reduce_thread_desc_mperblock),
+                                        D0ReduceOperation,
+                                        false>;
+
+                using ThreadwiseReduce_D1 =
+                    ThreadwiseReduction<FloatReduceAcc,
+                                        decltype(c_reduce_thread_desc_mperblock_nperblock),
+                                        decltype(d_reduce_thread_desc_mperblock),
+                                        D1ReduceOperation,
+                                        false>;
+
+                const auto d0_zeroVal = D0ReduceOperation::GetReductionZeroVal();
+                const auto d1_zeroVal = D0ReduceOperation::GetReductionZeroVal();
+
+                static_for<0, mreduce_per_thread, 1>{}(
+                    [&](auto I) { d0_thread_buf(I) = d0_zeroVal; });
+                static_for<0, mreduce_per_thread, 1>{}(
+                    [&](auto I) { d1_thread_buf(I) = d1_zeroVal; });
 
                 // reduce
                 {
@@ -849,22 +869,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                                          c_reduce_thread_buf);
 
                     // reduce in VGPR
-                    static_for<0, mreduce_per_thread, 1>{}([&](auto im) {
-                        FloatReduceAcc d0_acc = d0_reduce_op.GetReductionZeroVal();
-
-                        static_for<0, nreduce_per_thread, 1>{}([&](auto in) {
-                            constexpr auto offset =
-                                Number<c_reduce_thread_desc_mperblock_nperblock.CalculateOffset(
-                                    make_tuple(im, in))>{};
-
-                            d0_reduce_op(d0_acc, c_reduce_thread_buf[offset]);
-                        });
-
-                        constexpr index_t out_offset =
-                            d_reduce_thread_desc_mperblock.CalculateOffset(make_tuple(im));
-
-                        d0_thread_buf(Number<out_offset>{}) = d0_acc;
-                    });
+                    ThreadwiseReduce_D0::Reduce(c_reduce_thread_buf, d0_thread_buf);
 
                     static_for<0, mreduce_per_thread, 1>{}([&](auto im) {
                         static_for<0, nreduce_per_thread, 1>{}([&](auto in) {
@@ -876,22 +881,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                         });
                     });
 
-                    static_for<0, mreduce_per_thread, 1>{}([&](auto im) {
-                        FloatReduceAcc d1_acc = d1_reduce_op.GetReductionZeroVal();
-
-                        static_for<0, nreduce_per_thread, 1>{}([&](auto in) {
-                            constexpr auto offset =
-                                Number<c_reduce_thread_desc_mperblock_nperblock.CalculateOffset(
-                                    make_tuple(im, in))>{};
-
-                            d1_reduce_op(d1_acc, c_reduce_thread_buf[offset]);
-                        });
-
-                        constexpr index_t out_offset =
-                            d_reduce_thread_desc_mperblock.CalculateOffset(make_tuple(im));
-
-                        d1_thread_buf(Number<out_offset>{}) = d1_acc;
-                    });
+                    ThreadwiseReduce_D1::Reduce(c_reduce_thread_buf, d1_thread_buf);
 
                     // copy from VGPR to Global
                     d0_reduce_thread_copy_vgpr_to_global.Run(d_reduce_thread_desc_mblock_mperblock,
