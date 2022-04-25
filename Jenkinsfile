@@ -140,6 +140,10 @@ def reboot(){
     build job: 'reboot-slaves', propagate: false , parameters: [string(name: 'server', value: "${env.NODE_NAME}"),]
 }
 
+
+
+
+
 def buildHipClangJobAndReboot(Map conf=[:]){
     try{
         buildHipClangJob(conf)
@@ -155,6 +159,79 @@ def buildHipClangJobAndReboot(Map conf=[:]){
         }
     }
 }
+
+
+def runPerfTest(Map conf=[:]){
+        show_node_info()
+
+        env.HSA_ENABLE_SDMA=0
+        checkout scm
+
+        def image = "composable_kernels"
+        def prefixpath = conf.get("prefixpath", "/opt/rocm")
+        def gpu_arch = conf.get("gpu_arch", "gfx908")
+
+        // Jenkins is complaining about the render group 
+        // def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        if (conf.get("enforce_xnack_on", false)) {
+            dockerOpts = dockerOpts + " --env HSA_XNACK=1"
+        }
+        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' "
+
+        def variant = env.STAGE_NAME
+
+
+        def retimage
+        gitStatusWrapper(credentialsId: '7126e5fe-eb51-4576-b52b-9aaf1de8f0fd', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
+            try {
+                retimage = docker.build("${image}", dockerArgs + '.')
+                withDockerContainer(image: image, args: dockerOpts) {
+                    timeout(time: 5, unit: 'MINUTES')
+                    {
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                    }
+                }
+            }
+            catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                echo "The job was cancelled or aborted"
+                throw e
+            }
+            catch(Exception ex) {
+                retimage = docker.build("${image}", dockerArgs + "--no-cache .")
+                withDockerContainer(image: image, args: dockerOpts) {
+                    timeout(time: 5, unit: 'MINUTES')
+                    {
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                    }
+                }
+            }
+
+            withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
+                timeout(time: 5, unit: 'HOURS')
+                {
+                    cmake_build(conf)
+                }
+            }
+        }
+        return retimage
+}
+def runPerfTest(Map conf=[:]){
+    try{
+        runCKProfiler(conf)
+    }
+    catch(e){
+        echo "throwing error exception in performance tests"
+        echo 'Exception occurred: ' + e.toString()
+        throw e
+    }
+    finally{
+        if (!conf.get("no_reboot", false)) {
+            reboot()
+        }
+    }
+}
+
 
 pipeline {
     agent none
@@ -232,6 +309,28 @@ pipeline {
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release')
+                    }
+
+                }
+
+            }
+        }
+        stage("Performance Tests")
+        {
+            parallel
+            {
+                stage("Run ckProfiler: gfx908")
+                {
+                    agent{ label rocmnode("gfx908")}
+                    environment{
+                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
+                    }
+                    steps{
+                    // run ckProfiler
+                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
+					// parse the results
+					
+					//archive results 
                     }
 
                 }
