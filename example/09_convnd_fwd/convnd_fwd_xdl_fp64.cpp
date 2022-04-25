@@ -49,14 +49,14 @@ using DeviceConvNDFwdInstance = ck::tensor_operation::device::
         ConvFwdDefault,     // ConvForwardSpecialization
         NumDimSpatial,      // NumDimSpatial
         256,                // BlockSize
-        64,                // MPerBlock
-        64,                // NPerBlock
+        128,                // MPerBlock
+        128,                // NPerBlock
         4,                  // K0PerBlock
         2,                  // K1
         16,                 // MPerXDL
         16,                 // NPerXDL
-        2,                  // MXdlPerWave
-        2,                  // NXdlPerWave
+        4,                  // MXdlPerWave
+        4,                  // NXdlPerWave
         S<4, 64, 1>,        // ABlockTransferThreadClusterLengths_K0_M_K1
         S<1, 0, 2>,         // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,         // ABlockTransferSrcAccessOrder
@@ -241,10 +241,8 @@ int main(int argc, char* argv[])
         weights.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
         break;
     default:
-        // input.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
-        weights.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
         input.GenerateTensorValue(GeneratorTensor_1<InDataType>{1});
-        // weights.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
+        weights.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpace());
