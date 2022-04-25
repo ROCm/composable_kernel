@@ -161,7 +161,7 @@ def buildHipClangJobAndReboot(Map conf=[:]){
 }
 
 
-def runPerfTest(Map conf=[:]){
+def runCKProfiler(Map conf=[:]){
         show_node_info()
 
         env.HSA_ENABLE_SDMA=0
@@ -330,7 +330,7 @@ pipeline {
                         runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
 					// parse the results
 					
-					//archive results 
+					//archive the performance results matrix
                     }
 
                 }
