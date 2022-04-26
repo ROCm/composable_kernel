@@ -95,7 +95,7 @@
 #define CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR 0
 
 // experimental feature: buffer load/store/atomic-add OOB trick
-#define CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK 1
+#define CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK 0
 #define CK_EXPERIMENTAL_USE_BUFFER_STORE_OOB_CHECK_OFFSET_TRICK 1
 #define CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_ADD_OOB_CHECK_OFFSET_TRICK 1
 
@@ -107,7 +107,7 @@
 
 // experimental feature: use __builtin_memcpy instead of pointer cast to access a vector from
 // pointer of scalar
-#define CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS 1
+#define CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS 0
 
 // experimental feature: use __builtin_memcpy instead of union to do bit_cast
 #define CK_EXPERIMENTAL_USE_MEMCPY_FOR_BIT_CAST 1
