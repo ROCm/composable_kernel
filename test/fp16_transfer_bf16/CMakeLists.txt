@@ -1,0 +1,2 @@
+add_test_executable(test_fp16_transfer_bf16 fp16_transfer_bf16.cpp)
+target_link_libraries(test_fp16_transfer_bf16 PRIVATE host_tensor)

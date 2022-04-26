@@ -40,10 +40,11 @@ __global__ void
                                   const CBlockClusterAdaptor c_block_cluster_adaptor)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
+    using LDSDataType = typename TypeMap<FloatAB>::type;
     constexpr index_t shared_block_size =
-        GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
+        GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(LDSDataType);
 
-    __shared__ FloatAB p_shared_block[shared_block_size];
+    __shared__ LDSDataType p_shared_block[shared_block_size];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
                                                   p_b_grid,
@@ -111,6 +112,7 @@ template <index_t BlockSize,
           typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>
 struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 {
+    using LDSDataType        = typename TypeMap<FloatAB>::type;
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
@@ -167,7 +169,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         constexpr auto c_block_size =
             GetCBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock().GetElementSpaceSize();
 
-        return math::max((a_block_space_size + b_block_space_size) * sizeof(FloatAB),
+        return math::max((a_block_space_size + b_block_space_size) * sizeof(LDSDataType),
                          c_block_size * sizeof(FloatC));
     }
 
@@ -308,7 +310,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
                                const FloatAB* __restrict__ p_b_grid,
                                FloatC* __restrict__ p_c_grid,
-                               FloatAB* __restrict__ p_shared_block,
+                               LDSDataType* __restrict__ p_shared_block,
                                const AGridDesc_B_K0_M_K1& a_b_k0_m_k1_grid_desc,
                                const BGridDesc_B_K0_N_K1& b_b_k0_n_k1_grid_desc,
                                const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock&
@@ -417,7 +419,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                                               ABlockTransferThreadClusterLengths_K0_M_K1,
                                               ABlockTransferThreadClusterArrangeOrder,
                                               FloatAB,
-                                              FloatAB,
+                                              LDSDataType,
                                               decltype(a_b_k0_m_k1_grid_desc),
                                               decltype(a_b_k0_m_k1_block_desc),
                                               ABlockTransferSrcAccessOrder,
@@ -447,7 +449,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                                               BBlockTransferThreadClusterLengths_K0_N_K1,
                                               BBlockTransferThreadClusterArrangeOrder,
                                               FloatAB,
-                                              FloatAB,
+                                              LDSDataType,
                                               decltype(b_b_k0_n_k1_grid_desc),
                                               decltype(b_b_k0_n_k1_block_desc),
                                               BBlockTransferSrcAccessOrder,
@@ -477,7 +479,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 
         auto blockwise_gemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
-                                                                FloatAB,
+                                                                LDSDataType,
                                                                 FloatAcc,
                                                                 decltype(a_k0_m_k1_block_desc),
                                                                 decltype(b_k0_n_k1_block_desc),
@@ -493,8 +495,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         constexpr auto a_block_space_size =
             math::integer_least_multiple(a_k0_m_k1_block_desc.GetElementSpaceSize(), max_lds_align);
 
-        FloatAB* p_a_block = p_shared_block;
-        FloatAB* p_b_block = p_shared_block + a_block_space_size;
+        LDSDataType* p_a_block = p_shared_block;
+        LDSDataType* p_b_block = p_shared_block + a_block_space_size;
 
         constexpr auto a_block_slice_copy_step = make_multi_index(0, K0PerBlock, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(0, K0PerBlock, 0, 0);
@@ -574,7 +576,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                 GetCBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
 
             auto c_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-                static_cast<FloatC*>(p_shared_block),
+                static_cast<FloatC*>(static_cast<void*>(p_shared_block)),
                 c_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
             static_assert(M1 == MWave, "");
