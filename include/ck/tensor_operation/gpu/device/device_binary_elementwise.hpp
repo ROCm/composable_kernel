@@ -19,7 +19,8 @@ struct DeviceBinaryElementwise : public BaseOperator
                                                               const std::vector<int>& stride_a,
                                                               const std::vector<int>& shape_b,
                                                               const std::vector<int>& stride_b,
-                                                              ElementwiseFunctor functor) = 0;
+                                                              ElementwiseFunctor functor,
+                                                              index_t threadPerBlock) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };

@@ -179,7 +179,6 @@ using DeviceElementwiseSubExpInstance =
                                                              CDataType,
                                                              EltwiseComputeDataType,
                                                              SubExp,
-                                                             256,
                                                              8>;
 
 using DeviceElementwiseDivInstance =
@@ -188,7 +187,6 @@ using DeviceElementwiseDivInstance =
                                                              CDataType,
                                                              EltwiseComputeDataType,
                                                              Div,
-                                                             256,
                                                              8>;
 
 using HostGemmInstance = ck::tensor_operation::host::
@@ -416,7 +414,8 @@ int main(int argc, char* argv[])
                                             {StrideC, 1},
                                             {0, 1},
                                             {StrideC, 1},
-                                            SubExp{});
+                                            SubExp{},
+                                            256);
 
     if(!broadcastSubExp.IsSupportedArgument(broadcastSubExp_argument_ptr.get()))
     {
@@ -466,7 +465,8 @@ int main(int argc, char* argv[])
                                          {StrideC, 1},
                                          {0, 1},
                                          {StrideC, 1},
-                                         Div{});
+                                         Div{},
+                                         256);
 
     if(!broadcastDiv.IsSupportedArgument(broadcastDiv_argument_ptr.get()))
     {
