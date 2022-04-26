@@ -149,17 +149,21 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             {
 #if A_BLOCK_BANK_CONFLICT_FREE_WRW
                 constexpr auto a_block_desc_k0_m0_m1_k1 = make_naive_tensor_descriptor(
-                    make_tuple(Number<K0PerBlock>{}, Number<M0PerBlock>{}, Number<M1PerBlock>{}, K1),
-                    make_tuple(Number<M0PerBlock>{} * (Number<M1PerBlock>{} * K1 + M1Padding), Number<M1PerBlock>{} * K1 + M1Padding, K1, I1));
+                    make_tuple(
+                        Number<K0PerBlock>{}, Number<M0PerBlock>{}, Number<M1PerBlock>{}, K1),
+                    make_tuple(Number<M0PerBlock>{} * (Number<M1PerBlock>{} * K1 + M1Padding),
+                               Number<M1PerBlock>{} * K1 + M1Padding,
+                               K1,
+                               I1));
 
                 constexpr auto a_block_desc_k0_m_k1_tmp = transform_tensor_descriptor(
                     a_block_desc_k0_m0_m1_k1,
                     make_tuple(make_pass_through_transform(Number<K0PerBlock>{}),
-                               make_merge_transform_v3_division_mod(make_tuple(Number<M0PerBlock>{}, Number<M1PerBlock>{})),
+                               make_merge_transform_v3_division_mod(
+                                   make_tuple(Number<M0PerBlock>{}, Number<M1PerBlock>{})),
                                make_pass_through_transform(K1)),
                     make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}),
-                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{})
-                );
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
                 return a_block_desc_k0_m_k1_tmp;
 #else
@@ -188,30 +192,43 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             {
 #if A_BLOCK_BANK_CONFLICT_FREE_WRW
                 constexpr auto a_block_desc_b_k0_m0_m1_k1 = make_naive_tensor_descriptor(
-                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<M0PerBlock>{}, Number<M1PerBlock>{}, K1),
-                    make_tuple(Number<K0PerBlock>{} * Number<M0PerBlock>{} * (Number<M1PerBlock>{} * K1 + M1Padding), Number<M0PerBlock>{} * (Number<M1PerBlock>{} * K1 + M1Padding), Number<M1PerBlock>{} * K1 + M1Padding, K1, I1));
+                    make_tuple(Number<1>{},
+                               Number<K0PerBlock>{},
+                               Number<M0PerBlock>{},
+                               Number<M1PerBlock>{},
+                               K1),
+                    make_tuple(Number<K0PerBlock>{} * Number<M0PerBlock>{} *
+                                   (Number<M1PerBlock>{} * K1 + M1Padding),
+                               Number<M0PerBlock>{} * (Number<M1PerBlock>{} * K1 + M1Padding),
+                               Number<M1PerBlock>{} * K1 + M1Padding,
+                               K1,
+                               I1));
 
                 constexpr auto a_block_desc_b_k0_m_k1_tmp = transform_tensor_descriptor(
                     a_block_desc_b_k0_m0_m1_k1,
                     make_tuple(make_pass_through_transform(Number<1>{}),
                                make_pass_through_transform(Number<K0PerBlock>{}),
-                               make_merge_transform_v3_division_mod_for_wrw(make_tuple(Number<M0PerBlock>{}, Number<M1PerBlock>{})),
+                               make_merge_transform_v3_division_mod_for_wrw(
+                                   make_tuple(Number<M0PerBlock>{}, Number<M1PerBlock>{})),
                                make_pass_through_transform(K1)),
                     make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4>{}),
-                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{})
-                );
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
 
                 return a_block_desc_b_k0_m_k1_tmp;
 #else
                 return make_naive_tensor_descriptor(
                     make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
-                    make_tuple(Number<K0PerBlock>{} * Number<MPerBlock + 1>{} * K1, Number<MPerBlock + 1>{} * K1, K1, I1));
+                    make_tuple(Number<K0PerBlock>{} * Number<MPerBlock + 1>{} * K1,
+                               Number<MPerBlock + 1>{} * K1,
+                               K1,
+                               I1));
 #endif
             }
             else
             {
                 return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<MPerBlock>{}, K1), max_lds_align);
+                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
+                    max_lds_align);
             }
         }();
 
@@ -228,17 +245,21 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             {
 #if B_BLOCK_BANK_CONFLICT_FREE_WRW
                 constexpr auto b_block_desc_k0_n0_n1_k1 = make_naive_tensor_descriptor(
-                    make_tuple(Number<K0PerBlock>{}, Number<N0PerBlock>{}, Number<N1PerBlock>{}, K1),
-                    make_tuple(Number<N0PerBlock>{} * (Number<N1PerBlock>{} * K1 + N1Padding), Number<N1PerBlock>{} * K1 + N1Padding, K1, I1));
+                    make_tuple(
+                        Number<K0PerBlock>{}, Number<N0PerBlock>{}, Number<N1PerBlock>{}, K1),
+                    make_tuple(Number<N0PerBlock>{} * (Number<N1PerBlock>{} * K1 + N1Padding),
+                               Number<N1PerBlock>{} * K1 + N1Padding,
+                               K1,
+                               I1));
 
                 constexpr auto b_block_desc_k0_n_k1_tmp = transform_tensor_descriptor(
                     b_block_desc_k0_n0_n1_k1,
                     make_tuple(make_pass_through_transform(Number<K0PerBlock>{}),
-                               make_merge_transform_v3_division_mod(make_tuple(Number<N0PerBlock>{}, Number<N1PerBlock>{})),
+                               make_merge_transform_v3_division_mod(
+                                   make_tuple(Number<N0PerBlock>{}, Number<N1PerBlock>{})),
                                make_pass_through_transform(K1)),
                     make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}),
-                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{})
-                );
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
                 return b_block_desc_k0_n_k1_tmp;
 #else
@@ -268,30 +289,43 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             {
 #if B_BLOCK_BANK_CONFLICT_FREE_WRW
                 constexpr auto b_block_desc_b_k0_n0_n1_k1 = make_naive_tensor_descriptor(
-                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<N0PerBlock>{}, Number<N1PerBlock>{}, K1),
-                    make_tuple(Number<K0PerBlock>{} * Number<N0PerBlock>{} * (Number<N1PerBlock>{} * K1 + N1Padding), Number<N0PerBlock>{} * (Number<N1PerBlock>{} * K1 + N1Padding), Number<N1PerBlock>{} * K1 + N1Padding, K1, I1));
+                    make_tuple(Number<1>{},
+                               Number<K0PerBlock>{},
+                               Number<N0PerBlock>{},
+                               Number<N1PerBlock>{},
+                               K1),
+                    make_tuple(Number<K0PerBlock>{} * Number<N0PerBlock>{} *
+                                   (Number<N1PerBlock>{} * K1 + N1Padding),
+                               Number<N0PerBlock>{} * (Number<N1PerBlock>{} * K1 + N1Padding),
+                               Number<N1PerBlock>{} * K1 + N1Padding,
+                               K1,
+                               I1));
 
                 constexpr auto b_block_desc_b_k0_n_k1_tmp = transform_tensor_descriptor(
                     b_block_desc_b_k0_n0_n1_k1,
                     make_tuple(make_pass_through_transform(Number<1>{}),
                                make_pass_through_transform(Number<K0PerBlock>{}),
-                               make_merge_transform_v3_division_mod_for_wrw(make_tuple(Number<N0PerBlock>{}, Number<N1PerBlock>{})),
+                               make_merge_transform_v3_division_mod_for_wrw(
+                                   make_tuple(Number<N0PerBlock>{}, Number<N1PerBlock>{})),
                                make_pass_through_transform(K1)),
                     make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4>{}),
-                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{})
-                );
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
 
                 return b_block_desc_b_k0_n_k1_tmp;
 #else
                 return make_naive_tensor_descriptor(
                     make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
-                    make_tuple(Number<K0PerBlock>{} * Number<NPerBlock + 1>{} * K1, Number<NPerBlock + 1>{} * K1, K1, I1));
+                    make_tuple(Number<K0PerBlock>{} * Number<NPerBlock + 1>{} * K1,
+                               Number<NPerBlock + 1>{} * K1,
+                               K1,
+                               I1));
 #endif
             }
             else
             {
                 return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
+                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
+                    max_lds_align);
             }
         }();
 
@@ -309,11 +343,11 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         constexpr auto b_b_k0_n_k1_block_desc = GetBBlockDescriptor_Batch_K0PerBlock_NPerBlock_K1();
 
         // LDS allocation for A and B: be careful of alignment
-        constexpr auto a_block_space_size =
-            math::integer_least_multiple(a_b_k0_m_k1_block_desc.GetElementSpaceSize(), max_lds_align);
+        constexpr auto a_block_space_size = math::integer_least_multiple(
+            a_b_k0_m_k1_block_desc.GetElementSpaceSize(), max_lds_align);
 
-        constexpr auto b_block_space_size =
-            math::integer_least_multiple(b_b_k0_n_k1_block_desc.GetElementSpaceSize(), max_lds_align);
+        constexpr auto b_block_space_size = math::integer_least_multiple(
+            b_b_k0_n_k1_block_desc.GetElementSpaceSize(), max_lds_align);
 
         constexpr auto c_block_size =
             GetCBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock().GetElementSpaceSize();
@@ -570,8 +604,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         //       register
         // sanity check
 
-        constexpr index_t KPack = math::max(
-            K1, MfmaSelector<FloatAB, MPerXDL, NPerXDL>::selected_mfma.k_per_blk);
+        constexpr index_t KPack =
+            math::max(K1, MfmaSelector<FloatAB, MPerXDL, NPerXDL>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
