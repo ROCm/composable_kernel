@@ -16,6 +16,31 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+/*
+ * \brief Wrapper function of GridwiseGemm::Run to realize BatchedGEMM.
+ *
+ * \tparam ComputePtrOffsetOfBatch Class that computes the base pointer offsets of A, B, C matrix
+ * given the batch. For example, ComputePtrOffsetOfStridedBatch() computes the offsets of evenly
+ * strided batched, but we can easily extend to other layouts. The returned offset can be either \p
+ * index_t or \p long_index_t. If it returns \p long_index_t, we are not subject to the 2GB
+ * limitations.
+ *
+ * \tparam Block2CTileMap Block2CTileMap::CalculateBottomIndex() takes in id of a workgroup and
+ * returns the 2D index of the tile that it computes. \see
+ * GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3::Run().
+ *
+ * \note Using \p ComputePtrOffsetOfBatch gives us the flexibility that 2 workgroups can compute 2
+ * tiles from different matrices. Keep in mind that these 2 matrices can share the same grid
+ * descriptor (like in BatchedGEMM), or use their own grid descriptors (in GroupedGemm). \link
+ * device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk.hpp kernel_gemm_xdlops_v2r3_for_conv3d \endlink for \link
+ * DeviceConv3d \endlink uses the same concept, but currently does NOT encapsulate the computing of
+ * pointer offset into \p ComputePtrOffsetOfStridedBatch.
+ *
+ * \note \p Block2CTileMap allows customized mapping between a workgroup and the C-tile it computes.
+ * Together with \p ComputePtrOffsetOfBatch, we can reuse GridwiseGemm (and GridwiseGemm fusion ) to
+ * realize BatchedGemm and GroupedGemm (and the corresponding GEMM fusion).
+ *
+ */
 template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,
@@ -25,7 +50,7 @@ template <typename GridwiseGemm,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          typename ComputeBasePrtOfBatch,
+          typename ComputePtrOffsetOfBatch,
           typename Block2CTileMap,
           bool HasMainKBlockLoop>
 __global__ void
@@ -43,19 +68,20 @@ __global__ void
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op,
-            const ComputeBasePrtOfBatch compute_base_ptr_of_batch_,
+            const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
             const Block2CTileMap block_2_ctile_map)
 {
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
 
     const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch_.GetABasePtr(g_idx)));
+        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
     const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch_.GetBBasePtr(g_idx)));
+        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
     const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch_.GetCBasePtr(g_idx)));
+        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetCPtrOffset(g_idx)));
 
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
@@ -70,6 +96,20 @@ __global__ void
                                                   b_element_op,
                                                   c_element_op,
                                                   block_2_ctile_map);
+#else
+    ignore = p_a_grid;
+    ignore = p_b_grid;
+    ignore = p_c_grid;
+    ignore = batch_count;
+    ignore = a_grid_desc_k0_m_k1;
+    ignore = b_grid_desc_k0_n_k1;
+    ignore = c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2;
+    ignore = a_element_op;
+    ignore = b_element_op;
+    ignore = c_element_op;
+    ignore = compute_base_ptr_of_batch_;
+    ignore = block_2_ctile_map;
+#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
 template <typename ADataType,
@@ -241,26 +281,26 @@ struct DeviceBatchedGemmXdl
         return globalblockid_to_m0_n0_block_cluster_adaptor;
     }
 
-    struct ComputeBasePtrOfStridedBatch
+    struct ComputePtrOffsetOfStridedBatch
     {
-        ComputeBasePtrOfStridedBatch(index_t BatchStrideA,
-                                     index_t BatchStrideB,
-                                     index_t BatchStrideC)
+        ComputePtrOffsetOfStridedBatch(index_t BatchStrideA,
+                                       index_t BatchStrideB,
+                                       index_t BatchStrideC)
             : BatchStrideA_(BatchStrideA), BatchStrideB_(BatchStrideB), BatchStrideC_(BatchStrideC)
         {
         }
 
-        __host__ __device__ constexpr long_index_t GetABasePtr(index_t g_idx) const
+        __host__ __device__ constexpr long_index_t GetAPtrOffset(index_t g_idx) const
         {
             return g_idx * static_cast<long_index_t>(BatchStrideA_);
         }
 
-        __host__ __device__ constexpr long_index_t GetBBasePtr(index_t g_idx) const
+        __host__ __device__ constexpr long_index_t GetBPtrOffset(index_t g_idx) const
         {
             return g_idx * static_cast<long_index_t>(BatchStrideB_);
         }
 
-        __host__ __device__ constexpr long_index_t GetCBasePtr(index_t g_idx) const
+        __host__ __device__ constexpr long_index_t GetCPtrOffset(index_t g_idx) const
         {
             return g_idx * static_cast<long_index_t>(BatchStrideC_);
         }
@@ -344,9 +384,9 @@ struct DeviceBatchedGemmXdl
                   DeviceBatchedGemmXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB)},
               c_grid_desc_m_n_{DeviceBatchedGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC)},
               c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
-              compute_base_ptr_of_batch_{a_grid_desc_k0_m_k1_.GetElementSpaceSize(),
-                                         b_grid_desc_k0_n_k1_.GetElementSpaceSize(),
-                                         c_grid_desc_m_n_.GetElementSpaceSize()},
+              compute_ptr_offset_of_batch_{a_grid_desc_k0_m_k1_.GetElementSpaceSize(),
+                                          b_grid_desc_k0_n_k1_.GetElementSpaceSize(),
+                                          c_grid_desc_m_n_.GetElementSpaceSize()},
               block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
@@ -373,7 +413,7 @@ struct DeviceBatchedGemmXdl
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
         CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
-        ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
+        ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch_;
         Block2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
@@ -433,7 +473,7 @@ struct DeviceBatchedGemmXdl
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    ComputeBasePtrOfStridedBatch,
+                    ComputePtrOffsetOfStridedBatch,
                     remove_reference_t<Block2CTileMap>,
                     true>;
 
@@ -452,7 +492,7 @@ struct DeviceBatchedGemmXdl
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
                                                   arg.c_element_op_,
-                                                  arg.compute_base_ptr_of_batch_,
+                                                  arg.compute_ptr_offset_of_batch_,
                                                   arg.block_2_ctile_map_);
             }
             else
@@ -467,7 +507,7 @@ struct DeviceBatchedGemmXdl
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    ComputeBasePtrOfStridedBatch,
+                    ComputePtrOffsetOfStridedBatch,
                     remove_reference_t<Block2CTileMap>,
                     false>;
 
@@ -486,7 +526,7 @@ struct DeviceBatchedGemmXdl
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
                                                   arg.c_element_op_,
-                                                  arg.compute_base_ptr_of_batch_,
+                                                  arg.compute_ptr_offset_of_batch_,
                                                   arg.block_2_ctile_map_);
             }
 

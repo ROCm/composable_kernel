@@ -18,6 +18,9 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+/*
+ * \see \link device_batched_gemm_xdl.hpp kernel_batched_gemm_xdlops_v2r3() \endlink.
+ */
 template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,
@@ -49,6 +52,7 @@ __global__ void
             const CElementwiseOperation c_element_op,
             const Block2CTileMap block_2_ctile_map)
 {
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / num_batches);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
@@ -73,6 +77,23 @@ __global__ void
                                                   b_element_op,
                                                   c_element_op,
                                                   block_2_ctile_map);
+
+#else
+    ignore = p_a_grid;
+    ignore = p_b_grid;
+    ignore = p_c_grid;
+    ignore = num_batches;
+    ignore = a_batch_stride;
+    ignore = b_batch_stride;
+    ignore = c_batch_stride;
+    ignore = a_grid_desc_k0_m_k1;
+    ignore = b_grid_desc_k0_n_k1;
+    ignore = c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2;
+    ignore = a_element_op;
+    ignore = b_element_op;
+    ignore = c_element_op;
+    ignore = block_2_ctile_map;
+#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
 // specialization for #D conv: in[n, di, hi, wi, c] * wei[k, z, y, x, c] = out[n, do, ho, wo, k]

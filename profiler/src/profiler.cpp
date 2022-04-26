@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "profile_convnd_fwd.hpp"
+
 int profile_gemm(int, char*[]);
 int profile_gemm_bias_2d(int, char*[]);
 int profile_gemm_bias_relu(int, char*[]);
@@ -11,7 +13,6 @@ int profile_gemm_bias_relu_add(int, char*[]);
 int profile_gemm_reduce(int, char*[]);
 int profile_batched_gemm(int, char*[]);
 int profile_grouped_gemm(int, char*[]);
-int profile_conv_fwd(int, char*[]);
 int profile_conv_fwd_bias_relu(int, char*[]);
 int profile_conv_fwd_bias_relu_add(int, char*[]);
 int profile_conv_fwd_bias_relu_atomic_add(int, char*[]);
@@ -56,7 +57,7 @@ int main(int argc, char* argv[])
     }
     else if(strcmp(argv[1], "conv_fwd") == 0)
     {
-        return profile_conv_fwd(argc, argv);
+        return ck::profiler::profile_convnd_fwd(argc, argv);
     }
     else if(strcmp(argv[1], "conv_fwd_bias_relu") == 0)
     {
