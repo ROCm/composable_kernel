@@ -3,9 +3,9 @@
 ## GPU visibility
  export HIP_VISIBLE_DEVICES=0
 
- make -j ckProfiler
+# make -j ckProfiler
 
- DRIVER="./profiler/ckProfiler"
+ DRIVER="../bin/ckProfiler"
 
 OP=$1
 DATATYPE=$2

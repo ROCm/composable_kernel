@@ -211,11 +211,24 @@ def runCKProfiler(Map conf=[:]){
                 timeout(time: 5, unit: 'HOURS')
                 {
                     cmake_build(conf)
+					def perf_dir="perf_test"
+					sh "mkdir -p ${perf_dir}"
+					sh "cd ${perf_dir}"
+					sh "cp ../../scripts/profile_gemm.sh ."
+					def artifact = "${ck_branch}_${arch}_gemm.txt"
+					sh "./profile_gemm.sh gemm 0 0 0 1 0 5 > ${artifact}"
+					sh "./profile_gemm.sh gemm 0 1 0 1 0 5 >> ${artifact}"
+					sh "./profile_gemm.sh gemm 0 2 0 1 0 5 >> ${artifact}"
+					sh "./profile_gemm.sh gemm 0 3 0 1 0 5 >> ${artifact}"
+					// parse results
+					archiveArtifacts  "${artifact}"
                 }
             }
         }
         return retimage
 }
+
+
 def runPerfTest(Map conf=[:]){
     try{
         runCKProfiler(conf)
@@ -326,11 +339,7 @@ pipeline {
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
                     }
                     steps{
-                    // run ckProfiler
                         runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
-					// parse the results
-					
-					//archive the performance results matrix
                     }
 
                 }
