@@ -25,7 +25,6 @@ FetchContent_Declare(
   googletest
   GIT_REPOSITORY https://github.com/google/googletest.git
   GIT_TAG        b85864c64758dec007208e56af933fc3f52044ee
-  GIT_SHALLOW    1
 )
 
 # Will be necessary for windows build
