@@ -287,7 +287,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
             // NOTE: sync thread at the start of each MAC cluster except for the first MAC cluster
             // we want waves in a workgroup in sync to prevent waves from other workgroups hijacking
             // MAC resource
-            if constexpr(int(k) != 0 || KPerInnerLoop == KPerThread)
+            if constexpr(k.value != 0 || KPerInnerLoop == KPerThread)
             {
                 asm volatile("s_barrier" ::);
                 __builtin_amdgcn_sched_barrier();
@@ -318,9 +318,9 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                         // moved here B) reduce VMEM FIFO congestion by applying small delays to
                         // different wavefronts It is performed near the end of MAC cluster to
                         // minimize lgkmcnt penalty
-                        if constexpr(int(k) == KPerThread - KPerInnerLoop &&
-                                     int(k_) == KPerInnerLoop - KPack && int(m0) == MRepeat - 1 &&
-                                     int(n0) == NRepeat - 1)
+                        if constexpr(k.value == KPerThread - KPerInnerLoop &&
+                                     k_.value == KPerInnerLoop - KPack && m0.value == MRepeat - 1 &&
+                                     n0.value == NRepeat - 1)
                         {
                             __builtin_amdgcn_sched_barrier();
                             block_sync_lds();
@@ -333,7 +333,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                             a_thread_vec.template AsType<mfma_input_type>(),
                             b_thread_vec.template AsType<mfma_input_type>(),
                             c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-                        if constexpr(int(k_) == 0 && int(m0) == 0 && int(n0) == 0)
+                        if constexpr(k_.value == 0 && m0.value == 0 && n0.value == 0)
                         {
                             __builtin_amdgcn_sched_barrier();
                             __builtin_amdgcn_s_setprio(1);
