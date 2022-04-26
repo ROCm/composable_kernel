@@ -312,8 +312,8 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(
         make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, xdlops_gemm.GetRegSizePerXdlops()));
 
-    //static constexpr index_t A_K1_vec = A_K1;// / 2;
-    //static constexpr index_t B_K1_vec = B_K1;// / 2;
+    static constexpr index_t A_K1_vec = A_K1 / 2;
+    static constexpr index_t B_K1_vec = B_K1 / 2;
 
     using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatAB,
                                                          FloatAB,
@@ -322,7 +322,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                                          Sequence<1, 1, 1, KPerBlock>,
                                                          Sequence<0, 1, 2, 3>,
                                                          3,
-                                                         A_K1,
+                                                         A_K1_vec,
                                                          A_K1>;
 
     using BThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatAB,
@@ -332,7 +332,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                                          Sequence<1, 1, 1, KPerBlock>,
                                                          Sequence<0, 1, 2, 3>,
                                                          3,
-                                                         B_K1,
+                                                         B_K1_vec,
                                                          B_K1>;
 
     AThreadCopy a_thread_copy_{CalculateAThreadOriginDataIndex()};
