@@ -56,10 +56,10 @@ int main()
     using ADataType   = float;
     using BDataType   = float;
     using CDataType   = float;
-    using AccDataType = float,
+    using AccDataType = float;
 
-          using RowMajor = ck::tensor_layout::gemm::RowMajor;
-    using ColumnMajor    = ck::tensor_layout::gemm::ColumnMajor;
+    using RowMajor    = ck::tensor_layout::gemm::RowMajor;
+    using ColumnMajor = ck::tensor_layout::gemm::ColumnMajor;
 
     bool res = true;
     std::vector<DeviceGemmNoOpPtr> gemmPtrs;

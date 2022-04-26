@@ -49,10 +49,10 @@ int main()
     using ADataType   = int8_t;
     using BDataType   = int8_t;
     using CDataType   = int8_t;
-    using AccDataType = int32_t,
+    using AccDataType = int32_t;
 
-          using RowMajor = ck::tensor_layout::gemm::RowMajor;
-    using ColumnMajor    = ck::tensor_layout::gemm::ColumnMajor;
+    using RowMajor    = ck::tensor_layout::gemm::RowMajor;
+    using ColumnMajor = ck::tensor_layout::gemm::ColumnMajor;
 
     std::vector<DeviceGemmNoOpPtr> gemmPtrs;
     bool res = true;
