@@ -307,8 +307,10 @@ struct intrin_mfma_f64_16x16x4f64<16, 16>
         reg_c.template AsType<double4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f64_16x16x4f64(
             reg_a, reg_b, reg_c.template AsType<double4_t>()[Number<0>{}], 0, 0, 0);
 #else
-        reg_c.template AsType<double4_t>()(Number<0>{}) = {reg_a, reg_a, reg_b, reg_b};
-
+#pragma message "this GPU card don't support mfma_f64_16x16x4f64 instruction!"
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
 #endif
     }
 };
