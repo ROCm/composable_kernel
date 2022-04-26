@@ -137,16 +137,14 @@ class AppArgs
     bool compType_assigned = false;
     bool outType_assigned  = false;
 
-    NanPropagation nanOpt          = NanPropagation::NOT_PROPAGATE_NAN;
-    ReduceTensorIndices indicesOpt = ReduceTensorIndices::NO_INDICES;
-    bool do_log                    = false;
-    bool do_verification           = false;
-    bool do_dumpout                = false;
+    int nanOpt           = 0;
+    int indicesOpt       = 0;
+    bool do_log          = false;
+    bool do_verification = false;
+    bool do_dumpout      = false;
 
     int init_method;
     int nrepeat;
-
-    bool need_indices = false;
 
     AppArgs()  = default;
     ~AppArgs() = default;
@@ -166,8 +164,11 @@ class AppArgs
         std::cout << "--outType or -W, optional enum value indicating the type of the reduced "
                      "output, which could be float when the input data is half"
                   << std::endl;
-        std::cout << "--nanOpt or -N, enum value indicates the selection for NanOpt" << std::endl;
-        std::cout << "--indicesOpt or -I, enum value indicates the selection for IndicesOpt"
+        std::cout
+            << "--nanOpt or -N, 1/0 value indicates the selection to use or not use Nan-Propagation"
+            << std::endl;
+        std::cout << "--indicesOpt or -I, 1/0 value indicates the selection to use or not use "
+                     "index in reduction"
                   << std::endl;
         std::cout << "--scales or -S, comma separated two float values for alpha and beta"
                   << std::endl;
@@ -233,13 +234,13 @@ class AppArgs
                 if(!optarg)
                     throw std::runtime_error("Invalid option format!");
 
-                nanOpt = static_cast<NanPropagation>(std::atoi(optarg));
+                nanOpt = std::atoi(optarg);
                 break;
             case 'I':
                 if(!optarg)
                     throw std::runtime_error("Invalid option format!");
 
-                indicesOpt = static_cast<ReduceTensorIndices>(std::atoi(optarg));
+                indicesOpt = std::atoi(optarg);
                 break;
             case 'S':
                 if(!optarg)
@@ -306,9 +307,6 @@ class AppArgs
         if(reduceOp == ReduceTensorOp::MIN || reduceOp == ReduceTensorOp::MAX ||
            reduceOp == ReduceTensorOp::AMAX)
         {
-            if(indicesOpt != ReduceTensorIndices::NO_INDICES)
-                need_indices = true;
-
             // for indexable operations, no need to assign compType and outType, just let them be
             // same as inType
             compType_assigned = false;
@@ -350,18 +348,19 @@ int profile_reduce(int argc, char* argv[])
 
         if(args.compTypeId == AppDataType::appHalf)
         {
-            profile_reduce_impl<ck::half_t, ck::half_t, ck::half_t>(args.do_verification,
-                                                                    args.init_method,
-                                                                    args.do_log,
-                                                                    args.do_dumpout,
-                                                                    args.nrepeat,
-                                                                    args.inLengths,
-                                                                    args.reduceDims,
-                                                                    args.reduceOp,
-                                                                    args.nanOpt,
-                                                                    args.indicesOpt,
-                                                                    args.scales[0],
-                                                                    args.scales[1]);
+            profile_reduce_impl<ck::half_t, ck::half_t, ck::half_t>(
+                args.do_verification,
+                args.init_method,
+                args.do_log,
+                args.do_dumpout,
+                args.nrepeat,
+                args.inLengths,
+                args.reduceDims,
+                args.reduceOp,
+                static_cast<bool>(args.nanOpt),
+                static_cast<bool>(args.indicesOpt),
+                args.scales[0],
+                args.scales[1]);
         }
         else if(args.compTypeId == AppDataType::appFloat)
         {
@@ -373,8 +372,8 @@ int profile_reduce(int argc, char* argv[])
                                                                args.inLengths,
                                                                args.reduceDims,
                                                                args.reduceOp,
-                                                               args.nanOpt,
-                                                               args.indicesOpt,
+                                                               static_cast<bool>(args.nanOpt),
+                                                               static_cast<bool>(args.indicesOpt),
                                                                args.scales[0],
                                                                args.scales[1]);
         }
@@ -391,8 +390,8 @@ int profile_reduce(int argc, char* argv[])
                                                     args.inLengths,
                                                     args.reduceDims,
                                                     args.reduceOp,
-                                                    args.nanOpt,
-                                                    args.indicesOpt,
+                                                    static_cast<bool>(args.nanOpt),
+                                                    static_cast<bool>(args.indicesOpt),
                                                     args.scales[0],
                                                     args.scales[1]);
     }
@@ -418,8 +417,8 @@ int profile_reduce(int argc, char* argv[])
                                                         args.inLengths,
                                                         args.reduceDims,
                                                         args.reduceOp,
-                                                        args.nanOpt,
-                                                        args.indicesOpt,
+                                                        static_cast<bool>(args.nanOpt),
+                                                        static_cast<bool>(args.indicesOpt),
                                                         args.scales[0],
                                                         args.scales[1]);
         }
@@ -433,8 +432,8 @@ int profile_reduce(int argc, char* argv[])
                                                          args.inLengths,
                                                          args.reduceDims,
                                                          args.reduceOp,
-                                                         args.nanOpt,
-                                                         args.indicesOpt,
+                                                         static_cast<bool>(args.nanOpt),
+                                                         static_cast<bool>(args.indicesOpt),
                                                          args.scales[0],
                                                          args.scales[1]);
         }
@@ -458,8 +457,8 @@ int profile_reduce(int argc, char* argv[])
                                                              args.inLengths,
                                                              args.reduceDims,
                                                              args.reduceOp,
-                                                             args.nanOpt,
-                                                             args.indicesOpt,
+                                                             static_cast<bool>(args.nanOpt),
+                                                             static_cast<bool>(args.indicesOpt),
                                                              args.scales[0],
                                                              args.scales[1]);
     }
@@ -475,8 +474,8 @@ int profile_reduce(int argc, char* argv[])
                                                      args.inLengths,
                                                      args.reduceDims,
                                                      args.reduceOp,
-                                                     args.nanOpt,
-                                                     args.indicesOpt,
+                                                     static_cast<bool>(args.nanOpt),
+                                                     static_cast<bool>(args.indicesOpt),
                                                      args.scales[0],
                                                      args.scales[1]);
         }
@@ -490,8 +489,8 @@ int profile_reduce(int argc, char* argv[])
                                                       args.inLengths,
                                                       args.reduceDims,
                                                       args.reduceOp,
-                                                      args.nanOpt,
-                                                      args.indicesOpt,
+                                                      static_cast<bool>(args.nanOpt),
+                                                      static_cast<bool>(args.indicesOpt),
                                                       args.scales[0],
                                                       args.scales[1]);
         }

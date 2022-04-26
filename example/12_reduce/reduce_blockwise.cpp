@@ -30,9 +30,8 @@ constexpr int Rank         = 4;
 constexpr int NumReduceDim = 3;
 
 constexpr ReduceTensorOp ReduceOpId = ReduceTensorOp::NORM2;
-constexpr NanPropagation NanOpt     = NanPropagation::PROPAGATE_NAN;
-constexpr bool PropagateNan         = (NanOpt == NanPropagation::NOT_PROPAGATE_NAN) ? false : true;
-constexpr ReduceTensorIndices IndicesOpt = ReduceTensorIndices::NO_INDICES;
+constexpr bool PropagateNan         = true;
+constexpr bool NeedIndices          = false;
 
 using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
 using InElementwiseOperation =
@@ -49,7 +48,7 @@ using DeviceReduceInstance = DeviceReduceBlockWise<InDataType,
                                                    InElementwiseOperation,
                                                    AccElementwiseOperation,
                                                    PropagateNan,
-                                                   false,
+                                                   NeedIndices,
                                                    256,
                                                    4,
                                                    64,
@@ -211,9 +210,6 @@ int main(int argc, char* argv[])
         (ReduceOpId == ReduceTensorOp::MIN || ReduceOpId == ReduceTensorOp::MAX ||
          ReduceOpId == ReduceTensorOp::AMAX);
 
-    constexpr bool NeedIndices =
-        (op_support_indices && (IndicesOpt != ReduceTensorIndices::NO_INDICES));
-
     // if input is half type, no reason to use float for indiced reduction operation and must use
     // float for non-indiced reduction operation for accuracy
     constexpr bool invalid_reduce_1 =
@@ -227,8 +223,7 @@ int main(int argc, char* argv[])
         (op_support_indices && !std::is_same<AccDataType, float>::value);
 
     // indices option can only be used when it is really needed
-    constexpr bool invalid_reduce_3 =
-        (!op_support_indices && IndicesOpt != ReduceTensorIndices::NO_INDICES);
+    constexpr bool invalid_reduce_3 = (!op_support_indices && NeedIndices);
 
     constexpr bool invalid_reduce = (invalid_reduce_1 || invalid_reduce_2 || invalid_reduce_3);
 

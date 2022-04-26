@@ -44,8 +44,8 @@ template <typename AccDataType,
           int Rank,
           int NumReduceDim,
           ReduceTensorOp ReduceOpId,
-          NanPropagation NanOpt,
-          ReduceTensorIndices IndicesOpt>
+          bool PropagateNan,
+          bool UseIndex>
 void add_device_reduce_instance_blockwise_second_call(
     std::vector<deviceReduceBlockWiseSecondCallPtrType<AccDataType, ReduceOpId>>&
         device_op_instances)
@@ -61,9 +61,7 @@ void add_device_reduce_instance_blockwise_second_call(
     constexpr bool Indexable =
         (ReduceOpId == ReduceTensorOp::MIN || ReduceOpId == ReduceTensorOp::MAX ||
          ReduceOpId == ReduceTensorOp::AMAX);
-    constexpr bool NeedIndices = Indexable && (IndicesOpt != ReduceTensorIndices::NO_INDICES);
-
-    constexpr bool PropagateNan = (NanOpt == NanPropagation::NOT_PROPAGATE_NAN) ? false : true;
+    constexpr bool NeedIndices = Indexable && UseIndex;
 
     static_for<0, std::tuple_size<reduce_configuration_1_instances>::value, 1>{}([&](auto i) {
         using cfg1 =
@@ -99,36 +97,36 @@ void add_device_reduce_instance_blockwise_second_call(
 };
 
 #define ADD_BLOCKWISE_SECOND_CALL_INST_BY_TYPE(                                  \
-    compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)             \
+    compT, outT, ReduceOpId, PropagateNan, UseIndex, Rank, NumReduceDim)         \
     template void add_device_reduce_instance_blockwise_second_call<compT,        \
                                                                    outT,         \
                                                                    Rank,         \
                                                                    NumReduceDim, \
                                                                    ReduceOpId,   \
-                                                                   NanOpt,       \
-                                                                   IndicesOpt>(  \
+                                                                   PropagateNan, \
+                                                                   UseIndex>(    \
         std::vector<deviceReduceBlockWiseSecondCallPtrType<compT, ReduceOpId>> & \
         device_op_instances)
 
-#define ADD_BLOCKWISE_SECOND_CALL_INST_BY_ID(                                            \
-    compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                     \
-    ADD_BLOCKWISE_SECOND_CALL_INST_BY_TYPE(compT,                                        \
-                                           outT,                                         \
-                                           static_cast<ReduceTensorOp>(ReduceOpId),      \
-                                           static_cast<NanPropagation>(NanOpt),          \
-                                           static_cast<ReduceTensorIndices>(IndicesOpt), \
-                                           Rank,                                         \
+#define ADD_BLOCKWISE_SECOND_CALL_INST_BY_ID(                                       \
+    compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                \
+    ADD_BLOCKWISE_SECOND_CALL_INST_BY_TYPE(compT,                                   \
+                                           outT,                                    \
+                                           static_cast<ReduceTensorOp>(ReduceOpId), \
+                                           static_cast<bool>(NanOpt),               \
+                                           static_cast<bool>(IndicesOpt),           \
+                                           Rank,                                    \
                                            NumReduceDim)
 
 #define ADD_BLOCKWISE_SECOND_CALL_INST_REF_BY_TYPE(                                          \
-    compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                         \
+    compT, outT, ReduceOpId, PropagateNan, UseIndex, Rank, NumReduceDim)                     \
     extern template void add_device_reduce_instance_blockwise_second_call<compT,             \
                                                                           outT,              \
                                                                           Rank,              \
                                                                           NumReduceDim,      \
                                                                           ReduceOpId,        \
-                                                                          NanOpt,            \
-                                                                          IndicesOpt>(       \
+                                                                          PropagateNan,      \
+                                                                          UseIndex>(         \
         std::vector<                                                                         \
             DeviceReducePtr<typename reduce_unary_operator<compT, ReduceOpId, false, true>:: \
                                 InElementwiseOperation,                                      \
@@ -136,14 +134,14 @@ void add_device_reduce_instance_blockwise_second_call(
                                 AccElementwiseOperation>> &                                  \
         device_op_instances)
 
-#define ADD_BLOCKWISE_SECOND_CALL_INST_REF_BY_ID(                                            \
-    compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                         \
-    ADD_BLOCKWISE_SECOND_CALL_INST_REF_BY_TYPE(compT,                                        \
-                                               outT,                                         \
-                                               static_cast<ReduceTensorOp>(ReduceOpId),      \
-                                               static_cast<NanPropagation>(NanOpt),          \
-                                               static_cast<ReduceTensorIndices>(IndicesOpt), \
-                                               Rank,                                         \
+#define ADD_BLOCKWISE_SECOND_CALL_INST_REF_BY_ID(                                       \
+    compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                    \
+    ADD_BLOCKWISE_SECOND_CALL_INST_REF_BY_TYPE(compT,                                   \
+                                               outT,                                    \
+                                               static_cast<ReduceTensorOp>(ReduceOpId), \
+                                               static_cast<bool>(NanOpt),               \
+                                               static_cast<bool>(IndicesOpt),           \
+                                               Rank,                                    \
                                                NumReduceDim)
 
 } // namespace device_reduce_instance

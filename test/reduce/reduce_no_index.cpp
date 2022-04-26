@@ -39,11 +39,9 @@ static inline std::vector<int> get_invariant_dims(const std::vector<int>& reduce
 
 constexpr int Rank = 4;
 
-constexpr ReduceTensorOp ReduceOpId      = ReduceTensorOp::AVG;
-constexpr NanPropagation NanOpt          = NanPropagation::PROPAGATE_NAN;
-constexpr bool PropagateNan              = false;
-constexpr ReduceTensorIndices IndicesOpt = ReduceTensorIndices::NO_INDICES;
-constexpr bool NeedIndices               = false;
+constexpr ReduceTensorOp ReduceOpId = ReduceTensorOp::AVG;
+constexpr bool PropagateNan         = false;
+constexpr bool NeedIndices          = false;
 
 template <typename InDataType,
           typename AccDataType,
@@ -155,8 +153,8 @@ bool test_reduce_no_index_impl(int init_method,
                                           Rank,
                                           NumReduceDim,
                                           ReduceOpId,
-                                          NanOpt,
-                                          IndicesOpt>(reduce0_ptrs);
+                                          PropagateNan,
+                                          NeedIndices>(reduce0_ptrs);
 
     add_device_reduce_instance_blockwise<InDataType,
                                          AccDataType,
@@ -164,8 +162,8 @@ bool test_reduce_no_index_impl(int init_method,
                                          Rank,
                                          NumReduceDim,
                                          ReduceOpId,
-                                         NanOpt,
-                                         IndicesOpt>(reduce0_ptrs);
+                                         PropagateNan,
+                                         NeedIndices>(reduce0_ptrs);
 
     if constexpr(use_atomic_add)
     {
@@ -175,8 +173,8 @@ bool test_reduce_no_index_impl(int init_method,
                                                          Rank,
                                                          NumReduceDim,
                                                          ReduceOpId,
-                                                         NanOpt,
-                                                         IndicesOpt>(reduce0_ptrs);
+                                                         PropagateNan,
+                                                         NeedIndices>(reduce0_ptrs);
     }
     else
     {
@@ -185,8 +183,8 @@ bool test_reduce_no_index_impl(int init_method,
                                                              Rank,
                                                              NumReduceDim,
                                                              ReduceOpId,
-                                                             NanOpt,
-                                                             IndicesOpt>(reduce1_ptrs);
+                                                             PropagateNan,
+                                                             NeedIndices>(reduce1_ptrs);
     };
 
     // used for secondary reduction
@@ -197,8 +195,8 @@ bool test_reduce_no_index_impl(int init_method,
                                                          Rank,
                                                          NumReduceDim,
                                                          ReduceOpId,
-                                                         NanOpt,
-                                                         IndicesOpt>(reduce2_ptrs);
+                                                         PropagateNan,
+                                                         NeedIndices>(reduce2_ptrs);
     };
 
     if(reduce0_ptrs.empty() && reduce1_ptrs.empty())

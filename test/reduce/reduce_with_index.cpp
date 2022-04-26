@@ -38,11 +38,9 @@ static inline std::vector<int> get_invariant_dims(const std::vector<int>& reduce
 
 constexpr int Rank = 4;
 
-constexpr ReduceTensorOp ReduceOpId      = ReduceTensorOp::AMAX;
-constexpr NanPropagation NanOpt          = NanPropagation::PROPAGATE_NAN;
-constexpr bool PropagateNan              = false;
-constexpr ReduceTensorIndices IndicesOpt = ReduceTensorIndices::FLATTENED_INDICES;
-constexpr bool NeedIndices               = true;
+constexpr ReduceTensorOp ReduceOpId = ReduceTensorOp::AMAX;
+constexpr bool PropagateNan         = false;
+constexpr bool NeedIndices          = true;
 
 template <typename InDataType,
           typename AccDataType,
@@ -160,8 +158,8 @@ bool test_reduce_with_index_impl(int init_method,
                                           Rank,
                                           NumReduceDim,
                                           ReduceOpId,
-                                          NanOpt,
-                                          IndicesOpt>(reduce0_ptrs);
+                                          PropagateNan,
+                                          NeedIndices>(reduce0_ptrs);
 
     add_device_reduce_instance_blockwise<InDataType,
                                          AccDataType,
@@ -169,24 +167,24 @@ bool test_reduce_with_index_impl(int init_method,
                                          Rank,
                                          NumReduceDim,
                                          ReduceOpId,
-                                         NanOpt,
-                                         IndicesOpt>(reduce0_ptrs);
+                                         PropagateNan,
+                                         NeedIndices>(reduce0_ptrs);
 
     add_device_reduce_instance_multiblock_partial_reduce<InDataType,
                                                          AccDataType,
                                                          Rank,
                                                          NumReduceDim,
                                                          ReduceOpId,
-                                                         NanOpt,
-                                                         IndicesOpt>(reduce1_ptrs);
+                                                         PropagateNan,
+                                                         NeedIndices>(reduce1_ptrs);
 
     add_device_reduce_instance_blockwise_second_call<AccDataType,
                                                      OutDataType,
                                                      Rank,
                                                      NumReduceDim,
                                                      ReduceOpId,
-                                                     NanOpt,
-                                                     IndicesOpt>(reduce2_ptrs);
+                                                     PropagateNan,
+                                                     NeedIndices>(reduce2_ptrs);
 
     if(reduce0_ptrs.empty() && reduce1_ptrs.empty())
     {
