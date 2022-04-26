@@ -11,6 +11,31 @@
 
 namespace {
 
+template <typename T>
+bool test_conv2d_nhwc_instances(const std::vector<test::conv::DeviceConvFwdNoOpPtr>& conv_ptrs)
+{
+    using namespace std::placeholders;
+    using namespace ck::utils;
+
+    conv::ConvParams params;
+    params.num_dim_spatial        = 2;
+    params.filter_spatial_lengths = std::vector<ck::index_t>{3, 3};
+    params.input_spatial_lengths  = std::vector<ck::index_t>{71, 71};
+    params.conv_filter_strides    = std::vector<ck::index_t>{2, 2};
+    params.conv_filter_dilations  = std::vector<ck::index_t>{1, 1};
+    params.input_left_pads        = std::vector<ck::index_t>{1, 1};
+    params.input_right_pads       = std::vector<ck::index_t>{1, 1};
+
+    conv::ConvFwdOpInstance<T, T, T> conv_instance(params);
+
+    auto reference_conv_fwd_fun =
+        std::bind(conv::run_reference_convolution_forward<2, T, T, T>, params, _1, _2, _3);
+    OpInstanceRunEngine<T, T, T> run_engine(conv_instance, reference_conv_fwd_fun);
+    return run_engine.Test(conv_ptrs);
+}
+
+} // anonymous namespace
+
 TEST(Conv2DFwdNHWC, TestConv2D)
 {
     using namespace std::placeholders;
@@ -33,29 +58,6 @@ TEST(Conv2DFwdNHWC, TestConv2D)
     run_engine.SetAtol(1e-5);
     run_engine.SetRtol(1e-4);
     EXPECT_TRUE(run_engine.Test(conv_ptrs));
-}
-
-template <typename T>
-bool test_conv2d_nhwc_instances(const std::vector<test::conv::DeviceConvFwdNoOpPtr>& conv_ptrs)
-{
-    using namespace std::placeholders;
-    using namespace ck::utils;
-
-    conv::ConvParams params;
-    params.num_dim_spatial        = 2;
-    params.filter_spatial_lengths = std::vector<ck::index_t>{3, 3};
-    params.input_spatial_lengths  = std::vector<ck::index_t>{71, 71};
-    params.conv_filter_strides    = std::vector<ck::index_t>{2, 2};
-    params.conv_filter_dilations  = std::vector<ck::index_t>{1, 1};
-    params.input_left_pads        = std::vector<ck::index_t>{1, 1};
-    params.input_right_pads       = std::vector<ck::index_t>{1, 1};
-
-    conv::ConvFwdOpInstance<T, T, T> conv_instance(params);
-
-    auto reference_conv_fwd_fun =
-        std::bind(conv::run_reference_convolution_forward<2, T, T, T>, params, _1, _2, _3);
-    OpInstanceRunEngine<T, T, T> run_engine(conv_instance, reference_conv_fwd_fun);
-    return run_engine.Test(conv_ptrs);
 }
 
 TEST(Conv2DFwdNHWC, Bf16Instances)
@@ -87,5 +89,3 @@ TEST(Conv2DFwdNHWC, Int8Instances)
     EXPECT_TRUE(test_conv2d_nhwc_instances<int8_t>(
         ck::utils::conv::ConvolutionFwdInstances<int8_t, int8_t, int8_t>::Get<2>()));
 }
-
-} // anonymous namespace
