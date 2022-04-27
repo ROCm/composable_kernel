@@ -69,10 +69,10 @@ void add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(std::vector<Devic
 void add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 
-void add_device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_xdl_splitk_f16_f16_f16_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_xdl_splitk_f16_f16_f16_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_splitk_c_shuffle_f16_f16_f16_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_splitk_c_shuffle_f16_f16_f16_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_splitk_c_shuffle_f16_f16_f16_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_splitk_c_shuffle_f16_f16_f16_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 
 } // namespace device_gemm_instance
 } // namespace device
@@ -243,7 +243,7 @@ void profile_gemm_impl(int do_verification,
             if(KBatch > 1)
             {
                 ck::tensor_operation::device::device_gemm_instance::
-                    add_device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instances(gemm_ptrs);
+                    add_device_gemm_xdl_splitk_c_shuffle_f16_f16_f16_mk_kn_mn_instances(gemm_ptrs);
             }
             else
             {
@@ -261,7 +261,7 @@ void profile_gemm_impl(int do_verification,
             if(KBatch > 1)
             {
                 ck::tensor_operation::device::device_gemm_instance::
-                    add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instances(gemm_ptrs);
+                    add_device_gemm_xdl_splitk_c_shuffle_f16_f16_f16_mk_nk_mn_instances(gemm_ptrs);
             }
             else
             {
@@ -282,7 +282,7 @@ void profile_gemm_impl(int do_verification,
             if(KBatch > 1)
             {
                 ck::tensor_operation::device::device_gemm_instance::
-                    add_device_gemm_xdl_splitk_f16_f16_f16_km_kn_mn_instances(gemm_ptrs);
+                    add_device_gemm_xdl_splitk_c_shuffle_f16_f16_f16_km_kn_mn_instances(gemm_ptrs);
             }
             else
             {
@@ -300,7 +300,7 @@ void profile_gemm_impl(int do_verification,
             if(KBatch > 1)
             {
                 ck::tensor_operation::device::device_gemm_instance::
-                    add_device_gemm_xdl_splitk_f16_f16_f16_km_nk_mn_instances(gemm_ptrs);
+                    add_device_gemm_xdl_splitk_c_shuffle_f16_f16_f16_km_nk_mn_instances(gemm_ptrs);
             }
             else
             {
