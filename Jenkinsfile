@@ -212,6 +212,7 @@ def runCKProfiler(Map conf=[:]){
                 {
                     cmake_build(conf)
 					def perf_dir="perf_test"
+					sh "pwd"
 					sh "mkdir -p ${perf_dir}"
 					sh "cd ${perf_dir}"
 					sh "cp ../../script/profile_gemm.sh ."
