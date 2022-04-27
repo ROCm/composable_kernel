@@ -57,7 +57,6 @@ static constexpr auto LoopOver_MKN = ck::tensor_operation::cpu::device::LoopOver
     DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<float , float , float, a_elem_op, b_elem_op, c_elem_op, ConvFwd1x1P0,   DefaultGemmKLoop, LoopOver_MKN, 2, m_per_block, n_per_block, k_per_block, m_per_thread, n_per_thread, a_local_buf, b_local_buf, c_local_buf>
 
 // clang-format on
-
 using device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_f32_instances = std::tuple<
     // clang-format off
     DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, PT,  256, 120,  64,  4, 24, true, true, false),

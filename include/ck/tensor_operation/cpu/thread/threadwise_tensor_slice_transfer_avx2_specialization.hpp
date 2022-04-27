@@ -567,6 +567,7 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
                             {
                                 i_x_itr_k = 0;
                                 i_y_itr_k++;
+                                i_wi_itr_k -= Dx * Fx;
                                 i_hi_itr_k += Dy;
                                 p_src_k += input_offset_ovf_x_acc_y;
                             }

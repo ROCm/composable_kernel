@@ -37,26 +37,53 @@ using WeiElementOp = ck::tensor_operation::cpu::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::cpu::element_wise::PassThrough;
 
 template <typename T>
-static bool check_out(const Tensor<T>& ref, const Tensor<T>& result)
+static bool
+check_out(const Tensor<T>& ref, const Tensor<T>& result, double nrms, int per_pixel_check = 0)
 {
     int error_count = 0;
-    float max_diff  = 1e-6;
+    float max_diff  = 1e-5;
+
+    double square_difference = .0;
+    double mag1              = .0;
+    double mag2              = .0;
 
     for(int i = 0; i < ref.mData.size(); ++i)
     {
-        float diff = std::abs(double(ref.mData[i]) - double(result.mData[i]));
-        if(max_diff < diff)
+        double ri = (double)ref.mData[i];
+        double pi = (double)result.mData[i];
+        double d  = ri - pi;
+
+        if(per_pixel_check)
         {
-            error_count++;
-            printf("idx:%3d, ref:%f, res:%f (diff:%f)\n",
-                   i,
-                   double(ref.mData[i]),
-                   double(result.mData[i]),
-                   diff);
+            if(max_diff < std::abs(d))
+            {
+                error_count++;
+                printf("idx:%3d, ref:%f, res:%f (diff:%f)\n",
+                       i,
+                       double(ref.mData[i]),
+                       double(result.mData[i]),
+                       d);
+            }
         }
+
+        square_difference += d * d;
+        if(std::abs(mag1) < std::abs(ri))
+            mag1 = ri;
+        if(std::abs(mag2) < std::abs(pi))
+            mag2 = pi;
     }
 
-    return error_count == 0;
+    double mag = std::max({std::fabs(mag1), std::fabs(mag2), std::numeric_limits<double>::min()});
+    double computed_nrms = std::sqrt(square_difference) / (std::sqrt(ref.mData.size()) * mag);
+
+    if(computed_nrms >= nrms)
+        printf("nrms:%lf, mag1:%lf, mag2:%lf, expected_nrms is %1f\n",
+               computed_nrms,
+               mag1,
+               mag2,
+               nrms);
+
+    return computed_nrms < nrms && error_count == 0;
 }
 
 float calculate_gflops() {}
@@ -171,20 +198,28 @@ int main(int argc, char* argv[])
                   << ", Dilation(H, W):" << conv_dilation_h << ", " << conv_dilation_w
                   << ", Threads:" << omp_get_max_threads() << std::endl;
 
+        int per_pixel_check = 0;
         switch(init_method)
         {
-        case 0: break;
+        case 0:
+            in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_1<InDataType>{});
+            wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{});
+            per_pixel_check = 1;
+            break;
         case 1:
 
             in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
             // in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_1<InDataType>{});
             wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
             // wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{});
+            per_pixel_check = 1;
             break;
+
         case 2:
-            in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_1<InDataType>{});
-            wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{});
+            in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
+            wei_k_c_y_x.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
             break;
+
         case 3:
 
 #define PACK_32(v24, v16, v8, v0) \
@@ -310,7 +345,10 @@ int main(int argc, char* argv[])
 
                 out_device_buf.FromDevice(out_n_k_ho_wo_device_result.mData.data());
 
-                if(!check_out(out_n_k_ho_wo_host_result, out_n_k_ho_wo_device_result))
+                if(!check_out(out_n_k_ho_wo_host_result,
+                              out_n_k_ho_wo_device_result,
+                              1e-6,
+                              per_pixel_check))
                 {
                     std::cout << "Fail Info: " << conv_ptr->GetTypeString() << std::endl;
                     success = false;
