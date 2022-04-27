@@ -14,7 +14,7 @@ namespace ck {
 namespace profiler {
 
 template <typename InOutDataType, typename AccDataType>
-void profile_bnorm_fwd_impl(bool do_verification,
+bool profile_bnorm_fwd_impl(bool do_verification,
                             int init_method,
                             bool do_dumpout,
                             int nrepeat,
@@ -47,6 +47,8 @@ void profile_bnorm_fwd_impl(bool do_verification,
 
     auto inOutStrides            = in.mDesc.GetStrides();
     auto scaleBiasMeanVarStrides = bnScale.mDesc.GetStrides();
+
+    bool pass = true;
 
     std::size_t num_thread = std::thread::hardware_concurrency();
 
@@ -184,8 +186,9 @@ void profile_bnorm_fwd_impl(bool do_verification,
 
         float gb_per_sec = num_bytes / 1.E6 / avg_time;
 
-        std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s, " << bnorm_fwd_name
-                  << std::endl;
+        if(nrepeat > 0)
+            std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s, "
+                      << bnorm_fwd_name << std::endl;
 
         if(gb_per_sec > best_gb_per_sec)
         {
@@ -234,23 +237,27 @@ void profile_bnorm_fwd_impl(bool do_verification,
 
             out_dev.FromDevice(out.mData.data());
 
+            bool single_pass;
+
             if constexpr(std::is_same<InOutDataType, ck::half_t>::value)
             {
-                ck::utils::check_err(
+                single_pass = ck::utils::check_err(
                     out.mData, out_ref.mData, "Error: Incorrect results!", 1e-5, 4.0e-3);
             }
             else if constexpr(std::is_same<InOutDataType, float>::value)
             {
-                ck::utils::check_err(
+                single_pass = ck::utils::check_err(
                     out.mData, out_ref.mData, "Error: Incorrect results!", 1e-5, 1.4e-3);
             }
             else if constexpr(std::is_same<InOutDataType, ck::bhalf_t>::value)
             {
-                ck::utils::check_err(
+                single_pass = ck::utils::check_err(
                     out.mData, out_ref.mData, "Error: Incorrect results!", 1e-5, 3.2e-2);
             }
             else
-                ck::utils::check_err(out.mData, out_ref.mData);
+                single_pass = ck::utils::check_err(out.mData, out_ref.mData);
+
+            pass = pass && single_pass;
         };
 
         if(do_dumpout)
@@ -285,8 +292,11 @@ void profile_bnorm_fwd_impl(bool do_verification,
         };
     };
 
-    std::cout << "Best Perf: " << best_avg_time << " ms, " << best_gb_per_sec << " GB/s"
-              << std::endl;
+    if(nrepeat > 0)
+        std::cout << "Best Perf: " << best_avg_time << " ms, " << best_gb_per_sec << " GB/s"
+                  << std::endl;
+
+    return pass;
 };
 
 } // namespace profiler

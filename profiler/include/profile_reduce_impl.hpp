@@ -6,6 +6,7 @@
 #include "reduction_enums.hpp"
 #include "host_reduction.hpp"
 #include "host_common_util.hpp"
+#include "host_tensor_generator.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -126,9 +127,8 @@ template <typename InDataType,
           ReduceTensorOp ReduceOpId,
           bool PropagateNan,
           bool UseIndex>
-void profile_reduce_impl_impl(bool do_verification,
+bool profile_reduce_impl_impl(bool do_verification,
                               int init_method,
-                              bool do_log,
                               bool do_dumpout,
                               int nrepeat,
                               const std::vector<size_t>& inLengths,
@@ -189,6 +189,8 @@ void profile_reduce_impl_impl(bool do_verification,
 
     constexpr bool invalid_reduce = (invalid_reduce_1 || invalid_reduce_2 || invalid_reduce_3 ||
                                      invalid_reduce_4 || invalid_reduce_5 || invalid_reduce_6);
+
+    bool pass = true;
 
     if constexpr(!invalid_reduce)
     {
@@ -407,8 +409,9 @@ void profile_reduce_impl_impl(bool do_verification,
 
             float gb_per_sec = num_bytes / 1.E6 / avg_time;
 
-            std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s, " << reduce_name
-                      << std::endl;
+            if(nrepeat > 0)
+                std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s, "
+                          << reduce_name << std::endl;
 
             if(gb_per_sec > best_gb_per_sec)
             {
@@ -418,22 +421,24 @@ void profile_reduce_impl_impl(bool do_verification,
 
             if(do_verification)
             {
+                bool single_pass;
+
                 out_dev.FromDevice(out.mData.data());
-                ck::utils::check_err(out.mData, out_ref.mData);
+                single_pass = ck::utils::check_err(out.mData, out_ref.mData);
 
                 if(NeedIndices)
                 {
                     out_indices_dev.FromDevice(out_indices.mData.data());
-                    ck::utils::check_err(out_indices.mData, out_indices_ref.mData);
-                    ;
+                    single_pass = single_pass &&
+                                  ck::utils::check_err(out_indices.mData, out_indices_ref.mData);
                 };
 
-                if(do_log)
+                if(!single_pass)
                 {
-                    LogRangeAsType<float>(std::cout << "out_host  : ", out_ref.mData, ",")
-                        << std::endl;
-                    LogRangeAsType<float>(std::cout << "out_device: ", out.mData, ",") << std::endl;
-                };
+                    std::cout << "Fail Info: " << reduce_ptr->GetTypeString() << std::endl;
+                }
+
+                pass = pass && single_pass;
             };
 
             if(do_dumpout)
@@ -530,8 +535,9 @@ void profile_reduce_impl_impl(bool do_verification,
 
                 float gb_per_sec = (num_bytes + num_bytes_2) / 1.E6 / (avg_time + avg_time_2);
 
-                std::cout << "Perf: " << (avg_time + avg_time_2) << " ms, " << gb_per_sec
-                          << " GB/s, " << reduce_name << " => " << reduce2_name << std::endl;
+                if(nrepeat > 0)
+                    std::cout << "Perf: " << (avg_time + avg_time_2) << " ms, " << gb_per_sec
+                              << " GB/s, " << reduce_name << " => " << reduce2_name << std::endl;
 
                 if(gb_per_sec > best_gb_per_sec)
                 {
@@ -541,23 +547,25 @@ void profile_reduce_impl_impl(bool do_verification,
 
                 if(do_verification)
                 {
+                    bool single_pass;
+
                     out_dev.FromDevice(out.mData.data());
-                    ck::utils::check_err(out.mData, out_ref.mData);
+                    single_pass = ck::utils::check_err(out.mData, out_ref.mData);
 
                     if(NeedIndices)
                     {
                         out_indices_dev.FromDevice(out_indices.mData.data());
-                        ck::utils::check_err(out_indices.mData, out_indices_ref.mData);
-                        ;
+                        single_pass = single_pass && ck::utils::check_err(out_indices.mData,
+                                                                          out_indices_ref.mData);
                     };
 
-                    if(do_log)
+                    if(!single_pass)
                     {
-                        LogRangeAsType<float>(std::cout << "out_host  : ", out_ref.mData, ",")
-                            << std::endl;
-                        LogRangeAsType<float>(std::cout << "out_device: ", out.mData, ",")
-                            << std::endl;
-                    }
+                        std::cout << "Fail Info: " << reduce_ptr->GetTypeString() << " => "
+                                  << reduce2_ptr->GetTypeString() << std::endl;
+                    };
+
+                    pass = pass && single_pass;
                 }
 
                 if(do_dumpout)
@@ -579,20 +587,22 @@ void profile_reduce_impl_impl(bool do_verification,
             };
         };
 
-        std::cout << "Best Perf: " << best_avg_time << " ms, " << best_gb_per_sec << " GB/s"
-                  << std::endl;
+        if(nrepeat > 0)
+            std::cout << "Best Perf: " << best_avg_time << " ms, " << best_gb_per_sec << " GB/s"
+                      << std::endl;
     }
     else
     {
         std::cout << "The requested reduction operation is not supported, please check !!!"
                   << std::endl;
     };
+
+    return pass;
 };
 
 template <typename InDataType, typename AccDataType, typename OutDataType>
-void profile_reduce_impl(bool do_verification,
+bool profile_reduce_impl(bool do_verification,
                          int init_method,
-                         bool do_log,
                          bool do_dumpout,
                          int nrepeat,
                          const std::vector<size_t>& inLengths,
@@ -604,6 +614,7 @@ void profile_reduce_impl(bool do_verification,
                          float beta)
 {
     bool matched = false;
+    bool pass    = true;
 
     using tuple_of_description_instances =
         tensor_operation::device::device_reduce_instance::reduce_description_instances;
@@ -620,25 +631,27 @@ void profile_reduce_impl(bool do_verification,
                descType{}, inLengths.size(), reduceDims, ReduceOpId, PropagateNan, UseIndex))
             return;
 
-        profile_reduce_impl_impl<InDataType,
-                                 AccDataType,
-                                 OutDataType,
-                                 descType::Rank_,
-                                 descType::NumReduceDim_,
-                                 static_cast<ReduceTensorOp>(descType::ReduceOpId_),
-                                 static_cast<bool>(descType::PropagateNan_),
-                                 static_cast<bool>(descType::UseIndex_)>(do_verification,
-                                                                         init_method,
-                                                                         do_log,
-                                                                         do_dumpout,
-                                                                         nrepeat,
-                                                                         inLengths,
-                                                                         reduceDims,
-                                                                         alpha,
-                                                                         beta);
+        pass = pass &&
+               profile_reduce_impl_impl<InDataType,
+                                        AccDataType,
+                                        OutDataType,
+                                        descType::Rank_,
+                                        descType::NumReduceDim_,
+                                        static_cast<ReduceTensorOp>(descType::ReduceOpId_),
+                                        static_cast<bool>(descType::PropagateNan_),
+                                        static_cast<bool>(descType::UseIndex_)>(do_verification,
+                                                                                init_method,
+                                                                                do_dumpout,
+                                                                                nrepeat,
+                                                                                inLengths,
+                                                                                reduceDims,
+                                                                                alpha,
+                                                                                beta);
 
         matched = true;
     });
+
+    return pass;
 };
 
 } // namespace profiler
