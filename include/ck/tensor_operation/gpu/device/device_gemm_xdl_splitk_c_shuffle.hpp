@@ -626,19 +626,6 @@ struct DeviceGemmXdlSplitKCShuffle
 
                 block_2_ctile_map_ = MakeBlock2CTileMap(BatchCount_, c_grid_desc_m_n_, 1, 1);
             }
-
-
-            for(int batch=0; batch<BatchCount_; ++batch)
-            {
-                printf("batch = %d, ptr_offset = [%ld, %ld, %ld]\n", batch, compute_ptr_offset_of_batch_.GetAPtrOffset(batch), compute_ptr_offset_of_batch_.GetBPtrOffset(batch), compute_ptr_offset_of_batch_.GetCPtrOffset(batch));
-            }
-            const index_t grid_size =
-                GridwiseGemm::CalculateGridSize(c_grid_desc_m_n_) * BatchCount_;
-            for (int blk=0; blk<grid_size; ++blk)
-            {
-                const auto ctile_idx = block_2_ctile_map_.CalculateBottomIndex(make_multi_index(blk));
-                printf("blk= %d, ctile_idx = [%d, %d]\n", blk, ctile_idx[I0], ctile_idx[I1]);
-            }
         }
 
         //  private:
