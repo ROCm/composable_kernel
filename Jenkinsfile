@@ -228,7 +228,7 @@ pipeline {
                 {
                     agent{ label rocmnode("gfx908")}
                     environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
+                        setup_args = """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx900 --offload-arch=gfx906  --offload-arch=gfx908 --offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release')
