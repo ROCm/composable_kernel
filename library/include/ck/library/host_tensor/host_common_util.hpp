@@ -26,10 +26,12 @@
 #ifndef GUARD_HOST_COMMON_UTIL_HPP
 #define GUARD_HOST_COMMON_UTIL_HPP
 
-#include <half.hpp>
 #include <vector>
+#include <iostream>
 #include <fstream>
-#include "data_type.hpp"
+#include <string>
+
+#include "config.hpp"
 
 namespace ck {
 
@@ -60,6 +62,48 @@ static inline void dumpBufferToFile(const char* fileName, T* data, size_t dataNu
         std::cout << "Could not open file " << fileName << " for writing" << std::endl;
     }
 };
+
+template <typename T>
+static inline T getSingleValueFromString(const std::string& valueStr)
+{
+    std::istringstream iss(valueStr);
+
+    T val;
+
+    iss >> val;
+
+    return (val);
+};
+
+template <typename T>
+static inline std::vector<T> getTypeValuesFromString(const char* cstr_values)
+{
+    std::string valuesStr(cstr_values);
+
+    std::vector<T> values;
+    std::size_t pos = 0;
+    std::size_t new_pos;
+
+    new_pos = valuesStr.find(',', pos);
+    while(new_pos != std::string::npos)
+    {
+        const std::string sliceStr = valuesStr.substr(pos, new_pos - pos);
+
+        T val = getSingleValueFromString<T>(sliceStr);
+
+        values.push_back(val);
+
+        pos     = new_pos + 1;
+        new_pos = valuesStr.find(',', pos);
+    };
+
+    std::string sliceStr = valuesStr.substr(pos);
+    T val                = getSingleValueFromString<T>(sliceStr);
+
+    values.push_back(val);
+
+    return (values);
+}
 
 }; // namespace host_common
 

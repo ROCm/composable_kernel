@@ -9,6 +9,7 @@
 #include "data_type_enum.hpp"
 #include "reduction_enums.hpp"
 
+#include "host_common_util.hpp"
 #include "profile_reduce_impl.hpp"
 
 using namespace std;
@@ -31,48 +32,6 @@ static struct option long_options[] = {{"inLengths", required_argument, nullptr,
                                        {"verify", required_argument, nullptr, 'v'},
                                        {"help", no_argument, nullptr, '?'},
                                        {nullptr, 0, nullptr, 0}};
-
-template <typename T>
-static T getSingleValueFromString(const string& valueStr)
-{
-    std::istringstream iss(valueStr);
-
-    T val;
-
-    iss >> val;
-
-    return (val);
-};
-
-template <typename T>
-static std::vector<T> getTypeValuesFromString(const char* cstr_values)
-{
-    std::string valuesStr(cstr_values);
-
-    std::vector<T> values;
-    std::size_t pos = 0;
-    std::size_t new_pos;
-
-    new_pos = valuesStr.find(',', pos);
-    while(new_pos != std::string::npos)
-    {
-        const std::string sliceStr = valuesStr.substr(pos, new_pos - pos);
-
-        T val = getSingleValueFromString<T>(sliceStr);
-
-        values.push_back(val);
-
-        pos     = new_pos + 1;
-        new_pos = valuesStr.find(',', pos);
-    };
-
-    std::string sliceStr = valuesStr.substr(pos);
-    T val                = getSingleValueFromString<T>(sliceStr);
-
-    values.push_back(val);
-
-    return (values);
-}
 
 static void check_reduce_dims(const int rank, const std::vector<int>& reduceDims)
 {
@@ -164,6 +123,8 @@ class ReduceProfilerArgs
 
     int processArgs(int argc, char* argv[])
     {
+        using ck::host_common::getTypeValuesFromString;
+
         unsigned int ch;
 
         optind++; // to skip the "reduce" module name

@@ -1,6 +1,8 @@
 #include <iostream>
 #include <fstream>
 #include <getopt.h>
+
+#include "host_common_util.hpp"
 #include "profile_bnorm_fwd_impl.hpp"
 
 using namespace ck;
@@ -11,48 +13,6 @@ static struct option long_options[] = {{"inOutLengths", required_argument, nullp
 
 class SimpleAppArgs
 {
-    template <typename T>
-    static T getSingleValueFromString(const std::string& valueStr)
-    {
-        std::istringstream iss(valueStr);
-
-        T ret;
-
-        iss >> ret;
-
-        return (ret);
-    };
-
-    template <typename T>
-    static std::vector<T> getTypeValuesFromString(const char* cstr_values)
-    {
-        std::string valuesStr(cstr_values);
-
-        std::vector<T> values;
-        std::size_t pos = 0;
-        std::size_t new_pos;
-
-        new_pos = valuesStr.find(',', pos);
-        while(new_pos != std::string::npos)
-        {
-            const std::string sliceStr = valuesStr.substr(pos, new_pos - pos);
-
-            T val = getSingleValueFromString<T>(sliceStr);
-
-            values.push_back(val);
-
-            pos     = new_pos + 1;
-            new_pos = valuesStr.find(',', pos);
-        };
-
-        std::string sliceStr = valuesStr.substr(pos);
-        T val                = getSingleValueFromString<T>(sliceStr);
-
-        values.push_back(val);
-
-        return (values);
-    };
-
     private:
     int option_index = 0;
 
@@ -79,6 +39,8 @@ class SimpleAppArgs
 
     int processArgs(int argc, char* argv[])
     {
+        using ck::host_common::getTypeValuesFromString;
+
         unsigned int ch;
 
         while(1)

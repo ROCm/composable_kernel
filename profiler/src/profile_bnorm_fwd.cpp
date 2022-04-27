@@ -4,6 +4,7 @@
 #include <sstream>
 #include <getopt.h>
 
+#include "host_common_util.hpp"
 #include "profile_bnorm_fwd_impl.hpp"
 
 using namespace std;
@@ -18,48 +19,6 @@ static struct option long_options[] = {{"inOutLengths", required_argument, nullp
                                        {"verify", required_argument, nullptr, 'v'},
                                        {"help", no_argument, nullptr, '?'},
                                        {nullptr, 0, nullptr, 0}};
-
-template <typename T>
-static T getSingleValueFromString(const string& valueStr)
-{
-    std::istringstream iss(valueStr);
-
-    T val;
-
-    iss >> val;
-
-    return (val);
-};
-
-template <typename T>
-static std::vector<T> getTypeValuesFromString(const char* cstr_values)
-{
-    std::string valuesStr(cstr_values);
-
-    std::vector<T> values;
-    std::size_t pos = 0;
-    std::size_t new_pos;
-
-    new_pos = valuesStr.find(',', pos);
-    while(new_pos != std::string::npos)
-    {
-        const std::string sliceStr = valuesStr.substr(pos, new_pos - pos);
-
-        T val = getSingleValueFromString<T>(sliceStr);
-
-        values.push_back(val);
-
-        pos     = new_pos + 1;
-        new_pos = valuesStr.find(',', pos);
-    };
-
-    std::string sliceStr = valuesStr.substr(pos);
-    T val                = getSingleValueFromString<T>(sliceStr);
-
-    values.push_back(val);
-
-    return (values);
-}
 
 class BatchNormFwdProfilerArgs
 {
@@ -121,6 +80,8 @@ class BatchNormFwdProfilerArgs
 
     int processArgs(int argc, char* argv[])
     {
+        using ck::host_common::getTypeValuesFromString;
+
         unsigned int ch;
 
         optind++; // to skip the "bnorm_fwd" module name
@@ -208,7 +169,8 @@ class BatchNormFwdProfilerArgs
 
 int profile_bnorm_fwd(int argc, char* argv[])
 {
-    using namespace ck::profiler;
+    using ck::profiler::profile_bnorm_fwd_impl;
+
     const double exponentialAverageFactor = 0.2;
 
     BatchNormFwdProfilerArgs args;
