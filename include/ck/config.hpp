@@ -107,7 +107,7 @@
 
 // experimental feature: use __builtin_memcpy instead of pointer cast to access a vector from
 // pointer of scalar
-#define CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS 0
+#define CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS 1
 
 // experimental feature: use __builtin_memcpy instead of union to do bit_cast
 #define CK_EXPERIMENTAL_USE_MEMCPY_FOR_BIT_CAST 1
