@@ -381,6 +381,9 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                const DGridDescriptor_MBlock_MPerBlock& d_grid_desc_mblock_mperblock,
                                const Block2CTileMap& block_2_ctile_map)
     {
+        // TODO - Support variable amount of d tensor
+        const bool enable_d1 = p_d1_grid != nullptr;
+
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -389,6 +392,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
         auto d0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_d0_grid, d_grid_desc_mblock_mperblock.GetElementSpaceSize());
+
         auto d1_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_d1_grid, d_grid_desc_mblock_mperblock.GetElementSpaceSize());
 
@@ -852,7 +856,9 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                     // reduce in VGPR
                     static_for<0, mreduce_per_thread, 1>{}([&](auto im) {
                         FloatReduceAcc d0_acc = d0_reduce_op.GetReduceZeroValue();
-                        FloatReduceAcc d1_acc = d1_reduce_op.GetReduceZeroValue();
+                        FloatReduceAcc d1_acc = 0;
+                        if(enable_d1)
+                            d1_acc = d1_reduce_op.GetReduceZeroValue();
 
                         static_for<0, nreduce_per_thread, 1>{}([&](auto in) {
                             constexpr auto offset =
@@ -860,14 +866,17 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                     make_tuple(im, in))>{};
 
                             d0_reduce_op.Reduce(d0_acc, c_reduce_thread_buf[offset]);
-                            d1_reduce_op.Reduce(d1_acc, c_reduce_thread_buf[offset]);
+
+                            if(enable_d1)
+                                d1_reduce_op.Reduce(d1_acc, c_reduce_thread_buf[offset]);
                         });
 
                         constexpr index_t out_offset =
                             d_reduce_thread_desc_mperblock.CalculateOffset(make_tuple(im));
 
                         d0_thread_buf(Number<out_offset>{}) = d0_acc;
-                        d1_thread_buf(Number<out_offset>{}) = d1_acc;
+                        if(enable_d1)
+                            d1_thread_buf(Number<out_offset>{}) = d1_acc;
                     });
 
                     // copy from VGPR to Global
@@ -877,11 +886,13 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                                              d_grid_desc_mblock_mperblock,
                                                              d0_grid_buf);
 
-                    d1_reduce_thread_copy_vgpr_to_global.Run(d_reduce_thread_desc_mblock_mperblock,
-                                                             make_tuple(I0, I0),
-                                                             d1_thread_buf,
-                                                             d_grid_desc_mblock_mperblock,
-                                                             d1_grid_buf);
+                    if(enable_d1)
+                        d1_reduce_thread_copy_vgpr_to_global.Run(
+                            d_reduce_thread_desc_mblock_mperblock,
+                            make_tuple(I0, I0),
+                            d1_thread_buf,
+                            d_grid_desc_mblock_mperblock,
+                            d1_grid_buf);
                 }
 
                 if constexpr(access_id < num_access - 1)
