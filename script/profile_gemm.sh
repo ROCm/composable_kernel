@@ -5,7 +5,7 @@
 
 # make -j ckProfiler
 
- DRIVER="../bin/ckProfiler"
+ DRIVER="../build/bin/ckProfiler"
 
 OP=$1
 DATATYPE=$2
