@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <half.hpp>
@@ -10,6 +9,7 @@
 #include "config.hpp"
 #include "conv_fwd_util.hpp"
 #include "element_wise_operation.hpp"
+#include "fill.hpp"
 #include "host_tensor.hpp"
 #include "reference_conv_fwd.hpp"
 #include "tensor_layout.hpp"
@@ -19,35 +19,6 @@ using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 
-template <typename T>
-struct FillMonotonicSeq
-{
-    T m_init_value{0};
-    T m_step{1};
-
-    template <typename ForwardIter>
-    void operator()(ForwardIter first, ForwardIter last) const
-    {
-        std::generate(first, last, [=, n = m_init_value]() mutable {
-            auto tmp = n;
-            n += m_step;
-            return tmp;
-        });
-    }
-};
-
-template <typename T>
-struct FillConstant
-{
-    T m_value{0};
-
-    template <typename ForwardIter>
-    void operator()(ForwardIter first, ForwardIter last) const
-    {
-        std::fill(first, last, m_value);
-    }
-};
-
 template <ck::index_t NDim,
           typename InDataType    = float,
           typename WeiDataType   = float,
@@ -55,8 +26,8 @@ template <ck::index_t NDim,
           typename InLayout      = ck::tensor_layout::convolution::NHWC,
           typename WeiLayout     = ck::tensor_layout::convolution::KYXC,
           typename OutLayout     = ck::tensor_layout::convolution::NHWK,
-          typename FillInputOp   = FillMonotonicSeq<InDataType>,
-          typename FillWeightsOp = FillConstant<WeiDataType>>
+          typename FillInputOp   = ck::utils::FillMonotonicSeq<InDataType>,
+          typename FillWeightsOp = ck::utils::FillConstant<WeiDataType>>
 Tensor<OutDataType>
 run_reference_convolution_forward(const ck::utils::conv::ConvParams& params,
                                   const FillInputOp& fill_input_op     = FillInputOp{},
@@ -251,7 +222,7 @@ bool test_conv1d_nwc()
                                                          ck::tensor_layout::convolution::NWC,
                                                          ck::tensor_layout::convolution::KXC,
                                                          ck::tensor_layout::convolution::NWK>(
-        params, FillMonotonicSeq<float>{0.f, 0.1f});
+        params, ck::utils::FillMonotonicSeq<float>{0.f, 0.1f});
 
     ref_dims = std::vector<std::size_t>{2, 16, 16};
     ref_data = std::vector<float>{
@@ -349,7 +320,7 @@ bool test_conv3d_ncdhw()
                                                         ck::tensor_layout::convolution::NCDHW,
                                                         ck::tensor_layout::convolution::KCZYX,
                                                         ck::tensor_layout::convolution::NKDHW>(
-        params, FillMonotonicSeq<float>{0.f, 0.1f});
+        params, ck::utils::FillMonotonicSeq<float>{0.f, 0.1f});
     std::vector<std::size_t> ref_dims{1, 1, 4, 4, 4};
     std::vector<float> ref_data{
         407.7,     410.40002, 413.09998, 415.80002, 423.90002, 426.6,     429.30002, 432.,
@@ -383,7 +354,7 @@ bool test_conv3d_ncdhw()
                                                    ck::tensor_layout::convolution::NCDHW,
                                                    ck::tensor_layout::convolution::KCZYX,
                                                    ck::tensor_layout::convolution::NKDHW>(
-        params, FillMonotonicSeq<float>{0.f, 0.1f});
+        params, ck::utils::FillMonotonicSeq<float>{0.f, 0.1f});
     ref_dims = std::vector<std::size_t>{1, 2, 4, 4, 4};
     ref_data = std::vector<float>{
         2756.7002, 2764.7998, 2772.9001, 2781.,     2853.9001, 2862.,     2870.1,    2878.2002,
