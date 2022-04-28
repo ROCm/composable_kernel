@@ -213,9 +213,10 @@ def runCKProfiler(Map conf=[:]){
                     cmake_build(conf)
 					def perf_dir="perf_test"
 					sh "pwd"
+					sh "ls"
 					sh "mkdir -p ${perf_dir}"
 					sh "cd ${perf_dir}"
-					sh "cp ../../script/profile_gemm.sh ."
+					sh "cp ../script/profile_gemm.sh ."
 					def artifact = "${ck_branch}_${arch}_gemm.txt"
 					sh "./profile_gemm.sh gemm 0 0 0 1 0 5 > ${artifact}"
 					sh "./profile_gemm.sh gemm 0 1 0 1 0 5 >> ${artifact}"
