@@ -163,10 +163,10 @@ struct DeviceBinaryElementwise_2D : public DeviceBinaryElementwise<ElementwiseFu
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
                                                       const void* p_b,
                                                       void* p_c,
-                                                      const std::vector<int>& shape,
-                                                      const std::vector<int>& stride_a,
-                                                      const std::vector<int>& stride_b,
-                                                      const std::vector<int>& stride_c,
+                                                      std::vector<int> shape,
+                                                      std::vector<int> stride_a,
+                                                      std::vector<int> stride_b,
+                                                      std::vector<int> stride_c,
                                                       ElementwiseFunctor functor,
                                                       index_t threadPerBlock) override
     {

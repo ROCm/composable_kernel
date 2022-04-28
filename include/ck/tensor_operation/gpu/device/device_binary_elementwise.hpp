@@ -15,10 +15,10 @@ struct DeviceBinaryElementwise : public BaseOperator
     virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
                                                               const void* p_b,
                                                               void* p_c,
-                                                              const std::vector<int>& shape_a,
-                                                              const std::vector<int>& stride_a,
-                                                              const std::vector<int>& shape_b,
-                                                              const std::vector<int>& stride_b,
+                                                              std::vector<int> shape_a,
+                                                              std::vector<int> stride_a,
+                                                              std::vector<int> shape_b,
+                                                              std::vector<int> stride_b,
                                                               ElementwiseFunctor functor,
                                                               index_t threadPerBlock) = 0;
 
