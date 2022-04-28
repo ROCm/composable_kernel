@@ -42,7 +42,7 @@ using CDataType              = F16;
 using AccDataType            = F32;
 using EltwiseComputeDataType = F32;
 
-// CAUSION - host reduce_max will call numeric_limits<ck::half_t>::lowest()
+// CAUTION - host reduce_max will call numeric_limits<ck::half_t>::lowest()
 // However, numeric_limits<ck::half_t>::lowest() will return zero. So, used half_float::half instead
 using HostReduceDataType = half_float::half;
 
