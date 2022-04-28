@@ -1290,7 +1290,7 @@ struct ThreadwiseGemmAvx2_MxN_6x16_Dispatch
         index_t im = mr - 1;
         index_t in = (nr >> 3) - 1;
         assert(im >= 0 && im <= 5 && in >= 0 && in <= 1);
-        return dispatch_table[mr][nr](param);
+        return dispatch_table[im][in](param);
     }
 };
 
