@@ -4,6 +4,7 @@
 #include "c_style_pointer_cast.hpp"
 #include "amd_buffer_addressing.hpp"
 #include "generic_memory_space_atomic_add.hpp"
+#include "generic_memory_space_atomic_max.hpp"
 
 namespace ck {
 
@@ -124,6 +125,10 @@ struct DynamicBuffer
         else if constexpr(Op == InMemoryDataOperationEnum::AtomicAdd)
         {
             this->template AtomicAdd<X>(i, is_valid_element, x);
+        }
+        else if constexpr(Op == InMemoryDataOperationEnum::AtomicMax)
+        {
+            this->template AtomicMax<X>(i, is_valid_element, x);
         }
         else if constexpr(Op == InMemoryDataOperationEnum::Add)
         {
@@ -323,6 +328,29 @@ struct DynamicBuffer
             {
                 atomic_add<X>(c_style_pointer_cast<X*>(&p_data_[i]), x);
             }
+        }
+    }
+
+    template <typename X,
+              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                 bool>::type = false>
+    __host__ __device__ void AtomicMax(index_t i, bool is_valid_element, const X& x)
+    {
+        // X contains multiple T
+        constexpr index_t scalar_per_t_vector = scalar_type<remove_cvref_t<T>>::vector_size;
+
+        constexpr index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size;
+
+        static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
+                      "wrong! X should contain multiple T");
+
+        static_assert(GetAddressSpace() == AddressSpaceEnum::Global, "only support global mem");
+
+        // TODO - use_amd_buffer_addressing in MI200.
+        if(is_valid_element)
+        {
+            atomic_max<X>(c_style_pointer_cast<X*>(&p_data_[i]), x);
         }
     }
 
