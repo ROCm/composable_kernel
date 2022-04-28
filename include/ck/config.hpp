@@ -141,6 +141,7 @@ enum struct InMemoryDataOperationEnum
 {
     Set,
     AtomicAdd,
+    AtomicMax,
     Add
 };
 
