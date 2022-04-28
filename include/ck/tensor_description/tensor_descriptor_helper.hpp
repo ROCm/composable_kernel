@@ -68,10 +68,16 @@ __host__ __device__ constexpr auto make_naive_tensor_descriptor(const Tuple<Leng
         }
     };
 
+    const auto real_size = f(f, Number<0>{}, integral_constant<std::size_t, 1ul>{});
+
     const auto element_space_size = f(f, Number<0>{}, Number<1>{});
 #else
+    const auto real_size =
+        calculate_element_space_size_impl(lengths, strides, Number<0>{}, integral_constant<std::size_t, 1ul>{});
+
     const auto element_space_size =
         calculate_element_space_size_impl(lengths, strides, Number<0>{}, Number<1>{});
+    calculate_element_space_size_impl(lengths, strides, Number<0>{}, Number<1>{});
 #endif
 
     return TensorDescriptor<remove_cv_t<decltype(transforms)>,
@@ -79,7 +85,8 @@ __host__ __device__ constexpr auto make_naive_tensor_descriptor(const Tuple<Leng
                             remove_cv_t<decltype(up_dim_hidden_idss)>,
                             remove_cv_t<decltype(visible_dim_hidden_ids)>,
                             remove_cv_t<decltype(element_space_size)>>{transforms,
-                                                                       element_space_size};
+                                                                       element_space_size,
+                                                                       real_size};
 }
 
 // Lengths... can be:
@@ -100,6 +107,9 @@ make_naive_tensor_descriptor_packed(const Tuple<Lengths...>& lengths)
 
     constexpr auto visible_dim_hidden_ids = typename arithmetic_sequence_gen<1, N + 1, 1>::type{};
 
+    const auto real_size =
+        container_reduce(lengths, math::multiplies{}, integral_constant<std::size_t, 1ul>{});
+
     const auto element_space_size = container_reduce(lengths, math::multiplies{}, Number<1>{});
 
     return TensorDescriptor<remove_cv_t<decltype(transforms)>,
@@ -107,7 +117,8 @@ make_naive_tensor_descriptor_packed(const Tuple<Lengths...>& lengths)
                             remove_cv_t<decltype(up_dim_hidden_idss)>,
                             remove_cv_t<decltype(visible_dim_hidden_ids)>,
                             remove_cv_t<decltype(element_space_size)>>{transforms,
-                                                                       element_space_size};
+                                                                       element_space_size,
+                                                                       real_size};
 }
 
 template <typename... Lengths, typename Align>

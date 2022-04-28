@@ -114,11 +114,12 @@ struct TensorDescriptor
     __host__ __device__ constexpr TensorDescriptor() = default;
 
     __host__ __device__ constexpr TensorDescriptor(const Transforms& transforms,
-                                                   ElementSpaceSize element_space_size)
+                                                   ElementSpaceSize element_space_size,
+                                                   std::size_t real_size)
         : transforms_{transforms},
           element_size_{InitializeElementSize(transforms)},
-          element_space_size_{element_space_size}
-
+          element_space_size_{element_space_size},
+          real_size_{real_size}
     {
         static_assert(Transforms::Size() == ntransform_ &&
                           LowerDimensionIdss::Size() == ntransform_ &&
@@ -153,6 +154,8 @@ struct TensorDescriptor
     __host__ __device__ constexpr auto GetElementSize() const { return element_size_; }
 
     __host__ __device__ constexpr auto GetElementSpaceSize() const { return element_space_size_; }
+
+    __host__ __device__ constexpr auto GetRealSize() const { return real_size_; }
 
     template <typename Idx>
     __host__ __device__ constexpr index_t CalculateOffset(const Idx& idx) const
@@ -213,6 +216,9 @@ struct TensorDescriptor
     Transforms transforms_;
     ElementSize element_size_;
     ElementSpaceSize element_space_size_;
+
+    private:
+    std::size_t real_size_;
 };
 
 template <index_t NDimHidden, typename VisibleDimensionIds>
@@ -379,12 +385,15 @@ transform_tensor_descriptor(const OldTensorDescriptor& old_tensor_desc,
 
     const auto element_space_size = old_tensor_desc.GetElementSpaceSize();
 
+    const auto real_size = old_tensor_desc.GetRealSize();
+
     return TensorDescriptor<remove_cv_t<decltype(all_transforms)>,
                             remove_cv_t<decltype(all_low_dim_hidden_idss)>,
                             remove_cv_t<decltype(all_up_dim_hidden_idss)>,
                             remove_cv_t<decltype(new_visible_dim_hidden_ids)>,
                             remove_cv_t<decltype(element_space_size)>>{all_transforms,
-                                                                       element_space_size};
+                                                                       element_space_size,
+                                                                       real_size};
 }
 
 template <typename TensorDesc, typename VisibleIndex>
