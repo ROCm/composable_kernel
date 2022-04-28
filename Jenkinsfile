@@ -219,7 +219,8 @@ def runCKProfiler(Map conf=[:]){
 					sh "cd script"
 					sh "ls"
 					//sh "cp ../script/profile_gemm.sh ."
-					def artifact = "${ck_branch}_${arch}_gemm.txt"
+					//def artifact = "${ck_branch}_${arch}_gemm.txt"
+					def artifact = "profile_gemm_${gpu_arch}.log"
 					sh "./profile_gemm.sh gemm 0 0 0 1 0 5 > ${artifact}"
 					sh "./profile_gemm.sh gemm 0 1 0 1 0 5 >> ${artifact}"
 					sh "./profile_gemm.sh gemm 0 2 0 1 0 5 >> ${artifact}"
@@ -272,16 +273,17 @@ pipeline {
                 //         buildHipClangJobAndReboot(build_cmd: build_cmd, no_reboot:true, prefixpath: '/opt/rocm', build_type: 'debug')
                 //     }
                 // }
-                stage('Build Profiler: Release, gfx908')
-                {
-                    agent { label rocmnode("nogpu")}
-                    environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
-                    }
-                    steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
-                    }
-                }
+				// we will build and run ckProfiler release version later, during the performance test stage
+                //stage('Build Profiler: Release, gfx908')
+                //{
+                //    agent { label rocmnode("nogpu")}
+                //    environment{
+                //        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
+                //    }
+                //    steps{
+                //        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
+                //    }
+                //}
                 stage('Build Profiler: Debug, gfx908')
                 {
                     agent { label rocmnode("nogpu")}
