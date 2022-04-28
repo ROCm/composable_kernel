@@ -124,11 +124,14 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     static constexpr auto I6 = Number<6>{};
     static constexpr auto I7 = Number<7>{};
 
+    // Bytes per 32 lds bank: 32 * 4 bytes
+    static constexpr auto BankLength = Number<128>{};
+
     // K1 should be Number<...>
     static constexpr auto K1 = Number<K1Value>{};
 
     // M1 & N1
-    static constexpr auto ElePerBank = Number<64>{};
+    static constexpr auto ElePerBank = Number<BankLength / sizeof(FloatAB)>{};
     static constexpr auto M1PerBlock = Number<ElePerBank / K1Value>{};
     static constexpr auto N1PerBlock = Number<ElePerBank / K1Value>{};
     // M0 & N0
