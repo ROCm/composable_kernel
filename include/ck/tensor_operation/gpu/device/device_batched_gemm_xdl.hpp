@@ -107,7 +107,7 @@ __global__ void
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = c_element_op;
-    ignore = compute_base_ptr_of_batch_;
+    ignore = compute_ptr_offset_of_batch;
     ignore = block_2_ctile_map;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
@@ -385,8 +385,8 @@ struct DeviceBatchedGemmXdl
               c_grid_desc_m_n_{DeviceBatchedGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC)},
               c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
               compute_ptr_offset_of_batch_{a_grid_desc_k0_m_k1_.GetElementSpaceSize(),
-                                          b_grid_desc_k0_n_k1_.GetElementSpaceSize(),
-                                          c_grid_desc_m_n_.GetElementSpaceSize()},
+                                           b_grid_desc_k0_n_k1_.GetElementSpaceSize(),
+                                           c_grid_desc_m_n_.GetElementSpaceSize()},
               block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
