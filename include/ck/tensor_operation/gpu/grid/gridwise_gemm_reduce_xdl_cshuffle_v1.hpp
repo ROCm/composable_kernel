@@ -864,10 +864,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                     make_tuple(im, in))>{};
 
                             d0_reduce_op.Reduce(d0_acc, c_reduce_thread_buf[offset]);
-
-                            // TODO - Support variable amount of d tensor
-                            if(p_d1_grid)
-                                d1_reduce_op.Reduce(d1_acc, c_reduce_thread_buf[offset]);
+                            d1_reduce_op.Reduce(d1_acc, c_reduce_thread_buf[offset]);
                         });
 
                         constexpr index_t out_offset =
