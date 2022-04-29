@@ -88,13 +88,16 @@ struct ReferenceConvFwd : public device::BaseOperator
                 auto f_ncw = [&](auto n, auto k, auto wo) {
                     float v_acc = 0;
 
-                    for(int c = 0; c < ck::type_convert<int>(arg.weight_.mDesc.GetLengths()[1]); ++c)
+                    for(int c = 0; c < ck::type_convert<int>(arg.weight_.mDesc.GetLengths()[1]);
+                        ++c)
                     {
-                        for(int x = 0; x < ck::type_convert<int>(arg.weight_.mDesc.GetLengths()[2]); ++x)
+                        for(int x = 0; x < ck::type_convert<int>(arg.weight_.mDesc.GetLengths()[2]);
+                            ++x)
                         {
                             int wi = wo * arg.conv_strides_[0] + x * arg.conv_dilations_[0] -
                                      arg.in_left_pads_[0];
-                            if(wi >= 0 && wi < ck::type_convert<int>(arg.input_.mDesc.GetLengths()[2]))
+                            if(wi >= 0 &&
+                               wi < ck::type_convert<int>(arg.input_.mDesc.GetLengths()[2]))
                             {
                                 float v_in;
                                 float v_wei;
@@ -128,17 +131,23 @@ struct ReferenceConvFwd : public device::BaseOperator
                 auto f_nchw = [&](auto n, auto k, auto ho, auto wo) {
                     float v_acc = 0;
 
-                    for(int c = 0; c < ck::type_convert<int>(arg.weight_.mDesc.GetLengths()[1]); ++c)
+                    for(int c = 0; c < ck::type_convert<int>(arg.weight_.mDesc.GetLengths()[1]);
+                        ++c)
                     {
-                        for(int y = 0; y < ck::type_convert<int>(arg.weight_.mDesc.GetLengths()[2]); ++y)
+                        for(int y = 0; y < ck::type_convert<int>(arg.weight_.mDesc.GetLengths()[2]);
+                            ++y)
                         {
                             int hi = ho * arg.conv_strides_[0] + y * arg.conv_dilations_[0] -
                                      arg.in_left_pads_[0];
-                            for(int x = 0; x < ck::type_convert<int>(arg.weight_.mDesc.GetLengths()[3]); ++x)
+                            for(int x = 0;
+                                x < ck::type_convert<int>(arg.weight_.mDesc.GetLengths()[3]);
+                                ++x)
                             {
                                 int wi = wo * arg.conv_strides_[1] + x * arg.conv_dilations_[1] -
                                          arg.in_left_pads_[1];
-                                if(hi >= 0 && hi < ck::type_convert<int>(arg.input_.mDesc.GetLengths()[2]) && wi >= 0 &&
+                                if(hi >= 0 &&
+                                   hi < ck::type_convert<int>(arg.input_.mDesc.GetLengths()[2]) &&
+                                   wi >= 0 &&
                                    wi < ck::type_convert<int>(arg.input_.mDesc.GetLengths()[3]))
                                 {
                                     float v_in;
@@ -174,23 +183,34 @@ struct ReferenceConvFwd : public device::BaseOperator
                 auto f_nchw = [&](auto n, auto k, auto d_o, auto ho, auto wo) {
                     float v_acc = 0;
 
-                    for(int c = 0; c < ck::type_convert<int>(arg.weight_.mDesc.GetLengths()[1]); ++c)
+                    for(int c = 0; c < ck::type_convert<int>(arg.weight_.mDesc.GetLengths()[1]);
+                        ++c)
                     {
-                        for(int z = 0; z < ck::type_convert<int>(arg.weight_.mDesc.GetLengths()[2]); ++z)
+                        for(int z = 0; z < ck::type_convert<int>(arg.weight_.mDesc.GetLengths()[2]);
+                            ++z)
                         {
                             int di = d_o * arg.conv_strides_[0] + z * arg.conv_dilations_[0] -
                                      arg.in_left_pads_[0];
-                            for(int y = 0; y < ck::type_convert<int>(arg.weight_.mDesc.GetLengths()[3]); ++y)
+                            for(int y = 0;
+                                y < ck::type_convert<int>(arg.weight_.mDesc.GetLengths()[3]);
+                                ++y)
                             {
                                 int hi = ho * arg.conv_strides_[1] + y * arg.conv_dilations_[1] -
                                          arg.in_left_pads_[1];
-                                for(int x = 0; x < ck::type_convert<int>(arg.weight_.mDesc.GetLengths()[4]); ++x)
+                                for(int x = 0;
+                                    x < ck::type_convert<int>(arg.weight_.mDesc.GetLengths()[4]);
+                                    ++x)
                                 {
                                     int wi = wo * arg.conv_strides_[2] +
                                              x * arg.conv_dilations_[2] - arg.in_left_pads_[2];
-                                    if(di >= 0 && di < ck::type_convert<int>(arg.input_.mDesc.GetLengths()[2]) &&
-                                       hi >= 0 && hi < ck::type_convert<int>(arg.input_.mDesc.GetLengths()[3]) &&
-                                       wi >= 0 && wi < ck::type_convert<int>(arg.input_.mDesc.GetLengths()[4]))
+                                    if(di >= 0 &&
+                                       di < ck::type_convert<int>(
+                                                arg.input_.mDesc.GetLengths()[2]) &&
+                                       hi >= 0 &&
+                                       hi < ck::type_convert<int>(
+                                                arg.input_.mDesc.GetLengths()[3]) &&
+                                       wi >= 0 &&
+                                       wi < ck::type_convert<int>(arg.input_.mDesc.GetLengths()[4]))
                                     {
                                         float v_in;
                                         float v_wei;

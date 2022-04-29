@@ -72,8 +72,8 @@ __host__ __device__ constexpr auto make_naive_tensor_descriptor(const Tuple<Leng
 
     const auto element_space_size = f(f, Number<0>{}, Number<1>{});
 #else
-    const auto real_size =
-        calculate_element_space_size_impl(lengths, strides, Number<0>{}, integral_constant<std::size_t, 1ul>{});
+    const auto real_size = calculate_element_space_size_impl(
+        lengths, strides, Number<0>{}, integral_constant<std::size_t, 1ul>{});
 
     const auto element_space_size =
         calculate_element_space_size_impl(lengths, strides, Number<0>{}, Number<1>{});
@@ -84,9 +84,8 @@ __host__ __device__ constexpr auto make_naive_tensor_descriptor(const Tuple<Leng
                             remove_cv_t<decltype(low_dim_hidden_idss)>,
                             remove_cv_t<decltype(up_dim_hidden_idss)>,
                             remove_cv_t<decltype(visible_dim_hidden_ids)>,
-                            remove_cv_t<decltype(element_space_size)>>{transforms,
-                                                                       element_space_size,
-                                                                       real_size};
+                            remove_cv_t<decltype(element_space_size)>>{
+        transforms, element_space_size, real_size};
 }
 
 // Lengths... can be:
@@ -116,9 +115,8 @@ make_naive_tensor_descriptor_packed(const Tuple<Lengths...>& lengths)
                             remove_cv_t<decltype(low_dim_hidden_idss)>,
                             remove_cv_t<decltype(up_dim_hidden_idss)>,
                             remove_cv_t<decltype(visible_dim_hidden_ids)>,
-                            remove_cv_t<decltype(element_space_size)>>{transforms,
-                                                                       element_space_size,
-                                                                       real_size};
+                            remove_cv_t<decltype(element_space_size)>>{
+        transforms, element_space_size, real_size};
 }
 
 template <typename... Lengths, typename Align>

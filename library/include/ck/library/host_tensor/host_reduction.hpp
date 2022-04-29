@@ -211,7 +211,8 @@ struct ReductionHost
             AccDataType accuVal     = ReduceOpZeroVal<AccDataType, ReduceOpId>();
             IndexDataType accuIndex = 0;
 
-            for(IndexDataType i = 0; i < ck::type_convert<IndexDataType>(reduce_dim_indexes.size()); i++)
+            for(IndexDataType i = 0; i < ck::type_convert<IndexDataType>(reduce_dim_indexes.size());
+                i++)
             {
                 auto offset_reduce =
                     get_offset_from_index<NumReduceDim>(reduceStrides, reduce_dim_indexes[i]);
@@ -246,7 +247,9 @@ struct ReductionHost
                 auto offset_invariant =
                     get_offset_from_index<NumInvariantDim>(invariantStrides, invariant_index);
 
-                for(IndexDataType i = 0; i < ck::type_convert<IndexDataType>(reduce_dim_indexes.size()); i++)
+                for(IndexDataType i = 0;
+                    i < ck::type_convert<IndexDataType>(reduce_dim_indexes.size());
+                    i++)
                 {
                     auto offset_reduce =
                         get_offset_from_index<NumReduceDim>(reduceStrides, reduce_dim_indexes[i]);

@@ -37,16 +37,16 @@ std::size_t get_flops(ck::index_t N,
 }
 
 ConvParams::ConvParams()
-        : num_dim_spatial(2),
-          N(128),
-          K(256),
-          C(192),
-          filter_spatial_lengths(2, 3),
-          input_spatial_lengths(2, 71),
-          conv_filter_strides(2, 2),
-          conv_filter_dilations(2, 1),
-          input_left_pads(2, 1),
-          input_right_pads(2, 1)
+    : num_dim_spatial(2),
+      N(128),
+      K(256),
+      C(192),
+      filter_spatial_lengths(2, 3),
+      input_spatial_lengths(2, 71),
+      conv_filter_strides(2, 2),
+      conv_filter_dilations(2, 1),
+      input_left_pads(2, 1),
+      input_right_pads(2, 1)
 {
 }
 
@@ -78,9 +78,9 @@ ConvParams::ConvParams(ck::index_t n_dim,
        ck::type_convert<ck::index_t>(input_left_pads.size()) != num_dim_spatial ||
        ck::type_convert<ck::index_t>(input_right_pads.size()) != num_dim_spatial)
     {
-        throw(std::runtime_error(
-            "ConvParams::GetOutputSpatialLengths: "
-            "parameter size is different from number of declared dimensions!"));
+        throw(
+            std::runtime_error("ConvParams::GetOutputSpatialLengths: "
+                               "parameter size is different from number of declared dimensions!"));
     }
 }
 
@@ -93,9 +93,9 @@ std::vector<ck::index_t> ConvParams::GetOutputSpatialLengths() const
        ck::type_convert<ck::index_t>(input_left_pads.size()) != num_dim_spatial ||
        ck::type_convert<ck::index_t>(input_right_pads.size()) != num_dim_spatial)
     {
-        throw(std::runtime_error(
-            "ConvParams::GetOutputSpatialLengths: "
-            "parameter size is different from number of declared dimensions!"));
+        throw(
+            std::runtime_error("ConvParams::GetOutputSpatialLengths: "
+                               "parameter size is different from number of declared dimensions!"));
     }
 
     std::vector<ck::index_t> out_spatial_len(num_dim_spatial, 0);
@@ -103,8 +103,7 @@ std::vector<ck::index_t> ConvParams::GetOutputSpatialLengths() const
     {
         // XEff = (X - 1) * conv_dilation_w + 1;
         // Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
-        const ck::index_t idx_eff =
-            (filter_spatial_lengths[i] - 1) * conv_filter_dilations[i] + 1;
+        const ck::index_t idx_eff = (filter_spatial_lengths[i] - 1) * conv_filter_dilations[i] + 1;
         out_spatial_len[i] =
             (input_spatial_lengths[i] + input_left_pads[i] + input_right_pads[i] - idx_eff) /
                 conv_filter_strides[i] +

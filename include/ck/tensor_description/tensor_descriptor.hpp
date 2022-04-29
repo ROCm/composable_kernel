@@ -391,9 +391,8 @@ transform_tensor_descriptor(const OldTensorDescriptor& old_tensor_desc,
                             remove_cv_t<decltype(all_low_dim_hidden_idss)>,
                             remove_cv_t<decltype(all_up_dim_hidden_idss)>,
                             remove_cv_t<decltype(new_visible_dim_hidden_ids)>,
-                            remove_cv_t<decltype(element_space_size)>>{all_transforms,
-                                                                       element_space_size,
-                                                                       real_size};
+                            remove_cv_t<decltype(element_space_size)>>{
+        all_transforms, element_space_size, real_size};
 }
 
 template <typename TensorDesc, typename VisibleIndex>
