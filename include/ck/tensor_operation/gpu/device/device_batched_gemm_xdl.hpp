@@ -384,9 +384,10 @@ struct DeviceBatchedGemmXdl
                   DeviceBatchedGemmXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB)},
               c_grid_desc_m_n_{DeviceBatchedGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC)},
               c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
-              compute_ptr_offset_of_batch_{a_grid_desc_k0_m_k1_.GetElementSpaceSize(),
-                                           b_grid_desc_k0_n_k1_.GetElementSpaceSize(),
-                                           c_grid_desc_m_n_.GetElementSpaceSize()},
+              compute_ptr_offset_of_batch_{
+                  type_convert<index_t>(a_grid_desc_k0_m_k1_.GetElementSpaceSize()),
+                  type_convert<index_t>(b_grid_desc_k0_n_k1_.GetElementSpaceSize()),
+                  type_convert<index_t>(c_grid_desc_m_n_.GetElementSpaceSize())},
               block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
