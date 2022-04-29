@@ -29,10 +29,10 @@ set(DEVICE_GEMM_INSTANCE_SOURCE
    device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instance.cpp;
    device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instance.cpp;
    device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instance.cpp;
-   device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instance.cpp;
-   device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instance.cpp;
-   device_gemm_xdl_splitk_f16_f16_f16_km_kn_mn_instance.cpp;
-   device_gemm_xdl_splitk_f16_f16_f16_km_nk_mn_instance.cpp;
+   device_gemm_xdl_splitk_c_shuffle_f16_f16_f16_mk_kn_mn_instance.cpp;
+   device_gemm_xdl_splitk_c_shuffle_f16_f16_f16_mk_nk_mn_instance.cpp;
+   device_gemm_xdl_splitk_c_shuffle_f16_f16_f16_km_kn_mn_instance.cpp;
+   device_gemm_xdl_splitk_c_shuffle_f16_f16_f16_km_nk_mn_instance.cpp;
 )
 
 add_library(device_gemm_instance SHARED ${DEVICE_GEMM_INSTANCE_SOURCE})
