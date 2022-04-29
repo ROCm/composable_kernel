@@ -213,7 +213,7 @@ def runCKProfiler(Map conf=[:]){
                     cmake_build(conf)
 					sh "pwd"
 					sh "ls"
-					dir(script){
+					dir("script"){
 						sh "pwd"
 						sh "ls"
 						def artifact = "profile_gemm_${gpu_arch}.log"
@@ -281,19 +281,20 @@ pipeline {
                 //        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
                 //    }
                 //}
-                stage('Build Profiler: Debug, gfx908')
-                {
-                    agent { label rocmnode("nogpu")}
-                    environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
-                    }
-                    steps{
-                        // until we stabilize debug build due to compiler crashes
-                        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                            buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Debug')
-                        }
-                    }
-                }
+				//comment out temporarily to speed up debugging process
+                //stage('Build Profiler: Debug, gfx908')
+                //{
+                //    agent { label rocmnode("nogpu")}
+                //    environment{
+                //        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
+                //    }
+                //    steps{
+                //        // until we stabilize debug build due to compiler crashes
+                //        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                //            buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Debug')
+                //        }
+                //    }
+                //}
                 stage('Clang Format') {
                     agent{ label rocmnode("nogpu") }
                     environment{
@@ -313,24 +314,6 @@ pipeline {
                 }
             }
         }
-        stage("Tests")
-        {
-            parallel
-            {
-                stage("Run Tests: gfx908")
-                {
-                    agent{ label rocmnode("gfx908")}
-                    environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
-                    }
-                    steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release')
-                    }
-
-                }
-
-            }
-        }
         stage("Performance Tests")
         {
             parallel
@@ -343,6 +326,24 @@ pipeline {
                     }
                     steps{
                         runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
+                    }
+
+                }
+
+            }
+        }
+        stage("Tests")
+        {
+            parallel
+            {
+                stage("Run Tests: gfx908")
+                {
+                    agent{ label rocmnode("gfx908")}
+                    environment{
+                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release')
                     }
 
                 }
