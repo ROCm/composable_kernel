@@ -227,7 +227,9 @@ def runCKProfiler(Map conf=[:]){
 						//archiveArtifacts  "${artifact}"
 					//}
 					dir("build/bin"){
+						set +e
 						sh "./ckProfiler gemm 0 0 0 1 0 5 1024 1024 1024 1024 1024 1024"
+						set -e
 					}
                 }
             }
