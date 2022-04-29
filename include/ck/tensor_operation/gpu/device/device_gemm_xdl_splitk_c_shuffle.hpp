@@ -18,103 +18,6 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-/*
- * \brief Wrapper function of GridwiseGemm::Run to realize BatchedGEMM.
- *
- * \tparam ComputePtrOffsetOfBatch Class that computes the base pointer offsets of A, B, C matrix
- * given the batch. For example, ComputePtrOffsetOfStridedBatch() computes the offsets of evenly
- * strided batched, but we can easily extend to other layouts. The returned offset can be either \p
- * index_t or \p long_index_t. If it returns \p long_index_t, we are not subject to the 2GB
- * limitations.
- *
- * \tparam Block2CTileMap Block2CTileMap::CalculateBottomIndex() takes in id of a workgroup and
- * returns the 2D index of the tile that it computes. \see
- * GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3::Run().
- *
- * \note Using \p ComputePtrOffsetOfBatch gives us the flexibility that 2 workgroups can compute 2
- * tiles from different matrices. Keep in mind that these 2 matrices can share the same grid
- * descriptor (like in BatchedGEMM), or use their own grid descriptors (in GroupedGemm). \link
- * device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk.hpp kernel_gemm_xdlops_v2r3_for_conv3d \endlink for \link
- * DeviceConv3d \endlink uses the same concept, but currently does NOT encapsulate the computing of
- * pointer offset into \p ComputePtrOffsetOfStridedBatch.
- *
- * \note \p Block2CTileMap allows customized mapping between a workgroup and the C-tile it computes.
- * Together with \p ComputePtrOffsetOfBatch, we can reuse GridwiseGemm (and GridwiseGemm fusion ) to
- * realize BatchedGemm and GroupedGemm (and the corresponding GEMM fusion).
- *
- */
-template <typename GridwiseGemm,
-          typename FloatAB,
-          typename FloatC,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation,
-          typename AGridDesc_AK0_M_AK1,
-          typename BGridDesc_BK0_N_BK1,
-          typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-          typename ComputePtrOffsetOfBatch,
-          typename Block2CTileMap,
-          bool HasMainKBlockLoop>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
-#endif
-        kernel_batched_gemm_xdl_cshuffle_v1(
-            const FloatAB* __restrict__ p_a_grid,
-            const FloatAB* __restrict__ p_b_grid,
-            FloatC* __restrict__ p_c_grid,
-            const index_t batch_count,
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const CElementwiseOperation c_element_op,
-            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-            const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                c_grid_desc_mblock_mperblock_nblock_nperblock,
-            const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
-            const Block2CTileMap block_2_ctile_map)
-{
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
-    const index_t num_blocks_per_batch =
-        __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
-    const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
-
-    const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
-    const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
-    const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetCPtrOffset(g_idx)));
-
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
-                                                  p_b_grid + b_batch_offset,
-                                                  p_c_grid + c_batch_offset,
-                                                  p_shared,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  c_element_op,
-                                                  a_grid_desc_ak0_m_ak1,
-                                                  b_grid_desc_bk0_n_bk1,
-                                                  c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  block_2_ctile_map);
-#else
-    ignore = p_a_grid;
-    ignore = p_b_grid;
-    ignore = p_c_grid;
-    ignore = batch_count;
-    ignore = a_element_op;
-    ignore = b_element_op;
-    ignore = c_element_op;
-    ignore = a_grid_desc_ak0_m_ak1;
-    ignore = b_grid_desc_bk0_n_bk1;
-    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
-    ignore = compute_ptr_offset_of_batch;
-    ignore = block_2_ctile_map;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
-}
-
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
@@ -586,9 +489,11 @@ struct DeviceGemmXdlSplitKCShuffle
             const auto AKSplitted = AKPad / k_batch;
             const auto BKSplitted = BKPad / k_batch;
 
-            a_grid_desc_ak0_m_ak1_ = DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, AKSplitted, StrideA);
-            b_grid_desc_bk0_n_bk1_ = DeviceOp::MakeBGridDescriptor_BK0_N_BK1(BKSplitted, NRaw, StrideB);
-            c_grid_desc_m_n_       = DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC);
+            a_grid_desc_ak0_m_ak1_ =
+                DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, AKSplitted, StrideA);
+            b_grid_desc_bk0_n_bk1_ =
+                DeviceOp::MakeBGridDescriptor_BK0_N_BK1(BKSplitted, NRaw, StrideB);
+            c_grid_desc_m_n_ = DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC);
 
             if(GridwiseGemm::CheckValidity(
                    a_grid_desc_ak0_m_ak1_, b_grid_desc_bk0_n_bk1_, c_grid_desc_m_n_))
@@ -919,4 +824,3 @@ struct DeviceGemmXdlSplitKCShuffle
 } // namespace tensor_operation
 } // namespace ck
 #endif
-

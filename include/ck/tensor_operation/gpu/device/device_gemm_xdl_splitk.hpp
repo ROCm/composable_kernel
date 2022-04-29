@@ -17,31 +17,6 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-/*
- * \brief Wrapper function of GridwiseGemm::Run to realize BatchedGEMM.
- *
- * \tparam ComputePtrOffsetOfBatch Class that computes the base pointer offsets of A, B, C matrix
- * given the batch. For example, ComputePtrOffsetOfStridedBatch() computes the offsets of evenly
- * strided batched, but we can easily extend to other layouts. The returned offset can be either \p
- * index_t or \p long_index_t. If it returns \p long_index_t, we are not subject to the 2GB
- * limitations.
- *
- * \tparam Block2CTileMap Block2CTileMap::CalculateBottomIndex() takes in id of a workgroup and
- * returns the 2D index of the tile that it computes. \see
- * GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3::Run().
- *
- * \note Using \p ComputePtrOffsetOfBatch gives us the flexibility that 2 workgroups can compute 2
- * tiles from different matrices. Keep in mind that these 2 matrices can share the same grid
- * descriptor (like in BatchedGEMM), or use their own grid descriptors (in GroupedGemm). \link
- * device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk.hpp kernel_gemm_xdlops_v2r3_for_conv3d \endlink for \link
- * DeviceConv3d \endlink uses the same concept, but currently does NOT encapsulate the computing of
- * pointer offset into \p ComputePtrOffsetOfStridedBatch.
- *
- * \note \p Block2CTileMap allows customized mapping between a workgroup and the C-tile it computes.
- * Together with \p ComputePtrOffsetOfBatch, we can reuse GridwiseGemm (and GridwiseGemm fusion ) to
- * realize BatchedGemm and GroupedGemm (and the corresponding GEMM fusion).
- *
- */
 template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,
@@ -348,49 +323,6 @@ struct DeviceGemmXdlSplitK
         index_t BatchStrideB_;
         // index_t BatchStrideC_; // always zero
     };
-
-    // GridwiseGemm
-    // using GridwiseGemm =
-    //     GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3<BlockSize,
-    //                                             ADataType, // TODO: distinguish A/B datatype
-    //                                             AccDataType,
-    //                                             CDataType,
-    //                                             InMemoryDataOperationEnum::Set,
-    //                                             AGridDesc_K0_M_K1,
-    //                                             BGridDesc_K0_N_K1,
-    //                                             CGridDesc_M_N,
-    //                                             AElementwiseOperation,
-    //                                             BElementwiseOperation,
-    //                                             CElementwiseOperation,
-    //                                             MPerBlock,
-    //                                             NPerBlock,
-    //                                             K0PerBlock,
-    //                                             MPerXDL,
-    //                                             NPerXDL,
-    //                                             K1,
-    //                                             MXdlPerWave,
-    //                                             NXdlPerWave,
-    //                                             ABlockTransferThreadClusterLengths_K0_M_K1,
-    //                                             ABlockTransferThreadClusterArrangeOrder,
-    //                                             ABlockTransferSrcAccessOrder,
-    //                                             ABlockTransferSrcVectorDim,
-    //                                             ABlockTransferSrcScalarPerVector,
-    //                                             ABlockTransferDstScalarPerVector_K1,
-    //                                             false, //
-    //                                             AThreadTransferSrcResetCoordinateAfterRun,
-    //                                             ABlockLdsAddExtraM,
-    //                                             BBlockTransferThreadClusterLengths_K0_N_K1,
-    //                                             BBlockTransferThreadClusterArrangeOrder,
-    //                                             BBlockTransferSrcAccessOrder,
-    //                                             BBlockTransferSrcVectorDim,
-    //                                             BBlockTransferSrcScalarPerVector,
-    //                                             BBlockTransferDstScalarPerVector_K1,
-    //                                             false, //
-    //                                             BThreadTransferSrcResetCoordinateAfterRun,
-    //                                             BBlockLdsAddExtraN,
-    //                                             Sequence<2, 3, 0, 1, 7, 5, 4, 6>,
-    //                                             CThreadTransferSrcDstVectorDim,
-    //                                             CThreadTransferDstScalarPerVector>;
 
     using GridwiseGemm =
         GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3<BlockSize,
@@ -765,4 +697,3 @@ struct DeviceGemmXdlSplitK
 } // namespace tensor_operation
 } // namespace ck
 #endif
-
