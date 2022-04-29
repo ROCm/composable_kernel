@@ -63,7 +63,7 @@ inline std::string get_device_name()
 
 int main()
 {
-    if(get_device_name() != "gfx90a")
+    if(get_device_name().find("gfx90a") == std::string::npos)
     {
         std::cout << "TestGemm ..... SUCCESS" << std::endl;
         return 0;
