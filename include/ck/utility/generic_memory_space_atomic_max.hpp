@@ -4,22 +4,7 @@
 namespace ck {
 
 template <typename X>
-__device__ X atomic_max(X* p_dst, const X& x);
-
-template <>
-__device__ int32_t atomic_max<int32_t>(int32_t* p_dst, const int32_t& x)
-{
-    return atomicMax(p_dst, x);
-}
-
-template <>
-__device__ uint32_t atomic_max<uint32_t>(uint32_t* p_dst, const uint32_t& x)
-{
-    return atomicMax(p_dst, x);
-}
-
-template <>
-__device__ float atomic_max<float>(float* p_dst, const float& x)
+__device__ X atomic_max(X* p_dst, const X& x)
 {
     return atomicMax(p_dst, x);
 }

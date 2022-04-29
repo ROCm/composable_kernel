@@ -4,22 +4,7 @@
 namespace ck {
 
 template <typename X>
-__device__ X atomic_add(X* p_dst, const X& x);
-
-template <>
-__device__ int32_t atomic_add<int32_t>(int32_t* p_dst, const int32_t& x)
-{
-    return atomicAdd(p_dst, x);
-}
-
-template <>
-__device__ uint32_t atomic_add<uint32_t>(uint32_t* p_dst, const uint32_t& x)
-{
-    return atomicAdd(p_dst, x);
-}
-
-template <>
-__device__ float atomic_add<float>(float* p_dst, const float& x)
+__device__ X atomic_add(X* p_dst, const X& x)
 {
     return atomicAdd(p_dst, x);
 }
