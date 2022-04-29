@@ -140,12 +140,12 @@ struct TestGemm
         Tensor<CDataType> c_m_n_device_result(
             f_host_tensor_descriptor(params.M, params.N, params.StrideC, CLayout{}));
 
-        auto f_generate_tensor_value = [](auto desc, auto type) {
+        auto f_generate_tensor_value = [](auto& desc, auto type) {
             using dataType = decltype(type);
 
-            if(std::is_same<dataType, int8_t>::value)
+            if(std::is_same<dataType, int8_t>::value || std::is_same<dataType, double>::value)
             {
-                desc.GenerateTensorValue(GeneratorTensor_2<int8_t>{-5, 5});
+                desc.GenerateTensorValue(GeneratorTensor_2<dataType>{-5, 5});
             }
             else
             {
@@ -161,6 +161,7 @@ struct TestGemm
 
     auto operator()(DeviceGemmPtr_& gemmPtr)
     {
+        std::cout << "data type: " << typeid(ADataType{}).name() << std::endl;
         std::cout << "ALayout = " << ALayout{}.name << ", BLayout = " << BLayout{}.name
                   << ", CLayout = " << CLayout{}.name << std::endl;
         std::cout << gemmPtr->GetTypeString() << std::endl;
@@ -202,7 +203,12 @@ struct TestGemm
 
         // Assert
         bool res = false;
-        if(std::is_same<CDataType, float>::value)
+        if(std::is_same<CDataType, double>::value)
+        {
+            res = ck::utils::check_err(c_device.mData, c_host.mData);
+            std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
+        }
+        else if(std::is_same<CDataType, float>::value)
         {
             res = ck::utils::check_err(c_device.mData, c_host.mData);
             std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
