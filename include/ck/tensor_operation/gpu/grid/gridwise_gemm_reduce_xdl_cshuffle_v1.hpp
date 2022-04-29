@@ -853,10 +853,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                     // reduce in VGPR
                     static_for<0, mreduce_per_thread, 1>{}([&](auto im) {
                         FloatReduceAcc d0_acc = d0_reduce_op.GetReduceZeroValue();
-                        FloatReduceAcc d1_acc = 0;
-                        // TODO - Support variable amount of d tensor
-                        if(p_d1_grid)
-                            d1_acc = d1_reduce_op.GetReduceZeroValue();
+                        FloatReduceAcc d1_acc = d1_reduce_op.GetReduceZeroValue();
 
                         static_for<0, nreduce_per_thread, 1>{}([&](auto in) {
                             constexpr auto offset =
