@@ -389,7 +389,6 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
         auto d0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_d0_grid, d_grid_desc_mblock_mperblock.GetElementSpaceSize());
-
         auto d1_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_d1_grid, d_grid_desc_mblock_mperblock.GetElementSpaceSize());
 
