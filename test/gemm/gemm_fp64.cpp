@@ -41,9 +41,33 @@ void add_device_gemm_xdl_f64_f64_f64_mk_kn_mn_instances(std::vector<DeviceGemmNo
 } // namespace tensor_operation
 } // namespace ck
 
+inline std::string get_device_name()
+{
+    hipDeviceProp_t props{};
+    int device;
+    auto status = hipGetDevice(&device);
+    if(status != hipSuccess)
+    {
+        return std::string();
+    }
+
+    status = hipGetDeviceProperties(&props, device);
+    if(status != hipSuccess)
+    {
+        return std::string();
+    }
+    const std::string name(props.gcnArchName);
+
+    return name;
+}
+
 int main()
 {
-#ifdef __gfx90a__
+    if(get_device_name() != "gfx90a")
+    {
+        std::cout << "TestGemm ..... SUCCESS" << std::endl;
+        return 0;
+    }
     using ADataType   = double;
     using BDataType   = double;
     using CDataType   = double;
@@ -128,9 +152,6 @@ int main()
                                        PassThrough,
                                        PassThrough>{}(gemmPtr);
     }
-#else
-    bool res = true;
-#endif
     std::cout << "TestGemm ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
     return res ? 0 : 1;
 }
