@@ -7,7 +7,7 @@
 #include "tensor_layout.hpp"
 #include "device_tensor.hpp"
 #include "element_wise_operation.hpp"
-#include "element_wise_reduce_operation.hpp"
+#include "reduction_operator.hpp"
 #include "device_gemm_reduce.hpp"
 #include "reference_gemm.hpp"
 
@@ -20,8 +20,7 @@ using DeviceGemmReduceNoOpPtr = ck::tensor_operation::device::DeviceGemmReducePt
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::ReduceSum,
-    ck::tensor_operation::element_wise::ReduceSquareSum>;
+    ck::tensor_operation::element_wise::UnarySquare<float, float, false>>;
 
 void add_device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_mk_kn_mn_instances(
     std::vector<DeviceGemmReduceNoOpPtr>&);
@@ -113,17 +112,19 @@ bool profile_gemm_reduce_impl(int do_verification,
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
     }
 
-    using AElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using BElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using CElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using D0ReduceOp = ck::tensor_operation::element_wise::ReduceSum;
-    using D1ReduceOp = ck::tensor_operation::element_wise::ReduceSquareSum;
+    using AElementOp  = ck::tensor_operation::element_wise::PassThrough;
+    using BElementOp  = ck::tensor_operation::element_wise::PassThrough;
+    using CElementOp  = ck::tensor_operation::element_wise::PassThrough;
+    using D0ReduceOp  = ck::reduce::Add<float>;
+    using D1ReduceOp  = ck::reduce::Add<float>;
+    using D1ElementOp = ck::tensor_operation::element_wise::UnarySquare<float, float, false>;
 
-    const auto a_element_op = AElementOp{};
-    const auto b_element_op = BElementOp{};
-    const auto c_element_op = CElementOp{};
-    const auto d0_reduce_op = D0ReduceOp{};
-    const auto d1_reduce_op = D1ReduceOp{};
+    const auto a_element_op  = AElementOp{};
+    const auto b_element_op  = BElementOp{};
+    const auto c_element_op  = CElementOp{};
+    const auto d0_reduce_op  = D0ReduceOp{};
+    const auto d1_reduce_op  = D1ReduceOp{};
+    const auto d1_element_op = D1ElementOp{};
 
     if(do_verification)
     {
@@ -140,17 +141,21 @@ bool profile_gemm_reduce_impl(int do_verification,
 
         for(int m = 0; m < M; ++m)
         {
-            float d0_acc = d0_reduce_op.GetReduceZeroValue();
-            float d1_acc = d1_reduce_op.GetReduceZeroValue();
+            float d0_acc = d0_reduce_op.GetReductionZeroVal();
+            float d1_acc = d1_reduce_op.GetReductionZeroVal();
 
             for(int n = 0; n < N; ++n)
             {
-                d0_reduce_op.Reduce(d0_acc, c_m_n_host_result(m, n));
-                d1_reduce_op.Reduce(d1_acc, c_m_n_host_result(m, n));
+                float d0_val = ck::type_convert<float>(c_m_n_host_result(m, n));
+                float d1_val;
+
+                d1_element_op(d1_val, d0_val);
+                d0_reduce_op(d0_acc, d0_val);
+                d1_reduce_op(d1_acc, d1_val);
             }
 
-            d0_m_host_result(m) = d0_acc;
-            d1_m_host_result(m) = d1_acc;
+            d0_m_host_result(m) = ck::type_convert<DDataType>(d0_acc);
+            d1_m_host_result(m) = ck::type_convert<DDataType>(d1_acc);
         }
     }
 
@@ -232,8 +237,7 @@ bool profile_gemm_reduce_impl(int do_verification,
                                           a_element_op,
                                           b_element_op,
                                           c_element_op,
-                                          d0_reduce_op,
-                                          d1_reduce_op);
+                                          d1_element_op);
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
 
