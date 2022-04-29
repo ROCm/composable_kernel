@@ -213,18 +213,21 @@ def runCKProfiler(Map conf=[:]){
                     cmake_build(conf)
 					sh "pwd"
 					sh "ls"
-					dir("script"){
-						sh "pwd"
-						sh "ls"
-						def perf_log = "perf_gemm_${gpu_arch}.log"
-						def artifact = "profile_gemm_${gpu_arch}.txt"
-						sh "./profile_gemm.sh gemm 0 0 0 1 0 5"
+					//dir("script"){
+						//sh "pwd"
+						//sh "ls"
+						//def perf_log = "perf_gemm_${gpu_arch}.log"
+						//def artifact = "profile_gemm_${gpu_arch}.txt"
+						//sh "./profile_gemm.sh gemm 0 0 0 1 0 5"
 						//sh "./profile_gemm.sh gemm 0 0 0 1 0 5 > ${perf_log}"
 						//sh "./profile_gemm.sh gemm 0 1 0 1 0 5 >> ${perf_log}"
 						//sh "./profile_gemm.sh gemm 0 2 0 1 0 5 >> ${perf_log}"
 						//sh "./profile_gemm.sh gemm 0 3 0 1 0 5 >> ${perf_log}"
 						//sh "python parse_perf_results.py ${perf_log} > ${artifact}"
 						//archiveArtifacts  "${artifact}"
+					//}
+					dir("build/bin"){
+						./ckProfiler gemm 0 0 0 1 0 5 1024 1024 1024 1024 1024 1024
 					}
                 }
             }
