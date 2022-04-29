@@ -51,11 +51,20 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl
 //##########|  Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|Spacialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| SrcDstVectorDim|       DstScalar|
 //##########|      |      |      |        |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |                |       PerVector|
 //##########|      |      |      |        |        |        |        |            |            |            |              |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |                |                |
+#if 0
              <  F64,   F64,   F64,     F64,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   64,    32,    32,     4,  1,   16,   16,    2,    2,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              1,      true,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              1,      true,               7,               1>;
-// clang-format on
+#else
+             <  F64,   F64,   F64,     F64,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,  256,   128,   128,     4,  2,   16,   16,    4,    4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              2,              2,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              2,              2,      true,               7,               1>;
+#endif
+    // clang-format on
 
-using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
+    using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                            BDataType,
+                                                                            CDataType,
+                                                                            AccDataType,
+                                                                            AElementOp,
+                                                                            BElementOp,
+                                                                            CElementOp>;
 
 template <typename DataType>
 std::ostream& show_2d_matrix(std::ostream& os, Tensor<DataType>& matrix)
@@ -81,13 +90,13 @@ int main(int argc, char* argv[])
     int nrepeat          = 5;
 
     // GEMM shape
-    ck::index_t M = 32;
-    ck::index_t N = 32;
-    ck::index_t K = 4;
+    ck::index_t M = 3840;
+    ck::index_t N = 4096;
+    ck::index_t K = 4096;
 
-    ck::index_t StrideA = 4;
-    ck::index_t StrideB = 4;
-    ck::index_t StrideC = 32;
+    ck::index_t StrideA = 4096;
+    ck::index_t StrideB = 4096;
+    ck::index_t StrideC = 4096;
 
     if(argc == 4)
     {
