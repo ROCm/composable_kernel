@@ -216,13 +216,14 @@ def runCKProfiler(Map conf=[:]){
 					dir("script"){
 						sh "pwd"
 						sh "ls"
-						def artifact = "profile_gemm_${gpu_arch}.log"
-						sh "./profile_gemm.sh gemm 0 0 0 1 0 5 > ${artifact}"
-						sh "./profile_gemm.sh gemm 0 1 0 1 0 5 >> ${artifact}"
-						sh "./profile_gemm.sh gemm 0 2 0 1 0 5 >> ${artifact}"
-						sh "./profile_gemm.sh gemm 0 3 0 1 0 5 >> ${artifact}"
-						// parse results
-						archiveArtifacts  "${artifact}"
+						def perf_log = "perf_gemm_${gpu_arch}.log"
+						def artifact = "profile_gemm_${gpu_arch}.txt"
+						sh "./profile_gemm.sh gemm 0 0 0 1 0 5 > ${perf_log}"
+						sh "./profile_gemm.sh gemm 0 1 0 1 0 5 >> ${perf_log}"
+						sh "./profile_gemm.sh gemm 0 2 0 1 0 5 >> ${perf_log}"
+						sh "./profile_gemm.sh gemm 0 3 0 1 0 5 >> ${perf_log}"
+						//sh "python parse_perf_results.py ${perf_log} > ${artifact}"
+						//archiveArtifacts  "${artifact}"
 					}
                 }
             }
