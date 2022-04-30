@@ -250,9 +250,6 @@ template <index_t BlockSize,
           typename FloatAcc,
           typename FloatC,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-          typename AGridDesc_K0_M_K1,
-          typename BGridDesc_K0_N_K1,
-          typename CGridDesc_M_N,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
@@ -361,6 +358,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
+    template <typename AGridDesc_K0_M_K1, typename BGridDesc_K0_N_K1, typename CGridDesc_M_N>
     __host__ __device__ static constexpr bool
     CheckValidity(const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
                   const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
@@ -420,9 +418,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         return true;
     }
 
+    template <typename CGridDesc_M_N>
     __host__ __device__ static constexpr index_t
     CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n)
     {
+        static_assert(CGridDesc_M_N::GetNumOfVisibleDimension() == 2);
         const auto M = c_grid_desc_m_n.GetLength(I0);
         const auto N = c_grid_desc_m_n.GetLength(I1);
 
@@ -439,9 +439,12 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         return has_main_k0_block_loop;
     }
 
+    template <typename CGridDesc_M_N>
     __host__ __device__ static constexpr auto
     MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(const CGridDesc_M_N& c_grid_desc_m_n)
     {
+        static_assert(CGridDesc_M_N::GetNumOfVisibleDimension() == 2);
+
         constexpr auto max_lds_align = K1;
 
         // A matrix in LDS memory, dst of blockwise copy
@@ -491,11 +494,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 
     // return block_id to C matrix tile idx (m0, n0) mapping
     __host__ __device__ static constexpr auto
-    MakeDefaultBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n, index_t M01, index_t N01)
+    MakeDefaultBlock2CTileMap(index_t M, index_t N, index_t M01, index_t N01)
     {
-        const auto M = c_grid_desc_m_n.GetLength(I0);
-        const auto N = c_grid_desc_m_n.GetLength(I1);
-
         constexpr auto M1 = Number<MPerBlock>{};
         constexpr auto N1 = Number<NPerBlock>{};
 
@@ -525,11 +525,15 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         return cblockid_to_m0_n0_block_cluster_adaptor;
     }
 
-    using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
-        decltype(MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
-    using DefaultBlock2CTileMap = decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1));
+    // using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
+    //     decltype(MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
+    using DefaultBlock2CTileMap = decltype(MakeDefaultBlock2CTileMap(1, 1, 1, 1));
 
-    template <bool HasMainK0BlockLoop, typename Block2CTileMap = DefaultBlock2CTileMap>
+    template <bool HasMainK0BlockLoop,
+              typename AGridDesc_K0_M_K1,
+              typename BGridDesc_K0_N_K1,
+              typename CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2,
+              typename Block2CTileMap = DefaultBlock2CTileMap>
     __device__ static void
     Run(const FloatAB* __restrict__ p_a_grid,
         const FloatAB* __restrict__ p_b_grid,
