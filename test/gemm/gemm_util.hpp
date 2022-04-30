@@ -106,6 +106,7 @@ template <typename DeviceGemmPtr_,
           typename ADataType,
           typename BDataType,
           typename CDataType,
+          typename AccDataType,
           typename ALayout,
           typename BLayout,
           typename CLayout,
@@ -153,6 +154,7 @@ struct TestGemm
 
     auto operator()(DeviceGemmPtr_& gemmPtr)
     {
+        std::cout << "Data type: " << typeid(CDataType{}).name() << std::endl;
         std::cout << "ALayout = " << ALayout{}.name << ", BLayout = " << BLayout{}.name
                   << ", CLayout = " << CLayout{}.name << std::endl;
         std::cout << gemmPtr->GetTypeString() << std::endl;
@@ -181,6 +183,7 @@ struct TestGemm
             ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                       BDataType,
                                                       CDataType,
+                                                      AccDataType,
                                                       AElementwiseOperation,
                                                       BElementwiseOperation,
                                                       CElementwiseOperation>;
@@ -193,21 +196,8 @@ struct TestGemm
 
         // Assert
         bool res = false;
-        if(std::is_same<CDataType, float>::value)
-        {
-            res = ck::utils::check_err(c_device.mData, c_host.mData);
-            std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
-        }
-        else if(std::is_same<CDataType, ck::half_t>::value)
-        {
-            res = ck::utils::check_err(c_device.mData, c_host.mData);
-            std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
-        }
-        else if(std::is_same<CDataType, int8_t>::value)
-        {
-            res = ck::utils::check_err(c_device.mData, c_host.mData);
-            std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
-        }
+        res      = ck::utils::check_err(c_device.mData, c_host.mData);
+        std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
 
         return res;
     }
@@ -299,6 +289,7 @@ struct TestGemmBF16
         // use fp32 host kernel to verify bf16 device kernel
         using ReferenceGemmInstance =
             ck::tensor_operation::host::ReferenceGemm<float,
+                                                      float,
                                                       float,
                                                       float,
                                                       AElementwiseOperation,
