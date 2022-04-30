@@ -188,9 +188,6 @@ struct DeviceGroupedGemmXdl
         AccDataType,
         CDataType,
         InMemoryDataOperationEnum::Set,
-        AGridDesc_K0_M_K1,
-        BGridDesc_K0_N_K1,
-        CGridDesc_M_N,
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
@@ -223,11 +220,14 @@ struct DeviceGroupedGemmXdl
         CThreadTransferDstScalarPerVector,
         NumPrefetch>;
 
+    using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
+        decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
+
     struct GroupedGemmBlock2CTileMap
     {
         GroupedGemmBlock2CTileMap()
         {
-            block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1);
+            block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(1, 1, 1, 1);
             BlockStart_        = -1;
         }
 
@@ -236,7 +236,7 @@ struct DeviceGroupedGemmXdl
                                   index_t N01,
                                   ck::index_t BlockStart)
         {
-            block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n, M01, N01);
+            block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n.GetLength(I0), c_grid_desc_m_n.GetLength(I1), M01, N01);
             BlockStart_        = BlockStart;
         }
 
@@ -258,8 +258,7 @@ struct DeviceGroupedGemmXdl
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
 
-        typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2
-            c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
+        CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
 
         GroupedGemmBlock2CTileMap grouped_gemm_block_2_ctile_map_;
 

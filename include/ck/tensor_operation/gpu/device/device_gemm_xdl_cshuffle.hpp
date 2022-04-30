@@ -342,9 +342,6 @@ struct DeviceGemm_Xdl_CShuffle
         BElementwiseOperation,
         CElementwiseOperation,
         InMemoryDataOperationEnum::Set,
-        AGridDesc_AK0_M_AK1,
-        BGridDesc_BK0_N_BK1,
-        CGridDesc_M_N,
         NumGemmKPrefetchStage,
         BlockSize,
         MPerBlock,
@@ -376,6 +373,9 @@ struct DeviceGemm_Xdl_CShuffle
         CShuffleNXdlPerWavePerShuffle,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock>;
+
+    using CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = decltype(
+        GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}));
 
     // Argument
     struct Argument : public BaseArgument
@@ -422,7 +422,7 @@ struct DeviceGemm_Xdl_CShuffle
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         CGridDesc_M_N c_grid_desc_m_n_;
-        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+        CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         AElementwiseOperation a_element_op_;
@@ -470,18 +470,18 @@ struct DeviceGemm_Xdl_CShuffle
 
             if(has_main_k0_block_loop)
             {
-                const auto kernel = kernel_gemm_xdl_cshuffle_v1<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    CDataType,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CElementwiseOperation,
-                    DeviceOp::AGridDesc_AK0_M_AK1,
-                    DeviceOp::BGridDesc_BK0_N_BK1,
-                    typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    typename GridwiseGemm::DefaultBlock2CTileMap,
-                    true>;
+                const auto kernel =
+                    kernel_gemm_xdl_cshuffle_v1<GridwiseGemm,
+                                                ADataType, // TODO: distiguish A/B datatype
+                                                CDataType,
+                                                AElementwiseOperation,
+                                                BElementwiseOperation,
+                                                CElementwiseOperation,
+                                                DeviceOp::AGridDesc_AK0_M_AK1,
+                                                DeviceOp::BGridDesc_BK0_N_BK1,
+                                                CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                                                typename GridwiseGemm::DefaultBlock2CTileMap,
+                                                true>;
 
                 if(nrepeat == 0)
                 {
@@ -522,18 +522,18 @@ struct DeviceGemm_Xdl_CShuffle
             }
             else
             {
-                const auto kernel = kernel_gemm_xdl_cshuffle_v1<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    CDataType,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CElementwiseOperation,
-                    DeviceOp::AGridDesc_AK0_M_AK1,
-                    DeviceOp::BGridDesc_BK0_N_BK1,
-                    typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    typename GridwiseGemm::DefaultBlock2CTileMap,
-                    false>;
+                const auto kernel =
+                    kernel_gemm_xdl_cshuffle_v1<GridwiseGemm,
+                                                ADataType, // TODO: distiguish A/B datatype
+                                                CDataType,
+                                                AElementwiseOperation,
+                                                BElementwiseOperation,
+                                                CElementwiseOperation,
+                                                DeviceOp::AGridDesc_AK0_M_AK1,
+                                                DeviceOp::BGridDesc_BK0_N_BK1,
+                                                CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                                                typename GridwiseGemm::DefaultBlock2CTileMap,
+                                                false>;
 
                 if(nrepeat == 0)
                 {

@@ -525,8 +525,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         return cblockid_to_m0_n0_block_cluster_adaptor;
     }
 
-    // using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
-    //     decltype(MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
     using DefaultBlock2CTileMap = decltype(MakeDefaultBlock2CTileMap(1, 1, 1, 1));
 
     template <bool HasMainK0BlockLoop,

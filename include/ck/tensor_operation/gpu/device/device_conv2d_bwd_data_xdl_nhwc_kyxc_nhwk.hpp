@@ -403,6 +403,9 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         7,                                // CThreadTransferSrcDstVectorDim,
         CThreadTransferDstScalarPerVector>;
 
+    using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
+        decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
+
     // Argument
     struct Argument : public BaseArgument
     {
@@ -492,7 +495,7 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                             GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(descs[I2]));
 
                         block_2_ctile_map_container_.push_back(
-                            GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2], M01, N01));
+                            GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2].GetLength(I0), descs[I2].GetLength(I1), M01, N01));
                     }
                 }
             }
@@ -504,7 +507,7 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         std::vector<AGridDesc_K0_M_K1> a_grid_desc_k0_m_k1_container_;
         std::vector<BGridDesc_K0_N_K1> b_grid_desc_k0_n_k1_container_;
         std::vector<CGridDesc_M_N> c_grid_desc_m_n_container_;
-        std::vector<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>
+        std::vector<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>
             c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_;
         std::vector<typename GridwiseGemm::DefaultBlock2CTileMap> block_2_ctile_map_container_;
         index_t M01_;
@@ -594,8 +597,7 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                         CDataType,
                         remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
                         remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                        remove_reference_t<
-                            typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        remove_reference_t<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                         OutElementwiseOperation,
                         WeiElementwiseOperation,
                         InElementwiseOperation,
@@ -627,8 +629,7 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                         CDataType,
                         remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
                         remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                        remove_reference_t<
-                            typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        remove_reference_t<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                         OutElementwiseOperation,
                         WeiElementwiseOperation,
                         InElementwiseOperation,

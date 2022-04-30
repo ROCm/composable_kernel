@@ -960,9 +960,6 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
         AccDataType,
         CDataType,
         InMemoryDataOperationEnum::Set,
-        AGridDesc_K0_M_K1,
-        BGridDesc_K0_N_K1,
-        CGridDesc_M_N,
         InElementwiseOperation,
         WeiElementwiseOperation,
         OutElementwiseOperation,
@@ -993,6 +990,9 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
         Sequence<2, 3, 0, 1, 7, 5, 4, 6>, // CThreadTransferSrcDstAccessOrder,
         7,                                // CThreadTransferSrcDstVectorDim,
         CThreadTransferDstScalarPerVector>;
+
+    using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
+        decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
 
     // Argument
     struct Argument : public BaseArgument
@@ -1079,7 +1079,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                         GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(descs[I2]));
 
                     block_2_ctile_map_container_.push_back(
-                        GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2], M01_, N01_));
+                        GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2].GetLength(I0), descs[I2].GetLength(I1), M01_, N01_));
                 }
             }
         }
@@ -1135,7 +1135,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                             GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(descs[I2]));
 
                         block_2_ctile_map_container_.push_back(
-                            GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2], M01_, N01_));
+                            GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2].GetLength(I0), descs[I2].GetLength(I1), M01_, N01_));
                     }
                 }
             }
@@ -1201,7 +1201,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                                     descs[I2]));
 
                             block_2_ctile_map_container_.push_back(
-                                GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2], M01_, N01_));
+                                GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2].GetLength(I0), descs[I2].GetLength(I1), M01_, N01_));
                         }
                     }
                 }
@@ -1214,7 +1214,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
         std::vector<AGridDesc_K0_M_K1> a_grid_desc_k0_m_k1_container_;
         std::vector<BGridDesc_K0_N_K1> b_grid_desc_k0_n_k1_container_;
         std::vector<CGridDesc_M_N> c_grid_desc_m_n_container_;
-        std::vector<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>
+        std::vector<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>
             c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_;
         std::vector<typename GridwiseGemm::DefaultBlock2CTileMap> block_2_ctile_map_container_;
         index_t M01_;
@@ -1308,8 +1308,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                         CDataType,
                         remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
                         remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                        remove_reference_t<
-                            typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        remove_reference_t<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                         OutElementwiseOperation,
                         WeiElementwiseOperation,
                         InElementwiseOperation,
@@ -1341,8 +1340,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                         CDataType,
                         remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
                         remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                        remove_reference_t<
-                            typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                        remove_reference_t<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                         OutElementwiseOperation,
                         WeiElementwiseOperation,
                         InElementwiseOperation,
