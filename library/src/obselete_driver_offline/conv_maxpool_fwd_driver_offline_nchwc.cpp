@@ -181,15 +181,15 @@ int main(int argc, char* argv[])
     constexpr ck::ActivTypeEnum activ_type = ActivTypeEnum::LeakyRelu;
 
 #if 1
-    constexpr auto N  = Number<1>{};
-    constexpr auto Hi = Number<1080>{};
-    constexpr auto Wi = Number<1920>{};
-    constexpr auto Y  = Number<3>{};
-    constexpr auto X  = Number<3>{};
-    constexpr auto C0 = Number<2>{};
-    constexpr auto C1 = Number<8>{};
-    constexpr auto K0 = Number<2>{};
-    constexpr auto K1 = Number<8>{};
+    constexpr auto N                       = Number<1>{};
+    constexpr auto Hi                      = Number<1080>{};
+    constexpr auto Wi                      = Number<1920>{};
+    constexpr auto Y                       = Number<3>{};
+    constexpr auto X                       = Number<3>{};
+    constexpr auto C0                      = Number<2>{};
+    constexpr auto C1                      = Number<8>{};
+    constexpr auto K0                      = Number<2>{};
+    constexpr auto K1                      = Number<8>{};
 #elif 0
     constexpr auto N  = Number<1>{};
     constexpr auto Hi = Number<1080>{};
@@ -247,9 +247,9 @@ int main(int argc, char* argv[])
     using acc_data_t = float;
     using out_data_t = float;
 #elif 1
-    using in_data_t  = half_t;
-    using acc_data_t = float;
-    using out_data_t = half_t;
+    using in_data_t     = half_t;
+    using acc_data_t    = float;
+    using out_data_t    = half_t;
 #elif 1
     using in_data_t  = int8_t;
     using acc_data_t = int32_t;

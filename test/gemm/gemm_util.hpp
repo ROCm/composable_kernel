@@ -139,22 +139,7 @@ struct TestGemm
         Tensor<CDataType> c_m_n_device_result(
             f_host_tensor_descriptor(params.M, params.N, params.StrideC, CLayout{}));
 
-        auto f_generate_tensor_value = [](auto& desc, auto type) {
-            using dataType = decltype(type);
-
-            if(std::is_same<dataType, int8_t>::value)
-            {
-                desc.GenerateTensorValue(GeneratorTensor_2<int8_t>{-5, 5});
-            }
-            else
-            {
-                desc.GenerateTensorValue(GeneratorTensor_3<dataType>{-0.5, 0.5});
-            }
-        };
-
-        // f_generate_tensor_value(a_m_k, ADataType{});
-        // f_generate_tensor_value(b_k_n, BDataType{});
-        a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{});
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
 
         return std::make_tuple(a_m_k, b_k_n, c_m_n_host_result, c_m_n_device_result);

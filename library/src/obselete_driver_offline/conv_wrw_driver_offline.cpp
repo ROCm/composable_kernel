@@ -229,10 +229,10 @@ int main(int argc, char* argv[])
     using acc_data_t = float;
     using out_data_t = float;
 #elif 1
-    using in_data_t  = half_t;
-    using out_data_t = half_t;
-    using acc_data_t = float;
-    using wei_data_t = float;
+    using in_data_t   = half_t;
+    using out_data_t  = half_t;
+    using acc_data_t  = float;
+    using wei_data_t  = float;
 #elif 1
     using in_data_t  = int8_t;
     using out_data_t = int8_t;

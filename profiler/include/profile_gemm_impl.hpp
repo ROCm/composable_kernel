@@ -141,7 +141,7 @@ void profile_gemm_impl(int do_verification,
     switch(init_method)
     {
     // case 0: break;
-    case 0: 
+    case 0:
         a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{}, num_thread);
         b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{}, num_thread);
         break;
@@ -577,7 +577,8 @@ void profile_gemm_impl(int do_verification,
         }
         else
         {
-            std::cout << gemm_ptr->GetTypeString() << " does not support this GEMM problem" << std::endl;
+            std::cout << gemm_ptr->GetTypeString() << " does not support this GEMM problem"
+                      << std::endl;
         }
     }
 

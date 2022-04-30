@@ -424,7 +424,7 @@ void device_convolution_forward_implicit_gemm_v4r4r4_xdlops_nhwc_kyxc_nhwk(
     constexpr auto in_gemmk0_gemmm_gemmk1_grid_move_slice_window_step_hacks =
         Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0>{};
 #else
-    const auto in_gemmk0_gemmmraw_gemmk1_grid_desc = descs[I0];
+    const auto in_gemmk0_gemmmraw_gemmk1_grid_desc          = descs[I0];
 
     const auto GemmK0   = in_gemmk0_gemmmraw_gemmk1_grid_desc.GetLength(I0);
     const auto GemmMRaw = in_gemmk0_gemmmraw_gemmk1_grid_desc.GetLength(I1);
