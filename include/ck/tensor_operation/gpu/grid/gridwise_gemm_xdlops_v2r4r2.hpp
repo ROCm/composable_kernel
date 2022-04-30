@@ -594,6 +594,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             a_blockwise_copy.RunRead(a_b_k0_m_k1_grid_desc, a_grid_buf);
             b_blockwise_copy.RunRead(b_b_k0_n_k1_grid_desc, b_grid_buf);
 
+            a_blockwise_copy.MoveSrcSliceWindow(a_b_k0_m_k1_grid_desc, a_block_slice_copy_step);
+            b_blockwise_copy.MoveSrcSliceWindow(b_b_k0_n_k1_grid_desc, b_block_slice_copy_step);
+
             a_blockwise_copy.RunWrite(a_b_k0_m_k1_block_desc, a_block_buf);
             b_blockwise_copy.RunWrite(b_b_k0_n_k1_block_desc, b_block_buf);
         }
@@ -608,9 +611,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 
             do
             {
-                a_blockwise_copy.MoveSrcSliceWindow(a_b_k0_m_k1_grid_desc, a_block_slice_copy_step);
-                b_blockwise_copy.MoveSrcSliceWindow(b_b_k0_n_k1_grid_desc, b_block_slice_copy_step);
-
+                
                 a_blockwise_copy.RunRead(a_b_k0_m_k1_grid_desc, a_grid_buf);
 
                 block_sync_lds();
@@ -620,6 +621,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                 blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
 
                 block_sync_lds();
+
+                a_blockwise_copy.MoveSrcSliceWindow(a_b_k0_m_k1_grid_desc, a_block_slice_copy_step);
+                b_blockwise_copy.MoveSrcSliceWindow(b_b_k0_n_k1_grid_desc, b_block_slice_copy_step);
 
                 a_blockwise_copy.RunWrite(a_b_k0_m_k1_block_desc, a_block_buf);
                 b_blockwise_copy.RunWrite(b_b_k0_n_k1_block_desc, b_block_buf);

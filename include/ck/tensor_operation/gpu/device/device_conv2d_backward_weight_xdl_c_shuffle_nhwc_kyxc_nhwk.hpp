@@ -14,8 +14,8 @@
 #include "gridwise_gemm_xdlops_v2r4r2.hpp"
 
 #define SPLITN0_N1 1
-#define GEMMK0PAD_FOR_OUT 1
-#define GEMMK0PAD_FOR_IN 1
+#define GEMMK0PAD_FOR_OUT 0
+#define GEMMK0PAD_FOR_IN 0
 
 namespace ck {
 namespace tensor_operation {
