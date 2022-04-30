@@ -9,7 +9,9 @@
 #include "threadwise_tensor_slice_transfer_avx2.hpp"
 #include "threadwise_tensor_slice_transfer_avx2_specialization.hpp"
 #include "dynamic_buffer_cpu.hpp"
+#include <utility>
 #include <unistd.h>
+#include <omp.h>
 
 namespace ck {
 namespace cpu {
@@ -168,31 +170,6 @@ struct GridwiseGemmAvx2_MxN
 
         constexpr auto b_block_copy_dim = BGridDesc::GetNumOfDimension();
 
-        auto a_threadwise_copy = AThreadwiseCopy(a_grid_desc,
-                                                 ck::make_zero_multi_index<a_block_copy_dim>(),
-                                                 GetABlockDescriptor(m_per_block, k_per_block),
-                                                 ck::make_zero_multi_index<a_block_copy_dim>(),
-                                                 AElementwiseOperation{});
-
-        auto b_threadwise_copy = BThreadwiseCopy(b_grid_desc,
-                                                 ck::make_zero_multi_index<b_block_copy_dim>(),
-                                                 GetBBlockDescriptor(k_per_block, n_per_block),
-                                                 ck::make_zero_multi_index<b_block_copy_dim>(),
-                                                 BElementwiseOperation{});
-
-        auto c_threadwise_copy = CThreadwiseCopy(GetCBlockDescriptor(m_per_block, n_per_block),
-                                                 ck::make_zero_multi_index<2>(),
-                                                 c_grid_desc,
-                                                 ck::make_zero_multi_index<2>(),
-                                                 CElementwiseOperation{});
-
-        DeviceAlignedMemCPU a_block_mem(m_per_block * k_per_block * sizeof(FloatA),
-                                        MemAlignmentByte);
-        DeviceAlignedMemCPU b_block_mem(k_per_block * n_per_block * sizeof(FloatB),
-                                        MemAlignmentByte);
-        DeviceAlignedMemCPU c_block_mem(m_per_block * n_per_block * sizeof(FloatC),
-                                        MemAlignmentByte);
-
         auto a_grid_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
             reinterpret_cast<const FloatA*>(p_a_grid), a_grid_desc.GetElementSpaceSize());
 
@@ -201,20 +178,6 @@ struct GridwiseGemmAvx2_MxN
 
         auto c_grid_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
             reinterpret_cast<FloatC*>(p_c_grid), c_grid_desc.GetElementSpaceSize());
-
-        auto a_block_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
-            reinterpret_cast<FloatA*>(a_block_mem.mpDeviceBuf),
-            a_block_mem.mMemSize / sizeof(FloatA));
-
-        auto b_block_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
-            reinterpret_cast<FloatB*>(b_block_mem.mpDeviceBuf),
-            b_block_mem.mMemSize / sizeof(FloatB));
-
-        auto c_block_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
-            UseCLocalBuffer ? reinterpret_cast<FloatC*>(c_block_mem.mpDeviceBuf)
-                            : reinterpret_cast<FloatC*>(p_c_grid),
-            UseCLocalBuffer ? c_block_mem.mMemSize / sizeof(FloatC)
-                            : c_grid_desc.GetElementSpaceSize());
 
         auto blockwise_gemm = BlockwiseGemmAvx2_MxN<
             FloatA,                                                  // FloatA,
@@ -228,162 +191,133 @@ struct GridwiseGemmAvx2_MxN
             ThreadMNAccessOrder>{}; // ThreadMNAccessOrder  // how we acces
                                     // gemm MN to utilize micro kernel>{};
 
+        int total_threads = omp_get_max_threads();
+
         // TODO: openmp aware ordering
         //
         if constexpr(std::is_same<BlockMNKAccessOrder, ck::Sequence<0, 1, 2>>::value)
         {
-            auto a_move_k_step       = ck::make_multi_index(0, k_per_block);
-            auto b_move_k_step       = ck::make_multi_index(0, k_per_block, 0);
-            const ck::index_t grid_m = math::integer_divide_ceil(GemmM, m_per_block);
-            const ck::index_t grid_n = math::integer_divide_ceil(GemmN, n_per_block);
+            auto a_move_k_step = ck::make_multi_index(0, k_per_block);
+            auto b_move_k_step = ck::make_multi_index(0, k_per_block, 0);
 
+            const ck::index_t grid_m    = math::integer_divide_ceil(GemmM, m_per_block);
+            const ck::index_t grid_n    = math::integer_divide_ceil(GemmN, n_per_block);
             const ck::index_t grid_size = grid_m * grid_n;
+            const ck::index_t grids_per_thread =
+                math::integer_divide_ceil(grid_size, total_threads);
+
 // This version does not consider K panel re-usage. simple for openmp
-#pragma omp parallel for
-            for(ck::index_t gid = 0; gid < grid_size; gid++)
+#pragma omp parallel
             {
-                ck::index_t i_mc = (gid / grid_n) * m_per_block;
-                ck::index_t i_nc = (gid % grid_n) * n_per_block;
+                auto a_threadwise_copy =
+                    AThreadwiseCopy(a_grid_desc,
+                                    ck::make_zero_multi_index<a_block_copy_dim>(),
+                                    GetABlockDescriptor(m_per_block, k_per_block),
+                                    ck::make_zero_multi_index<a_block_copy_dim>(),
+                                    AElementwiseOperation{});
 
-                ck::index_t mc_size = ck::math::min(GemmM - i_mc, m_per_block);
-                ck::index_t nc_size =
-                    ck::math::min(GemmN - i_nc, n_per_block); // TODO: nc need be 8x
-                nc_size = math::integer_least_multiple(
-                    nc_size, ThreadwiseGemm_Dispatch::MatrixBMinVectorSize);
+                auto b_threadwise_copy =
+                    BThreadwiseCopy(b_grid_desc,
+                                    ck::make_zero_multi_index<b_block_copy_dim>(),
+                                    GetBBlockDescriptor(k_per_block, n_per_block),
+                                    ck::make_zero_multi_index<b_block_copy_dim>(),
+                                    BElementwiseOperation{});
 
-                a_threadwise_copy.SetSrcSliceOrigin(a_grid_desc, ck::make_multi_index(i_mc, 0));
-                b_threadwise_copy.SetSrcSliceOrigin(
-                    b_grid_desc,
-                    ck::make_multi_index(math::integer_divide_ceil(
-                                             i_nc, ThreadwiseGemm_Dispatch::MatrixBMinVectorSize),
-                                         0,
-                                         0));
+                auto c_threadwise_copy =
+                    CThreadwiseCopy(GetCBlockDescriptor(m_per_block, n_per_block),
+                                    ck::make_zero_multi_index<2>(),
+                                    c_grid_desc,
+                                    ck::make_zero_multi_index<2>(),
+                                    CElementwiseOperation{});
 
-                auto c_block_desc =
-                    UseCLocalBuffer ? GetCBlockDescriptor(mc_size, nc_size) : c_grid_desc;
-                if constexpr(UseCLocalBuffer)
+                DeviceAlignedMemCPU a_block_mem(m_per_block * k_per_block * sizeof(FloatA),
+                                                MemAlignmentByte);
+                DeviceAlignedMemCPU b_block_mem(k_per_block * n_per_block * sizeof(FloatB),
+                                                MemAlignmentByte);
+                DeviceAlignedMemCPU c_block_mem(m_per_block * n_per_block * sizeof(FloatC),
+                                                MemAlignmentByte);
+
+                auto a_block_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
+                    reinterpret_cast<FloatA*>(a_block_mem.mpDeviceBuf),
+                    a_block_mem.mMemSize / sizeof(FloatA));
+
+                auto b_block_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
+                    reinterpret_cast<FloatB*>(b_block_mem.mpDeviceBuf),
+                    b_block_mem.mMemSize / sizeof(FloatB));
+
+                auto c_block_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
+                    UseCLocalBuffer ? reinterpret_cast<FloatC*>(c_block_mem.mpDeviceBuf)
+                                    : reinterpret_cast<FloatC*>(p_c_grid),
+                    UseCLocalBuffer ? c_block_mem.mMemSize / sizeof(FloatC)
+                                    : c_grid_desc.GetElementSpaceSize());
+
+                const ck::index_t tid = omp_get_thread_num();
+
+                for(ck::index_t i_gpt = 0; i_gpt < grids_per_thread; i_gpt++)
                 {
-                    c_threadwise_copy.SetDstSliceOrigin(c_grid_desc,
-                                                        ck::make_multi_index(i_mc, i_nc));
-                }
-                else
-                {
-                    c_threadwise_copy.SetSrcSliceOrigin(c_block_desc,
-                                                        ck::make_multi_index(i_mc, i_nc));
-                    c_threadwise_copy.Run(c_block_desc, c_block_buf, c_grid_desc, c_grid_buf);
-                }
+                    ck::index_t gid = i_gpt * total_threads + tid;
+                    if(gid >= grid_size)
+                        break;
 
-                for(ck::index_t i_kc = 0; i_kc < GemmK; i_kc += k_per_block)
-                {
-                    ck::index_t kc_size = ck::math::min(GemmK - i_kc, k_per_block);
+                    ck::index_t i_mc = (gid / grid_n) * m_per_block;
+                    ck::index_t i_nc = (gid % grid_n) * n_per_block;
 
-                    auto a_block_desc = GetABlockDescriptor(mc_size, kc_size);
-                    auto b_block_desc = GetBBlockDescriptor(kc_size, nc_size);
+                    ck::index_t mc_size = ck::math::min(GemmM - i_mc, m_per_block);
+                    ck::index_t nc_size =
+                        ck::math::min(GemmN - i_nc, n_per_block); // TODO: nc need be 8x
+                    nc_size = math::integer_least_multiple(
+                        nc_size, ThreadwiseGemm_Dispatch::MatrixBMinVectorSize);
 
-                    // printf("==> i_m:%d, i_n:%d, i_k:%d, mc:%d, nc:%d, kc:%d(%d, %d)\n", i_mc,
-                    // i_nc, i_kc, mc_size, nc_size, kc_size, KPerBlock, GemmK); fflush(stdout);
+                    a_threadwise_copy.SetSrcSliceOrigin(a_grid_desc, ck::make_multi_index(i_mc, 0));
+                    b_threadwise_copy.SetSrcSliceOrigin(
+                        b_grid_desc,
+                        ck::make_multi_index(
+                            math::integer_divide_ceil(
+                                i_nc, ThreadwiseGemm_Dispatch::MatrixBMinVectorSize),
+                            0,
+                            0));
 
-                    a_threadwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf);
-
-                    b_threadwise_copy.Run(b_grid_desc, b_grid_buf, b_block_desc, b_block_buf);
-
-                    // for(auto i_elem = 0; i_elem < (mc_size * kc_size) ; i_elem++){
-                    //    printf("A ==> %3d : %f(0x%08x)\n", i_elem,
-                    //    (reinterpret_cast<float*>(a_block_buf.p_data_))[i_elem],
-                    //    (reinterpret_cast<uint32_t*>(a_block_buf.p_data_))[i_elem]);
-                    //}
-
-                    // for(auto i_elem = 0; i_elem < (kc_size * nc_size) ; i_elem++){
-                    //     printf("B ==> %3d : %f(0x%08x)\n", i_elem,
-                    //     (reinterpret_cast<float*>(b_block_buf.p_data_))[i_elem],
-                    //     (reinterpret_cast<uint32_t*>(b_block_buf.p_data_))[i_elem]);
-                    // }
-                    // printf("[%d] 2222 \n",__LINE__);
-                    blockwise_gemm.Run(a_block_desc,
-                                       a_block_buf,
-                                       make_zero_multi_index<a_block_copy_dim>(),
-                                       b_block_desc,
-                                       b_block_buf,
-                                       make_zero_multi_index<b_block_copy_dim>(),
-                                       c_block_desc,
-                                       c_block_buf,
-                                       make_zero_multi_index<2>(),
-                                       i_kc != 0);
-
-                    // printf("[%d] 2222 \n",__LINE__);
-                    if((i_kc + k_per_block) < GemmK)
+                    auto c_block_desc =
+                        UseCLocalBuffer ? GetCBlockDescriptor(mc_size, nc_size) : c_grid_desc;
+                    if constexpr(UseCLocalBuffer)
                     {
-                        a_threadwise_copy.MoveSrcSliceWindow(a_grid_desc, a_move_k_step);
-                        b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc, b_move_k_step);
+                        c_threadwise_copy.SetDstSliceOrigin(c_grid_desc,
+                                                            ck::make_multi_index(i_mc, i_nc));
+                    }
+                    else
+                    {
+                        c_threadwise_copy.SetSrcSliceOrigin(c_block_desc,
+                                                            ck::make_multi_index(i_mc, i_nc));
+                        c_threadwise_copy.Run(c_block_desc, c_block_buf, c_grid_desc, c_grid_buf);
                     }
 
-                    // printf("[%d] 2222 \n",__LINE__);
-
-                    // for(auto i_elem = 0; i_elem < (10) ; i_elem++){
-                    //     printf("C ==> %3d : %f(0x%08x)\n", i_elem,
-                    //     (reinterpret_cast<float*>(c_block_buf.p_data_))[i_elem],
-                    //     (reinterpret_cast<uint32_t*>(c_block_buf.p_data_))[i_elem]);
-                    // }
-                }
-
-                // for(auto i_elem = 0; i_elem < (c_block_mem.mMemSize / sizeof(FloatC)) ;
-                // i_elem++){
-                //     printf("C ==> %3d : %f(0x%08x)\n", i_elem,
-                //     (reinterpret_cast<float*>(c_block_buf.p_data_))[i_elem],
-                //     (reinterpret_cast<uint32_t*>(c_block_buf.p_data_))[i_elem]);
-                // }
-                if constexpr(UseCLocalBuffer)
-                    c_threadwise_copy.Run(c_block_desc, c_block_buf, c_grid_desc, c_grid_buf);
-            }
-        }
-        else if constexpr(std::is_same<BlockMNKAccessOrder, ck::Sequence<0, 2, 1>>::value)
-        {
-            auto a_move_k_step = ck::make_multi_index(0, k_per_block);
-            auto b_move_k_step = ck::make_multi_index(
-                math::integer_divide_ceil(n_per_block,
-                                          ThreadwiseGemm_Dispatch::MatrixBMinVectorSize),
-                0,
-                0);
-
-// only parallel in gemm m dim
-#pragma omp parallel for
-            for(ck::index_t i_mc = 0; i_mc < GemmM; i_mc += m_per_block)
-            {
-                ck::index_t mc_size = ck::math::min(GemmM - i_mc, m_per_block);
-                a_threadwise_copy.SetSrcSliceOrigin(a_grid_desc, ck::make_multi_index(i_mc, 0));
-                for(ck::index_t i_kc = 0; i_kc < GemmK; i_kc += k_per_block)
-                {
-                    ck::index_t kc_size = ck::math::min(GemmK - i_kc, k_per_block);
-
-                    auto a_block_desc = GetABlockDescriptor(mc_size, kc_size);
-                    a_threadwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf);
-
-                    b_threadwise_copy.SetSrcSliceOrigin(b_grid_desc,
-                                                        ck::make_multi_index(0, i_kc, 0));
-
-                    // TODO: if use local C buffer, then this nc loop need to loop only once
-                    for(ck::index_t i_nc = 0; i_nc < GemmN; i_nc += n_per_block)
+                    for(ck::index_t i_kc = 0; i_kc < GemmK; i_kc += k_per_block)
                     {
-                        ck::index_t nc_size =
-                            ck::math::min(GemmN - i_nc, n_per_block); // TODO: nc need be 8x
-                        nc_size = math::integer_least_multiple(
-                            nc_size, ThreadwiseGemm_Dispatch::MatrixBMinVectorSize);
+                        ck::index_t kc_size = ck::math::min(GemmK - i_kc, k_per_block);
 
+                        auto a_block_desc = GetABlockDescriptor(mc_size, kc_size);
                         auto b_block_desc = GetBBlockDescriptor(kc_size, nc_size);
+
+                        // printf("[tid:%d]==> i_m:%d, i_n:%d, i_k:%d, mc:%d, nc:%d, kc:%d(%d,
+                        // %d)\n", tid, i_mc,
+                        // i_nc, i_kc, mc_size, nc_size, kc_size, KPerBlock, GemmK); fflush(stdout);
+
+                        a_threadwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf);
 
                         b_threadwise_copy.Run(b_grid_desc, b_grid_buf, b_block_desc, b_block_buf);
 
-                        auto c_block_desc =
-                            UseCLocalBuffer ? GetCBlockDescriptor(mc_size, nc_size) : c_grid_desc;
+                        // for(auto i_elem = 0; i_elem < (mc_size * kc_size) ; i_elem++){
+                        //    printf("A ==> %3d : %f(0x%08x)\n", i_elem,
+                        //    (reinterpret_cast<float*>(a_block_buf.p_data_))[i_elem],
+                        //    (reinterpret_cast<uint32_t*>(a_block_buf.p_data_))[i_elem]);
+                        //}
 
-                        if constexpr(!UseCLocalBuffer)
-                        {
-                            c_threadwise_copy.SetSrcSliceOrigin(c_block_desc,
-                                                                ck::make_multi_index(i_mc, i_nc));
-                            c_threadwise_copy.Run(
-                                c_block_desc, c_block_buf, c_grid_desc, c_grid_buf);
-                        }
-
+                        // for(auto i_elem = 0; i_elem < (kc_size * nc_size) ; i_elem++){
+                        //     printf("B ==> %3d : %f(0x%08x)\n", i_elem,
+                        //     (reinterpret_cast<float*>(b_block_buf.p_data_))[i_elem],
+                        //     (reinterpret_cast<uint32_t*>(b_block_buf.p_data_))[i_elem]);
+                        // }
+                        // printf("[%d] 2222 \n",__LINE__);
                         blockwise_gemm.Run(a_block_desc,
                                            a_block_buf,
                                            make_zero_multi_index<a_block_copy_dim>(),
@@ -395,20 +329,159 @@ struct GridwiseGemmAvx2_MxN
                                            make_zero_multi_index<2>(),
                                            i_kc != 0);
 
-                        if((i_nc + n_per_block) < GemmN)
-                            b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc, b_move_k_step);
-
-                        if constexpr(UseCLocalBuffer)
+                        // printf("[%d] 2222 \n",__LINE__);
+                        if((i_kc + k_per_block) < GemmK)
                         {
-                            c_threadwise_copy.SetDstSliceOrigin(c_grid_desc,
-                                                                ck::make_multi_index(i_mc, i_nc));
-                            c_threadwise_copy.Run(
-                                c_block_desc, c_block_buf, c_grid_desc, c_grid_buf);
+                            a_threadwise_copy.MoveSrcSliceWindow(a_grid_desc, a_move_k_step);
+                            b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc, b_move_k_step);
                         }
+
+                        // printf("[%d] 2222 \n",__LINE__);
+
+                        // for(auto i_elem = 0; i_elem < (10) ; i_elem++){
+                        //     printf("C ==> %3d : %f(0x%08x)\n", i_elem,
+                        //     (reinterpret_cast<float*>(c_block_buf.p_data_))[i_elem],
+                        //     (reinterpret_cast<uint32_t*>(c_block_buf.p_data_))[i_elem]);
+                        // }
                     }
 
-                    if((i_kc + k_per_block) < GemmK)
-                        a_threadwise_copy.MoveSrcSliceWindow(a_grid_desc, a_move_k_step);
+                    // for(auto i_elem = 0; i_elem < (c_block_mem.mMemSize / sizeof(FloatC)) ;
+                    // i_elem++){
+                    //     printf("C ==> %3d : %f(0x%08x)\n", i_elem,
+                    //     (reinterpret_cast<float*>(c_block_buf.p_data_))[i_elem],
+                    //     (reinterpret_cast<uint32_t*>(c_block_buf.p_data_))[i_elem]);
+                    // }
+                    if constexpr(UseCLocalBuffer)
+                        c_threadwise_copy.Run(c_block_desc, c_block_buf, c_grid_desc, c_grid_buf);
+                }
+            }
+        }
+        else if constexpr(std::is_same<BlockMNKAccessOrder, ck::Sequence<0, 2, 1>>::value)
+        {
+            auto a_move_k_step = ck::make_multi_index(0, k_per_block);
+            auto b_move_k_step = ck::make_multi_index(
+                math::integer_divide_ceil(n_per_block,
+                                          ThreadwiseGemm_Dispatch::MatrixBMinVectorSize),
+                0,
+                0);
+
+            const ck::index_t grid_m            = math::integer_divide_ceil(GemmM, m_per_block);
+            const ck::index_t grid_m_per_thread = math::integer_divide_ceil(grid_m, total_threads);
+
+// only parallel in gemm m dim
+#pragma omp parallel
+            {
+                auto a_threadwise_copy =
+                    AThreadwiseCopy(a_grid_desc,
+                                    ck::make_zero_multi_index<a_block_copy_dim>(),
+                                    GetABlockDescriptor(m_per_block, k_per_block),
+                                    ck::make_zero_multi_index<a_block_copy_dim>(),
+                                    AElementwiseOperation{});
+
+                auto b_threadwise_copy =
+                    BThreadwiseCopy(b_grid_desc,
+                                    ck::make_zero_multi_index<b_block_copy_dim>(),
+                                    GetBBlockDescriptor(k_per_block, n_per_block),
+                                    ck::make_zero_multi_index<b_block_copy_dim>(),
+                                    BElementwiseOperation{});
+
+                auto c_threadwise_copy =
+                    CThreadwiseCopy(GetCBlockDescriptor(m_per_block, n_per_block),
+                                    ck::make_zero_multi_index<2>(),
+                                    c_grid_desc,
+                                    ck::make_zero_multi_index<2>(),
+                                    CElementwiseOperation{});
+
+                DeviceAlignedMemCPU a_block_mem(m_per_block * k_per_block * sizeof(FloatA),
+                                                MemAlignmentByte);
+                DeviceAlignedMemCPU b_block_mem(k_per_block * n_per_block * sizeof(FloatB),
+                                                MemAlignmentByte);
+                DeviceAlignedMemCPU c_block_mem(m_per_block * n_per_block * sizeof(FloatC),
+                                                MemAlignmentByte);
+
+                auto a_block_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
+                    reinterpret_cast<FloatA*>(a_block_mem.mpDeviceBuf),
+                    a_block_mem.mMemSize / sizeof(FloatA));
+
+                auto b_block_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
+                    reinterpret_cast<FloatB*>(b_block_mem.mpDeviceBuf),
+                    b_block_mem.mMemSize / sizeof(FloatB));
+
+                auto c_block_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
+                    UseCLocalBuffer ? reinterpret_cast<FloatC*>(c_block_mem.mpDeviceBuf)
+                                    : reinterpret_cast<FloatC*>(p_c_grid),
+                    UseCLocalBuffer ? c_block_mem.mMemSize / sizeof(FloatC)
+                                    : c_grid_desc.GetElementSpaceSize());
+
+                const ck::index_t tid = omp_get_thread_num();
+
+                for(ck::index_t i_gmpt = 0; i_gmpt < grid_m_per_thread; i_gmpt++)
+                {
+                    ck::index_t i_mc = (i_gmpt * total_threads + tid) * m_per_block;
+                    if(i_mc >= GemmM)
+                        break;
+                    ck::index_t mc_size = ck::math::min(GemmM - i_mc, m_per_block);
+                    a_threadwise_copy.SetSrcSliceOrigin(a_grid_desc, ck::make_multi_index(i_mc, 0));
+                    for(ck::index_t i_kc = 0; i_kc < GemmK; i_kc += k_per_block)
+                    {
+                        ck::index_t kc_size = ck::math::min(GemmK - i_kc, k_per_block);
+
+                        auto a_block_desc = GetABlockDescriptor(mc_size, kc_size);
+                        a_threadwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf);
+
+                        b_threadwise_copy.SetSrcSliceOrigin(b_grid_desc,
+                                                            ck::make_multi_index(0, i_kc, 0));
+
+                        // TODO: if use local C buffer, then this nc loop need to loop only once
+                        for(ck::index_t i_nc = 0; i_nc < GemmN; i_nc += n_per_block)
+                        {
+                            ck::index_t nc_size =
+                                ck::math::min(GemmN - i_nc, n_per_block); // TODO: nc need be 8x
+                            nc_size = math::integer_least_multiple(
+                                nc_size, ThreadwiseGemm_Dispatch::MatrixBMinVectorSize);
+                            auto b_block_desc = GetBBlockDescriptor(kc_size, nc_size);
+
+                            b_threadwise_copy.Run(
+                                b_grid_desc, b_grid_buf, b_block_desc, b_block_buf);
+
+                            auto c_block_desc = UseCLocalBuffer
+                                                    ? GetCBlockDescriptor(mc_size, nc_size)
+                                                    : c_grid_desc;
+
+                            if constexpr(!UseCLocalBuffer)
+                            {
+                                c_threadwise_copy.SetSrcSliceOrigin(
+                                    c_block_desc, ck::make_multi_index(i_mc, i_nc));
+                                c_threadwise_copy.Run(
+                                    c_block_desc, c_block_buf, c_grid_desc, c_grid_buf);
+                            }
+
+                            blockwise_gemm.Run(a_block_desc,
+                                               a_block_buf,
+                                               make_zero_multi_index<a_block_copy_dim>(),
+                                               b_block_desc,
+                                               b_block_buf,
+                                               make_zero_multi_index<b_block_copy_dim>(),
+                                               c_block_desc,
+                                               c_block_buf,
+                                               make_zero_multi_index<2>(),
+                                               i_kc != 0);
+
+                            if((i_nc + n_per_block) < GemmN)
+                                b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc, b_move_k_step);
+
+                            if constexpr(UseCLocalBuffer)
+                            {
+                                c_threadwise_copy.SetDstSliceOrigin(
+                                    c_grid_desc, ck::make_multi_index(i_mc, i_nc));
+                                c_threadwise_copy.Run(
+                                    c_block_desc, c_block_buf, c_grid_desc, c_grid_buf);
+                            }
+                        }
+
+                        if((i_kc + k_per_block) < GemmK)
+                            a_threadwise_copy.MoveSrcSliceWindow(a_grid_desc, a_move_k_step);
+                    }
                 }
             }
         }

@@ -46,7 +46,7 @@ struct BlockwiseGemmAvx2_MxN
     using CCoord = decltype(make_tensor_coordinate(CDesc{}, IndexC{}));
 
     template <typename TensorDesc>
-    constexpr auto GetLeadingElement(const TensorDesc& desc)
+    static constexpr auto GetLeadingElement(const TensorDesc& desc)
     {
         // if use this function, make sure desc are known at compile time.
         // otherwise, it is not efficient to calculate leading dim here
@@ -63,12 +63,12 @@ struct BlockwiseGemmAvx2_MxN
         }
     }
 
-    ck::index_t GetALeadingElement(const ABlockDesc& a_block_desc) const
+    static ck::index_t GetALeadingElement(const ABlockDesc& a_block_desc)
     {
         return a_block_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}];
     }
 
-    ck::index_t GetBLeadingElement(const BBlockDesc& b_block_desc) const
+    static ck::index_t GetBLeadingElement(const BBlockDesc& b_block_desc)
     {
         if constexpr(std::is_same<typename ThreadwiseGemm_Dispatch::MatrixBLayout,
                                   ck::tensor_layout::gemm::RowMajor>::value)
@@ -84,12 +84,12 @@ struct BlockwiseGemmAvx2_MxN
         }
     }
 
-    ck::index_t GetCLeadingElement(const CDesc& c_desc) const
+    static ck::index_t GetCLeadingElement(const CDesc& c_desc)
     {
         return c_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}];
     }
 
-    ck::index_t GetMPerBlock(const ABlockDesc& a_block_desc) const
+    static ck::index_t GetMPerBlock(const ABlockDesc& a_block_desc)
     {
         if constexpr(std::is_same<typename ThreadwiseGemm_Dispatch::MatrixALayout,
                                   ck::tensor_layout::gemm::RowMajor>::value)
@@ -104,7 +104,7 @@ struct BlockwiseGemmAvx2_MxN
         }
     }
 
-    ck::index_t GetKPerBlock(const ABlockDesc& a_block_desc) const
+    static ck::index_t GetKPerBlock(const ABlockDesc& a_block_desc)
     {
         if constexpr(std::is_same<typename ThreadwiseGemm_Dispatch::MatrixALayout,
                                   ck::tensor_layout::gemm::RowMajor>::value)
@@ -119,7 +119,7 @@ struct BlockwiseGemmAvx2_MxN
         }
     }
 
-    ck::index_t GetNPerBlock(const BBlockDesc& b_block_desc) const
+    static ck::index_t GetNPerBlock(const BBlockDesc& b_block_desc)
     {
         if constexpr(std::is_same<typename ThreadwiseGemm_Dispatch::MatrixBLayout,
                                   ck::tensor_layout::gemm::RowMajor>::value)
@@ -135,8 +135,8 @@ struct BlockwiseGemmAvx2_MxN
         }
     }
 
-    ck::index_t
-    GetABlockStartOffset(const ABlockDesc& a_block_desc, const index_t i_m, const index_t) const
+    static ck::index_t
+    GetABlockStartOffset(const ABlockDesc& a_block_desc, const index_t i_m, const index_t)
     {
         if constexpr(std::is_same<typename ThreadwiseGemm_Dispatch::MatrixALayout,
                                   ck::tensor_layout::gemm::RowMajor>::value)
@@ -149,8 +149,8 @@ struct BlockwiseGemmAvx2_MxN
         }
     }
 
-    ck::index_t
-    GetBBlockStartOffset(const BBlockDesc& b_block_desc, const index_t, const index_t i_n) const
+    static ck::index_t
+    GetBBlockStartOffset(const BBlockDesc& b_block_desc, const index_t, const index_t i_n)
     {
         if constexpr(std::is_same<typename ThreadwiseGemm_Dispatch::MatrixBLayout,
                                   ck::tensor_layout::gemm::RowMajor>::value)
@@ -165,26 +165,26 @@ struct BlockwiseGemmAvx2_MxN
         }
     }
 
-    ck::index_t
-    GetCBlockStartOffset(const CDesc& c_desc, const index_t i_m, const index_t i_n) const
+    static ck::index_t
+    GetCBlockStartOffset(const CDesc& c_desc, const index_t i_m, const index_t i_n)
     {
         return i_m * c_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}] + i_n;
     }
 
     template <typename ABlockBuffer, typename BBlockBuffer, typename CBuffer>
-    void Run(const ABlockDesc& a_block_desc,
-             const ABlockBuffer& a_block_buf,
-             const IndexA& /* a_origin */,
+    static void Run(const ABlockDesc& a_block_desc,
+                    const ABlockBuffer& a_block_buf,
+                    const IndexA& /* a_origin */,
 
-             const BBlockDesc& b_block_desc,
-             const BBlockBuffer& b_block_buf,
-             const IndexB& /* b_origin */,
+                    const BBlockDesc& b_block_desc,
+                    const BBlockBuffer& b_block_buf,
+                    const IndexB& /* b_origin */,
 
-             const CDesc& c_desc,
-             CBuffer& c_buf,
-             const IndexC& /* c_origin */,
+                    const CDesc& c_desc,
+                    CBuffer& c_buf,
+                    const IndexC& /* c_origin */,
 
-             bool is_accumulate_c = true) const
+                    bool is_accumulate_c = true)
     {
         auto lda = GetALeadingElement(a_block_desc) * sizeof(FloatA);
         auto ldb = GetBLeadingElement(b_block_desc) * sizeof(FloatB);
