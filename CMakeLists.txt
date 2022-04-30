@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.14)
 
 # Check support for CUDA/HIP in Cmake
 project(composable_kernel)
@@ -233,6 +233,8 @@ include_directories(BEFORE
     ${PROJECT_BINARY_DIR}/include
     ${PROJECT_SOURCE_DIR}/library/include
 )
+
+include(googletest)
 
 SET(BUILD_DEV ON CACHE BOOL "BUILD_DEV")
 if(BUILD_DEV)
