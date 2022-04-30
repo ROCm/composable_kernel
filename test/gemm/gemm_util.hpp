@@ -154,7 +154,6 @@ struct TestGemm
 
     auto operator()(DeviceGemmPtr_& gemmPtr)
     {
-        std::cout << "Data type: " << typeid(CDataType{}).name() << std::endl;
         std::cout << "ALayout = " << ALayout{}.name << ", BLayout = " << BLayout{}.name
                   << ", CLayout = " << CLayout{}.name << std::endl;
         std::cout << gemmPtr->GetTypeString() << std::endl;
