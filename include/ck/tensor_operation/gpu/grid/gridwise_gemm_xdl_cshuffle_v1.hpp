@@ -142,6 +142,7 @@ __global__ void
     ignore = block_2_ctile_map;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
+
 template <typename FloatAB,
           typename FloatGemmAcc,
           typename FloatCShuffle,
