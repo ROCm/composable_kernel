@@ -54,6 +54,7 @@ __global__ void
             const ComputeBasePrtOfBatch compute_base_ptr_of_batch_,
             const Block2CTileMap block_2_ctile_map)
 {
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
@@ -88,6 +89,25 @@ __global__ void
                                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
                                                    d_grid_desc_mblock_mperblock,
                                                    block_2_ctile_map);
+#else
+    ignore = p_a_grid;
+    ignore = p_b_grid;
+    ignore = p_c_grid;
+    ignore = p_d0_grid;
+    ignore = p_d1_grid;
+    ignore = batch_count;
+    ignore = a_element_op;
+    ignore = b_element_op;
+    ignore = c_element_op;
+    ignore = d0_reduce_op;
+    ignore = d1_reduce_op;
+    ignore = a_grid_desc_ak0_m_ak1;
+    ignore = b_grid_desc_bk0_n_bk1;
+    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = d_grid_desc_mblock_mperblock;
+    ignore = compute_base_ptr_of_batch_;
+    ignore = block_2_ctile_map;
+#endif // end of if defined (defined(__gfx908__) || defined(__gfx90a__))
 }
 
 template <typename ALayout,

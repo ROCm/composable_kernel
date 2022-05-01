@@ -1,11 +1,16 @@
 #pragma once
-#include "amd_buffer_addressing.hpp"
-#include "c_style_pointer_cast.hpp"
 #include "config.hpp"
 #include "enable_if.hpp"
+#include "c_style_pointer_cast.hpp"
+#include "amd_buffer_addressing.hpp"
+#include "generic_memory_space_atomic_add.hpp"
 
 namespace ck {
 
+// T may be scalar or vector
+// X may be scalar or vector
+// T and X have same scalar type
+// X contains multiple T
 template <AddressSpaceEnum BufferAddressSpace,
           typename T,
           typename ElementSpaceSize,
@@ -266,9 +271,6 @@ struct DynamicBuffer
 
                 __builtin_memcpy(&(p_data_[i]), &tmp, sizeof(X));
 #else
-                //if(get_block_1d_id() == 0){
-                //    printf("%d, tid=%d, i=%d\n", __LINE__, get_thread_local_1d_id(), i);
-                //}
                 *c_style_pointer_cast<X*>(&p_data_[i]) = x;
 #endif
             }
@@ -319,9 +321,7 @@ struct DynamicBuffer
         {
             if(is_valid_element)
             {
-                // FIXME: atomicAdd is defined by HIP, need to avoid implicit type casting when
-                // calling it
-                atomicAdd(c_style_pointer_cast<X*>(&p_data_[i]), x);
+                atomic_add<X>(c_style_pointer_cast<X*>(&p_data_[i]), x);
             }
         }
     }

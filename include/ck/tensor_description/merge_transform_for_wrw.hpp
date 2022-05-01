@@ -81,36 +81,38 @@ struct Merge_v3_division_mod_for_wrw
 
         index_t tmp = idx_up_new[I0];
 
-        //if(get_block_1d_id() == 0 && get_thread_local_1d_id() == 0){
+        // if(get_block_1d_id() == 0 && get_thread_local_1d_id() == 0){
         //    //printf("%d, %d, %d\n", __LINE__, tmp, tmp2);
-        //    //printf("%d, %d, %d\n", 
-        //    //        __LINE__, 
+        //    //printf("%d, %d, %d\n",
+        //    //        __LINE__,
         //    //        static_cast<index_t>(this->low_lengths_scan_.At(Number<0>())),
         //    //        static_cast<index_t>(this->low_lengths_scan_.At(Number<1>())));
-        //    printf("%d, %d, %d, %d, %d, %d\n", __LINE__, NDimLow, idx_low.At(Number<0>()), idx_low.At(Number<1>()), idx_diff_low.At(Number<0>()), idx_diff_low.At(Number<1>()));
+        //    printf("%d, %d, %d, %d, %d, %d\n", __LINE__, NDimLow, idx_low.At(Number<0>()),
+        //    idx_low.At(Number<1>()), idx_diff_low.At(Number<0>()), idx_diff_low.At(Number<1>()));
         //}
 
-        //static_for<0, NDimLow - 1, 1>{}([&](auto i) {
+        // static_for<0, NDimLow - 1, 1>{}([&](auto i) {
         //    const index_t tmp2 = idx_low[i];
         //    idx_low(i)         = tmp / this->low_lengths_scan_[i];
         //    idx_diff_low(i)    = idx_low[i] - tmp2;
         //    tmp %= this->low_lengths_scan_[i];
         //});
 
-        //const index_t tmp2 = idx_low[INm1];
-        //idx_low(INm1)      = tmp;
-        //idx_diff_low(INm1) = idx_low[INm1] - tmp2;
+        // const index_t tmp2 = idx_low[INm1];
+        // idx_low(INm1)      = tmp;
+        // idx_diff_low(INm1) = idx_low[INm1] - tmp2;
 
         idx_low(INm1)      = tmp;
         idx_diff_low(INm1) = idx_up_diff[I0];
 
-        //if(get_block_1d_id() == 0 && get_thread_local_1d_id() == 0){
+        // if(get_block_1d_id() == 0 && get_thread_local_1d_id() == 0){
         //    //printf("%d, %d, %d\n", __LINE__, tmp, tmp2);
-        //    printf("%d, %d, %d\n", 
-        //            __LINE__, 
+        //    printf("%d, %d, %d\n",
+        //            __LINE__,
         //            static_cast<index_t>(this->low_lengths_scan_.At(Number<0>())),
         //            static_cast<index_t>(this->low_lengths_scan_.At(Number<1>())));
-        //    printf("%d, %d, %d, %d, %d, %d\n", __LINE__, NDimLow, idx_low.At(Number<0>()), idx_low.At(Number<1>()), idx_diff_low.At(Number<0>()), idx_diff_low.At(Number<1>()));
+        //    printf("%d, %d, %d, %d, %d, %d\n", __LINE__, NDimLow, idx_low.At(Number<0>()),
+        //    idx_low.At(Number<1>()), idx_diff_low.At(Number<0>()), idx_diff_low.At(Number<1>()));
         //}
     }
 
@@ -156,4 +158,4 @@ make_merge_transform_v3_division_mod_for_wrw(const LowLengths& low_lengths)
     return Merge_v3_division_mod_for_wrw<LowLengths>{low_lengths};
 }
 
-}
+} // namespace ck

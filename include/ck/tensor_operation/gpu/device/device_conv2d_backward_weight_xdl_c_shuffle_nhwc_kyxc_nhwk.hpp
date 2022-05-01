@@ -360,7 +360,9 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
         CBlockTransferScalarPerVector_NWaveNPerXdl,
-        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>;
+        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        true,
+        true>;
 
     using GridwiseGemmAtomicAdd = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
         BlockSize,
@@ -401,7 +403,9 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
         CBlockTransferScalarPerVector_NWaveNPerXdl,
-        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>;
+        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        true,
+        true>;
     // Argument
     using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
         decltype(GridwiseGemm::MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}));

@@ -10,7 +10,8 @@
 #include "host_tensor.hpp"
 #include "sequence.hpp"
 
-namespace {
+namespace test {
+namespace conv {
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -18,6 +19,9 @@ using S = ck::Sequence<Is...>;
 using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
+
+using DeviceConvFwdNoOpPtr =
+    ck::tensor_operation::device::DeviceConvFwdPtr<InElementOp, WeiElementOp, OutElementOp>;
 
 static constexpr auto ConvFwdDefault =
     ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
@@ -62,26 +66,14 @@ using DeviceConvNDFwdInstance = ck::tensor_operation::device::
         1>;                 // CThreadTransferDstScalarPerVector
 // clang-format on
 
-} // namespace
-
-namespace test {
-namespace conv {
-
 template <ck::index_t NDim,
           typename InDataType  = float,
           typename WeiDataType = float,
           typename OutDataType = float>
-void RunConv(const ck::utils::conv::ConvParams& params,
-             const Tensor<InDataType>& input,
-             const Tensor<WeiDataType>& weights,
-             Tensor<OutDataType>& output)
+void get_test_convolution_fwd_instance(std::vector<DeviceConvFwdNoOpPtr>& instances)
 {
-    ck::utils::conv::run_convolution_forward<NDim,
-                                             InDataType,
-                                             WeiDataType,
-                                             OutDataType,
-                                             DeviceConvNDFwdInstance>(
-        params, input, weights, output);
+    using ConvInstanceT = DeviceConvNDFwdInstance<NDim, InDataType, WeiDataType, OutDataType>;
+    instances.emplace_back(std::make_unique<ConvInstanceT>());
 }
 
 } // namespace conv
