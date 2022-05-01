@@ -349,9 +349,6 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
             src_offset = i_n * Hi * Wi * C + i_hi * Wi * C + i_wi * C + i_c;
 
             i_gemm_k = idx_k;
-
-            // printf("[%d] i_wo:%d, i_ho:%d, i_wi:%d, i_hi:%d, src_offset:%d\n",
-            //            __LINE__, i_wo, i_ho, i_wi, i_hi, src_offset);
         }
     }
 
@@ -447,7 +444,6 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
                     if(i_ho_itr >= Ho)
                     {
                         i_ho_itr = 0;
-                        // i_n++;
                         p_src += input_offset_ovf_hi_acc_n;
                     }
 
@@ -468,26 +464,8 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
                     ck::index_t i_wi_itr = i_wi;
                     ck::index_t i_hi_itr = i_hi;
 
-                    // printf("[%d] i_m_itr:%d, i_wo_itr:%d, i_ho_itr:%d, i_wi_itr:%d, i_hi_itr:%d,
-                    // src_offset:%d, input_offset_acc_wi:%d,
-                    // input_offset_ovf_wi_acc_hi:%d,input_offset_ovf_hi_acc_n:%d, %p(%p)\n",
-                    //         __LINE__, i_m_itr, i_wo_itr, i_ho_itr, i_wi_itr, i_hi_itr,
-                    //         src_offset, input_offset_acc_wi, input_offset_ovf_wi_acc_hi,
-                    //         input_offset_ovf_hi_acc_n, src_buf.p_data_, p_src);
-
-                    // printf("%p %p %p, %d, %x, %p\n",src_buf.p_data_, reinterpret_cast<const
-                    // float*>(src_buf.p_data_) + 1, reinterpret_cast<const float*>(src_buf.p_data_)
-                    // + ck::index_t(-1),
-                    //     sizeof(src_offset), *reinterpret_cast<uint32_t*>(&src_offset),
-                    //     reinterpret_cast<const float*>(src_buf.p_data_) + (-1088));
-
                     while(i_m_itr > 0)
                     {
-                        // printf("[%d] i_m_itr:%d, i_wo_itr:%d, i_ho_itr:%d, i_wi_itr:%d,
-                        // i_hi_itr:%d, src_offset:%d -> %p\n",
-                        //    __LINE__, i_m_itr, i_wo_itr, i_ho_itr, i_wi_itr, i_hi_itr, src_offset,
-                        //    p_src);
-
                         if((*reinterpret_cast<uint32_t*>(&i_hi_itr) < Hi) &&
                            (*reinterpret_cast<uint32_t*>(&i_wi_itr) < Wi))
                             avx2_util::memcpy32_avx2(p_dst, p_src, k_per_block);
@@ -512,14 +490,11 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
                         {
                             i_ho_itr = 0;
                             i_hi_itr -= Ho * Sy;
-                            // i_n++;
                             p_src += input_offset_ovf_hi_acc_n;
                         }
 
                         i_m_itr--;
                     }
-
-                    // printf("[%d]   \n", __LINE__);
                 }
                 else
                 {
@@ -538,8 +513,8 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
                         ck::index_t i_wi_itr_k = i_wi_itr;
                         ck::index_t i_hi_itr_k = i_hi_itr;
                         ck::index_t i_c_itr_k  = i_c;
-                        ck::index_t i_y_itr_k  = i_y;
-                        ck::index_t i_x_itr_k  = i_x;
+                        // ck::index_t i_y_itr_k  = i_y;
+                        ck::index_t i_x_itr_k = i_x;
 
                         ck::index_t i_k_itr = k_per_block;
                         while(i_k_itr > 0)
@@ -566,7 +541,7 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
                             if(i_x_itr_k >= Fx)
                             {
                                 i_x_itr_k = 0;
-                                i_y_itr_k++;
+                                // i_y_itr_k++;
                                 i_wi_itr_k -= Dx * Fx;
                                 i_hi_itr_k += Dy;
                                 p_src_k += input_offset_ovf_x_acc_y;
@@ -594,7 +569,6 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
                         {
                             i_ho_itr = 0;
                             i_hi_itr -= Ho * Sy;
-                            // i_n++;
                             p_src += input_offset_ovf_hi_acc_n;
                         }
 
@@ -626,18 +600,10 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
             if constexpr(GemmKSpecialization ==
                          ConvolutionForwardGemmKSpecialization_t::NHWC_GemmKLoopOverC)
             {
-                // c % k_per_block == 0, so every time k_per_block here is the same
-                // ihi = iho * s_stride_h + iy * s_dilation_h - s_pad_h
-                // iwi = iwo * s_stride_w + ix * s_dilation_w - s_pad_w
-                // printf("222222 C:%d, src_offset:%d, i_c:%d, i_x:%d\n", C, src_offset, i_c, i_x);
-                // fflush(stdout);
-
                 // TODO: branch seems weird
 
                 i_c += move_k;
                 src_offset += move_k;
-
-                // printf("3333[%d]  src_offset:%d\n", __LINE__, src_offset);
 
                 if(i_c >= C)
                 {
@@ -645,21 +611,16 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
                     i_x++;
                     i_wi += Dx;
                     src_offset += Dx * C - C;
-                    // printf("3333[%d]  src_offset:%d\n", __LINE__, src_offset);
                 }
                 if(i_x >= Fx)
                 {
                     i_x = 0;
-                    i_y++;
+                    // i_y++;
                     i_wi = i_wi - Fx * Dx;
                     i_hi += Dy;
 
                     src_offset += Dy * Wi * C - Fx * Dx * C;
-                    // printf("3333[%d]  src_offset:%d\n", __LINE__, src_offset);
                 }
-
-                // printf("inp move:%d, i_c:%d, i_hi:%d, i_wi:%d src_offset:%d\n", move_k, i_c,
-                // i_hi, i_wi, src_offset); fflush(stdout);
             }
             else
             {

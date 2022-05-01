@@ -18,6 +18,12 @@ namespace device_conv2d_fwd_avx2_instance {
 void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk(
     std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>>& instances);
 
+void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_local_c(
+    std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>>& instances);
+
+void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_mt(
+    std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>>& instances);
+
 } // namespace device_conv2d_fwd_avx2_instance
 } // namespace device
 } // namespace cpu

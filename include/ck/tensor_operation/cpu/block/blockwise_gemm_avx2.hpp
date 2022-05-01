@@ -213,20 +213,12 @@ struct BlockwiseGemmAvx2_MxN
                 auto current_mr = ck::math::min(m_per_block - i_m, m_per_thread);
                 param.p_a       = &a_block_buf.p_data_[GetABlockStartOffset(a_block_desc, i_m, 0)];
 
-                // printf("YYYY: %d, i_m:%d, current_mr:%d, %d, %p\n",__LINE__, i_m, current_mr,
-                // GetABlockStartOffset(a_block_desc, i_m, 0), param.p_a);fflush(stdout);
-
                 for(ck::index_t i_n = 0; i_n < n_per_block; i_n += n_per_thread)
                 {
                     auto current_nr = ck::math::min(n_per_block - i_n, n_per_thread);
 
                     param.p_b = &b_block_buf.p_data_[GetBBlockStartOffset(b_block_desc, 0, i_n)];
                     param.p_c = &c_buf.p_data_[GetCBlockStartOffset(c_desc, i_m, i_n)];
-
-                    // printf("YYYY: %d, i_n:%d, current_nr:%d, %d, %p, C:%d, %p\n",__LINE__, i_n,
-                    // current_nr, GetBBlockStartOffset(b_block_desc, 0, i_n), param.p_b,
-                    //        GetCBlockStartOffset(c_desc, i_m, i_n),
-                    //        param.p_c);fflush(stdout);
 
                     ThreadwiseGemm_Dispatch::Run(&param, current_mr, current_nr);
                 }

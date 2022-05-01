@@ -28,17 +28,24 @@ DeviceMem::~DeviceMem() { hipGetErrorString(hipFree(mpDeviceBuf)); }
 DeviceAlignedMemCPU::DeviceAlignedMemCPU(std::size_t mem_size, std::size_t alignment)
     : mMemSize(mem_size), mAlignment(alignment)
 {
-    assert(!(alignment == 0 || (alignment & (alignment - 1)))); // check pow of 2
+    if(mem_size == 0)
+    {
+        mpDeviceBuf = nullptr;
+    }
+    else
+    {
+        assert(!(alignment == 0 || (alignment & (alignment - 1)))); // check pow of 2
 
-    void* p1;
-    void** p2;
-    int offset = alignment - 1 + sizeof(void*);
-    p1         = malloc(mem_size + offset);
-    assert(p1 != nullptr);
+        void* p1;
+        void** p2;
+        int offset = alignment - 1 + sizeof(void*);
+        p1         = malloc(mem_size + offset);
+        assert(p1 != nullptr);
 
-    p2     = reinterpret_cast<void**>((reinterpret_cast<size_t>(p1) + offset) & ~(alignment - 1));
-    p2[-1] = p1;
-    mpDeviceBuf = reinterpret_cast<void*>(p2);
+        p2 = reinterpret_cast<void**>((reinterpret_cast<size_t>(p1) + offset) & ~(alignment - 1));
+        p2[-1]      = p1;
+        mpDeviceBuf = reinterpret_cast<void*>(p2);
+    }
 }
 
 void* DeviceAlignedMemCPU::GetDeviceBuffer() { return mpDeviceBuf; }
@@ -51,7 +58,11 @@ void DeviceAlignedMemCPU::FromDevice(void* p) { memcpy(p, mpDeviceBuf, mMemSize)
 
 void DeviceAlignedMemCPU::SetZero() { memset(mpDeviceBuf, 0, mMemSize); }
 
-DeviceAlignedMemCPU::~DeviceAlignedMemCPU() { free((reinterpret_cast<void**>(mpDeviceBuf))[-1]); }
+DeviceAlignedMemCPU::~DeviceAlignedMemCPU()
+{
+    if(mpDeviceBuf != nullptr)
+        free((reinterpret_cast<void**>(mpDeviceBuf))[-1]);
+}
 
 struct KernelTimerImpl
 {

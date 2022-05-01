@@ -12,6 +12,7 @@
 #include <utility>
 #include <unistd.h>
 #include <omp.h>
+#include <pthread.h>
 
 namespace ck {
 namespace cpu {
@@ -193,6 +194,23 @@ struct GridwiseGemmAvx2_MxN
 
         int total_threads = omp_get_max_threads();
 
+#if 0
+        if(total_threads > 1){
+#pragma omp parallel
+            {
+                int tid = omp_get_thread_num();
+                cpu_set_t set;
+                CPU_ZERO(&set);
+
+                CPU_SET(tid, &set);
+
+                if (sched_setaffinity(0, sizeof(set), &set) == -1) {
+                    throw std::runtime_error("wrong! fail to set thread affinity");
+                }
+            }
+        }
+#endif
+
         // TODO: openmp aware ordering
         //
         if constexpr(std::is_same<BlockMNKAccessOrder, ck::Sequence<0, 1, 2>>::value)
@@ -234,8 +252,9 @@ struct GridwiseGemmAvx2_MxN
                                                 MemAlignmentByte);
                 DeviceAlignedMemCPU b_block_mem(k_per_block * n_per_block * sizeof(FloatB),
                                                 MemAlignmentByte);
-                DeviceAlignedMemCPU c_block_mem(m_per_block * n_per_block * sizeof(FloatC),
-                                                MemAlignmentByte);
+                DeviceAlignedMemCPU c_block_mem(
+                    UseCLocalBuffer ? (m_per_block * n_per_block * sizeof(FloatC)) : 0,
+                    MemAlignmentByte);
 
                 auto a_block_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
                     reinterpret_cast<FloatA*>(a_block_mem.mpDeviceBuf),
@@ -298,26 +317,9 @@ struct GridwiseGemmAvx2_MxN
                         auto a_block_desc = GetABlockDescriptor(mc_size, kc_size);
                         auto b_block_desc = GetBBlockDescriptor(kc_size, nc_size);
 
-                        // printf("[tid:%d]==> i_m:%d, i_n:%d, i_k:%d, mc:%d, nc:%d, kc:%d(%d,
-                        // %d)\n", tid, i_mc,
-                        // i_nc, i_kc, mc_size, nc_size, kc_size, KPerBlock, GemmK); fflush(stdout);
-
                         a_threadwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf);
-
                         b_threadwise_copy.Run(b_grid_desc, b_grid_buf, b_block_desc, b_block_buf);
 
-                        // for(auto i_elem = 0; i_elem < (mc_size * kc_size) ; i_elem++){
-                        //    printf("A ==> %3d : %f(0x%08x)\n", i_elem,
-                        //    (reinterpret_cast<float*>(a_block_buf.p_data_))[i_elem],
-                        //    (reinterpret_cast<uint32_t*>(a_block_buf.p_data_))[i_elem]);
-                        //}
-
-                        // for(auto i_elem = 0; i_elem < (kc_size * nc_size) ; i_elem++){
-                        //     printf("B ==> %3d : %f(0x%08x)\n", i_elem,
-                        //     (reinterpret_cast<float*>(b_block_buf.p_data_))[i_elem],
-                        //     (reinterpret_cast<uint32_t*>(b_block_buf.p_data_))[i_elem]);
-                        // }
-                        // printf("[%d] 2222 \n",__LINE__);
                         blockwise_gemm.Run(a_block_desc,
                                            a_block_buf,
                                            make_zero_multi_index<a_block_copy_dim>(),
@@ -329,28 +331,13 @@ struct GridwiseGemmAvx2_MxN
                                            make_zero_multi_index<2>(),
                                            i_kc != 0);
 
-                        // printf("[%d] 2222 \n",__LINE__);
                         if((i_kc + k_per_block) < GemmK)
                         {
                             a_threadwise_copy.MoveSrcSliceWindow(a_grid_desc, a_move_k_step);
                             b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc, b_move_k_step);
                         }
-
-                        // printf("[%d] 2222 \n",__LINE__);
-
-                        // for(auto i_elem = 0; i_elem < (10) ; i_elem++){
-                        //     printf("C ==> %3d : %f(0x%08x)\n", i_elem,
-                        //     (reinterpret_cast<float*>(c_block_buf.p_data_))[i_elem],
-                        //     (reinterpret_cast<uint32_t*>(c_block_buf.p_data_))[i_elem]);
-                        // }
                     }
 
-                    // for(auto i_elem = 0; i_elem < (c_block_mem.mMemSize / sizeof(FloatC)) ;
-                    // i_elem++){
-                    //     printf("C ==> %3d : %f(0x%08x)\n", i_elem,
-                    //     (reinterpret_cast<float*>(c_block_buf.p_data_))[i_elem],
-                    //     (reinterpret_cast<uint32_t*>(c_block_buf.p_data_))[i_elem]);
-                    // }
                     if constexpr(UseCLocalBuffer)
                         c_threadwise_copy.Run(c_block_desc, c_block_buf, c_grid_desc, c_grid_buf);
                 }
@@ -396,8 +383,9 @@ struct GridwiseGemmAvx2_MxN
                                                 MemAlignmentByte);
                 DeviceAlignedMemCPU b_block_mem(k_per_block * n_per_block * sizeof(FloatB),
                                                 MemAlignmentByte);
-                DeviceAlignedMemCPU c_block_mem(m_per_block * n_per_block * sizeof(FloatC),
-                                                MemAlignmentByte);
+                DeviceAlignedMemCPU c_block_mem(
+                    UseCLocalBuffer ? (m_per_block * n_per_block * sizeof(FloatC)) : 0,
+                    MemAlignmentByte);
 
                 auto a_block_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
                     reinterpret_cast<FloatA*>(a_block_mem.mpDeviceBuf),

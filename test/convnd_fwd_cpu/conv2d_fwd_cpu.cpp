@@ -26,6 +26,12 @@ using PassThrough = ck::tensor_operation::cpu::element_wise::PassThrough;
 void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk(
     std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>>& instances);
 
+void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_local_c(
+    std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>>& instances);
+
+void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_mt(
+    std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>>& instances);
+
 } // namespace device_conv2d_fwd_avx2_instance
 } // namespace device
 } // namespace cpu
@@ -300,8 +306,22 @@ int main(int argc, char* argv[])
                      ck::is_same_v<ck::remove_cv_t<WeiDataType>, float> &&
                      ck::is_same_v<ck::remove_cv_t<OutDataType>, float>)
         {
-            ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
-                add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk(conv_ptrs);
+            if(omp_get_max_threads() > 1)
+            {
+                ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
+                    add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_mt(conv_ptrs);
+                ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
+                    add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk(conv_ptrs);
+            }
+            else
+            {
+                if(K % 8 == 0)
+                    ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
+                        add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk(conv_ptrs);
+                else
+                    ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
+                        add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_local_c(conv_ptrs);
+            }
         }
 
         if(conv_ptrs.size() <= 0)
