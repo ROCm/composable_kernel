@@ -222,6 +222,7 @@ def runCKProfiler(Map conf=[:]){
 						sh "python parse_perf_data.py ${perf_log} > ${artifact}"
 						//store the results
 						//archiveArtifacts  "${artifact}"
+					}
                 }
             }
         }
