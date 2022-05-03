@@ -31,6 +31,7 @@ function(add_test_executable TEST_NAME)
     add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> )
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
+    set_target_properties(${TEST_NAME} PROPERTIES EXCLUDE_FROM_ALL 1)
 endfunction(add_test_executable TEST_NAME)
 
 include(GoogleTest)
@@ -60,3 +61,5 @@ add_subdirectory(grouped_gemm)
 add_subdirectory(convnd_fwd)
 add_subdirectory(reduce)
 add_subdirectory(conv2d_bwd_weight)
+# DONOT add client_app, that is tested via CI independently
+add_subdirectory(fp16_transfer_bf16)

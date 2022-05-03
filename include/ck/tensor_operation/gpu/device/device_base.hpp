@@ -22,7 +22,10 @@ struct BaseInvoker
     BaseInvoker(const BaseInvoker&) = default;
     BaseInvoker& operator=(const BaseInvoker&) = default;
 
-    virtual float Run(const BaseArgument*, int = 1) = 0;
+    virtual float Run(const BaseArgument*, int = 1, hipStream_t = nullptr, bool = false)
+    {
+        return -1;
+    }
 
     virtual ~BaseInvoker() {}
 };
@@ -33,8 +36,8 @@ struct BaseOperator
     BaseOperator(const BaseOperator&) = default;
     BaseOperator& operator=(const BaseOperator&) = default;
 
-    virtual bool IsSupportedArgument(const BaseArgument*) = 0;
-    virtual std::string GetTypeString() const             = 0;
+    virtual bool IsSupportedArgument(const BaseArgument*) { return false; }
+    virtual std::string GetTypeString() const { return ""; }
 
     virtual ~BaseOperator() {}
 };

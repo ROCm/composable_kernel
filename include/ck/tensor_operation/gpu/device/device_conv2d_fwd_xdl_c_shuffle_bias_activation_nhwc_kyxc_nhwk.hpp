@@ -607,7 +607,10 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg,
+                  int nrepeat           = 1,
+                  hipStream_t stream_id = nullptr,
+                  bool measure_time     = false)
         {
 #if 0
             {
@@ -692,6 +695,8 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X
                     dim3(grid_size),
                     dim3(BlockSize),
                     0,
+                    stream_id,
+                    measure_time,
                     arg.p_a_grid_,
                     arg.p_b_grid_,
                     arg.p_c_grid_,
@@ -731,6 +736,8 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X
                     dim3(grid_size),
                     dim3(BlockSize),
                     0,
+                    stream_id,
+                    measure_time,
                     arg.p_a_grid_,
                     arg.p_b_grid_,
                     arg.p_c_grid_,
@@ -748,9 +755,12 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X
             return ave_time;
         }
 
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  int nrepeat           = 1,
+                  hipStream_t stream_id = nullptr,
+                  bool measure_time     = false) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat, stream_id, measure_time);
         }
     };
 

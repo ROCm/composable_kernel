@@ -228,7 +228,7 @@ pipeline {
                 {
                     agent{ label rocmnode("gfx908")}
                     environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
+                        setup_args = """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx900 --offload-arch=gfx906  --offload-arch=gfx908 --offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release')
@@ -247,6 +247,23 @@ pipeline {
 
                 }
 
+            }
+        }
+        stage("Client App")
+        {
+            parallel
+            {
+                stage("Run Client App")
+                {
+                    agent{ label rocmnode("gfx908")}
+                    environment{
+                        setup_args = """ -D  -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " """
+                        execute_args = """ cd ../test/client_app && rm -rf build && mkdir build && cd build && cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" .. && make  """ 
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                    }
+                }
             }
         }
         // enable after the cmake file supports packaging

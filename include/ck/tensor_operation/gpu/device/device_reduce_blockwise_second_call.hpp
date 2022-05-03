@@ -182,7 +182,10 @@ struct DeviceReduceBlockWiseSecondCall
 
     struct Invoker : public BaseInvoker
     {
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg,
+                  int nrepeat           = 1,
+                  hipStream_t stream_id = nullptr,
+                  bool measure_time     = false)
         {
             const auto in_grid_desc_m_k = DeviceReduceBlockWiseSecondCall::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_);
@@ -229,6 +232,8 @@ struct DeviceReduceBlockWiseSecondCall
                                               dim3(arg.gridSize),
                                               dim3(BlockSize),
                                               0,
+                                              stream_id,
+                                              measure_time,
                                               in_grid_desc_m_k,
                                               out_grid_desc_m,
                                               arg.in_elementwise_op_,
@@ -243,9 +248,12 @@ struct DeviceReduceBlockWiseSecondCall
             return (avg_time);
         };
 
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  int nrepeat           = 1,
+                  hipStream_t stream_id = nullptr,
+                  bool measure_time     = false) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat, stream_id, measure_time);
         };
     };
 

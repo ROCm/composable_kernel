@@ -92,7 +92,10 @@ struct DeviceConv3dFwdNaive_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_W
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg,
+                  int nrepeat           = 1,
+                  hipStream_t stream_id = nullptr,
+                  bool measure_time     = false)
         {
             const auto naive_conv3d_fwd =
                 ref::naive_conv_fwd_ndhwc_kzyxc_ndhwk<InDataType,
@@ -108,6 +111,8 @@ struct DeviceConv3dFwdNaive_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_W
                                                     dim3(256),
                                                     dim3(256),
                                                     0,
+                                                    stream_id,
+                                                    measure_time,
                                                     arg.p_in_,
                                                     arg.p_wei_,
                                                     arg.p_out_,
@@ -137,9 +142,12 @@ struct DeviceConv3dFwdNaive_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_W
         }
 
         // polymorphic
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  int nrepeat           = 1,
+                  hipStream_t stream_id = nullptr,
+                  bool measure_time     = false) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat, stream_id, measure_time);
         }
     };
 

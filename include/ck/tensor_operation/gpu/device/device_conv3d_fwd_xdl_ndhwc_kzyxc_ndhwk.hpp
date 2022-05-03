@@ -438,7 +438,10 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg,
+                  int nrepeat           = 1,
+                  hipStream_t stream_id = nullptr,
+                  bool measure_time     = false)
         {
             {
                 std::cout << "num_batches_of_GEMM = " << arg.num_subbatches_ << std::endl;
@@ -492,6 +495,8 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                                                   dim3(grid_size),
                                                   dim3(BlockSize),
                                                   0,
+                                                  stream_id,
+                                                  measure_time,
                                                   arg.p_a_grid_,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
@@ -527,6 +532,8 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                                                   dim3(grid_size),
                                                   dim3(BlockSize),
                                                   0,
+                                                  stream_id,
+                                                  measure_time,
                                                   arg.p_a_grid_,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
@@ -547,9 +554,12 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         }
 
         // polymorphic
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  int nrepeat           = 1,
+                  hipStream_t stream_id = nullptr,
+                  bool measure_time     = false) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat, stream_id, measure_time);
         }
     };
 
