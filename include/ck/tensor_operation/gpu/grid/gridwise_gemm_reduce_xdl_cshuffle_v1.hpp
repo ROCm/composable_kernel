@@ -852,7 +852,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                         false>;
 
                 const auto d0_zeroVal = D0ReduceOperation::GetReductionZeroVal();
-                const auto d1_zeroVal = D0ReduceOperation::GetReductionZeroVal();
+                const auto d1_zeroVal = D1ReduceOperation::GetReductionZeroVal();
 
                 static_for<0, mreduce_per_thread, 1>{}(
                     [&](auto I) { d0_thread_buf(I) = d0_zeroVal; });
@@ -868,22 +868,10 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                                          make_tuple(I0, I0),
                                                          c_reduce_thread_buf);
 
-                    // reduce in VGPR
+                    // reduce D0 in VGPR
                     ThreadwiseReduce_D0::Reduce(c_reduce_thread_buf, d0_thread_buf);
 
-                    static_for<0, mreduce_per_thread, 1>{}([&](auto im) {
-                        static_for<0, nreduce_per_thread, 1>{}([&](auto in) {
-                            constexpr auto offset =
-                                Number<c_reduce_thread_desc_mperblock_nperblock.CalculateOffset(
-                                    make_tuple(im, in))>{};
-
-                            d1_element_op(c_reduce_thread_buf(offset), c_reduce_thread_buf(offset));
-                        });
-                    });
-
-                    ThreadwiseReduce_D1::Reduce(c_reduce_thread_buf, d1_thread_buf);
-
-                    // copy from VGPR to Global
+                    // copy d0 from VGPR to Global
                     d0_reduce_thread_copy_vgpr_to_global.Run(d_reduce_thread_desc_mblock_mperblock,
                                                              make_tuple(I0, I0),
                                                              d0_thread_buf,
@@ -892,12 +880,29 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
                     // TODO - Support variable amount of d tensor
                     if(p_d1_grid)
+                    {
+                        // reduce D1 in VGPR
+                        static_for<0, mreduce_per_thread, 1>{}([&](auto im) {
+                            static_for<0, nreduce_per_thread, 1>{}([&](auto in) {
+                                constexpr auto offset =
+                                    Number<c_reduce_thread_desc_mperblock_nperblock.CalculateOffset(
+                                        make_tuple(im, in))>{};
+
+                                d1_element_op(c_reduce_thread_buf(offset),
+                                              c_reduce_thread_buf(offset));
+                            });
+                        });
+
+                        ThreadwiseReduce_D1::Reduce(c_reduce_thread_buf, d1_thread_buf);
+
+                        // copy d1 from VGPR to Global
                         d1_reduce_thread_copy_vgpr_to_global.Run(
                             d_reduce_thread_desc_mblock_mperblock,
                             make_tuple(I0, I0),
                             d1_thread_buf,
                             d_grid_desc_mblock_mperblock,
                             d1_grid_buf);
+                    }
                 }
 
                 if constexpr(access_id < num_access - 1)

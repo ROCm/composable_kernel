@@ -18,10 +18,6 @@ struct PassThrough
     __host__ __device__ void operator()(int8_t& y, const int8_t& x) const { y = x; }
 
     __host__ __device__ void operator()(double& y, const double& x) const { y = x; }
-
-    __host__ __device__ static constexpr float GetReduceZeroValue() { return float(0); }
-
-    __host__ __device__ void Reduce(float& acc, float v) const { acc = v; }
 };
 
 struct Add
