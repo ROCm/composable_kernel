@@ -29,12 +29,23 @@ def main():
     args = parse_args()
     results = []
     #parse results
+    glue=""
     for filename in args.files:
         for line in open(filename):
             if 'Best Perf' in line:
                 lst=line.split()
-                results.append(print_to_string(lst[8:],lst[2],lst[4]))
-    #sort results        
+                results.append(print_to_string(glue.join(lst[8:]),lst[4]))
+                
+    #sort results    
+
+    #read baseline results for the latest develop branch    
+
+    #write new results to the db
+    
+    #compare the results to the baseline
+    
+    #return 0 if performance criteria met, otherwise return 1
+
     print(results)
     return 0
 
