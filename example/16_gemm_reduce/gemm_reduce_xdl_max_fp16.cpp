@@ -245,8 +245,12 @@ int main(int argc, char* argv[])
             d0_m_host_result(m) = d0_acc;
         }
 
-        check_error(c_m_n_host_result, c_m_n_device_result);
-        check_error(d0_m_host_result, d0_m_device_result);
+        float diff = 0.0f;
+        diff += check_error(c_m_n_host_result, c_m_n_device_result);
+        diff += check_error(d0_m_host_result, d0_m_device_result);
+
+        if(diff > 0.0f)
+            return 1;
     }
 
     return 0;
