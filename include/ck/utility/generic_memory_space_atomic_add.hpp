@@ -3,6 +3,10 @@
 
 namespace ck {
 
+// Caution: DO NOT REMOVE
+// intentionally have only declaration but no definition to cause compilation failure when trying to
+// instantiate this template. The purpose is to make the implementation of atomic_add explicit for
+// each datatype.
 template <typename X>
 __device__ X atomic_add(X* p_dst, const X& x)
 {
