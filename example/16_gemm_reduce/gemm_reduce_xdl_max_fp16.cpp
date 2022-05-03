@@ -36,9 +36,9 @@ using CLayout = ck::tensor_layout::gemm::RowMajor;
 using AElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp  = ck::tensor_operation::element_wise::PassThrough;
-using D0ReduceOp  = ck::reduce::Add<float>;
-using D1ReduceOp  = ck::reduce::PassThrough<float>;
-using D1ElementOp = ck::tensor_operation::element_wise::UnarySquare<float, float, false>;
+using D0ReduceOp  = ck::reduce::Max<F32>;
+using D1ReduceOp  = ck::reduce::PassThrough<F32>;
+using D1ElementOp = ck::tensor_operation::element_wise::UnarySquare<F32, F32, false>;
 
 static constexpr auto DGlobalMemOp = ck::InMemoryDataOperationEnum::AtomicMax;
 static constexpr auto GemmSpecialization =
