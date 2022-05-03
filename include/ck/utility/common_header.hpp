@@ -31,7 +31,7 @@
 #include "debug.hpp"
 
 #include "amd_buffer_addressing.hpp"
-#include "generic_memory_space_atomic_add.hpp"
+#include "generic_memory_space_atomic.hpp"
 #include "get_id.hpp"
 #include "synchronization.hpp"
 #include "amd_address_space.hpp"

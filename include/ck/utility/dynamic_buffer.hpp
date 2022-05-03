@@ -3,8 +3,7 @@
 #include "enable_if.hpp"
 #include "c_style_pointer_cast.hpp"
 #include "amd_buffer_addressing.hpp"
-#include "generic_memory_space_atomic_add.hpp"
-#include "generic_memory_space_atomic_max.hpp"
+#include "generic_memory_space_atomic.hpp"
 
 namespace ck {
 
