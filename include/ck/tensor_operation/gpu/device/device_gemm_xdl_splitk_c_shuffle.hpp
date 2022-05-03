@@ -20,9 +20,10 @@ namespace tensor_operation {
 namespace device {
 
 /*
- * \brief Wrapper function of GridwiseGemm::Run to realize BatchedGEMM.
+ * \brief Wrapper function of GridwiseGemm::Run to realize a customized BatchedGemm for splitK.
  *
- * \see \link device_batched_gemm_xdl.hpp kernel_batched_gemm_xdlops_v2r3
+ * The main difference from \see \link device_batched_gemm_xdl.hpp kernel_batched_gemm_xdlops_v2r3
+ * is that there are 2 different tensor descriptors for matrix A and B.
  */
 template <typename GridwiseGemm,
           typename FloatAB,
@@ -174,7 +175,7 @@ struct DeviceGemmXdlSplitKCShuffle
     template <index_t K1>
     static auto GetActualBatchAndKSplitted(index_t K, index_t KBatch)
     {
-        const index_t K0PerBlock = KPerBlock / K1;
+        const index_t K0PerBlock   = KPerBlock / K1;
         const index_t K0           = math::integer_divide_ceil(K, KPerBlock * KBatch) * K0PerBlock;
         const index_t KSplitted    = K0 * K1;
         const index_t actual_batch = math::integer_divide_ceil(K, KSplitted);
@@ -193,6 +194,7 @@ struct DeviceGemmXdlSplitKCShuffle
     template <>
     static auto MakeAGridDescriptor_AK0_M_AK1<false>(index_t MRaw, index_t K, index_t StrideA)
     {
+        // return MakeAGridDescriptor_AK0_M_AK1<true>(MRaw, K, StrideA);
         assert(K % KPerBlock == 0);
         assert(K % AK1 == 0);
 
@@ -243,6 +245,7 @@ struct DeviceGemmXdlSplitKCShuffle
     template <>
     static auto MakeBGridDescriptor_BK0_N_BK1<false>(index_t K, index_t NRaw, index_t StrideB)
     {
+        // return MakeBGridDescriptor_BK0_N_BK1<true>(K, NRaw, StrideB);
         assert(K % KPerBlock == 0);
         assert(K % BK1 == 0);
 

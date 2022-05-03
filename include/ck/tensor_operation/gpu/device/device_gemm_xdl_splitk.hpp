@@ -173,88 +173,10 @@ struct DeviceGemmXdlSplitK
         return std::make_pair(actual_batch, KSplitted);
     }
 
-    static auto MakeAGridDescriptor_K0_M_K1(index_t M, index_t K, index_t StrideA)
-    {
-        assert(K % (K1 * K0PerBlock) == 0);
-
-        const index_t K0 = K / K1;
-
-        const auto a_grid_desc_m_k = [&]() {
-            if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(M, K), make_tuple(StrideA, I1));
-            }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ALayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(M, K), make_tuple(I1, StrideA));
-            }
-        }();
-
-        if constexpr(GemmSpec == GemmSpecialization::MNPadding)
-        {
-            const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
-
-            return transform_tensor_descriptor(
-                a_grid_desc_m_k,
-                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                           make_right_pad_transform(M, PadM)),
-                make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-        }
-        else
-        {
-            return transform_tensor_descriptor(
-                a_grid_desc_m_k,
-                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                           make_pass_through_transform(M)),
-                make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-        }
-    }
-
-    static auto MakeBGridDescriptor_K0_N_K1(index_t K, index_t N, index_t StrideB)
-    {
-        assert(K % (K1 * K0PerBlock) == 0);
-
-        const index_t K0 = K / K1;
-
-        const auto b_grid_desc_k_n = [&]() {
-            if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(K, N), make_tuple(StrideB, I1));
-            }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(K, N), make_tuple(I1, StrideB));
-            }
-        }();
-
-        if constexpr(GemmSpec == GemmSpecialization::MNPadding)
-        {
-            const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
-
-            return transform_tensor_descriptor(
-                b_grid_desc_k_n,
-                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                           make_right_pad_transform(N, PadN)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-        }
-        else
-        {
-            return transform_tensor_descriptor(
-                b_grid_desc_k_n,
-                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                           make_pass_through_transform(N)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-        }
-    }
-
     static auto MakeAGridDescriptor_K0_M_K1_Tail(index_t M, index_t K, index_t StrideA)
     {
         const index_t KPadded = math::integer_divide_ceil(K, K1 * K0PerBlock) * K1 * K0PerBlock;
-        const index_t K0   = KPadded / K1;
+        const index_t K0      = KPadded / K1;
 
         const auto a_grid_desc_m_k = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
@@ -333,6 +255,87 @@ struct DeviceGemmXdlSplitK
         {
             return transform_tensor_descriptor(
                 b_grid_desc_kpad_n,
+                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
+                           make_pass_through_transform(N)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        }
+    }
+
+    static auto MakeAGridDescriptor_K0_M_K1(index_t M, index_t K, index_t StrideA)
+    {
+        // return MakeAGridDescriptor_K0_M_K1_Tail(M, K, StrideA);
+
+        assert(K % (K1 * K0PerBlock) == 0);
+
+        const index_t K0 = K / K1;
+
+        const auto a_grid_desc_m_k = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, K), make_tuple(StrideA, I1));
+            }
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ALayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, K), make_tuple(I1, StrideA));
+            }
+        }();
+
+        if constexpr(GemmSpec == GemmSpecialization::MNPadding)
+        {
+            const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
+
+            return transform_tensor_descriptor(
+                a_grid_desc_m_k,
+                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
+                           make_right_pad_transform(M, PadM)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        }
+        else
+        {
+            return transform_tensor_descriptor(
+                a_grid_desc_m_k,
+                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
+                           make_pass_through_transform(M)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        }
+    }
+
+    static auto MakeBGridDescriptor_K0_N_K1(index_t K, index_t N, index_t StrideB)
+    {
+        // return MakeBGridDescriptor_K0_N_K1_Tail(K, N, StrideB);
+        assert(K % (K1 * K0PerBlock) == 0);
+
+        const index_t K0 = K / K1;
+
+        const auto b_grid_desc_k_n = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(K, N), make_tuple(StrideB, I1));
+            }
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(K, N), make_tuple(I1, StrideB));
+            }
+        }();
+
+        if constexpr(GemmSpec == GemmSpecialization::MNPadding)
+        {
+            const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
+
+            return transform_tensor_descriptor(
+                b_grid_desc_k_n,
+                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
+                           make_right_pad_transform(N, PadN)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        }
+        else
+        {
+            return transform_tensor_descriptor(
+                b_grid_desc_k_n,
                 make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
                            make_pass_through_transform(N)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
@@ -674,28 +677,26 @@ struct DeviceGemmXdlSplitK
                 const bool tail_has_main_k0_block_loop =
                     GridwiseGemm::CalculateHasMainK0BlockLoop(K0_tail);
 
-                const auto Run = [&](const auto& kernel)
-                {
+                const auto Run = [&](const auto& kernel) {
                     return launch_and_time_kernel(kernel,
-                                                      nrepeat,
-                                                      dim3(grid_size),
-                                                      dim3(BlockSize),
-                                                      0,
-                                                      arg.p_a_grid_,
-                                                      arg.p_b_grid_,
-                                                      arg.p_c_grid_,
-                                                      arg.BatchCount_,
-                                                      arg.a_grid_desc_k0_m_k1_,
-                                                      arg.b_grid_desc_k0_n_k1_,
-                                                      arg.a_grid_desc_k0_m_k1_tail_,
-                                                      arg.b_grid_desc_k0_n_k1_tail_,
-                                                      arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                      arg.a_element_op_,
-                                                      arg.b_element_op_,
-                                                      arg.c_element_op_,
-                                                      arg.compute_ptr_offset_of_batch_,
-                                                      arg.block_2_ctile_map_);
-
+                                                  nrepeat,
+                                                  dim3(grid_size),
+                                                  dim3(BlockSize),
+                                                  0,
+                                                  arg.p_a_grid_,
+                                                  arg.p_b_grid_,
+                                                  arg.p_c_grid_,
+                                                  arg.BatchCount_,
+                                                  arg.a_grid_desc_k0_m_k1_,
+                                                  arg.b_grid_desc_k0_n_k1_,
+                                                  arg.a_grid_desc_k0_m_k1_tail_,
+                                                  arg.b_grid_desc_k0_n_k1_tail_,
+                                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                                  arg.a_element_op_,
+                                                  arg.b_element_op_,
+                                                  arg.c_element_op_,
+                                                  arg.compute_ptr_offset_of_batch_,
+                                                  arg.block_2_ctile_map_);
                 };
 
                 if(has_main_k0_block_loop && tail_has_main_k0_block_loop)
@@ -718,7 +719,6 @@ struct DeviceGemmXdlSplitK
                         true>;
 
                     ave_time = Run(kernel);
-
                 }
                 else if(has_main_k0_block_loop && !tail_has_main_k0_block_loop)
                 {
