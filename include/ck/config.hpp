@@ -15,7 +15,7 @@
 
 #ifdef CK_USE_LAUNCH_BOUNDS
 #define CK_MAX_THREAD_PER_BLOCK 256
-#define CK_MIN_BLOCK_PER_CU 2
+#define CK_MIN_BLOCK_PER_CU 1
 #endif
 
 // check GPU target
@@ -107,7 +107,7 @@
 
 // experimental feature: use __builtin_memcpy instead of pointer cast to access a vector from
 // pointer of scalar
-#define CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS 1
+#define CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS 0
 
 // experimental feature: use __builtin_memcpy instead of union to do bit_cast
 #define CK_EXPERIMENTAL_USE_MEMCPY_FOR_BIT_CAST 1
