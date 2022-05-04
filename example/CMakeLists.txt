@@ -23,7 +23,6 @@ function(add_example_executable EXAMPLE_NAME)
     message("adding example ${EXAMPLE_NAME}")
     add_executable(${EXAMPLE_NAME} ${ARGN})
     target_link_libraries(${EXAMPLE_NAME} PRIVATE host_tensor)
-    set_target_properties(${EXAMPLE_NAME} PROPERTIES EXCLUDE_FROM_ALL 1)
     add_dependencies(examples ${EXAMPLE_NAME})
 endfunction(add_example_executable EXAMPLE_NAME)
 
