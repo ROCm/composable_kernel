@@ -35,7 +35,7 @@ std::ostream& LogRangeAsType(std::ostream& os, Range&& range, std::string delim)
             first = false;
         else
             os << delim;
-        os << ck::type_convert<T>(v);
+        os << static_cast<T>(v);
     }
     return os;
 }

@@ -116,7 +116,6 @@ template <
     index_t NumPrefetch = 1>
 struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
 {
-    using LDSDataType        = typename TypeMap<FloatAB>::type;
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
@@ -217,7 +216,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                 .GetElementSpaceSize();
 
         return math::max((a_block_space_size_aligned + b_block_space_size_aligned) *
-                             sizeof(LDSDataType),
+                             sizeof(FloatAB),
                          c_block_size * sizeof(FloatCShuffle));
     }
 
@@ -422,7 +421,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                                               ABlockTransferThreadClusterLengths_AK0_M_AK1,
                                               ABlockTransferThreadClusterArrangeOrder,
                                               FloatAB,
-                                              LDSDataType,
+                                              FloatAB,
                                               decltype(a_grid_desc_ak0_m_ak1),
                                               decltype(a_block_desc_ak0_m_ak1),
                                               ABlockTransferSrcAccessOrder,
@@ -453,7 +452,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                                               BBlockTransferThreadClusterLengths_BK0_N_BK1,
                                               BBlockTransferThreadClusterArrangeOrder,
                                               FloatAB,
-                                              LDSDataType,
+                                              FloatAB,
                                               decltype(b_grid_desc_bk0_n_bk1),
                                               decltype(b_block_desc_bk0_n_bk1),
                                               BBlockTransferSrcAccessOrder,
@@ -481,13 +480,12 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
         //       register
         // sanity check
-        constexpr index_t k_pack =
-            math::max(math::lcm(AK1, BK1),
-                      MfmaSelector<LDSDataType, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+        constexpr index_t k_pack = math::max(
+            math::lcm(AK1, BK1), MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
-                                                                LDSDataType,
+                                                                FloatAB,
                                                                 FloatAcc,
                                                                 decltype(a_block_desc_ak0_m_ak1),
                                                                 decltype(b_block_desc_bk0_n_bk1),
@@ -504,10 +502,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
             a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<LDSDataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+            static_cast<FloatAB*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<LDSDataType*>(p_shared) + a_block_space_size_aligned,
+            static_cast<FloatAB*>(p_shared) + a_block_space_size_aligned,
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1, 0, 0);
