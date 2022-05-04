@@ -50,12 +50,12 @@ void profile_grouped_gemm_impl(int do_verification,
                                int init_method,
                                bool do_log,
                                int nrepeat,
-                               std::vector<int> Ms,
-                               std::vector<int> Ns,
-                               std::vector<int> Ks,
-                               std::vector<int> StrideAs,
-                               std::vector<int> StrideBs,
-                               std::vector<int> StrideCs)
+                               const std::vector<int>& Ms,
+                               const std::vector<int>& Ns,
+                               const std::vector<int>& Ks,
+                               const std::vector<int>& StrideAs,
+                               const std::vector<int>& StrideBs,
+                               const std::vector<int>& StrideCs)
 {
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
@@ -83,7 +83,7 @@ void profile_grouped_gemm_impl(int do_verification,
     std::vector<Tensor<BDataType>> b_k_n;
     std::vector<Tensor<CDataType>> c_m_n_device_results;
 
-    for(int i = 0; i < ck::type_convert<int>(Ms.size()); i++)
+    for(std::size_t i = 0; i < Ms.size(); i++)
     {
         a_m_k.push_back(
             Tensor<ADataType>(f_host_tensor_descriptor(Ms[i], Ks[i], StrideAs[i], ALayout{})));
@@ -144,7 +144,7 @@ void profile_grouped_gemm_impl(int do_verification,
 
     gemm_shapes.reserve(group_count);
 
-    for(int i = 0; i < ck::type_convert<int>(group_count); i++)
+    for(std::size_t i = 0; i < group_count; i++)
     {
         a_device_buf.emplace_back(
             std::make_unique<DeviceMem>(sizeof(ADataType) * a_m_k[i].mDesc.GetElementSpace()));
@@ -234,7 +234,7 @@ void profile_grouped_gemm_impl(int do_verification,
             float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
 
             std::size_t flop = 0, num_btype = 0;
-            for(int i = 0; i < ck::type_convert<int>(gemm_shapes.size()); i++)
+            for(std::size_t i = 0; i < gemm_shapes.size(); i++)
             {
                 flop += std::size_t(2) * Ms[i] * Ns[i] * Ks[i];
 
@@ -258,7 +258,7 @@ void profile_grouped_gemm_impl(int do_verification,
 
             if(do_verification)
             {
-                for(int i = 0; i < ck::type_convert<int>(gemm_shapes.size()); i++)
+                for(std::size_t i = 0; i < gemm_shapes.size(); i++)
                 {
 
                     c_device_buf[i]->FromDevice(c_m_n_device_results[i].mData.data());

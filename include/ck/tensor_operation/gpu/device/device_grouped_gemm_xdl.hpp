@@ -301,7 +301,7 @@ struct DeviceGroupedGemmXdl
 
             gemm_desc_kernel_arg_.reserve(group_count_);
 
-            for(index_t i = 0; i < ck::type_convert<index_t>(gemm_shapes.size()); i++)
+            for(std::size_t i = 0; i < gemm_shapes.size(); i++)
             {
                 const index_t M = gemm_shapes[i].M;
                 const index_t N = gemm_shapes[i].N;
