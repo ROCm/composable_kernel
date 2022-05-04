@@ -81,6 +81,20 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
     static constexpr auto K1Number     = Number<K1>{};
     static constexpr auto GemmK1Number = K1Number;
 
+    // Bytes per 32 lds bank: 32 * 4 bytes
+    static constexpr auto BankLength = 128;
+    static constexpr auto ElePerBank = BankLength / sizeof(ADataType);
+
+    // M1 & M0
+    static constexpr auto ABlockLdsM1PerBlock = ElePerBank / K1;
+    static constexpr auto ABlockLdsM0PerBlock = MPerBlock / ABlockLdsM1PerBlock;
+    static constexpr auto ABlockLdsM1Padding  = 4;
+
+    // N1 & N0
+    static constexpr auto BBlockLdsN1PerBlock = ElePerBank / K1;
+    static constexpr auto BBlockLdsN0PerBlock = NPerBlock / BBlockLdsN1PerBlock;
+    static constexpr auto BBlockLdsN1Padding  = 4;
+
     static auto
     MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(ck::index_t N,
                                                     ck::index_t K,
@@ -233,6 +247,9 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         ABlockTransferDstScalarPerVector_K1,
         false, // AThreadTransferSrcResetCoordinateAfterRun,
         ABlockLdsAddExtraM,
+        ABlockLdsM1PerBlock,
+        ABlockLdsM0PerBlock,
+        ABlockLdsM1Padding,
         BBlockTransferThreadClusterLengths_K0_N_K1,
         BBlockTransferThreadClusterArrangeOrder,
         BBlockTransferSrcAccessOrder,
@@ -241,6 +258,9 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         BBlockTransferDstScalarPerVector_K1,
         false, // BThreadTransferSrcResetCoordinateAfterRun,
         BBlockLdsAddExtraN,
+        BBlockLdsN1PerBlock,
+        BBlockLdsN0PerBlock,
+        BBlockLdsN1Padding,
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
         CBlockTransferScalarPerVector_NWaveNPerXdl,
@@ -276,6 +296,9 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         ABlockTransferDstScalarPerVector_K1,
         false, // AThreadTransferSrcResetCoordinateAfterRun,
         ABlockLdsAddExtraM,
+        ABlockLdsM1PerBlock,
+        ABlockLdsM0PerBlock,
+        ABlockLdsM1Padding,
         BBlockTransferThreadClusterLengths_K0_N_K1,
         BBlockTransferThreadClusterArrangeOrder,
         BBlockTransferSrcAccessOrder,
@@ -284,6 +307,9 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         BBlockTransferDstScalarPerVector_K1,
         false, // BThreadTransferSrcResetCoordinateAfterRun,
         BBlockLdsAddExtraN,
+        BBlockLdsN1PerBlock,
+        BBlockLdsN0PerBlock,
+        BBlockLdsN1Padding,
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
         CBlockTransferScalarPerVector_NWaveNPerXdl,
