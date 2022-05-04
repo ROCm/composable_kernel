@@ -62,10 +62,10 @@ struct BlockwiseTensorSliceTransfer_v6r3
                                element_op)
 
     {
-        static_assert(nDim == remove_reference_t<remove_cv_t<Src0Desc>>::GetNumOfDimension() &&
-                          nDim == remove_reference_t<remove_cv_t<Src1Desc>>::GetNumOfDimension() &&
-                          nDim == remove_reference_t<remove_cv_t<Src2Desc>>::GetNumOfDimension() &&
-                          nDim == remove_reference_t<remove_cv_t<DstDesc>>::GetNumOfDimension() &&
+        static_assert(nDim == remove_cvref_t<Src0Desc>::GetNumOfDimension() &&
+                          nDim == remove_cvref_t<Src1Desc>::GetNumOfDimension() &&
+                          nDim == remove_cvref_t<Src2Desc>::GetNumOfDimension() &&
+                          nDim == remove_cvref_t<DstDesc>::GetNumOfDimension() &&
                           nDim == ThreadClusterLengths::Size() &&
                           nDim == ThreadClusterArrangeOrder::Size() &&
                           nDim == DimAccessOrder::Size(),
