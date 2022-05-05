@@ -1,5 +1,5 @@
 
-#include "conv_fwd_util.hpp"
+#include "conv_util.hpp"
 
 namespace ck {
 namespace utils {
@@ -37,16 +37,16 @@ std::size_t get_flops(ck::index_t N,
 }
 
 ConvParams::ConvParams()
-    : num_dim_spatial(2),
-      N(128),
-      K(256),
-      C(192),
-      filter_spatial_lengths(2, 3),
-      input_spatial_lengths(2, 71),
-      conv_filter_strides(2, 2),
-      conv_filter_dilations(2, 1),
-      input_left_pads(2, 1),
-      input_right_pads(2, 1)
+    : num_dim_spatial_(2),
+      N_(128),
+      K_(256),
+      C_(192),
+      filter_spatial_lengths_(2, 3),
+      input_spatial_lengths_(2, 71),
+      conv_filter_strides_(2, 2),
+      conv_filter_dilations_(2, 1),
+      input_left_pads_(2, 1),
+      input_right_pads_(2, 1)
 {
 }
 
@@ -60,22 +60,22 @@ ConvParams::ConvParams(ck::index_t n_dim,
                        const std::vector<ck::index_t>& dilations,
                        const std::vector<ck::index_t>& left_pads,
                        const std::vector<ck::index_t>& right_pads)
-    : num_dim_spatial(n_dim),
-      N(n_batch),
-      K(n_out_channels),
-      C(n_in_channels),
-      filter_spatial_lengths(filters_len),
-      input_spatial_lengths(input_len),
-      conv_filter_strides(strides),
-      conv_filter_dilations(dilations),
-      input_left_pads(left_pads),
-      input_right_pads(right_pads)
+    : num_dim_spatial_(n_dim),
+      N_(n_batch),
+      K_(n_out_channels),
+      C_(n_in_channels),
+      filter_spatial_lengths_(filters_len),
+      input_spatial_lengths_(input_len),
+      conv_filter_strides_(strides),
+      conv_filter_dilations_(dilations),
+      input_left_pads_(left_pads),
+      input_right_pads_(right_pads)
 {
-    if(filter_spatial_lengths.size() != num_dim_spatial ||
-       input_spatial_lengths.size() != num_dim_spatial ||
-       conv_filter_strides.size() != num_dim_spatial ||
-       conv_filter_dilations.size() != num_dim_spatial ||
-       input_left_pads.size() != num_dim_spatial || input_right_pads.size() != num_dim_spatial)
+    if(filter_spatial_lengths_.size() != num_dim_spatial ||
+       input_spatial_lengths_.size() != num_dim_spatial ||
+       conv_filter_strides_.size() != num_dim_spatial ||
+       conv_filter_dilations_.size() != num_dim_spatial ||
+       input_left_pads_.size() != num_dim_spatial || input_right_pads_.size() != num_dim_spatial)
     {
         throw(
             std::runtime_error("ConvParams::GetOutputSpatialLengths: "
@@ -85,11 +85,11 @@ ConvParams::ConvParams(ck::index_t n_dim,
 
 std::vector<ck::index_t> ConvParams::GetOutputSpatialLengths() const
 {
-    if(filter_spatial_lengths.size() != num_dim_spatial ||
-       input_spatial_lengths.size() != num_dim_spatial ||
-       conv_filter_strides.size() != num_dim_spatial ||
-       conv_filter_dilations.size() != num_dim_spatial ||
-       input_left_pads.size() != num_dim_spatial || input_right_pads.size() != num_dim_spatial)
+    if(filter_spatial_lengths_.size() != num_dim_spatial ||
+       input_spatial_lengths_.size() != num_dim_spatial ||
+       conv_filter_strides_.size() != num_dim_spatial ||
+       conv_filter_dilations_.size() != num_dim_spatial ||
+       input_left_pads_.size() != num_dim_spatial || input_right_pads_.size() != num_dim_spatial)
     {
         throw(
             std::runtime_error("ConvParams::GetOutputSpatialLengths: "
@@ -101,10 +101,10 @@ std::vector<ck::index_t> ConvParams::GetOutputSpatialLengths() const
     {
         // XEff = (X - 1) * conv_dilation_w + 1;
         // Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
-        const ck::index_t idx_eff = (filter_spatial_lengths[i] - 1) * conv_filter_dilations[i] + 1;
-        out_spatial_len[i] =
-            (input_spatial_lengths[i] + input_left_pads[i] + input_right_pads[i] - idx_eff) /
-                conv_filter_strides[i] +
+        const ck::index_t idx_eff = (filter_spatial_lengths_[i] - 1) * conv_filter_dilations_[i] + 1;
+        out_spatial_len_[i] =
+            (input_spatial_lengths_[i] + input_left_pads_[i] + input_right_pads_[i] - idx_eff) /
+                conv_filter_strides_[i] +
             1;
     }
     return out_spatial_len;
@@ -114,40 +114,40 @@ ConvParams parse_conv_params(int num_dim_spatial, int arg_idx, char* const argv[
 {
     ck::utils::conv::ConvParams params;
 
-    params.num_dim_spatial = num_dim_spatial;
-    params.N               = std::stoi(argv[arg_idx++]);
-    params.K               = std::stoi(argv[arg_idx++]);
-    params.C               = std::stoi(argv[arg_idx++]);
+    params.num_dim_spatial_ = num_dim_spatial;
+    params.N_               = std::stoi(argv[arg_idx++]);
+    params.K_               = std::stoi(argv[arg_idx++]);
+    params.C_               = std::stoi(argv[arg_idx++]);
 
-    params.filter_spatial_lengths.resize(num_dim_spatial);
+    params.filter_spatial_lengths_.resize(num_dim_spatial);
     for(int i = 0; i < num_dim_spatial; ++i)
     {
-        params.filter_spatial_lengths[i] = std::stoi(argv[arg_idx++]);
+        params.filter_spatial_lengths_[i] = std::stoi(argv[arg_idx++]);
     }
-    params.input_spatial_lengths.resize(num_dim_spatial);
+    params.input_spatial_lengths_.resize(num_dim_spatial);
     for(int i = 0; i < num_dim_spatial; ++i)
     {
-        params.input_spatial_lengths[i] = std::stoi(argv[arg_idx++]);
+        params.input_spatial_lengths_[i] = std::stoi(argv[arg_idx++]);
     }
-    params.conv_filter_strides.resize(num_dim_spatial);
+    params.conv_filter_strides_.resize(num_dim_spatial);
     for(int i = 0; i < num_dim_spatial; ++i)
     {
-        params.conv_filter_strides[i] = std::stoi(argv[arg_idx++]);
+        params.conv_filter_strides_[i] = std::stoi(argv[arg_idx++]);
     }
-    params.conv_filter_dilations.resize(num_dim_spatial);
+    params.conv_filter_dilations_.resize(num_dim_spatial);
     for(int i = 0; i < num_dim_spatial; ++i)
     {
-        params.conv_filter_dilations[i] = std::stoi(argv[arg_idx++]);
+        params.conv_filter_dilations_[i] = std::stoi(argv[arg_idx++]);
     }
-    params.input_left_pads.resize(num_dim_spatial);
+    params.input_left_pads_.resize(num_dim_spatial);
     for(int i = 0; i < num_dim_spatial; ++i)
     {
-        params.input_left_pads[i] = std::stoi(argv[arg_idx++]);
+        params.input_left_pads_[i] = std::stoi(argv[arg_idx++]);
     }
-    params.input_right_pads.resize(num_dim_spatial);
+    params.input_right_pads_.resize(num_dim_spatial);
     for(int i = 0; i < num_dim_spatial; ++i)
     {
-        params.input_right_pads[i] = std::stoi(argv[arg_idx++]);
+        params.input_right_pads_[i] = std::stoi(argv[arg_idx++]);
     }
 
     return params;
@@ -226,12 +226,12 @@ HostTensorDescriptor get_input_host_tensor_descriptor(const std::vector<std::siz
 std::ostream& operator<<(std::ostream& os, const ck::utils::conv::ConvParams& p)
 {
     os << "ConvParams {"
-       << "\nnum_dim_spatial: " << p.num_dim_spatial << "\nN: " << p.N << "\nK: " << p.K
-       << "\nC: " << p.C << "\nfilter_spatial_lengths: " << p.filter_spatial_lengths
-       << "\ninput_spatial_lengths: " << p.input_spatial_lengths
-       << "\nconv_filter_strides: " << p.conv_filter_strides
-       << "\nconv_filter_dilations: " << p.conv_filter_dilations
-       << "\ninput_left_pads: " << p.input_left_pads
-       << "\ninput_right_pads: " << p.input_right_pads;
+       << "\nnum_dim_spatial: " << p.num_dim_spatial_ << "\nN: " << p.N_ << "\nK: " << p.K_
+       << "\nC: " << p.C_ << "\nfilter_spatial_lengths: " << p.filter_spatial_lengths_
+       << "\ninput_spatial_lengths: " << p.input_spatial_lengths_
+       << "\nconv_filter_strides: " << p.conv_filter_strides_
+       << "\nconv_filter_dilations: " << p.conv_filter_dilations_
+       << "\ninput_left_pads: " << p.input_left_pads_
+       << "\ninput_right_pads: " << p.input_right_pads_;
     return os;
 }
