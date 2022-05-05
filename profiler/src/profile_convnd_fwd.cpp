@@ -5,7 +5,7 @@
 #include <vector>
 #include <half.hpp>
 
-#include "conv_fwd_util.hpp"
+#include "conv_util.hpp"
 #include "element_wise_operation.hpp"
 #include "fill.hpp"
 #include "profile_convnd_fwd.hpp"

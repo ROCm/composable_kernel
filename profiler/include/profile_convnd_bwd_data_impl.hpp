@@ -1,7 +1,7 @@
 #pragma once
 #include "config.hpp"
 #include "device.hpp"
-#include "conv_fwd_util.hpp"
+#include "conv_util.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
 #include "tensor_layout.hpp"

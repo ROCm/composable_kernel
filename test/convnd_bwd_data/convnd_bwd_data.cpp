@@ -13,9 +13,9 @@ int main()
     bool pass = true;
     // check 1d
     std::vector<ck::utils::conv::ConvParams> params;
-    params.push_back({1, 128, 128, 256, {1}, {14}, {2}, {1}, {0}, {0}});
-    params.push_back({1, 128, 128, 256, {3}, {28}, {1}, {1}, {1}, {1}});
-    params.push_back({1, 128, 128, 256, {1}, {3}, {1}, {1}, {0}, {0}});
+    params.push_back_({1, 128, 128, 256, {1}, {14}, {2}, {1}, {0}, {0}});
+    params.push_back_({1, 128, 128, 256, {3}, {28}, {1}, {1}, {1}, {1}});
+    params.push_back_({1, 128, 128, 256, {1}, {3}, {1}, {1}, {0}, {0}});
 
     for(auto& param : params)
     {
@@ -113,10 +113,10 @@ int main()
     }
 
     // check 2d
-    params.clear();
-    params.push_back({2, 128, 128, 256, {1, 1}, {7, 7}, {2, 2}, {1, 1}, {0, 0}, {0, 0}});
-    params.push_back({2, 128, 128, 256, {3, 3}, {14, 14}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
-    params.push_back({2, 128, 128, 256, {1, 1}, {3, 3}, {1, 1}, {1, 1}, {0, 0}, {0, 0}});
+    params.clear_();
+    params.push_back_({2, 128, 128, 256, {1, 1}, {7, 7}, {2, 2}, {1, 1}, {0, 0}, {0, 0}});
+    params.push_back_({2, 128, 128, 256, {3, 3}, {14, 14}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
+    params.push_back_({2, 128, 128, 256, {1, 1}, {3, 3}, {1, 1}, {1, 1}, {0, 0}, {0, 0}});
 
     for(auto& param : params)
     {
@@ -214,12 +214,12 @@ int main()
     }
 
     // check 3d
-    params.clear();
-    params.push_back(
+    params.clear_();
+    params.push_back_(
         {3, 128, 128, 256, {1, 1, 1}, {7, 7, 7}, {2, 2, 2}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
-    params.push_back(
+    params.push_back_(
         {3, 128, 128, 256, {3, 3, 3}, {14, 14, 14}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
-    params.push_back(
+    params.push_back_(
         {3, 128, 128, 256, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
 
     for(auto& param : params)
