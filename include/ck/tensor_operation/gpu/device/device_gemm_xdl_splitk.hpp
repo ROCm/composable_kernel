@@ -29,8 +29,6 @@ template <typename GridwiseGemm,
           typename FloatC,
           typename AGridDesc_K0_M_K1,
           typename BGridDesc_K0_N_K1,
-          typename AGridDesc_K0_M_K1_Tail,
-          typename BGridDesc_K0_N_K1_Tail,
           typename CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
@@ -50,8 +48,8 @@ __global__ void
             const index_t batch_count,
             const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
             const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
-            const AGridDesc_K0_M_K1_Tail a_grid_desc_k0_m_k1_tail,
-            const BGridDesc_K0_N_K1_Tail b_grid_desc_k0_n_k1_tail,
+            const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_tail,
+            const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_tail,
             const CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
@@ -173,7 +171,7 @@ struct DeviceGemmXdlSplitK
         return std::make_pair(actual_batch, KSplitted);
     }
 
-    static auto MakeAGridDescriptor_K0_M_K1_Tail(index_t M, index_t K, index_t StrideA)
+    static auto MakeAGridDescriptor_K0_M_K1(index_t M, index_t K, index_t StrideA)
     {
         const index_t KPadded = math::integer_divide_ceil(K, K1 * K0PerBlock) * K1 * K0PerBlock;
         const index_t K0      = KPadded / K1;
@@ -217,7 +215,7 @@ struct DeviceGemmXdlSplitK
         }
     }
 
-    static auto MakeBGridDescriptor_K0_N_K1_Tail(index_t K, index_t N, index_t StrideB)
+    static auto MakeBGridDescriptor_K0_N_K1(index_t K, index_t N, index_t StrideB)
     {
         const index_t KPadded = math::integer_divide_ceil(K, K1 * K0PerBlock) * K1 * K0PerBlock;
 
@@ -262,87 +260,6 @@ struct DeviceGemmXdlSplitK
         }
     }
 
-    static auto MakeAGridDescriptor_K0_M_K1(index_t M, index_t K, index_t StrideA)
-    {
-        // return MakeAGridDescriptor_K0_M_K1_Tail(M, K, StrideA);
-
-        assert(K % (K1 * K0PerBlock) == 0);
-
-        const index_t K0 = K / K1;
-
-        const auto a_grid_desc_m_k = [&]() {
-            if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(M, K), make_tuple(StrideA, I1));
-            }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ALayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(M, K), make_tuple(I1, StrideA));
-            }
-        }();
-
-        if constexpr(GemmSpec == GemmSpecialization::MNPadding)
-        {
-            const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
-
-            return transform_tensor_descriptor(
-                a_grid_desc_m_k,
-                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                           make_right_pad_transform(M, PadM)),
-                make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-        }
-        else
-        {
-            return transform_tensor_descriptor(
-                a_grid_desc_m_k,
-                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                           make_pass_through_transform(M)),
-                make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-        }
-    }
-
-    static auto MakeBGridDescriptor_K0_N_K1(index_t K, index_t N, index_t StrideB)
-    {
-        // return MakeBGridDescriptor_K0_N_K1_Tail(K, N, StrideB);
-        assert(K % (K1 * K0PerBlock) == 0);
-
-        const index_t K0 = K / K1;
-
-        const auto b_grid_desc_k_n = [&]() {
-            if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(K, N), make_tuple(StrideB, I1));
-            }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(K, N), make_tuple(I1, StrideB));
-            }
-        }();
-
-        if constexpr(GemmSpec == GemmSpecialization::MNPadding)
-        {
-            const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
-
-            return transform_tensor_descriptor(
-                b_grid_desc_k_n,
-                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                           make_right_pad_transform(N, PadN)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-        }
-        else
-        {
-            return transform_tensor_descriptor(
-                b_grid_desc_k_n,
-                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                           make_pass_through_transform(N)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-        }
-    }
-
     static auto MakeCGridDescriptor_M_N(index_t M, index_t N, index_t StrideC)
     {
         const auto c_grid_desc_m_n = [&]() {
@@ -378,11 +295,9 @@ struct DeviceGemmXdlSplitK
         }
     }
 
-    using AGridDesc_K0_M_K1      = decltype(MakeAGridDescriptor_K0_M_K1(1, 1, 1));
-    using BGridDesc_K0_N_K1      = decltype(MakeBGridDescriptor_K0_N_K1(1, 1, 1));
-    using AGridDesc_K0_M_K1_Tail = decltype(MakeAGridDescriptor_K0_M_K1_Tail(1, 1, 1));
-    using BGridDesc_K0_N_K1_Tail = decltype(MakeBGridDescriptor_K0_N_K1_Tail(1, 1, 1));
-    using CGridDesc_M_N          = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
+    using AGridDesc_K0_M_K1 = decltype(MakeAGridDescriptor_K0_M_K1(1, 1, 1));
+    using BGridDesc_K0_N_K1 = decltype(MakeBGridDescriptor_K0_N_K1(1, 1, 1));
+    using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     static constexpr auto MakeBlock2CTileMap(index_t batch_count,
                                              const CGridDesc_M_N& c_grid_desc_m_n,
@@ -543,9 +458,9 @@ struct DeviceGemmXdlSplitK
                 has_tail_        = true;
                 const auto KTail = K - KSplitted * (BatchCount_ - 1);
                 a_grid_desc_k0_m_k1_tail_ =
-                    DeviceGemmXdlSplitK::MakeAGridDescriptor_K0_M_K1_Tail(M, KTail, StrideA);
+                    DeviceGemmXdlSplitK::MakeAGridDescriptor_K0_M_K1(M, KTail, StrideA);
                 b_grid_desc_k0_n_k1_tail_ =
-                    DeviceGemmXdlSplitK::MakeBGridDescriptor_K0_N_K1_Tail(KTail, N, StrideB);
+                    DeviceGemmXdlSplitK::MakeBGridDescriptor_K0_N_K1(KTail, N, StrideB);
 
                 is_valid &= GridwiseGemm::CheckValidity(a_grid_desc_k0_m_k1_tail_,
                                                         b_grid_desc_k0_n_k1_tail_,
@@ -597,8 +512,8 @@ struct DeviceGemmXdlSplitK
         bool has_tail_;
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
-        AGridDesc_K0_M_K1_Tail a_grid_desc_k0_m_k1_tail_;
-        BGridDesc_K0_N_K1_Tail b_grid_desc_k0_n_k1_tail_;
+        AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_tail_;
+        BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_tail_;
         CGridDesc_M_N c_grid_desc_m_n_;
         CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
         ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch_;
@@ -707,8 +622,6 @@ struct DeviceGemmXdlSplitK
                         CDataType,
                         remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1>,
                         remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1>,
-                        remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1_Tail>,
-                        remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1_Tail>,
                         remove_reference_t<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                         AElementwiseOperation,
                         BElementwiseOperation,
@@ -728,8 +641,6 @@ struct DeviceGemmXdlSplitK
                         CDataType,
                         remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1>,
                         remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1>,
-                        remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1_Tail>,
-                        remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1_Tail>,
                         remove_reference_t<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                         AElementwiseOperation,
                         BElementwiseOperation,
@@ -749,8 +660,6 @@ struct DeviceGemmXdlSplitK
                         CDataType,
                         remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1>,
                         remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1>,
-                        remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1_Tail>,
-                        remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1_Tail>,
                         remove_reference_t<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                         AElementwiseOperation,
                         BElementwiseOperation,
@@ -770,8 +679,6 @@ struct DeviceGemmXdlSplitK
                         CDataType,
                         remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1>,
                         remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1>,
-                        remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1_Tail>,
-                        remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1_Tail>,
                         remove_reference_t<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                         AElementwiseOperation,
                         BElementwiseOperation,

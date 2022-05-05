@@ -33,8 +33,6 @@ template <typename GridwiseGemm,
           typename CElementwiseOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
-          typename AGridDesc_AK0_M_AK1_Tail,
-          typename BGridDesc_BK0_N_BK1_Tail,
           typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
           typename ComputePtrOffsetOfBatch,
           typename Block2CTileMap,
@@ -54,8 +52,8 @@ __global__ void
             const CElementwiseOperation c_element_op,
             const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-            const AGridDesc_AK0_M_AK1_Tail a_grid_desc_ak0_m_ak1_tail,
-            const BGridDesc_BK0_N_BK1_Tail b_grid_desc_bk0_n_bk1_tail,
+            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_tail,
+            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_tail,
             const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
                 c_grid_desc_mblock_mperblock_nblock_nperblock,
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
@@ -183,118 +181,7 @@ struct DeviceGemmXdlSplitKCShuffle
         return std::make_pair(actual_batch, KSplitted);
     }
 
-    template <bool IsTail>
-    static auto MakeAGridDescriptor_AK0_M_AK1(index_t MRaw, index_t KRaw, index_t StrideA);
-    template <bool IsTail>
-    static auto MakeBGridDescriptor_BK0_N_BK1(index_t KRaw, index_t NRaw, index_t StrideB);
-
-    /*
-     * No padding in K
-     */
-    template <>
-    static auto MakeAGridDescriptor_AK0_M_AK1<false>(index_t MRaw, index_t K, index_t StrideA)
-    {
-        // return MakeAGridDescriptor_AK0_M_AK1<true>(MRaw, K, StrideA);
-        assert(K % KPerBlock == 0);
-        assert(K % AK1 == 0);
-
-        const auto a_grid_desc_mraw_k = [&]() {
-            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
-            {
-                return make_naive_tensor_descriptor(make_tuple(MRaw, K), make_tuple(StrideA, I1));
-            }
-            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
-            {
-                return make_naive_tensor_descriptor(make_tuple(MRaw, K), make_tuple(I1, StrideA));
-            }
-        }();
-
-        const auto M = math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
-
-        const auto MPad = M - MRaw;
-        const auto AK0  = K / AK1;
-
-        if constexpr(GemmSpec == GemmSpecialization::MPadding ||
-                     GemmSpec == GemmSpecialization::MKPadding ||
-                     GemmSpec == GemmSpecialization::MNKPadding)
-        {
-            // pad M, but not K
-            const auto a_grid_desc_ak0_m_ak1 =
-                transform_tensor_descriptor(a_grid_desc_mraw_k,
-                                            make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
-                                                       make_right_pad_transform(MRaw, MPad)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return a_grid_desc_ak0_m_ak1;
-        }
-        else
-        {
-            // not pad M or K
-            const auto a_grid_desc_ak0_m_ak1 =
-                transform_tensor_descriptor(a_grid_desc_mraw_k,
-                                            make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
-                                                       make_pass_through_transform(MRaw)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return a_grid_desc_ak0_m_ak1;
-        }
-    }
-
-    template <>
-    static auto MakeBGridDescriptor_BK0_N_BK1<false>(index_t K, index_t NRaw, index_t StrideB)
-    {
-        // return MakeBGridDescriptor_BK0_N_BK1<true>(K, NRaw, StrideB);
-        assert(K % KPerBlock == 0);
-        assert(K % BK1 == 0);
-
-        const auto b_grid_desc_nraw_k = [&]() {
-            if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(NRaw, K), make_tuple(I1, StrideB));
-            }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(NRaw, K), make_tuple(StrideB, I1));
-            }
-        }();
-
-        const auto N = math::integer_divide_ceil(NRaw, NPerBlock) * NPerBlock;
-
-        const auto NPad = N - NRaw;
-        const auto BK0  = K / BK1;
-
-        if constexpr(GemmSpec == GemmSpecialization::NPadding ||
-                     GemmSpec == GemmSpecialization::NKPadding ||
-                     GemmSpec == GemmSpecialization::MNKPadding)
-        {
-            // pad N, but not K
-            const auto b_grid_desc_bk0_n_bk1 =
-                transform_tensor_descriptor(b_grid_desc_nraw_k,
-                                            make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
-                                                       make_right_pad_transform(NRaw, NPad)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return b_grid_desc_bk0_n_bk1;
-        }
-        else
-        {
-            // not pad N or K
-            const auto b_grid_desc_bk0_n_bk1 =
-                transform_tensor_descriptor(b_grid_desc_nraw_k,
-                                            make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
-                                                       make_pass_through_transform(NRaw)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return b_grid_desc_bk0_n_bk1;
-        }
-    }
-
-    template <>
-    static auto MakeAGridDescriptor_AK0_M_AK1<true>(index_t MRaw, index_t KRaw, index_t StrideA)
+    static auto MakeAGridDescriptor_AK0_M_AK1(index_t MRaw, index_t KRaw, index_t StrideA)
     {
         const auto a_grid_desc_mraw_kraw = [&]() {
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
@@ -359,8 +246,7 @@ struct DeviceGemmXdlSplitKCShuffle
         }
     }
 
-    template <>
-    static auto MakeBGridDescriptor_BK0_N_BK1<true>(index_t KRaw, index_t NRaw, index_t StrideB)
+    static auto MakeBGridDescriptor_BK0_N_BK1(index_t KRaw, index_t NRaw, index_t StrideB)
     {
         const auto b_grid_desc_nraw_kraw = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
@@ -481,11 +367,9 @@ struct DeviceGemmXdlSplitKCShuffle
         }
     }
 
-    using AGridDesc_AK0_M_AK1      = decltype(MakeAGridDescriptor_AK0_M_AK1<false>(1, 1, 1));
-    using BGridDesc_BK0_N_BK1      = decltype(MakeBGridDescriptor_BK0_N_BK1<false>(1, 1, 1));
-    using AGridDesc_AK0_M_AK1_Tail = decltype(MakeAGridDescriptor_AK0_M_AK1<true>(1, 1, 1));
-    using BGridDesc_BK0_N_BK1_Tail = decltype(MakeBGridDescriptor_BK0_N_BK1<true>(1, 1, 1));
-    using CGridDesc_M_N            = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
+    using AGridDesc_AK0_M_AK1 = decltype(MakeAGridDescriptor_AK0_M_AK1(1, 1, 1));
+    using BGridDesc_BK0_N_BK1 = decltype(MakeBGridDescriptor_BK0_N_BK1(1, 1, 1));
+    using CGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     struct ComputePtrOffsetOfStridedBatch
     {
@@ -598,9 +482,9 @@ struct DeviceGemmXdlSplitKCShuffle
             const auto BKSplitted = actual_batch_and_ksplitted_B.second;
 
             a_grid_desc_ak0_m_ak1_ =
-                DeviceOp::MakeAGridDescriptor_AK0_M_AK1<false>(MRaw, AKSplitted, StrideA);
+                DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, AKSplitted, StrideA);
             b_grid_desc_bk0_n_bk1_ =
-                DeviceOp::MakeBGridDescriptor_BK0_N_BK1<false>(BKSplitted, NRaw, StrideB);
+                DeviceOp::MakeBGridDescriptor_BK0_N_BK1(BKSplitted, NRaw, StrideB);
             c_grid_desc_m_n_ = DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC);
 
             is_valid_ = GridwiseGemm::CheckValidity(
@@ -613,9 +497,9 @@ struct DeviceGemmXdlSplitKCShuffle
                 const auto BKTail = KRaw - BKSplitted * (BatchCount_ - 1);
 
                 a_grid_desc_ak0_m_ak1_tail_ =
-                    DeviceOp::MakeAGridDescriptor_AK0_M_AK1<true>(MRaw, AKTail, StrideA);
+                    DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, AKTail, StrideA);
                 b_grid_desc_bk0_n_bk1_tail_ =
-                    DeviceOp::MakeBGridDescriptor_BK0_N_BK1<true>(BKTail, NRaw, StrideB);
+                    DeviceOp::MakeBGridDescriptor_BK0_N_BK1(BKTail, NRaw, StrideB);
 
                 is_valid_ &= GridwiseGemm::CheckValidity(
                     a_grid_desc_ak0_m_ak1_tail_, b_grid_desc_bk0_n_bk1_tail_, c_grid_desc_m_n_);
@@ -668,8 +552,8 @@ struct DeviceGemmXdlSplitKCShuffle
         bool is_valid_;
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
-        AGridDesc_AK0_M_AK1_Tail a_grid_desc_ak0_m_ak1_tail_;
-        BGridDesc_BK0_N_BK1_Tail b_grid_desc_bk0_n_bk1_tail_;
+        AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_tail_;
+        BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_tail_;
         CGridDesc_M_N c_grid_desc_m_n_;
         CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
@@ -796,8 +680,6 @@ struct DeviceGemmXdlSplitKCShuffle
                         CElementwiseOperation,
                         DeviceOp::AGridDesc_AK0_M_AK1,
                         DeviceOp::BGridDesc_BK0_N_BK1,
-                        DeviceOp::AGridDesc_AK0_M_AK1_Tail,
-                        DeviceOp::BGridDesc_BK0_N_BK1_Tail,
                         CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                         ComputePtrOffsetOfStridedBatch,
                         Block2CTileMap,
@@ -817,8 +699,6 @@ struct DeviceGemmXdlSplitKCShuffle
                         CElementwiseOperation,
                         DeviceOp::AGridDesc_AK0_M_AK1,
                         DeviceOp::BGridDesc_BK0_N_BK1,
-                        DeviceOp::AGridDesc_AK0_M_AK1_Tail,
-                        DeviceOp::BGridDesc_BK0_N_BK1_Tail,
                         CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                         ComputePtrOffsetOfStridedBatch,
                         Block2CTileMap,
@@ -838,8 +718,6 @@ struct DeviceGemmXdlSplitKCShuffle
                         CElementwiseOperation,
                         DeviceOp::AGridDesc_AK0_M_AK1,
                         DeviceOp::BGridDesc_BK0_N_BK1,
-                        DeviceOp::AGridDesc_AK0_M_AK1_Tail,
-                        DeviceOp::BGridDesc_BK0_N_BK1_Tail,
                         CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                         ComputePtrOffsetOfStridedBatch,
                         Block2CTileMap,
@@ -859,8 +737,6 @@ struct DeviceGemmXdlSplitKCShuffle
                         CElementwiseOperation,
                         DeviceOp::AGridDesc_AK0_M_AK1,
                         DeviceOp::BGridDesc_BK0_N_BK1,
-                        DeviceOp::AGridDesc_AK0_M_AK1_Tail,
-                        DeviceOp::BGridDesc_BK0_N_BK1_Tail,
                         CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                         ComputePtrOffsetOfStridedBatch,
                         Block2CTileMap,
