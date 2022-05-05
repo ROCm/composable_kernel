@@ -101,7 +101,8 @@ std::vector<ck::index_t> ConvParams::GetOutputSpatialLengths() const
     {
         // XEff = (X - 1) * conv_dilation_w + 1;
         // Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
-        const ck::index_t idx_eff = (filter_spatial_lengths_[i] - 1) * conv_filter_dilations_[i] + 1;
+        const ck::index_t idx_eff =
+            (filter_spatial_lengths_[i] - 1) * conv_filter_dilations_[i] + 1;
         out_spatial_len_[i] =
             (input_spatial_lengths_[i] + input_left_pads_[i] + input_right_pads_[i] - idx_eff) /
                 conv_filter_strides_[i] +
