@@ -13,6 +13,15 @@ enum struct LoopScheduler
     Interwave,
 };
 
+constexpr LoopScheduler make_default_loop_scheduler()
+{
+#if CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING
+    return LoopScheduler::Interwave;
+#else
+    return LoopScheduler::Default;
+#endif // if CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING
+}
+
 enum struct MfmaInstr
 {
     mfma_f32_32x32x1xf32 = 0,

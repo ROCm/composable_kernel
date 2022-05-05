@@ -66,7 +66,7 @@ template <typename ALayout,
           typename CReduceThreadClusterLengths_MPerBlock_NPerBlock,
           index_t CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
           index_t CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock,
-          LoopScheduler LoopSched = LoopScheduler::Interwave>
+          LoopScheduler LoopSched = make_default_loop_scheduler()>
 struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOperation,
                                                                BElementwiseOperation,
                                                                CElementwiseOperation,

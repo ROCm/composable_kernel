@@ -135,7 +135,7 @@ template <typename FloatAB,
           typename CReduceThreadClusterLengths_MPerBlock_NPerBlock,
           index_t CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
           index_t CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock,
-          LoopScheduler LoopSched = LoopScheduler::Default>
+          LoopScheduler LoopSched>
 struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 {
     static constexpr auto I0 = Number<0>{};
