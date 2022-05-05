@@ -83,7 +83,7 @@ void profile_grouped_gemm_impl(int do_verification,
     std::vector<Tensor<BDataType>> b_k_n;
     std::vector<Tensor<CDataType>> c_m_n_device_results;
 
-    for(std::size_t i = 0; i < Ms.size(); i++)
+    for(std::size_t i = 0; i < group_count; i++)
     {
         a_m_k.push_back(
             Tensor<ADataType>(f_host_tensor_descriptor(Ms[i], Ks[i], StrideAs[i], ALayout{})));
