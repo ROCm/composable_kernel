@@ -237,7 +237,6 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/library/include
 )
 
-include(googletest)
 
 SET(BUILD_DEV ON CACHE BOOL "BUILD_DEV")
 if(BUILD_DEV)
@@ -248,7 +247,7 @@ message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 
 add_subdirectory(library)
 add_subdirectory(example)
-add_subdirectory(test)
+add_subdirectory(test EXCLUDE_FROM_ALL)
 add_subdirectory(profiler)
 
 #Create an interface target for the include only files and call it "composablekernels"

@@ -21,6 +21,8 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/external/include/half
 )
 
+include(googletest)
+
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
 add_custom_target(tests)
 
