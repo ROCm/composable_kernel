@@ -79,22 +79,25 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
                                   ck::type_convert<ck::long_index_t>(arg.in_left_pads_[I0]);
                         for(std::size_t wo = 0; wo < arg.out_n_k_ho_wo_.mDesc.GetLengths()[3]; ++wo)
                         {
-                            auto wi = ck::type_convert<ck::long_index_t>(wo * arg.conv_strides_[I1]) +
-                                      ck::type_convert<ck::long_index_t>(x * arg.conv_dilations_[I1]) -
-                                      ck::type_convert<ck::long_index_t>(arg.in_left_pads_[I1]);
+                            auto wi =
+                                ck::type_convert<ck::long_index_t>(wo * arg.conv_strides_[I1]) +
+                                ck::type_convert<ck::long_index_t>(x * arg.conv_dilations_[I1]) -
+                                ck::type_convert<ck::long_index_t>(arg.in_left_pads_[I1]);
                             if(hi >= 0 &&
-                               ck::type_convert<std::size_t>(hi) < arg.in_n_c_hi_wi_.mDesc.GetLengths()[2] &&
+                               ck::type_convert<std::size_t>(hi) <
+                                   arg.in_n_c_hi_wi_.mDesc.GetLengths()[2] &&
                                wi >= 0 &&
-                               ck::type_convert<std::size_t>(wi) < arg.in_n_c_hi_wi_.mDesc.GetLengths()[3])
+                               ck::type_convert<std::size_t>(wi) <
+                                   arg.in_n_c_hi_wi_.mDesc.GetLengths()[3])
                             {
                                 float v_out;
                                 float v_in;
 
                                 arg.out_element_op_(
-                                    v_out,
-                                    ck::type_convert<float>(arg.out_n_k_ho_wo_(n, k, ho, wo)));
+                                          v_out,
+                                          ck::type_convert<float>(arg.out_n_k_ho_wo_(n, k, ho, wo)));
                                 arg.in_element_op_(
-                                    v_in, ck::type_convert<float>(arg.in_n_c_hi_wi_(n, c, hi, wi)));
+                                          v_in, ck::type_convert<float>(arg.in_n_c_hi_wi_(n, c, hi, wi)));
 
                                 v_acc += v_out * v_in;
                             }

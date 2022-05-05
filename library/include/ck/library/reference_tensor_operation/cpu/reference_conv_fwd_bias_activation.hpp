@@ -82,13 +82,16 @@ struct ReferenceConvFwd_Bias_Activation : public device::BaseOperator
                                   ck::type_convert<ck::long_index_t>(arg.in_left_pads_[0]);
                         for(std::size_t x = 0; x < arg.wei_k_c_y_x_.mDesc.GetLengths()[3]; ++x)
                         {
-                            auto wi = ck::type_convert<ck::long_index_t>(wo * arg.conv_strides_[1]) +
-                                      ck::type_convert<ck::long_index_t>(x * arg.conv_dilations_[1]) -
-                                      ck::type_convert<ck::long_index_t>(arg.in_left_pads_[1]);
+                            auto wi =
+                                ck::type_convert<ck::long_index_t>(wo * arg.conv_strides_[1]) +
+                                ck::type_convert<ck::long_index_t>(x * arg.conv_dilations_[1]) -
+                                ck::type_convert<ck::long_index_t>(arg.in_left_pads_[1]);
                             if(hi >= 0 &&
-                               ck::type_convert<std::size_t>(hi) < arg.in_n_c_hi_wi_.mDesc.GetLengths()[2] &&
+                               ck::type_convert<std::size_t>(hi) <
+                                   arg.in_n_c_hi_wi_.mDesc.GetLengths()[2] &&
                                wi >= 0 &&
-                               ck::type_convert<std::size_t>(wi) < arg.in_n_c_hi_wi_.mDesc.GetLengths()[3])
+                               ck::type_convert<std::size_t>(wi) <
+                                   arg.in_n_c_hi_wi_.mDesc.GetLengths()[3])
                             {
                                 float v_in;
                                 float v_wei;
