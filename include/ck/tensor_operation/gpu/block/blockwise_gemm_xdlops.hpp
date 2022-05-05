@@ -339,6 +339,10 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     BThreadCopy b_thread_copy_{CalculateBThreadOriginDataIndex()};
 };
 
+// Note: To facilitate the inter-wave loop scheduler, we need to explicitly set the macro
+// CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING=1 as a few intrinsics are not yet available in
+// the latest ROCm release. For unsupported compilers, inter-wave loop scheduler falls back to the
+// default loop scheduler which is given by the macro CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING=0
 template <index_t BlockSize,
           typename FloatAB,
           typename FloatAcc,
@@ -374,10 +378,6 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                                                      KPack>;
 
 #if CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING
-    /// Note: we need to explicitly enable CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING because some
-    /// features are not yet available in latest ROCm release. If
-    /// CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING is disabled but LoopScheduler is Interwave, fall back
-    /// to default loop scheduler to avoid compilation error
     using Base::a_block_desc_m0_m1_m2_k;
     using Base::A_K1;
     using Base::b_block_desc_n0_n1_n2_k;
@@ -424,9 +424,12 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                    b_thread_buf);
             });
             __builtin_amdgcn_sched_barrier();
-            // NOTE: sync thread at the start of each MAC cluster except for the first MAC cluster
-            // we want waves in a workgroup in sync to prevent waves from other workgroups hijacking
-            // MAC resource
+            // NOTE: Synchronize threads in a workgroup at the start of each MAC cluster, but except
+            // the first, as we can shorten non-MAC cluster a bit and there's no observable negative
+            // impact. The desired effect is waves in a workgroup executing MAC in sync. This avoids
+            // some out-of-sync waves hijacking MAC resource from other workgroups and reducing the
+            // chance of latency hiding by waiting for the rest of the workgroup at the eventual
+            // sync point.
             if constexpr(k.value != 0 || KPerInnerLoop == KPerThread)
             {
                 asm volatile("s_barrier" ::);
