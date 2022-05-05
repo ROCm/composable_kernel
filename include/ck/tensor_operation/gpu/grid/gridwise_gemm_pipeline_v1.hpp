@@ -276,22 +276,21 @@ struct GridwiseGemmPipelineInterwave_v1<1>
               typename BBlockTransferStep,
               typename BlockwiseGemm,
               typename CThreadBuffer>
-    static __device__ void
-    Run(const AGridDesc& a_grid_desc,
-        const ABlockDesc& a_block_desc,
-        ABlockTransfer& a_blockwise_copy,
-        const AGridBuffer& a_grid_buf,
-        ABlockBuffer& a_block_buf,
-        const ABlockTransferStep& a_block_copy_step,
-        const BGridDesc& b_grid_desc,
-        const BBlockDesc& b_block_desc,
-        BBlockTransfer& b_blockwise_copy,
-        const BGridBuffer& b_grid_buf,
-        BBlockBuffer& b_block_buf,
-        const BBlockTransferStep& b_block_copy_step,
-        const BlockwiseGemm& blockwise_gemm,
-        CThreadBuffer& c_thread_buf,
-        index_t num_loop)
+    static __device__ void Run(const AGridDesc& a_grid_desc,
+                               const ABlockDesc& a_block_desc,
+                               ABlockTransfer& a_blockwise_copy,
+                               const AGridBuffer& a_grid_buf,
+                               ABlockBuffer& a_block_buf,
+                               const ABlockTransferStep& a_block_copy_step,
+                               const BGridDesc& b_grid_desc,
+                               const BBlockDesc& b_block_desc,
+                               BBlockTransfer& b_blockwise_copy,
+                               const BGridBuffer& b_grid_buf,
+                               BBlockBuffer& b_block_buf,
+                               const BBlockTransferStep& b_block_copy_step,
+                               const BlockwiseGemm& blockwise_gemm,
+                               CThreadBuffer& c_thread_buf,
+                               index_t num_loop)
     {
         // preload data into LDS
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
