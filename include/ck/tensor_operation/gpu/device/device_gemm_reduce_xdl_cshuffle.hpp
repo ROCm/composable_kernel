@@ -14,6 +14,8 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+// Note: inter-wave loop scheduler is rolled out to c-shuffle version first. Becuase non c-shuffle
+// version currently has compiler issues with register spill which further causes validation failures.
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
@@ -62,7 +64,8 @@ template <typename ALayout,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           typename CReduceThreadClusterLengths_MPerBlock_NPerBlock,
           index_t CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
-          index_t CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock>
+          index_t CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock,
+          LoopScheduler LoopSched = LoopScheduler::Interwave>
 struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOperation,
                                                                BElementwiseOperation,
                                                                CElementwiseOperation,
@@ -422,7 +425,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOpera
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         CReduceThreadClusterLengths_MPerBlock_NPerBlock,
         CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
-        CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock>;
+        CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock,
+        LoopSched>;
 
     // Argument
     struct Argument : public BaseArgument

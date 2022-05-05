@@ -7,6 +7,12 @@
 
 namespace ck {
 
+enum struct LoopScheduler
+{
+    Default,
+    Interwave,
+};
+
 enum struct MfmaInstr
 {
     mfma_f32_32x32x1xf32 = 0,

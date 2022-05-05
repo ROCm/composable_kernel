@@ -79,9 +79,7 @@ struct GridwiseGemmPipeline_v1<1>
 
                 blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
 
-#if !CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING
                 block_sync_lds();
-#endif // !CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING
 
                 a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
                 b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
@@ -249,5 +247,113 @@ struct GridwiseGemmPipeline_v1<2>
         }
     }
 };
+
+template <index_t NumPrefetch>
+struct GridwiseGemmPipelineInterwave_v1;
+
+template <>
+struct GridwiseGemmPipelineInterwave_v1<1>
+{
+    __host__ __device__ static constexpr bool IsSupported(index_t /* num_loop */) { return true; }
+
+    __host__ __device__ static constexpr bool CalculateHasMainLoop(index_t num_loop)
+    {
+        return num_loop > 1;
+    }
+
+    template <bool HasMainLoop,
+              typename AGridDesc,
+              typename ABlockDesc,
+              typename ABlockTransfer,
+              typename AGridBuffer,
+              typename ABlockBuffer,
+              typename ABlockTransferStep,
+              typename BGridDesc,
+              typename BBlockDesc,
+              typename BBlockTransfer,
+              typename BGridBuffer,
+              typename BBlockBuffer,
+              typename BBlockTransferStep,
+              typename BlockwiseGemm,
+              typename CThreadBuffer>
+    static __device__ void
+    Run(const AGridDesc& a_grid_desc,
+        const ABlockDesc& a_block_desc,
+        ABlockTransfer& a_blockwise_copy,
+        const AGridBuffer& a_grid_buf,
+        ABlockBuffer& a_block_buf,
+        const ABlockTransferStep& a_block_copy_step,
+        const BGridDesc& b_grid_desc,
+        const BBlockDesc& b_block_desc,
+        BBlockTransfer& b_blockwise_copy,
+        const BGridBuffer& b_grid_buf,
+        BBlockBuffer& b_block_buf,
+        const BBlockTransferStep& b_block_copy_step,
+        const BlockwiseGemm& blockwise_gemm,
+        CThreadBuffer& c_thread_buf,
+        index_t num_loop)
+    {
+        // preload data into LDS
+        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
+        b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
+
+        a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+        b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+
+        // Initialize C
+        c_thread_buf.Clear();
+
+        a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
+        b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
+
+        // main body
+        if constexpr(HasMainLoop)
+        {
+            index_t i = 0;
+
+            do
+            {
+                a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
+
+                block_sync_lds();
+
+                b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
+
+                blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+
+                // block_sync_lds(); // moved into blockwise_gemm
+
+                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+
+                a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
+                b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
+
+                ++i;
+            } while(i < (num_loop - 1));
+        }
+
+        // tail
+        {
+            block_sync_lds();
+
+            blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+        }
+    }
+};
+
+template <index_t NumPrefetch,
+          bool HasMainLoop>
+constexpr auto GridwiseGemmPipeline_v1_Selector()
+{
+    if constexpr(LoopSched == LoopScheduler::Default)
+    {
+        return GridwiseGemmPipeline_v1<NumPrefetch>{};
+    }
+    else if constexpr(LoopSched == LoopScheduler::Interwave)
+    {
+        return GridwiseGemmPipelineInterwave_v1<NumPrefetch>{};
+    }
+}
 
 } // namespace ck

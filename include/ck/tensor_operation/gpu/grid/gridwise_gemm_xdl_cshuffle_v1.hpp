@@ -107,7 +107,8 @@ template <typename FloatAB,
           index_t CShuffleMXdlPerWavePerShuffle,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-          index_t CShuffleBlockTransferScalarPerVector_NPerBlock>
+          index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
+          LoopScheduler LoopSched = LoopScheduler::Default>
 struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 {
     static constexpr auto I0 = Number<0>{};
@@ -416,17 +417,18 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         constexpr index_t KPack = math::max(
             math::lcm(AK1, BK1), MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
-        auto blockwise_gemm =
-            BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
-                                                                FloatAB,
-                                                                FloatGemmAcc,
-                                                                decltype(a_block_desc_ak0_m_ak1),
-                                                                decltype(b_block_desc_bk0_n_bk1),
-                                                                MPerXdl,
-                                                                NPerXdl,
-                                                                MXdlPerWave,
-                                                                NXdlPerWave,
-                                                                KPack>{};
+        auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
+            BlockSize,
+            FloatAB,
+            FloatGemmAcc,
+            decltype(a_block_desc_ak0_m_ak1),
+            decltype(b_block_desc_bk0_n_bk1),
+            MPerXdl,
+            NPerXdl,
+            MXdlPerWave,
+            NXdlPerWave,
+            KPack,
+            LoopSched>();
 
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 
@@ -445,25 +447,28 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1, 0, 0);
 
         // gridwise GEMM pipeline
+        const auto gridwise_gemm_pipeline =
+            GridwiseGemmPipeline_v1_Selector<NumGemmKPrefetchStage, LoopSched>();
+
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
 
-        GridwiseGemmPipe::template Run<HasMainKBlockLoop>(a_grid_desc_ak0_m_ak1,
-                                                          a_block_desc_ak0_m_ak1,
-                                                          a_blockwise_copy,
-                                                          a_grid_buf,
-                                                          a_block_buf,
-                                                          a_block_slice_copy_step,
-                                                          b_grid_desc_bk0_n_bk1,
-                                                          b_block_desc_bk0_n_bk1,
-                                                          b_blockwise_copy,
-                                                          b_grid_buf,
-                                                          b_block_buf,
-                                                          b_block_slice_copy_step,
-                                                          blockwise_gemm,
-                                                          c_thread_buf,
-                                                          num_k_block_main_loop);
+        gridwise_gemm_pipeline.Run<HasMainKBlockLoop>(a_grid_desc_ak0_m_ak1,
+                                                      a_block_desc_ak0_m_ak1,
+                                                      a_blockwise_copy,
+                                                      a_grid_buf,
+                                                      a_block_buf,
+                                                      a_block_slice_copy_step,
+                                                      b_grid_desc_bk0_n_bk1,
+                                                      b_block_desc_bk0_n_bk1,
+                                                      b_blockwise_copy,
+                                                      b_grid_buf,
+                                                      b_block_buf,
+                                                      b_block_slice_copy_step,
+                                                      blockwise_gemm,
+                                                      c_thread_buf,
+                                                      num_k_block_main_loop);
 
         // shuffle C and write out
         {
