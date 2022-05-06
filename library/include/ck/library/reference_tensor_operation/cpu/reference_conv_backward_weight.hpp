@@ -94,10 +94,10 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
                                 float v_in;
 
                                 arg.out_element_op_(
-                                                v_out,
-                                                ck::type_convert<float>(arg.out_n_k_ho_wo_(n, k, ho, wo)));
+                                    v_out,
+                                    ck::type_convert<float>(arg.out_n_k_ho_wo_(n, k, ho, wo)));
                                 arg.in_element_op_(
-                                                v_in, ck::type_convert<float>(arg.in_n_c_hi_wi_(n, c, hi, wi)));
+                                    v_in, ck::type_convert<float>(arg.in_n_c_hi_wi_(n, c, hi, wi)));
 
                                 v_acc += v_out * v_in;
                             }
