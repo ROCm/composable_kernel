@@ -71,11 +71,11 @@ ConvParams::ConvParams(ck::index_t n_dim,
       input_left_pads_(left_pads),
       input_right_pads_(right_pads)
 {
-    if(filter_spatial_lengths_.size() != num_dim_spatial ||
-       input_spatial_lengths_.size() != num_dim_spatial ||
-       conv_filter_strides_.size() != num_dim_spatial ||
-       conv_filter_dilations_.size() != num_dim_spatial ||
-       input_left_pads_.size() != num_dim_spatial || input_right_pads_.size() != num_dim_spatial)
+    if(filter_spatial_lengths_.size() != num_dim_spatial_ ||
+       input_spatial_lengths_.size() != num_dim_spatial_ ||
+       conv_filter_strides_.size() != num_dim_spatial_ ||
+       conv_filter_dilations_.size() != num_dim_spatial_ ||
+       input_left_pads_.size() != num_dim_spatial_ || input_right_pads_.size() != num_dim_spatial_)
     {
         throw(
             std::runtime_error("ConvParams::GetOutputSpatialLengths: "
@@ -85,25 +85,25 @@ ConvParams::ConvParams(ck::index_t n_dim,
 
 std::vector<ck::index_t> ConvParams::GetOutputSpatialLengths() const
 {
-    if(filter_spatial_lengths_.size() != num_dim_spatial ||
-       input_spatial_lengths_.size() != num_dim_spatial ||
-       conv_filter_strides_.size() != num_dim_spatial ||
-       conv_filter_dilations_.size() != num_dim_spatial ||
-       input_left_pads_.size() != num_dim_spatial || input_right_pads_.size() != num_dim_spatial)
+    if(filter_spatial_lengths_.size() != num_dim_spatial_ ||
+       input_spatial_lengths_.size() != num_dim_spatial_ ||
+       conv_filter_strides_.size() != num_dim_spatial_ ||
+       conv_filter_dilations_.size() != num_dim_spatial_ ||
+       input_left_pads_.size() != num_dim_spatial_ || input_right_pads_.size() != num_dim_spatial_)
     {
         throw(
             std::runtime_error("ConvParams::GetOutputSpatialLengths: "
                                "parameter size is different from number of declared dimensions!"));
     }
 
-    std::vector<ck::index_t> out_spatial_len(num_dim_spatial, 0);
-    for(ck::index_t i = 0; i < num_dim_spatial; ++i)
+    std::vector<ck::index_t> out_spatial_len(num_dim_spatial_, 0);
+    for(ck::index_t i = 0; i < num_dim_spatial_; ++i)
     {
         // XEff = (X - 1) * conv_dilation_w + 1;
         // Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
         const ck::index_t idx_eff =
             (filter_spatial_lengths_[i] - 1) * conv_filter_dilations_[i] + 1;
-        out_spatial_len_[i] =
+        out_spatial_len[i] =
             (input_spatial_lengths_[i] + input_left_pads_[i] + input_right_pads_[i] - idx_eff) /
                 conv_filter_strides_[i] +
             1;
