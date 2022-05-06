@@ -1,8 +1,6 @@
 #ifndef DEVICE_HPP
 #define DEVICE_HPP
 
-#include "ck/options.hpp"
-
 #include <memory>
 #include <functional>
 #include <thread>
@@ -10,10 +8,17 @@
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
 
+#include "ck/options.hpp"
+
 inline void hip_check(hipError_t x)
 {
     if(x != hipSuccess)
-        throw std::runtime_error("Failed to run HIP call");
+    {
+        std::ostringstream ss;
+        ss << "Failed to run HIP call at file: " << __FILE__ << ": " << __LINE__
+           << "in function: " << __func__;
+        throw std::runtime_error(ss.str());
+    }
 }
 
 template <typename F, F f>

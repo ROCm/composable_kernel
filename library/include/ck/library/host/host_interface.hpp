@@ -4,7 +4,6 @@
 #include <string>
 
 #include "config.hpp"
-
 #include "device_base.hpp"
 
 struct DeviceConvFwdPtr_t
