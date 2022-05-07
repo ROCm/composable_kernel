@@ -8,7 +8,6 @@
 #include "thread_group_tensor_slice_transfer_v6r1.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 #include "gridwise_gemm_pipeline_v1.hpp"
-#include "gridwise_gemm_pipeline_v2.hpp"
 
 namespace ck {
 
@@ -54,16 +53,16 @@ __global__ void
                                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
                                                   block_2_ctile_map);
 #else
-    ignore                 = p_a_grid;
-    ignore                 = p_b_grid;
-    ignore                 = p_c_grid;
-    ignore                 = a_element_op;
-    ignore                 = b_element_op;
-    ignore                 = c_element_op;
-    ignore                 = a_grid_desc_ak0_m_ak1;
-    ignore                 = b_grid_desc_bk0_n_bk1;
-    ignore                 = c_grid_desc_mblock_mperblock_nblock_nperblock;
-    ignore                 = block_2_ctile_map;
+    ignore = p_a_grid;
+    ignore = p_b_grid;
+    ignore = p_c_grid;
+    ignore = a_element_op;
+    ignore = b_element_op;
+    ignore = c_element_op;
+    ignore = a_grid_desc_ak0_m_ak1;
+    ignore = b_grid_desc_bk0_n_bk1;
+    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = block_2_ctile_map;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
@@ -128,11 +127,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-#if 1
     using GridwiseGemmPipe = GridwiseGemmPipeline_v1<NumGemmKPrefetchStage>;
-#else
-    using GridwiseGemmPipe = GridwiseGemmPipeline_v2;
-#endif
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {

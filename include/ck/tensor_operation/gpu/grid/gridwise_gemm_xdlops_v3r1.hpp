@@ -1,13 +1,11 @@
-#ifndef CK_GRIDWISE_GEMM_XDLOPS_V3R1_HPP
-#define CK_GRIDWISE_GEMM_XDLOPS_V3R1_HPP
-
+#pragma once
 #include "common_header.hpp"
 #include "multi_index_transform_helper.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "blockwise_gemm_xdlops.hpp"
-#include "threadwise_tensor_slice_transfer_v4r1.hpp"
-#include "threadwise_tensor_slice_transfer_v6r1.hpp"
+#include "thread_group_tensor_slice_transfer_v4r1.hpp"
+#include "thread_group_tensor_slice_transfer_v6r1.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 #include "gridwise_gemm_pipeline_v1.hpp"
 #include "tensor_space_filling_curve.hpp"
@@ -476,7 +474,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
             math::lcm(AK1, BK1), MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm =
-            BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<ThisThreadBlock,
+            BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                                 FloatAB,
                                                                 FloatAcc,
                                                                 decltype(a_block_desc_ak0_m_ak1),
@@ -647,7 +645,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
 
             // LDS to global
             auto c_block_copy_lds_to_global = ThreadGroupTensorSliceTransfer_v6r1<
-                BlockSize,                  // index_t BlockSize,
+                ThisThreadBlock,            // ThreadGroup
                 CElementwiseOperation,      // ElementwiseOperation,
                 CGlobalMemoryDataOperation, // DstInMemOp,
                 Sequence<1,
@@ -748,4 +746,3 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
 };
 
 } // namespace ck
-#endif

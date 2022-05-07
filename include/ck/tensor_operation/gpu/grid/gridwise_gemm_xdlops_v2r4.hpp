@@ -264,7 +264,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
         }();
 
         using BlockwiseGemm =
-            BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<ThisThreadBlock,
+            BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                                 FloatAB,
                                                                 FloatAcc,
                                                                 decltype(a_k0_m_k1_block_desc),
@@ -452,7 +452,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
 
         // B matrix blockwise copy
         auto b_blockwise_copy =
-            ThreadGroupTensorSliceTransfer_v4r1<ThisThreadGroup,
+            ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
                                                 BElementwiseOperation,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 InMemoryDataOperationEnum::Set,
@@ -489,7 +489,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
         // sanity check
 
         auto blockwise_gemm =
-            BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<ThisThreadBlock,
+            BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                                 FloatAB,
                                                                 FloatAcc,
                                                                 decltype(a_k0_m_k1_block_desc),
