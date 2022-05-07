@@ -49,7 +49,8 @@ using device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances =
 void add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(
     std::vector<DeviceGemmPtr<PassThrough, PassThrough, PassThrough>>& instances)
 {
-    add_device_operation_instances(instances, device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances{});
+    add_device_operation_instances(instances,
+                                   device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances{});
 }
 
 } // namespace device_gemm_instance

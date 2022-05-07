@@ -12,7 +12,7 @@ struct BatchedGemmUtil
 {
     template <index_t MPerBlock, index_t NPerBlock>
     static constexpr auto
-    MakeBlock2CTileMap(index_t batch_count, index_t M, index_t N, index_t M01=1, index_t N01=1)
+    MakeBlock2CTileMap(index_t batch_count, index_t M, index_t N, index_t M01 = 1, index_t N01 = 1)
     {
         constexpr auto M1 = MPerBlock;
         constexpr auto N1 = NPerBlock;

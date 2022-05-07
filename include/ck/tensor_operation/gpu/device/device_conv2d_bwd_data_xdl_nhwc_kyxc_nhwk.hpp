@@ -495,7 +495,8 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                             GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(descs[I2]));
 
                         block_2_ctile_map_container_.push_back(
-                            GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2].GetLength(I0), descs[I2].GetLength(I1), M01, N01));
+                            GridwiseGemm::MakeDefaultBlock2CTileMap(
+                                descs[I2].GetLength(I0), descs[I2].GetLength(I1), M01, N01));
                     }
                 }
             }

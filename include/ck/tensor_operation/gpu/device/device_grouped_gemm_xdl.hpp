@@ -236,8 +236,9 @@ struct DeviceGroupedGemmXdl
                                   index_t N01,
                                   ck::index_t BlockStart)
         {
-            block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n.GetLength(I0), c_grid_desc_m_n.GetLength(I1), M01, N01);
-            BlockStart_        = BlockStart;
+            block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(
+                c_grid_desc_m_n.GetLength(I0), c_grid_desc_m_n.GetLength(I1), M01, N01);
+            BlockStart_ = BlockStart;
         }
 
         template <typename TopIdx>

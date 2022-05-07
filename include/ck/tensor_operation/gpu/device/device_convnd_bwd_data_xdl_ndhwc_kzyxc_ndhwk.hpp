@@ -1078,8 +1078,8 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                     c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_.push_back(
                         GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(descs[I2]));
 
-                    block_2_ctile_map_container_.push_back(
-                        GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2].GetLength(I0), descs[I2].GetLength(I1), M01_, N01_));
+                    block_2_ctile_map_container_.push_back(GridwiseGemm::MakeDefaultBlock2CTileMap(
+                        descs[I2].GetLength(I0), descs[I2].GetLength(I1), M01_, N01_));
                 }
             }
         }
@@ -1135,7 +1135,8 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                             GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(descs[I2]));
 
                         block_2_ctile_map_container_.push_back(
-                            GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2].GetLength(I0), descs[I2].GetLength(I1), M01_, N01_));
+                            GridwiseGemm::MakeDefaultBlock2CTileMap(
+                                descs[I2].GetLength(I0), descs[I2].GetLength(I1), M01_, N01_));
                     }
                 }
             }
@@ -1201,7 +1202,8 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                                     descs[I2]));
 
                             block_2_ctile_map_container_.push_back(
-                                GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2].GetLength(I0), descs[I2].GetLength(I1), M01_, N01_));
+                                GridwiseGemm::MakeDefaultBlock2CTileMap(
+                                    descs[I2].GetLength(I0), descs[I2].GetLength(I1), M01_, N01_));
                         }
                     }
                 }

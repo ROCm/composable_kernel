@@ -351,8 +351,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     }
 
     // return block_id to C matrix tile idx (m0, n0) mapping
-    __host__ __device__ static constexpr auto
-    MakeDefaultBlock2CTileMap(index_t M, index_t N)
+    __host__ __device__ static constexpr auto MakeDefaultBlock2CTileMap(index_t M, index_t N)
     {
         constexpr auto M1 = Number<MPerBlock>{};
         constexpr auto N1 = Number<NPerBlock>{};
@@ -393,12 +392,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     {
         static_assert(CGridDesc_M_N::GetNumOfVisibleDimension() == 2);
 
-        return MakeDefaultBlock2CTileMap(c_grid_desc_m_n.GetLength(I0), c_grid_desc_m_n.GetLength(I1));
+        return MakeDefaultBlock2CTileMap(c_grid_desc_m_n.GetLength(I0),
+                                         c_grid_desc_m_n.GetLength(I1));
     }
 
-
-    using DefaultBlock2CTileMap =
-        remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(1, 1))>;
+    using DefaultBlock2CTileMap = remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(1, 1))>;
 
     template <bool HasMainK0BlockLoop,
               typename AGridDesc_AK0_M_AK1,
