@@ -1,4 +1,6 @@
-#pragma once
+#ifndef CHECK_ERR_HPP
+#define CHECK_ERR_HPP
+
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -169,12 +171,9 @@ check_err(const std::vector<T>& out,
 
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
-        const auto out_v = static_cast<int64_t>(out[i]);
-        const auto ref_v = static_cast<int64_t>(ref[i]);
-
-        if(out_v != ref_v)
+        if(out[i] != ref[i])
         {
-            std::cout << "out[" << i << "] != ref[" << i << "]: " << out_v << " != " << ref_v
+            std::cout << "out[" << i << "] != ref[" << i << "]: " << out[i] << " != " << ref[i]
                       << std::endl
                       << msg << std::endl;
             return false;
@@ -192,3 +191,5 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
     std::copy(std::begin(v), std::end(v), std::ostream_iterator<T>(os, " "));
     return os;
 }
+
+#endif
