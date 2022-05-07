@@ -14,7 +14,7 @@ namespace ck {
 template <typename ThreadGroup,
           typename ElementwiseOperation,
           InMemoryDataOperationEnum DstInMemOp,
-          typename BlockSliceLengths,
+          typename SliceLengths,
           typename ThreadClusterLengths,
           typename ThreadClusterArrangeOrder,
           typename SrcData,
@@ -30,7 +30,7 @@ struct ThreadGroupTensorSliceTransfer_v6r1
 {
     static constexpr index_t nDim = remove_reference_t<SrcDesc>::GetNumOfDimension();
 
-    static constexpr auto thread_slice_lengths = BlockSliceLengths{} / ThreadClusterLengths{};
+    static constexpr auto thread_slice_lengths = SliceLengths{} / ThreadClusterLengths{};
 
     using Index = MultiIndex<nDim>;
 
@@ -54,7 +54,7 @@ struct ThreadGroupTensorSliceTransfer_v6r1
                       "wrong! nDim not consistent");
 
         static_assert(
-            is_same<BlockSliceLengths, decltype(thread_slice_lengths * ThreadClusterLengths{})>{},
+            is_same<SliceLengths, decltype(thread_slice_lengths * ThreadClusterLengths{})>{},
             "wrong! threads should be mapped to cover entire slicing window");
 
         static_assert(ThreadGroup::GetNumOfThread() >= thread_cluster_desc_.GetElementSize(),
