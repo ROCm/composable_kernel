@@ -327,6 +327,17 @@ pipeline {
                     }
 
                 }
+                stage("Run Tests: gfx90a")
+                {
+                    agent{ label rocmnode("gfx90a")}
+                    environment{
+                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release')
+                    }
+
+                }
 
             }
         }
