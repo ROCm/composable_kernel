@@ -19,7 +19,7 @@ namespace tensor_operation {
 namespace device {
 
 /*
- * \brief Wrapper function of GridwiseGemm::Run to realize a customized BatchedGemm for splitK.
+ * \brief Wrapper function of GridwiseGemm::Run to realize split-K GEMM.
  *
  */
 template <typename GridwiseGemm,
