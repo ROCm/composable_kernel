@@ -17,6 +17,88 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+template <typename GridwiseGemm,
+          typename FloatAB,
+          typename FloatC,
+          typename GemmDesc,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation,
+          bool HasMainK0BlockLoop,
+          index_t MaxGroupCount>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+        kernel_grouped_gemm_xdlops_v2r3(
+            const StaticallyIndexedArray<GemmDesc, MaxGroupCount> gemm_descs,
+            const index_t group_count,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const CElementwiseOperation c_element_op)
+{
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
+    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+
+    const index_t block_id = get_block_1d_id();
+
+#if 1
+    static_for<0, MaxGroupCount, 1>{}([&](auto i) {
+        if(block_id >= gemm_descs[i].BlockStart_ && block_id < gemm_descs[i].BlockEnd_ &&
+           i < group_count)
+        {
+            auto group_id = i;
+
+            GridwiseGemm::template Run<HasMainK0BlockLoop>(
+                gemm_descs[group_id].a_ptr,
+                gemm_descs[group_id].b_ptr,
+                gemm_descs[group_id].c_ptr,
+                p_shared,
+                gemm_descs[group_id].a_grid_desc_k0_m_k1_,
+                gemm_descs[group_id].b_grid_desc_k0_n_k1_,
+                gemm_descs[group_id].c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                a_element_op,
+                b_element_op,
+                c_element_op,
+                gemm_descs[group_id].grouped_gemm_block_2_ctile_map_);
+        }
+    });
+#else
+    const auto gemm_desc_ptr = reinterpret_cast<const GemmDesc*>(&gemm_descs);
+
+    index_t group_id = 0;
+    static_for<0, MaxGroupCount, 1>{}([&](auto i) {
+        group_id = (block_id >= gemm_descs[i].BlockStart && block_id < gemm_descs[i].BlockEnd &&
+                    i < group_count)
+                       ? i
+                       : group_id;
+    });
+
+    const index_t block_id_grp = block_id - gemm_desc_ptr[group_id].BlockStart;
+
+    GridwiseGemm::template Run<HasMainK0BlockLoop>(
+        gemm_desc_ptr[group_id].a_ptr,
+        gemm_desc_ptr[group_id].b_ptr,
+        gemm_desc_ptr[group_id].c_ptr,
+        p_shared,
+        gemm_desc_ptr[group_id].a_grid_desc_k0_m_k1_,
+        gemm_desc_ptr[group_id].b_grid_desc_k0_n_k1_,
+        gemm_desc_ptr[group_id].c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+        a_element_op,
+        b_element_op,
+        c_element_op,
+        gemm_desc_ptr[group_id].block_2_ctile_map_,
+        block_id_grp);
+#endif
+#else
+    ignore = gemm_descs;
+    ignore = group_count;
+    ignore = a_element_op;
+    ignore = b_element_op;
+    ignore = c_element_op;
+#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+}
+
 template <typename ADataType,
           typename BDataType,
           typename CDataType,

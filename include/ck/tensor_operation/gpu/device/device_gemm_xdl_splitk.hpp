@@ -20,9 +20,9 @@ namespace tensor_operation {
 namespace device {
 
 /*
- * \brief Wrapper function of GridwiseGemm::Run to realize BatchedGEMM.
+ * \brief Wrapper function of GridwiseGemm::Run to realize Split-K GEMM.
  *
- * \see \link device_batched_gemm_xdl.hpp kernel_batched_gemm_xdlops_v2r3
+ * \see \link device_gemm_xdl_splitk.hpp kernel_gemm_xdl_splitk
  */
 template <typename GridwiseGemm,
           typename FloatAB,
@@ -41,7 +41,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_batched_gemm_xdlops_v2r3(
+        kernel_gemm_xdl_splitk(
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
@@ -616,7 +616,7 @@ struct DeviceGemmXdlSplitK
 
                 if(has_main_k0_block_loop && tail_has_main_k0_block_loop)
                 {
-                    const auto kernel = kernel_batched_gemm_xdlops_v2r3<
+                    const auto kernel = kernel_gemm_xdl_splitk<
                         GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
@@ -635,7 +635,7 @@ struct DeviceGemmXdlSplitK
                 }
                 else if(has_main_k0_block_loop && !tail_has_main_k0_block_loop)
                 {
-                    const auto kernel = kernel_batched_gemm_xdlops_v2r3<
+                    const auto kernel = kernel_gemm_xdl_splitk<
                         GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
@@ -654,7 +654,7 @@ struct DeviceGemmXdlSplitK
                 }
                 else if(!has_main_k0_block_loop && tail_has_main_k0_block_loop)
                 {
-                    const auto kernel = kernel_batched_gemm_xdlops_v2r3<
+                    const auto kernel = kernel_gemm_xdl_splitk<
                         GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
@@ -673,7 +673,7 @@ struct DeviceGemmXdlSplitK
                 }
                 else
                 {
-                    const auto kernel = kernel_batched_gemm_xdlops_v2r3<
+                    const auto kernel = kernel_gemm_xdl_splitk<
                         GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
@@ -698,7 +698,7 @@ struct DeviceGemmXdlSplitK
 
                 if(has_main_k0_block_loop)
                 {
-                    const auto kernel = ck::kernel_batched_gemm_xdlops_v2r3<
+                    const auto kernel = ck::kernel_gemm_xdl_splitk<
                         GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
@@ -732,7 +732,7 @@ struct DeviceGemmXdlSplitK
                 }
                 else
                 {
-                    const auto kernel = ck::kernel_batched_gemm_xdlops_v2r3<
+                    const auto kernel = ck::kernel_gemm_xdl_splitk<
                         GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,

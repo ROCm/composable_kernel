@@ -22,8 +22,6 @@ namespace device {
 /*
  * \brief Wrapper function of GridwiseGemm::Run to realize a customized BatchedGemm for splitK.
  *
- * The main difference from \see \link device_batched_gemm_xdl.hpp kernel_batched_gemm_xdlops_v2r3
- * is that there are 2 different tensor descriptors for matrix A and B.
  */
 template <typename GridwiseGemm,
           typename FloatAB,
@@ -209,7 +207,6 @@ struct DeviceGemmXdlSplitKCShuffle
                      GemmSpec == GemmSpecialization::MNKPadding)
         {
             // pad both M and K
-
             const auto a_grid_desc_m_k =
                 transform_tensor_descriptor(a_grid_desc_mraw_kraw,
                                             make_tuple(make_right_pad_transform(MRaw, MPad),
@@ -273,7 +270,8 @@ struct DeviceGemmXdlSplitKCShuffle
         if constexpr(GemmSpec == GemmSpecialization::NPadding ||
                      GemmSpec == GemmSpecialization::NKPadding ||
                      GemmSpec == GemmSpecialization::MNKPadding)
-        { // pad both N and K
+        {
+            // pad both N and K
             const auto b_grid_desc_n_k =
                 transform_tensor_descriptor(b_grid_desc_nraw_kraw,
                                             make_tuple(make_right_pad_transform(NRaw, NPad),
@@ -290,8 +288,9 @@ struct DeviceGemmXdlSplitKCShuffle
 
             return b_grid_desc_bk0_n_bk1;
         }
-        else // pad K, but not N
+        else
         {
+            // pad K, but not N
             const auto b_grid_desc_n_k = transform_tensor_descriptor(
                 b_grid_desc_nraw_kraw,
                 make_tuple(make_pass_through_transform(NRaw), make_right_pad_transform(KRaw, KPad)),
@@ -395,9 +394,9 @@ struct DeviceGemmXdlSplitKCShuffle
         }
 
         private:
+        // TODO: should they be long_index_t?
         index_t BatchStrideA_;
         index_t BatchStrideB_;
-        // index_t BatchStrideC_; // always zero
     };
 
     // GridwiseGemm
@@ -476,8 +475,11 @@ struct DeviceGemmXdlSplitKCShuffle
                 GetActualBatchAndKSplitted<AK1>(KRaw, k_batch);
             const auto actual_batch_and_ksplitted_B =
                 GetActualBatchAndKSplitted<BK1>(KRaw, k_batch);
+
             assert(actual_batch_and_ksplitted_A.first == actual_batch_and_ksplitted_B.first);
-            BatchCount_           = actual_batch_and_ksplitted_A.first;
+
+            BatchCount_ = actual_batch_and_ksplitted_A.first;
+
             const auto AKSplitted = actual_batch_and_ksplitted_A.second;
             const auto BKSplitted = actual_batch_and_ksplitted_B.second;
 

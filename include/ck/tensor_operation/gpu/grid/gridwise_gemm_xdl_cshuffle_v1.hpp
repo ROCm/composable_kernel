@@ -66,11 +66,6 @@ __global__ void
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
-/*
- * \brief Wrapper function of GridwiseGemm::Run to realize BatchedGEMM.
- *
- * \see \link device_batched_gemm_xdl.hpp kernel_batched_gemm_xdlops_v2r3
- */
 template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,
