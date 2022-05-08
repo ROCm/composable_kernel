@@ -13,7 +13,6 @@
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdl_cshuffle_v1.hpp"
 #include "gemm_specialization.hpp"
-#include "batched_gemm_util.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -370,6 +369,39 @@ struct DeviceGemmXdlSplitKCShuffle
     using BGridDesc_BK0_N_BK1 = decltype(MakeBGridDescriptor_BK0_N_BK1(1, 1, 1));
     using CGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
+    static constexpr auto
+    MakeBlock2CTileMap(index_t batch_count, index_t M, index_t N, index_t M01, index_t N01)
+    {
+        constexpr auto M1 = MPerBlock;
+        constexpr auto N1 = NPerBlock;
+
+        const auto M0 = M / M1;
+        const auto N0 = N / N1;
+
+        const auto M00 = M0 / M01;
+        const auto N00 = N0 / N01;
+
+        const auto g_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor =
+            make_single_stage_tensor_adaptor(
+                make_tuple(make_insert_transform(batch_count),
+                           make_unmerge_transform(make_tuple(M00, M01)),
+                           make_unmerge_transform(make_tuple(N00, N01))),
+                make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2, 4>{}));
+
+        const auto globalblockid_to_m00_m01_n00_n01_block_cluster_adaptor =
+            make_single_stage_tensor_adaptor(
+                make_tuple(make_merge_transform(make_tuple(batch_count, M00, N00, M01, N01))),
+                make_tuple(Sequence<0, 1, 2, 3, 4>{}),
+                make_tuple(Sequence<0>{}));
+
+        const auto globalblockid_to_m0_n0_block_cluster_adaptor =
+            chain_tensor_adaptors(g_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor,
+                                  globalblockid_to_m00_m01_n00_n01_block_cluster_adaptor);
+
+        return globalblockid_to_m0_n0_block_cluster_adaptor;
+    }
+
     struct ComputePtrOffsetOfStridedBatch
     {
         ComputePtrOffsetOfStridedBatch(const index_t BatchStrideA, const index_t BatchStrideB)
@@ -443,8 +475,7 @@ struct DeviceGemmXdlSplitKCShuffle
 
     using CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = decltype(
         GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}));
-    using Block2CTileMap =
-        decltype(BatchedGemmUtil::MakeBlock2CTileMap<MPerBlock, NPerBlock>(1, 1, 1));
+    using Block2CTileMap = decltype(MakeBlock2CTileMap(1, 1, 1, 1, 1));
 
     struct Argument : public BaseArgument
     {
@@ -540,8 +571,11 @@ struct DeviceGemmXdlSplitKCShuffle
                 compute_ptr_offset_of_batch_ =
                     ComputePtrOffsetOfStridedBatch{a_batch_stride, b_batch_stride};
 
-                block_2_ctile_map_ = BatchedGemmUtil::MakeBlock2CTileMap<MPerBlock, NPerBlock>(
-                    BatchCount_, c_grid_desc_m_n_.GetLength(I0), c_grid_desc_m_n_.GetLength(I1));
+                block_2_ctile_map_ = MakeBlock2CTileMap(BatchCount_,
+                                                        c_grid_desc_m_n_.GetLength(I0),
+                                                        c_grid_desc_m_n_.GetLength(I1),
+                                                        1,
+                                                        1);
             }
         }
 

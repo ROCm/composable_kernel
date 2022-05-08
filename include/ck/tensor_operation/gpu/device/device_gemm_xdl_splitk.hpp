@@ -299,14 +299,9 @@ struct DeviceGemmXdlSplitK
     using BGridDesc_K0_N_K1 = decltype(MakeBGridDescriptor_K0_N_K1(1, 1, 1));
     using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
-    static constexpr auto MakeBlock2CTileMap(index_t batch_count,
-                                             const CGridDesc_M_N& c_grid_desc_m_n,
-                                             index_t M01,
-                                             index_t N01)
+    static constexpr auto
+    MakeBlock2CTileMap(index_t batch_count, index_t M, index_t N, index_t M01, index_t N01)
     {
-        const auto M = c_grid_desc_m_n.GetLength(I0);
-        const auto N = c_grid_desc_m_n.GetLength(I1);
-
         constexpr auto M1 = Number<MPerBlock>{};
         constexpr auto N1 = Number<NPerBlock>{};
 
@@ -363,7 +358,6 @@ struct DeviceGemmXdlSplitK
         private:
         index_t BatchStrideA_;
         index_t BatchStrideB_;
-        // index_t BatchStrideC_; // always zero
     };
 
     using GridwiseGemm =
@@ -408,7 +402,7 @@ struct DeviceGemmXdlSplitK
 
     using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
         decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
-    using Block2CTileMap = decltype(MakeBlock2CTileMap(1, CGridDesc_M_N{}, 1, 1));
+    using Block2CTileMap = decltype(MakeBlock2CTileMap(1, 1, 1, 1, 1));
 
     // Argument
     struct Argument : public BaseArgument
