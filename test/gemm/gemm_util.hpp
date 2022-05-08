@@ -139,8 +139,14 @@ struct TestGemm
         Tensor<CDataType> c_m_n_device_result(
             f_host_tensor_descriptor(params.M, params.N, params.StrideC, CLayout{}));
 
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        auto f_generate_tensor_value = [](auto& tensor, auto type) {
+            using dataType = decltype(type);
+
+            tensor.GenerateTensorValue(GeneratorTensor_2<dataType>{-5, 5});
+        };
+
+        f_generate_tensor_value(a_m_k, ADataType{});
+        f_generate_tensor_value(b_k_n, BDataType{});
 
         return std::make_tuple(a_m_k, b_k_n, c_m_n_host_result, c_m_n_device_result);
     }
@@ -153,19 +159,12 @@ struct TestGemm
 
         // Arrange
         ck::gemm_util::GemmParams params;
-        // params.M       = 1024;
-        // params.N       = 1024;
-        // params.K       = 1024;
-        // params.StrideA = 1024;
-        // params.StrideB = 1024;
-        // params.StrideC = 1024;
-
-        params.M       = 256;
-        params.N       = 256;
-        params.K       = 256;
-        params.StrideA = 256;
-        params.StrideB = 256;
-        params.StrideC = 256;
+        params.M       = 1024;
+        params.N       = 1024;
+        params.K       = 1024;
+        params.StrideA = 1024;
+        params.StrideB = 1024;
+        params.StrideC = 1024;
 
         auto host_tensors = PrepareGemmTensor(params);
 

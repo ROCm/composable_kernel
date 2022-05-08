@@ -277,9 +277,12 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         // sub-dword transpose between src_thread_scratch_ and dst_thread_scratch_
         // TODO make this logic more generic for more sub-dword datatype
         if constexpr(SrcVectorDim != DstVectorDim &&
-                     is_same<half_t, remove_cvref_t<SrcData>>::value &&
-                     is_same<half_t, remove_cvref_t<DstData>>::value &&
-                     SrcScalarPerVector % 2 == 0 && DstScalarPerVector % 2 == 0)
+                     ((is_same<half_t, remove_cvref_t<SrcData>>::value &&
+                       is_same<half_t, remove_cvref_t<DstData>>::value &&
+                       SrcScalarPerVector % 2 == 0 && DstScalarPerVector % 2 == 0) ||
+                      (is_same<int8_t, remove_cvref_t<SrcData>>::value &&
+                       is_same<int8_t, remove_cvref_t<DstData>>::value &&
+                       SrcScalarPerVector % 4 == 0 && DstScalarPerVector % 4 == 0)))
         {
             // each transpose does
             // DstScalarPerVector # of src vectors in src_thread_scratch_
