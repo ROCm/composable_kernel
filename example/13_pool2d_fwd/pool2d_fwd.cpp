@@ -80,8 +80,8 @@ static void pool_host_verify(const Tensor<InDataType>& in,
                 for(int x = 0; x < window_spatial_lengths[1]; ++x)
                 {
                     int wi = wo * window_strides[1] + x - in_left_pads[1];
-                    if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
-                       wi < in.mDesc.GetLengths()[3])
+                    if(hi >= 0 && hi < ck::type_convert<int>(in.mDesc.GetLengths()[2]) && wi >= 0 &&
+                       wi < ck::type_convert<int>(in.mDesc.GetLengths()[3]))
                     {
                         AccDataType currVal = static_cast<AccDataType>(in(n, c, hi, wi));
 
