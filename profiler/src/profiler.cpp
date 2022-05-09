@@ -23,11 +23,11 @@ int profile_batched_gemm_reduce(int, char*[]);
 
 int main(int argc, char* argv[])
 {
-	int stat;
+    int stat;
     if(strcmp(argv[1], "gemm") == 0)
     {
         stat = profile_gemm(argc, argv);
-		return 0;
+        return 0;
     }
     else if(strcmp(argv[1], "gemm_bias_2d") == 0)
     {
