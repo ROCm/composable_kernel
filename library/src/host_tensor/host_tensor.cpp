@@ -25,7 +25,7 @@ std::size_t HostTensorDescriptor::GetElementSize() const
 std::size_t HostTensorDescriptor::GetElementSpace() const
 {
     std::size_t space = 1;
-    for(int i = 0; i < mLens.size(); ++i)
+    for(std::size_t i = 0; i < mLens.size(); ++i)
     {
         space += (mLens[i] - 1) * mStrides[i];
     }
@@ -68,7 +68,7 @@ void ostream_HostTensorDescriptor(const HostTensorDescriptor& desc, std::ostream
 // FIXME: remove
 void bf16_to_f32_(const Tensor<ck::bhalf_t>& src, Tensor<float>& dst)
 {
-    for(int i = 0; i < src.mData.size(); ++i)
+    for(std::size_t i = 0; i < src.mData.size(); ++i)
         dst.mData[i] = ck::type_convert<float>(src.mData[i]);
 }
 #endif
