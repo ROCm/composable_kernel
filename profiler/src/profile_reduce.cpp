@@ -186,7 +186,7 @@ class AppArgs
 
     int processArgs(int argc, char* argv[])
     {
-        unsigned int ch;
+        int ch;
 
         optind++; // to skip the "reduce" module name
 

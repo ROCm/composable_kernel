@@ -13,7 +13,7 @@
 #include "host_gemm.hpp"
 #include "device_tensor.hpp"
 #include "device_gemm_xdl.hpp"
-#include "device_gemm_xdl_c_shuffle.hpp"
+#include "device_gemm_xdl_cshuffle.hpp"
 #include "element_wise_operation.hpp"
 #include "gemm_specialization.hpp"
 

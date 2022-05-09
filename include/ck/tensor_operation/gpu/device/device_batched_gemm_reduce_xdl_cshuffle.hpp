@@ -635,11 +635,12 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
               d_grid_desc_m_{DeviceOp::MakeDGridDescriptor_M(MRaw)},
               c_grid_desc_mblock_mperblock_nblock_nperblock_{},
               d_grid_desc_mblock_mperblock_{},
-              compute_base_ptr_of_batch_{a_grid_desc_ak0_m_ak1_.GetElementSpaceSize(),
-                                         b_grid_desc_bk0_n_bk1_.GetElementSpaceSize(),
-                                         c_grid_desc_m_n_.GetElementSpaceSize(),
-                                         d_grid_desc_m_.GetElementSpaceSize(),
-                                         d_grid_desc_m_.GetElementSpaceSize()},
+              compute_base_ptr_of_batch_{
+                  type_convert<index_t>(a_grid_desc_ak0_m_ak1_.GetElementSpaceSize()),
+                  type_convert<index_t>(b_grid_desc_bk0_n_bk1_.GetElementSpaceSize()),
+                  type_convert<index_t>(c_grid_desc_m_n_.GetElementSpaceSize()),
+                  type_convert<index_t>(d_grid_desc_m_.GetElementSpaceSize()),
+                  type_convert<index_t>(d_grid_desc_m_.GetElementSpaceSize())},
               block_2_ctile_map_{},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
@@ -723,13 +724,11 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
             const index_t grid_size =
                 GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_) * arg.BatchCount_;
 
-            const auto K0 = arg.a_grid_desc_ak0_m_ak1_.GetLength(I0);
-
-            const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
+            const auto K =
+                arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
 
             float elapsed_time = 0.0f;
-
-            if(has_main_k0_block_loop)
+            if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
                 const auto kernel = kernel_batched_gemm_reduce_xdl_cshuffle_v1<
                     GridwiseGemm,

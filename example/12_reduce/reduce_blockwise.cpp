@@ -140,7 +140,7 @@ class SimpleAppArgs
 
     int processArgs(int argc, char* argv[])
     {
-        unsigned int ch;
+        int ch;
 
         while(1)
         {

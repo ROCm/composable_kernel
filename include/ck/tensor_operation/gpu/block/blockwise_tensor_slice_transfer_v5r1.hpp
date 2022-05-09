@@ -45,8 +45,8 @@ struct BlockwiseTensorSliceTransfer_v5r1
               src_desc, make_zero_multi_index<nDim>(), dst_desc, make_zero_multi_index<nDim>())
 
     {
-        static_assert(nDim == remove_reference_t<remove_cv_t<SrcDesc>>::GetNumOfDimension() &&
-                          nDim == remove_reference_t<remove_cv_t<DstDesc>>::GetNumOfDimension() &&
+        static_assert(nDim == remove_cvref_t<SrcDesc>::GetNumOfDimension() &&
+                          nDim == remove_cvref_t<DstDesc>::GetNumOfDimension() &&
                           nDim == BlockSliceLengths::Size() && nDim == ThreadSliceLengths::Size() &&
                           nDim == ThreadClusterLengths::Size() &&
                           nDim == ThreadClusterArrangeOrder::Size() &&
