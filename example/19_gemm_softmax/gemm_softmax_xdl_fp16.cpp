@@ -373,8 +373,8 @@ int main(int argc, char* argv[])
 
     // do reduce max
     auto reduce_max                 = DeviceReduceMaxInstance{};
-    auto reduce_max_workaspace_size = reduce_max.GetWorkspaceSizeInBytes(c_m_n_shape, reduceDims);
-    DeviceMem reduce_max_workaspace_device_buf(reduce_max_workaspace_size);
+    auto reduce_max_workspace_size = reduce_max.GetWorkspaceSizeInBytes(c_m_n_shape, reduceDims);
+    DeviceMem reduce_max_workaspace_device_buf(reduce_max_workspace_size);
 
     auto reduce_max_argument_ptr = reduce_max.MakeArgumentPointer(
         c_m_n_shape,
