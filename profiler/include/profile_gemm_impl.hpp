@@ -421,7 +421,7 @@ void profile_gemm_impl(int do_verification,
             std::size_t flop = std::size_t(2) * M * N * K;
 
             std::size_t num_btype =
-                sizeof(ADataType) * M * K + sizeof(BDataType) * K * M + sizeof(CDataType) * M * N;
+                sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
 
             float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
