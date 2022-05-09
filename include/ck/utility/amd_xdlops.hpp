@@ -266,8 +266,8 @@ struct intrin_mfma_i32_32x32x8i8<32, 32>
     __device__ static void Run(const int8x4_t& reg_a, const int8x4_t& reg_b, FloatC& reg_c)
     {
         reg_c.template AsType<int32x16_t>()(Number<0>{}) =
-            __builtin_amdgcn_mfma_i32_32x32x8i8(bit_cast<int>(reg_a),
-                                                bit_cast<int>(reg_b),
+            __builtin_amdgcn_mfma_i32_32x32x8i8(bit_cast<int32_t>(reg_a),
+                                                bit_cast<int32_t>(reg_b),
                                                 reg_c.template AsType<int32x16_t>()[Number<0>{}],
                                                 0,
                                                 0,
@@ -285,8 +285,8 @@ struct intrin_mfma_i32_16x16x16i8<16, 16>
     __device__ static void Run(const int8x4_t& reg_a, const int8x4_t& reg_b, FloatC& reg_c)
     {
         reg_c.template AsType<int32x4_t>()(Number<0>{}) =
-            __builtin_amdgcn_mfma_i32_16x16x16i8(bit_cast<int>(reg_a),
-                                                 bit_cast<int>(reg_b),
+            __builtin_amdgcn_mfma_i32_16x16x16i8(bit_cast<int32_t>(reg_a),
+                                                 bit_cast<int32_t>(reg_b),
                                                  reg_c.template AsType<int32x4_t>()[Number<0>{}],
                                                  0,
                                                  0,

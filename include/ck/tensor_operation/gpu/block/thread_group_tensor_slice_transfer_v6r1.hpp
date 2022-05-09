@@ -1,6 +1,4 @@
-#ifndef CK_BLOCKWISE_TENSOR_SLICE_TRANSFER_V6R1_HPP
-#define CK_BLOCKWISE_TENSOR_SLICE_TRANSFER_V6R1_HPP
-
+#pragma once
 #include "common_header.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
@@ -13,10 +11,10 @@ namespace ck {
 // 1. Use StaticallyIndexedArray instead of C array for thread buffer
 // 2. ThreadwiseTensorSliceTransfer_v3 does not keep reference to tensor descriptor
 // 3. ThreadwiseTensorSliceTransfer_v3::Run() does not construct new tensor coordinate
-template <index_t BlockSize,
+template <typename ThreadGroup,
           typename ElementwiseOperation,
           InMemoryDataOperationEnum DstInMemOp,
-          typename BlockSliceLengths,
+          typename SliceLengths,
           typename ThreadClusterLengths,
           typename ThreadClusterArrangeOrder,
           typename SrcData,
@@ -28,19 +26,19 @@ template <index_t BlockSize,
           index_t ScalarPerVector,
           bool ThreadTransferSrcResetCoordinateAfterRun,
           bool ThreadTransferDstResetCoordinateAfterRun>
-struct BlockwiseTensorSliceTransfer_v6r1
+struct ThreadGroupTensorSliceTransfer_v6r1
 {
     static constexpr index_t nDim = remove_reference_t<SrcDesc>::GetNumOfDimension();
 
-    static constexpr auto thread_slice_lengths = BlockSliceLengths{} / ThreadClusterLengths{};
+    static constexpr auto thread_slice_lengths = SliceLengths{} / ThreadClusterLengths{};
 
     using Index = MultiIndex<nDim>;
 
-    __device__ constexpr BlockwiseTensorSliceTransfer_v6r1(const SrcDesc& src_desc,
-                                                           const Index& src_block_slice_origin,
-                                                           const DstDesc& dst_desc,
-                                                           const Index& dst_block_slice_origin,
-                                                           const ElementwiseOperation& element_op)
+    __device__ constexpr ThreadGroupTensorSliceTransfer_v6r1(const SrcDesc& src_desc,
+                                                             const Index& src_block_slice_origin,
+                                                             const DstDesc& dst_desc,
+                                                             const Index& dst_block_slice_origin,
+                                                             const ElementwiseOperation& element_op)
         : threadwise_transfer_(src_desc,
                                make_zero_multi_index<nDim>(),
                                dst_desc,
@@ -48,25 +46,25 @@ struct BlockwiseTensorSliceTransfer_v6r1
                                element_op)
 
     {
-        static_assert(nDim == remove_reference_t<remove_cv_t<SrcDesc>>::GetNumOfDimension() &&
-                          nDim == remove_reference_t<remove_cv_t<DstDesc>>::GetNumOfDimension() &&
+        static_assert(nDim == remove_cvref_t<SrcDesc>::GetNumOfDimension() &&
+                          nDim == remove_cvref_t<DstDesc>::GetNumOfDimension() &&
                           nDim == ThreadClusterLengths::Size() &&
                           nDim == ThreadClusterArrangeOrder::Size() &&
                           nDim == DimAccessOrder::Size(),
                       "wrong! nDim not consistent");
 
         static_assert(
-            is_same<BlockSliceLengths, decltype(thread_slice_lengths * ThreadClusterLengths{})>{},
+            is_same<SliceLengths, decltype(thread_slice_lengths * ThreadClusterLengths{})>{},
             "wrong! threads should be mapped to cover entire slicing window");
 
-        static_assert(BlockSize >= thread_cluster_desc_.GetElementSize(),
-                      "wrong! BlockSize too small");
+        static_assert(ThreadGroup::GetNumOfThread() >= thread_cluster_desc_.GetElementSize(),
+                      "wrong! ThreadGroup::GetNumOfThread() too small");
 
-        if(BlockSize == thread_cluster_desc_.GetElementSize() or
-           get_thread_local_1d_id() < thread_cluster_desc_.GetElementSize())
+        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
+           ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
             const auto thread_cluster_idx = thread_cluster_desc_.CalculateBottomIndex(
-                make_multi_index(get_thread_local_1d_id()));
+                make_multi_index(ThreadGroup::GetThreadId()));
 
             const auto thread_data_idx_begin = thread_cluster_idx * thread_slice_lengths;
 
@@ -83,8 +81,8 @@ struct BlockwiseTensorSliceTransfer_v6r1
                         const DstDesc& dst_desc,
                         DstBuffer& dst_buf)
     {
-        if(BlockSize == thread_cluster_desc_.GetElementSize() or
-           get_thread_local_1d_id() < thread_cluster_desc_.GetElementSize())
+        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
+           ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
             threadwise_transfer_.Run(src_desc, src_buf, dst_desc, dst_buf);
         }
@@ -92,8 +90,8 @@ struct BlockwiseTensorSliceTransfer_v6r1
 
     __device__ void MoveSrcSliceWindow(const SrcDesc& src_desc, const Index& step)
     {
-        if(BlockSize == thread_cluster_desc_.GetElementSize() or
-           get_thread_local_1d_id() < thread_cluster_desc_.GetElementSize())
+        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
+           ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
             threadwise_transfer_.MoveSrcSliceWindow(src_desc, step);
         }
@@ -101,8 +99,8 @@ struct BlockwiseTensorSliceTransfer_v6r1
 
     __device__ void MoveDstSliceWindow(const DstDesc& dst_desc, const Index& step)
     {
-        if(BlockSize == thread_cluster_desc_.GetElementSize() or
-           get_thread_local_1d_id() < thread_cluster_desc_.GetElementSize())
+        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
+           ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
             threadwise_transfer_.MoveDstSliceWindow(dst_desc, step);
         }
@@ -130,4 +128,3 @@ struct BlockwiseTensorSliceTransfer_v6r1
 };
 
 } // namespace ck
-#endif
