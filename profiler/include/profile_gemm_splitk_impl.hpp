@@ -98,9 +98,6 @@ bool profile_gemm_splitk_impl(int do_verification,
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
     }
 
-    // set zero to c_device_buf
-    c_m_n_device_result.GenerateTensorValue(GeneratorTensor_0<CDataType>{}, num_thread);
-
     using AElementOp = ck::tensor_operation::element_wise::PassThrough;
     using BElementOp = ck::tensor_operation::element_wise::PassThrough;
     using CElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -115,7 +112,6 @@ bool profile_gemm_splitk_impl(int do_verification,
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
-    c_device_buf.ToDevice(c_m_n_device_result.mData.data());
 
     // add device GEMM instances
     std::vector<ck::tensor_operation::device::device_gemm_instance::DeviceGemmNoOpPtr> gemm_ptrs;
@@ -196,6 +192,8 @@ bool profile_gemm_splitk_impl(int do_verification,
     // profile device GEMM instances
     for(auto& gemm_ptr : gemm_ptrs)
     {
+        std::cout << gemm_ptr->GetTypeString() << std::endl;
+
         auto argument_ptr =
             gemm_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
                                           static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
@@ -263,6 +261,7 @@ bool profile_gemm_splitk_impl(int do_verification,
                     a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
 
                 ref_invoker.Run(ref_argument);
+
                 pass = pass &&
                        ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
 

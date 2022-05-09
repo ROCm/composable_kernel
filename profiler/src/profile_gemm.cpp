@@ -57,309 +57,95 @@ bool profile_gemm(int argc, char* argv[])
     const int StrideB = std::stoi(argv[12]);
     const int StrideC = std::stoi(argv[13]);
 
+    auto profile =
+        [&](auto a_type, auto b_type, auto c_type, auto a_layout, auto b_layout, auto c_layout) {
+            using ADataType = decltype(a_type);
+            using BDataType = decltype(b_type);
+            using CDataType = decltype(c_type);
+            using ALayout   = decltype(a_layout);
+            using BLayout   = decltype(b_layout);
+            using CLayout   = decltype(c_layout);
+
+            return ck::profiler::
+                profile_gemm_impl<ADataType, BDataType, CDataType, ALayout, BLayout, CLayout>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    nrepeat,
+                    M,
+                    N,
+                    K,
+                    (StrideA < 0) ? K : StrideA,
+                    (StrideB < 0) ? N : StrideB,
+                    (StrideC < 0) ? N : StrideC);
+        };
+
+    using Row = ck::tensor_layout::gemm::RowMajor;
+    using Col = ck::tensor_layout::gemm::ColumnMajor;
+
     if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        return ck::profiler::profile_gemm_impl<ck::half_t,
-                                               ck::half_t,
-                                               ck::half_t,
-                                               ck::tensor_layout::gemm::RowMajor,
-                                               ck::tensor_layout::gemm::RowMajor,
-                                               ck::tensor_layout::gemm::RowMajor>(
-            do_verification,
-            init_method,
-            do_log,
-            nrepeat,
-            M,
-            N,
-            K,
-            (StrideA < 0) ? K : StrideA,
-            (StrideB < 0) ? N : StrideB,
-            (StrideC < 0) ? N : StrideC);
+        return profile(ck::half_t{}, ck::half_t{}, ck::half_t{}, Row{}, Row{}, Row{});
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        return ck::profiler::profile_gemm_impl<ck::half_t,
-                                               ck::half_t,
-                                               ck::half_t,
-                                               ck::tensor_layout::gemm::RowMajor,
-                                               ck::tensor_layout::gemm::ColumnMajor,
-                                               ck::tensor_layout::gemm::RowMajor>(
-            do_verification,
-            init_method,
-            do_log,
-            nrepeat,
-            M,
-            N,
-            K,
-            (StrideA < 0) ? K : StrideA,
-            (StrideB < 0) ? K : StrideB,
-            (StrideC < 0) ? N : StrideC);
+        return profile(ck::half_t{}, ck::half_t{}, ck::half_t{}, Row{}, Col{}, Row{});
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_KN_MN)
     {
-        return ck::profiler::profile_gemm_impl<ck::half_t,
-                                               ck::half_t,
-                                               ck::half_t,
-                                               ck::tensor_layout::gemm::ColumnMajor,
-                                               ck::tensor_layout::gemm::RowMajor,
-                                               ck::tensor_layout::gemm::RowMajor>(
-            do_verification,
-            init_method,
-            do_log,
-            nrepeat,
-            M,
-            N,
-            K,
-            (StrideA < 0) ? M : StrideA,
-            (StrideB < 0) ? N : StrideB,
-            (StrideC < 0) ? N : StrideC);
+        return profile(ck::half_t{}, ck::half_t{}, ck::half_t{}, Col{}, Row{}, Row{});
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_NK_MN)
     {
-        return ck::profiler::profile_gemm_impl<ck::half_t,
-                                               ck::half_t,
-                                               ck::half_t,
-                                               ck::tensor_layout::gemm::ColumnMajor,
-                                               ck::tensor_layout::gemm::ColumnMajor,
-                                               ck::tensor_layout::gemm::RowMajor>(
-            do_verification,
-            init_method,
-            do_log,
-            nrepeat,
-            M,
-            N,
-            K,
-            (StrideA < 0) ? M : StrideA,
-            (StrideB < 0) ? K : StrideB,
-            (StrideC < 0) ? N : StrideC);
+        return profile(ck::half_t{}, ck::half_t{}, ck::half_t{}, Col{}, Col{}, Row{});
     }
     else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        return ck::profiler::profile_gemm_impl<float,
-                                               float,
-                                               float,
-                                               ck::tensor_layout::gemm::RowMajor,
-                                               ck::tensor_layout::gemm::RowMajor,
-                                               ck::tensor_layout::gemm::RowMajor>(
-            do_verification,
-            init_method,
-            do_log,
-            nrepeat,
-            M,
-            N,
-            K,
-            (StrideA < 0) ? K : StrideA,
-            (StrideB < 0) ? N : StrideB,
-            (StrideC < 0) ? N : StrideC);
+        return profile(float{}, float{}, float{}, Row{}, Row{}, Row{});
     }
     else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        return ck::profiler::profile_gemm_impl<float,
-                                               float,
-                                               float,
-                                               ck::tensor_layout::gemm::RowMajor,
-                                               ck::tensor_layout::gemm::ColumnMajor,
-                                               ck::tensor_layout::gemm::RowMajor>(
-            do_verification,
-            init_method,
-            do_log,
-            nrepeat,
-            M,
-            N,
-            K,
-            (StrideA < 0) ? K : StrideA,
-            (StrideB < 0) ? K : StrideB,
-            (StrideC < 0) ? N : StrideC);
+        return profile(float{}, float{}, float{}, Row{}, Col{}, Row{});
     }
     else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::KM_KN_MN)
     {
-        return ck::profiler::profile_gemm_impl<float,
-                                               float,
-                                               float,
-                                               ck::tensor_layout::gemm::ColumnMajor,
-                                               ck::tensor_layout::gemm::RowMajor,
-                                               ck::tensor_layout::gemm::RowMajor>(
-            do_verification,
-            init_method,
-            do_log,
-            nrepeat,
-            M,
-            N,
-            K,
-            (StrideA < 0) ? M : StrideA,
-            (StrideB < 0) ? N : StrideB,
-            (StrideC < 0) ? N : StrideC);
+        return profile(float{}, float{}, float{}, Col{}, Row{}, Row{});
     }
     else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::KM_NK_MN)
     {
-        return ck::profiler::profile_gemm_impl<float,
-                                               float,
-                                               float,
-                                               ck::tensor_layout::gemm::ColumnMajor,
-                                               ck::tensor_layout::gemm::ColumnMajor,
-                                               ck::tensor_layout::gemm::RowMajor>(
-            do_verification,
-            init_method,
-            do_log,
-            nrepeat,
-            M,
-            N,
-            K,
-            (StrideA < 0) ? M : StrideA,
-            (StrideB < 0) ? K : StrideB,
-            (StrideC < 0) ? N : StrideC);
+        return profile(float{}, float{}, float{}, Col{}, Col{}, Row{});
     }
     else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        return ck::profiler::profile_gemm_impl<int8_t,
-                                               int8_t,
-                                               int8_t,
-                                               ck::tensor_layout::gemm::RowMajor,
-                                               ck::tensor_layout::gemm::RowMajor,
-                                               ck::tensor_layout::gemm::RowMajor>(
-            do_verification,
-            init_method,
-            do_log,
-            nrepeat,
-            M,
-            N,
-            K,
-            (StrideA < 0) ? K : StrideA,
-            (StrideB < 0) ? N : StrideB,
-            (StrideC < 0) ? N : StrideC);
+        return profile(int8_t{}, int8_t{}, int8_t{}, Row{}, Row{}, Row{});
     }
     else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        return ck::profiler::profile_gemm_impl<int8_t,
-                                               int8_t,
-                                               int8_t,
-                                               ck::tensor_layout::gemm::RowMajor,
-                                               ck::tensor_layout::gemm::ColumnMajor,
-                                               ck::tensor_layout::gemm::RowMajor>(
-            do_verification,
-            init_method,
-            do_log,
-            nrepeat,
-            M,
-            N,
-            K,
-            (StrideA < 0) ? M : StrideA,
-            (StrideB < 0) ? K : StrideB,
-            (StrideC < 0) ? N : StrideC);
+        return profile(int8_t{}, int8_t{}, int8_t{}, Row{}, Col{}, Row{});
     }
     else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::KM_KN_MN)
     {
-        return ck::profiler::profile_gemm_impl<int8_t,
-                                               int8_t,
-                                               int8_t,
-                                               ck::tensor_layout::gemm::ColumnMajor,
-                                               ck::tensor_layout::gemm::RowMajor,
-                                               ck::tensor_layout::gemm::RowMajor>(
-            do_verification,
-            init_method,
-            do_log,
-            nrepeat,
-            M,
-            N,
-            K,
-            (StrideA < 0) ? M : StrideA,
-            (StrideB < 0) ? N : StrideB,
-            (StrideC < 0) ? N : StrideC);
+        return profile(int8_t{}, int8_t{}, int8_t{}, Col{}, Row{}, Row{});
     }
     else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::KM_NK_MN)
     {
-        return ck::profiler::profile_gemm_impl<int8_t,
-                                               int8_t,
-                                               int8_t,
-                                               ck::tensor_layout::gemm::ColumnMajor,
-                                               ck::tensor_layout::gemm::ColumnMajor,
-                                               ck::tensor_layout::gemm::RowMajor>(
-            do_verification,
-            init_method,
-            do_log,
-            nrepeat,
-            M,
-            N,
-            K,
-            (StrideA < 0) ? M : StrideA,
-            (StrideB < 0) ? K : StrideB,
-            (StrideC < 0) ? N : StrideC);
+        return profile(int8_t{}, int8_t{}, int8_t{}, Col{}, Col{}, Row{});
     }
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        return ck::profiler::profile_gemm_impl<ck::bhalf_t,
-                                               ck::bhalf_t,
-                                               ck::bhalf_t,
-                                               ck::tensor_layout::gemm::RowMajor,
-                                               ck::tensor_layout::gemm::RowMajor,
-                                               ck::tensor_layout::gemm::RowMajor>(
-            do_verification,
-            init_method,
-            do_log,
-            nrepeat,
-            M,
-            N,
-            K,
-            (StrideA < 0) ? K : StrideA,
-            (StrideB < 0) ? N : StrideB,
-            (StrideC < 0) ? N : StrideC);
+        return profile(ck::bhalf_t{}, ck::bhalf_t{}, ck::bhalf_t{}, Row{}, Row{}, Row{});
     }
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        return ck::profiler::profile_gemm_impl<ck::bhalf_t,
-                                               ck::bhalf_t,
-                                               ck::bhalf_t,
-                                               ck::tensor_layout::gemm::RowMajor,
-                                               ck::tensor_layout::gemm::ColumnMajor,
-                                               ck::tensor_layout::gemm::RowMajor>(
-            do_verification,
-            init_method,
-            do_log,
-            nrepeat,
-            M,
-            N,
-            K,
-            (StrideA < 0) ? M : StrideA,
-            (StrideB < 0) ? K : StrideB,
-            (StrideC < 0) ? N : StrideC);
+        return profile(ck::bhalf_t{}, ck::bhalf_t{}, ck::bhalf_t{}, Row{}, Col{}, Row{});
     }
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::KM_KN_MN)
     {
-        return ck::profiler::profile_gemm_impl<ck::bhalf_t,
-                                               ck::bhalf_t,
-                                               ck::bhalf_t,
-                                               ck::tensor_layout::gemm::ColumnMajor,
-                                               ck::tensor_layout::gemm::RowMajor,
-                                               ck::tensor_layout::gemm::RowMajor>(
-            do_verification,
-            init_method,
-            do_log,
-            nrepeat,
-            M,
-            N,
-            K,
-            (StrideA < 0) ? M : StrideA,
-            (StrideB < 0) ? N : StrideB,
-            (StrideC < 0) ? N : StrideC);
+        return profile(ck::bhalf_t{}, ck::bhalf_t{}, ck::bhalf_t{}, Col{}, Row{}, Row{});
     }
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::KM_NK_MN)
     {
-        return ck::profiler::profile_gemm_impl<ck::bhalf_t,
-                                               ck::bhalf_t,
-                                               ck::bhalf_t,
-                                               ck::tensor_layout::gemm::ColumnMajor,
-                                               ck::tensor_layout::gemm::ColumnMajor,
-                                               ck::tensor_layout::gemm::RowMajor>(
-            do_verification,
-            init_method,
-            do_log,
-            nrepeat,
-            M,
-            N,
-            K,
-            (StrideA < 0) ? M : StrideA,
-            (StrideB < 0) ? K : StrideB,
-            (StrideC < 0) ? N : StrideC);
+        return profile(ck::bhalf_t{}, ck::bhalf_t{}, ck::bhalf_t{}, Col{}, Col{}, Row{});
     }
     else
     {

@@ -167,12 +167,14 @@ struct DeviceGemmXdlSplitKCShuffle
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
-    static auto GetActualBatchAndKSplitted(index_t KRaw, index_t KBatch)
+    static auto GetActualBatchAndKPerBatch(index_t KRaw, index_t KBatchDesired)
     {
-        const index_t KSplitted = math::integer_divide_ceil(KRaw, KPerBlock * KBatch) * KPerBlock;
-        const index_t actual_k_batch = math::integer_divide_ceil(KRaw, KSplitted);
+        const index_t KPerBatch =
+            math::integer_divide_ceil(KRaw, KPerBlock * KBatchDesired) * KPerBlock;
 
-        return std::make_pair(actual_k_batch, KSplitted);
+        const index_t KBatch = math::integer_divide_ceil(KRaw, KPerBatch);
+
+        return std::make_tuple(KBatch, KPerBatch);
     }
 
     static auto MakeAGridDescriptor_AK0_M_AK1(index_t MRaw, index_t KRaw, index_t StrideA)
@@ -488,32 +490,33 @@ struct DeviceGemmXdlSplitKCShuffle
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op,
-                 index_t k_batch)
+                 index_t k_batch_desired)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
-              BatchCount_(k_batch),
+              KBatch_{0},
+              has_k_batch_tail_{false},
               compute_ptr_offset_of_batch_{0, 0},
               block_2_ctile_map_{},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op}
         {
-            const auto actual_batch_and_ksplitted = GetActualBatchAndKSplitted(KRaw, k_batch);
+            index_t KPerBatch = 0;
 
-            BatchCount_ = actual_batch_and_ksplitted.first;
-
-            const auto KSplitted = actual_batch_and_ksplitted.second;
+            std::tie(KBatch_, KPerBatch) = GetActualBatchAndKPerBatch(KRaw, k_batch_desired);
 
             a_grid_desc_ak0_m_ak1_ =
-                DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, KSplitted, StrideA);
+                DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, KPerBatch, StrideA);
             b_grid_desc_bk0_n_bk1_ =
-                DeviceOp::MakeBGridDescriptor_BK0_N_BK1(KSplitted, NRaw, StrideB);
+                DeviceOp::MakeBGridDescriptor_BK0_N_BK1(KPerBatch, NRaw, StrideB);
             c_grid_desc_m_n_ = DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC);
 
-            if(KRaw != KSplitted * BatchCount_ || KRaw != KSplitted * BatchCount_)
+            if(KRaw != KPerBatch * KBatch_)
             {
-                const auto KTail = KRaw - KSplitted * (BatchCount_ - 1);
+                has_k_batch_tail_ = true;
+
+                const auto KTail = KRaw - KPerBatch * (KBatch_ - 1);
 
                 a_grid_desc_ak0_m_ak1_tail_ =
                     DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, KTail, StrideA);
@@ -525,27 +528,27 @@ struct DeviceGemmXdlSplitKCShuffle
                 GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                     c_grid_desc_m_n_);
 
-            const index_t a_batch_stride = [KSplitted, StrideA]() {
+            const index_t a_batch_stride = [KPerBatch, StrideA]() {
                 if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
                 {
                     ignore = StrideA;
-                    return KSplitted;
+                    return KPerBatch;
                 }
                 else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ALayout>::value)
                 {
-                    return KSplitted * StrideA;
+                    return KPerBatch * StrideA;
                 }
             }();
 
-            const index_t b_batch_stride = [KSplitted, StrideB]() {
+            const index_t b_batch_stride = [KPerBatch, StrideB]() {
                 if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
                 {
-                    return KSplitted * StrideB;
+                    return KPerBatch * StrideB;
                 }
                 else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
                 {
                     ignore = StrideB;
-                    return KSplitted;
+                    return KPerBatch;
                 }
             }();
 
@@ -553,14 +556,15 @@ struct DeviceGemmXdlSplitKCShuffle
                 ComputePtrOffsetOfStridedBatch{a_batch_stride, b_batch_stride};
 
             block_2_ctile_map_ = MakeBlock2CTileMap(
-                BatchCount_, c_grid_desc_m_n_.GetLength(I0), c_grid_desc_m_n_.GetLength(I1), 1, 1);
+                KBatch_, c_grid_desc_m_n_.GetLength(I0), c_grid_desc_m_n_.GetLength(I1), 1, 1);
         }
 
         //  private:
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
-        index_t BatchCount_;
+        index_t KBatch_;
+        bool has_k_batch_tail_;
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_tail_;
@@ -588,7 +592,7 @@ struct DeviceGemmXdlSplitKCShuffle
             }
 
             {
-                std::cout << "k_batch = " << arg.BatchCount_ << "\n";
+                std::cout << "k_batch_desired = " << arg.KBatch_ << "\n";
                 std::cout << "arg.a_grid_desc_ak0_m_ak1_{"
                           << arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) << ", "
                           << arg.a_grid_desc_ak0_m_ak1_.GetLength(I1) << ", "
@@ -614,7 +618,7 @@ struct DeviceGemmXdlSplitKCShuffle
             }
 
             const index_t grid_size =
-                GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_) * arg.BatchCount_;
+                GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_) * arg.KBatch_;
 
             const auto K0                     = arg.a_grid_desc_ak0_m_ak1_.GetLength(I0);
             const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
@@ -634,7 +638,7 @@ struct DeviceGemmXdlSplitKCShuffle
                                               arg.p_a_grid_,
                                               arg.p_b_grid_,
                                               arg.p_c_grid_,
-                                              arg.BatchCount_,
+                                              arg.KBatch_,
                                               arg.a_element_op_,
                                               arg.b_element_op_,
                                               arg.c_element_op_,
@@ -742,11 +746,20 @@ struct DeviceGemmXdlSplitKCShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        return GridwiseGemm::CheckValidity(
-                   arg.a_grid_desc_ak0_m_ak1_, arg.b_grid_desc_bk0_n_bk1_, arg.c_grid_desc_m_n_) &&
-               GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_tail_,
-                                           arg.b_grid_desc_bk0_n_bk1_tail_,
-                                           arg.c_grid_desc_m_n_);
+        if(!GridwiseGemm::CheckValidity(
+               arg.a_grid_desc_ak0_m_ak1_, arg.b_grid_desc_bk0_n_bk1_, arg.c_grid_desc_m_n_))
+        {
+            return false;
+        }
+
+        if(arg.has_k_batch_tail_ && !GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_tail_,
+                                                                 arg.b_grid_desc_bk0_n_bk1_tail_,
+                                                                 arg.c_grid_desc_m_n_))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     // polymorphic

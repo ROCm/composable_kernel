@@ -22,13 +22,39 @@ bool profile_batched_gemm_reduce(int, char*[]);
 
 int main(int argc, char* argv[])
 {
+    auto print_help_message = []() {
+        // clang-format off
+        printf("arg1: tensor operation, gemm: GEMM\n"
+               "                        gemm_splitk: GEMM Split-K\n"
+               "                        gemm_bias_2d: GEMM+Bias(2D)\n"
+               "                        gemm_bias_relu: GEMM+Bias+ReLU\n"
+               "                        gemm_bias_relu_add: GEMM+Bias+ReLU+Add\n"
+               "                        gemm_reduce: GEMM+Reduce\n"
+               "                        grouped_gemm: Grouped GEMM\n"
+               "                        conv_fwd: Convolution Forward\n"
+               "                        conv_fwd_bias_relu: ForwardConvolution+Bias+ReLU\n"
+               "                        conv_fwd_bias_relu_add: ForwardConvolution+Bias+ReLU+Add\n"
+               "                        conv1d_bwd_data: Convolution Backward Data 1D\n"
+               "                        conv2d_bwd_data: Convolution Backward Data 2D\n"
+               "                        conv3d_bwd_data: Convolution Backward Data 3D\n"
+               "                        reduce: Reduce\n"
+               "                        conv2d_bwd_weight: Convolution Backward Weight 2D\n");
+        // clang-format on
+    };
+
+    if(argc < 2)
+    {
+        print_help_message();
+        exit(1);
+    }
+
     bool pass = true;
 
     if(strcmp(argv[1], "gemm") == 0)
     {
         pass = profile_gemm(argc, argv);
     }
-    if(strcmp(argv[1], "gemm_splitk") == 0)
+    else if(strcmp(argv[1], "gemm_splitk") == 0)
     {
         pass = profile_gemm_splitk(argc, argv);
     }
@@ -94,23 +120,7 @@ int main(int argc, char* argv[])
     }
     else
     {
-        // clang-format off
-        printf("arg1: tensor operation, gemm: GEMM\n"
-               "                        gemm_splitk: GEMMSplitK)\n"
-               "                        gemm_bias_2d: GEMM+Bias(2D)\n"
-               "                        gemm_bias_relu: GEMM+Bias+ReLU\n"
-               "                        gemm_bias_relu_add: GEMM+Bias+ReLU+Add\n"
-               "                        gemm_reduce: GEMM+Reduce\n"
-               "                        grouped_gemm: Grouped GEMM\n"
-               "                        conv_fwd: ForwardConvolution\n"
-               "                        conv_fwd_bias_relu: ForwardConvolution+Bias+ReLU\n"
-               "                        conv_fwd_bias_relu_add: ForwardConvolution+Bias+ReLU+Add\n"
-               "                        conv1d_bwd_data: BackwardConvolution data 1 dim\n"
-               "                        conv2d_bwd_data: BackwardConvolution data 2 dim\n"
-               "                        conv3d_bwd_data: BackwardConvolution data 3 dim\n"
-               "                        reduce: Reduce\n"
-               "                        conv2d_bwd_weight: Backward Weight Convolution 2d\n");
-        // clang-format on
+        print_help_message();
     }
 
     return pass ? 0 : 1;
