@@ -214,10 +214,10 @@ def runCKProfiler(Map conf=[:]){
 					dir("script"){
 						def perf_log = "perf_gemm_${gpu_arch}.log"
 						def artifact = "profile_gemm_${gpu_arch}.txt"
-						sh "./profile_gemm.sh gemm 0 0 0 1 0 5 | tee ${perf_log} ||true"
-						sh "./profile_gemm.sh gemm 0 1 0 1 0 5 | tee -a ${perf_log} ||true"
-						sh "./profile_gemm.sh gemm 0 2 0 1 0 5 | tee -a ${perf_log} ||true"
-						sh "./profile_gemm.sh gemm 0 3 0 1 0 5 | tee -a ${perf_log} || true"
+						sh "./profile_gemm.sh gemm 0 0 0 1 0 5 | tee ${perf_log}"
+						sh "./profile_gemm.sh gemm 1 0 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 2 0 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 3 0 0 1 0 5 | tee -a ${perf_log}"
 						//results will be parsed, stored, and analyzed within the python script
 						//the script will return 0 if the performance criteria are met
 						//or return 1 if the criteria are not met
