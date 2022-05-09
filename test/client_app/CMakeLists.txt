@@ -8,4 +8,4 @@ message(STATUS "Build with HIP ${hip_VERSION}")
 
 add_executable(test_client_app client_app.cpp)
 
-target_link_libraries(myexe PRIVATE composable_kernel::device_operations composable_kernel::host_tensor hip::host)
+target_link_libraries(test_client_app PRIVATE composable_kernel::device_operations composable_kernel::host_tensor hip::host)
