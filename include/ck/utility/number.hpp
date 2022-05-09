@@ -8,5 +8,8 @@ namespace ck {
 template <index_t N>
 using Number = integral_constant<index_t, N>;
 
+template <index_t N>
+using LongNumber = integral_constant<long_index_t, N>;
+
 } // namespace ck
 #endif
