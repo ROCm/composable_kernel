@@ -48,7 +48,7 @@ template <int NDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout>
-void profile_conv_bwd_data_impl(int do_verification,
+bool profile_conv_bwd_data_impl(int do_verification,
                                 int init_method,
                                 bool do_log,
                                 int nrepeat,
@@ -63,6 +63,8 @@ void profile_conv_bwd_data_impl(int do_verification,
                                 std::vector<ck::index_t> input_left_pads,
                                 std::vector<ck::index_t> input_right_pads)
 {
+    bool pass = true;
+
     const ck::index_t Y = filter_spatial_lengths[0];
     const ck::index_t X = filter_spatial_lengths[1];
 
@@ -226,6 +228,9 @@ void profile_conv_bwd_data_impl(int do_verification,
 
         if(conv_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            // re-init to zero before profiling next kernel
+            in_device_buf.SetZero();
+
             std::string conv_name = conv_ptr->GetTypeString();
 
             float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
@@ -255,8 +260,8 @@ void profile_conv_bwd_data_impl(int do_verification,
             {
                 in_device_buf.FromDevice(in_n_c_hi_wi_device_result.mData.data());
 
-                ck::utils::check_err(in_n_c_hi_wi_device_result.mData,
-                                     in_n_c_hi_wi_host_result.mData);
+                pass = pass && ck::utils::check_err(in_n_c_hi_wi_device_result.mData,
+                                                    in_n_c_hi_wi_host_result.mData);
 
                 if(do_log)
                 {
@@ -277,6 +282,8 @@ void profile_conv_bwd_data_impl(int do_verification,
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_conv_name << std::endl;
+
+    return pass;
 }
 
 } // namespace profiler

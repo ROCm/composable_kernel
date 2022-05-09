@@ -8,7 +8,6 @@
 #include "conv_fwd_util.hpp"
 #include "element_wise_operation.hpp"
 #include "fill.hpp"
-#include "profile_convnd_fwd.hpp"
 #include "tensor_layout.hpp"
 
 namespace {
@@ -295,7 +294,7 @@ void profile_convnd_instances(ConvDataType data_type,
 
 } // namespace
 
-int ck::profiler::profile_convnd_fwd(int argc, char* argv[])
+bool profile_convnd_fwd(int argc, char* argv[])
 {
     using namespace ck::utils::conv;
 
@@ -347,5 +346,6 @@ int ck::profiler::profile_convnd_fwd(int argc, char* argv[])
                                  std::to_string(num_dim_spatial));
     }
 
-    return 1;
+    // FIXME: return true if test pass, return false if test fail
+    return true;
 }

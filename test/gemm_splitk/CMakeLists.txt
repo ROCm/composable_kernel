@@ -1,0 +1,3 @@
+add_test_executable(test_gemm_splitk_fp32 gemm_splitk_fp32.cpp)
+target_link_libraries(test_gemm_splitk_fp32 PRIVATE host_tensor)
+target_link_libraries(test_gemm_splitk_fp32 PRIVATE device_gemm_splitk_instance)

@@ -62,7 +62,7 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-void profile_gemm_bias_2d_impl(int do_verification,
+bool profile_gemm_bias_2d_impl(int do_verification,
                                int init_method,
                                bool do_log,
                                int nrepeat,
@@ -75,6 +75,8 @@ void profile_gemm_bias_2d_impl(int do_verification,
                                float alpha,
                                float beta)
 {
+    bool pass = true;
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
@@ -115,9 +117,6 @@ void profile_gemm_bias_2d_impl(int do_verification,
         c0_m_n.GenerateTensorValue(GeneratorTensor_3<C0DataType>{-0.5, 0.5}, num_thread);
     }
 
-    // set zero to c_device_buf
-    c_m_n_device_result.GenerateTensorValue(GeneratorTensor_0<CDataType>{}, num_thread);
-
     using AElementOp = ck::tensor_operation::element_wise::PassThrough;
     using BElementOp = ck::tensor_operation::element_wise::PassThrough;
     using CElementOp = ck::tensor_operation::element_wise::AlphaBetaAdd;
@@ -137,9 +136,8 @@ void profile_gemm_bias_2d_impl(int do_verification,
                                                                                       BElementOp,
                                                                                       CElementOp>;
 
-        auto ref_gemm    = ReferenceGemmInstance{};
-        auto ref_invoker = ref_gemm.MakeInvoker();
-
+        auto ref_gemm     = ReferenceGemmInstance{};
+        auto ref_invoker  = ref_gemm.MakeInvoker();
         auto ref_argument = ref_gemm.MakeArgument(
             a_m_k, b_k_n, c0_m_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
 
@@ -225,10 +223,7 @@ void profile_gemm_bias_2d_impl(int do_verification,
         }
     }
 
-    if(gemm_ptrs.size() <= 0)
-    {
-        throw std::runtime_error("wrong! no device GEMM instance found");
-    }
+    std::cout << "found " << gemm_ptrs.size() << " instances" << std::endl;
 
     std::string best_gemm_name;
     float best_ave_time   = 0;
@@ -257,6 +252,9 @@ void profile_gemm_bias_2d_impl(int do_verification,
 
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            // re-init C to zero before profiling next kernel
+            c_device_buf.SetZero();
+
             std::string gemm_name = gemm_ptr->GetTypeString();
 
             float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
@@ -264,7 +262,7 @@ void profile_gemm_bias_2d_impl(int do_verification,
             std::size_t flop = std::size_t(2) * M * N * K;
 
             std::size_t num_btype =
-                sizeof(ADataType) * M * K + sizeof(BDataType) * K * M + sizeof(CDataType) * M * N;
+                sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
 
             float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
@@ -285,7 +283,8 @@ void profile_gemm_bias_2d_impl(int do_verification,
             {
                 c_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-                ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
+                pass = pass &&
+                       ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
 
                 if(do_log)
                 {
@@ -301,12 +300,14 @@ void profile_gemm_bias_2d_impl(int do_verification,
         }
         else
         {
-            std::cout << "does not support this GEMM problem" << std::endl;
+            std::cout << "does not support this problem" << std::endl;
         }
     }
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
+
+    return pass;
 }
 
 } // namespace profiler

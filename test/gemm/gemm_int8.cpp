@@ -31,14 +31,12 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
-void add_device_gemm_xdl_c_shuffle_int8_int8_int8_km_kn_mn_instances(
-    std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_xdl_c_shuffle_int8_int8_int8_km_nk_mn_instances(
-    std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_nk_mn_instances(
-    std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_kn_mn_instances(
-    std::vector<DeviceGemmNoOpPtr>&);
+
+void add_device_gemm_xdl_c_shuffle_i8_i8_i8_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_c_shuffle_i8_i8_i8_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_c_shuffle_i8_i8_i8_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_c_shuffle_i8_i8_i8_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+
 } // namespace device_gemm_instance
 } // namespace device
 } // namespace tensor_operation
@@ -57,7 +55,7 @@ int main()
     bool res = true;
 
     ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_xdl_c_shuffle_int8_int8_int8_km_kn_mn_instances(gemmPtrs);
+        add_device_gemm_xdl_c_shuffle_i8_i8_i8_km_kn_mn_instances(gemmPtrs);
 
     for(auto& gemmPtr : gemmPtrs)
     {
@@ -75,7 +73,7 @@ int main()
 
     gemmPtrs.clear();
     ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_xdl_c_shuffle_int8_int8_int8_km_nk_mn_instances(gemmPtrs);
+        add_device_gemm_xdl_c_shuffle_i8_i8_i8_km_nk_mn_instances(gemmPtrs);
 
     for(auto& gemmPtr : gemmPtrs)
     {
@@ -93,7 +91,7 @@ int main()
 
     gemmPtrs.clear();
     ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_kn_mn_instances(gemmPtrs);
+        add_device_gemm_xdl_c_shuffle_i8_i8_i8_mk_kn_mn_instances(gemmPtrs);
 
     for(auto& gemmPtr : gemmPtrs)
     {
@@ -111,7 +109,7 @@ int main()
 
     gemmPtrs.clear();
     ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_xdl_c_shuffle_int8_int8_int8_mk_nk_mn_instances(gemmPtrs);
+        add_device_gemm_xdl_c_shuffle_i8_i8_i8_mk_nk_mn_instances(gemmPtrs);
 
     for(auto& gemmPtr : gemmPtrs)
     {

@@ -35,6 +35,11 @@ void add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(std::vector<Devic
 void add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 
+void add_device_gemm_xdl_splitk_f16_f16_f16_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f16_f16_f16_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+
 } // namespace device_gemm_instance
 } // namespace device
 } // namespace tensor_operation
@@ -57,7 +62,7 @@ static bool check_out(const Tensor<T>& ref, const Tensor<T>& result)
     return true;
 }
 
-struct gemmArgs
+struct GemmArgs
 {
     GemmMatrixLayout layout;
     int M;
@@ -69,7 +74,7 @@ struct gemmArgs
     int KBatch;
 };
 
-int test_gemm(const gemmArgs& args)
+int test_gemm(const GemmArgs& args)
 {
     bool a_row_major, b_row_major, c_row_major;
 
@@ -213,7 +218,7 @@ int test_gemm(const gemmArgs& args)
 
 int main(int argc, char* argv[])
 {
-    std::vector<gemmArgs> test_cases;
+    std::vector<GemmArgs> test_cases;
     if(argc == 1)
     {
         test_cases = {{GemmMatrixLayout::MK_KN_MN, 3, 3, 3, 3, 3, 3, 1}};

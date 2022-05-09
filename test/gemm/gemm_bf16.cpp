@@ -31,6 +31,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
+
 void add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_km_kn_mn_instances(
     std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_km_nk_mn_instances(
@@ -39,6 +40,7 @@ void add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_mk_nk_mn_instances(
     std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_mk_kn_mn_instances(
     std::vector<DeviceGemmNoOpPtr>&);
+
 } // namespace device_gemm_instance
 } // namespace device
 } // namespace tensor_operation

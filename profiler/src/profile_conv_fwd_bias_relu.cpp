@@ -6,32 +6,33 @@
 #include <half.hpp>
 #include "profile_conv_fwd_bias_relu_impl.hpp"
 
-enum struct ConvDataType
+// return true if test pass
+bool profile_conv_fwd_bias_relu(int argc, char* argv[])
 {
-    F32_F32_F32, // 0
-    F16_F16_F16, // 1
-};
+    enum struct ConvDataType
+    {
+        F32_F32_F32, // 0
+        F16_F16_F16, // 1
+    };
 
-enum struct ConvInputLayout
-{
-    NCHW, // 0
-    NHWC, // 1
-};
+    enum struct ConvInputLayout
+    {
+        NCHW, // 0
+        NHWC, // 1
+    };
 
-enum struct ConvWeightLayout
-{
-    KCYX, // 0
-    KYXC, // 1
-};
+    enum struct ConvWeightLayout
+    {
+        KCYX, // 0
+        KYXC, // 1
+    };
 
-enum struct ConvOutputLayout
-{
-    NKHW, // 0
-    NHWK, // 1
-};
+    enum struct ConvOutputLayout
+    {
+        NKHW, // 0
+        NHWK, // 1
+    };
 
-int profile_conv_fwd_bias_relu(int argc, char* argv[])
-{
     if(argc != 25)
     {
         printf("arg1: tensor operation (conv_fwd_bias_relu: ForwardConvolution+Bias+ReLu)\n");
@@ -45,7 +46,7 @@ int profile_conv_fwd_bias_relu(int argc, char* argv[])
         printf("arg9: run kernel # of times (>1)\n");
         printf("arg10 to 24: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
                "RightPx\n");
-        exit(1);
+        return false;
     }
 
     const auto data_type       = static_cast<ConvDataType>(std::stoi(argv[2]));
@@ -83,13 +84,13 @@ int profile_conv_fwd_bias_relu(int argc, char* argv[])
     if(data_type == ConvDataType::F16_F16_F16 && in_layout == ConvInputLayout::NHWC &&
        wei_layout == ConvWeightLayout::KYXC && out_layout == ConvOutputLayout::NHWK)
     {
-        ck::profiler::profile_conv_fwd_bias_relu_impl<2,
-                                                      ck::half_t,
-                                                      ck::half_t,
-                                                      ck::half_t,
-                                                      ck::tensor_layout::convolution::NHWC,
-                                                      ck::tensor_layout::convolution::KYXC,
-                                                      ck::tensor_layout::convolution::NHWK>(
+        return ck::profiler::profile_conv_fwd_bias_relu_impl<2,
+                                                             ck::half_t,
+                                                             ck::half_t,
+                                                             ck::half_t,
+                                                             ck::tensor_layout::convolution::NHWC,
+                                                             ck::tensor_layout::convolution::KYXC,
+                                                             ck::tensor_layout::convolution::NHWK>(
             do_verification,
             init_method,
             do_log,
@@ -107,8 +108,8 @@ int profile_conv_fwd_bias_relu(int argc, char* argv[])
     }
     else
     {
-        throw std::runtime_error("wrong! data_type & layout for this operator is not implemented");
-    }
+        std::cout << "this data_type & layout is not implemented" << std::endl;
 
-    return 1;
+        return true;
+    }
 }

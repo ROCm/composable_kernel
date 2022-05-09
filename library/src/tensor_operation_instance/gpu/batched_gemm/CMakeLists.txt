@@ -12,10 +12,10 @@ set(DEVICE_BATCHED_GEMM_INSTANCE_SOURCE
    device_batched_gemm_xdl_f32_f32_f32_gmk_gnk_gmn_instance.cpp;
    device_batched_gemm_xdl_f32_f32_f32_gkm_gkn_gmn_instance.cpp;
    device_batched_gemm_xdl_f32_f32_f32_gkm_gnk_gmn_instance.cpp;
-   device_batched_gemm_xdl_int8_int8_int8_gmk_gkn_gmn_instance.cpp;
-   device_batched_gemm_xdl_int8_int8_int8_gmk_gnk_gmn_instance.cpp;
-   device_batched_gemm_xdl_int8_int8_int8_gkm_gkn_gmn_instance.cpp;
-   device_batched_gemm_xdl_int8_int8_int8_gkm_gnk_gmn_instance.cpp;
+   device_batched_gemm_xdl_i8_i8_i8_gmk_gkn_gmn_instance.cpp;
+   device_batched_gemm_xdl_i8_i8_i8_gmk_gnk_gmn_instance.cpp;
+   device_batched_gemm_xdl_i8_i8_i8_gkm_gkn_gmn_instance.cpp;
+   device_batched_gemm_xdl_i8_i8_i8_gkm_gnk_gmn_instance.cpp;
 )
 
 add_library(device_batched_gemm_instance SHARED ${DEVICE_BATCHED_GEMM_INSTANCE_SOURCE})

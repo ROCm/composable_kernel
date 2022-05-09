@@ -37,14 +37,10 @@ void add_device_batched_gemm_xdl_f32_f32_f32_gmk_gkn_gmn_instances(std::vector<D
 void add_device_batched_gemm_xdl_f32_f32_f32_gmk_gnk_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_batched_gemm_xdl_f32_f32_f32_gkm_gkn_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_batched_gemm_xdl_f32_f32_f32_gkm_gnk_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
-void add_device_batched_gemm_xdl_int8_int8_int8_gmk_gkn_gmn_instances(
-    std::vector<DeviceGemmNoOpPtr>&);
-void add_device_batched_gemm_xdl_int8_int8_int8_gmk_gnk_gmn_instances(
-    std::vector<DeviceGemmNoOpPtr>&);
-void add_device_batched_gemm_xdl_int8_int8_int8_gkm_gkn_gmn_instances(
-    std::vector<DeviceGemmNoOpPtr>&);
-void add_device_batched_gemm_xdl_int8_int8_int8_gkm_gnk_gmn_instances(
-    std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_i8_i8_i8_gmk_gkn_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_i8_i8_i8_gmk_gnk_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_i8_i8_i8_gkm_gkn_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_batched_gemm_xdl_i8_i8_i8_gkm_gnk_gmn_instances(std::vector<DeviceGemmNoOpPtr>&);
 
 } // namespace device_batched_gemm_instance
 } // namespace device
@@ -72,8 +68,6 @@ bool profile_batched_gemm_impl(int do_verification,
                                int StrideC,
                                int BatchCount)
 {
-    bool pass = true;
-
     auto f_host_tensor_descriptor = [](std::size_t batch_count,
                                        std::size_t row,
                                        std::size_t col,
@@ -297,40 +291,38 @@ bool profile_batched_gemm_impl(int do_verification,
                      is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
             ck::tensor_operation::device::device_batched_gemm_instance::
-                add_device_batched_gemm_xdl_int8_int8_int8_gmk_gkn_gmn_instances(gemm_ptrs);
+                add_device_batched_gemm_xdl_i8_i8_i8_gmk_gkn_gmn_instances(gemm_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
             ck::tensor_operation::device::device_batched_gemm_instance::
-                add_device_batched_gemm_xdl_int8_int8_int8_gmk_gnk_gmn_instances(gemm_ptrs);
+                add_device_batched_gemm_xdl_i8_i8_i8_gmk_gnk_gmn_instances(gemm_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
             ck::tensor_operation::device::device_batched_gemm_instance::
-                add_device_batched_gemm_xdl_int8_int8_int8_gkm_gkn_gmn_instances(gemm_ptrs);
+                add_device_batched_gemm_xdl_i8_i8_i8_gkm_gkn_gmn_instances(gemm_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
             ck::tensor_operation::device::device_batched_gemm_instance::
-                add_device_batched_gemm_xdl_int8_int8_int8_gkm_gnk_gmn_instances(gemm_ptrs);
+                add_device_batched_gemm_xdl_i8_i8_i8_gkm_gnk_gmn_instances(gemm_ptrs);
         }
     }
 
-    if(gemm_ptrs.size() <= 0)
-    {
-        throw std::runtime_error("wrong! no device GEMM instance found");
-    }
+    std::cout << "found " << gemm_ptrs.size() << " instances" << std::endl;
 
     std::string best_gemm_name;
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
+    bool pass             = true;
 
     // profile device GEMM instances
     for(auto& gemm_ptr : gemm_ptrs)
@@ -383,20 +375,8 @@ bool profile_batched_gemm_impl(int do_verification,
             {
                 c_device_buf.FromDevice(c_g_m_n_device_result.mData.data());
 
-                if constexpr(is_same<ADataType, ck::bhalf_t>::value &&
-                             is_same<BDataType, ck::bhalf_t>::value &&
-                             is_same<CDataType, ck::bhalf_t>::value)
-                {
-
-                    bf16_to_f32_(c_g_m_n_device_result, *c_f32_g_m_n_device_result);
-                    float err = check_error(*c_f32_g_m_n_host_result, *c_f32_g_m_n_device_result);
-                    pass      = pass && (err < 1E-6);
-                }
-                else
-                {
-                    float err = check_error(c_g_m_n_host_result, c_g_m_n_device_result);
-                    pass      = pass && (err < 1E-6);
-                }
+                pass = pass &&
+                       ck::utils::check_err(c_g_m_n_device_result.mData, c_g_m_n_host_result.mData);
 
                 if(do_log)
                 {
@@ -412,8 +392,7 @@ bool profile_batched_gemm_impl(int do_verification,
         }
         else
         {
-            std::cout << "this device GEMM instance does not support this GEMM problem"
-                      << std::endl;
+            std::cout << "does not support this problem" << std::endl;
         }
     }
 

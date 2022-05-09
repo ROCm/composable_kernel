@@ -1,5 +1,6 @@
 #pragma once
 
+#include "check_err.hpp"
 #include "config.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -312,13 +313,11 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
                 d0_device_buf.FromDevice(d0_g_m_device_result.mData.data());
                 d1_device_buf.FromDevice(d1_g_m_device_result.mData.data());
 
-                float c_error  = check_error(c_g_m_n_host_result, c_g_m_n_device_result);
-                float d0_error = check_error(d0_g_m_host_result, d0_g_m_device_result);
-                float d1_error = check_error(d1_g_m_host_result, d1_g_m_device_result);
-
-                pass = pass && (c_error < 1E-6);
-                pass = pass && (d0_error < 1E-6);
-                pass = pass && (d1_error < 1E-6);
+                pass =
+                    pass &&
+                    ck::utils::check_err(c_g_m_n_device_result.mData, c_g_m_n_host_result.mData) &&
+                    ck::utils::check_err(d0_g_m_device_result.mData, d0_g_m_host_result.mData) &&
+                    ck::utils::check_err(d1_g_m_device_result.mData, d1_g_m_host_result.mData);
 
                 if(do_log)
                 {
@@ -344,7 +343,7 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
         }
         else
         {
-            std::cout << "does not support this GEMM problem" << std::endl;
+            std::cout << "does not support this problem" << std::endl;
         }
     }
 

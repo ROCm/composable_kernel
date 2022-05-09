@@ -320,7 +320,7 @@ class AppArgs
 
 }; // end of class AppArgs
 
-int profile_reduce(int argc, char* argv[])
+bool profile_reduce(int argc, char* argv[])
 {
     using namespace ck::profiler;
 
@@ -499,5 +499,5 @@ int profile_reduce(int argc, char* argv[])
             throw std::runtime_error("Invalid compType assignment!");
     };
 
-    return (0);
+    return true;
 };

@@ -46,7 +46,7 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-void profile_grouped_gemm_impl(int do_verification,
+bool profile_grouped_gemm_impl(int do_verification,
                                int init_method,
                                bool do_log,
                                int nrepeat,
@@ -57,6 +57,8 @@ void profile_grouped_gemm_impl(int do_verification,
                                std::vector<int> StrideBs,
                                std::vector<int> StrideCs)
 {
+    bool pass = true;
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
@@ -81,6 +83,7 @@ void profile_grouped_gemm_impl(int do_verification,
 
     std::vector<Tensor<ADataType>> a_m_k;
     std::vector<Tensor<BDataType>> b_k_n;
+    std::vector<Tensor<CDataType>> c_m_n_host_results;
     std::vector<Tensor<CDataType>> c_m_n_device_results;
 
     for(int i = 0; i < Ms.size(); i++)
@@ -89,6 +92,9 @@ void profile_grouped_gemm_impl(int do_verification,
             Tensor<ADataType>(f_host_tensor_descriptor(Ms[i], Ks[i], StrideAs[i], ALayout{})));
         b_k_n.push_back(
             Tensor<BDataType>(f_host_tensor_descriptor(Ks[i], Ns[i], StrideBs[i], BLayout{})));
+
+        c_m_n_host_results.push_back(
+            Tensor<CDataType>(f_host_tensor_descriptor(Ms[i], Ns[i], StrideCs[i], CLayout{})));
 
         c_m_n_device_results.push_back(
             Tensor<CDataType>(f_host_tensor_descriptor(Ms[i], Ns[i], StrideCs[i], CLayout{})));
@@ -120,11 +126,6 @@ void profile_grouped_gemm_impl(int do_verification,
     const auto a_element_op = AElementOp{};
     const auto b_element_op = BElementOp{};
     const auto c_element_op = CElementOp{};
-
-    // if(do_verification)
-    // {
-
-    // }
 
     using DeviceMemPtr = std::unique_ptr<DeviceMem>;
     std::vector<DeviceMemPtr> a_device_buf, b_device_buf, c_device_buf;
@@ -163,6 +164,27 @@ void profile_grouped_gemm_impl(int do_verification,
         p_a.push_back(a_device_buf[i]->GetDeviceBuffer());
         p_b.push_back(b_device_buf[i]->GetDeviceBuffer());
         p_c.push_back(c_device_buf[i]->GetDeviceBuffer());
+    }
+
+    // reference calculation
+    if(do_verification)
+    {
+        for(int i = 0; i < gemm_shapes.size(); i++)
+        {
+            using ReferenceGemmInstance = ck::tensor_operation::host::
+                ReferenceGemm<ADataType, BDataType, CDataType, AElementOp, BElementOp, CElementOp>;
+
+            auto ref_gemm     = ReferenceGemmInstance{};
+            auto ref_invoker  = ref_gemm.MakeInvoker();
+            auto ref_argument = ref_gemm.MakeArgument(a_m_k[i],
+                                                      b_k_n[i],
+                                                      c_m_n_host_results[i],
+                                                      a_element_op,
+                                                      b_element_op,
+                                                      c_element_op);
+
+            ref_invoker.Run(ref_argument);
+        }
     }
 
     // add device GEMM instances
@@ -229,6 +251,12 @@ void profile_grouped_gemm_impl(int do_verification,
 
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            // re-init C to zero before profiling next kernel
+            for(int i = 0; i < gemm_shapes.size(); i++)
+            {
+                c_device_buf[i]->SetZero();
+            }
+
             std::string gemm_name = gemm_ptr->GetTypeString();
 
             float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
@@ -260,32 +288,10 @@ void profile_grouped_gemm_impl(int do_verification,
             {
                 for(int i = 0; i < gemm_shapes.size(); i++)
                 {
-
                     c_device_buf[i]->FromDevice(c_m_n_device_results[i].mData.data());
 
-                    Tensor<CDataType> c_m_n_host_result(
-                        f_host_tensor_descriptor(Ms[i], Ns[i], StrideCs[i], CLayout{}));
-
-                    using ReferenceGemmInstance =
-                        ck::tensor_operation::host::ReferenceGemm<ADataType,
-                                                                  BDataType,
-                                                                  CDataType,
-                                                                  AElementOp,
-                                                                  BElementOp,
-                                                                  CElementOp>;
-
-                    auto ref_gemm    = ReferenceGemmInstance{};
-                    auto ref_invoker = ref_gemm.MakeInvoker();
-
-                    auto ref_argument = ref_gemm.MakeArgument(a_m_k[i],
-                                                              b_k_n[i],
-                                                              c_m_n_host_result,
-                                                              a_element_op,
-                                                              b_element_op,
-                                                              c_element_op);
-
-                    ref_invoker.Run(ref_argument);
-                    ck::utils::check_err(c_m_n_device_results[i].mData, c_m_n_host_result.mData);
+                    pass = pass && ck::utils::check_err(c_m_n_device_results[i].mData,
+                                                        c_m_n_host_results[i].mData);
 
                     if(do_log)
                     {
@@ -296,7 +302,7 @@ void profile_grouped_gemm_impl(int do_verification,
                             std::cout << "c_device: ", c_m_n_device_results[i].mData, ",")
                             << std::endl;
                         LogRangeAsType<float>(
-                            std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
+                            std::cout << "c_host  : ", c_m_n_host_results[i].mData, ",")
                             << std::endl;
                     }
                 }
@@ -310,6 +316,9 @@ void profile_grouped_gemm_impl(int do_verification,
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
+
+    return pass;
+
 } // namespace profiler
 
 } // namespace profiler

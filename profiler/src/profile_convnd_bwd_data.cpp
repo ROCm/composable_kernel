@@ -80,7 +80,7 @@ ck::utils::conv::ConvParams parse_conv_params(int num_dim_spatial, char* argv[],
 
 } // namespace
 
-int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
+bool profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
 {
     const int preParams = 10;
     int conv_args       = 3 + num_dim_spatial * 6;
@@ -98,7 +98,7 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
         printf("arg9: run kernel # of times (>1)\n");
         printf("arg10 to 24: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
                "RightPx\n");
-        return 1;
+        return false;
     }
 
     const auto data_type       = static_cast<ConvDataType>(std::stoi(argv[2]));
@@ -121,14 +121,14 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
         switch(num_dim_spatial)
         {
         case 1:
-            ck::profiler::profile_convnd_bwd_data_impl<1,
-                                                       InDataType,
-                                                       WeiDataType,
-                                                       OutDataType,
-                                                       AccDataType,
-                                                       ck::tensor_layout::convolution::NWC,
-                                                       ck::tensor_layout::convolution::KXC,
-                                                       ck::tensor_layout::convolution::NWK>(
+            return ck::profiler::profile_convnd_bwd_data_impl<1,
+                                                              InDataType,
+                                                              WeiDataType,
+                                                              OutDataType,
+                                                              AccDataType,
+                                                              ck::tensor_layout::convolution::NWC,
+                                                              ck::tensor_layout::convolution::KXC,
+                                                              ck::tensor_layout::convolution::NWK>(
                 do_verification,
                 init_method,
                 do_log,
@@ -146,14 +146,14 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
             break;
 
         case 2:
-            ck::profiler::profile_convnd_bwd_data_impl<2,
-                                                       InDataType,
-                                                       WeiDataType,
-                                                       OutDataType,
-                                                       AccDataType,
-                                                       ck::tensor_layout::convolution::NHWC,
-                                                       ck::tensor_layout::convolution::KYXC,
-                                                       ck::tensor_layout::convolution::NHWK>(
+            return ck::profiler::profile_convnd_bwd_data_impl<2,
+                                                              InDataType,
+                                                              WeiDataType,
+                                                              OutDataType,
+                                                              AccDataType,
+                                                              ck::tensor_layout::convolution::NHWC,
+                                                              ck::tensor_layout::convolution::KYXC,
+                                                              ck::tensor_layout::convolution::NHWK>(
                 do_verification,
                 init_method,
                 do_log,
@@ -171,58 +171,58 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
             break;
 
         case 3:
-            ck::profiler::profile_convnd_bwd_data_impl<3,
-                                                       InDataType,
-                                                       WeiDataType,
-                                                       OutDataType,
-                                                       AccDataType,
-                                                       ck::tensor_layout::convolution::NDHWC,
-                                                       ck::tensor_layout::convolution::KZYXC,
-                                                       ck::tensor_layout::convolution::NDHWK>(
-                do_verification,
-                init_method,
-                do_log,
-                nrepeat,
-                params.N,
-                params.K,
-                params.C,
-                params.input_spatial_lengths,
-                params.filter_spatial_lengths,
-                params.GetOutputSpatialLengths(),
-                params.conv_filter_strides,
-                params.conv_filter_dilations,
-                params.input_left_pads,
-                params.input_right_pads);
+            return ck::profiler::profile_convnd_bwd_data_impl<
+                3,
+                InDataType,
+                WeiDataType,
+                OutDataType,
+                AccDataType,
+                ck::tensor_layout::convolution::NDHWC,
+                ck::tensor_layout::convolution::KZYXC,
+                ck::tensor_layout::convolution::NDHWK>(do_verification,
+                                                       init_method,
+                                                       do_log,
+                                                       nrepeat,
+                                                       params.N,
+                                                       params.K,
+                                                       params.C,
+                                                       params.input_spatial_lengths,
+                                                       params.filter_spatial_lengths,
+                                                       params.GetOutputSpatialLengths(),
+                                                       params.conv_filter_strides,
+                                                       params.conv_filter_dilations,
+                                                       params.input_left_pads,
+                                                       params.input_right_pads);
             break;
 
-        default: break;
+        default: return false;
         }
     };
+
     if(data_type == ConvDataType::F32_F32_F32 && in_layout == ConvInputLayout::NHWC &&
        wei_layout == ConvWeightLayout::KYXC && out_layout == ConvOutputLayout::NHWK)
     {
-        Run(float{}, float{}, float{}, float{});
+        return Run(float{}, float{}, float{}, float{});
     }
     else if(data_type == ConvDataType::F16_F16_F16 && in_layout == ConvInputLayout::NHWC &&
             wei_layout == ConvWeightLayout::KYXC && out_layout == ConvOutputLayout::NHWK)
     {
-        Run(ck::half_t{}, ck::half_t{}, ck::half_t{}, float{});
+        return Run(ck::half_t{}, ck::half_t{}, ck::half_t{}, float{});
     }
     else if(data_type == ConvDataType::BF16_BF16_BF16 && in_layout == ConvInputLayout::NHWC &&
             wei_layout == ConvWeightLayout::KYXC && out_layout == ConvOutputLayout::NHWK)
     {
-        Run(ck::bhalf_t{}, ck::bhalf_t{}, ck::bhalf_t{}, float{});
+        return Run(ck::bhalf_t{}, ck::bhalf_t{}, ck::bhalf_t{}, float{});
     }
     else if(data_type == ConvDataType::INT8_INT8_INT8 && in_layout == ConvInputLayout::NHWC &&
             wei_layout == ConvWeightLayout::KYXC && out_layout == ConvOutputLayout::NHWK)
     {
-        Run(int8_t{}, int8_t{}, int8_t{}, int32_t{});
+        return Run(int8_t{}, int8_t{}, int8_t{}, int32_t{});
     }
     else
     {
-        std::cout << "wrong! this Conv data_type & layout is not implemented" << std::endl;
-        return 1;
-    }
+        std::cout << "this data_type & layout is not implemented" << std::endl;
 
-    return 0;
+        return true;
+    }
 }

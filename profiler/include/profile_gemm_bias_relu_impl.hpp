@@ -45,7 +45,7 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-void profile_gemm_bias_relu_impl(int do_verification,
+bool profile_gemm_bias_relu_impl(int do_verification,
                                  int init_method,
                                  bool do_log,
                                  int nrepeat,
@@ -57,6 +57,8 @@ void profile_gemm_bias_relu_impl(int do_verification,
                                  int StrideC,
                                  int KBatch = 1)
 {
+    bool pass = true;
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
@@ -73,12 +75,12 @@ void profile_gemm_bias_relu_impl(int do_verification,
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-    Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-    Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-
     // c0_n[n]
     Tensor<CDataType> c0_n(HostTensorDescriptor(
         std::vector<std::size_t>({static_cast<std::size_t>(N)}), std::vector<std::size_t>({1})));
+
+    Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
@@ -99,9 +101,6 @@ void profile_gemm_bias_relu_impl(int do_verification,
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
         c0_n.GenerateTensorValue(GeneratorTensor_3<CDataType>{0.0, 1.0});
     }
-
-    // set zero to c_device_buf
-    c_m_n_device_result.GenerateTensorValue(GeneratorTensor_0<CDataType>{}, num_thread);
 
     using AElementOp = ck::tensor_operation::element_wise::PassThrough;
     using BElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -238,7 +237,8 @@ void profile_gemm_bias_relu_impl(int do_verification,
             {
                 c_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-                ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
+                pass = pass &&
+                       ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
 
                 if(do_log)
                 {
@@ -254,12 +254,14 @@ void profile_gemm_bias_relu_impl(int do_verification,
         }
         else
         {
-            std::cout << "does not support this GEMM problem" << std::endl;
+            std::cout << "does not support this problem" << std::endl;
         }
     }
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
+
+    return pass;
 }
 
 } // namespace profiler

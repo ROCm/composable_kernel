@@ -1,4 +1,5 @@
 #pragma once
+#include "check_err.hpp"
 #include "config.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -56,6 +57,8 @@ bool profile_conv_bwd_weight_impl(int do_verification,
                                   std::vector<ck::index_t> input_right_pads,
                                   ck::index_t split_k)
 {
+    bool pass = true;
+
     const ck::index_t Y = filter_spatial_lengths[0];
     const ck::index_t X = filter_spatial_lengths[1];
 
@@ -181,14 +184,11 @@ bool profile_conv_bwd_weight_impl(int do_verification,
     float best_gb_per_sec = 0;
 
     // profile device Conv instances
-    bool pass = true;
     for(auto& conv_ptr : conv_ptrs)
     {
-        // using atomic, so need to reset input
-        if(split_k > 1)
-        {
-            wei_device_buf.SetZero();
-        }
+        // using atomic, so need to reset
+        wei_device_buf.SetZero();
+
         auto argument_ptr = conv_ptr->MakeArgumentPointer(
             static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
             static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
@@ -241,12 +241,8 @@ bool profile_conv_bwd_weight_impl(int do_verification,
             {
                 wei_device_buf.FromDevice(wei_k_c_y_x_device_result.mData.data());
 
-                float max_error = check_error(wei_k_c_y_x_host_result, wei_k_c_y_x_device_result);
-                if(max_error > 8)
-                {
-                    pass = false;
-                    std::cout << "Fail info:" << conv_ptr->GetTypeString() << std::endl;
-                }
+                pass = pass && ck::utils::check_err(wei_k_c_y_x_device_result.mData,
+                                                    wei_k_c_y_x_host_result.mData);
 
                 if(do_log)
                 {

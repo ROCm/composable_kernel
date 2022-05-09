@@ -16,28 +16,28 @@
 #include "device_batched_gemm_xdl.hpp"
 #include "profile_batched_gemm_impl.hpp"
 
-enum struct GemmMatrixLayout
+bool profile_batched_gemm(int argc, char* argv[])
 {
-    MK_KN_MN, // 0
-    MK_NK_MN, // 1
-    KM_KN_MN, // 2
-    KM_NK_MN, // 3
-    MK_KN_NM, // 4
-    MK_NK_NM, // 5
-    KM_KN_NM, // 6
-    KM_NK_NM, // 7
-};
+    enum struct GemmMatrixLayout
+    {
+        MK_KN_MN, // 0
+        MK_NK_MN, // 1
+        KM_KN_MN, // 2
+        KM_NK_MN, // 3
+        MK_KN_NM, // 4
+        MK_NK_NM, // 5
+        KM_KN_NM, // 6
+        KM_NK_NM, // 7
+    };
 
-enum struct GemmDataType
-{
-    F32_F32_F32,    // 0
-    F16_F16_F16,    // 1
-    BF16_BF16_BF16, // 2
-    INT8_INT8_INT8, // 3
-};
+    enum struct GemmDataType
+    {
+        F32_F32_F32,    // 0
+        F16_F16_F16,    // 1
+        BF16_BF16_BF16, // 2
+        INT8_INT8_INT8, // 3
+    };
 
-int profile_batched_gemm(int argc, char* argv[])
-{
     if(!(argc == 15))
     {
         printf("arg1: tensor operation (batched_gemm: Batched GEMM)\n");
@@ -51,7 +51,7 @@ int profile_batched_gemm(int argc, char* argv[])
         printf("arg8: print tensor value (0: no; 1: yes)\n");
         printf("arg7: run kernel # of times (>1)\n");
         printf("arg8 to 14: M, N, K, StrideA, StrideB, StrideC, BatchCount\n");
-        exit(1);
+        return false;
     }
 
     const auto data_type       = static_cast<GemmDataType>(std::stoi(argv[2]));
@@ -73,12 +73,12 @@ int profile_batched_gemm(int argc, char* argv[])
 
     if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        ck::profiler::profile_batched_gemm_impl<ck::half_t,
-                                                ck::half_t,
-                                                ck::half_t,
-                                                ck::tensor_layout::gemm::RowMajor,
-                                                ck::tensor_layout::gemm::RowMajor,
-                                                ck::tensor_layout::gemm::RowMajor>(
+        return ck::profiler::profile_batched_gemm_impl<ck::half_t,
+                                                       ck::half_t,
+                                                       ck::half_t,
+                                                       ck::tensor_layout::gemm::RowMajor,
+                                                       ck::tensor_layout::gemm::RowMajor,
+                                                       ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -93,12 +93,12 @@ int profile_batched_gemm(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        ck::profiler::profile_batched_gemm_impl<ck::half_t,
-                                                ck::half_t,
-                                                ck::half_t,
-                                                ck::tensor_layout::gemm::RowMajor,
-                                                ck::tensor_layout::gemm::ColumnMajor,
-                                                ck::tensor_layout::gemm::RowMajor>(
+        return ck::profiler::profile_batched_gemm_impl<ck::half_t,
+                                                       ck::half_t,
+                                                       ck::half_t,
+                                                       ck::tensor_layout::gemm::RowMajor,
+                                                       ck::tensor_layout::gemm::ColumnMajor,
+                                                       ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -113,12 +113,12 @@ int profile_batched_gemm(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_KN_MN)
     {
-        ck::profiler::profile_batched_gemm_impl<ck::half_t,
-                                                ck::half_t,
-                                                ck::half_t,
-                                                ck::tensor_layout::gemm::ColumnMajor,
-                                                ck::tensor_layout::gemm::RowMajor,
-                                                ck::tensor_layout::gemm::RowMajor>(
+        return ck::profiler::profile_batched_gemm_impl<ck::half_t,
+                                                       ck::half_t,
+                                                       ck::half_t,
+                                                       ck::tensor_layout::gemm::ColumnMajor,
+                                                       ck::tensor_layout::gemm::RowMajor,
+                                                       ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -133,12 +133,12 @@ int profile_batched_gemm(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_NK_MN)
     {
-        ck::profiler::profile_batched_gemm_impl<ck::half_t,
-                                                ck::half_t,
-                                                ck::half_t,
-                                                ck::tensor_layout::gemm::ColumnMajor,
-                                                ck::tensor_layout::gemm::ColumnMajor,
-                                                ck::tensor_layout::gemm::RowMajor>(
+        return ck::profiler::profile_batched_gemm_impl<ck::half_t,
+                                                       ck::half_t,
+                                                       ck::half_t,
+                                                       ck::tensor_layout::gemm::ColumnMajor,
+                                                       ck::tensor_layout::gemm::ColumnMajor,
+                                                       ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -153,12 +153,12 @@ int profile_batched_gemm(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        ck::profiler::profile_batched_gemm_impl<ck::bhalf_t,
-                                                ck::bhalf_t,
-                                                ck::bhalf_t,
-                                                ck::tensor_layout::gemm::RowMajor,
-                                                ck::tensor_layout::gemm::RowMajor,
-                                                ck::tensor_layout::gemm::RowMajor>(
+        return ck::profiler::profile_batched_gemm_impl<ck::bhalf_t,
+                                                       ck::bhalf_t,
+                                                       ck::bhalf_t,
+                                                       ck::tensor_layout::gemm::RowMajor,
+                                                       ck::tensor_layout::gemm::RowMajor,
+                                                       ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -173,12 +173,12 @@ int profile_batched_gemm(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        ck::profiler::profile_batched_gemm_impl<ck::bhalf_t,
-                                                ck::bhalf_t,
-                                                ck::bhalf_t,
-                                                ck::tensor_layout::gemm::RowMajor,
-                                                ck::tensor_layout::gemm::ColumnMajor,
-                                                ck::tensor_layout::gemm::RowMajor>(
+        return ck::profiler::profile_batched_gemm_impl<ck::bhalf_t,
+                                                       ck::bhalf_t,
+                                                       ck::bhalf_t,
+                                                       ck::tensor_layout::gemm::RowMajor,
+                                                       ck::tensor_layout::gemm::ColumnMajor,
+                                                       ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -193,12 +193,12 @@ int profile_batched_gemm(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::KM_KN_MN)
     {
-        ck::profiler::profile_batched_gemm_impl<ck::bhalf_t,
-                                                ck::bhalf_t,
-                                                ck::bhalf_t,
-                                                ck::tensor_layout::gemm::ColumnMajor,
-                                                ck::tensor_layout::gemm::RowMajor,
-                                                ck::tensor_layout::gemm::RowMajor>(
+        return ck::profiler::profile_batched_gemm_impl<ck::bhalf_t,
+                                                       ck::bhalf_t,
+                                                       ck::bhalf_t,
+                                                       ck::tensor_layout::gemm::ColumnMajor,
+                                                       ck::tensor_layout::gemm::RowMajor,
+                                                       ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -213,12 +213,12 @@ int profile_batched_gemm(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::KM_NK_MN)
     {
-        ck::profiler::profile_batched_gemm_impl<ck::bhalf_t,
-                                                ck::bhalf_t,
-                                                ck::bhalf_t,
-                                                ck::tensor_layout::gemm::ColumnMajor,
-                                                ck::tensor_layout::gemm::ColumnMajor,
-                                                ck::tensor_layout::gemm::RowMajor>(
+        return ck::profiler::profile_batched_gemm_impl<ck::bhalf_t,
+                                                       ck::bhalf_t,
+                                                       ck::bhalf_t,
+                                                       ck::tensor_layout::gemm::ColumnMajor,
+                                                       ck::tensor_layout::gemm::ColumnMajor,
+                                                       ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -233,12 +233,12 @@ int profile_batched_gemm(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        ck::profiler::profile_batched_gemm_impl<float,
-                                                float,
-                                                float,
-                                                ck::tensor_layout::gemm::RowMajor,
-                                                ck::tensor_layout::gemm::RowMajor,
-                                                ck::tensor_layout::gemm::RowMajor>(
+        return ck::profiler::profile_batched_gemm_impl<float,
+                                                       float,
+                                                       float,
+                                                       ck::tensor_layout::gemm::RowMajor,
+                                                       ck::tensor_layout::gemm::RowMajor,
+                                                       ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -253,12 +253,12 @@ int profile_batched_gemm(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        ck::profiler::profile_batched_gemm_impl<float,
-                                                float,
-                                                float,
-                                                ck::tensor_layout::gemm::RowMajor,
-                                                ck::tensor_layout::gemm::ColumnMajor,
-                                                ck::tensor_layout::gemm::RowMajor>(
+        return ck::profiler::profile_batched_gemm_impl<float,
+                                                       float,
+                                                       float,
+                                                       ck::tensor_layout::gemm::RowMajor,
+                                                       ck::tensor_layout::gemm::ColumnMajor,
+                                                       ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -273,12 +273,12 @@ int profile_batched_gemm(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::KM_KN_MN)
     {
-        ck::profiler::profile_batched_gemm_impl<float,
-                                                float,
-                                                float,
-                                                ck::tensor_layout::gemm::ColumnMajor,
-                                                ck::tensor_layout::gemm::RowMajor,
-                                                ck::tensor_layout::gemm::RowMajor>(
+        return ck::profiler::profile_batched_gemm_impl<float,
+                                                       float,
+                                                       float,
+                                                       ck::tensor_layout::gemm::ColumnMajor,
+                                                       ck::tensor_layout::gemm::RowMajor,
+                                                       ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -293,12 +293,12 @@ int profile_batched_gemm(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::KM_NK_MN)
     {
-        ck::profiler::profile_batched_gemm_impl<float,
-                                                float,
-                                                float,
-                                                ck::tensor_layout::gemm::ColumnMajor,
-                                                ck::tensor_layout::gemm::ColumnMajor,
-                                                ck::tensor_layout::gemm::RowMajor>(
+        return ck::profiler::profile_batched_gemm_impl<float,
+                                                       float,
+                                                       float,
+                                                       ck::tensor_layout::gemm::ColumnMajor,
+                                                       ck::tensor_layout::gemm::ColumnMajor,
+                                                       ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -313,12 +313,12 @@ int profile_batched_gemm(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        ck::profiler::profile_batched_gemm_impl<int8_t,
-                                                int8_t,
-                                                int8_t,
-                                                ck::tensor_layout::gemm::RowMajor,
-                                                ck::tensor_layout::gemm::RowMajor,
-                                                ck::tensor_layout::gemm::RowMajor>(
+        return ck::profiler::profile_batched_gemm_impl<int8_t,
+                                                       int8_t,
+                                                       int8_t,
+                                                       ck::tensor_layout::gemm::RowMajor,
+                                                       ck::tensor_layout::gemm::RowMajor,
+                                                       ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -333,12 +333,12 @@ int profile_batched_gemm(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        ck::profiler::profile_batched_gemm_impl<int8_t,
-                                                int8_t,
-                                                int8_t,
-                                                ck::tensor_layout::gemm::RowMajor,
-                                                ck::tensor_layout::gemm::ColumnMajor,
-                                                ck::tensor_layout::gemm::RowMajor>(
+        return ck::profiler::profile_batched_gemm_impl<int8_t,
+                                                       int8_t,
+                                                       int8_t,
+                                                       ck::tensor_layout::gemm::RowMajor,
+                                                       ck::tensor_layout::gemm::ColumnMajor,
+                                                       ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -353,12 +353,12 @@ int profile_batched_gemm(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::KM_KN_MN)
     {
-        ck::profiler::profile_batched_gemm_impl<int8_t,
-                                                int8_t,
-                                                int8_t,
-                                                ck::tensor_layout::gemm::ColumnMajor,
-                                                ck::tensor_layout::gemm::RowMajor,
-                                                ck::tensor_layout::gemm::RowMajor>(
+        return ck::profiler::profile_batched_gemm_impl<int8_t,
+                                                       int8_t,
+                                                       int8_t,
+                                                       ck::tensor_layout::gemm::ColumnMajor,
+                                                       ck::tensor_layout::gemm::RowMajor,
+                                                       ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -373,12 +373,12 @@ int profile_batched_gemm(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::KM_NK_MN)
     {
-        ck::profiler::profile_batched_gemm_impl<int8_t,
-                                                int8_t,
-                                                int8_t,
-                                                ck::tensor_layout::gemm::ColumnMajor,
-                                                ck::tensor_layout::gemm::ColumnMajor,
-                                                ck::tensor_layout::gemm::RowMajor>(
+        return ck::profiler::profile_batched_gemm_impl<int8_t,
+                                                       int8_t,
+                                                       int8_t,
+                                                       ck::tensor_layout::gemm::ColumnMajor,
+                                                       ck::tensor_layout::gemm::ColumnMajor,
+                                                       ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -393,8 +393,8 @@ int profile_batched_gemm(int argc, char* argv[])
     }
     else
     {
-        throw std::runtime_error("wrong! this GEMM data_type & layout is not implemented");
-    }
+        std::cout << "this data_type & layout is not implemented" << std::endl;
 
-    return 1;
+        return true;
+    }
 }

@@ -23,6 +23,7 @@ using DeviceConvBwdDataNoOpPtr =
     DeviceConvBwdDataPtr<ck::tensor_operation::element_wise::PassThrough,
                          ck::tensor_operation::element_wise::PassThrough,
                          ck::tensor_operation::element_wise::PassThrough>;
+
 void add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_f32_instances(
     std::vector<DeviceConvBwdDataNoOpPtr>&);
 void add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_f16_instances(
@@ -49,6 +50,7 @@ void add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_bf16_instances(
     std::vector<DeviceConvBwdDataNoOpPtr>&);
 void add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_int8_instances(
     std::vector<DeviceConvBwdDataNoOpPtr>&);
+
 } // namespace device_conv2d_bwd_data_instance
 } // namespace device
 } // namespace tensor_operation
@@ -217,21 +219,6 @@ void get_device_conv_bwd_data_op_ptr(
     }
 }
 
-template <typename T>
-static bool check_out(const Tensor<T>& ref, const Tensor<T>& result)
-{
-    float max_diff = 1e-6;
-
-    for(int i = 0; i < ref.mData.size(); ++i)
-    {
-        float diff = std::abs(double(ref.mData[i]) - double(result.mData[i]));
-        if(max_diff < diff)
-        {
-            return false;
-        }
-    }
-    return true;
-}
 template <typename DataType>
 void show_data_nhwc_layout(Tensor<DataType>& nhwc)
 {
@@ -281,6 +268,8 @@ bool profile_convnd_bwd_data_impl(int do_verification,
                                   const std::vector<ck::index_t>& input_left_pads,
                                   const std::vector<ck::index_t>& input_right_pads)
 {
+    bool pass = true;
+
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
     using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -335,28 +324,10 @@ bool profile_convnd_bwd_data_impl(int do_verification,
     out_device_buf.ToDevice(output.mData.data());
     wei_device_buf.ToDevice(weights.mData.data());
 
-    // reset input to zero
-    in_device_buf.SetZero();
-
+    // reference calculation
     if(do_verification)
     {
-        auto RunReference = [&](auto& ref_conv) {
-            auto ref_invoker = ref_conv.MakeInvoker();
-
-            auto ref_argument = ref_conv.MakeArgument(input_host_result,
-                                                      weights,
-                                                      output,
-                                                      conv_filter_strides,
-                                                      conv_filter_dilations,
-                                                      input_left_pads,
-                                                      input_right_pads,
-                                                      InElementOp{},
-                                                      WeiElementOp{},
-                                                      OutElementOp{});
-            ref_invoker.Run(ref_argument);
-        };
-
-        auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
+        auto ref_conv    = ck::tensor_operation::host::ReferenceConvBwdData<InDataType,
                                                                          WeiDataType,
                                                                          OutDataType,
                                                                          AccDataType,
@@ -364,7 +335,19 @@ bool profile_convnd_bwd_data_impl(int do_verification,
                                                                          WeiElementOp,
                                                                          OutElementOp,
                                                                          NDimSpatial>();
-        RunReference(ref_conv);
+        auto ref_invoker = ref_conv.MakeInvoker();
+
+        auto ref_argument = ref_conv.MakeArgument(input_host_result,
+                                                  weights,
+                                                  output,
+                                                  conv_filter_strides,
+                                                  conv_filter_dilations,
+                                                  input_left_pads,
+                                                  input_right_pads,
+                                                  InElementOp{},
+                                                  WeiElementOp{},
+                                                  OutElementOp{});
+        ref_invoker.Run(ref_argument);
     }
 
     // add device Conv instances
@@ -372,10 +355,7 @@ bool profile_convnd_bwd_data_impl(int do_verification,
     get_device_conv_bwd_data_op_ptr(
         InDataType{}, WeiDataType{}, OutDataType{}, conv_ptrs, NDimSpatial);
 
-    if(conv_ptrs.size() <= 0)
-    {
-        throw std::runtime_error("wrong! no device Conv instance found");
-    }
+    std::cout << "found " << conv_ptrs.size() << " instances" << std::endl;
 
     std::string best_conv_name;
     float best_ave_time   = 0;
@@ -383,7 +363,6 @@ bool profile_convnd_bwd_data_impl(int do_verification,
     float best_gb_per_sec = 0;
 
     // profile device Conv instances
-    bool success = true;
     for(auto& conv_ptr : conv_ptrs)
     {
         auto argument_ptr = conv_ptr->MakeArgumentPointer(
@@ -408,6 +387,9 @@ bool profile_convnd_bwd_data_impl(int do_verification,
 
         if(conv_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            // re-init to zero before profiling next kernel
+            in_device_buf.SetZero();
+
             std::string conv_name = conv_ptr->GetTypeString();
 
             float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
@@ -436,18 +418,8 @@ bool profile_convnd_bwd_data_impl(int do_verification,
             {
                 in_device_buf.FromDevice(input_device_result.mData.data());
 
-                if(!check_out(input_host_result, input_device_result))
-                {
-                    std::cout << "Fail Info: " << conv_ptr->GetTypeString() << std::endl;
-
-                    success = false;
-                }
-                else
-                {
-                    std::cout << "Pass Info: " << conv_ptr->GetTypeString() << std::endl;
-                }
-
-                check_error(input_host_result, input_device_result);
+                pass = pass &&
+                       ck::utils::check_err(input_device_result.mData, input_host_result.mData);
 
                 if(do_log)
                 {
@@ -473,8 +445,8 @@ bool profile_convnd_bwd_data_impl(int do_verification,
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_conv_name << std::endl;
-    return success;
-}
 
+    return pass;
+}
 } // namespace profiler
 } // namespace ck

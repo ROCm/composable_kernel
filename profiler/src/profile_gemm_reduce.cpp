@@ -6,7 +6,8 @@
 #include <half.hpp>
 #include "profile_gemm_reduce_impl.hpp"
 
-int profile_gemm_reduce(int argc, char* argv[])
+// return true if test pass
+bool profile_gemm_reduce(int argc, char* argv[])
 {
     enum struct GemmMatrixLayout
     {
@@ -22,7 +23,7 @@ int profile_gemm_reduce(int argc, char* argv[])
         F16_F16_F16_F32_F32, // 1
     };
 
-    if(!(argc == 14 || argc == 15))
+    if(argc != 14)
     {
         printf("arg1: tensor operation (gemm: GEMM+Reduce)\n");
         printf("arg2: data type (0: fp32; 1: fp16)\n");
@@ -34,9 +35,7 @@ int profile_gemm_reduce(int argc, char* argv[])
         printf("arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n");
         printf("arg8: print tensor value (0: no; 1: yes)\n");
         printf("arg7: run kernel # of times (>1)\n");
-        printf("arg8 to 13: M, N, K, StrideA, StrideB, StrideC\n");
-        printf("arg14: split k into  mulitiple batch\n");
-        exit(1);
+        return false;
     }
 
     const auto data_type       = static_cast<GemmReduceDataType>(std::stoi(argv[2]));
@@ -56,13 +55,13 @@ int profile_gemm_reduce(int argc, char* argv[])
 
     if(data_type == GemmReduceDataType::F16_F16_F16_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        ck::profiler::profile_gemm_reduce_impl<ck::half_t,
-                                               ck::half_t,
-                                               ck::half_t,
-                                               float,
-                                               ck::tensor_layout::gemm::RowMajor,
-                                               ck::tensor_layout::gemm::RowMajor,
-                                               ck::tensor_layout::gemm::RowMajor>(
+        return ck::profiler::profile_gemm_reduce_impl<ck::half_t,
+                                                      ck::half_t,
+                                                      ck::half_t,
+                                                      float,
+                                                      ck::tensor_layout::gemm::RowMajor,
+                                                      ck::tensor_layout::gemm::RowMajor,
+                                                      ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -77,13 +76,13 @@ int profile_gemm_reduce(int argc, char* argv[])
     else if(data_type == GemmReduceDataType::F16_F16_F16_F32_F32 &&
             layout == GemmMatrixLayout::MK_NK_MN)
     {
-        ck::profiler::profile_gemm_reduce_impl<ck::half_t,
-                                               ck::half_t,
-                                               ck::half_t,
-                                               float,
-                                               ck::tensor_layout::gemm::RowMajor,
-                                               ck::tensor_layout::gemm::ColumnMajor,
-                                               ck::tensor_layout::gemm::RowMajor>(
+        return ck::profiler::profile_gemm_reduce_impl<ck::half_t,
+                                                      ck::half_t,
+                                                      ck::half_t,
+                                                      float,
+                                                      ck::tensor_layout::gemm::RowMajor,
+                                                      ck::tensor_layout::gemm::ColumnMajor,
+                                                      ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -98,13 +97,13 @@ int profile_gemm_reduce(int argc, char* argv[])
     else if(data_type == GemmReduceDataType::F16_F16_F16_F32_F32 &&
             layout == GemmMatrixLayout::KM_KN_MN)
     {
-        ck::profiler::profile_gemm_reduce_impl<ck::half_t,
-                                               ck::half_t,
-                                               ck::half_t,
-                                               float,
-                                               ck::tensor_layout::gemm::ColumnMajor,
-                                               ck::tensor_layout::gemm::RowMajor,
-                                               ck::tensor_layout::gemm::RowMajor>(
+        return ck::profiler::profile_gemm_reduce_impl<ck::half_t,
+                                                      ck::half_t,
+                                                      ck::half_t,
+                                                      float,
+                                                      ck::tensor_layout::gemm::ColumnMajor,
+                                                      ck::tensor_layout::gemm::RowMajor,
+                                                      ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -119,13 +118,13 @@ int profile_gemm_reduce(int argc, char* argv[])
     else if(data_type == GemmReduceDataType::F16_F16_F16_F32_F32 &&
             layout == GemmMatrixLayout::KM_NK_MN)
     {
-        ck::profiler::profile_gemm_reduce_impl<ck::half_t,
-                                               ck::half_t,
-                                               ck::half_t,
-                                               float,
-                                               ck::tensor_layout::gemm::ColumnMajor,
-                                               ck::tensor_layout::gemm::ColumnMajor,
-                                               ck::tensor_layout::gemm::RowMajor>(
+        return ck::profiler::profile_gemm_reduce_impl<ck::half_t,
+                                                      ck::half_t,
+                                                      ck::half_t,
+                                                      float,
+                                                      ck::tensor_layout::gemm::ColumnMajor,
+                                                      ck::tensor_layout::gemm::ColumnMajor,
+                                                      ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
@@ -139,8 +138,8 @@ int profile_gemm_reduce(int argc, char* argv[])
     }
     else
     {
-        throw std::runtime_error("wrong! this data_type & layout is not implemented");
-    }
+        std::cout << "this data_type & layout is not implemented" << std::endl;
 
-    return 1;
+        return true;
+    }
 }

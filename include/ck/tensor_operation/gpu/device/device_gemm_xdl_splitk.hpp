@@ -156,6 +156,8 @@ template <typename ADataType,
 struct DeviceGemmXdlSplitK
     : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
+    using DeviceOp = DeviceGemmXdlSplitK;
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
@@ -426,7 +428,6 @@ struct DeviceGemmXdlSplitK
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
               BatchCount_(k_batch),
-              has_tail_(false),
               compute_ptr_offset_of_batch_{0, 0},
               M01_{M01},
               N01_{N01},
@@ -444,58 +445,50 @@ struct DeviceGemmXdlSplitK
                 DeviceGemmXdlSplitK::MakeBGridDescriptor_K0_N_K1(KSplitted, N, StrideB);
             c_grid_desc_m_n_ = DeviceGemmXdlSplitK::MakeCGridDescriptor_M_N(M, N, StrideC);
 
-            bool is_valid = GridwiseGemm::CheckValidity(
-                a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_);
-
             if(K != KSplitted * BatchCount_)
             {
-                has_tail_        = true;
                 const auto KTail = K - KSplitted * (BatchCount_ - 1);
                 a_grid_desc_k0_m_k1_tail_ =
                     DeviceGemmXdlSplitK::MakeAGridDescriptor_K0_M_K1(M, KTail, StrideA);
                 b_grid_desc_k0_n_k1_tail_ =
                     DeviceGemmXdlSplitK::MakeBGridDescriptor_K0_N_K1(KTail, N, StrideB);
-
-                is_valid &= GridwiseGemm::CheckValidity(a_grid_desc_k0_m_k1_tail_,
-                                                        b_grid_desc_k0_n_k1_tail_,
-                                                        c_grid_desc_m_n_,
-                                                        M01_,
-                                                        N01_);
             }
 
-            if(is_valid)
-            {
-                c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
-                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
+            c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
+                GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
 
-                const index_t a_batch_stride = [KSplitted, StrideA]() {
-                    if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
-                    {
-                        ignore = StrideA;
-                        return KSplitted;
-                    }
-                    else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ALayout>::value)
-                    {
-                        return KSplitted * StrideA;
-                    }
-                }();
+            const index_t a_batch_stride = [KSplitted, StrideA]() {
+                if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
+                {
+                    ignore = StrideA;
+                    return KSplitted;
+                }
+                else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ALayout>::value)
+                {
+                    return KSplitted * StrideA;
+                }
+            }();
 
-                const index_t b_batch_stride = [KSplitted, StrideB]() {
-                    if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
-                    {
-                        return KSplitted * StrideB;
-                    }
-                    else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
-                    {
-                        ignore = StrideB;
-                        return KSplitted;
-                    }
-                }();
+            const index_t b_batch_stride = [KSplitted, StrideB]() {
+                if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
+                {
+                    return KSplitted * StrideB;
+                }
+                else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
+                {
+                    ignore = StrideB;
+                    return KSplitted;
+                }
+            }();
 
-                compute_ptr_offset_of_batch_ =
-                    ComputePtrOffsetOfStridedBatch{a_batch_stride, b_batch_stride};
-                block_2_ctile_map_ = MakeBlock2CTileMap(BatchCount_, c_grid_desc_m_n_, M01, N01);
-            }
+            compute_ptr_offset_of_batch_ =
+                ComputePtrOffsetOfStridedBatch{a_batch_stride, b_batch_stride};
+
+            block_2_ctile_map_ = MakeBlock2CTileMap(BatchCount_,
+                                                    c_grid_desc_m_n_.GetLength(I0),
+                                                    c_grid_desc_m_n_.GetLength(I1),
+                                                    M01,
+                                                    N01);
         }
 
         //  private:
@@ -503,7 +496,6 @@ struct DeviceGemmXdlSplitK
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
         index_t BatchCount_;
-        bool has_tail_;
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_tail_;
@@ -526,6 +518,11 @@ struct DeviceGemmXdlSplitK
 
         float Run(const Argument& arg, int nrepeat = 1)
         {
+            if(!DeviceOp::IsSupportedArgument(arg))
+            {
+                throw std::runtime_error("wrong! not supported");
+            }
+
             {
                 std::cout << "k_batch = " << arg.BatchCount_ << "\n";
                 std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
@@ -539,38 +536,15 @@ struct DeviceGemmXdlSplitK
                 std::cout << "arg.c_grid_desc_m_n_{" << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
                           << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
 
-                if(arg.has_tail_)
-                {
-                    std::cout << "arg.a_grid_desc_k0_m_k1_tail_{"
-                              << arg.a_grid_desc_k0_m_k1_tail_.GetLength(I0) << ", "
-                              << arg.a_grid_desc_k0_m_k1_tail_.GetLength(I1) << ", "
-                              << arg.a_grid_desc_k0_m_k1_.GetLength(I2) << "}" << std::endl;
+                std::cout << "arg.a_grid_desc_k0_m_k1_tail_{"
+                          << arg.a_grid_desc_k0_m_k1_tail_.GetLength(I0) << ", "
+                          << arg.a_grid_desc_k0_m_k1_tail_.GetLength(I1) << ", "
+                          << arg.a_grid_desc_k0_m_k1_.GetLength(I2) << "}" << std::endl;
 
-                    std::cout << "arg.b_grid_desc_k0_n_k1_tail_{"
-                              << arg.b_grid_desc_k0_n_k1_tail_.GetLength(I0) << ", "
-                              << arg.b_grid_desc_k0_n_k1_tail_.GetLength(I1) << ", "
-                              << arg.b_grid_desc_k0_n_k1_tail_.GetLength(I2) << "}" << std::endl;
-                }
-            }
-
-            bool is_valid = GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
-                                                        arg.b_grid_desc_k0_n_k1_,
-                                                        arg.c_grid_desc_m_n_,
-                                                        arg.M01_,
-                                                        arg.N01_);
-            if(arg.has_tail_)
-            {
-
-                is_valid &= GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_tail_,
-                                                        arg.b_grid_desc_k0_n_k1_tail_,
-                                                        arg.c_grid_desc_m_n_,
-                                                        arg.M01_,
-                                                        arg.N01_);
-            }
-            if(!is_valid)
-            {
-                throw std::runtime_error(
-                    "wrong! GridwiseBatchedGemm_km_kn_m0m1n0n1_xdlops_v2r3 has invalid setting");
+                std::cout << "arg.b_grid_desc_k0_n_k1_tail_{"
+                          << arg.b_grid_desc_k0_n_k1_tail_.GetLength(I0) << ", "
+                          << arg.b_grid_desc_k0_n_k1_tail_.GetLength(I1) << ", "
+                          << arg.b_grid_desc_k0_n_k1_tail_.GetLength(I2) << "}" << std::endl;
             }
 
             const index_t grid_size =
@@ -578,186 +552,109 @@ struct DeviceGemmXdlSplitK
 
             float ave_time = 0;
 
-            if(arg.has_tail_)
+            const auto K0                     = arg.a_grid_desc_k0_m_k1_.GetLength(I0);
+            const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
+            const auto K0_tail                = arg.a_grid_desc_k0_m_k1_.GetLength(I0);
+            const bool tail_has_main_k0_block_loop =
+                GridwiseGemm::CalculateHasMainK0BlockLoop(K0_tail);
+
+            const auto Run = [&](const auto& kernel) {
+                return launch_and_time_kernel(kernel,
+                                              nrepeat,
+                                              dim3(grid_size),
+                                              dim3(BlockSize),
+                                              0,
+                                              arg.p_a_grid_,
+                                              arg.p_b_grid_,
+                                              arg.p_c_grid_,
+                                              arg.BatchCount_,
+                                              arg.a_grid_desc_k0_m_k1_,
+                                              arg.b_grid_desc_k0_n_k1_,
+                                              arg.a_grid_desc_k0_m_k1_tail_,
+                                              arg.b_grid_desc_k0_n_k1_tail_,
+                                              arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                              arg.a_element_op_,
+                                              arg.b_element_op_,
+                                              arg.c_element_op_,
+                                              arg.compute_ptr_offset_of_batch_,
+                                              arg.block_2_ctile_map_);
+            };
+
+            if(has_main_k0_block_loop && tail_has_main_k0_block_loop)
             {
-                const auto K0                     = arg.a_grid_desc_k0_m_k1_.GetLength(I0);
-                const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
-                const auto K0_tail                = arg.a_grid_desc_k0_m_k1_.GetLength(I0);
-                const bool tail_has_main_k0_block_loop =
-                    GridwiseGemm::CalculateHasMainK0BlockLoop(K0_tail);
+                const auto kernel = kernel_gemm_xdl_splitk<
+                    GridwiseGemm,
+                    ADataType, // TODO: distiguish A/B datatype
+                    CDataType,
+                    remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1>,
+                    remove_reference_t<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    AElementwiseOperation,
+                    BElementwiseOperation,
+                    CElementwiseOperation,
+                    ComputePtrOffsetOfStridedBatch,
+                    remove_reference_t<Block2CTileMap>,
+                    true,
+                    true>;
 
-                const auto Run = [&](const auto& kernel) {
-                    return launch_and_time_kernel(kernel,
-                                                  nrepeat,
-                                                  dim3(grid_size),
-                                                  dim3(BlockSize),
-                                                  0,
-                                                  arg.p_a_grid_,
-                                                  arg.p_b_grid_,
-                                                  arg.p_c_grid_,
-                                                  arg.BatchCount_,
-                                                  arg.a_grid_desc_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_n_k1_,
-                                                  arg.a_grid_desc_k0_m_k1_tail_,
-                                                  arg.b_grid_desc_k0_n_k1_tail_,
-                                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                  arg.a_element_op_,
-                                                  arg.b_element_op_,
-                                                  arg.c_element_op_,
-                                                  arg.compute_ptr_offset_of_batch_,
-                                                  arg.block_2_ctile_map_);
-                };
+                ave_time = Run(kernel);
+            }
+            else if(has_main_k0_block_loop && !tail_has_main_k0_block_loop)
+            {
+                const auto kernel = kernel_gemm_xdl_splitk<
+                    GridwiseGemm,
+                    ADataType, // TODO: distiguish A/B datatype
+                    CDataType,
+                    remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1>,
+                    remove_reference_t<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    AElementwiseOperation,
+                    BElementwiseOperation,
+                    CElementwiseOperation,
+                    ComputePtrOffsetOfStridedBatch,
+                    remove_reference_t<Block2CTileMap>,
+                    true,
+                    false>;
 
-                if(has_main_k0_block_loop && tail_has_main_k0_block_loop)
-                {
-                    const auto kernel = kernel_gemm_xdl_splitk<
-                        GridwiseGemm,
-                        ADataType, // TODO: distiguish A/B datatype
-                        CDataType,
-                        remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1>,
-                        remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1>,
-                        remove_reference_t<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                        AElementwiseOperation,
-                        BElementwiseOperation,
-                        CElementwiseOperation,
-                        ComputePtrOffsetOfStridedBatch,
-                        remove_reference_t<Block2CTileMap>,
-                        true,
-                        true>;
+                ave_time = Run(kernel);
+            }
+            else if(!has_main_k0_block_loop && tail_has_main_k0_block_loop)
+            {
+                const auto kernel = kernel_gemm_xdl_splitk<
+                    GridwiseGemm,
+                    ADataType, // TODO: distiguish A/B datatype
+                    CDataType,
+                    remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1>,
+                    remove_reference_t<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    AElementwiseOperation,
+                    BElementwiseOperation,
+                    CElementwiseOperation,
+                    ComputePtrOffsetOfStridedBatch,
+                    remove_reference_t<Block2CTileMap>,
+                    false,
+                    true>;
 
-                    ave_time = Run(kernel);
-                }
-                else if(has_main_k0_block_loop && !tail_has_main_k0_block_loop)
-                {
-                    const auto kernel = kernel_gemm_xdl_splitk<
-                        GridwiseGemm,
-                        ADataType, // TODO: distiguish A/B datatype
-                        CDataType,
-                        remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1>,
-                        remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1>,
-                        remove_reference_t<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                        AElementwiseOperation,
-                        BElementwiseOperation,
-                        CElementwiseOperation,
-                        ComputePtrOffsetOfStridedBatch,
-                        remove_reference_t<Block2CTileMap>,
-                        true,
-                        false>;
-
-                    ave_time = Run(kernel);
-                }
-                else if(!has_main_k0_block_loop && tail_has_main_k0_block_loop)
-                {
-                    const auto kernel = kernel_gemm_xdl_splitk<
-                        GridwiseGemm,
-                        ADataType, // TODO: distiguish A/B datatype
-                        CDataType,
-                        remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1>,
-                        remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1>,
-                        remove_reference_t<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                        AElementwiseOperation,
-                        BElementwiseOperation,
-                        CElementwiseOperation,
-                        ComputePtrOffsetOfStridedBatch,
-                        remove_reference_t<Block2CTileMap>,
-                        false,
-                        true>;
-
-                    ave_time = Run(kernel);
-                }
-                else
-                {
-                    const auto kernel = kernel_gemm_xdl_splitk<
-                        GridwiseGemm,
-                        ADataType, // TODO: distiguish A/B datatype
-                        CDataType,
-                        remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1>,
-                        remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1>,
-                        remove_reference_t<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                        AElementwiseOperation,
-                        BElementwiseOperation,
-                        CElementwiseOperation,
-                        ComputePtrOffsetOfStridedBatch,
-                        remove_reference_t<Block2CTileMap>,
-                        false,
-                        false>;
-
-                    ave_time = Run(kernel);
-                }
+                ave_time = Run(kernel);
             }
             else
             {
-                const auto K0                     = arg.a_grid_desc_k0_m_k1_.GetLength(I0);
-                const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
+                const auto kernel = kernel_gemm_xdl_splitk<
+                    GridwiseGemm,
+                    ADataType, // TODO: distiguish A/B datatype
+                    CDataType,
+                    remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1>,
+                    remove_reference_t<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    AElementwiseOperation,
+                    BElementwiseOperation,
+                    CElementwiseOperation,
+                    ComputePtrOffsetOfStridedBatch,
+                    remove_reference_t<Block2CTileMap>,
+                    false,
+                    false>;
 
-                if(has_main_k0_block_loop)
-                {
-                    const auto kernel = ck::kernel_gemm_xdl_splitk<
-                        GridwiseGemm,
-                        ADataType, // TODO: distiguish A/B datatype
-                        CDataType,
-                        remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1>,
-                        remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1>,
-                        remove_reference_t<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                        AElementwiseOperation,
-                        BElementwiseOperation,
-                        CElementwiseOperation,
-                        ComputePtrOffsetOfStridedBatch,
-                        remove_reference_t<Block2CTileMap>,
-                        true>;
-
-                    ave_time = launch_and_time_kernel(kernel,
-                                                      nrepeat,
-                                                      dim3(grid_size),
-                                                      dim3(BlockSize),
-                                                      0,
-                                                      arg.p_a_grid_,
-                                                      arg.p_b_grid_,
-                                                      arg.p_c_grid_,
-                                                      arg.BatchCount_,
-                                                      arg.a_grid_desc_k0_m_k1_,
-                                                      arg.b_grid_desc_k0_n_k1_,
-                                                      arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                      arg.a_element_op_,
-                                                      arg.b_element_op_,
-                                                      arg.c_element_op_,
-                                                      arg.compute_ptr_offset_of_batch_,
-                                                      arg.block_2_ctile_map_);
-                }
-                else
-                {
-                    const auto kernel = ck::kernel_gemm_xdl_splitk<
-                        GridwiseGemm,
-                        ADataType, // TODO: distiguish A/B datatype
-                        CDataType,
-                        remove_reference_t<DeviceGemmXdlSplitK::AGridDesc_K0_M_K1>,
-                        remove_reference_t<DeviceGemmXdlSplitK::BGridDesc_K0_N_K1>,
-                        remove_reference_t<CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
-                        AElementwiseOperation,
-                        BElementwiseOperation,
-                        CElementwiseOperation,
-                        ComputePtrOffsetOfStridedBatch,
-                        remove_reference_t<Block2CTileMap>,
-                        false>;
-
-                    ave_time = launch_and_time_kernel(kernel,
-                                                      nrepeat,
-                                                      dim3(grid_size),
-                                                      dim3(BlockSize),
-                                                      0,
-                                                      arg.p_a_grid_,
-                                                      arg.p_b_grid_,
-                                                      arg.p_c_grid_,
-                                                      arg.BatchCount_,
-                                                      arg.a_grid_desc_k0_m_k1_,
-                                                      arg.b_grid_desc_k0_n_k1_,
-                                                      arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                      arg.a_element_op_,
-                                                      arg.b_element_op_,
-                                                      arg.c_element_op_,
-                                                      arg.compute_ptr_offset_of_batch_,
-                                                      arg.block_2_ctile_map_);
-                }
+                ave_time = Run(kernel);
             }
 
             return ave_time;
@@ -780,6 +677,11 @@ struct DeviceGemmXdlSplitK
     {
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                            arg.b_grid_desc_k0_n_k1_,
+                                           arg.c_grid_desc_m_n_,
+                                           arg.M01_,
+                                           arg.N01_) &&
+               GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_tail_,
+                                           arg.b_grid_desc_k0_n_k1_tail_,
                                            arg.c_grid_desc_m_n_,
                                            arg.M01_,
                                            arg.N01_);
