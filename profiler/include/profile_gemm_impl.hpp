@@ -528,11 +528,30 @@ void profile_gemm_impl(int do_verification,
         }
     }
 
-    std::cout << "Best Perf for datatype = " << typeid(c_m_n_host_result).name() << " M = " << M
-              << " N = " << N << " K = " << K << " StrideA = " << StrideA
+    if constexpr(is_same<CDataType, float>::value)
+    {
+        std::cout << "Best Perf for datatype = ft32 ";
+    }
+    else if constexpr(is_same<CDataType, half_t>::value)
+    {
+        std::cout << "Best Perf for datatype = ft16 ";
+    }
+        else if constexpr(is_same<CDataType, bhalf_t>::value)
+    {
+        std::cout << "Best Perf for datatype = bft16 ";
+    }
+    else if constexpr(is_same<CDataType, int8_t>::value)
+    {
+        std::cout << "Best Perf for datatype = int8 ";
+    }
+    std::cout << "M = " << M << " N = " << N << " K = " << K << " StrideA = " << StrideA
               << " StrideB = " << StrideB << " StrideC = " << StrideC << " : " << best_ave_time
               << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec << " GB/s, "
               << best_gemm_name << std::endl;
+
+
+
+
 }
 
 } // namespace profiler
