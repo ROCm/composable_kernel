@@ -13,9 +13,9 @@ int main()
     bool pass = true;
     // check 1d
     std::vector<ck::utils::conv::ConvParams> params;
-    params.push_back_({1, 128, 128, 256, {1}, {14}, {2}, {1}, {0}, {0}});
-    params.push_back_({1, 128, 128, 256, {3}, {28}, {1}, {1}, {1}, {1}});
-    params.push_back_({1, 128, 128, 256, {1}, {3}, {1}, {1}, {0}, {0}});
+    params.push_back({1, 128, 128, 256, {1}, {14}, {2}, {1}, {0}, {0}});
+    params.push_back({1, 128, 128, 256, {3}, {28}, {1}, {1}, {1}, {1}});
+    params.push_back({1, 128, 128, 256, {1}, {3}, {1}, {1}, {0}, {0}});
 
     for(auto& param : params)
     {
@@ -31,16 +31,16 @@ int main()
             1, // init_method,
             0, // do_log,
             1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
 
         pass &= ck::profiler::profile_convnd_bwd_data_impl<1,
                                                            ck::half_t,
@@ -54,16 +54,16 @@ int main()
             1, // init_method,
             0, // do_log,
             1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
 
         pass &= ck::profiler::profile_convnd_bwd_data_impl<1,
                                                            ck::bhalf_t,
@@ -77,16 +77,16 @@ int main()
             1, // init_method,
             0, // do_log,
             1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
 
         pass &= ck::profiler::profile_convnd_bwd_data_impl<1,
                                                            int8_t,
@@ -100,23 +100,23 @@ int main()
             1, // init_method,
             0, // do_log,
             1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
     }
 
     // check 2d
-    params.clear_();
-    params.push_back_({2, 128, 128, 256, {1, 1}, {7, 7}, {2, 2}, {1, 1}, {0, 0}, {0, 0}});
-    params.push_back_({2, 128, 128, 256, {3, 3}, {14, 14}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
-    params.push_back_({2, 128, 128, 256, {1, 1}, {3, 3}, {1, 1}, {1, 1}, {0, 0}, {0, 0}});
+    params.clear();
+    params.push_back({2, 128, 128, 256, {1, 1}, {7, 7}, {2, 2}, {1, 1}, {0, 0}, {0, 0}});
+    params.push_back({2, 128, 128, 256, {3, 3}, {14, 14}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
+    params.push_back({2, 128, 128, 256, {1, 1}, {3, 3}, {1, 1}, {1, 1}, {0, 0}, {0, 0}});
 
     for(auto& param : params)
     {
@@ -132,16 +132,16 @@ int main()
             1, // init_method,
             0, // do_log,
             1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
 
         pass &= ck::profiler::profile_convnd_bwd_data_impl<2,
                                                            ck::half_t,
@@ -155,16 +155,16 @@ int main()
             1, // init_method,
             0, // do_log,
             1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
 
         pass &= ck::profiler::profile_convnd_bwd_data_impl<2,
                                                            ck::bhalf_t,
@@ -178,16 +178,16 @@ int main()
             1, // init_method,
             0, // do_log,
             1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
 
         pass &= ck::profiler::profile_convnd_bwd_data_impl<2,
                                                            int8_t,
@@ -201,25 +201,25 @@ int main()
             1, // init_method,
             0, // do_log,
             1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
     }
 
     // check 3d
-    params.clear_();
-    params.push_back_(
+    params.clear();
+    params.push_back(
         {3, 128, 128, 256, {1, 1, 1}, {7, 7, 7}, {2, 2, 2}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
-    params.push_back_(
+    params.push_back(
         {3, 128, 128, 256, {3, 3, 3}, {14, 14, 14}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
-    params.push_back_(
+    params.push_back(
         {3, 128, 128, 256, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
 
     for(auto& param : params)
@@ -236,16 +236,16 @@ int main()
             1, // init_method,
             0, // do_log,
             1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
 
         pass &= ck::profiler::profile_convnd_bwd_data_impl<3,
                                                            ck::half_t,
@@ -259,16 +259,16 @@ int main()
             1, // init_method,
             0, // do_log,
             1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
 
         pass &= ck::profiler::profile_convnd_bwd_data_impl<3,
                                                            ck::bhalf_t,
@@ -282,16 +282,16 @@ int main()
             1, // init_method,
             0, // do_log,
             1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
 
         pass &= ck::profiler::profile_convnd_bwd_data_impl<3,
                                                            int8_t,
@@ -305,16 +305,16 @@ int main()
             1, // init_method,
             0, // do_log,
             1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
     }
 
     if(pass)
