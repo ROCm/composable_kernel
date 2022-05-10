@@ -530,23 +530,23 @@ void profile_gemm_impl(int do_verification,
 
     if constexpr(is_same<CDataType, float>::value)
     {
-        std::cout << "Best Perf for datatype = ft32 ";
+        std::cout << "Best Perf for datatype = f32 ";
     }
     else if constexpr(is_same<CDataType, half_t>::value)
     {
-        std::cout << "Best Perf for datatype = ft16 ";
+        std::cout << "Best Perf for datatype = f16 ";
     }
     else if constexpr(is_same<CDataType, bhalf_t>::value)
     {
-        std::cout << "Best Perf for datatype = bft16 ";
+        std::cout << "Best Perf for datatype = bf16 ";
     }
     else if constexpr(is_same<CDataType, int8_t>::value)
     {
         std::cout << "Best Perf for datatype = int8 ";
     }
-    std::cout << "ALayout = " << ALayout << " BLayout = " << BLayout << " M = " << M << " N = " 
-              << N << " K = " << K << " StrideA = " << StrideA << " StrideB = " << StrideB 
-              << " StrideC = " << StrideC << " : " << best_ave_time << " ms, " << best_tflops 
+    std::cout << "ALayout = " << ALayout << " BLayout = " << BLayout << " M = " << M << " N = " << N
+              << " K = " << K << " StrideA = " << StrideA << " StrideB = " << StrideB
+              << " StrideC = " << StrideC << " : " << best_ave_time << " ms, " << best_tflops
               << " TFlops, " << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
 }
 
