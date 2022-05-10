@@ -150,27 +150,6 @@ struct AMax
     }
 };
 
-template <class T>
-struct PassThrough
-{
-    using dataType = T;
-
-    __host__ __device__ static constexpr T GetReductionZeroVal() { return static_cast<T>(0.0f); };
-
-    __host__ __device__ inline constexpr void operator()(T& a, T b) const
-    {
-        (void)a;
-        (void)b;
-    }
-
-    __host__ __device__ inline constexpr void operator()(T& a, T b, bool& changed) const
-    {
-        (void)a;
-        (void)b;
-        changed = false;
-    }
-};
-
 }; // end of namespace reduce
 
 } // end of namespace ck
