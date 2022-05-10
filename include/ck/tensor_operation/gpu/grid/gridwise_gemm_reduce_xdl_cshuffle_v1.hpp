@@ -823,12 +823,11 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
             // Reduction
             // TODO - extract following implementation into reduction_blockwise
-            // constexpr auto global_mem_op =
-            //     ck::make_tuple(D0GlobalMemoryDataOperation, D1GlobalMemoryDataOperation);
-
             static_for<0, p_dxs_grid.Size(), 1>{}([&](auto In) {
+                auto p_d_grid = p_dxs_grid[In];
+
                 auto d_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                    p_dxs_grid[In], d_grid_desc_mblock_mperblock.GetElementSpaceSize());
+                    p_d_grid, d_grid_desc_mblock_mperblock.GetElementSpaceSize());
 
                 auto d_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatReduceAcc>(
                     d_reduce_thread_desc_mperblock.GetElementSpaceSize());
@@ -837,7 +836,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
                 auto d_reduce_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
                     FloatReduceAcc,
-                    remove_ptrcvref_t<decltype(p_dxs_grid[In])>,
+                    remove_pointer_t<decltype(p_d_grid)>,
                     decltype(d_reduce_thread_desc_mblock_mperblock),
                     decltype(d_grid_desc_mblock_mperblock),
                     ck::tensor_operation::element_wise::PassThrough,

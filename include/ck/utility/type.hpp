@@ -30,7 +30,7 @@ template <typename T>
 using remove_cvref_t = remove_cv_t<std::remove_reference_t<T>>;
 
 template <typename T>
-using remove_ptrcvref_t = typename std::remove_pointer<remove_cvref_t<T>>::type;
+using remove_pointer_t = typename std::remove_pointer<T>::type;
 
 template <typename T>
 inline constexpr bool is_pointer_v = std::is_pointer<T>::value;
