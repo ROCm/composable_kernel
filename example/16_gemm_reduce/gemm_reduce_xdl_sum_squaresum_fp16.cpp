@@ -25,11 +25,12 @@ using F32 = float;
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using ADataType = F16;
-using BDataType = F16;
-using CDataType = F16;
-using DDataType = F32;
-using DPtrsGlobal = ck::Tuple<DDataType*, DDataType*>;
+using ADataType         = F16;
+using BDataType         = F16;
+using CDataType         = F16;
+using ReduceAccDataType = F32;
+using DDataType         = F32;
+using DPtrsGlobal       = ck::Tuple<DDataType*, DDataType*>;
 
 using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
@@ -38,12 +39,14 @@ using CLayout = ck::tensor_layout::gemm::RowMajor;
 using AElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp  = ck::tensor_operation::element_wise::PassThrough;
-using D0ReduceOp  = ck::reduce::Add<float>;
-using D1ReduceOp  = ck::reduce::Add<float>;
-using DxsReduceOp = ck::Tuple<ck::reduce::Add<float>, ck::reduce::Add<float>>;
+using D0ReduceOp  = ck::reduce::Add<ReduceAccDataType>;
+using D1ReduceOp  = ck::reduce::Add<ReduceAccDataType>;
+using DxsReduceOp = ck::Tuple<D0ReduceOp, D1ReduceOp>;
 
-using D0ElementOp  = ck::tensor_operation::element_wise::UnaryIdentic<float, float, false>;
-using D1ElementOp  = ck::tensor_operation::element_wise::UnarySquare<float, float, false>;
+using D0ElementOp =
+    ck::tensor_operation::element_wise::UnaryIdentic<ReduceAccDataType, ReduceAccDataType, false>;
+using D1ElementOp = ck::tensor_operation::element_wise::
+    UnarySquare<ReduceAccDataType, ReduceAccDataType, false>;
 using DxsElementOp = ck::Tuple<D0ElementOp, D1ElementOp>;
 
 using DGlobalMemOp =
