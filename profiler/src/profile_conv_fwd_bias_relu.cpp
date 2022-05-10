@@ -110,5 +110,5 @@ int profile_conv_fwd_bias_relu(int argc, char* argv[])
         throw std::runtime_error("wrong! data_type & layout for this operator is not implemented");
     }
 
-    return 1;
+    return 0;
 }

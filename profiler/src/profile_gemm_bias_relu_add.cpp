@@ -144,5 +144,5 @@ int profile_gemm_bias_relu_add(int argc, char* argv[])
         throw std::runtime_error("wrong! this data_type & layout is not implemented");
     }
 
-    return 1;
+    return 0;
 }

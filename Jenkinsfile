@@ -218,6 +218,18 @@ def runCKProfiler(Map conf=[:]){
 						sh "./profile_gemm.sh gemm 1 0 0 1 0 5 | tee -a ${perf_log}"
 						sh "./profile_gemm.sh gemm 2 0 0 1 0 5 | tee -a ${perf_log}"
 						sh "./profile_gemm.sh gemm 3 0 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 0 1 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 1 1 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 2 1 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 3 1 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 0 2 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 1 2 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 2 2 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 3 2 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 0 3 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 1 3 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 2 3 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 3 3 0 1 0 5 | tee -a ${perf_log}"
 						//results will be parsed, stored, and analyzed within the python script
 						//the script will return 0 if the performance criteria are met
 						//or return 1 if the criteria are not met

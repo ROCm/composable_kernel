@@ -544,10 +544,10 @@ void profile_gemm_impl(int do_verification,
     {
         std::cout << "Best Perf for datatype = int8 ";
     }
-    std::cout << "M = " << M << " N = " << N << " K = " << K << " StrideA = " << StrideA
-              << " StrideB = " << StrideB << " StrideC = " << StrideC << " : " << best_ave_time
-              << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec << " GB/s, "
-              << best_gemm_name << std::endl;
+    std::cout << "ALayout = " << ALayout << " BLayout = " << BLayout << " M = " << M << " N = " 
+              << N << " K = " << K << " StrideA = " << StrideA << " StrideB = " << StrideB 
+              << " StrideC = " << StrideC << " : " << best_ave_time << " ms, " << best_tflops 
+              << " TFlops, " << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
 }
 
 } // namespace profiler

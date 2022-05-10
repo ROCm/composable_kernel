@@ -149,5 +149,5 @@ int profile_batched_gemm_reduce(int argc, char* argv[])
         throw std::runtime_error("wrong! this data_type & layout is not implemented");
     }
 
-    return 1;
+    return 0;
 }
