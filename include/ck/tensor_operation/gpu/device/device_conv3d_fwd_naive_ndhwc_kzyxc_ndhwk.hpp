@@ -4,7 +4,7 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
-#include "conv_fwd_util.hpp"
+#include "conv_util.hpp"
 #include "device.hpp"
 #include "device_conv_fwd.hpp"
 #include "common_header.hpp"
