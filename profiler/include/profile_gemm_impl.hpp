@@ -562,10 +562,10 @@ void profile_gemm_impl(int do_verification,
     {
         std::cout << " BLayout =  ColumnMajor";
     }
-
-    std::cout << " M = " << M << " N = " << N << " K = " << K << " StrideA = " << StrideA 
-              << " StrideB = " << StrideB << " StrideC = " << StrideC << " : " << best_ave_time 
-              << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec << " GB/s, " 
+    
+    std::cout << " M = " << M << " N = " << N << " K = " << K << " StrideA = " << StrideA
+              << " StrideB = " << StrideB << " StrideC = " << StrideC << " : " << best_ave_time
+              << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec << " GB/s, "
               << best_gemm_name << std::endl;
 }
 
