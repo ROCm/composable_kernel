@@ -536,7 +536,7 @@ void profile_gemm_impl(int do_verification,
     {
         std::cout << "Best Perf for datatype = ft16 ";
     }
-        else if constexpr(is_same<CDataType, bhalf_t>::value)
+    else if constexpr(is_same<CDataType, bhalf_t>::value)
     {
         std::cout << "Best Perf for datatype = bft16 ";
     }
