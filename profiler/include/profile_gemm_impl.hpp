@@ -548,10 +548,6 @@ void profile_gemm_impl(int do_verification,
               << " StrideB = " << StrideB << " StrideC = " << StrideC << " : " << best_ave_time
               << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec << " GB/s, "
               << best_gemm_name << std::endl;
-
-
-
-
 }
 
 } // namespace profiler
