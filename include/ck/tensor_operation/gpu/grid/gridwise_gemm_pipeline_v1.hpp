@@ -1,5 +1,6 @@
 #pragma once
 #include "common_header.hpp"
+#include "tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
 
 namespace ck {
 
@@ -341,8 +342,13 @@ struct GridwiseGemmPipelineInterwave_v1<1>
     }
 };
 
-template <index_t NumPrefetch,
-          bool HasMainLoop>
+// Note: 2 stage prefetch not optimized for inter-wave loop scheduler
+template <>
+struct GridwiseGemmPipelineInterwave_v1<2> : public GridwiseGemmPipeline_v1<2>
+{
+};
+
+template <index_t NumPrefetch, LoopScheduler LoopSched>
 constexpr auto GridwiseGemmPipeline_v1_Selector()
 {
     if constexpr(LoopSched == LoopScheduler::Default)

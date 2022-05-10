@@ -454,21 +454,21 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
 
-        gridwise_gemm_pipeline.Run<HasMainKBlockLoop>(a_grid_desc_ak0_m_ak1,
-                                                      a_block_desc_ak0_m_ak1,
-                                                      a_blockwise_copy,
-                                                      a_grid_buf,
-                                                      a_block_buf,
-                                                      a_block_slice_copy_step,
-                                                      b_grid_desc_bk0_n_bk1,
-                                                      b_block_desc_bk0_n_bk1,
-                                                      b_blockwise_copy,
-                                                      b_grid_buf,
-                                                      b_block_buf,
-                                                      b_block_slice_copy_step,
-                                                      blockwise_gemm,
-                                                      c_thread_buf,
-                                                      num_k_block_main_loop);
+        gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(a_grid_desc_ak0_m_ak1,
+                                                               a_block_desc_ak0_m_ak1,
+                                                               a_blockwise_copy,
+                                                               a_grid_buf,
+                                                               a_block_buf,
+                                                               a_block_slice_copy_step,
+                                                               b_grid_desc_bk0_n_bk1,
+                                                               b_block_desc_bk0_n_bk1,
+                                                               b_blockwise_copy,
+                                                               b_grid_buf,
+                                                               b_block_buf,
+                                                               b_block_slice_copy_step,
+                                                               blockwise_gemm,
+                                                               c_thread_buf,
+                                                               num_k_block_main_loop);
 
         // shuffle C and write out
         {
