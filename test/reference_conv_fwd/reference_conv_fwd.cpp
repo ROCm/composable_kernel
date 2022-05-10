@@ -8,7 +8,7 @@
 
 #include "check_err.hpp"
 #include "config.hpp"
-#include "conv_fwd_util.hpp"
+#include "conv_util.hpp"
 #include "element_wise_operation.hpp"
 #include "fill.hpp"
 #include "host_tensor.hpp"
@@ -34,21 +34,21 @@ run_reference_convolution_forward(const ck::utils::conv::ConvParams& params,
                                   const FillInputOp& fill_input_op     = FillInputOp{},
                                   const FillWeightsOp& fill_weights_op = FillWeightsOp{0.5f})
 {
-    std::vector<std::size_t> input_dims{static_cast<std::size_t>(params.N),
-                                        static_cast<std::size_t>(params.C)};
+    std::vector<std::size_t> input_dims{static_cast<std::size_t>(params.N_),
+                                        static_cast<std::size_t>(params.C_)};
     input_dims.insert(std::end(input_dims),
-                      std::begin(params.input_spatial_lengths),
-                      std::end(params.input_spatial_lengths));
+                      std::begin(params.input_spatial_lengths_),
+                      std::end(params.input_spatial_lengths_));
 
-    std::vector<std::size_t> filter_dims{static_cast<std::size_t>(params.K),
-                                         static_cast<std::size_t>(params.C)};
+    std::vector<std::size_t> filter_dims{static_cast<std::size_t>(params.K_),
+                                         static_cast<std::size_t>(params.C_)};
     filter_dims.insert(std::end(filter_dims),
-                       std::begin(params.filter_spatial_lengths),
-                       std::end(params.filter_spatial_lengths));
+                       std::begin(params.filter_spatial_lengths_),
+                       std::end(params.filter_spatial_lengths_));
 
     const std::vector<ck::index_t>& output_spatial_lengths = params.GetOutputSpatialLengths();
-    std::vector<std::size_t> output_dims{static_cast<std::size_t>(params.N),
-                                         static_cast<std::size_t>(params.K)};
+    std::vector<std::size_t> output_dims{static_cast<std::size_t>(params.N_),
+                                         static_cast<std::size_t>(params.K_)};
     output_dims.insert(std::end(output_dims),
                        std::begin(output_spatial_lengths),
                        std::end(output_spatial_lengths));
@@ -74,10 +74,10 @@ run_reference_convolution_forward(const ck::utils::conv::ConvParams& params,
     auto ref_argument = ref_conv.MakeArgument(input,
                                               weights,
                                               host_output,
-                                              params.conv_filter_strides,
-                                              params.conv_filter_dilations,
-                                              params.input_left_pads,
-                                              params.input_right_pads,
+                                              params.conv_filter_strides_,
+                                              params.conv_filter_dilations_,
+                                              params.input_left_pads_,
+                                              params.input_right_pads_,
                                               InElementOp{},
                                               WeiElementOp{},
                                               OutElementOp{});
@@ -91,15 +91,15 @@ run_reference_convolution_forward(const ck::utils::conv::ConvParams& params,
 TEST(ReferenceConvolutionFWD, Conv2DNHWC)
 {
     ck::utils::conv::ConvParams params;
-    params.N                      = 1;
-    params.K                      = 1;
-    params.C                      = 2;
-    params.filter_spatial_lengths = std::vector<ck::index_t>{3, 3};
-    params.input_spatial_lengths  = std::vector<ck::index_t>{6, 6};
-    params.conv_filter_strides    = std::vector<ck::index_t>{1, 1};
-    params.conv_filter_dilations  = std::vector<ck::index_t>{1, 1};
-    params.input_left_pads        = std::vector<ck::index_t>{0, 0};
-    params.input_right_pads       = std::vector<ck::index_t>{0, 0};
+    params.N_                      = 1;
+    params.K_                      = 1;
+    params.C_                      = 2;
+    params.filter_spatial_lengths_ = std::vector<ck::index_t>{3, 3};
+    params.input_spatial_lengths_  = std::vector<ck::index_t>{6, 6};
+    params.conv_filter_strides_    = std::vector<ck::index_t>{1, 1};
+    params.conv_filter_dilations_  = std::vector<ck::index_t>{1, 1};
+    params.input_left_pads_        = std::vector<ck::index_t>{0, 0};
+    params.input_right_pads_       = std::vector<ck::index_t>{0, 0};
 
     auto out_tensor = run_reference_convolution_forward<2>(params);
     std::vector<std::size_t> ref_dims{1, 1, 4, 4};
@@ -127,15 +127,15 @@ TEST(ReferenceConvolutionFWD, Conv2DNHWC)
 TEST(ReferenceConvolutionFWD, Conv2DNHWCStridesDilationsPadding)
 {
     ck::utils::conv::ConvParams params;
-    params.N                      = 1;
-    params.K                      = 2;
-    params.C                      = 2;
-    params.filter_spatial_lengths = std::vector<ck::index_t>{3, 3};
-    params.input_spatial_lengths  = std::vector<ck::index_t>{12, 12};
-    params.conv_filter_strides    = std::vector<ck::index_t>{2, 2};
-    params.conv_filter_dilations  = std::vector<ck::index_t>{2, 2};
-    params.input_left_pads        = std::vector<ck::index_t>{1, 1};
-    params.input_right_pads       = std::vector<ck::index_t>{1, 1};
+    params.N_                      = 1;
+    params.K_                      = 2;
+    params.C_                      = 2;
+    params.filter_spatial_lengths_ = std::vector<ck::index_t>{3, 3};
+    params.input_spatial_lengths_  = std::vector<ck::index_t>{12, 12};
+    params.conv_filter_strides_    = std::vector<ck::index_t>{2, 2};
+    params.conv_filter_dilations_  = std::vector<ck::index_t>{2, 2};
+    params.input_left_pads_        = std::vector<ck::index_t>{1, 1};
+    params.input_right_pads_       = std::vector<ck::index_t>{1, 1};
 
     auto out_tensor                   = run_reference_convolution_forward<2>(params);
     std::vector<std::size_t> ref_dims = std::vector<std::size_t>{1, 2, 5, 5};
@@ -153,16 +153,16 @@ TEST(ReferenceConvolutionFWD, Conv2DNHWCStridesDilationsPadding)
 TEST(ReferenceConvolutionFWD, Conv1DNWC)
 {
     ck::utils::conv::ConvParams params;
-    params.num_dim_spatial        = 1;
-    params.N                      = 1;
-    params.K                      = 1;
-    params.C                      = 2;
-    params.filter_spatial_lengths = std::vector<ck::index_t>{3};
-    params.input_spatial_lengths  = std::vector<ck::index_t>{6};
-    params.conv_filter_strides    = std::vector<ck::index_t>{1};
-    params.conv_filter_dilations  = std::vector<ck::index_t>{1};
-    params.input_left_pads        = std::vector<ck::index_t>{0};
-    params.input_right_pads       = std::vector<ck::index_t>{0};
+    params.num_dim_spatial_        = 1;
+    params.N_                      = 1;
+    params.K_                      = 1;
+    params.C_                      = 2;
+    params.filter_spatial_lengths_ = std::vector<ck::index_t>{3};
+    params.input_spatial_lengths_  = std::vector<ck::index_t>{6};
+    params.conv_filter_strides_    = std::vector<ck::index_t>{1};
+    params.conv_filter_dilations_  = std::vector<ck::index_t>{1};
+    params.input_left_pads_        = std::vector<ck::index_t>{0};
+    params.input_right_pads_       = std::vector<ck::index_t>{0};
 
     auto out_tensor =
         run_reference_convolution_forward<1,
@@ -182,16 +182,16 @@ TEST(ReferenceConvolutionFWD, Conv1DNWC)
 TEST(ReferenceConvolutionFWD, Conv1DNWCStridesDilationsPadding)
 {
     ck::utils::conv::ConvParams params;
-    params.num_dim_spatial        = 1;
-    params.N                      = 1;
-    params.K                      = 2;
-    params.C                      = 2;
-    params.filter_spatial_lengths = std::vector<ck::index_t>{3};
-    params.input_spatial_lengths  = std::vector<ck::index_t>{12};
-    params.conv_filter_strides    = std::vector<ck::index_t>{2};
-    params.conv_filter_dilations  = std::vector<ck::index_t>{2};
-    params.input_left_pads        = std::vector<ck::index_t>{1};
-    params.input_right_pads       = std::vector<ck::index_t>{1};
+    params.num_dim_spatial_        = 1;
+    params.N_                      = 1;
+    params.K_                      = 2;
+    params.C_                      = 2;
+    params.filter_spatial_lengths_ = std::vector<ck::index_t>{3};
+    params.input_spatial_lengths_  = std::vector<ck::index_t>{12};
+    params.conv_filter_strides_    = std::vector<ck::index_t>{2};
+    params.conv_filter_dilations_  = std::vector<ck::index_t>{2};
+    params.input_left_pads_        = std::vector<ck::index_t>{1};
+    params.input_right_pads_       = std::vector<ck::index_t>{1};
 
     auto out_tensor =
         run_reference_convolution_forward<1,
@@ -211,16 +211,16 @@ TEST(ReferenceConvolutionFWD, Conv1DNWCStridesDilationsPadding)
 TEST(ReferenceConvolutionFWD, Conv1DNWCSameOutputSize)
 {
     ck::utils::conv::ConvParams params;
-    params.num_dim_spatial        = 1;
-    params.N                      = 2;
-    params.K                      = 16;
-    params.C                      = 4;
-    params.filter_spatial_lengths = std::vector<ck::index_t>{3};
-    params.input_spatial_lengths  = std::vector<ck::index_t>{16};
-    params.conv_filter_strides    = std::vector<ck::index_t>{1};
-    params.conv_filter_dilations  = std::vector<ck::index_t>{1};
-    params.input_left_pads        = std::vector<ck::index_t>{1};
-    params.input_right_pads       = std::vector<ck::index_t>{1};
+    params.num_dim_spatial_        = 1;
+    params.N_                      = 2;
+    params.K_                      = 16;
+    params.C_                      = 4;
+    params.filter_spatial_lengths_ = std::vector<ck::index_t>{3};
+    params.input_spatial_lengths_  = std::vector<ck::index_t>{16};
+    params.conv_filter_strides_    = std::vector<ck::index_t>{1};
+    params.conv_filter_dilations_  = std::vector<ck::index_t>{1};
+    params.input_left_pads_        = std::vector<ck::index_t>{1};
+    params.input_right_pads_       = std::vector<ck::index_t>{1};
 
     auto out_tensor2 = run_reference_convolution_forward<1,
                                                          float,
@@ -305,16 +305,16 @@ TEST(ReferenceConvolutionFWD, Conv1DNWCSameOutputSize)
 TEST(ReferenceConvolutionFWD, Conv3DNCDHW)
 {
     ck::utils::conv::ConvParams params;
-    params.num_dim_spatial        = 3;
-    params.N                      = 1;
-    params.K                      = 1;
-    params.C                      = 2;
-    params.filter_spatial_lengths = std::vector<ck::index_t>{3, 3, 3};
-    params.input_spatial_lengths  = std::vector<ck::index_t>{6, 6, 6};
-    params.conv_filter_strides    = std::vector<ck::index_t>{1, 1, 1};
-    params.conv_filter_dilations  = std::vector<ck::index_t>{1, 1, 1};
-    params.input_left_pads        = std::vector<ck::index_t>{0, 0, 0};
-    params.input_right_pads       = std::vector<ck::index_t>{0, 0, 0};
+    params.num_dim_spatial_        = 3;
+    params.N_                      = 1;
+    params.K_                      = 1;
+    params.C_                      = 2;
+    params.filter_spatial_lengths_ = std::vector<ck::index_t>{3, 3, 3};
+    params.input_spatial_lengths_  = std::vector<ck::index_t>{6, 6, 6};
+    params.conv_filter_strides_    = std::vector<ck::index_t>{1, 1, 1};
+    params.conv_filter_dilations_  = std::vector<ck::index_t>{1, 1, 1};
+    params.input_left_pads_        = std::vector<ck::index_t>{0, 0, 0};
+    params.input_right_pads_       = std::vector<ck::index_t>{0, 0, 0};
 
     auto out_tensor = run_reference_convolution_forward<3,
                                                         float,
@@ -344,16 +344,16 @@ TEST(ReferenceConvolutionFWD, Conv3DNCDHW)
 TEST(ReferenceConvolutionFWD, Conv3DNCDHWStridesDilations)
 {
     ck::utils::conv::ConvParams params;
-    params.num_dim_spatial        = 3;
-    params.N                      = 1;
-    params.K                      = 2;
-    params.C                      = 2;
-    params.filter_spatial_lengths = std::vector<ck::index_t>{3, 3, 3};
-    params.input_spatial_lengths  = std::vector<ck::index_t>{12, 12, 12};
-    params.conv_filter_strides    = std::vector<ck::index_t>{3, 3, 3};
-    params.conv_filter_dilations  = std::vector<ck::index_t>{1, 1, 1};
-    params.input_left_pads        = std::vector<ck::index_t>{0, 0, 0};
-    params.input_right_pads       = std::vector<ck::index_t>{0, 0, 0};
+    params.num_dim_spatial_        = 3;
+    params.N_                      = 1;
+    params.K_                      = 2;
+    params.C_                      = 2;
+    params.filter_spatial_lengths_ = std::vector<ck::index_t>{3, 3, 3};
+    params.input_spatial_lengths_  = std::vector<ck::index_t>{12, 12, 12};
+    params.conv_filter_strides_    = std::vector<ck::index_t>{3, 3, 3};
+    params.conv_filter_dilations_  = std::vector<ck::index_t>{1, 1, 1};
+    params.input_left_pads_        = std::vector<ck::index_t>{0, 0, 0};
+    params.input_right_pads_       = std::vector<ck::index_t>{0, 0, 0};
 
     auto out_tensor = run_reference_convolution_forward<3,
                                                         float,

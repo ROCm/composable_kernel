@@ -6,7 +6,7 @@
 
 #include "data_type.hpp"
 #include "element_wise_operation.hpp"
-#include "conv_fwd_util.hpp"
+#include "ck/library/utility/conv_util.hpp"
 #include "conv_util.hpp"
 
 namespace {
@@ -18,13 +18,13 @@ bool test_conv2d_nhwc_instances(const std::vector<test::conv::DeviceConvFwdNoOpP
     using namespace ck::utils;
 
     conv::ConvParams params;
-    params.num_dim_spatial        = 2;
-    params.filter_spatial_lengths = std::vector<ck::index_t>{3, 3};
-    params.input_spatial_lengths  = std::vector<ck::index_t>{71, 71};
-    params.conv_filter_strides    = std::vector<ck::index_t>{2, 2};
-    params.conv_filter_dilations  = std::vector<ck::index_t>{1, 1};
-    params.input_left_pads        = std::vector<ck::index_t>{1, 1};
-    params.input_right_pads       = std::vector<ck::index_t>{1, 1};
+    params.num_dim_spatial_        = 2;
+    params.filter_spatial_lengths_ = std::vector<ck::index_t>{3, 3};
+    params.input_spatial_lengths_  = std::vector<ck::index_t>{71, 71};
+    params.conv_filter_strides_    = std::vector<ck::index_t>{2, 2};
+    params.conv_filter_dilations_  = std::vector<ck::index_t>{1, 1};
+    params.input_left_pads_        = std::vector<ck::index_t>{1, 1};
+    params.input_right_pads_       = std::vector<ck::index_t>{1, 1};
 
     conv::ConvFwdOpInstance<T, T, T> conv_instance(params);
 
@@ -42,11 +42,11 @@ TEST(Conv2DFwdNHWC, TestConv2D)
     using namespace ck::utils;
 
     ck::utils::conv::ConvParams params;
-    params.N                     = 2;
-    params.K                     = 16;
-    params.C                     = 4;
-    params.input_spatial_lengths = std::vector<ck::index_t>{16, 16};
-    params.conv_filter_strides   = std::vector<ck::index_t>{1, 1};
+    params.N_                     = 2;
+    params.K_                     = 16;
+    params.C_                     = 4;
+    params.input_spatial_lengths_ = std::vector<ck::index_t>{16, 16};
+    params.conv_filter_strides_   = std::vector<ck::index_t>{1, 1};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
     test::conv::get_test_convolution_fwd_instance<2>(conv_ptrs);

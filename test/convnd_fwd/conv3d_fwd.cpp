@@ -7,7 +7,7 @@
 
 #include "data_type.hpp"
 #include "element_wise_operation.hpp"
-#include "conv_fwd_util.hpp"
+#include "library/include/ck/library/utility/conv_util.hpp"
 #include "conv_util.hpp"
 
 namespace {
@@ -20,14 +20,14 @@ bool test_conv3d_ndhwc_instances(const std::vector<test::conv::DeviceConvFwdNoOp
     namespace ctl = ck::tensor_layout::convolution;
 
     conv::ConvParams params;
-    params.N                      = 64;
-    params.num_dim_spatial        = 3;
-    params.filter_spatial_lengths = std::vector<ck::index_t>{3, 3, 2};
-    params.input_spatial_lengths  = std::vector<ck::index_t>{32, 32, 2};
-    params.conv_filter_strides    = std::vector<ck::index_t>{2, 2, 2};
-    params.conv_filter_dilations  = std::vector<ck::index_t>{1, 1, 1};
-    params.input_left_pads        = std::vector<ck::index_t>{1, 1, 1};
-    params.input_right_pads       = std::vector<ck::index_t>{1, 1, 1};
+    params.N_                      = 64;
+    params.num_dim_spatial_        = 3;
+    params.filter_spatial_lengths_ = std::vector<ck::index_t>{3, 3, 2};
+    params.input_spatial_lengths_  = std::vector<ck::index_t>{32, 32, 2};
+    params.conv_filter_strides_    = std::vector<ck::index_t>{2, 2, 2};
+    params.conv_filter_dilations_  = std::vector<ck::index_t>{1, 1, 1};
+    params.input_left_pads_        = std::vector<ck::index_t>{1, 1, 1};
+    params.input_right_pads_       = std::vector<ck::index_t>{1, 1, 1};
 
     conv::ConvFwdOpInstance<T, T, T, ctl::NDHWC, ctl::KZYXC, ctl::NDHWK> conv_instance(params);
 
@@ -46,16 +46,16 @@ TEST(Conv3DFwdNDHWC, TestConv3D)
     namespace ctl = ck::tensor_layout::convolution;
 
     conv::ConvParams params;
-    params.num_dim_spatial        = 3;
-    params.N                      = 2;
-    params.K                      = 16;
-    params.C                      = 4;
-    params.filter_spatial_lengths = std::vector<ck::index_t>{3, 3, 3};
-    params.input_spatial_lengths  = std::vector<ck::index_t>{16, 16, 16};
-    params.conv_filter_strides    = std::vector<ck::index_t>{1, 1, 1};
-    params.conv_filter_dilations  = std::vector<ck::index_t>{1, 1, 1};
-    params.input_left_pads        = std::vector<ck::index_t>{1, 1, 1};
-    params.input_right_pads       = std::vector<ck::index_t>{1, 1, 1};
+    params.num_dim_spatial_        = 3;
+    params.N_                      = 2;
+    params.K_                      = 16;
+    params.C_                      = 4;
+    params.filter_spatial_lengths_ = std::vector<ck::index_t>{3, 3, 3};
+    params.input_spatial_lengths_  = std::vector<ck::index_t>{16, 16, 16};
+    params.conv_filter_strides_    = std::vector<ck::index_t>{1, 1, 1};
+    params.conv_filter_dilations_  = std::vector<ck::index_t>{1, 1, 1};
+    params.input_left_pads_        = std::vector<ck::index_t>{1, 1, 1};
+    params.input_right_pads_       = std::vector<ck::index_t>{1, 1, 1};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
     test::conv::get_test_convolution_fwd_instance<3>(conv_ptrs);
@@ -77,16 +77,16 @@ TEST(Conv3DFwdNDHWC, InputOver2GB)
 
     // >2GB Input
     conv::ConvParams params;
-    params.num_dim_spatial        = 3;
-    params.N                      = 2;
-    params.K                      = 16;
-    params.C                      = 32;
-    params.filter_spatial_lengths = std::vector<ck::index_t>{3, 3, 3};
-    params.input_spatial_lengths  = std::vector<ck::index_t>{32, 1000, 1000};
-    params.conv_filter_strides    = std::vector<ck::index_t>{1, 1, 1};
-    params.conv_filter_dilations  = std::vector<ck::index_t>{1, 1, 1};
-    params.input_left_pads        = std::vector<ck::index_t>{1, 1, 1};
-    params.input_right_pads       = std::vector<ck::index_t>{1, 1, 1};
+    params.num_dim_spatial_        = 3;
+    params.N_                      = 2;
+    params.K_                      = 16;
+    params.C_                      = 32;
+    params.filter_spatial_lengths_ = std::vector<ck::index_t>{3, 3, 3};
+    params.input_spatial_lengths_  = std::vector<ck::index_t>{32, 1000, 1000};
+    params.conv_filter_strides_    = std::vector<ck::index_t>{1, 1, 1};
+    params.conv_filter_dilations_  = std::vector<ck::index_t>{1, 1, 1};
+    params.input_left_pads_        = std::vector<ck::index_t>{1, 1, 1};
+    params.input_right_pads_       = std::vector<ck::index_t>{1, 1, 1};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
     test::conv::get_test_convolution_fwd_instance<3>(conv_ptrs);
@@ -94,16 +94,16 @@ TEST(Conv3DFwdNDHWC, InputOver2GB)
     auto arg = conv_ptrs.back()->MakeArgumentPointer(nullptr,
                                                      nullptr,
                                                      nullptr,
-                                                     params.N,
-                                                     params.K,
-                                                     params.C,
-                                                     params.input_spatial_lengths,
-                                                     params.filter_spatial_lengths,
+                                                     params.N_,
+                                                     params.K_,
+                                                     params.C_,
+                                                     params.input_spatial_lengths_,
+                                                     params.filter_spatial_lengths_,
                                                      params.GetOutputSpatialLengths(),
-                                                     params.conv_filter_strides,
-                                                     params.conv_filter_dilations,
-                                                     params.input_left_pads,
-                                                     params.input_right_pads,
+                                                     params.conv_filter_strides_,
+                                                     params.conv_filter_dilations_,
+                                                     params.input_left_pads_,
+                                                     params.input_right_pads_,
                                                      PassThrough{},
                                                      PassThrough{},
                                                      PassThrough{});
@@ -117,16 +117,16 @@ TEST(Conv3DFwdNDHWC, FiltersOver2GB)
 
     // >2GB Filters
     conv::ConvParams params;
-    params.num_dim_spatial        = 3;
-    params.N                      = 2;
-    params.K                      = 16;
-    params.C                      = 32;
-    params.filter_spatial_lengths = std::vector<ck::index_t>{4, 1000, 1000};
-    params.input_spatial_lengths  = std::vector<ck::index_t>{16, 16, 16};
-    params.conv_filter_strides    = std::vector<ck::index_t>{1, 1, 1};
-    params.conv_filter_dilations  = std::vector<ck::index_t>{1, 1, 1};
-    params.input_left_pads        = std::vector<ck::index_t>{1, 1, 1};
-    params.input_right_pads       = std::vector<ck::index_t>{1, 1, 1};
+    params.num_dim_spatial_        = 3;
+    params.N_                      = 2;
+    params.K_                      = 16;
+    params.C_                      = 32;
+    params.filter_spatial_lengths_ = std::vector<ck::index_t>{4, 1000, 1000};
+    params.input_spatial_lengths_  = std::vector<ck::index_t>{16, 16, 16};
+    params.conv_filter_strides_    = std::vector<ck::index_t>{1, 1, 1};
+    params.conv_filter_dilations_  = std::vector<ck::index_t>{1, 1, 1};
+    params.input_left_pads_        = std::vector<ck::index_t>{1, 1, 1};
+    params.input_right_pads_       = std::vector<ck::index_t>{1, 1, 1};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
     test::conv::get_test_convolution_fwd_instance<3>(conv_ptrs);
@@ -134,16 +134,16 @@ TEST(Conv3DFwdNDHWC, FiltersOver2GB)
     auto arg = conv_ptrs.back()->MakeArgumentPointer(nullptr,
                                                      nullptr,
                                                      nullptr,
-                                                     params.N,
-                                                     params.K,
-                                                     params.C,
-                                                     params.input_spatial_lengths,
-                                                     params.filter_spatial_lengths,
+                                                     params.N_,
+                                                     params.K_,
+                                                     params.C_,
+                                                     params.input_spatial_lengths_,
+                                                     params.filter_spatial_lengths_,
                                                      params.GetOutputSpatialLengths(),
-                                                     params.conv_filter_strides,
-                                                     params.conv_filter_dilations,
-                                                     params.input_left_pads,
-                                                     params.input_right_pads,
+                                                     params.conv_filter_strides_,
+                                                     params.conv_filter_dilations_,
+                                                     params.input_left_pads_,
+                                                     params.input_right_pads_,
                                                      PassThrough{},
                                                      PassThrough{},
                                                      PassThrough{});
@@ -157,32 +157,32 @@ TEST(Conv3DFwdNDHWC, OutputOver2GB)
 
     // >2GB Output
     conv::ConvParams params;
-    params.num_dim_spatial        = 3;
-    params.N                      = 2;
-    params.K                      = 16;
-    params.C                      = 2;
-    params.filter_spatial_lengths = std::vector<ck::index_t>{1, 1, 1};
-    params.input_spatial_lengths  = std::vector<ck::index_t>{1000, 1000, 30};
-    params.conv_filter_strides    = std::vector<ck::index_t>{1, 1, 1};
-    params.conv_filter_dilations  = std::vector<ck::index_t>{1, 1, 1};
-    params.input_left_pads        = std::vector<ck::index_t>{2, 2, 2};
-    params.input_right_pads       = std::vector<ck::index_t>{2, 2, 2};
+    params.num_dim_spatial_        = 3;
+    params.N_                      = 2;
+    params.K_                      = 16;
+    params.C_                      = 2;
+    params.filter_spatial_lengths_ = std::vector<ck::index_t>{1, 1, 1};
+    params.input_spatial_lengths_  = std::vector<ck::index_t>{1000, 1000, 30};
+    params.conv_filter_strides_    = std::vector<ck::index_t>{1, 1, 1};
+    params.conv_filter_dilations_  = std::vector<ck::index_t>{1, 1, 1};
+    params.input_left_pads_        = std::vector<ck::index_t>{2, 2, 2};
+    params.input_right_pads_       = std::vector<ck::index_t>{2, 2, 2};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
     test::conv::get_test_convolution_fwd_instance<3>(conv_ptrs);
     auto arg = conv_ptrs.back()->MakeArgumentPointer(nullptr,
                                                      nullptr,
                                                      nullptr,
-                                                     params.N,
-                                                     params.K,
-                                                     params.C,
-                                                     params.input_spatial_lengths,
-                                                     params.filter_spatial_lengths,
+                                                     params.N_,
+                                                     params.K_,
+                                                     params.C_,
+                                                     params.input_spatial_lengths_,
+                                                     params.filter_spatial_lengths_,
                                                      params.GetOutputSpatialLengths(),
-                                                     params.conv_filter_strides,
-                                                     params.conv_filter_dilations,
-                                                     params.input_left_pads,
-                                                     params.input_right_pads,
+                                                     params.conv_filter_strides_,
+                                                     params.conv_filter_dilations_,
+                                                     params.input_left_pads_,
+                                                     params.input_right_pads_,
                                                      PassThrough{},
                                                      PassThrough{},
                                                      PassThrough{});

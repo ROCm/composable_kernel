@@ -1,4 +1,5 @@
 include_directories(BEFORE
+    ${PROJECT_SOURCE_DIR}/
     ${PROJECT_SOURCE_DIR}/include/ck
     ${PROJECT_SOURCE_DIR}/include/ck/utility
     ${PROJECT_SOURCE_DIR}/include/ck/tensor_description
@@ -41,7 +42,7 @@ function(add_gtest_executable TEST_NAME)
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
     # suppress gtest warnings
-    target_compile_options(${TEST_NAME} PRIVATE -Wno-global-constructors)
+    target_compile_options(${TEST_NAME} PRIVATE -Wno-global-constructors -Wno-undef)
     target_link_libraries(${TEST_NAME} PRIVATE gtest_main)
     gtest_discover_tests(${TEST_NAME})
 endfunction(add_gtest_executable TEST_NAME)
