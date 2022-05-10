@@ -222,7 +222,7 @@ static bool check_out(const Tensor<T>& ref, const Tensor<T>& result)
 {
     float max_diff = 1e-6;
 
-    for(int i = 0; i < ref.mData.size(); ++i)
+    for(std::size_t i = 0; i < ref.mData.size(); ++i)
     {
         float diff = std::abs(double(ref.mData[i]) - double(result.mData[i]));
         if(max_diff < diff)
@@ -236,16 +236,16 @@ template <typename DataType>
 void show_data_nhwc_layout(Tensor<DataType>& nhwc)
 {
     std::cout << "[";
-    for(int n = 0; n < nhwc.mDesc.GetLengths()[0]; n++)
+    for(int n = 0; n < ck::type_convert<int>(nhwc.mDesc.GetLengths()[0]); n++)
     {
         std::cout << "[";
-        for(int hi = 0; hi < nhwc.mDesc.GetLengths()[2]; hi++)
+        for(int hi = 0; hi < ck::type_convert<int>(nhwc.mDesc.GetLengths()[2]); hi++)
         {
             std::cout << "[";
-            for(int wi = 0; wi < nhwc.mDesc.GetLengths()[3]; wi++)
+            for(int wi = 0; wi < ck::type_convert<int>(nhwc.mDesc.GetLengths()[3]); wi++)
             {
                 std::cout << "[";
-                for(int c = 0; c < nhwc.mDesc.GetLengths()[1]; c++)
+                for(int c = 0; c < ck::type_convert<int>(nhwc.mDesc.GetLengths()[1]); c++)
                 {
                     std::cout << static_cast<float>(nhwc(n, c, hi, wi)) << "  ";
                 }

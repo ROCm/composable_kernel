@@ -71,11 +71,12 @@ ConvParams::ConvParams(ck::index_t n_dim,
       input_left_pads_(left_pads),
       input_right_pads_(right_pads)
 {
-    if(filter_spatial_lengths_.size() != num_dim_spatial_ ||
-       input_spatial_lengths_.size() != num_dim_spatial_ ||
-       conv_filter_strides_.size() != num_dim_spatial_ ||
-       conv_filter_dilations_.size() != num_dim_spatial_ ||
-       input_left_pads_.size() != num_dim_spatial_ || input_right_pads_.size() != num_dim_spatial_)
+    if(ck::type_convert<ck::index_t>(filter_spatial_lengths_.size()) != num_dim_spatial_ ||
+       ck::type_convert<ck::index_t>(input_spatial_lengths_.size()) != num_dim_spatial_ ||
+       ck::type_convert<ck::index_t>(conv_filter_strides_.size()) != num_dim_spatial_ ||
+       ck::type_convert<ck::index_t>(conv_filter_dilations_.size()) != num_dim_spatial_ ||
+       ck::type_convert<ck::index_t>(input_left_pads_.size()) != num_dim_spatial_ ||
+       ck::type_convert<ck::index_t>(input_right_pads_.size()) != num_dim_spatial_)
     {
         throw(
             std::runtime_error("ConvParams::GetOutputSpatialLengths: "
@@ -85,11 +86,12 @@ ConvParams::ConvParams(ck::index_t n_dim,
 
 std::vector<ck::index_t> ConvParams::GetOutputSpatialLengths() const
 {
-    if(filter_spatial_lengths_.size() != num_dim_spatial_ ||
-       input_spatial_lengths_.size() != num_dim_spatial_ ||
-       conv_filter_strides_.size() != num_dim_spatial_ ||
-       conv_filter_dilations_.size() != num_dim_spatial_ ||
-       input_left_pads_.size() != num_dim_spatial_ || input_right_pads_.size() != num_dim_spatial_)
+    if(ck::type_convert<ck::index_t>(filter_spatial_lengths_.size()) != num_dim_spatial_ ||
+       ck::type_convert<ck::index_t>(input_spatial_lengths_.size()) != num_dim_spatial_ ||
+       ck::type_convert<ck::index_t>(conv_filter_strides_.size()) != num_dim_spatial_ ||
+       ck::type_convert<ck::index_t>(conv_filter_dilations_.size()) != num_dim_spatial_ ||
+       ck::type_convert<ck::index_t>(input_left_pads_.size()) != num_dim_spatial_ ||
+       ck::type_convert<ck::index_t>(input_right_pads_.size()) != num_dim_spatial_)
     {
         throw(
             std::runtime_error("ConvParams::GetOutputSpatialLengths: "

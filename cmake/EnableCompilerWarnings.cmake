@@ -66,7 +66,7 @@ else()
             -Wunreachable-code
             -Wunused
 
-            -Wno-sign-compare
+            -Wsign-compare
             -Wno-extra-semi-stmt
         )
         if (CMAKE_${COMPILER}_COMPILER_ID MATCHES "Clang")

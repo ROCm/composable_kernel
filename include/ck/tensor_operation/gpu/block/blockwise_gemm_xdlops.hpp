@@ -1,10 +1,9 @@
-#ifndef CK_BLOCKWISE_GEMM_XDLOPS_HPP
-#define CK_BLOCKWISE_GEMM_XDLOPS_HPP
-
+#pragma once
 #include "common_header.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 #include "xdlops_gemm.hpp"
 #include "tensor_adaptor.hpp"
+#include "thread_group.hpp"
 
 namespace ck {
 
@@ -25,7 +24,9 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
 
-    static constexpr index_t WaveSize = 64;
+    using ThisThreadBlock = ThisThreadBlock<BlockSize>;
+
+    static constexpr index_t WaveSize = get_warp_size();
 
     static constexpr index_t MPerBlock = AK0MK1BlockDesc{}.GetLength(I1);
     static constexpr index_t NPerBlock = BK0NK1BlockDesc{}.GetLength(I1);
@@ -55,7 +56,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
     __device__ static auto GetWaveIdx()
     {
-        const index_t thread_id = get_thread_local_1d_id();
+        const index_t thread_id = ThisThreadBlock::GetThreadId();
 
         constexpr auto threadid_to_wave_idx_adaptor = make_single_stage_tensor_adaptor(
             make_tuple(make_merge_transform(make_tuple(MWaves, NWaves, WaveSize))),
@@ -122,8 +123,8 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                           BK0NK1BlockDesc::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
 
-        static_assert(BlockSize == MWaves * NWaves * WaveSize,
-                      "BlockSize != MWaves * NWaves * WaveSize\n");
+        static_assert(ThisThreadBlock::GetNumOfThread() == MWaves * NWaves * WaveSize,
+                      "ThisThreadBlock::GetNumOfThread() != MWaves * NWaves * WaveSize\n");
 
         static_assert(MPerBlock % (MPerXDL * MRepeat) == 0 && NPerBlock % (NPerXDL * NRepeat) == 0,
                       "wrong!");
@@ -339,4 +340,3 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 };
 
 } // namespace ck
-#endif
