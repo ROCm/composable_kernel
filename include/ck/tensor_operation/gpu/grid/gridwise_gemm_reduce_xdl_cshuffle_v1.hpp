@@ -15,7 +15,7 @@ namespace ck {
 template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,
-          typename DxsGlobal,
+          typename DPtrsGlobal,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
@@ -34,7 +34,7 @@ __global__ void
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
-            DxsGlobal p_dxs_grid,
+            DPtrsGlobal p_ds_grid,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op,
@@ -52,7 +52,7 @@ __global__ void
     GridwiseGemm::template Run<HasMainK0BlockLoop>(p_a_grid,
                                                    p_b_grid,
                                                    p_c_grid,
-                                                   p_dxs_grid,
+                                                   p_ds_grid,
                                                    p_shared,
                                                    a_element_op,
                                                    b_element_op,
@@ -67,7 +67,7 @@ __global__ void
     ignore = p_a_grid;
     ignore = p_b_grid;
     ignore = p_c_grid;
-    ignore = p_dxs_grid;
+    ignore = p_ds_grid;
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = c_element_op;
@@ -85,7 +85,7 @@ template <typename FloatAB,
           typename FloatCShuffle,
           typename FloatC,
           typename FloatReduceAcc,
-          typename DxsGlobal,
+          typename DPtrsGlobal,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
@@ -360,7 +360,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
                                const FloatAB* __restrict__ p_b_grid,
                                FloatC* __restrict__ p_c_grid,
-                               DxsGlobal p_dxs_grid,
+                               DPtrsGlobal p_ds_grid,
                                void* __restrict__ p_shared,
                                const AElementwiseOperation& a_element_op,
                                const BElementwiseOperation& b_element_op,
@@ -823,8 +823,8 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
             // Reduction
             // TODO - extract following implementation into reduction_blockwise
-            static_for<0, p_dxs_grid.Size(), 1>{}([&](auto In) {
-                auto p_d_grid = p_dxs_grid[In];
+            static_for<0, p_ds_grid.Size(), 1>{}([&](auto In) {
+                auto p_d_grid = p_ds_grid[In];
 
                 auto d_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
                     p_d_grid, d_grid_desc_mblock_mperblock.GetElementSpaceSize());

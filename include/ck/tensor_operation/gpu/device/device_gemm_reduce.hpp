@@ -6,7 +6,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename DxsGlobal,
+template <typename DPtrsGlobal,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
@@ -17,7 +17,7 @@ struct DeviceGemmReduce : public BaseOperator
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
                         void* p_c,
-                        DxsGlobal p_dxs,
+                        DPtrsGlobal p_dxs,
                         ck::index_t M,
                         ck::index_t N,
                         ck::index_t K,
@@ -33,12 +33,12 @@ struct DeviceGemmReduce : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <typename DxsGlobal,
+template <typename DPtrsGlobal,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename DxsElementwiseOperation>
-using DeviceGemmReducePtr = std::unique_ptr<DeviceGemmReduce<DxsGlobal,
+using DeviceGemmReducePtr = std::unique_ptr<DeviceGemmReduce<DPtrsGlobal,
                                                              AElementwiseOperation,
                                                              BElementwiseOperation,
                                                              CElementwiseOperation,
