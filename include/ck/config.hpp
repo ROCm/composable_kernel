@@ -145,6 +145,19 @@ enum struct InMemoryDataOperationEnum
     Add
 };
 
+template <InMemoryDataOperationEnum... Is>
+struct InMemoryDataOperationEnumSequence
+{
+    static constexpr int mSize = sizeof...(Is);
+
+    __host__ __device__ static constexpr InMemoryDataOperationEnum At(int I)
+    {
+        // the last dummy element is to prevent compiler complain about empty array, when mSize = 0
+        const InMemoryDataOperationEnum mData[mSize + 1] = {Is..., InMemoryDataOperationEnum::Set};
+        return mData[I];
+    }
+};
+
 // TODO: no longer needed, remove this
 enum struct ActivTypeEnum
 {

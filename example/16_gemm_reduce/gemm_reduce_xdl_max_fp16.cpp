@@ -38,19 +38,21 @@ using BElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using D0ReduceOp  = ck::reduce::Max<F32>;
 using D1ReduceOp  = ck::reduce::PassThrough<F32>;
-using D1ElementOp = ck::tensor_operation::element_wise::UnarySquare<F32, F32, false>;
+using D0ElementOp = ck::tensor_operation::element_wise::UnaryIdentic<F32, F32, false>;
+using D1ElementOp = ck::tensor_operation::element_wise::UnaryIdentic<F32, F32, false>;
 
-static constexpr auto DGlobalMemOp = ck::InMemoryDataOperationEnum::AtomicMax;
+static constexpr auto D0GlobalMemOp = ck::InMemoryDataOperationEnum::AtomicMax;
+static constexpr auto D1GlobalMemOp = ck::InMemoryDataOperationEnum::AtomicMax;
 static constexpr auto GemmSpecialization =
     ck::tensor_operation::device::GemmSpecialization::Default;
 
 // clang-format off
 using DeviceGemmReduceInstance = ck::tensor_operation::device::DeviceGemmReduce_Xdl_CShuffle
-//######| ALayout| BLayout| CLayout|AData| BData| CData|  GemmAcc| CShuffle| ReduceAcc| DData|           A|           B|           C|         D0|         D1|     D1EleOp|            D|               GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|              CReduce| CReduceThreadLds2VGprCopy| CReduceThreadVgpr2GlobalCopy|
-//######|        |        |        | Type|  Type|  Type| DataType| DataType|  DataType|  Type| Elementwise| Elementwise| Elementwise|     Reduce|     Reduce|            |   MemoryData|     Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN| MXdlPerWave| NXdlPerWave|            _MBlock_MPerBlock| ScalarPerVector| ThreadClusterLengths|     SrcDstScalarPerVector|        SrcDstScalarPerVector|
-//######|        |        |        |     |      |      |         |         |          |      |   Operation|   Operation|   Operation|  Operation|  Operation|            |    Operation|                   |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|            _NBlock_NPerBlock|      _NPerBlock| _MPerBlock_NPerBlock|                _NPerBlock|                   _MPerBlock|
-//######|        |        |        |     |      |      |         |         |          |      |            |            |            |           |           |            |             |                   |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |                     |                          |                             |
-        <     Row,     Col,     Row,  F16,   F16,   F16,      F32,      F32,       F32,   F32,  AElementOp,  BElementOp,  CElementOp, D0ReduceOp, D1ReduceOp, D1ElementOp, DGlobalMemOp, GemmSpecialization,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8,             S<64, 4>,                         4,                            1>;
+//######| ALayout| BLayout| CLayout|AData| BData| CData|  GemmAcc| CShuffle| ReduceAcc| DData|           A|           B|           C|         D0|         D1|     D0EleOp|     D1EleOp|            D0|            D1|               GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|              CReduce| CReduceThreadLds2VGprCopy| CReduceThreadVgpr2GlobalCopy|
+//######|        |        |        | Type|  Type|  Type| DataType| DataType|  DataType|  Type| Elementwise| Elementwise| Elementwise|     Reduce|     Reduce|            |            |    MemoryData|    MemoryData|     Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN| MXdlPerWave| NXdlPerWave|            _MBlock_MPerBlock| ScalarPerVector| ThreadClusterLengths|     SrcDstScalarPerVector|        SrcDstScalarPerVector|
+//######|        |        |        |     |      |      |         |         |          |      |   Operation|   Operation|   Operation|  Operation|  Operation|            |            |     Operation|     Operation|                   |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|            _NBlock_NPerBlock|      _NPerBlock| _MPerBlock_NPerBlock|                _NPerBlock|                   _MPerBlock|
+//######|        |        |        |     |      |      |         |         |          |      |            |            |            |           |           |            |            |              |              |                   |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |                     |                          |                             |
+        <     Row,     Col,     Row,  F16,   F16,   F16,      F32,      F32,       F32,   F32,  AElementOp,  BElementOp,  CElementOp, D0ReduceOp, D1ReduceOp, D0ElementOp, D1ElementOp, D0GlobalMemOp, D1GlobalMemOp, GemmSpecialization,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8,             S<64, 4>,                         4,                            1>;
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
@@ -158,6 +160,7 @@ int main(int argc, char* argv[])
     auto a_element_op  = AElementOp{};
     auto b_element_op  = BElementOp{};
     auto c_element_op  = CElementOp{};
+    auto d0_element_op = D0ElementOp{};
     auto d1_element_op = D1ElementOp{};
 
     // do GEMM
@@ -177,6 +180,7 @@ int main(int argc, char* argv[])
                                       a_element_op,
                                       b_element_op,
                                       c_element_op,
+                                      d0_element_op,
                                       d1_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
