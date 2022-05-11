@@ -109,6 +109,10 @@
 // experimental feature: use __builtin_memcpy instead of union to do bit_cast
 #define CK_EXPERIMENTAL_USE_MEMCPY_FOR_BIT_CAST 1
 
+// experimental feature: optimize for inter-wave scheduling policy
+#define CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING 0
+#define CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS 1
+
 // hack: have underlying assumption that need to be satsified, otherwise it's a bug
 // hack for forcing register to keep idx_diff_low_const in SGPR. idx_diff_low_const must be
 // thread-invariant, otherwise it's a bug
