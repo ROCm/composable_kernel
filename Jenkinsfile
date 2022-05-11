@@ -214,7 +214,8 @@ def runCKProfiler(Map conf=[:]){
 					dir("script"){
 						def perf_log = "perf_gemm_${gpu_arch}.log"
 						def artifact = "profile_gemm_${gpu_arch}.txt"
-						sh "./profile_gemm.sh gemm 0 0 0 1 0 5 | tee ${perf_log}"
+						sh "echo Branch name: ${env.BRANCH_NAME} >> ${perf_log}"
+						sh "./profile_gemm.sh gemm 0 0 0 1 0 5 | tee -a ${perf_log}"
 						sh "./profile_gemm.sh gemm 1 0 0 1 0 5 | tee -a ${perf_log}"
 						sh "./profile_gemm.sh gemm 2 0 0 1 0 5 | tee -a ${perf_log}"
 						sh "./profile_gemm.sh gemm 3 0 0 1 0 5 | tee -a ${perf_log}"
@@ -292,19 +293,19 @@ pipeline {
                 //        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
                 //    }
                 //}
-                stage('Build Profiler: Debug, gfx908')
-				{
-                    agent { label rocmnode("nogpu")}
-                    environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
-                    }
-                    steps{
-                        // until we stabilize debug build due to compiler crashes
-                        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                            buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Debug')
-                        }
-                    }
-                }
+                //stage('Build Profiler: Debug, gfx908')
+				//{
+                //    agent { label rocmnode("nogpu")}
+                //    environment{
+                //        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
+                //    }
+                //    steps{
+                //        // until we stabilize debug build due to compiler crashes
+                //        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                //            buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Debug')
+                //        }
+                //    }
+                //}
                 stage('Clang Format') {
                     agent{ label rocmnode("nogpu") }
                     environment{
@@ -324,7 +325,24 @@ pipeline {
                 }
             }
         }
-        stage("Tests")
+        stage("Performance Tests")
+        {
+            parallel
+            {
+                stage("Run ckProfiler: gfx908")
+                {
+                    agent{ label rocmnode("gfx908")}
+                    environment{
+                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
+                    }
+                    steps{
+                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
+                    }
+
+                }
+
+            }
+        }        stage("Tests")
         {
             parallel
             {
@@ -353,24 +371,7 @@ pipeline {
 
             }
         }
-        stage("Performance Tests")
-        {
-            parallel
-            {
-                stage("Run ckProfiler: gfx908")
-                {
-                    agent{ label rocmnode("gfx908")}
-                    environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
-                    }
-                    steps{
-                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
-                    }
 
-                }
-
-            }
-        }
         // enable after the cmake file supports packaging
         // stage("Packages") {
         //     when {
