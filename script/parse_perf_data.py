@@ -39,8 +39,7 @@ def main():
         for line in open(filename):
             if 'Branch name' in line:
                 lst=line.split()
-                #print("lst=",lst)
-                branch_name=lst[3]
+                branch_name=lst[2]
 
     for filename in args.files:
         for line in open(filename):
@@ -48,9 +47,9 @@ def main():
                 lst=line.split()
                 #print("lst=",lst)
                 #results.append(print_to_string(glue.join(lst[8:]),lst[4]))
-                tests.append(glue.join(lst[4:25]))
-                kernels.append(glue.join(lst[32:]))
-                tflops.append(lst[28])
+                tests.append(glue.join(lst[5:30]))
+                kernels.append(glue.join(lst[37:]))
+                tflops.append(lst[33])
 
     #print("results:",results)
     #print("kernels:",kernels)
@@ -68,12 +67,14 @@ def main():
     print("sorted kernels:",sorted_kernels)
 
     user_name=os.environ["user_name"]
-    #print("user_name=",user_name)
+    print("user_name=",user_name)
     password=os.environ["password"]
     #print("password=",password)
-    hostname=os.environ["hostname"]
+    #hostname=os.environ["hostname"]
+    hostname="10.216.64.100"
     print("hostname=",hostname)
-    db_name=os.environ["db_name"]
+    #db_name=os.environ["db_name"]
+    db_name="miopen_perf"
     print("db_name=",db_name)
     print("now=",datetime.datetime.now())
 
