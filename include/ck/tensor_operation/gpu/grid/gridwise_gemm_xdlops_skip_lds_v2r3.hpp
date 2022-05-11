@@ -344,6 +344,23 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
     }
 
     __host__ __device__ static constexpr auto
+    MakeBGridDescriptor_K0_N0_N1_N2_N3_K1(const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1)
+    {
+        const auto K0 = b_grid_desc_k0_n_k1.GetLength(I0);
+        const auto N  = b_grid_desc_k0_n_k1.GetLength(I1);
+
+        constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXDL);
+        const auto b_griddesc_k0_nblockid_nrepeat_waves_nperxdlops_k1 = transform_tensor_descriptor(
+            b_grid_desc_k0_n_k1,
+            make_tuple(make_pass_through_transform(K0),
+                       make_unmerge_transform(make_tuple(
+                           N / (NXdlPerWave * NWaves * NPerXDL), NXdlPerWave, NWaves, NPerXDL)),
+                       make_pass_through_transform(K1)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+            make_tuple(Sequence<0>{}, Sequence<1, 2, 3, 4>{}, Sequence<5>{}));
+        return b_griddesc_k0_nblockid_nrepeat_waves_nperxdlops_k1;
+    }
+    __host__ __device__ static constexpr auto
     MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(const CGridDesc_M_N& c_grid_desc_m_n)
     {
         constexpr auto max_lds_align = K1;
@@ -508,6 +525,27 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
                 ck::tensor_operation::element_wise::PassThrough{});
 
         // B matrix blockwise copy
+
+        /*static constexpr auto xdlops_gemm   = XdlopsGemm<FloatAB, MPerXDL, NPerXDL, K1>{};
+        static constexpr index_t KPerThread = K0PerBlock / xdlops_gemm.K0PerXdlops;
+
+
+
+        constexpr auto b_k0_n0_n1_n2_n3_k1_thread_copy_desc =
+            make_naive_tensor_descriptor_packed(make_tuple(Number<KPerThread>{},
+                                                           Number<MXdlPerWave>{}, // repeat
+                                                           I1,                    // waves
+                                                           I1,                    // NPerXdlops
+                                                           Number<K1>{}));
+        StaticBuffer<AddressSpaceEnum::Vgpr,
+                     FloatAB,
+                     b_k0_n0_n1_n2_n3_k1_thread_copy_desc.GetElementSpaceSize(),
+                     true>
+            b_thread_buf;
+        */
+
+        MakeBGridDescriptor_K0_N0_N1_N2_N3_K1(b_grid_desc_k0_n_k1);
+
         auto b_blockwise_copy =
             BlockwiseTensorSliceTransfer_v4r1<BlockSize,
                                               BElementwiseOperation,
