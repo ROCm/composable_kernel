@@ -14,7 +14,7 @@
 #include "host_tensor_generator.hpp"
 #include "host_gemm.hpp"
 #include "device_tensor.hpp"
-#include "device_gemm_dlops.hpp"
+#include "device_gemm_dl.hpp"
 #include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"
 #include "gemm_specialization.hpp"
@@ -31,10 +31,10 @@ namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
 
-void add_device_gemm_dlops_f16_f16_f16_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_dlops_f16_f16_f16_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_dlops_f16_f16_f16_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_dlops_f16_f16_f16_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+//void add_device_gemm_dl_f16_f16_f16_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+//void add_device_gemm_dl_f16_f16_f16_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_dl_f16_f16_f16_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+//void add_device_gemm_dl_f16_f16_f16_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 
 } // namespace device_gemm_instance
 } // namespace device
@@ -53,7 +53,7 @@ int main()
     bool res = true;
     std::vector<DeviceGemmNoOpPtr> gemmPtrs;
     ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_dlops_f16_f16_f16_km_kn_mn_instances(gemmPtrs);
+        add_device_gemm_dl_f16_f16_f16_km_kn_mn_instances(gemmPtrs);
 
     for(auto& gemmPtr : gemmPtrs)
     {
@@ -71,7 +71,7 @@ int main()
 
     gemmPtrs.clear();
     ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_dlops_f16_f16_f16_km_nk_mn_instances(gemmPtrs);
+        add_device_gemm_dl_f16_f16_f16_km_nk_mn_instances(gemmPtrs);
 
     for(auto& gemmPtr : gemmPtrs)
     {
@@ -89,7 +89,7 @@ int main()
 
     gemmPtrs.clear();
     ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_dlops_f16_f16_f16_mk_kn_mn_instances(gemmPtrs);
+        add_device_gemm_dl_f16_f16_f16_mk_kn_mn_instances(gemmPtrs);
 
     for(auto& gemmPtr : gemmPtrs)
     {
@@ -107,7 +107,7 @@ int main()
 
     gemmPtrs.clear();
     ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_dlops_f16_f16_f16_mk_nk_mn_instances(gemmPtrs);
+        add_device_gemm_dl_f16_f16_f16_mk_nk_mn_instances(gemmPtrs);
 
     for(auto& gemmPtr : gemmPtrs)
     {

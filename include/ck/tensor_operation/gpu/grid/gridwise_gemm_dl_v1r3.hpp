@@ -1,11 +1,9 @@
-#ifndef CK_GRIDWISE_GEMM_V1R3_HPP
-#define CK_GRIDWISE_GEMM_V1R3_HPP
-
+#pragma once
 #include "common_header.hpp"
 #include "multi_index_transform_helper.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
-#include "blockwise_gemm_dlops_v2r3.hpp"
+#include "blockwise_gemm_dl_v2r3.hpp"
 #include "blockwise_tensor_slice_transfer_v5r1.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 #include "threadwise_tensor_slice_set.hpp"
@@ -26,14 +24,13 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_dlops_v1r3(
-            const FloatAB* __restrict__ p_a_grid,
-            const FloatAB* __restrict__ p_b_grid,
-            FloatC* __restrict__ p_c_grid,
-            const AGridDesc_K0_M0_M1_K1 a_grid_desc_k0_m0_m1_k1,
-            const BGridDesc_K0_N0_N1_K1 b_grid_desc_k0_n0_n1_k1,
-            const CGridDesc_M0_M10_M11_N0_N10_N11 c_grid_desc_m0_m10_m11_n0_n10_n11,
-            const Block2CTileMap block_2_ctile_map)
+        kernel_gemm_dl_v1r3(const FloatAB* __restrict__ p_a_grid,
+                            const FloatAB* __restrict__ p_b_grid,
+                            FloatC* __restrict__ p_c_grid,
+                            const AGridDesc_K0_M0_M1_K1 a_grid_desc_k0_m0_m1_k1,
+                            const BGridDesc_K0_N0_N1_K1 b_grid_desc_k0_n0_n1_k1,
+                            const CGridDesc_M0_M10_M11_N0_N10_N11 c_grid_desc_m0_m10_m11_n0_n10_n11,
+                            const Block2CTileMap block_2_ctile_map)
 {
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
@@ -85,7 +82,7 @@ template <index_t BlockSize,
           typename CThreadTransferSrcDstAccessOrder,
           index_t CThreadTransferSrcDstVectorDim,
           index_t CThreadTransferDstScalarPerVector>
-struct GridwiseGemmDlops_km_kn_mn_v1r3
+struct GridwiseGemmDl_km_kn_mn_v1r3
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -372,7 +369,7 @@ struct GridwiseGemmDlops_km_kn_mn_v1r3
         //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
         //       register
         const auto blockwise_gemm =
-            BlockwiseGemmDlops_A_BK0_BM_BK1_B_BK0_BN_BK1_C_BM0_BM1_BN0_BN1_pipeline_BM0_2_BN0_2<
+            BlockwiseGemmDl_A_BK0_BM_BK1_B_BK0_BN_BK1_C_BM0_BM1_BN0_BN1_pipeline_BM0_2_BN0_2<
                 BlockSize,
                 FloatAB,
                 FloatAB,
@@ -580,4 +577,3 @@ struct GridwiseGemmDlops_km_kn_mn_v1r3
 };
 
 } // namespace ck
-#endif
