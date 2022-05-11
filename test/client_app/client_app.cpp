@@ -20,7 +20,7 @@ int main(int argc, char* argv[])
         printf("arg6: verification (0: no; 1: yes)\n");
         printf("arg7: initialization (0: no init; 1: integer value; 2: decimal value)\n");
         printf("arg8: print tensor value (0: no; 1: yes)\n");
-        printf("arg9: run kernel # of times (>1)\n");
+        printf("arg9: time kernel (0=n0, 1=yes)\n");
         printf("arg10 to 24: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
                "RightPx\n");
         exit(1);
@@ -33,7 +33,7 @@ int main(int argc, char* argv[])
     const bool do_verification   = std::stoi(argv[6]);
     const int init_method        = std::stoi(argv[7]);
     const bool do_log            = std::stoi(argv[8]);
-    const int nrepeat            = std::stoi(argv[9]);
+    const bool time_kernel       = std::stoi(argv[9]);
 
     const ck::index_t N  = std::stoi(argv[10]);
     const ck::index_t K  = std::stoi(argv[11]);
@@ -61,7 +61,7 @@ int main(int argc, char* argv[])
     ck::app::profile_conv_fwd_impl(do_verification,
                                    init_method,
                                    do_log,
-                                   nrepeat,
+                                   time_kernel,
                                    data_type,
                                    N,
                                    K,

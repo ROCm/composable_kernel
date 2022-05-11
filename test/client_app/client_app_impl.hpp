@@ -91,7 +91,7 @@ DeviceMem::~DeviceMem() { hipGetErrorString(hipFree(mpDeviceBuf)); }
 void profile_conv_fwd_impl(int do_verification,
                            int init_method,
                            bool do_log,
-                           int nrepeat,
+                           bool time_kernel,
                            ConvDataType data_type,
                            ck::index_t N,
                            ck::index_t K,
@@ -154,8 +154,8 @@ void profile_conv_fwd_impl(int do_verification,
     hipSetDevice(deviceIndex);
     check_hip_error();
 
-    hipStream_t stream_id = nullptr;
-    hipStreamCreate(&stream_id);
+    StreamConfig stream_config{nullptr, time_kernel};
+    hipStreamCreate(&stream_config.stream_id_);
     check_hip_error();
 
     // profile device Conv instances
@@ -181,7 +181,7 @@ void profile_conv_fwd_impl(int do_verification,
         if(conv_ptr.IsSupportedArgument(argument_ptr.get()))
         {
             std::string conv_name = conv_ptr.GetTypeString();
-            float ave_time        = invoker_ptr->Run(argument_ptr.get(), nrepeat, stream_id, true);
+            float ave_time        = invoker_ptr->Run(argument_ptr.get(), stream_config);
 
             std::size_t flop = std::size_t(2) * N * K * Ho * Wo * C * Y * X;
 

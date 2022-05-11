@@ -182,10 +182,7 @@ struct DeviceReduceBlockWiseSecondCall
 
     struct Invoker : public BaseInvoker
     {
-        float Run(const Argument& arg,
-                  int nrepeat           = 1,
-                  hipStream_t stream_id = nullptr,
-                  bool measure_time     = false)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             const auto in_grid_desc_m_k = DeviceReduceBlockWiseSecondCall::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_);
@@ -227,13 +224,11 @@ struct DeviceReduceBlockWiseSecondCall
                                                                     InElementwiseOperation,
                                                                     AccElementwiseOperation>;
 
-            avg_time = launch_and_time_kernel(kernel,
-                                              nrepeat,
+            avg_time = launch_and_time_kernel(stream_config,
+                                              kernel,
                                               dim3(arg.gridSize),
                                               dim3(BlockSize),
                                               0,
-                                              stream_id,
-                                              measure_time,
                                               in_grid_desc_m_k,
                                               out_grid_desc_m,
                                               arg.in_elementwise_op_,
@@ -249,12 +244,10 @@ struct DeviceReduceBlockWiseSecondCall
         };
 
         float Run(const BaseArgument* p_arg,
-                  int nrepeat           = 1,
-                  hipStream_t stream_id = nullptr,
-                  bool measure_time     = false) override
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat, stream_id, measure_time);
-        };
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
+        }
     };
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override

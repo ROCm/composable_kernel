@@ -245,8 +245,7 @@ struct DeviceReduceMultiBlockAtomicAdd
 
     struct Invoker : public BaseInvoker
     {
-        float
-        Run(const Argument& arg, int nrepeat = 1, hipStream_t stream_id = nullptr, bool = false)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             const auto in_grid_desc_m_k = DeviceReduceMultiBlockAtomicAdd::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.kBlockTileIterations);
@@ -276,8 +275,6 @@ struct DeviceReduceMultiBlockAtomicAdd
 
             float avg_time = 0;
 
-            KernelTimer timer;
-
             const auto kernel_pre  = kernel_buffer_set_value<BlockSize, OutDataType, OutGridDesc_M>;
             const auto kernel_main = kernel_reduce_multiblock_atocmi_add<GridwiseReduce,
                                                                          InDataType,
@@ -288,55 +285,38 @@ struct DeviceReduceMultiBlockAtomicAdd
                                                                          InElementwiseOperation,
                                                                          AccElementwiseOperation>;
 
-            printf("launch_and_time_kernel: grid_dim {%ld, 1, 1}, block_dim {%d, 1, 1} \n",
-                   arg.gridSize,
-                   BlockSize);
-            printf("Warm up\n");
+            avg_time += launch_and_time_kernel(stream_config,
+                                               kernel_pre,
+                                               dim3(arg.gridSize_pre),
+                                               dim3(BlockSize),
+                                               0,
+                                               out_grid_desc_m,
+                                               arg.out_dev_,
+                                               static_cast<OutDataType>(0.0f));
 
-            for(int i = 0; i < nrepeat + 1; i++)
-            {
-                if(i == 1)
-                    timer.Start();
+            avg_time += launch_and_time_kernel(stream_config,
+                                               kernel_main,
+                                               dim3(arg.gridSize),
+                                               dim3(BlockSize),
+                                               0,
+                                               in_grid_desc_m_k,
+                                               out_grid_desc_m,
+                                               arg.in_elementwise_op_,
+                                               arg.acc_elementwise_op_,
+                                               arg.blkGroupSize,
+                                               arg.kBlockTileIterations,
+                                               arg.alpha_,
+                                               arg.in_dev_,
+                                               arg.out_dev_);
 
-                launch_kernel(kernel_pre,
-                              dim3(arg.gridSize_pre),
-                              dim3(BlockSize),
-                              0,
-                              stream_id,
-                              out_grid_desc_m,
-                              arg.out_dev_,
-                              static_cast<OutDataType>(0.0f));
-
-                launch_kernel(kernel_main,
-                              dim3(arg.gridSize),
-                              dim3(BlockSize),
-                              0,
-                              stream_id,
-                              in_grid_desc_m_k,
-                              out_grid_desc_m,
-                              arg.in_elementwise_op_,
-                              arg.acc_elementwise_op_,
-                              arg.blkGroupSize,
-                              arg.kBlockTileIterations,
-                              arg.alpha_,
-                              arg.in_dev_,
-                              arg.out_dev_);
-            };
-
-            timer.End();
-
-            avg_time = timer.GetElapsedTime() / nrepeat;
-
-            return (avg_time);
-        };
+            return avg_time;
+        }
 
         float Run(const BaseArgument* p_arg,
-                  int nrepeat           = 1,
-                  hipStream_t stream_id = nullptr,
-                  bool measure_time     = false) override
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat, stream_id, measure_time);
-        };
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
+        }
     };
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override

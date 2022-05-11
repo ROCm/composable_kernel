@@ -19,6 +19,7 @@ list(APPEND GTEST_CMAKE_CXX_FLAGS
      -Wno-zero-as-null-pointer-constant
      -Wno-unused-member-function
      -Wno-comma
+     -Wno-old-style-cast
 )
 message(STATUS "Suppressing googltest warnings with flags: ${GTEST_CMAKE_CXX_FLAGS}")
 

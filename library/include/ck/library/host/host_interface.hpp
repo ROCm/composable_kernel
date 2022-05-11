@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 
+#include "stream_config.hpp"
 #include "config.hpp"
 #include "device_base.hpp"
 
