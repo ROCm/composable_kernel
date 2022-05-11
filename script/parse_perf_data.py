@@ -41,7 +41,7 @@ def main():
                 lst=line.split()
                 #print("lst=",lst)
                 branch_name=lst[3]
-                
+
     for filename in args.files:
         for line in open(filename):
             if 'Best Perf' in line:
@@ -51,20 +51,22 @@ def main():
                 tests.append(glue.join(lst[4:25]))
                 kernels.append(glue.join(lst[32:]))
                 tflops.append(lst[28])
-    
+
     #print("results:",results)
     #print("kernels:",kernels)
     #print("tflops:",tflops)
-    #sort results  
+    #sort results
     print("Number of tests:",len(tests))
-    
+
+    print("Branch name:",branch_name)
+
     sorted_tests = sorted(tests)
     print("sorted tests:",sorted_tests)
     sorted_tflops = [x for _,x in sorted(zip(tests,tflops))]
     print("sorted tflops:",sorted_tflops)
     sorted_kernels = [x for _,x in sorted(zip(tests,kernels))]
-    print("sorted kernels:",sorted_kernels)    
-    
+    print("sorted kernels:",sorted_kernels)
+
     user_name=os.environ["user_name"]
     #print("user_name=",user_name)
     password=os.environ["password"]
@@ -74,7 +76,7 @@ def main():
     db_name=os.environ["db_name"]
     print("db_name=",db_name)
     print("now=",datetime.datetime.now())
-    
+
     sql_hostname = '127.0.0.1'
     sql_username = user_name
     sql_password = password
@@ -96,7 +98,7 @@ def main():
         data = pd.read_sql_query(query, conn)
         print("data=",data)
 
-        #read baseline results for the latest develop branch 
+        #read baseline results for the latest develop branch
         query = '''SELECT * from ck_gemm_tflops where Branch_name="develop" and timestamp = (SELECT MAX(timestamp));'''
         tflops_base = pd.read_sql_query(query, conn)
 
@@ -114,7 +116,7 @@ def main():
         if tflops_base[i]>1.1*sorted_tflops[i]:
             print("test # ",i,"shows regression")
             regression=1
-    
+
     #return 0 if performance criteria met, otherwise return 1
 
     return regression
