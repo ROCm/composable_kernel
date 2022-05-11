@@ -539,7 +539,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                    c_thread_buf,
                                    num_k_block_main_loop);
 
-        // shuffle C and write out
+        // shuffle C + reduction + write out
         {
             static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&
                               NXdlPerWave % CShuffleNXdlPerWavePerShuffle == 0,
@@ -678,6 +678,29 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                  make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
                  c_element_op};
 
+            // space filling curve for threadwise C in VGPR
+            constexpr auto sfc_c_vgpr =
+                SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
+                                  Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                                  Sequence<CShuffleMXdlPerWavePerShuffle,
+                                           CShuffleNXdlPerWavePerShuffle,
+                                           1,
+                                           1,
+                                           M2,
+                                           1,
+                                           M4,
+                                           1>>{};
+
+            // space filling curve for shuffled blockwise C in global mem
+            constexpr auto sfc_c_global =
+                SpaceFillingCurve<Sequence<1, MPerBlock, 1, NPerBlock>,
+                                  Sequence<0, 2, 1, 3>,
+                                  Sequence<1,
+                                           CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
+                                           1,
+                                           CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>>{};
+
+            // TODO: this should be implemented as a blockwise reduction
             // LDS c_reduce_block_desc_mperblock_nperblock
             constexpr auto c_reduce_block_desc_mperblock_nperblock = transform_tensor_descriptor(
                 c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
@@ -728,7 +751,6 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             constexpr auto d_reduce_thread_desc_mblock_mperblock =
                 make_naive_tensor_descriptor_packed(make_tuple(I1, Number<mreduce_per_thread>{}));
 
-            // TODO: this should be implemented as a blockwise reduction
             auto c_reduce_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatReduceAcc>(
                 c_reduce_thread_desc_mperblock_nperblock.GetElementSpaceSize());
 
@@ -755,29 +777,6 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                 1,
                 true>{c_reduce_block_desc_mperblock_nperblock, c_reduce_thread_data_idx_begin};
 
-            // space filling curve for threadwise C in VGPR
-            constexpr auto sfc_c_vgpr =
-                SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
-                                  Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-                                  Sequence<CShuffleMXdlPerWavePerShuffle,
-                                           CShuffleNXdlPerWavePerShuffle,
-                                           1,
-                                           1,
-                                           M2,
-                                           1,
-                                           M4,
-                                           1>>{};
-
-            // space filling curve for shuffled blockwise C in global mem
-            constexpr auto sfc_c_global =
-                SpaceFillingCurve<Sequence<1, MPerBlock, 1, NPerBlock>,
-                                  Sequence<0, 2, 1, 3>,
-                                  Sequence<1,
-                                           CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
-                                           1,
-                                           CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>>{};
-
-            // TODO - extract following into reduction_blockwise
             auto dxs_reduce_thread_copy_vgpr_to_global = generate_tuple(
                 [&](auto I) {
                     auto p_d_grid = p_ds_grid[I];
