@@ -62,13 +62,13 @@ int main(int argc, char* argv[])
 {
     bool do_verification = 0;
     int init_method      = 0;
-    int nrepeat          = 5;
+    bool time_kernel     = true;
 
     if(argc == 4)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
     }
     else
     {
@@ -202,7 +202,7 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    float ave_time = invoker.Run(argument, nrepeat);
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 

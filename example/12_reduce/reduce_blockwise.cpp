@@ -118,8 +118,8 @@ class SimpleAppArgs
 
     bool do_verification = false;
 
-    int init_method = 1;
-    int nrepeat     = 5;
+    int init_method  = 1;
+    bool time_kernel = true;
 
     public:
     void show_usage(const char* cmd)
@@ -182,7 +182,7 @@ class SimpleAppArgs
             throw std::runtime_error("Invalid cmd-line arguments, more argumetns are needed!");
 
         init_method = std::atoi(argv[optind++]);
-        nrepeat     = std::atoi(argv[optind]);
+        time_kernel = std::atoi(argv[optind]);
 
         if(scales.empty())
         {
@@ -352,7 +352,7 @@ int main(int argc, char* argv[])
 
     auto invoker_ptr = reduce.MakeInvokerPointer();
 
-    float avg_time = invoker_ptr->Run(argument_ptr.get(), args.nrepeat);
+    float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, args.time_kernel});
 
     std::size_t num_bytes = invariant_total_length * reduce_total_length * sizeof(InDataType) +
                             invariant_total_length * sizeof(OutDataType);

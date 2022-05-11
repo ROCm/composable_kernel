@@ -124,7 +124,8 @@ struct ReferenceConvFwd_Bias_Activation : public device::BaseOperator
             return 0;
         }
 
-        float Run(const device::BaseArgument* p_arg, int, hipStream_t, bool) override
+        float Run(const device::BaseArgument* p_arg,
+                  const StreamConfig& /* stream_config */ = StreamConfig{}) override
         {
             return Run(*dynamic_cast<const Argument*>(p_arg));
         }

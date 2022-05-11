@@ -204,10 +204,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
 
     struct Invoker : public BaseInvoker
     {
-        float Run(const Argument& arg,
-                  int nrepeat           = 1,
-                  hipStream_t stream_id = nullptr,
-                  bool measure_time     = false)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             using gridwise_reduce = GridwiseReduction_mk_to_m_threadwise<InDataType,
                                                                          OutDataType,
@@ -244,13 +241,11 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
 
             const index_t grid_size = (ReduceM / ReduceM_BlockTileSize);
 
-            return launch_and_time_kernel(kernel,
-                                          nrepeat,
+            return launch_and_time_kernel(stream_config,
+                                          kernel,
                                           dim3(grid_size),
                                           dim3(BlockSize),
                                           0,
-                                          stream_id,
-                                          measure_time,
                                           arg.a_grid_desc_m_k_,
                                           arg.b_grid_desc_m_,
                                           arg.in_element_op_,
@@ -263,11 +258,9 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
         }
 
         float Run(const BaseArgument* p_arg,
-                  int nrepeat           = 1,
-                  hipStream_t stream_id = nullptr,
-                  bool measure_time     = false) override
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat, stream_id, measure_time);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 

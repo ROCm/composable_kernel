@@ -186,7 +186,7 @@ int main(int argc, char* argv[])
 
     bool do_verification = 0;
     int init_method      = 0;
-    int nrepeat          = 5;
+    bool time_kernel     = true;
     int num_dim_spatial  = 2;
 
     ck::utils::conv::ConvParams params;
@@ -195,7 +195,7 @@ int main(int argc, char* argv[])
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
         num_dim_spatial = std::stoi(argv[4]);
     }
 
@@ -279,7 +279,7 @@ int main(int argc, char* argv[])
             "not support this Conv problem");
     }
 
-    float ave_time = invoker->Run(argument.get(), nrepeat);
+    float ave_time = invoker->Run(argument.get(), StreamConfig{nullptr, time_kernel});
 
     std::size_t flop = get_flops(
         params.N_, params.C_, params.K_, params.filter_spatial_lengths_, output_spatial_lengths);

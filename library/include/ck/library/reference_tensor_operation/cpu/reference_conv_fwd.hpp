@@ -1,9 +1,10 @@
-#ifndef REFERENCE_CONV_FWD_HPP
-#define REFERENCE_CONV_FWD_HPP
+#pragma once
 
 #include <iostream>
 #include <type_traits>
 #include <sstream>
+
+#include "stream_config.hpp"
 #include "device_base.hpp"
 #include "host_tensor.hpp"
 
@@ -251,7 +252,8 @@ struct ReferenceConvFwd : public device::BaseOperator
             }
         }
 
-        float Run(const device::BaseArgument* p_arg, int, hipStream_t, bool) override
+        float Run(const device::BaseArgument* p_arg,
+                  const StreamConfig& /*stream_config*/ = StreamConfig{}) override
         {
             return Run(*dynamic_cast<const Argument*>(p_arg));
         }
@@ -311,4 +313,3 @@ struct ReferenceConvFwd : public device::BaseOperator
 } // namespace host
 } // namespace tensor_operation
 } // namespace ck
-#endif

@@ -151,7 +151,7 @@ int main(int argc, char* argv[])
 
     bool do_verification = 0;
     int init_method      = 0;
-    int nrepeat          = 5;
+    bool time_kernel     = true;
 
     // Pool shape
     ck::index_t N               = 128;
@@ -171,13 +171,13 @@ int main(int argc, char* argv[])
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
     }
     else if(argc == 16)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
 
         N               = std::stoi(argv[4]);
         C               = std::stoi(argv[5]);
@@ -271,7 +271,7 @@ int main(int argc, char* argv[])
                                  "not support this problem");
     }
 
-    float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
+    float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
     std::size_t flop = std::size_t(2) * N * C * Ho * Wo * Y * X;
 
