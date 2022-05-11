@@ -106,6 +106,9 @@ __global__ void
 #endif // end of if defined (defined(__gfx908__) || defined(__gfx90a__))
 }
 
+// Note: inter-wave loop scheduler is rolled out to c-shuffle version first. Becuase non c-shuffle
+// version currently has compiler issues with register spill which further causes validation
+// failures.
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
@@ -154,7 +157,8 @@ template <typename ALayout,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           typename CReduceThreadClusterLengths_MPerBlock_NPerBlock,
           index_t CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
-          index_t CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock>
+          index_t CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock,
+          LoopScheduler LoopSched = make_default_loop_scheduler()>
 struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwiseOperation,
                                                                       BElementwiseOperation,
                                                                       CElementwiseOperation,
@@ -600,7 +604,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         CReduceThreadClusterLengths_MPerBlock_NPerBlock,
         CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
-        CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock>;
+        CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock,
+        LoopSched>;
 
     using Block2CTileMap = decltype(MakeBlock2CTileMap(1, CGridDesc_M_N{}, 1, 1));
 
