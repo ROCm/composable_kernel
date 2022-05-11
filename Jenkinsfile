@@ -342,7 +342,8 @@ pipeline {
                 }
 
             }
-        }        stage("Tests")
+        }
+		stage("Tests")
         {
             parallel
             {
