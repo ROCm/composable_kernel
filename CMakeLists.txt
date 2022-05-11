@@ -27,7 +27,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 message("CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
 
-option(CK_TIME_KERNELS "Time every kernel and log parameters" OFF)
+option(CK_TIME_KERNEL "Time every kernel and log parameters" OFF)
 
 ## OpenMP
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
