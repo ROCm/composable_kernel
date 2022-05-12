@@ -31,10 +31,10 @@ namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
 
-//void add_device_gemm_dl_f16_f16_f16_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-//void add_device_gemm_dl_f16_f16_f16_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+// void add_device_gemm_dl_f16_f16_f16_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+// void add_device_gemm_dl_f16_f16_f16_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_dl_f16_f16_f16_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-//void add_device_gemm_dl_f16_f16_f16_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+// void add_device_gemm_dl_f16_f16_f16_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 
 } // namespace device_gemm_instance
 } // namespace device
@@ -51,7 +51,10 @@ int main()
     using ColumnMajor = ck::tensor_layout::gemm::ColumnMajor;
 
     bool res = true;
+
     std::vector<DeviceGemmNoOpPtr> gemmPtrs;
+
+#if 0
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_dl_f16_f16_f16_km_kn_mn_instances(gemmPtrs);
 
@@ -104,6 +107,7 @@ int main()
                                        PassThrough,
                                        PassThrough>{}(gemmPtr);
     }
+#endif
 
     gemmPtrs.clear();
     ck::tensor_operation::device::device_gemm_instance::

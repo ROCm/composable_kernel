@@ -404,13 +404,8 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
         auto c_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAcc>(
             c_thread_desc_m10_m11_n10_n11.GetElementSpaceSize());
 
-        ThreadwiseTensorSliceSet_v1<FloatAcc,
-                                    decltype(c_thread_desc_m10_m11_n10_n11),
-                                    decltype(c_m10_m11_n10_n11_thread_tensor_lengths)>{}
-            .Run(c_thread_desc_m10_m11_n10_n11,
-                 make_tuple(I0, I0, I0, I0),
-                 c_thread_buf,
-                 FloatAcc{0});
+        // Initialize C
+        c_thread_buf.Clear();
 
         constexpr auto a_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0, 0);
