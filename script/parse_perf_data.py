@@ -66,33 +66,26 @@ def main():
     sorted_kernels = [x for _,x in sorted(zip(tests,kernels))]
     print("sorted kernels:",sorted_kernels)
 
-    user_name=os.environ["user_name"]
-    print("user_name=",user_name)
-    password=os.environ["password"]
-    #print("password=",password)
-    #hostname=os.environ["hostname"]
-    hostname="10.216.64.100"
-    print("hostname=",hostname)
-    #db_name=os.environ["db_name"]
-    db_name="miopen_perf"
-    print("db_name=",db_name)
     print("now=",datetime.datetime.now())
 
     sql_hostname = '127.0.0.1'
-    sql_username = user_name
-    sql_password = password
+    sql_username = os.environ["dbuser"]
+    print("sql_username=",sql_username)
+    sql_password = os.environ["dbpassword"]
     sql_main_database = 'miopen_perf'
     sql_port = 3306
-    ssh_host = hostname
-    ssh_user = user_name
-    ssh_port = 20057
+    ssh_host = os.environ["dbsship"]
+    print("ssh_host=",ssh_host)
+    ssh_user = os.environ["dbsshuser"]
+    ssh_port = os.environ["dbsshport"]
+    ssh_pass = os.environ["dbsshpassword"]
 
     with SSHTunnelForwarder(
             (ssh_host, ssh_port),
             ssh_username=ssh_user,
-            ssh_password=password,
+            ssh_password=ssh_pass,
             remote_bind_address=(sql_hostname, sql_port)) as tunnel:
-        conn = pymysql.connect(host='127.0.0.1', user=sql_username,
+        conn = pymysql.connect(host=sql_hostname, user=sql_username,
             passwd=sql_password, db=sql_main_database,
             port=tunnel.local_bind_port)
         query = '''SELECT VERSION();'''
@@ -114,7 +107,8 @@ def main():
     #compare the results to the baseline
     regression=0
     for i in len(tflops_base):
-        if tflops_base[i]>1.1*sorted_tflops[i]:
+        # success criterion:
+        if tflops_base[i]>1.05*sorted_tflops[i]:
             print("test # ",i,"shows regression")
             regression=1
 

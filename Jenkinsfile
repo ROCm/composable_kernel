@@ -334,7 +334,13 @@ pipeline {
                     agent{ label rocmnode("gfx908")}
                     environment{
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
-                    }
+                        dbuser = ${dbuser}
+                        dbpassword = ${dbpassword}
+                        dbsship = ${dbsship}
+                        dbsshport = ${dbsshport}
+                        dbsshuser = ${dbsshuser}
+                        dbsshpassword = ${dbsshpassword}
+                   }
                     steps{
                         runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
                     }
