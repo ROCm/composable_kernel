@@ -80,8 +80,8 @@ TEST(BlockToCTileMap, TestBlockToCTileMap_M00_N00_M01_N01_DeviceCTileIndexCheck0
     const index_t NPerBlock = 128;
     // const index_t MBlock    = M / MPerBlock;
     // const index_t NBlock    = N / NPerBlock;
-    const index_t M01       = 4;
-    const index_t N01       = 4;
+    const index_t M01 = 4;
+    const index_t N01 = 4;
 
     auto c_grid_desc_m_n = make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I1, I1));
 
@@ -93,8 +93,8 @@ TEST(BlockToCTileMap, TestBlockToCTileMap_M00_N00_M01_N01_DeviceCTileIndexCheck0
            M01,
            N01);
 
-    BlockToCTileMap_M00_N00_M01_N01<MPerBlock, NPerBlock, decltype(c_grid_desc_m_n), false> tile_map(
-        c_grid_desc_m_n, M01, N01);
+    BlockToCTileMap_M00_N00_M01_N01<MPerBlock, NPerBlock, decltype(c_grid_desc_m_n), false>
+        tile_map(c_grid_desc_m_n, M01, N01);
 
     EXPECT_TRUE(tile_map.CheckValidity(c_grid_desc_m_n) == false);
 }
