@@ -250,14 +250,14 @@ int main(int argc, char* argv[])
         }
 
         pass &= ck::utils::check_err(
-            c_m_n_host_result.mData, c_m_n_device_result.mData, "Error: Incorrect results c");
-        pass &= ck::utils::check_err(d0_m_host_result.mData,
-                                     d0_m_device_result.mData,
+            c_m_n_device_result.mData, c_m_n_host_result.mData, "Error: Incorrect results c");
+        pass &= ck::utils::check_err(d0_m_device_result.mData,
+                                     d0_m_host_result.mData,
                                      "Error: Incorrect results d0",
                                      1e-3,
                                      1e-3);
-        pass &= ck::utils::check_err(d1_m_host_result.mData,
-                                     d1_m_device_result.mData,
+        pass &= ck::utils::check_err(d1_m_device_result.mData,
+                                     d1_m_host_result.mData,
                                      "Error: Incorrect results d1",
                                      1e-3,
                                      1e-3);

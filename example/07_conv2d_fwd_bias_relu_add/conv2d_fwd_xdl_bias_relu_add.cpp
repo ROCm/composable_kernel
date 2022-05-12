@@ -320,10 +320,7 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
         out_device_buf.FromDevice(device_output.mData.data());
-        return ck::utils::check_err(
-                   host_output.mData, device_output.mData, "Error: incorrect results!")
-                   ? 0
-                   : 1;
+        return ck::utils::check_err(device_output.mData, host_output.mData);
     }
 
     return 0;
