@@ -79,6 +79,12 @@
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 0
 #endif
 
+#if defined(__gfx90a__) // for GPU code
+#define CK_USE_AMD_BUFFER_ATOMIC_MAX_FLOAT64 1
+#else
+#define CK_USE_AMD_BUFFER_ATOMIC_MAX_FLOAT64 0
+#endif
+
 // inline asm
 #define CK_USE_AMD_INLINE_ASM 1
 
@@ -94,10 +100,11 @@
 // experimental feature: static tensor descriptor
 #define CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR 0
 
-// experimental feature: buffer load/store/atomic-add OOB trick
+// experimental feature: buffer load/store/atomic-add/ OOB trick
 #define CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK 0
 #define CK_EXPERIMENTAL_USE_BUFFER_STORE_OOB_CHECK_OFFSET_TRICK 1
 #define CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_ADD_OOB_CHECK_OFFSET_TRICK 1
+#define CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_MAX_OOB_CHECK_OFFSET_TRICK 1
 
 // experimental feature: in-regsiter sub-dword transpose
 #define CK_EXPERIMENTAL_USE_IN_REGISTER_SUB_DWORD_TRANSPOSE 1
