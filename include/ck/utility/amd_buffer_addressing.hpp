@@ -259,12 +259,12 @@ __device__ float llvm_amdgcn_raw_buffer_atomic_add_fp32(
     index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fadd.f32");
 
 // buffer atomic-add fp32
-__device__ double llvm_amdgcn_raw_buffer_atomic_max_fp64(
-    double vdata,
-    int32x4_t rsrc, // dst_wave_buffer_resource
-    int voffset,    // dst_thread_addr_offset
-    int soffset,    // dst_wave_addr_offset
-    int glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fmax.f64");
+__device__ double
+llvm_amdgcn_raw_buffer_atomic_max_fp64(double vdata,
+                                       int32x4_t rsrc, // dst_wave_buffer_resource
+                                       int voffset,    // dst_thread_addr_offset
+                                       int soffset,    // dst_wave_addr_offset
+                                       int glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fmax.f64");
 
 template <typename T, index_t N>
 __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_wave_buffer_resource,
@@ -929,7 +929,8 @@ __device__ void amd_buffer_atomic_max_impl(const typename vector_type<T, N>::typ
                                            index_t dst_thread_addr_offset,
                                            index_t dst_wave_addr_offset)
 {
-    static_assert((is_same<T, double>::value && (N == 1 || N == 2 || N == 4)), "wrong! not implemented");
+    static_assert((is_same<T, double>::value && (N == 1 || N == 2 || N == 4)),
+                  "wrong! not implemented");
     if constexpr(is_same<T, double>::value)
     {
         if constexpr(N == 1)

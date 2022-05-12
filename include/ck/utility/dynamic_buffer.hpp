@@ -347,7 +347,7 @@ struct DynamicBuffer
         static_assert(GetAddressSpace() == AddressSpaceEnum::Global, "only support global mem");
 
 #if CK_USE_AMD_BUFFER_ATOMIC_MAX_FLOAT64
-        using scalar_t = typename scalar_type<remove_cvref_t<T>>::type;
+        using scalar_t                           = typename scalar_type<remove_cvref_t<T>>::type;
         bool constexpr use_amd_buffer_addressing = is_same_v<remove_cvref_t<scalar_t>, double>;
 #else
         bool constexpr use_amd_buffer_addressing = false;
