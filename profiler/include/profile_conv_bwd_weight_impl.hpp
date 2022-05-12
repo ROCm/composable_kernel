@@ -1,4 +1,6 @@
 #pragma once
+
+#include "stream_config.hpp"
 #include "config.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -43,7 +45,7 @@ template <int NDimSpatial,
 bool profile_conv_bwd_weight_impl(int do_verification,
                                   int init_method,
                                   bool do_log,
-                                  int nrepeat,
+                                  bool time_kernel,
                                   ck::index_t N,
                                   ck::index_t K,
                                   ck::index_t C,
@@ -182,6 +184,7 @@ bool profile_conv_bwd_weight_impl(int do_verification,
 
     // profile device Conv instances
     bool pass = true;
+
     for(auto& conv_ptr : conv_ptrs)
     {
         // using atomic, so need to reset input
@@ -189,6 +192,7 @@ bool profile_conv_bwd_weight_impl(int do_verification,
         {
             wei_device_buf.SetZero();
         }
+
         auto argument_ptr = conv_ptr->MakeArgumentPointer(
             static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
             static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
@@ -214,7 +218,8 @@ bool profile_conv_bwd_weight_impl(int do_verification,
         {
             std::string conv_name = conv_ptr->GetTypeString();
 
-            float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
+            float ave_time =
+                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
             std::size_t flop = std::size_t(2) * N * K * Ho * Wo * C * Y * X;
 
@@ -242,6 +247,7 @@ bool profile_conv_bwd_weight_impl(int do_verification,
                 wei_device_buf.FromDevice(wei_k_c_y_x_device_result.mData.data());
 
                 float max_error = check_error(wei_k_c_y_x_host_result, wei_k_c_y_x_device_result);
+
                 if(max_error > 8)
                 {
                     pass = false;
