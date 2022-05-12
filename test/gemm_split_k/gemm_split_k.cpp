@@ -187,9 +187,10 @@ int test_gemm(const gemmArgs& args)
 
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            invoker_ptr->Run(argument_ptr.get(), 0);
+            invoker_ptr->Run(argument_ptr.get());
 
             c_device_buf.FromDevice(c_m_n_device_result.mData.data());
+
             if(!check_out(c_m_n_host_result, c_m_n_device_result))
             {
                 success = false;

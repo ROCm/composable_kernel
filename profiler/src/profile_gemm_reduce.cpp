@@ -44,7 +44,7 @@ int profile_gemm_reduce(int argc, char* argv[])
     const bool do_verification = std::stoi(argv[4]);
     const int init_method      = std::stoi(argv[5]);
     const bool do_log          = std::stoi(argv[6]);
-    const int nrepeat          = std::stoi(argv[7]);
+    const bool time_kernel     = std::stoi(argv[7]);
 
     const int M = std::stoi(argv[8]);
     const int N = std::stoi(argv[9]);
@@ -66,7 +66,7 @@ int profile_gemm_reduce(int argc, char* argv[])
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            time_kernel,
             M,
             N,
             K,
@@ -87,7 +87,7 @@ int profile_gemm_reduce(int argc, char* argv[])
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            time_kernel,
             M,
             N,
             K,
@@ -108,7 +108,7 @@ int profile_gemm_reduce(int argc, char* argv[])
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            time_kernel,
             M,
             N,
             K,
@@ -129,7 +129,7 @@ int profile_gemm_reduce(int argc, char* argv[])
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            time_kernel,
             M,
             N,
             K,

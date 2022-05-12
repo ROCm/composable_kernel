@@ -57,7 +57,7 @@ int profile_conv_bwd_data(int argc, char* argv[])
     const bool do_verification = std::stoi(argv[6]);
     const int init_method      = std::stoi(argv[7]);
     const bool do_log          = std::stoi(argv[8]);
-    const int nrepeat          = std::stoi(argv[9]);
+    const bool time_kernel     = std::stoi(argv[9]);
 
     const ck::index_t N  = std::stoi(argv[10]);
     const ck::index_t K  = std::stoi(argv[11]);
@@ -96,7 +96,7 @@ int profile_conv_bwd_data(int argc, char* argv[])
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            StreamControl{nullptr, time_kernel},
             N,
             K,
             C,
@@ -122,7 +122,7 @@ int profile_conv_bwd_data(int argc, char* argv[])
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            StreamControl{nullptr, time_kernel},
             N,
             K,
             C,
@@ -148,7 +148,7 @@ int profile_conv_bwd_data(int argc, char* argv[])
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            StreamControl{nullptr, time_kernel},
             N,
             K,
             C,
@@ -174,7 +174,7 @@ int profile_conv_bwd_data(int argc, char* argv[])
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            StreamControl{nullptr, time_kernel},
             N,
             K,
             C,

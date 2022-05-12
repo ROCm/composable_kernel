@@ -108,7 +108,7 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
     const bool do_verification = std::stoi(argv[6]);
     const int init_method      = std::stoi(argv[7]);
     const bool do_log          = std::stoi(argv[8]);
-    const int nrepeat          = std::stoi(argv[9]);
+    const bool time_kernel     = std::stoi(argv[9]);
 
     ck::utils::conv::ConvParams params = parse_conv_params(num_dim_spatial, argv, preParams);
 
@@ -132,7 +132,7 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
                 do_verification,
                 init_method,
                 do_log,
-                nrepeat,
+                time_kernel,
                 params.N_,
                 params.K_,
                 params.C_,
@@ -157,7 +157,7 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
                 do_verification,
                 init_method,
                 do_log,
-                nrepeat,
+                time_kernel,
                 params.N_,
                 params.K_,
                 params.C_,
@@ -182,7 +182,7 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
                 do_verification,
                 init_method,
                 do_log,
-                nrepeat,
+                time_kernel,
                 params.N_,
                 params.K_,
                 params.C_,

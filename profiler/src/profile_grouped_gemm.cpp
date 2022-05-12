@@ -66,7 +66,7 @@ int profile_grouped_gemm(int argc, char* argv[])
     const bool do_verification = std::stoi(argv[4]);
     const int init_method      = std::stoi(argv[5]);
     const bool do_log          = std::stoi(argv[6]);
-    const int nrepeat          = std::stoi(argv[7]);
+    const bool time_kernel     = std::stoi(argv[7]);
 
     const auto Ms = argToIntArray(argv[8]);
     const auto Ns = argToIntArray(argv[9]);
@@ -86,7 +86,7 @@ int profile_grouped_gemm(int argc, char* argv[])
                                                 ck::tensor_layout::gemm::RowMajor>(do_verification,
                                                                                    init_method,
                                                                                    do_log,
-                                                                                   nrepeat,
+                                                                                   time_kernel,
                                                                                    Ms,
                                                                                    Ns,
                                                                                    Ks,
@@ -104,7 +104,7 @@ int profile_grouped_gemm(int argc, char* argv[])
                                                 ck::tensor_layout::gemm::RowMajor>(do_verification,
                                                                                    init_method,
                                                                                    do_log,
-                                                                                   nrepeat,
+                                                                                   time_kernel,
                                                                                    Ms,
                                                                                    Ns,
                                                                                    Ks,
@@ -122,7 +122,7 @@ int profile_grouped_gemm(int argc, char* argv[])
                                                 ck::tensor_layout::gemm::RowMajor>(do_verification,
                                                                                    init_method,
                                                                                    do_log,
-                                                                                   nrepeat,
+                                                                                   time_kernel,
                                                                                    Ms,
                                                                                    Ns,
                                                                                    Ks,
@@ -140,7 +140,7 @@ int profile_grouped_gemm(int argc, char* argv[])
                                                 ck::tensor_layout::gemm::RowMajor>(do_verification,
                                                                                    init_method,
                                                                                    do_log,
-                                                                                   nrepeat,
+                                                                                   time_kernel,
                                                                                    Ms,
                                                                                    Ns,
                                                                                    Ks,
