@@ -63,9 +63,9 @@ using ReferenceGemmInstance = ck::tensor_operation::host::
 
 int main(int argc, char* argv[])
 {
-    bool do_verification = 0;
-    int init_method      = 0;
-    int nrepeat          = 5;
+    bool do_verification = true;
+    int init_method      = 1;
+    bool time_kernel     = false;
 
     // GEMM shape
     ck::index_t M = 3840;
@@ -76,17 +76,21 @@ int main(int argc, char* argv[])
     ck::index_t StrideB = 4096;
     ck::index_t StrideC = 4096;
 
-    if(argc == 4)
+    if(argc == 1)
+    {
+        // do nothing
+    }
+    else if(argc == 4)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
     }
     else if(argc == 10)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
 
         M = std::stoi(argv[4]);
         N = std::stoi(argv[5]);
@@ -100,9 +104,9 @@ int main(int argc, char* argv[])
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: run kernel # of times (>1)\n");
+        printf("arg3: time kernel (0=n0, 1=yes)\n");
         printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC\n");
-        exit(0);
+        exit(1);
     }
 
     auto f_host_tensor_descriptor =
@@ -178,7 +182,7 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    float ave_time = invoker.Run(argument, nrepeat);
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_btype =
@@ -193,6 +197,8 @@ int main(int argc, char* argv[])
 
     c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
+    bool pass = true;
+
     if(do_verification)
     {
         auto ref_gemm    = ReferenceGemmInstance{};
@@ -203,14 +209,8 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
 
-        ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
-
-#if 0
-        LogRangeAsType<float>(std::cout << "c_host  : ", c_m_n_host_result.mData, ",") << std::endl;
-        LogRangeAsType<float>(std::cout << "c_device  : ", c_m_n_device_result.mData, ",")
-            << std::endl;
-#endif
+        pass = ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
     }
 
-    return 0;
+    return pass ? 0 : 1;
 }

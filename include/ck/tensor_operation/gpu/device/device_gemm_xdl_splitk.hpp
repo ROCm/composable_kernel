@@ -386,8 +386,11 @@ struct DeviceGemmXdlSplitK
             std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
                       << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
         }
-        float Run(const Argument& arg, int nrepeat = 1)
+
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
+            ShowInfo(arg);
+
             const auto kbatch = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I0);
 
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_kbatch_k0_m_k1_,
@@ -409,50 +412,30 @@ struct DeviceGemmXdlSplitK
             float ave_time = 0;
 
             const auto Run = [&](const auto& kernel) {
-                if(nrepeat > 0)
-                {
-                    ShowInfo(arg);
-                    ave_time = launch_and_time_kernel(kernel,
-                                                      nrepeat,
-                                                      dim3(grid_size),
-                                                      dim3(BlockSize),
-                                                      0,
-                                                      arg.p_a_grid_,
-                                                      arg.p_b_grid_,
-                                                      arg.p_c_grid_,
-                                                      arg.a_grid_desc_kbatch_k0_m_k1_,
-                                                      arg.b_grid_desc_kbatch_k0_n_k1_,
-                                                      arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                                      arg.a_element_op_,
-                                                      arg.b_element_op_,
-                                                      arg.c_element_op_,
-                                                      arg.block_2_ctile_map_);
-                }
+                // FIXME: this should be moved outside of DeviceOp
+                hipGetErrorString(
+                    hipMemset(arg.p_c_grid_,
+                              0,
+                              arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_.GetElementSpaceSize() *
+                                  sizeof(CDataType)));
 
-                if(kbatch > 1 || nrepeat <= 0)
-                {
-                    hipGetErrorString(
-                        hipMemset(arg.p_c_grid_,
-                                  0,
-                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_.GetElementSpaceSize() *
-                                      sizeof(CDataType)));
-
-                    launch_kernel(kernel,
-                                  dim3(grid_size),
-                                  dim3(BlockSize),
-                                  0,
-                                  arg.p_a_grid_,
-                                  arg.p_b_grid_,
-                                  arg.p_c_grid_,
-                                  arg.a_grid_desc_kbatch_k0_m_k1_,
-                                  arg.b_grid_desc_kbatch_k0_n_k1_,
-                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                  arg.a_element_op_,
-                                  arg.b_element_op_,
-                                  arg.c_element_op_,
-                                  arg.block_2_ctile_map_);
-                }
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
+                                                  dim3(grid_size),
+                                                  dim3(BlockSize),
+                                                  0,
+                                                  arg.p_a_grid_,
+                                                  arg.p_b_grid_,
+                                                  arg.p_c_grid_,
+                                                  arg.a_grid_desc_kbatch_k0_m_k1_,
+                                                  arg.b_grid_desc_kbatch_k0_n_k1_,
+                                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                                  arg.a_element_op_,
+                                                  arg.b_element_op_,
+                                                  arg.c_element_op_,
+                                                  arg.block_2_ctile_map_);
             };
+
             if(has_main_k0_block_loop)
             {
                 if(kbatch == 1)
@@ -532,9 +515,10 @@ struct DeviceGemmXdlSplitK
         }
 
         // polymorphic
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 

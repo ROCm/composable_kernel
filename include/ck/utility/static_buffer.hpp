@@ -163,5 +163,11 @@ __host__ __device__ constexpr auto make_static_buffer(Number<N>)
     return StaticBuffer<AddressSpace, T, N, true>{};
 }
 
+template <AddressSpaceEnum AddressSpace, typename T, long_index_t N>
+__host__ __device__ constexpr auto make_static_buffer(LongNumber<N>)
+{
+    return StaticBuffer<AddressSpace, T, N, true>{};
+}
+
 } // namespace ck
 #endif
