@@ -476,7 +476,8 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                     "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
             }
 
-            const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_);
+            const index_t grid_size =
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_);
 
             const auto K =
                 arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);

@@ -428,8 +428,9 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                 throw std::runtime_error(
                     "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v3r1 has invalid setting");
             }
-            const auto kbatch       = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I0);
-            const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_, kbatch);
+            const auto kbatch = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I0);
+            const index_t grid_size =
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_);
 
             const auto K0 = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I1);
 

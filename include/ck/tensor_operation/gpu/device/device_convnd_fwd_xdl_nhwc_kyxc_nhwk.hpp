@@ -773,7 +773,8 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                     "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v2r3 has invalid setting");
             }
 
-            const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_);
+            const index_t grid_size =
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_);
 
             const auto K =
                 arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
@@ -1012,7 +1013,7 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceConv" << std::to_string(NumDimSpatial) 
+        str << "DeviceConv" << std::to_string(NumDimSpatial)
             << "DFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K"
             << "<"
             << BlockSize << ", "

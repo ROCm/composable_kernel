@@ -656,7 +656,8 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Bias_Activation_Input_N_Hi_Wi_C_Weight_K_Y_X
                     "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v3r2 has invalid setting");
             }
 
-            const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_);
+            const index_t grid_size =
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_);
 
             const auto K =
                 arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);

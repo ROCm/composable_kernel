@@ -39,7 +39,6 @@ __global__ void
             FloatC* __restrict__ p_c_grid,
             FloatD* __restrict__ p_d0_grid,
             FloatD* __restrict__ p_d1_grid,
-            const index_t batch_count,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op,
@@ -53,9 +52,7 @@ __global__ void
             const Block2CTileMap block_2_ctile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
-    const index_t num_blocks_per_batch =
-        __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
-    const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
+    const index_t g_idx = get_block_id_z();
 
     const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_base_ptr_of_batch_.GetABasePtr(g_idx)));
@@ -92,7 +89,6 @@ __global__ void
     ignore = p_c_grid;
     ignore = p_d0_grid;
     ignore = p_d1_grid;
-    ignore = batch_count;
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = c_element_op;
@@ -465,44 +461,6 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
     using CGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
     using DGridDesc_M         = decltype(MakeDGridDescriptor_M(1));
 
-    static constexpr auto MakeBlock2CTileMap(index_t batch_count,
-                                             const CGridDesc_M_N& c_grid_desc_m_n,
-                                             index_t M01,
-                                             index_t N01)
-    {
-        const auto M = c_grid_desc_m_n.GetLength(I0);
-        const auto N = c_grid_desc_m_n.GetLength(I1);
-
-        constexpr auto M1 = Number<MPerBlock>{};
-        constexpr auto N1 = Number<NPerBlock>{};
-
-        const auto M0 = M / M1;
-        const auto N0 = N / N1;
-
-        const auto M00 = M0 / M01;
-        const auto N00 = N0 / N01;
-
-        const auto g_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor =
-            make_single_stage_tensor_adaptor(
-                make_tuple(make_insert_transform(batch_count),
-                           make_unmerge_transform(make_tuple(M00, M01)),
-                           make_unmerge_transform(make_tuple(N00, N01))),
-                make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2, 4>{}));
-
-        const auto globalblockid_to_m00_m01_n00_n01_block_cluster_adaptor =
-            make_single_stage_tensor_adaptor(
-                make_tuple(make_merge_transform(make_tuple(batch_count, M00, N00, M01, N01))),
-                make_tuple(Sequence<0, 1, 2, 3, 4>{}),
-                make_tuple(Sequence<0>{}));
-
-        const auto globalblockid_to_m0_n0_block_cluster_adaptor =
-            chain_tensor_adaptors(g_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor,
-                                  globalblockid_to_m00_m01_n00_n01_block_cluster_adaptor);
-
-        return globalblockid_to_m0_n0_block_cluster_adaptor;
-    }
-
     struct ComputeBasePtrOfStridedBatch
     {
         ComputeBasePtrOfStridedBatch(index_t BatchStrideA,
@@ -607,8 +565,6 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
         CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock,
         LoopSched>;
 
-    using Block2CTileMap = decltype(MakeBlock2CTileMap(1, CGridDesc_M_N{}, 1, 1));
-
     // Argument
     struct Argument : public BaseArgument
     {
@@ -662,7 +618,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                 d_grid_desc_mblock_mperblock_ =
                     GridwiseGemm::MakeDGridDescriptor_MBlock_MPerBlock(d_grid_desc_m_);
 
-                block_2_ctile_map_ = MakeBlock2CTileMap(BatchCount, c_grid_desc_m_n_, 1, 1);
+                block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_);
             }
         }
 
@@ -681,7 +637,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
         typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock d_grid_desc_mblock_mperblock_;
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
-        Block2CTileMap block_2_ctile_map_;
+        typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
@@ -723,8 +679,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
 
-            const index_t grid_size =
-                GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_) * arg.BatchCount_;
+            const dim3 grid_size(
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_), 1, arg.BatchCount_);
 
             const auto K =
                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
@@ -746,7 +702,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                     typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock,
                     ComputeBasePtrOfStridedBatch,
-                    remove_reference_t<Block2CTileMap>,
+                    typename GridwiseGemm::DefaultBlock2CTileMap,
                     true>;
 
                 elapsed_time =
@@ -760,7 +716,6 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                                            arg.p_c_grid_,
                                            arg.p_d0_grid_,
                                            arg.p_d1_grid_,
-                                           arg.BatchCount_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
@@ -788,7 +743,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                     typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock,
                     ComputeBasePtrOfStridedBatch,
-                    remove_reference_t<Block2CTileMap>,
+                    typename GridwiseGemm::DefaultBlock2CTileMap,
                     false>;
 
                 elapsed_time =
@@ -802,7 +757,6 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                                            arg.p_c_grid_,
                                            arg.p_d0_grid_,
                                            arg.p_d1_grid_,
-                                           arg.BatchCount_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,

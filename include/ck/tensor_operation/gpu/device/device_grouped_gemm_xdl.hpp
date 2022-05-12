@@ -307,6 +307,11 @@ struct DeviceGroupedGemmXdl
 
     struct GroupedGemmBlock2CTileMap
     {
+        using UnderlyingBlock2CTileMap = typename GridwiseGemm::DefaultBlock2CTileMap;
+        static_assert(
+            std::is_same<decltype(GridwiseGemm::MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1)),
+                         typename GridwiseGemm::DefaultBlock2CTileMap>::value,
+            "Wrong! Should be the same type name");
         GroupedGemmBlock2CTileMap()
         {
             block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1);
@@ -327,6 +332,13 @@ struct DeviceGroupedGemmXdl
         {
             return block_2_ctile_map_.CalculateBottomIndex(
                 make_multi_index(idx_top[I0] - BlockStart_));
+        }
+
+        template <typename CTileIdx, typename CTileDim>
+        __host__ __device__ bool ValidCTileIndex(const CTileIdx& c_tile_idx,
+                                                 const CTileDim& c_tile_dim) const
+        {
+            return block_2_ctile_map_.ValidCTileIndex(c_tile_idx, c_tile_dim);
         }
 
         private:
@@ -400,7 +412,10 @@ struct DeviceGroupedGemmXdl
                 const auto c_grid_desc_m_n_ =
                     DeviceGroupedGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC);
 
-                const index_t grid_size_grp = GridwiseGemm::CalculateGridSize(c_grid_desc_m_n_);
+                const index_t grid_size_grp =
+                    typename GroupedGemmBlock2CTileMap::UnderlyingBlock2CTileMap(
+                        c_grid_desc_m_n_, M01, N01)
+                        .CalculateGridSize(c_grid_desc_m_n_);
 
                 const index_t BlockStart = grid_size_;
                 const index_t BlockEnd   = grid_size_ + grid_size_grp;

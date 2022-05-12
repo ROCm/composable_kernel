@@ -5,6 +5,7 @@
 #include "multi_index_transform_helper.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
+#include "block_to_ctile_map.hpp"
 #include "blockwise_gemm_xdlops.hpp"
 #include "thread_group_tensor_slice_transfer_v4r1.hpp"
 #include "thread_group_tensor_slice_transfer_v6r1.hpp"
@@ -217,17 +218,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         return true;
     }
 
-    __host__ __device__ static constexpr index_t
-    CalculateGridSize(const CMNGridDesc& c_m_n_grid_desc, index_t KBatch)
-    {
-        const auto M = c_m_n_grid_desc.GetLength(I0);
-        const auto N = c_m_n_grid_desc.GetLength(I1);
-
-        const index_t grid_size = (M / MPerBlock) * (N / NPerBlock) * KBatch;
-
-        return grid_size;
-    }
-
     __host__ __device__ static constexpr bool CalculateHasMainK0BlockLoop(index_t K0)
     {
         const bool has_main_k0_block_loop = K0 > K0PerBlock;
@@ -256,37 +246,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     __host__ __device__ static constexpr auto MakeCBlockClusterAdaptor(
         const CMNGridDesc& c_m_n_grid_desc, index_t M01, index_t N01, index_t KBatch)
     {
-        const auto M = c_m_n_grid_desc.GetLength(I0);
-        const auto N = c_m_n_grid_desc.GetLength(I1);
-
-        constexpr auto M1 = Number<MPerBlock>{};
-        constexpr auto N1 = Number<NPerBlock>{};
-
-        const auto M0 = M / M1;
-        const auto N0 = N / N1;
-
-        const auto M00 = M0 / M01;
-        const auto N00 = N0 / N01;
-
-        const auto kbatch_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor =
-            make_single_stage_tensor_adaptor(
-                make_tuple(make_pass_through_transform(KBatch),
-                           make_unmerge_transform(make_tuple(M00, M01)),
-                           make_unmerge_transform(make_tuple(N00, N01))),
-                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-                make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2, 4>{}));
-
-        const auto c_blockid_to_kbatch_m00_m01_n00_n01_block_cluster_adaptor =
-            make_single_stage_tensor_adaptor(
-                make_tuple(make_merge_transform(make_tuple(KBatch, M00, N00, M01, N01))),
-                make_tuple(Sequence<0, 1, 2, 3, 4>{}),
-                make_tuple(Sequence<0>{}));
-
-        const auto c_blockid_to_kbatch_m0_n0_block_cluster_adaptor =
-            chain_tensor_adaptors(kbatch_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor,
-                                  c_blockid_to_kbatch_m00_m01_n00_n01_block_cluster_adaptor);
-
-        return c_blockid_to_kbatch_m0_n0_block_cluster_adaptor;
+        return BlockToCTileMap_KSplit_M00_N00_M01_N01<MPerBlock, NPerBlock, CMNGridDesc>(
+            c_m_n_grid_desc, M01, N01, KBatch);
     }
 
     __host__ __device__ static constexpr auto
@@ -332,6 +293,14 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         // divide block work by [M, N]
         const auto block_work_idx =
             c_block_cluster_adaptor.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
+
+        if(!c_block_cluster_adaptor.ValidCTileIndex(
+               block_work_idx,
+               make_tuple(c_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I0),
+                          c_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2))))
+        {
+            return;
+        }
 
         const index_t k_batch_id = block_work_idx[I0];
 
