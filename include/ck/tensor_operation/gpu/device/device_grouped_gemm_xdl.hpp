@@ -430,8 +430,10 @@ struct DeviceGroupedGemmXdl
                 const auto grouped_gemm_block_2_ctile_map_ =
                     GroupedGemmBlock2CTileMap(c_grid_desc_m_n_, M01, N01, BlockStart);
 
-                if(GridwiseGemm::CheckValidity(
-                       a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, grouped_gemm_block_2_ctile_map_))
+                if(GridwiseGemm::CheckValidity(a_grid_desc_k0_m_k1_,
+                                               b_grid_desc_k0_n_k1_,
+                                               c_grid_desc_m_n_,
+                                               grouped_gemm_block_2_ctile_map_))
                 {
                     const auto c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
                         GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
@@ -495,10 +497,11 @@ struct DeviceGroupedGemmXdl
                               << gemm_desc_kernel_args[i].c_grid_desc_m_n_.GetLength(I1) << "}"
                               << std::endl;
 
-                    if(!GridwiseGemm::CheckValidity(gemm_desc_kernel_args[i].a_grid_desc_k0_m_k1_,
-                                                    gemm_desc_kernel_args[i].b_grid_desc_k0_n_k1_,
-                                                    gemm_desc_kernel_args[i].c_grid_desc_m_n_,
-                                                    gemm_desc_kernel_args[i].grouped_gemm_block_2_ctile_map_))
+                    if(!GridwiseGemm::CheckValidity(
+                           gemm_desc_kernel_args[i].a_grid_desc_k0_m_k1_,
+                           gemm_desc_kernel_args[i].b_grid_desc_k0_n_k1_,
+                           gemm_desc_kernel_args[i].c_grid_desc_m_n_,
+                           gemm_desc_kernel_args[i].grouped_gemm_block_2_ctile_map_))
                     {
                         throw std::runtime_error(
                             "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
