@@ -11,13 +11,7 @@ ARG DEB_ROCM_REPO=http://repo.radeon.com/rocm/apt/.apt_$ROCMVERSION/
 RUN apt-get update
 RUN apt-get install -y wget gnupg
 RUN wget -qO - http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
-RUN if ! [ -z $OSDB_BKC_VERSION ]; then \
-       echo "Using BKC VERISION: $OSDB_BKC_VERSION";\
-       sh -c "echo deb [arch=amd64 trusted=yes] http://compute-artifactory.amd.com/artifactory/list/rocm-osdb-deb/ compute-rocm-dkms-no-npi-hipclang ${OSDB_BKC_VERSION} > /etc/apt/sources.list.d/rocm.list" ;\
-       cat  /etc/apt/sources.list.d/rocm.list;\
-    else \
-       sh -c "echo deb [arch=amd64] $DEB_ROCM_REPO ubuntu main > /etc/apt/sources.list.d/rocm.list" ;\
-    fi
+RUN sh -c "echo deb [arch=amd64] $DEB_ROCM_REPO ubuntu main > /etc/apt/sources.list.d/rocm.list"
 RUN wget --no-check-certificate -qO - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | apt-key add -
 RUN sh -c "echo deb https://apt.kitware.com/ubuntu/ bionic main | tee -a /etc/apt/sources.list"
 
@@ -25,18 +19,15 @@ RUN sh -c "echo deb https://apt.kitware.com/ubuntu/ bionic main | tee -a /etc/ap
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     apt-utils \
-    sshpass \
     build-essential \
     cmake-data=3.15.1-0kitware1 \
     cmake=3.15.1-0kitware1 \
     curl \
-    doxygen \
     g++ \
     gdb \
     git \
     hip-rocclr \
     jq \
-    lcov \
     libelf-dev \
     libncurses5-dev \
     libnuma-dev \
@@ -61,8 +52,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     kmod && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
-
-# RUN pip3 install --default-timeout=100000 -r requirements.txt
 
 # Setup ubsan environment to printstacktrace
 RUN ln -s /usr/bin/llvm-symbolizer-3.8 /usr/local/bin/llvm-symbolizer
@@ -92,5 +81,3 @@ ADD rbuild.ini /rbuild.ini
 ADD dev-requirements.txt dev-requirements.txt
 RUN rbuild prepare -s develop -d $PREFIX
 RUN groupadd -f render
-# RUN cget install -f min-requirements.txt
-# RUN CXXFLAGS='-isystem $PREFIX/include' cget install -f ./mlir-requirements.txt

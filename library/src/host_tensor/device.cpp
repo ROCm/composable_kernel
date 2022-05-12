@@ -2,7 +2,7 @@
 
 DeviceMem::DeviceMem(std::size_t mem_size) : mMemSize(mem_size)
 {
-    hipGetErrorString(hipMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize));
+    hip_check_error(hipMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize));
 }
 
 void* DeviceMem::GetDeviceBuffer() { return mpDeviceBuf; }
@@ -11,49 +11,48 @@ std::size_t DeviceMem::GetBufferSize() { return mMemSize; }
 
 void DeviceMem::ToDevice(const void* p)
 {
-    hipGetErrorString(
-        hipMemcpy(mpDeviceBuf, const_cast<void*>(p), mMemSize, hipMemcpyHostToDevice));
+    hip_check_error(hipMemcpy(mpDeviceBuf, const_cast<void*>(p), mMemSize, hipMemcpyHostToDevice));
 }
 
 void DeviceMem::FromDevice(void* p)
 {
-    hipGetErrorString(hipMemcpy(p, mpDeviceBuf, mMemSize, hipMemcpyDeviceToHost));
+    hip_check_error(hipMemcpy(p, mpDeviceBuf, mMemSize, hipMemcpyDeviceToHost));
 }
 
-void DeviceMem::SetZero() { hipGetErrorString(hipMemset(mpDeviceBuf, 0, mMemSize)); }
+void DeviceMem::SetZero() { hip_check_error(hipMemset(mpDeviceBuf, 0, mMemSize)); }
 
-DeviceMem::~DeviceMem() { hipGetErrorString(hipFree(mpDeviceBuf)); }
+DeviceMem::~DeviceMem() { hip_check_error(hipFree(mpDeviceBuf)); }
 
 struct KernelTimerImpl
 {
     KernelTimerImpl()
     {
-        hipGetErrorString(hipEventCreate(&mStart));
-        hipGetErrorString(hipEventCreate(&mEnd));
+        hip_check_error(hipEventCreate(&mStart));
+        hip_check_error(hipEventCreate(&mEnd));
     }
 
     ~KernelTimerImpl()
     {
-        hipGetErrorString(hipEventDestroy(mStart));
-        hipGetErrorString(hipEventDestroy(mEnd));
+        hip_check_error(hipEventDestroy(mStart));
+        hip_check_error(hipEventDestroy(mEnd));
     }
 
     void Start()
     {
-        hipGetErrorString(hipDeviceSynchronize());
-        hipGetErrorString(hipEventRecord(mStart, nullptr));
+        hip_check_error(hipDeviceSynchronize());
+        hip_check_error(hipEventRecord(mStart, nullptr));
     }
 
     void End()
     {
-        hipGetErrorString(hipEventRecord(mEnd, nullptr));
-        hipGetErrorString(hipEventSynchronize(mEnd));
+        hip_check_error(hipEventRecord(mEnd, nullptr));
+        hip_check_error(hipEventSynchronize(mEnd));
     }
 
     float GetElapsedTime() const
     {
         float time;
-        hipGetErrorString(hipEventElapsedTime(&time, mStart, mEnd));
+        hip_check_error(hipEventElapsedTime(&time, mStart, mEnd));
         return time;
     }
 

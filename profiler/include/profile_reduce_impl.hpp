@@ -157,7 +157,7 @@ void profile_reduce_impl_impl(bool do_verification,
                               int init_method,
                               bool do_log,
                               bool do_dumpout,
-                              int nrepeat,
+                              bool time_kernel,
                               const std::vector<size_t>& inLengths,
                               const std::vector<int>& reduceDims,
                               float alpha,
@@ -430,7 +430,8 @@ void profile_reduce_impl_impl(bool do_verification,
 
             auto invoker_ptr = reduce_ptr->MakeInvokerPointer();
 
-            float avg_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
+            float avg_time =
+                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
             std::size_t num_bytes =
                 invariant_total_length * reduce_total_length * sizeof(InDataType) +
@@ -516,7 +517,8 @@ void profile_reduce_impl_impl(bool do_verification,
 
             auto invoker_ptr = reduce_ptr->MakeInvokerPointer();
 
-            float avg_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
+            float avg_time =
+                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
             std::size_t num_bytes =
                 invariant_total_length * reduce_total_length * sizeof(InDataType) +
@@ -554,7 +556,8 @@ void profile_reduce_impl_impl(bool do_verification,
 
                 auto invoker2_ptr = reduce2_ptr->MakeInvokerPointer();
 
-                float avg_time_2 = invoker2_ptr->Run(argument2_ptr.get(), nrepeat);
+                float avg_time_2 =
+                    invoker2_ptr->Run(argument2_ptr.get(), StreamConfig{nullptr, time_kernel});
 
                 std::size_t num_bytes_2 =
                     static_cast<size_t>(inLengths2[0]) * inLengths2[1] * sizeof(AccDataType);
@@ -625,7 +628,7 @@ void profile_reduce_impl(bool do_verification,
                          int init_method,
                          bool do_log,
                          bool do_dumpout,
-                         int nrepeat,
+                         bool time_kernel,
                          const std::vector<size_t>& inLengths,
                          const std::vector<int>& reduceDims,
                          ReduceTensorOp ReduceOpId,
@@ -663,7 +666,7 @@ void profile_reduce_impl(bool do_verification,
             init_method,
             do_log,
             do_dumpout,
-            nrepeat,
+            time_kernel,
             inLengths,
             reduceDims,
             alpha,

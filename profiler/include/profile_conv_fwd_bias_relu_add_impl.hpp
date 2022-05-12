@@ -42,7 +42,7 @@ template <int NDimSpatial,
 void profile_conv_fwd_bias_relu_add_impl(int do_verification,
                                          int init_method,
                                          bool do_log,
-                                         int nrepeat,
+                                         bool time_kernel,
                                          ck::index_t N,
                                          ck::index_t K,
                                          ck::index_t C,
@@ -219,7 +219,8 @@ void profile_conv_fwd_bias_relu_add_impl(int do_verification,
         {
             std::string conv_name = op_ptr->GetTypeString();
 
-            float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
+            float ave_time =
+                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
             std::size_t flop = std::size_t(2) * N * K * Ho * Wo * C * Y * X;
 

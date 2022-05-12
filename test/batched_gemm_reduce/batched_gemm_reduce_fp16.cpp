@@ -22,7 +22,7 @@ int main()
                                                                   Row,
                                                                   Row,
                                                                   Row>(
-                       true, 1, false, 1, M, N, K, K, N, N, BatchCount);
+                       true, 1, false, false, M, N, K, K, N, N, BatchCount);
 
     pass = pass && ck::profiler::profile_batched_gemm_reduce_impl<ck::half_t,
                                                                   ck::half_t,
@@ -31,7 +31,7 @@ int main()
                                                                   Row,
                                                                   Col,
                                                                   Row>(
-                       true, 1, false, 1, M, N, K, K, K, N, BatchCount);
+                       true, 1, false, false, M, N, K, K, K, N, BatchCount);
 
     pass = pass && ck::profiler::profile_batched_gemm_reduce_impl<ck::half_t,
                                                                   ck::half_t,
@@ -40,7 +40,7 @@ int main()
                                                                   Col,
                                                                   Row,
                                                                   Row>(
-                       true, 1, false, 1, M, N, K, M, N, N, BatchCount);
+                       true, 1, false, false, M, N, K, M, N, N, BatchCount);
 
     pass = pass && ck::profiler::profile_batched_gemm_reduce_impl<ck::half_t,
                                                                   ck::half_t,
@@ -49,7 +49,7 @@ int main()
                                                                   Col,
                                                                   Col,
                                                                   Row>(
-                       true, 1, false, 1, M, N, K, M, K, N, BatchCount);
+                       true, 1, false, false, M, N, K, M, K, N, BatchCount);
 
     if(pass)
     {

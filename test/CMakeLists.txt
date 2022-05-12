@@ -22,6 +22,8 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/external/include/half
 )
 
+include(googletest)
+
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
 add_custom_target(tests)
 
@@ -62,3 +64,4 @@ add_subdirectory(convnd_fwd)
 add_subdirectory(reduce)
 add_subdirectory(conv2d_bwd_weight)
 add_subdirectory(convnd_bwd_data)
+# DONOT add client_app, that is tested via CI independently

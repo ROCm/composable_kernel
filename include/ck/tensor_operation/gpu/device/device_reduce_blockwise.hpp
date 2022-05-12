@@ -211,7 +211,7 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
 
     struct Invoker : public BaseInvoker
     {
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             const auto in_grid_desc_m_k =
                 DeviceReduceBlockWise::MakeSrc2dDescriptor(arg.inLengths_, arg.inStrides_);
@@ -253,8 +253,8 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
                                                         InElementwiseOperation,
                                                         AccElementwiseOperation>;
 
-            avg_time = launch_and_time_kernel(kernel,
-                                              nrepeat,
+            avg_time = launch_and_time_kernel(stream_config,
+                                              kernel,
                                               dim3(arg.gridSize),
                                               dim3(BlockSize),
                                               0,
@@ -272,9 +272,10 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
             return (avg_time);
         };
 
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         };
     };
 

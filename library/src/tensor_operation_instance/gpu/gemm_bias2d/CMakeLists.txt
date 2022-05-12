@@ -10,9 +10,7 @@ set(DEVICE_GEMM_BIAS2D_INSTANCE_SOURCE
    device_gemm_xdl_c_shuffle_bias_2d_f16_f16_f16_mk_nk_mn_instance.cpp;
 )
 
-add_library(device_gemm_bias2d_instance SHARED ${DEVICE_GEMM_BIAS2D_INSTANCE_SOURCE})
-target_compile_features(device_gemm_bias2d_instance PUBLIC)
+add_library(device_gemm_bias2d_instance OBJECT ${DEVICE_GEMM_BIAS2D_INSTANCE_SOURCE})
 set_target_properties(device_gemm_bias2d_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
-install(TARGETS device_gemm_bias2d_instance LIBRARY DESTINATION lib)
 
 clang_tidy_check(device_gemm_bias2d_instance)
