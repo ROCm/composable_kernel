@@ -95,7 +95,7 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
         printf("arg6: verification (0: no; 1: yes)\n");
         printf("arg7: initialization (0: no init; 1: integer value; 2: decimal value)\n");
         printf("arg8: print tensor value (0: no; 1: yes)\n");
-        printf("arg9: run kernel # of times (>1)\n");
+        printf("arg9: time kernel (0=n0, 1=yes)\n");
         printf("arg10 to 24: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
                "RightPx\n");
         return 1;
@@ -108,7 +108,7 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
     const bool do_verification = std::stoi(argv[6]);
     const int init_method      = std::stoi(argv[7]);
     const bool do_log          = std::stoi(argv[8]);
-    const int nrepeat          = std::stoi(argv[9]);
+    const bool time_kernel     = std::stoi(argv[9]);
 
     ck::utils::conv::ConvParams params = parse_conv_params(num_dim_spatial, argv, preParams);
 
@@ -132,7 +132,7 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
                 do_verification,
                 init_method,
                 do_log,
-                nrepeat,
+                time_kernel,
                 params.N_,
                 params.K_,
                 params.C_,
@@ -157,7 +157,7 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
                 do_verification,
                 init_method,
                 do_log,
-                nrepeat,
+                time_kernel,
                 params.N_,
                 params.K_,
                 params.C_,
@@ -182,7 +182,7 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
                 do_verification,
                 init_method,
                 do_log,
-                nrepeat,
+                time_kernel,
                 params.N_,
                 params.K_,
                 params.C_,

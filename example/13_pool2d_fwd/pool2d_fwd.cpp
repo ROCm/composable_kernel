@@ -149,9 +149,9 @@ int main(int argc, char* argv[])
 {
     using namespace ck::host_reduce;
 
-    bool do_verification = 0;
-    int init_method      = 0;
-    int nrepeat          = 5;
+    bool do_verification = true;
+    int init_method      = 1;
+    bool time_kernel     = false;
 
     // Pool shape
     ck::index_t N               = 128;
@@ -171,13 +171,13 @@ int main(int argc, char* argv[])
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
     }
     else if(argc == 16)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
 
         N               = std::stoi(argv[4]);
         C               = std::stoi(argv[5]);
@@ -196,7 +196,7 @@ int main(int argc, char* argv[])
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: run kernel # of times (>1)\n");
+        printf("arg3: time kernel (0=n0, 1=yes)\n");
         printf("arg4 to 15: N, C, Y, X, Hi, Wi, Sy, Sx, LeftPy, LeftPx, RightPy, "
                "RightPx\n");
         exit(0);
@@ -271,7 +271,7 @@ int main(int argc, char* argv[])
                                  "not support this problem");
     }
 
-    float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
+    float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
     std::size_t flop = std::size_t(2) * N * C * Ho * Wo * Y * X;
 
