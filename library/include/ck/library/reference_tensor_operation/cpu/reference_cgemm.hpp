@@ -64,8 +64,7 @@ struct ReferenceCGemm : public device::BaseOperator
 
                 if(K != arg.a_m_k_imag_.mDesc.GetLengths()[1])
                 {
-                    throw std::runtime_error(
-                        "wrong! Incompatible real and imag sizes in CGEMM");
+                    throw std::runtime_error("wrong! Incompatible real and imag sizes in CGEMM");
                 }
 
                 float v_acc = 0;
@@ -97,8 +96,7 @@ struct ReferenceCGemm : public device::BaseOperator
 
                 if(K != arg.a_m_k_imag_.mDesc.GetLengths()[1])
                 {
-                    throw std::runtime_error(
-                        "wrong! Incompatible real and imag sizes in CGEMM");
+                    throw std::runtime_error("wrong! Incompatible real and imag sizes in CGEMM");
                 }
 
                 float v_acc = 0;

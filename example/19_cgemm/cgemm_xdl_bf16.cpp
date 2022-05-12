@@ -17,7 +17,4 @@
 #include "gemm_specialization.hpp"
 
 // stub only
-int main()
-{
-    return 0;
-}
+int main() { return 0; }
