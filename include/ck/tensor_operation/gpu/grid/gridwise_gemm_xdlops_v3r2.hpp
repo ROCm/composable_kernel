@@ -231,12 +231,12 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r2
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
+    template <typename Block2CTileMap>
     __host__ __device__ static constexpr bool
     CheckValidity(const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
                   const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
                   const CGridDesc_M_N& c_grid_desc_m_n,
-                  index_t M01,
-                  index_t N01)
+                  const Block2CTileMap& block_2_ctile_map)
     {
         static_assert(is_known_at_compile_time<remove_cv_t<decltype(K1)>>::value,
                       "wrong! K1 need to be known at compile-time");
@@ -265,15 +265,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r2
             return false;
         }
 
-        // check M01, N01
-        constexpr auto M1 = Number<MPerBlock>{};
-        constexpr auto N1 = Number<NPerBlock>{};
-
-        const auto M0 = M / M1;
-        const auto N0 = N / N1;
-
-        if(!(M0 % M01 == 0 && N0 % N01 == 0))
+        if(!block_2_ctile_map.CheckValidity(c_grid_desc_m_n))
+        {
             return false;
+        }
 
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         return true;

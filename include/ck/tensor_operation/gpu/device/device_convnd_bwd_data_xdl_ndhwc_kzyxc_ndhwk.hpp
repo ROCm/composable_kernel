@@ -1073,13 +1073,13 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                 b_grid_desc_k0_n_k1_container_.push_back(descs[I1]);
                 c_grid_desc_m_n_container_.push_back(descs[I2]);
 
-                if(GridwiseGemm::CheckValidity(descs[I0], descs[I1], descs[I2], M01_, N01_))
+                block_2_ctile_map_container_.push_back(
+                    GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2], M01_, N01_));
+
+                if(GridwiseGemm::CheckValidity(descs[I0], descs[I1], descs[I2], block_2_ctile_map_container_.back()))
                 {
                     c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_.push_back(
                         GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(descs[I2]));
-
-                    block_2_ctile_map_container_.push_back(
-                        GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2], M01_, N01_));
                 }
             }
         }
@@ -1129,13 +1129,13 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                     b_grid_desc_k0_n_k1_container_.push_back(descs[I1]);
                     c_grid_desc_m_n_container_.push_back(descs[I2]);
 
-                    if(GridwiseGemm::CheckValidity(descs[I0], descs[I1], descs[I2], M01_, N01_))
+                    block_2_ctile_map_container_.push_back(
+                        GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2], M01_, N01_));
+
+                    if(GridwiseGemm::CheckValidity(descs[I0], descs[I1], descs[I2], block_2_ctile_map_container_.back()))
                     {
                         c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_.push_back(
                             GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(descs[I2]));
-
-                        block_2_ctile_map_container_.push_back(
-                            GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2], M01_, N01_));
                     }
                 }
             }
@@ -1194,14 +1194,14 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                         b_grid_desc_k0_n_k1_container_.push_back(descs[I1]);
                         c_grid_desc_m_n_container_.push_back(descs[I2]);
 
-                        if(GridwiseGemm::CheckValidity(descs[I0], descs[I1], descs[I2], M01_, N01_))
+                        block_2_ctile_map_container_.push_back(
+                            GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2], M01_, N01_));
+
+                        if(GridwiseGemm::CheckValidity(descs[I0], descs[I1], descs[I2], block_2_ctile_map_container_.back()))
                         {
                             c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_.push_back(
                                 GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(
                                     descs[I2]));
-
-                            block_2_ctile_map_container_.push_back(
-                                GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2], M01_, N01_));
                         }
                     }
                 }
@@ -1286,8 +1286,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                 if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
                                                 arg.b_grid_desc_k0_n_k1_container_[i],
                                                 arg.c_grid_desc_m_n_container_[i],
-                                                arg.M01_,
-                                                arg.N01_))
+                                                arg.block_2_ctile_map_container_[i]))
                 {
                     throw std::runtime_error(
                         "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v3r1 has invalid setting");
@@ -1418,8 +1417,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
                                             arg.b_grid_desc_k0_n_k1_container_[i],
                                             arg.c_grid_desc_m_n_container_[i],
-                                            arg.M01_,
-                                            arg.N01_))
+                                            arg.block_2_ctile_map_container_[i]))
             {
                 return false;
             }
