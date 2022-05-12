@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
+#include "check_err.hpp"
 #include "config.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -96,7 +97,7 @@ int main(int argc, char* argv[])
         StrideB = std::stoi(argv[8]);
         StrideC = std::stoi(argv[9]);
 
-        BatchCount = std::stoi(argv[9]);
+        BatchCount = std::stoi(argv[10]);
     }
     else
     {
@@ -224,6 +225,7 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << batched_gemm.GetTypeString() << std::endl;
 
+    bool pass = true;
     if(do_verification)
     {
         c_device_buf.FromDevice(c_g_m_n_device_result.mData.data());
@@ -247,7 +249,7 @@ int main(int argc, char* argv[])
 
                 for(int n = 0; n < N; ++n)
                 {
-                    float d0_val = ck::type_convert<float>(c_g_m_n_host_result(m, n));
+                    float d0_val = ck::type_convert<float>(c_g_m_n_host_result(batch, m, n));
                     float d1_val;
 
                     d1_element_op(d1_val, d0_val);
@@ -260,10 +262,10 @@ int main(int argc, char* argv[])
             }
         }
 
-        check_error(c_g_m_n_host_result, c_g_m_n_device_result);
-        check_error(d0_g_m_host_result, d0_g_m_device_result);
-        check_error(d1_g_m_host_result, d1_g_m_device_result);
+        pass &= ck::utils::check_err(c_g_m_n_host_result.mData, c_g_m_n_device_result.mData);
+        pass &= ck::utils::check_err(d0_g_m_host_result.mData, d0_g_m_device_result.mData, "Error: Incorrect results!", 1e-3, 1e-3);
+        pass &= ck::utils::check_err(d1_g_m_host_result.mData, d1_g_m_device_result.mData, "Error: Incorrect results!", 1e-3, 1e-3);
     }
 
-    return 0;
+    return pass ? 0 : 1;
 }
