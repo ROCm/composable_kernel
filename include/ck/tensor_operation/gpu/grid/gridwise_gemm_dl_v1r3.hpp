@@ -504,7 +504,7 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
 #if 0
                 __syncthreads();
 #else
-                block_sync_lds();
+            block_sync_lds();
 #endif
 
             // LDS double buffer: load last data from device mem
@@ -522,7 +522,7 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
 #if 0
                 __syncthreads();
 #else
-                block_sync_lds();
+            block_sync_lds();
 #endif
 
             // LDS double buffer: GEMM on last data
@@ -534,7 +534,7 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
 #if 0
                 __syncthreads();
 #else
-                block_sync_lds();
+            block_sync_lds();
 #endif
 
             // LDS double buffer: GEMM on last data
