@@ -263,8 +263,16 @@ int main(int argc, char* argv[])
         }
 
         pass &= ck::utils::check_err(c_g_m_n_host_result.mData, c_g_m_n_device_result.mData);
-        pass &= ck::utils::check_err(d0_g_m_host_result.mData, d0_g_m_device_result.mData, "Error: Incorrect results!", 1e-3, 1e-3);
-        pass &= ck::utils::check_err(d1_g_m_host_result.mData, d1_g_m_device_result.mData, "Error: Incorrect results!", 1e-3, 1e-3);
+        pass &= ck::utils::check_err(d0_g_m_host_result.mData,
+                                     d0_g_m_device_result.mData,
+                                     "Error: Incorrect results!",
+                                     1e-3,
+                                     1e-3);
+        pass &= ck::utils::check_err(d1_g_m_host_result.mData,
+                                     d1_g_m_device_result.mData,
+                                     "Error: Incorrect results!",
+                                     1e-3,
+                                     1e-3);
     }
 
     return pass ? 0 : 1;
