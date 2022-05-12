@@ -6,9 +6,7 @@ set(DEVICE_GEMM_BIAS_RELU_ADD_INSTANCE_SOURCE
    device_gemm_xdl_c_shuffle_bias_relu_add_f16_f16_f16_km_nk_mn_instance.cpp;
 )
 
-add_library(device_gemm_bias_relu_add_instance SHARED ${DEVICE_GEMM_BIAS_RELU_ADD_INSTANCE_SOURCE}) 
-target_compile_features(device_gemm_bias_relu_add_instance PUBLIC)
+add_library(device_gemm_bias_relu_add_instance OBJECT ${DEVICE_GEMM_BIAS_RELU_ADD_INSTANCE_SOURCE}) 
 set_target_properties(device_gemm_bias_relu_add_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
-install(TARGETS device_gemm_bias_relu_add_instance LIBRARY DESTINATION lib)
 
 clang_tidy_check(device_gemm_bias_relu_add_instance)

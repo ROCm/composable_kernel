@@ -28,10 +28,10 @@ int test_self()
                                                            ck::tensor_layout::convolution::NHWC,
                                                            ck::tensor_layout::convolution::KYXC,
                                                            ck::tensor_layout::convolution::NHWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
             param.N_,
             param.K_,
             param.C_,
@@ -52,10 +52,10 @@ int test_self()
                                                            ck::tensor_layout::convolution::NHWC,
                                                            ck::tensor_layout::convolution::KYXC,
                                                            ck::tensor_layout::convolution::NHWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
             param.N_,
             param.K_,
             param.C_,
@@ -72,8 +72,8 @@ int test_self()
 }
 int main(int argc, char* argv[])
 {
-    int data_type   = 0;
-    int init_method = 0;
+    int data_type   = 1;
+    int init_method = 1;
 
     // Conv shape
     ck::index_t N               = 128;
@@ -155,10 +155,10 @@ int main(int argc, char* argv[])
                                                               ck::tensor_layout::convolution::NHWC,
                                                               ck::tensor_layout::convolution::KYXC,
                                                               ck::tensor_layout::convolution::NHWK>(
-                1,
+                true, // do_verification
                 init_method,
-                0,
-                1,
+                false, // do_log
+                false, // time_kernel
                 param.N_,
                 param.K_,
                 param.C_,
@@ -180,10 +180,10 @@ int main(int argc, char* argv[])
                                                               ck::tensor_layout::convolution::NHWC,
                                                               ck::tensor_layout::convolution::KYXC,
                                                               ck::tensor_layout::convolution::NHWK>(
-                1,
+                true, // do_verification
                 init_method,
-                0,
-                1,
+                false, // do_log
+                false, // time_kernel
                 param.N_,
                 param.K_,
                 param.C_,

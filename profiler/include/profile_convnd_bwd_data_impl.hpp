@@ -269,7 +269,7 @@ template <int NDimSpatial,
 bool profile_convnd_bwd_data_impl(int do_verification,
                                   int init_method,
                                   bool do_log,
-                                  int nrepeat,
+                                  bool time_kernel,
                                   ck::index_t N,
                                   ck::index_t K,
                                   ck::index_t C,
@@ -410,7 +410,8 @@ bool profile_convnd_bwd_data_impl(int do_verification,
         {
             std::string conv_name = conv_ptr->GetTypeString();
 
-            float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
+            float ave_time =
+                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
             std::size_t flop =
                 ck::utils::conv::get_flops(N, C, K, filter_spatial_lengths, output_spatial_lengths);

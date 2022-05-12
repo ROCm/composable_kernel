@@ -53,7 +53,7 @@ template <typename ADataType,
 bool profile_batched_gemm_reduce_impl(int do_verification,
                                       int init_method,
                                       bool do_log,
-                                      int nrepeat,
+                                      bool time_kernel,
                                       int M,
                                       int N,
                                       int K,
@@ -259,30 +259,12 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
 
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            // warm up
-            invoker_ptr->Run(argument_ptr.get());
+            // init DO, D1 to 0
+            d0_device_buf.SetZero();
+            d1_device_buf.SetZero();
 
-            // timing
-            float total_time = 0;
-
-            for(int i = 0; i < nrepeat; ++i)
-            {
-                // init DO, D1 to 0
-                d0_device_buf.SetZero();
-                d1_device_buf.SetZero();
-
-                KernelTimer timer;
-
-                timer.Start();
-
-                invoker_ptr->Run(argument_ptr.get());
-
-                timer.End();
-
-                total_time += timer.GetElapsedTime();
-            }
-
-            float ave_time = total_time / nrepeat;
+            float ave_time =
+                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
             std::string gemm_name = gemm_ptr->GetTypeString();
 

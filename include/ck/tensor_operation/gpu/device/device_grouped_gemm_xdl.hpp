@@ -449,7 +449,7 @@ struct DeviceGroupedGemmXdl
     {
         using Argument = DeviceGroupedGemmXdl::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             StaticallyIndexedArray<GemmDescKernelArg, MaxGroupCount> gemm_desc_kernel_args;
 
@@ -510,8 +510,8 @@ struct DeviceGroupedGemmXdl
                                                     true,
                                                     MaxGroupCount>;
 
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
                                                   dim3(arg.grid_size_),
                                                   dim3(BlockSize),
                                                   0,
@@ -534,8 +534,8 @@ struct DeviceGroupedGemmXdl
                                                     false,
                                                     MaxGroupCount>;
 
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
                                                   dim3(arg.grid_size_),
                                                   dim3(BlockSize),
                                                   0,
@@ -550,9 +550,10 @@ struct DeviceGroupedGemmXdl
         }
 
         // polymorphic
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 

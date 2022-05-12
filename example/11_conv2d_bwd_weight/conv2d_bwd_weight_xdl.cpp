@@ -82,9 +82,9 @@ using ReferenceConvBwdWeightInstance =
 
 int main(int argc, char* argv[])
 {
-    bool do_verification = 0;
-    int init_method      = 0;
-    int nrepeat          = 5;
+    bool do_verification = true;
+    int init_method      = 1;
+    bool time_kernel     = false;
     int do_log           = 0;
     int split_k          = 4;
 
@@ -109,7 +109,7 @@ int main(int argc, char* argv[])
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
         do_log          = std::stoi(argv[4]);
         split_k         = std::stoi(argv[5]);
     }
@@ -117,7 +117,7 @@ int main(int argc, char* argv[])
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
         do_log          = std::stoi(argv[4]);
         split_k         = std::stoi(argv[5]);
 
@@ -141,7 +141,7 @@ int main(int argc, char* argv[])
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: run kernel # of times (>1)\n");
+        printf("arg3: time kernel (0=n0, 1=yes)\n");
         printf("arg4: is show log (0=no, 1=yes)\n");
         printf("arg5: split-k \n");
         printf("arg6 to 19: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
@@ -246,7 +246,7 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    float ave_time = invoker.Run(argument, nrepeat);
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     std::size_t flop = std::size_t(2) * N * K * Ho * Wo * C * Y * X;
 

@@ -128,7 +128,7 @@ class OpInstanceRunEngine
 
     template <typename OpInstancePtr>
     ProfileBestConfig Profile(const std::vector<OpInstancePtr>& op_ptrs,
-                              int nrepeat          = 100,
+                              bool time_kernel     = false,
                               bool do_verification = false,
                               bool do_log          = false)
     {
@@ -143,7 +143,7 @@ class OpInstanceRunEngine
             if(op_ptr->IsSupportedArgument(argument.get()))
             {
                 std::string op_name = op_ptr->GetTypeString();
-                float avg_time      = invoker->Run(argument.get(), nrepeat);
+                float avg_time = invoker->Run(argument.get(), StreamConfig{nullptr, time_kernel});
 
                 std::size_t flops     = op_instance_.GetFlops();
                 std::size_t num_btype = op_instance_.GetBtype();
