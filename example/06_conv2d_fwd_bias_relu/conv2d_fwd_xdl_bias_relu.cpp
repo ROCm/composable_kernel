@@ -93,7 +93,7 @@ void PrintUseMsg()
 {
     std::cout << "arg1: verification (0=no, 1=yes)\n"
               << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
-              << "arg3: run kernel # of times (>1)\n"
+              << "arg3: time kernel (0=n0, 1=yes)\n"
               << "Following arguments:\n"
               << " N, K, C, \n"
               << " <filter spatial dimensions>, (ie Y, X for 2D)\n"
@@ -165,9 +165,9 @@ int main(int argc, char* argv[])
 {
     using namespace ck::utils::conv;
 
-    bool do_verification      = 0;
-    int init_method           = 0;
-    bool time_kernel          = true;
+    bool do_verification      = true;
+    int init_method           = 1;
+    bool time_kernel          = false;
     const int num_dim_spatial = 2;
 
     ck::utils::conv::ConvParams params;

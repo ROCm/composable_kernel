@@ -33,8 +33,8 @@ int profile_batched_gemm_reduce(int argc, char* argv[])
         printf("                     3: A[k, m] * B[n, k] = C[m, n])\n");
         printf("arg4: verification (0: no; 1: yes)\n");
         printf("arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n");
-        printf("arg8: print tensor value (0: no; 1: yes)\n");
-        printf("arg7: run kernel # of times (>1)\n");
+        printf("arg6: print tensor value (0: no; 1: yes)\n");
+        printf("arg7: time kernel (0=n0, 1=yes)\n");
         printf("arg8 to 14: M, N, K, StrideA, StrideB, StrideC, BatchCount\n");
         printf("arg15: split k into  mulitiple batch\n");
         exit(1);

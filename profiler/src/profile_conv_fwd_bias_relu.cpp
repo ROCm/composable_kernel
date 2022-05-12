@@ -42,7 +42,7 @@ int profile_conv_fwd_bias_relu(int argc, char* argv[])
         printf("arg6: verification (0: no; 1: yes)\n");
         printf("arg7: initialization (0: no init; 1: integer value; 2: decimal value)\n");
         printf("arg8: print tensor value (0: no; 1: yes)\n");
-        printf("arg9: run kernel # of times (>1)\n");
+        printf("arg9: time kernel (0=n0, 1=yes)\n");
         printf("arg10 to 24: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
                "RightPx\n");
         exit(1);

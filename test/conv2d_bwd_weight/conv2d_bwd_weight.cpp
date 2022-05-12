@@ -28,9 +28,9 @@ int test_self()
                                                            ck::tensor_layout::convolution::NHWC,
                                                            ck::tensor_layout::convolution::KYXC,
                                                            ck::tensor_layout::convolution::NHWK>(
-            true,  // do_verification,
-            1,     // init_method,
-            false, // do_log,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
             false, // time_kernel
             param.N_,
             param.K_,
@@ -52,9 +52,9 @@ int test_self()
                                                            ck::tensor_layout::convolution::NHWC,
                                                            ck::tensor_layout::convolution::KYXC,
                                                            ck::tensor_layout::convolution::NHWK>(
-            true,  // do_verification,
-            1,     // init_method,
-            false, // do_log,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
             false, // time_kernel
             param.N_,
             param.K_,
@@ -155,9 +155,9 @@ int main(int argc, char* argv[])
                                                               ck::tensor_layout::convolution::NHWC,
                                                               ck::tensor_layout::convolution::KYXC,
                                                               ck::tensor_layout::convolution::NHWK>(
-                true, // do_verification,
+                true, // do_verification
                 init_method,
-                false, // do_log,
+                false, // do_log
                 false, // time_kernel
                 param.N_,
                 param.K_,
@@ -180,9 +180,9 @@ int main(int argc, char* argv[])
                                                               ck::tensor_layout::convolution::NHWC,
                                                               ck::tensor_layout::convolution::KYXC,
                                                               ck::tensor_layout::convolution::NHWK>(
-                true, // do_verification,
+                true, // do_verification
                 init_method,
-                false, // do_log,
+                false, // do_log
                 false, // time_kernel
                 param.N_,
                 param.K_,

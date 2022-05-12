@@ -116,10 +116,9 @@ class SimpleAppArgs
     std::vector<size_t> inLengths;
     std::vector<float> scales;
 
-    bool do_verification = false;
-
-    int init_method  = 1;
-    bool time_kernel = true;
+    bool do_verification = true;
+    int init_method      = 1;
+    bool time_kernel     = false;
 
     public:
     void show_usage(const char* cmd)
@@ -135,7 +134,7 @@ class SimpleAppArgs
         std::cout << "Arg1 -- init method (0=no init, 1=single integer value, 2=scope integer "
                      "value, 3=decimal value)"
                   << std::endl;
-        std::cout << "Arg2 -- number of repeats to run the kernel" << std::endl;
+        std::cout << "Arg2 -- time kernel (0=n0, 1=yes)" << std::endl;
     };
 
     int processArgs(int argc, char* argv[])

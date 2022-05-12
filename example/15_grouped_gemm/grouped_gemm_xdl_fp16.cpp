@@ -60,9 +60,9 @@ using ReferenceGemmInstance = ck::tensor_operation::host::
 
 int main(int argc, char* argv[])
 {
-    bool do_verification = 0;
-    int init_method      = 0;
-    bool time_kernel     = true;
+    bool do_verification = true;
+    int init_method      = 1;
+    bool time_kernel     = false;
 
     if(argc == 4)
     {
@@ -74,7 +74,7 @@ int main(int argc, char* argv[])
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: run kernel # of times (>1)\n");
+        printf("arg3: time kernel (0=n0, 1=yes)\n");
         exit(0);
     }
 

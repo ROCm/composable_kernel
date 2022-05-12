@@ -58,9 +58,9 @@ using ReferenceGemmInstance = ck::tensor_operation::host::
 
 int main(int argc, char* argv[])
 {
-    bool do_verification = 1;
+    bool do_verification = true;
     int init_method      = 1;
-    int nrepeat          = 5;
+    bool time_kernel     = false;
 
     // GEMM shape
     ck::index_t M = 3840;
@@ -79,13 +79,13 @@ int main(int argc, char* argv[])
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
     }
     else if(argc == 10)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
 
         M = std::stoi(argv[4]);
         N = std::stoi(argv[5]);
@@ -99,7 +99,7 @@ int main(int argc, char* argv[])
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: run kernel # of times (>1)\n");
+        printf("arg3: time kernel (0=n0, 1=yes)\n");
         printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC\n");
         exit(0);
     }
@@ -192,30 +192,7 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    // warm up
-    invoker.Run(argument);
-
-    // timing
-    float total_time = 0;
-
-    for(int i = 0; i < nrepeat; ++i)
-    {
-        // init DO, D1 to 0
-        d0_device_buf.SetZero();
-        d1_device_buf.SetZero();
-
-        KernelTimer timer;
-
-        timer.Start();
-
-        invoker.Run(argument);
-
-        timer.End();
-
-        total_time += timer.GetElapsedTime();
-    }
-
-    float ave_time = total_time / nrepeat;
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_btype =

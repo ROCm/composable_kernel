@@ -149,9 +149,9 @@ int main(int argc, char* argv[])
 {
     using namespace ck::host_reduce;
 
-    bool do_verification = 0;
-    int init_method      = 0;
-    bool time_kernel     = true;
+    bool do_verification = true;
+    int init_method      = 1;
+    bool time_kernel     = false;
 
     // Pool shape
     ck::index_t N               = 128;
@@ -196,7 +196,7 @@ int main(int argc, char* argv[])
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: run kernel # of times (>1)\n");
+        printf("arg3: time kernel (0=n0, 1=yes)\n");
         printf("arg4 to 15: N, C, Y, X, Hi, Wi, Sy, Sx, LeftPy, LeftPx, RightPy, "
                "RightPx\n");
         exit(0);

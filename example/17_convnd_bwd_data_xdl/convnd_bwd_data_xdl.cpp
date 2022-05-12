@@ -87,7 +87,7 @@ void print_use_msg()
 {
     std::cout << "arg1: verification (0=no, 1=yes)\n"
               << "arg2: initialization (0=no init, 1=random value, 2= init to 1 )\n"
-              << "arg3: run kernel # of times (>1)\n"
+              << "arg3: time kernel (0=n0, 1=yes)\n"
               << "arg4: N spatial dimensions (default 2)\n"
               << "Following arguments (depending on number of spatial dims):\n"
               << " N, K, C, \n"
@@ -165,9 +165,9 @@ DeviceConvBwdDataBasePtr get_conv_instance(int num_dim_spatial)
 
 int main(int argc, char* argv[])
 {
-    bool do_verification = 0;
-    int init_method      = 0;
-    bool time_kernel     = true;
+    bool do_verification = true;
+    int init_method      = 1;
+    bool time_kernel     = false;
     int num_dim_spatial  = 2;
 
     ck::utils::conv::ConvParams params;
