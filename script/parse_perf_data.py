@@ -43,22 +43,30 @@ def main():
 
     for filename in args.files:
         for line in open(filename):
-            if 'Best Perf' in line:
+            if 'Best Perf for datatype' in line:
                 lst=line.split()
-                #print("lst=",lst)
+                print("lst=",lst)
+                print(len(lst))
                 #results.append(print_to_string(glue.join(lst[8:]),lst[4]))
-                tests.append(glue.join(lst[5:30]))
-                kernels.append(glue.join(lst[37:]))
-                tflops.append(lst[33])
+                if len(lst)==43: #the line is complete
+                    tests.append(glue.join(lst[5:30]))
+                    kernels.append(glue.join(lst[37:]))
+                    tflops.append(lst[33])
+                elif len(lst)<43 and len(lst)>=30: #the name of the test is complete
+                    tests.append(glue.join(lst[5:30]))
+                    kernels.append("N/A")
+                    tflops.append(0.0)
+                elif len(lst)<30: #even the test name is incomplete
+                    print("Error in ckProfiler output!")
+
+
 
     #print("results:",results)
     #print("kernels:",kernels)
     #print("tflops:",tflops)
     #sort results
     print("Number of tests:",len(tests))
-
     print("Branch name:",branch_name)
-
     sorted_tests = sorted(tests)
     print("sorted tests:",sorted_tests)
     sorted_tflops = [x for _,x in sorted(zip(tests,tflops))]
@@ -77,7 +85,8 @@ def main():
     ssh_host = os.environ["dbsship"]
     print("ssh_host=",ssh_host)
     ssh_user = os.environ["dbsshuser"]
-    ssh_port = os.environ["dbsshport"]
+    print("ssh_user=",ssh_user)
+    ssh_port = int(os.environ["dbsshport"])
     ssh_pass = os.environ["dbsshpassword"]
 
     with SSHTunnelForwarder(
