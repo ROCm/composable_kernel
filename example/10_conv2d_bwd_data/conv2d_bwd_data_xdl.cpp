@@ -77,9 +77,9 @@ using ReferenceConvBwdInstance = ck::tensor_operation::host::ReferenceConvBwdDat
 
 int main(int argc, char* argv[])
 {
-    bool do_verification = 0;
-    int init_method      = 0;
-    int nrepeat          = 5;
+    bool do_verification = 1;
+    int init_method      = 1;
+    int nrepeat          = 1;
 
     // Conv shape
     ck::index_t N               = 128;
@@ -249,6 +249,10 @@ int main(int argc, char* argv[])
 
         in_device_buf.FromDevice(in_n_c_hi_wi_device_result.mData.data());
 
-        ck::utils::check_err(in_n_c_hi_wi_device_result.mData, in_n_c_hi_wi_host_result.mData);
+        return ck::utils::check_err(in_n_c_hi_wi_device_result.mData,
+                                    in_n_c_hi_wi_host_result.mData)
+                   ? 0
+                   : 1;
     }
+    return 0;
 }

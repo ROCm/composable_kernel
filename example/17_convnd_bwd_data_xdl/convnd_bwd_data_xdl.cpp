@@ -165,9 +165,9 @@ DeviceConvBwdDataBasePtr get_conv_instance(int num_dim_spatial)
 
 int main(int argc, char* argv[])
 {
-    bool do_verification = 0;
-    int init_method      = 0;
-    int nrepeat          = 5;
+    bool do_verification = 1;
+    int init_method      = 1;
+    int nrepeat          = 1;
     int num_dim_spatial  = 2;
 
     ck::utils::conv::ConvParams params;
@@ -322,7 +322,10 @@ int main(int argc, char* argv[])
 
             in_device_buf.FromDevice(in_n_c_hi_wi_device_result.mData.data());
 
-            check_error(in_n_c_hi_wi_host_result, in_n_c_hi_wi_device_result);
+            return ck::utils::check_err(in_n_c_hi_wi_host_result.mData,
+                                        in_n_c_hi_wi_device_result.mData)
+                       ? 0
+                       : 1;
         };
 
         switch(num_dim_spatial)
@@ -347,4 +350,5 @@ int main(int argc, char* argv[])
         }
         }
     }
+    return 0;
 }

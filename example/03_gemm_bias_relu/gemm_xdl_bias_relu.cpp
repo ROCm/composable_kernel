@@ -83,9 +83,9 @@ using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemmBiasActiv
 
 int main(int argc, char* argv[])
 {
-    bool do_verification = 0;
-    int init_method      = 0;
-    int nrepeat          = 5;
+    bool do_verification = 1;
+    int init_method      = 1;
+    int nrepeat          = 1;
 
     // GEMM shape
     ck::index_t M = 3840;
@@ -232,6 +232,8 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
 
-        ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
+        return ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData) ? 0 : 1;
     }
+
+    return 0;
 }

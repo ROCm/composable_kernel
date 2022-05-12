@@ -162,9 +162,9 @@ int main(int argc, char* argv[])
 {
     using namespace ck::utils::conv;
 
-    bool do_verification      = 0;
-    int init_method           = 0;
-    int nrepeat               = 5;
+    bool do_verification      = 1;
+    int init_method           = 1;
+    int nrepeat               = 1;
     const int num_dim_spatial = 2;
 
     ck::utils::conv::ConvParams params;
@@ -320,7 +320,12 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
         out_device_buf.FromDevice(device_output.mData.data());
-        ck::utils::check_err(
-            host_output.mData, device_output.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
+        return ck::utils::check_err(host_output.mData,
+                                    device_output.mData,
+                                    "Error: incorrect results!")
+                   ? 0
+                   : 1;
     }
+
+    return 0;
 }

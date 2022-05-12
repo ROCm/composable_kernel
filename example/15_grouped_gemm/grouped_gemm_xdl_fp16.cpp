@@ -60,9 +60,9 @@ using ReferenceGemmInstance = ck::tensor_operation::host::
 
 int main(int argc, char* argv[])
 {
-    bool do_verification = 0;
-    int init_method      = 0;
-    int nrepeat          = 5;
+    bool do_verification = 1;
+    int init_method      = 1;
+    int nrepeat          = 1;
 
     if(argc == 4)
     {
@@ -211,6 +211,7 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
+    bool pass = true;
     if(do_verification)
     {
         for(std::size_t i = 0; i < gemm_shapes.size(); i++)
@@ -227,9 +228,9 @@ int main(int argc, char* argv[])
                                                       c_element_op);
 
             ref_invoker.Run(ref_argument);
-            ck::utils::check_err(c_device_tensors[i].mData, c_host_tensors[i].mData);
+            pass &= ck::utils::check_err(c_device_tensors[i].mData, c_host_tensors[i].mData);
         }
     }
 
-    return 0;
+    return pass ? 0 : 1;
 }

@@ -45,10 +45,10 @@ template <ck::index_t NumDimSpatial>
 using DeviceConvNDFwdInstance = ck::tensor_operation::device::
     DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
         // clang-format off
-        InDataType,         // 
+        InDataType,         //
         WeiDataType,        //
         OutDataType,        //
-        AccDataType,        // 
+        AccDataType,        //
         InElementOp,        // Input Elementwise Operation
         WeiElementOp,       // Weights Elementwise Operation
         OutElementOp,       // Output Elementwise Operation
@@ -184,9 +184,9 @@ int main(int argc, char* argv[])
 {
     using namespace ck::utils::conv;
 
-    bool do_verification = 0;
-    int init_method      = 0;
-    int nrepeat          = 5;
+    bool do_verification = 1;
+    int init_method      = 1;
+    int nrepeat          = 1;
     int num_dim_spatial  = 2;
 
     ck::utils::conv::ConvParams params;
@@ -314,8 +314,8 @@ int main(int argc, char* argv[])
 
             ref_invoker.Run(ref_argument);
             out_device_buf.FromDevice(device_output.mData.data());
-            ck::utils::check_err(
-                host_output.mData, device_output.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
+            return ck::utils::check_err(
+                host_output.mData, device_output.mData, "Error: incorrect results!", 1e-5f, 1e-4f) ? 0 : 1;
         };
 
         switch(num_dim_spatial)
@@ -340,4 +340,5 @@ int main(int argc, char* argv[])
         }
         }
     }
+    return 0;
 }

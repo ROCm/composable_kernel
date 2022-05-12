@@ -149,9 +149,9 @@ int main(int argc, char* argv[])
 {
     using namespace ck::host_reduce;
 
-    bool do_verification = 0;
-    int init_method      = 0;
-    int nrepeat          = 5;
+    bool do_verification = 1;
+    int init_method      = 1;
+    int nrepeat          = 1;
 
     // Pool shape
     ck::index_t N               = 128;
@@ -285,6 +285,7 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
               << std::endl;
 
+    bool pass = true;
     if(do_verification)
     {
         pool_host_verify<InDataType,
@@ -302,14 +303,15 @@ int main(int argc, char* argv[])
 
         out_device_buf.FromDevice(out_n_c_ho_wo_device.mData.data());
 
-        ck::utils::check_err(out_n_c_ho_wo_device.mData, out_n_c_ho_wo_host.mData);
+        pass &= ck::utils::check_err(out_n_c_ho_wo_device.mData, out_n_c_ho_wo_host.mData);
 
         if constexpr(NeedIndices)
         {
             out_indices_device_buf.FromDevice(out_indices_n_c_ho_wo_device.mData.data());
 
-            //          ck::utils::check_err(out_indices_n_c_ho_wo_device.mData,
-            //          out_indices_n_c_ho_wo_host.mData);;
+            pass &= ck::utils::check_err(out_indices_n_c_ho_wo_device.mData,
+                                         out_indices_n_c_ho_wo_host.mData);
         };
     }
+    return pass ? 0 : 1;
 }
