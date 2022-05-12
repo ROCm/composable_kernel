@@ -63,4 +63,5 @@ add_subdirectory(grouped_gemm)
 add_subdirectory(convnd_fwd)
 add_subdirectory(reduce)
 add_subdirectory(conv2d_bwd_weight)
+add_subdirectory(convnd_bwd_data)
 # DONOT add client_app, that is tested via CI independently
