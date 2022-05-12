@@ -208,6 +208,8 @@ int main(int argc, char* argv[])
     d0_device_buf.SetZero();
     d1_device_buf.SetZero();
 
+    // if time_kernel == true, kernel will run multiple times. This kernel use atomic-add so result
+    // will not be correct. need to set time_kernel = false for correctness test
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     std::size_t flop      = std::size_t(2) * BatchCount * M * N * K;
