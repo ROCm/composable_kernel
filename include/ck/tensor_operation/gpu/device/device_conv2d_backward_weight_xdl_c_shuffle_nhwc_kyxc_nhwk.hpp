@@ -170,34 +170,32 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
 #else
-        const index_t N0 = N / N1Number;
-#if (GEMMK0PAD_FOR_OUT|GEMMK0PAD_FOR_IN)
+        const index_t N0          = N / N1Number;
+#if(GEMMK0PAD_FOR_OUT | GEMMK0PAD_FOR_IN)
         const index_t GemmK0Total = N0 * Ho * Wo;
 
-        const index_t GemmK0S = math::integer_divide_ceil(GemmK0Total, K0PerBlock * GemmKBatch) *
-            K0PerBlock;
+        const index_t GemmK0S =
+            math::integer_divide_ceil(GemmK0Total, K0PerBlock * GemmKBatch) * K0PerBlock;
         const index_t GemmK0Pad = GemmKBatch * GemmK0S;
 #endif
         const auto out_n_ho_wo_k_grid_desc =
             make_naive_tensor_descriptor_packed(make_tuple(N, Ho * Wo, K));
 
-        const auto out_n0_ho_wo_k_n1_grid_desc = transform_tensor_descriptor(
-            out_n_ho_wo_k_grid_desc,
-            make_tuple(make_unmerge_transform(make_tuple(N0, N1Number)),
-                       make_pass_through_transform(Ho * Wo),
-                       make_pass_through_transform(K)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-            make_tuple(Sequence<0, 3>{}, Sequence<1>{}, Sequence<2>{})
-        );
+        const auto out_n0_ho_wo_k_n1_grid_desc =
+            transform_tensor_descriptor(out_n_ho_wo_k_grid_desc,
+                                        make_tuple(make_unmerge_transform(make_tuple(N0, N1Number)),
+                                                   make_pass_through_transform(Ho * Wo),
+                                                   make_pass_through_transform(K)),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                                        make_tuple(Sequence<0, 3>{}, Sequence<1>{}, Sequence<2>{}));
 
-        const auto out_gemmk0total_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
-            out_n0_ho_wo_k_n1_grid_desc,
-            make_tuple(make_merge_transform(make_tuple(N0, Ho * Wo)),
-                       make_pass_through_transform(K), 
-                       make_pass_through_transform(N1Number)),
-            make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{})
-        );
+        const auto out_gemmk0total_gemmm_gemmk1_grid_desc =
+            transform_tensor_descriptor(out_n0_ho_wo_k_n1_grid_desc,
+                                        make_tuple(make_merge_transform(make_tuple(N0, Ho * Wo)),
+                                                   make_pass_through_transform(K),
+                                                   make_pass_through_transform(N1Number)),
+                                        make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
 #if GEMMK0PAD_FOR_OUT
         const auto out_gemmk0pad_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
@@ -267,28 +265,34 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
 #else
-        const auto in_n0_y_ho_x_wo_c_n1_grid_desc = transform_tensor_descriptor(
-            in_n_y_ho_x_wo_c_grid_desc,
-            make_tuple(
-                make_unmerge_transform(make_tuple(N0, N1Number)),
-                make_pass_through_transform(Y),
-                make_pass_through_transform(Ho),
-                make_pass_through_transform(X),
-                make_pass_through_transform(Wo),
-                make_pass_through_transform(C)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}, Sequence<5>{}),
-            make_tuple(Sequence<0, 6>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}, Sequence<5>{}));
+        const auto in_n0_y_ho_x_wo_c_n1_grid_desc =
+            transform_tensor_descriptor(in_n_y_ho_x_wo_c_grid_desc,
+                                        make_tuple(make_unmerge_transform(make_tuple(N0, N1Number)),
+                                                   make_pass_through_transform(Y),
+                                                   make_pass_through_transform(Ho),
+                                                   make_pass_through_transform(X),
+                                                   make_pass_through_transform(Wo),
+                                                   make_pass_through_transform(C)),
+                                        make_tuple(Sequence<0>{},
+                                                   Sequence<1>{},
+                                                   Sequence<2>{},
+                                                   Sequence<3>{},
+                                                   Sequence<4>{},
+                                                   Sequence<5>{}),
+                                        make_tuple(Sequence<0, 6>{},
+                                                   Sequence<1>{},
+                                                   Sequence<2>{},
+                                                   Sequence<3>{},
+                                                   Sequence<4>{},
+                                                   Sequence<5>{}));
 
         const auto in_gemmk0total_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
             in_n0_y_ho_x_wo_c_n1_grid_desc,
-            make_tuple(
-                make_merge_transform(make_tuple(N0, Ho, Wo)),
-                make_merge_transform(make_tuple(Y, X, C)),
-                make_pass_through_transform(N1Number)
-            ),
+            make_tuple(make_merge_transform(make_tuple(N0, Ho, Wo)),
+                       make_merge_transform(make_tuple(Y, X, C)),
+                       make_pass_through_transform(N1Number)),
             make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5>{}, Sequence<6>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{})
-        );
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
 #if GEMMK0PAD_FOR_IN
         const auto in_gemmk0pad_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
@@ -315,7 +319,7 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
             make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}));
 #endif
-        
+
 #endif
 
         // C: weight tensor
@@ -590,21 +594,22 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                     arg.c_grid_desc_mblock_mperblock_nblock_nperblock_.GetElementSpaceSize() *
                         sizeof(CDataType)));
 
-                ave_time = launch_and_time_kernel(stream_config,
-                                       kernel,
-                                       dim3(grid_size),
-                                       dim3(BlockSize),
-                                       0,
-                                       arg.p_a_grid_,
-                                       arg.p_b_grid_,
-                                       arg.p_c_grid_,
-                                       arg.a_grid_desc_kbatch_k0_m_k1_,
-                                       arg.b_grid_desc_kbatch_k0_n_k1_,
-                                       arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                       arg.a_element_op_,
-                                       arg.b_element_op_,
-                                       arg.c_element_op_,
-                                       arg.block_2_ctile_map_);
+                ave_time =
+                    launch_and_time_kernel(stream_config,
+                                           kernel,
+                                           dim3(grid_size),
+                                           dim3(BlockSize),
+                                           0,
+                                           arg.p_a_grid_,
+                                           arg.p_b_grid_,
+                                           arg.p_c_grid_,
+                                           arg.a_grid_desc_kbatch_k0_m_k1_,
+                                           arg.b_grid_desc_kbatch_k0_n_k1_,
+                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_,
+                                           arg.block_2_ctile_map_);
             };
 
             if(has_main_k0_block_loop)
