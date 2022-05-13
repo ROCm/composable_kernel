@@ -21,9 +21,9 @@ struct TupleElement
 {
     __host__ __device__ constexpr TupleElement() = default;
 
-    template <typename T,
-              typename enable_if<!is_same<remove_reference_t<remove_cv_t<T>>, TupleElement>::value,
-                                 bool>::type = false>
+    template <
+        typename T,
+        typename enable_if<!is_same<remove_cvref_t<T>, TupleElement>::value, bool>::type = false>
     __host__ __device__ constexpr TupleElement(T&& v) : mData(std::forward<T>(v))
     {
     }
@@ -60,7 +60,7 @@ struct TupleImpl<Sequence<Is...>, Xs...> : TupleElement<TupleElementKey<Is>, Xs>
 
     template <typename Y,
               typename enable_if<sizeof...(Is) == 1 && sizeof...(Xs) == 1 &&
-                                     !is_same<remove_reference_t<remove_cv_t<Y>>, TupleImpl>::value,
+                                     !is_same<remove_cvref_t<Y>, TupleImpl>::value,
                                  bool>::type = false>
     __host__ __device__ constexpr TupleImpl(Y&& y)
         : TupleElement<TupleElementKey<Is>, Xs>(std::forward<Y>(y))...
@@ -101,8 +101,7 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
     __host__ __device__ constexpr Tuple() = default;
 
     template <typename Y,
-              typename enable_if<sizeof...(Xs) == 1 &&
-                                     !is_same<remove_reference_t<remove_cv_t<Y>>, Tuple>::value,
+              typename enable_if<sizeof...(Xs) == 1 && !is_same<remove_cvref_t<Y>, Tuple>::value,
                                  bool>::type = false>
     __host__ __device__ constexpr Tuple(Y&& y) : base(std::forward<Y>(y))
     {

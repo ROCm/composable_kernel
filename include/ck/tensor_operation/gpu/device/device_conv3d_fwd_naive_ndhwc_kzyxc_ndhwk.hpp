@@ -4,7 +4,7 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
-#include "conv_fwd_util.hpp"
+#include "conv_util.hpp"
 #include "device.hpp"
 #include "device_conv_fwd.hpp"
 #include "common_header.hpp"
@@ -92,7 +92,7 @@ struct DeviceConv3dFwdNaive_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_W
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             const auto naive_conv3d_fwd =
                 ref::naive_conv_fwd_ndhwc_kzyxc_ndhwk<InDataType,
@@ -103,8 +103,8 @@ struct DeviceConv3dFwdNaive_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_W
                                                       WeiElementwiseOperation,
                                                       OutElementwiseOperation>;
 
-            float ave_time = launch_and_time_kernel(naive_conv3d_fwd,
-                                                    nrepeat,
+            float ave_time = launch_and_time_kernel(stream_config,
+                                                    naive_conv3d_fwd,
                                                     dim3(256),
                                                     dim3(256),
                                                     0,
@@ -137,9 +137,10 @@ struct DeviceConv3dFwdNaive_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_W
         }
 
         // polymorphic
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 

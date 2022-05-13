@@ -568,7 +568,7 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
 #if 0
             {
@@ -640,13 +640,12 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
 
             const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_);
 
-            const auto K0 = arg.a_grid_desc_k0_m_k1_.GetLength(I0);
-
-            const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
+            const auto K =
+                arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
 
             float ave_time = 0;
 
-            if(has_main_k0_block_loop)
+            if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
                 const auto kernel = kernel_gemm_xdlops_v3r1<
                     GridwiseGemm,
@@ -664,8 +663,8 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
                     true>;
 
                 ave_time = launch_and_time_kernel(
+                    stream_config,
                     kernel,
-                    nrepeat,
                     dim3(grid_size),
                     dim3(BlockSize),
                     0,
@@ -698,8 +697,8 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
                     false>;
 
                 ave_time = launch_and_time_kernel(
+                    stream_config,
                     kernel,
-                    nrepeat,
                     dim3(grid_size),
                     dim3(BlockSize),
                     0,
@@ -718,9 +717,10 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
             return ave_time;
         }
 
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 

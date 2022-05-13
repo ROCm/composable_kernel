@@ -144,7 +144,7 @@ class AppArgs
     bool do_dumpout                = false;
 
     int init_method;
-    int nrepeat;
+    bool time_kernel;
 
     bool need_indices = false;
 
@@ -186,7 +186,7 @@ class AppArgs
 
     int processArgs(int argc, char* argv[])
     {
-        unsigned int ch;
+        int ch;
 
         optind++; // to skip the "reduce" module name
 
@@ -295,7 +295,7 @@ class AppArgs
             throw std::runtime_error("Invalid cmd-line arguments, more argumetns are needed!");
 
         init_method = std::atoi(argv[optind++]);
-        nrepeat     = std::atoi(argv[optind]);
+        time_kernel = std::atoi(argv[optind]);
 
         if(scales.empty())
         {
@@ -354,7 +354,7 @@ int profile_reduce(int argc, char* argv[])
                                                                     args.init_method,
                                                                     args.do_log,
                                                                     args.do_dumpout,
-                                                                    args.nrepeat,
+                                                                    args.time_kernel,
                                                                     args.inLengths,
                                                                     args.reduceDims,
                                                                     args.reduceOp,
@@ -369,7 +369,7 @@ int profile_reduce(int argc, char* argv[])
                                                                args.init_method,
                                                                args.do_log,
                                                                args.do_dumpout,
-                                                               args.nrepeat,
+                                                               args.time_kernel,
                                                                args.inLengths,
                                                                args.reduceDims,
                                                                args.reduceOp,
@@ -387,7 +387,7 @@ int profile_reduce(int argc, char* argv[])
                                                     args.init_method,
                                                     args.do_log,
                                                     args.do_dumpout,
-                                                    args.nrepeat,
+                                                    args.time_kernel,
                                                     args.inLengths,
                                                     args.reduceDims,
                                                     args.reduceOp,
@@ -414,7 +414,7 @@ int profile_reduce(int argc, char* argv[])
                                                         args.init_method,
                                                         args.do_log,
                                                         args.do_dumpout,
-                                                        args.nrepeat,
+                                                        args.time_kernel,
                                                         args.inLengths,
                                                         args.reduceDims,
                                                         args.reduceOp,
@@ -429,7 +429,7 @@ int profile_reduce(int argc, char* argv[])
                                                          args.init_method,
                                                          args.do_log,
                                                          args.do_dumpout,
-                                                         args.nrepeat,
+                                                         args.time_kernel,
                                                          args.inLengths,
                                                          args.reduceDims,
                                                          args.reduceOp,
@@ -454,7 +454,7 @@ int profile_reduce(int argc, char* argv[])
                                                              args.init_method,
                                                              args.do_log,
                                                              args.do_dumpout,
-                                                             args.nrepeat,
+                                                             args.time_kernel,
                                                              args.inLengths,
                                                              args.reduceDims,
                                                              args.reduceOp,
@@ -471,7 +471,7 @@ int profile_reduce(int argc, char* argv[])
                                                      args.init_method,
                                                      args.do_log,
                                                      args.do_dumpout,
-                                                     args.nrepeat,
+                                                     args.time_kernel,
                                                      args.inLengths,
                                                      args.reduceDims,
                                                      args.reduceOp,
@@ -486,7 +486,7 @@ int profile_reduce(int argc, char* argv[])
                                                       args.init_method,
                                                       args.do_log,
                                                       args.do_dumpout,
-                                                      args.nrepeat,
+                                                      args.time_kernel,
                                                       args.inLengths,
                                                       args.reduceDims,
                                                       args.reduceOp,
