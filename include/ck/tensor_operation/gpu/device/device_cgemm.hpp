@@ -34,6 +34,12 @@ struct DeviceCGemm : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
+template <typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation>
+using DeviceCGemmPtr = std::unique_ptr<
+    DeviceCGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>>;
+
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
