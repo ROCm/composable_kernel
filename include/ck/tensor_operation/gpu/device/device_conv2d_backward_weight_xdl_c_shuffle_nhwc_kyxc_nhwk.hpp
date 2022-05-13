@@ -495,7 +495,7 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             {
                 if(kbatch == 1)
                 {
-                    const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                    const auto kernel = kernel_gemm_xdlops_bwd_weight<
                         GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
@@ -512,7 +512,7 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                 }
                 else
                 {
-                    const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                    const auto kernel = kernel_gemm_xdlops_bwd_weight<
                         GridwiseGemmAtomicAdd,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
@@ -532,7 +532,7 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             {
                 if(kbatch == 1)
                 {
-                    const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                    const auto kernel = kernel_gemm_xdlops_bwd_weight<
                         GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
@@ -549,7 +549,7 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                 }
                 else
                 {
-                    const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                    const auto kernel = kernel_gemm_xdlops_bwd_weight<
                         GridwiseGemmAtomicAdd,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
