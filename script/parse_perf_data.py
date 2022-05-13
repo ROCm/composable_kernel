@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import os, io, argparse, datetime
+import numpy as np
 import pymysql
+import sqlalchemy
 import pandas as pd
 from sshtunnel import SSHTunnelForwarder
 
@@ -33,6 +35,15 @@ def main():
     tests = []
     kernels=[]
     tflops=[]
+    dtype=[]
+    alayout=[]
+    blayout=[]
+    M=[]
+    N=[]
+    K=[]
+    StrideA=[]
+    StrideB=[]
+    StrideC=[]
     #parse results, get the Tflops value for "Best Perf" kernels
     glue=""
     for filename in args.files:
@@ -45,19 +56,30 @@ def main():
         for line in open(filename):
             if 'Best Perf for datatype' in line:
                 lst=line.split()
-                print("lst=",lst)
-                print(len(lst))
+                #print("lst=",lst)
+                #print(len(lst))
                 #results.append(print_to_string(glue.join(lst[8:]),lst[4]))
                 if len(lst)==43: #the line is complete
                     tests.append(glue.join(lst[5:30]))
                     kernels.append(glue.join(lst[37:]))
                     tflops.append(lst[33])
+                    dtype.append(lst[5])
+                    alayout.append(lst[8])
+                    blayout.append(lst[11])
+                    M.append(lst[14])
+                    N.append(lst[17])
+                    K.append(lst[20])
+                    StrideA.append(lst[23])
+                    StrideB.append(lst[26])
+                    StrideC.append(lst[29])
                 elif len(lst)<43 and len(lst)>=30: #the name of the test is complete
                     tests.append(glue.join(lst[5:30]))
                     kernels.append("N/A")
                     tflops.append(0.0)
+                    print("incomplete line:",lst)
                 elif len(lst)<30: #even the test name is incomplete
                     print("Error in ckProfiler output!")
+                    print("incomplete line=",lst)
 
 
 
@@ -68,11 +90,33 @@ def main():
     print("Number of tests:",len(tests))
     print("Branch name:",branch_name)
     sorted_tests = sorted(tests)
-    print("sorted tests:",sorted_tests)
+    #print("sorted tests:",sorted_tests)
     sorted_tflops = [x for _,x in sorted(zip(tests,tflops))]
-    print("sorted tflops:",sorted_tflops)
+    #print("sorted tflops:",sorted_tflops)
     sorted_kernels = [x for _,x in sorted(zip(tests,kernels))]
-    print("sorted kernels:",sorted_kernels)
+    #print("sorted kernels:",sorted_kernels)
+    sorted_dtypes = [x for _,x in sorted(zip(tests,dtype))]
+    #print("sorted dtypes:",sorted_dtypes)
+    sorted_alayout = [x for _,x in sorted(zip(tests,alayout))]
+    #print("sorted alayout:",sorted_alayout)
+    sorted_blayout = [x for _,x in sorted(zip(tests,blayout))]
+    #print("sorted blayout:",sorted_blayout)
+    sorted_M = [x for _,x in sorted(zip(tests,M))]
+    #print("sorted M:",sorted_M)
+    sorted_N = [x for _,x in sorted(zip(tests,N))]
+    #print("sorted N:",sorted_N)
+    sorted_K = [x for _,x in sorted(zip(tests,K))]
+    #print("sorted K:",sorted_K)
+    sorted_StrideA = [x for _,x in sorted(zip(tests,StrideA))]
+    #print("sorted StrideA:",sorted_StrideA)
+    sorted_StrideB = [x for _,x in sorted(zip(tests,StrideB))]
+    #print("sorted StrideB:",sorted_StrideB)
+    sorted_StrideC = [x for _,x in sorted(zip(tests,StrideC))]
+    #print("sorted StrideC:",sorted_StrideC)
+    test_list=list(range(1,len(tests)+1))
+    #print("test list",test_list)
+
+
 
     print("now=",datetime.datetime.now())
 
@@ -94,33 +138,63 @@ def main():
             ssh_username=ssh_user,
             ssh_password=ssh_pass,
             remote_bind_address=(sql_hostname, sql_port)) as tunnel:
+        '''
         conn = pymysql.connect(host=sql_hostname, user=sql_username,
             passwd=sql_password, db=sql_main_database,
             port=tunnel.local_bind_port)
+        '''
+
+        sqlEngine = sqlalchemy.create_engine('mysql+pymysql://{0}:{1}@{2}:{3}/{4}'.
+            format(sql_username, sql_password, sql_hostname, tunnel.local_bind_port, sql_main_database))
+        conn = sqlEngine.connect()
+
         query = '''SELECT VERSION();'''
         data = pd.read_sql_query(query, conn)
         print("data=",data)
 
+        #write the ck_gemm_test_params table
+        #only needed once
+        ck_gemm_params=[test_list,sorted_dtypes,sorted_alayout,sorted_blayout,
+                    sorted_M,sorted_N,sorted_K,sorted_StrideA,sorted_StrideB,
+                    sorted_StrideC]
+        df=pd.DataFrame(np.transpose(ck_gemm_params),columns=['Test_number','Data_type',
+            'Alayout','BLayout','M','N','K', 'StrideA','StrideB','StrideC'])
+        print(df)
+        df.to_sql("ck_gemm_test_params",conn,if_exists='replace',index=False)
+
         #read baseline results for the latest develop branch
-        query = '''SELECT * from ck_gemm_tflops where Branch_name="develop" and timestamp = (SELECT MAX(timestamp));'''
-        tflops_base = pd.read_sql_query(query, conn)
+        #query = '''SELECT * from ck_gemm_tflops where Branch_ID="develop" and Datetime = (SELECT MAX(Datetime));'''
+        #tflops_base = pd.read_sql_query(query, conn)
 
         #write new results to the db
-        column_names=sorted_tests.insert(0,"Timestamp")
-        column_names=column_names.insert(0,"Branch_name")
-        values=sorted_tflops.insert(0,datetime.datetime.now())
-        values=values.insert(0,branch_name)
-        query='''INSERT INTO ck_gemm_tflops (column_names) VALUES(values);'''
-        pd.read_sql_query(query, conn)
+        testlist=[]
+        #testlist=['Branch_ID','Datetime']
+        for i in range(1,len(tests)+1):
+            testlist.append("Test%i"%i)
+        #print("testlist:",testlist)
+        ck_gemm_tflops=[str(branch_name),str(datetime.datetime.now())]
+        #print("ck_gemm_tflops:",ck_gemm_tflops)
+
+        flops=pd.DataFrame(data=[ck_gemm_tflops],columns=['Branch_ID','Datetime'])
+        print("flops dataframe:",flops)
+        df_add=pd.DataFrame(data=[sorted_tflops],columns=[testlist])
+        #print("df_add:",df_add)
+        flops=pd.concat([flops,df_add],axis=1, ignore_index=False)
+        print("new flops df:",flops)
+
+        #df.to_sql("ck_gemm_tflops",conn,if_exists='replace',index=False)
         conn.close()
+
     #compare the results to the baseline
+
     regression=0
+    '''
     for i in len(tflops_base):
         # success criterion:
         if tflops_base[i]>1.05*sorted_tflops[i]:
             print("test # ",i,"shows regression")
             regression=1
-
+    '''
     #return 0 if performance criteria met, otherwise return 1
 
     return regression

@@ -44,7 +44,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     llvm-amdgpu \
     pkg-config \
     python \
-    python3 \
+    python3.8 \
     python-dev \
     python3-dev \
     python-pip \
