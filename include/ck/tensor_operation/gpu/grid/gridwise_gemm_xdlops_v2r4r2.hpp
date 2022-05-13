@@ -290,7 +290,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             c_block_cluster_adaptor.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
 
         if(!c_block_cluster_adaptor.ValidCTileIndex(
-               block_work_idx,
+               make_tuple(block_work_idx[I1], block_work_idx[I2]),
                make_tuple(c_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I0),
                           c_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2))))
         {

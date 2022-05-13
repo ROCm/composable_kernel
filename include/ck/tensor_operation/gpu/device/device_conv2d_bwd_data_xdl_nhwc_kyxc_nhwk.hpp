@@ -486,14 +486,16 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                     b_grid_desc_k0_n_k1_container_.push_back(descs[I1]);
                     c_grid_desc_m_n_container_.push_back(descs[I2]);
 
-                    block_2_ctile_map_container_.push_back(
-                        GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2], M01, N01));
+                    auto block_2_ctile_map =
+                        GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2], M01, N01);
 
                     if(GridwiseGemm::CheckValidity(
-                           descs[I0], descs[I1], descs[I2], block_2_ctile_map_container_.back()))
+                           descs[I0], descs[I1], descs[I2], block_2_ctile_map))
                     {
                         c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_.push_back(
                             GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(descs[I2]));
+
+                        block_2_ctile_map_container_.push_back(block_2_ctile_map);
                     }
                 }
             }

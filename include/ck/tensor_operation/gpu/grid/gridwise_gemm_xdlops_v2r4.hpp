@@ -300,6 +300,14 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
         const auto block_work_idx =
             c_block_cluster_adaptor.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
 
+        // if(!block_2_ctile_map.ValidCTileIndex(
+        //        make_tuple(block_work_idx[I1], block_work_idx[I2]),
+        //        make_tuple(c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I0),
+        //                   c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I1))))
+        // {
+        //     return;
+        // }
+
         const index_t k_batch_id = block_work_idx[I0];
 
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
