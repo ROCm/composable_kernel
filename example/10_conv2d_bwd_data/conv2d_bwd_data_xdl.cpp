@@ -249,6 +249,10 @@ int main(int argc, char* argv[])
 
         in_device_buf.FromDevice(in_n_c_hi_wi_device_result.mData.data());
 
-        ck::utils::check_err(in_n_c_hi_wi_device_result.mData, in_n_c_hi_wi_host_result.mData);
+        return ck::utils::check_err(in_n_c_hi_wi_device_result.mData,
+                                    in_n_c_hi_wi_host_result.mData)
+                   ? 0
+                   : 1;
     }
+    return 0;
 }
