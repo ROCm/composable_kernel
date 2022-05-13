@@ -1,10 +1,10 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
 #include "config.hpp"
-#include "conv_fwd_util.hpp"
+#include "conv_util.hpp"
 #include "tensor_layout.hpp"
 #include "check_err.hpp"
 
@@ -15,13 +15,13 @@ class TestConvUtil : public ::testing::Test
     public:
     void SetNDParams(std::size_t ndims)
     {
-        conv_params.num_dim_spatial        = ndims;
-        conv_params.filter_spatial_lengths = std::vector<ck::index_t>(ndims, 3);
-        conv_params.input_spatial_lengths  = std::vector<ck::index_t>(ndims, 71);
-        conv_params.conv_filter_strides    = std::vector<ck::index_t>(ndims, 2);
-        conv_params.conv_filter_dilations  = std::vector<ck::index_t>(ndims, 1);
-        conv_params.input_left_pads        = std::vector<ck::index_t>(ndims, 1);
-        conv_params.input_right_pads       = std::vector<ck::index_t>(ndims, 1);
+        conv_params.num_dim_spatial_        = ndims;
+        conv_params.filter_spatial_lengths_ = std::vector<ck::index_t>(ndims, 3);
+        conv_params.input_spatial_lengths_  = std::vector<ck::index_t>(ndims, 71);
+        conv_params.conv_filter_strides_    = std::vector<ck::index_t>(ndims, 2);
+        conv_params.conv_filter_dilations_  = std::vector<ck::index_t>(ndims, 1);
+        conv_params.input_left_pads_        = std::vector<ck::index_t>(ndims, 1);
+        conv_params.input_right_pads_       = std::vector<ck::index_t>(ndims, 1);
     }
 
     protected:
@@ -44,29 +44,29 @@ TEST_F(TestConvUtil, ConvParamsGetOutputSpatialLengths2D)
                                      std::vector<ck::index_t>{36, 36},
                                      "Error: ConvParams 2D default constructor."));
 
-    conv_params.conv_filter_strides = std::vector<ck::index_t>{1, 1};
-    out_spatial_len                 = conv_params.GetOutputSpatialLengths();
+    conv_params.conv_filter_strides_ = std::vector<ck::index_t>{1, 1};
+    out_spatial_len                  = conv_params.GetOutputSpatialLengths();
     EXPECT_TRUE(ck::utils::check_err(
         out_spatial_len, std::vector<ck::index_t>{71, 71}, "Error: ConvParams 2D stride {1,1}."));
 
-    conv_params.conv_filter_strides = std::vector<ck::index_t>{2, 2};
-    conv_params.input_left_pads     = std::vector<ck::index_t>{2, 2};
-    conv_params.input_right_pads    = std::vector<ck::index_t>{2, 2};
-    out_spatial_len                 = conv_params.GetOutputSpatialLengths();
+    conv_params.conv_filter_strides_ = std::vector<ck::index_t>{2, 2};
+    conv_params.input_left_pads_     = std::vector<ck::index_t>{2, 2};
+    conv_params.input_right_pads_    = std::vector<ck::index_t>{2, 2};
+    out_spatial_len                  = conv_params.GetOutputSpatialLengths();
     EXPECT_TRUE(ck::utils::check_err(out_spatial_len,
                                      std::vector<ck::index_t>{37, 37},
                                      "Error: ConvParams 2D padding left/right {2,2}."));
 
-    conv_params.conv_filter_dilations = std::vector<ck::index_t>{2, 2};
-    out_spatial_len                   = conv_params.GetOutputSpatialLengths();
+    conv_params.conv_filter_dilations_ = std::vector<ck::index_t>{2, 2};
+    out_spatial_len                    = conv_params.GetOutputSpatialLengths();
     EXPECT_TRUE(ck::utils::check_err(
         out_spatial_len, std::vector<ck::index_t>{36, 36}, "Error: ConvParams 2D dilation {2,2}."));
 
-    conv_params.conv_filter_strides   = std::vector<ck::index_t>{3, 3};
-    conv_params.input_left_pads       = std::vector<ck::index_t>{1, 1};
-    conv_params.input_right_pads      = std::vector<ck::index_t>{1, 1};
-    conv_params.conv_filter_dilations = std::vector<ck::index_t>{2, 2};
-    out_spatial_len                   = conv_params.GetOutputSpatialLengths();
+    conv_params.conv_filter_strides_   = std::vector<ck::index_t>{3, 3};
+    conv_params.input_left_pads_       = std::vector<ck::index_t>{1, 1};
+    conv_params.input_right_pads_      = std::vector<ck::index_t>{1, 1};
+    conv_params.conv_filter_dilations_ = std::vector<ck::index_t>{2, 2};
+    out_spatial_len                    = conv_params.GetOutputSpatialLengths();
     EXPECT_TRUE(
         ck::utils::check_err(out_spatial_len,
                              std::vector<ck::index_t>{23, 23},
@@ -81,29 +81,29 @@ TEST_F(TestConvUtil, ConvParamsGetOutputSpatialLengths1D)
     EXPECT_TRUE(ck::utils::check_err(
         out_spatial_len, std::vector<ck::index_t>{36}, "Error: ConvParams 1D."));
 
-    conv_params.conv_filter_strides = std::vector<ck::index_t>{1};
-    out_spatial_len                 = conv_params.GetOutputSpatialLengths();
+    conv_params.conv_filter_strides_ = std::vector<ck::index_t>{1};
+    out_spatial_len                  = conv_params.GetOutputSpatialLengths();
     EXPECT_TRUE(ck::utils::check_err(
         out_spatial_len, std::vector<ck::index_t>{71}, "Error: ConvParams 1D stride {1}."));
 
-    conv_params.conv_filter_strides = std::vector<ck::index_t>{2};
-    conv_params.input_left_pads     = std::vector<ck::index_t>{2};
-    conv_params.input_right_pads    = std::vector<ck::index_t>{2};
-    out_spatial_len                 = conv_params.GetOutputSpatialLengths();
+    conv_params.conv_filter_strides_ = std::vector<ck::index_t>{2};
+    conv_params.input_left_pads_     = std::vector<ck::index_t>{2};
+    conv_params.input_right_pads_    = std::vector<ck::index_t>{2};
+    out_spatial_len                  = conv_params.GetOutputSpatialLengths();
     EXPECT_TRUE(ck::utils::check_err(out_spatial_len,
                                      std::vector<ck::index_t>{37},
                                      "Error: ConvParams 1D padding left/right {2}."));
 
-    conv_params.conv_filter_dilations = std::vector<ck::index_t>{2};
-    out_spatial_len                   = conv_params.GetOutputSpatialLengths();
+    conv_params.conv_filter_dilations_ = std::vector<ck::index_t>{2};
+    out_spatial_len                    = conv_params.GetOutputSpatialLengths();
     EXPECT_TRUE(ck::utils::check_err(
         out_spatial_len, std::vector<ck::index_t>{36}, "Error: ConvParams 1D dilation {2}."));
 
-    conv_params.conv_filter_strides   = std::vector<ck::index_t>{3};
-    conv_params.input_left_pads       = std::vector<ck::index_t>{1};
-    conv_params.input_right_pads      = std::vector<ck::index_t>{1};
-    conv_params.conv_filter_dilations = std::vector<ck::index_t>{2};
-    out_spatial_len                   = conv_params.GetOutputSpatialLengths();
+    conv_params.conv_filter_strides_   = std::vector<ck::index_t>{3};
+    conv_params.input_left_pads_       = std::vector<ck::index_t>{1};
+    conv_params.input_right_pads_      = std::vector<ck::index_t>{1};
+    conv_params.conv_filter_dilations_ = std::vector<ck::index_t>{2};
+    out_spatial_len                    = conv_params.GetOutputSpatialLengths();
     EXPECT_TRUE(
         ck::utils::check_err(out_spatial_len,
                              std::vector<ck::index_t>{23},
@@ -118,31 +118,31 @@ TEST_F(TestConvUtil, ConvParamsGetOutputSpatialLengths3D)
     EXPECT_TRUE(ck::utils::check_err(
         out_spatial_len, std::vector<ck::index_t>{36, 36, 36}, "Error: ConvParams 3D."));
 
-    conv_params.conv_filter_strides = std::vector<ck::index_t>{1, 1, 1};
-    out_spatial_len                 = conv_params.GetOutputSpatialLengths();
+    conv_params.conv_filter_strides_ = std::vector<ck::index_t>{1, 1, 1};
+    out_spatial_len                  = conv_params.GetOutputSpatialLengths();
     EXPECT_TRUE(ck::utils::check_err(out_spatial_len,
                                      std::vector<ck::index_t>{71, 71, 71},
                                      "Error: ConvParams 3D stride {1, 1, 1}."));
 
-    conv_params.conv_filter_strides = std::vector<ck::index_t>{2, 2, 2};
-    conv_params.input_left_pads     = std::vector<ck::index_t>{2, 2, 2};
-    conv_params.input_right_pads    = std::vector<ck::index_t>{2, 2, 2};
-    out_spatial_len                 = conv_params.GetOutputSpatialLengths();
+    conv_params.conv_filter_strides_ = std::vector<ck::index_t>{2, 2, 2};
+    conv_params.input_left_pads_     = std::vector<ck::index_t>{2, 2, 2};
+    conv_params.input_right_pads_    = std::vector<ck::index_t>{2, 2, 2};
+    out_spatial_len                  = conv_params.GetOutputSpatialLengths();
     EXPECT_TRUE(ck::utils::check_err(out_spatial_len,
                                      std::vector<ck::index_t>{37, 37, 37},
                                      "Error: ConvParams 3D padding left/right {2, 2, 2}."));
 
-    conv_params.conv_filter_dilations = std::vector<ck::index_t>{2, 2, 2};
-    out_spatial_len                   = conv_params.GetOutputSpatialLengths();
+    conv_params.conv_filter_dilations_ = std::vector<ck::index_t>{2, 2, 2};
+    out_spatial_len                    = conv_params.GetOutputSpatialLengths();
     EXPECT_TRUE(ck::utils::check_err(out_spatial_len,
                                      std::vector<ck::index_t>{36, 36, 36},
                                      "Error: ConvParams 3D dilation {2, 2, 2}."));
 
-    conv_params.conv_filter_strides   = std::vector<ck::index_t>{3, 3, 3};
-    conv_params.input_left_pads       = std::vector<ck::index_t>{1, 1, 1};
-    conv_params.input_right_pads      = std::vector<ck::index_t>{1, 1, 1};
-    conv_params.conv_filter_dilations = std::vector<ck::index_t>{2, 2, 2};
-    out_spatial_len                   = conv_params.GetOutputSpatialLengths();
+    conv_params.conv_filter_strides_   = std::vector<ck::index_t>{3, 3, 3};
+    conv_params.input_left_pads_       = std::vector<ck::index_t>{1, 1, 1};
+    conv_params.input_right_pads_      = std::vector<ck::index_t>{1, 1, 1};
+    conv_params.conv_filter_dilations_ = std::vector<ck::index_t>{2, 2, 2};
+    out_spatial_len                    = conv_params.GetOutputSpatialLengths();
     EXPECT_TRUE(ck::utils::check_err(
         out_spatial_len,
         std::vector<ck::index_t>{23, 23, 23},
