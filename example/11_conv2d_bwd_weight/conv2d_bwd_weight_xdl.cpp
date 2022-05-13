@@ -291,6 +291,9 @@ int main(int argc, char* argv[])
             LogRangeAsType<float>(std::cout << "wei_host  : ", wei_k_c_y_x_host_result.mData, ",")
                 << std::endl;
         }
-        ck::utils::check_err(wei_k_c_y_x_device_result.mData, wei_k_c_y_x_host_result.mData);
+        return ck::utils::check_err(wei_k_c_y_x_device_result.mData, wei_k_c_y_x_host_result.mData)
+                   ? 0
+                   : 1;
     }
+    return 0;
 }
