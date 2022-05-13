@@ -312,7 +312,7 @@ struct DeviceGemmXdl_C_Shuffle_Bias_Activation_Add
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             {
                 std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
@@ -345,13 +345,12 @@ struct DeviceGemmXdl_C_Shuffle_Bias_Activation_Add
 
             const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_);
 
-            const auto K0 = arg.a_grid_desc_k0_m_k1_.GetLength(I0);
-
-            const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
+            const auto K =
+                arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
 
             float ave_time = 0;
 
-            if(has_main_k0_block_loop)
+            if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
                 const auto kernel = kernel_gemm_xdlops_v3r3<
                     GridwiseGemm,
@@ -375,8 +374,8 @@ struct DeviceGemmXdl_C_Shuffle_Bias_Activation_Add
                     true>;
 
                 ave_time = launch_and_time_kernel(
+                    stream_config,
                     kernel,
-                    nrepeat,
                     dim3(grid_size),
                     dim3(BlockSize),
                     0,
@@ -419,8 +418,8 @@ struct DeviceGemmXdl_C_Shuffle_Bias_Activation_Add
                     false>;
 
                 ave_time = launch_and_time_kernel(
+                    stream_config,
                     kernel,
-                    nrepeat,
                     dim3(grid_size),
                     dim3(BlockSize),
                     0,
@@ -444,9 +443,10 @@ struct DeviceGemmXdl_C_Shuffle_Bias_Activation_Add
         }
 
         // polymorphic
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 

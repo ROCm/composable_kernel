@@ -107,7 +107,7 @@ __global__ void
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = c_element_op;
-    ignore = compute_base_ptr_of_batch_;
+    ignore = compute_ptr_offset_of_batch;
     ignore = block_2_ctile_map;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
@@ -384,9 +384,10 @@ struct DeviceBatchedGemmXdl
                   DeviceBatchedGemmXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB)},
               c_grid_desc_m_n_{DeviceBatchedGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC)},
               c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
-              compute_ptr_offset_of_batch_{a_grid_desc_k0_m_k1_.GetElementSpaceSize(),
-                                           b_grid_desc_k0_n_k1_.GetElementSpaceSize(),
-                                           c_grid_desc_m_n_.GetElementSpaceSize()},
+              compute_ptr_offset_of_batch_{
+                  type_convert<index_t>(a_grid_desc_k0_m_k1_.GetElementSpaceSize()),
+                  type_convert<index_t>(b_grid_desc_k0_n_k1_.GetElementSpaceSize()),
+                  type_convert<index_t>(c_grid_desc_m_n_.GetElementSpaceSize())},
               block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
@@ -427,7 +428,7 @@ struct DeviceBatchedGemmXdl
     {
         using Argument = DeviceBatchedGemmXdl::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             {
                 std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
@@ -455,13 +456,12 @@ struct DeviceBatchedGemmXdl
             const index_t grid_size =
                 GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_) * arg.BatchCount_;
 
-            const auto K0 = arg.a_grid_desc_k0_m_k1_.GetLength(I0);
-
-            const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
+            const auto K =
+                arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
 
             float ave_time = 0;
 
-            if(has_main_k0_block_loop)
+            if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
                 const auto kernel = kernel_batched_gemm_xdlops_v2r3<
                     GridwiseGemm,
@@ -477,8 +477,8 @@ struct DeviceBatchedGemmXdl
                     remove_reference_t<Block2CTileMap>,
                     true>;
 
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
                                                   dim3(grid_size),
                                                   dim3(BlockSize),
                                                   0,
@@ -511,8 +511,8 @@ struct DeviceBatchedGemmXdl
                     remove_reference_t<Block2CTileMap>,
                     false>;
 
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
                                                   dim3(grid_size),
                                                   dim3(BlockSize),
                                                   0,
@@ -534,9 +534,10 @@ struct DeviceBatchedGemmXdl
         }
 
         // polymorphic
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 

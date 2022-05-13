@@ -26,17 +26,14 @@
 #endif
 #endif
 
-// buffer resourse, wave size
+// buffer resource
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_BUFFER_RESOURCE_3RD_DWORD -1
-#define CK_GPU_WAVE_SIZE -1
 #elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || defined(__gfx908__) || \
     defined(__gfx90a__) // for GPU code
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x00020000
-#define CK_GPU_WAVE_SIZE 64
 #elif defined(__gfx1030__) // for GPU code
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31014000
-#define CK_GPU_WAVE_SIZE 32
 #endif
 
 // FMA instruction
@@ -95,7 +92,7 @@
 #define CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR 0
 
 // experimental feature: buffer load/store/atomic-add OOB trick
-#define CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK 1
+#define CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK 0
 #define CK_EXPERIMENTAL_USE_BUFFER_STORE_OOB_CHECK_OFFSET_TRICK 1
 #define CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_ADD_OOB_CHECK_OFFSET_TRICK 1
 
@@ -111,6 +108,10 @@
 
 // experimental feature: use __builtin_memcpy instead of union to do bit_cast
 #define CK_EXPERIMENTAL_USE_MEMCPY_FOR_BIT_CAST 1
+
+// experimental feature: optimize for inter-wave scheduling policy
+#define CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING 0
+#define CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS 1
 
 // hack: have underlying assumption that need to be satsified, otherwise it's a bug
 // hack for forcing register to keep idx_diff_low_const in SGPR. idx_diff_low_const must be

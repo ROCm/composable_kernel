@@ -6,9 +6,7 @@ set(DEVICE_CONV2D_FWD_INSTANCE_SOURCE
    device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instance.cpp;
    device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instance.cpp;
 )
-add_library(device_conv2d_fwd_instance SHARED ${DEVICE_CONV2D_FWD_INSTANCE_SOURCE}) 
-target_compile_features(device_conv2d_fwd_instance PUBLIC)
+add_library(device_conv2d_fwd_instance OBJECT ${DEVICE_CONV2D_FWD_INSTANCE_SOURCE}) 
 set_target_properties(device_conv2d_fwd_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
-install(TARGETS device_conv2d_fwd_instance LIBRARY DESTINATION lib) 
 
 clang_tidy_check(device_conv2d_fwd_instance)

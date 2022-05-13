@@ -11,11 +11,11 @@
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdlops_v2r4r2.hpp"
+#include "gridwise_gemm_xdlops_bwd_weight.hpp"
 
 #define SPLITN0_N1 1
-#define GEMMK0PAD_FOR_OUT 0
-#define GEMMK0PAD_FOR_IN 0
+#define GEMMK0PAD_FOR_OUT 1
+#define GEMMK0PAD_FOR_IN 1
 
 namespace ck {
 namespace tensor_operation {
@@ -86,6 +86,20 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
     static constexpr auto GemmK1Number = K1Number;
 
     static constexpr auto N1Number = K1Number;
+
+    // Bytes per 32 lds bank: 32 * 4 bytes
+    static constexpr auto BankLength = 128;
+    static constexpr auto ElePerBank = BankLength / sizeof(ADataType);
+
+    // M1 & M0
+    static constexpr auto ABlockLdsM1PerBlock = ElePerBank / K1;
+    static constexpr auto ABlockLdsM0PerBlock = MPerBlock / ABlockLdsM1PerBlock;
+    static constexpr auto ABlockLdsM1Padding  = 4;
+
+    // N1 & N0
+    static constexpr auto BBlockLdsN1PerBlock = ElePerBank / K1;
+    static constexpr auto BBlockLdsN0PerBlock = NPerBlock / BBlockLdsN1PerBlock;
+    static constexpr auto BBlockLdsN1Padding  = 4;
 
     static auto
     MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(ck::index_t N,
@@ -321,7 +335,7 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
     using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
+    using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight<
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
@@ -349,6 +363,9 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         ABlockTransferDstScalarPerVector_K1,
         false, // AThreadTransferSrcResetCoordinateAfterRun,
         ABlockLdsAddExtraM,
+        ABlockLdsM1PerBlock,
+        ABlockLdsM0PerBlock,
+        ABlockLdsM1Padding,
         BBlockTransferThreadClusterLengths_K0_N_K1,
         BBlockTransferThreadClusterArrangeOrder,
         BBlockTransferSrcAccessOrder,
@@ -357,6 +374,9 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         BBlockTransferDstScalarPerVector_K1,
         false, // BThreadTransferSrcResetCoordinateAfterRun,
         BBlockLdsAddExtraN,
+        BBlockLdsN1PerBlock,
+        BBlockLdsN0PerBlock,
+        BBlockLdsN1Padding,
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
         CBlockTransferScalarPerVector_NWaveNPerXdl,
@@ -364,7 +384,7 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         true,
         true>;
 
-    using GridwiseGemmAtomicAdd = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
+    using GridwiseGemmAtomicAdd = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight<
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
@@ -392,6 +412,9 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         ABlockTransferDstScalarPerVector_K1,
         false, // AThreadTransferSrcResetCoordinateAfterRun,
         ABlockLdsAddExtraM,
+        ABlockLdsM1PerBlock,
+        ABlockLdsM0PerBlock,
+        ABlockLdsM1Padding,
         BBlockTransferThreadClusterLengths_K0_N_K1,
         BBlockTransferThreadClusterArrangeOrder,
         BBlockTransferSrcAccessOrder,
@@ -400,6 +423,9 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         BBlockTransferDstScalarPerVector_K1,
         false, // BThreadTransferSrcResetCoordinateAfterRun,
         BBlockLdsAddExtraN,
+        BBlockLdsN1PerBlock,
+        BBlockLdsN0PerBlock,
+        BBlockLdsN1Padding,
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
         CBlockTransferScalarPerVector_NWaveNPerXdl,
@@ -535,9 +561,10 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                       << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
         }
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             ShowInfo(arg);
+
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_kbatch_k0_m_k1_,
                                             arg.b_grid_desc_kbatch_k0_n_k1_,
                                             arg.c_grid_desc_m_n_,
@@ -557,49 +584,27 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             float ave_time = 0;
 
             const auto Run = [&](const auto& kernel) {
-                if(nrepeat > 0)
-                {
-                    ave_time =
-                        launch_and_time_kernel(kernel,
-                                               nrepeat,
-                                               dim3(grid_size),
-                                               dim3(BlockSize),
-                                               0,
-                                               arg.p_a_grid_,
-                                               arg.p_b_grid_,
-                                               arg.p_c_grid_,
-                                               arg.a_grid_desc_kbatch_k0_m_k1_,
-                                               arg.b_grid_desc_kbatch_k0_n_k1_,
-                                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                               arg.a_element_op_,
-                                               arg.b_element_op_,
-                                               arg.c_element_op_,
-                                               arg.block_2_ctile_map_);
-                }
+                hipGetErrorString(hipMemset(
+                    arg.p_c_grid_,
+                    0,
+                    arg.c_grid_desc_mblock_mperblock_nblock_nperblock_.GetElementSpaceSize() *
+                        sizeof(CDataType)));
 
-                if(kbatch > 1 || nrepeat <= 0)
-                {
-                    hipGetErrorString(hipMemset(
-                        arg.p_c_grid_,
-                        0,
-                        arg.c_grid_desc_mblock_mperblock_nblock_nperblock_.GetElementSpaceSize() *
-                            sizeof(CDataType)));
-
-                    launch_kernel(kernel,
-                                  dim3(grid_size),
-                                  dim3(BlockSize),
-                                  0,
-                                  arg.p_a_grid_,
-                                  arg.p_b_grid_,
-                                  arg.p_c_grid_,
-                                  arg.a_grid_desc_kbatch_k0_m_k1_,
-                                  arg.b_grid_desc_kbatch_k0_n_k1_,
-                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                  arg.a_element_op_,
-                                  arg.b_element_op_,
-                                  arg.c_element_op_,
-                                  arg.block_2_ctile_map_);
-                }
+                ave_time = launch_and_time_kernel(stream_config,
+                                       kernel,
+                                       dim3(grid_size),
+                                       dim3(BlockSize),
+                                       0,
+                                       arg.p_a_grid_,
+                                       arg.p_b_grid_,
+                                       arg.p_c_grid_,
+                                       arg.a_grid_desc_kbatch_k0_m_k1_,
+                                       arg.b_grid_desc_kbatch_k0_n_k1_,
+                                       arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                       arg.a_element_op_,
+                                       arg.b_element_op_,
+                                       arg.c_element_op_,
+                                       arg.block_2_ctile_map_);
             };
 
             if(has_main_k0_block_loop)
@@ -680,9 +685,10 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             return ave_time;
         }
 
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 

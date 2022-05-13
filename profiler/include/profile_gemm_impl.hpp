@@ -91,7 +91,7 @@ template <typename ADataType,
 void profile_gemm_impl(int do_verification,
                        int init_method,
                        bool do_log,
-                       int nrepeat,
+                       bool time_kernel,
                        int M,
                        int N,
                        int K,
@@ -416,12 +416,13 @@ void profile_gemm_impl(int do_verification,
 
             std::string gemm_name = gemm_ptr->GetTypeString();
 
-            float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
+            float ave_time =
+                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
             std::size_t flop = std::size_t(2) * M * N * K;
 
             std::size_t num_btype =
-                sizeof(ADataType) * M * K + sizeof(BDataType) * K * M + sizeof(CDataType) * M * N;
+                sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
 
             float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 

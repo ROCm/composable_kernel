@@ -20,7 +20,7 @@ mkdir build && cd build
 cmake                                                                 \
 -D BUILD_DEV=OFF                                                      \
 -D CMAKE_BUILD_TYPE=Release                                           \
--D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 --offload-arch=gfx90a -O3  \
+-D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 --offload-arch=gfx90a -O3" \
 -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                             \
 -D CMAKE_PREFIX_PATH=/opt/rocm                                        \
 ..
@@ -43,3 +43,13 @@ Instructions for running each individual examples are under ```example/```
  make -j ckProfiler
 ```
 Instructions for running ckProfiler are under ```profiler/```
+
+
+## Caveat
+### Kernel Timing and Verification
+CK's own kernel timer will warn up kernel once, and then run it multiple times
+to get average kernel time. For some kernels that use atomic add, this will cause
+output buffer to be accumulated multiple times, causing verfication failure.
+To work around it, do not use CK's own timer and do verification at the same time.
+CK's own timer and verification in each example and ckProfiler can be enabled or
+disabled from command line.

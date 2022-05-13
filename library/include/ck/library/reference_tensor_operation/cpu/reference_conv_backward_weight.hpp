@@ -70,18 +70,25 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
             constexpr auto I1 = Number<1>{};
             auto f_kcyx       = [&](auto k, auto c, auto y, auto x) {
                 float v_acc = 0;
-                for(int n = 0; n < arg.out_n_k_ho_wo_.mDesc.GetLengths()[0]; ++n)
+                for(std::size_t n = 0; n < arg.out_n_k_ho_wo_.mDesc.GetLengths()[0]; ++n)
                 {
-                    for(int ho = 0; ho < arg.out_n_k_ho_wo_.mDesc.GetLengths()[2]; ++ho)
+                    for(std::size_t ho = 0; ho < arg.out_n_k_ho_wo_.mDesc.GetLengths()[2]; ++ho)
                     {
-                        int hi = ho * arg.conv_strides_[I0] + y * arg.conv_dilations_[I0] -
-                                 arg.in_left_pads_[I0];
-                        for(int wo = 0; wo < arg.out_n_k_ho_wo_.mDesc.GetLengths()[3]; ++wo)
+                        auto hi = ck::type_convert<ck::long_index_t>(ho * arg.conv_strides_[I0]) +
+                                  ck::type_convert<ck::long_index_t>(y * arg.conv_dilations_[I0]) -
+                                  ck::type_convert<ck::long_index_t>(arg.in_left_pads_[I0]);
+                        for(std::size_t wo = 0; wo < arg.out_n_k_ho_wo_.mDesc.GetLengths()[3]; ++wo)
                         {
-                            int wi = wo * arg.conv_strides_[I1] + x * arg.conv_dilations_[I1] -
-                                     arg.in_left_pads_[I1];
-                            if(hi >= 0 && hi < arg.in_n_c_hi_wi_.mDesc.GetLengths()[2] && wi >= 0 &&
-                               wi < arg.in_n_c_hi_wi_.mDesc.GetLengths()[3])
+                            auto wi =
+                                ck::type_convert<ck::long_index_t>(wo * arg.conv_strides_[I1]) +
+                                ck::type_convert<ck::long_index_t>(x * arg.conv_dilations_[I1]) -
+                                ck::type_convert<ck::long_index_t>(arg.in_left_pads_[I1]);
+                            if(hi >= 0 &&
+                               ck::type_convert<std::size_t>(hi) <
+                                   arg.in_n_c_hi_wi_.mDesc.GetLengths()[2] &&
+                               wi >= 0 &&
+                               ck::type_convert<std::size_t>(wi) <
+                                   arg.in_n_c_hi_wi_.mDesc.GetLengths()[3])
                             {
                                 float v_out;
                                 float v_in;
@@ -114,7 +121,8 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
             return 0;
         }
 
-        float Run(const device::BaseArgument* p_arg, int) override
+        float Run(const device::BaseArgument* p_arg,
+                  const StreamConfig& /*stream_config*/ = StreamConfig{}) override
         {
             return Run(*dynamic_cast<const Argument*>(p_arg));
         }

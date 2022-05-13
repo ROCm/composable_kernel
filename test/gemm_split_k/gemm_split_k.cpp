@@ -45,7 +45,7 @@ static bool check_out(const Tensor<T>& ref, const Tensor<T>& result)
 {
     float max_diff = 1e-6;
 
-    for(int i = 0; i < ref.mData.size(); ++i)
+    for(std::size_t i = 0; i < ref.mData.size(); ++i)
     {
         float diff = std::abs(double(ref.mData[i]) - double(result.mData[i]));
         if(max_diff < diff)
@@ -187,9 +187,10 @@ int test_gemm(const gemmArgs& args)
 
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            invoker_ptr->Run(argument_ptr.get(), 0);
+            invoker_ptr->Run(argument_ptr.get());
 
             c_device_buf.FromDevice(c_m_n_device_result.mData.data());
+
             if(!check_out(c_m_n_host_result, c_m_n_device_result))
             {
                 success = false;

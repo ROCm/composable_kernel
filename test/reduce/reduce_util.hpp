@@ -9,7 +9,7 @@ namespace reduce_util {
 template <typename T>
 void to_f32_vector(const Tensor<T>& src, Tensor<float>& dst)
 {
-    for(int i = 0; i < src.mData.size(); ++i)
+    for(std::size_t i = 0; i < src.mData.size(); ++i)
         dst.mData[i] = type_convert<float>(src.mData[i]);
 }
 
