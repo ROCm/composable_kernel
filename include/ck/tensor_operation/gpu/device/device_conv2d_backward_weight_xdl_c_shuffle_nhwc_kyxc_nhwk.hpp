@@ -141,12 +141,7 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         const index_t GemmK0 =
             math::integer_divide_ceil(GemmKTotal, GemmK1Number * K0PerBlock * GemmKBatch) *
             K0PerBlock;
-#if !SPLITN0_N1
-        const index_t GemmKPad = GemmKBatch * GemmK0 * GemmK1Number;
 
-        const auto out_gemmktotal_gemmm_grid_desc =
-            make_naive_tensor_descriptor_packed(make_tuple(N * Ho * Wo, K));
-#endif
         const auto in_n_hi_wi_c_grid_desc =
             make_naive_tensor_descriptor_packed(make_tuple(N, Hi, Wi, C));
 
