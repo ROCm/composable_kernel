@@ -13,10 +13,6 @@
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdlops_bwd_weight.hpp"
 
-#define SPLITN0_N1 1
-#define GEMMK0PAD_FOR_OUT 1
-#define GEMMK0PAD_FOR_IN 1
-
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -155,29 +151,12 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             make_naive_tensor_descriptor_packed(make_tuple(N, Hi, Wi, C));
 
         // A: output tensor
-#if !SPLITN0_N1
-        const auto out_gemmkpad_gemmm_grid_desc = transform_tensor_descriptor(
-            out_gemmktotal_gemmm_grid_desc,
-            make_tuple(make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
-                       make_pass_through_transform(GemmM)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}));
-
-        const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
-            out_gemmkpad_gemmm_grid_desc,
-            make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0, GemmK1Number)),
-                       make_pass_through_transform(GemmM)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
-#else
         const index_t N0          = N / N1Number;
-#if(GEMMK0PAD_FOR_OUT | GEMMK0PAD_FOR_IN)
         const index_t GemmK0Total = N0 * Ho * Wo;
 
         const index_t GemmK0S =
             math::integer_divide_ceil(GemmK0Total, K0PerBlock * GemmKBatch) * K0PerBlock;
         const index_t GemmK0Pad = GemmKBatch * GemmK0S;
-#endif
         const auto out_n_ho_wo_k_grid_desc =
             make_naive_tensor_descriptor_packed(make_tuple(N, Ho * Wo, K));
 
@@ -197,7 +176,6 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                                         make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}),
                                         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
-#if GEMMK0PAD_FOR_OUT
         const auto out_gemmk0pad_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
             out_gemmk0total_gemmm_gemmk1_grid_desc,
             make_tuple(make_right_pad_transform(GemmK0Total, GemmK0Pad - GemmK0Total),
@@ -213,16 +191,7 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                        make_pass_through_transform(N1Number)),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
             make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}));
-#else
-        const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
-            out_gemmk0total_gemmm_gemmk1_grid_desc,
-            make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0)),
-                       make_pass_through_transform(GemmM),
-                       make_pass_through_transform(N1Number)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-            make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}));
-#endif
-#endif
+
         // B: input tensor
         const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
             in_n_hi_wi_c_grid_desc,
@@ -243,28 +212,6 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
             make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
 
-#if !SPLITN0_N1
-        const auto in_gemmktotal_gemmn_grid_desc =
-            transform_tensor_descriptor(in_n_y_ho_x_wo_c_grid_desc,
-                                        make_tuple(make_merge_transform(make_tuple(Y, X, C)),
-                                                   make_merge_transform(make_tuple(N, Ho, Wo))),
-                                        make_tuple(Sequence<1, 3, 5>{}, Sequence<0, 2, 4>{}),
-                                        make_tuple(Sequence<1>{}, Sequence<0>{}));
-
-        const auto in_gemmkpad_gemmn_grid_desc = transform_tensor_descriptor(
-            in_gemmktotal_gemmn_grid_desc,
-            make_tuple(make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
-                       make_pass_through_transform(GemmN)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}));
-
-        const auto in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
-            in_gemmkpad_gemmn_grid_desc,
-            make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0, GemmK1Number)),
-                       make_pass_through_transform(GemmN)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
-#else
         const auto in_n0_y_ho_x_wo_c_n1_grid_desc =
             transform_tensor_descriptor(in_n_y_ho_x_wo_c_grid_desc,
                                         make_tuple(make_unmerge_transform(make_tuple(N0, N1Number)),
@@ -294,7 +241,6 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5>{}, Sequence<6>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
-#if GEMMK0PAD_FOR_IN
         const auto in_gemmk0pad_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
             in_gemmk0total_gemmn_gemmk1_grid_desc,
             make_tuple(make_right_pad_transform(GemmK0Total, GemmK0Pad - GemmK0Total),
@@ -310,17 +256,6 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                        make_pass_through_transform(N1Number)),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
             make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}));
-#else
-        const auto in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
-            in_gemmk0total_gemmn_gemmk1_grid_desc,
-            make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0)),
-                       make_pass_through_transform(GemmN),
-                       make_pass_through_transform(N1Number)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-            make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}));
-#endif
-
-#endif
 
         // C: weight tensor
         const auto wei_gemmm_gemmn_grid_desc =
