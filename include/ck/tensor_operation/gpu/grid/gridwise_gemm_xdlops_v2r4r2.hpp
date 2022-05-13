@@ -3,12 +3,11 @@
 
 #include "common_header.hpp"
 #include "multi_index_transform_helper.hpp"
-#include "merge_transform_for_wrw.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "blockwise_gemm_xdlops.hpp"
-#include "blockwise_tensor_slice_transfer_v4r1.hpp"
-#include "blockwise_tensor_slice_transfer_v6r1.hpp"
+#include "thread_group_tensor_slice_transfer_v4r1.hpp"
+#include "thread_group_tensor_slice_transfer_v6r1.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 
 namespace ck {
@@ -109,9 +108,7 @@ template <index_t BlockSize,
           index_t CShuffleMRepeatPerShuffle,
           index_t CShuffleNRepeatPerShuffle,
           index_t CBlockTransferScalarPerVector_NWaveNPerXDL,
-          typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-          bool ABlockLdsExtraM1Wrw = false,
-          bool BBlockLdsExtraN1Wrw = false>
+          typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>
 struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 {
     static constexpr auto I0 = Number<0>{};
@@ -123,58 +120,22 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     static constexpr auto I6 = Number<6>{};
     static constexpr auto I7 = Number<7>{};
 
-    // Bytes per 32 lds bank: 32 * 4 bytes
-    static constexpr auto BankLength = Number<128>{};
-    static constexpr auto ElePerBank = Number<BankLength / sizeof(FloatAB)>{};
-
     // K1 should be Number<...>
     static constexpr auto K1 = Number<K1Value>{};
 
-    // M1 & M0
-    static constexpr auto M1PerBlock = Number<ElePerBank / K1Value>{};
-    static constexpr auto M0PerBlock = Number<MPerBlock / M1PerBlock>{};
-    static constexpr auto M1Padding  = I4;
+    using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    // N1 & N0
-    static constexpr auto N1PerBlock = Number<ElePerBank / K1Value>{};
-    static constexpr auto N0PerBlock = Number<NPerBlock / M1PerBlock>{};
-    static constexpr auto N1Padding  = I4;
-
-    __host__ __device__ static constexpr auto GetABlockDescriptor_K0PerBlock_MPerBlock_K1()
+    __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
         constexpr auto max_lds_align = K1;
 
         // A matrix in LDS memory, dst of blockwise copy
-        constexpr auto a_block_desc_k0_m_k1 = [&]() {
+        constexpr auto a_k0_m_k1_block_desc = [&]() {
             if constexpr(ABlockLdsExtraM)
             {
-                if constexpr(ABlockLdsExtraM1Wrw)
-                {
-                    constexpr auto a_block_desc_k0_m0_m1_k1 = make_naive_tensor_descriptor(
-                        make_tuple(
-                            Number<K0PerBlock>{}, Number<M0PerBlock>{}, Number<M1PerBlock>{}, K1),
-                        make_tuple(Number<M0PerBlock>{} * (Number<M1PerBlock>{} * K1 + M1Padding),
-                                   Number<M1PerBlock>{} * K1 + M1Padding,
-                                   K1,
-                                   I1));
-
-                    constexpr auto a_block_desc_k0_m_k1_tmp = transform_tensor_descriptor(
-                        a_block_desc_k0_m0_m1_k1,
-                        make_tuple(make_pass_through_transform(Number<K0PerBlock>{}),
-                                   make_merge_transform_v3_division_mod(
-                                       make_tuple(Number<M0PerBlock>{}, Number<M1PerBlock>{})),
-                                   make_pass_through_transform(K1)),
-                        make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}),
-                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
-
-                    return a_block_desc_k0_m_k1_tmp;
-                }
-                else
-                {
-                    return make_naive_tensor_descriptor(
-                        make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
-                        make_tuple(Number<MPerBlock + 1>{} * K1, K1, I1));
-                }
+                return make_naive_tensor_descriptor(
+                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
+                    make_tuple(Number<MPerBlock + 1>{} * K1, K1, I1));
             }
             else
             {
@@ -183,100 +144,13 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             }
         }();
 
-        return a_block_desc_k0_m_k1;
-    }
-
-    __host__ __device__ static constexpr auto GetABlockDescriptor_Batch_K0PerBlock_MPerBlock_K1()
-    {
-        constexpr auto max_lds_align = K1;
-
-        // A matrix in LDS memory, dst of blockwise copy
-        constexpr auto a_block_desc_b_k0_m_k1 = [&]() {
-            if constexpr(ABlockLdsExtraM)
-            {
-                if constexpr(ABlockLdsExtraM1Wrw)
-                {
-                    constexpr auto a_block_desc_b_k0_m0_m1_k1 = make_naive_tensor_descriptor(
-                        make_tuple(Number<1>{},
-                                   Number<K0PerBlock>{},
-                                   Number<M0PerBlock>{},
-                                   Number<M1PerBlock>{},
-                                   K1),
-                        make_tuple(Number<K0PerBlock>{} * Number<M0PerBlock>{} *
-                                       (Number<M1PerBlock>{} * K1 + M1Padding),
-                                   Number<M0PerBlock>{} * (Number<M1PerBlock>{} * K1 + M1Padding),
-                                   Number<M1PerBlock>{} * K1 + M1Padding,
-                                   K1,
-                                   I1));
-
-                    constexpr auto a_block_desc_b_k0_m_k1_tmp = transform_tensor_descriptor(
-                        a_block_desc_b_k0_m0_m1_k1,
-                        make_tuple(make_pass_through_transform(Number<1>{}),
-                                   make_pass_through_transform(Number<K0PerBlock>{}),
-                                   make_merge_transform_v3_division_mod_for_wrw(
-                                       make_tuple(Number<M0PerBlock>{}, Number<M1PerBlock>{})),
-                                   make_pass_through_transform(K1)),
-                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4>{}),
-                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
-
-                    return a_block_desc_b_k0_m_k1_tmp;
-                }
-                else
-                {
-                    return make_naive_tensor_descriptor(
-                        make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
-                        make_tuple(Number<K0PerBlock>{} * Number<MPerBlock + 1>{} * K1,
-                                   Number<MPerBlock + 1>{} * K1,
-                                   K1,
-                                   I1));
-                }
-            }
-            else
-            {
-                return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
-                    max_lds_align);
-            }
-        }();
-
-        return a_block_desc_b_k0_m_k1;
-    }
-
-    __host__ __device__ static constexpr auto GetBBlockDescriptor_K0PerBlock_NPerBlock_K1()
-    {
-        constexpr auto max_lds_align = K1;
-
         // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_block_desc_k0_n_k1 = [&]() {
+        constexpr auto b_k0_n_k1_block_desc = [&]() {
             if constexpr(BBlockLdsExtraN)
             {
-                if constexpr(BBlockLdsExtraN1Wrw)
-                {
-                    constexpr auto b_block_desc_k0_n0_n1_k1 = make_naive_tensor_descriptor(
-                        make_tuple(
-                            Number<K0PerBlock>{}, Number<N0PerBlock>{}, Number<N1PerBlock>{}, K1),
-                        make_tuple(Number<N0PerBlock>{} * (Number<N1PerBlock>{} * K1 + N1Padding),
-                                   Number<N1PerBlock>{} * K1 + N1Padding,
-                                   K1,
-                                   I1));
-
-                    constexpr auto b_block_desc_k0_n_k1_tmp = transform_tensor_descriptor(
-                        b_block_desc_k0_n0_n1_k1,
-                        make_tuple(make_pass_through_transform(Number<K0PerBlock>{}),
-                                   make_merge_transform_v3_division_mod(
-                                       make_tuple(Number<N0PerBlock>{}, Number<N1PerBlock>{})),
-                                   make_pass_through_transform(K1)),
-                        make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}),
-                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
-
-                    return b_block_desc_k0_n_k1_tmp;
-                }
-                else
-                {
-                    return make_naive_tensor_descriptor(
-                        make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
-                        make_tuple(Number<NPerBlock + 1>{} * K1, K1, I1));
-                }
+                return make_naive_tensor_descriptor(
+                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
+                    make_tuple(Number<NPerBlock + 1>{} * K1, K1, I1));
             }
             else
             {
@@ -285,81 +159,12 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             }
         }();
 
-        return b_block_desc_k0_n_k1;
-    }
-
-    __host__ __device__ static constexpr auto GetBBlockDescriptor_Batch_K0PerBlock_NPerBlock_K1()
-    {
-        constexpr auto max_lds_align = K1;
-
-        // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_block_desc_b_k0_n_k1 = [&]() {
-            if constexpr(BBlockLdsExtraN)
-            {
-                if constexpr(BBlockLdsExtraN1Wrw)
-                {
-                    constexpr auto b_block_desc_b_k0_n0_n1_k1 = make_naive_tensor_descriptor(
-                        make_tuple(Number<1>{},
-                                   Number<K0PerBlock>{},
-                                   Number<N0PerBlock>{},
-                                   Number<N1PerBlock>{},
-                                   K1),
-                        make_tuple(Number<K0PerBlock>{} * Number<N0PerBlock>{} *
-                                       (Number<N1PerBlock>{} * K1 + N1Padding),
-                                   Number<N0PerBlock>{} * (Number<N1PerBlock>{} * K1 + N1Padding),
-                                   Number<N1PerBlock>{} * K1 + N1Padding,
-                                   K1,
-                                   I1));
-
-                    constexpr auto b_block_desc_b_k0_n_k1_tmp = transform_tensor_descriptor(
-                        b_block_desc_b_k0_n0_n1_k1,
-                        make_tuple(make_pass_through_transform(Number<1>{}),
-                                   make_pass_through_transform(Number<K0PerBlock>{}),
-                                   make_merge_transform_v3_division_mod_for_wrw(
-                                       make_tuple(Number<N0PerBlock>{}, Number<N1PerBlock>{})),
-                                   make_pass_through_transform(K1)),
-                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4>{}),
-                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
-
-                    return b_block_desc_b_k0_n_k1_tmp;
-                }
-                else
-                {
-                    return make_naive_tensor_descriptor(
-                        make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
-                        make_tuple(Number<K0PerBlock>{} * Number<NPerBlock + 1>{} * K1,
-                                   Number<NPerBlock + 1>{} * K1,
-                                   K1,
-                                   I1));
-                }
-            }
-            else
-            {
-                return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
-                    max_lds_align);
-            }
-        }();
-
-        return b_block_desc_b_k0_n_k1;
-    }
-
-    __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
-    {
-        constexpr auto max_lds_align = K1;
-
-        // A matrix in LDS memory, dst of blockwise copy
-        constexpr auto a_b_k0_m_k1_block_desc = GetABlockDescriptor_Batch_K0PerBlock_MPerBlock_K1();
-
-        // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_b_k0_n_k1_block_desc = GetBBlockDescriptor_Batch_K0PerBlock_NPerBlock_K1();
-
         // LDS allocation for A and B: be careful of alignment
-        constexpr auto a_block_space_size = math::integer_least_multiple(
-            a_b_k0_m_k1_block_desc.GetElementSpaceSize(), max_lds_align);
+        constexpr auto a_block_space_size =
+            math::integer_least_multiple(a_k0_m_k1_block_desc.GetElementSpaceSize(), max_lds_align);
 
-        constexpr auto b_block_space_size = math::integer_least_multiple(
-            b_b_k0_n_k1_block_desc.GetElementSpaceSize(), max_lds_align);
+        constexpr auto b_block_space_size =
+            math::integer_least_multiple(b_k0_n_k1_block_desc.GetElementSpaceSize(), max_lds_align);
 
         constexpr auto c_block_size =
             GetCBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock().GetElementSpaceSize();
@@ -541,36 +346,92 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         constexpr auto max_lds_align = K1;
 
         // A matrix in LDS memory, dst of blockwise copy
-        constexpr auto a_k0_m_k1_block_desc = GetABlockDescriptor_K0PerBlock_MPerBlock_K1();
+        constexpr auto a_k0_m_k1_block_desc = [&]() {
+            if constexpr(ABlockLdsExtraM)
+            {
+                return make_naive_tensor_descriptor(
+                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
+                    make_tuple(Number<MPerBlock + 1>{} * K1, K1, I1));
+            }
+            else
+            {
+                return make_naive_tensor_descriptor_aligned(
+                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1), max_lds_align);
+            }
+        }();
 
-        constexpr auto a_b_k0_m_k1_block_desc = GetABlockDescriptor_Batch_K0PerBlock_MPerBlock_K1();
+        constexpr auto a_b_k0_m_k1_block_desc = [&]() {
+            if constexpr(ABlockLdsExtraM)
+            {
+                return make_naive_tensor_descriptor(
+                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
+                    make_tuple(Number<K0PerBlock>{} * Number<MPerBlock + 1>{} * K1,
+                               Number<MPerBlock + 1>{} * K1,
+                               K1,
+                               I1));
+            }
+            else
+            {
+                return make_naive_tensor_descriptor_aligned(
+                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
+                    max_lds_align);
+            }
+        }();
         // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_k0_n_k1_block_desc = GetBBlockDescriptor_K0PerBlock_NPerBlock_K1();
+        constexpr auto b_k0_n_k1_block_desc = [&]() {
+            if constexpr(BBlockLdsExtraN)
+            {
+                return make_naive_tensor_descriptor(
+                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
+                    make_tuple(Number<NPerBlock + 1>{} * K1, K1, I1));
+            }
+            else
+            {
+                return make_naive_tensor_descriptor_aligned(
+                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
+            }
+        }();
 
-        constexpr auto b_b_k0_n_k1_block_desc = GetBBlockDescriptor_Batch_K0PerBlock_NPerBlock_K1();
+        constexpr auto b_b_k0_n_k1_block_desc = [&]() {
+            if constexpr(BBlockLdsExtraN)
+            {
+                return make_naive_tensor_descriptor(
+                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
+                    make_tuple(Number<K0PerBlock>{} * Number<NPerBlock + 1>{} * K1,
+                               Number<NPerBlock + 1>{} * K1,
+                               K1,
+                               I1));
+            }
+            else
+            {
+                return make_naive_tensor_descriptor_aligned(
+                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
+                    max_lds_align);
+            }
+        }();
         // A matrix blockwise copy
         auto a_blockwise_copy =
-            BlockwiseTensorSliceTransfer_v4r1<BlockSize,
-                                              AElementwiseOperation,
-                                              ck::tensor_operation::element_wise::PassThrough,
-                                              InMemoryDataOperationEnum::Set,
-                                              Sequence<1, K0PerBlock, MPerBlock, K1>,
-                                              ABlockTransferThreadClusterLengths_K0_M_K1,
-                                              ABlockTransferThreadClusterArrangeOrder,
-                                              FloatAB,
-                                              FloatAB,
-                                              decltype(a_b_k0_m_k1_grid_desc),
-                                              decltype(a_b_k0_m_k1_block_desc),
-                                              ABlockTransferSrcAccessOrder,
-                                              Sequence<0, 2, 1, 3>,
-                                              ABlockTransferSrcVectorDim,
-                                              3,
-                                              ABlockTransferSrcScalarPerVector,
-                                              ABlockTransferDstScalarPerVector_K1,
-                                              1,
-                                              1,
-                                              AThreadTransferSrcResetCoordinateAfterRun,
-                                              true>(
+            ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
+                                                AElementwiseOperation,
+                                                ck::tensor_operation::element_wise::PassThrough,
+                                                InMemoryDataOperationEnum::Set,
+                                                Sequence<1, K0PerBlock, MPerBlock, K1>,
+                                                ABlockTransferThreadClusterLengths_K0_M_K1,
+                                                ABlockTransferThreadClusterArrangeOrder,
+                                                FloatAB,
+                                                FloatAB,
+                                                decltype(a_b_k0_m_k1_grid_desc),
+                                                decltype(a_b_k0_m_k1_block_desc),
+                                                ABlockTransferSrcAccessOrder,
+                                                Sequence<0, 2, 1, 3>,
+                                                ABlockTransferSrcVectorDim,
+                                                3,
+                                                ABlockTransferSrcScalarPerVector,
+                                                ABlockTransferDstScalarPerVector_K1,
+                                                1,
+                                                1,
+                                                AThreadTransferSrcResetCoordinateAfterRun,
+                                                true>(
                 a_b_k0_m_k1_grid_desc,
                 make_multi_index(k_batch_id, 0, m_block_data_idx_on_grid, 0),
                 a_element_op,
@@ -580,27 +441,27 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 
         // B matrix blockwise copy
         auto b_blockwise_copy =
-            BlockwiseTensorSliceTransfer_v4r1<BlockSize,
-                                              BElementwiseOperation,
-                                              ck::tensor_operation::element_wise::PassThrough,
-                                              InMemoryDataOperationEnum::Set,
-                                              Sequence<1, K0PerBlock, NPerBlock, K1>,
-                                              BBlockTransferThreadClusterLengths_K0_N_K1,
-                                              BBlockTransferThreadClusterArrangeOrder,
-                                              FloatAB,
-                                              FloatAB,
-                                              decltype(b_b_k0_n_k1_grid_desc),
-                                              decltype(b_b_k0_n_k1_block_desc),
-                                              BBlockTransferSrcAccessOrder,
-                                              Sequence<0, 2, 1, 3>,
-                                              BBlockTransferSrcVectorDim,
-                                              3,
-                                              BBlockTransferSrcScalarPerVector,
-                                              BBlockTransferDstScalarPerVector_K1,
-                                              1,
-                                              1,
-                                              BThreadTransferSrcResetCoordinateAfterRun,
-                                              true>(
+            ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
+                                                BElementwiseOperation,
+                                                ck::tensor_operation::element_wise::PassThrough,
+                                                InMemoryDataOperationEnum::Set,
+                                                Sequence<1, K0PerBlock, NPerBlock, K1>,
+                                                BBlockTransferThreadClusterLengths_K0_N_K1,
+                                                BBlockTransferThreadClusterArrangeOrder,
+                                                FloatAB,
+                                                FloatAB,
+                                                decltype(b_b_k0_n_k1_grid_desc),
+                                                decltype(b_b_k0_n_k1_block_desc),
+                                                BBlockTransferSrcAccessOrder,
+                                                Sequence<0, 2, 1, 3>,
+                                                BBlockTransferSrcVectorDim,
+                                                3,
+                                                BBlockTransferSrcScalarPerVector,
+                                                BBlockTransferDstScalarPerVector_K1,
+                                                1,
+                                                1,
+                                                BThreadTransferSrcResetCoordinateAfterRun,
+                                                true>(
                 b_b_k0_n_k1_grid_desc,
                 make_multi_index(k_batch_id, 0, n_block_data_idx_on_grid, 0),
                 b_element_op,
@@ -616,9 +477,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         //       register
         // sanity check
 
-        constexpr index_t KPack =
-            math::max(K1, MfmaSelector<FloatAB, MPerXDL, NPerXDL>::selected_mfma.k_per_blk);
-
         auto blockwise_gemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                                 FloatAB,
@@ -629,7 +487,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                                                                 NPerXDL,
                                                                 MRepeat,
                                                                 NRepeat,
-                                                                KPack>{};
+                                                                K1>{};
 
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 
@@ -653,9 +511,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             a_blockwise_copy.RunRead(a_b_k0_m_k1_grid_desc, a_grid_buf);
             b_blockwise_copy.RunRead(b_b_k0_n_k1_grid_desc, b_grid_buf);
 
-            a_blockwise_copy.MoveSrcSliceWindow(a_b_k0_m_k1_grid_desc, a_block_slice_copy_step);
-            b_blockwise_copy.MoveSrcSliceWindow(b_b_k0_n_k1_grid_desc, b_block_slice_copy_step);
-
             a_blockwise_copy.RunWrite(a_b_k0_m_k1_block_desc, a_block_buf);
             b_blockwise_copy.RunWrite(b_b_k0_n_k1_block_desc, b_block_buf);
         }
@@ -670,7 +525,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 
             do
             {
-                
+                a_blockwise_copy.MoveSrcSliceWindow(a_b_k0_m_k1_grid_desc, a_block_slice_copy_step);
+                b_blockwise_copy.MoveSrcSliceWindow(b_b_k0_n_k1_grid_desc, b_block_slice_copy_step);
+
                 a_blockwise_copy.RunRead(a_b_k0_m_k1_grid_desc, a_grid_buf);
 
                 block_sync_lds();
@@ -680,9 +537,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                 blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
 
                 block_sync_lds();
-
-                a_blockwise_copy.MoveSrcSliceWindow(a_b_k0_m_k1_grid_desc, a_block_slice_copy_step);
-                b_blockwise_copy.MoveSrcSliceWindow(b_b_k0_n_k1_grid_desc, b_block_slice_copy_step);
 
                 a_blockwise_copy.RunWrite(a_b_k0_m_k1_block_desc, a_block_buf);
                 b_blockwise_copy.RunWrite(b_b_k0_n_k1_block_desc, b_block_buf);
@@ -808,8 +662,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                     ck::tensor_operation::element_wise::PassThrough{}};
 
             // LDS to global
-            auto c_block_copy_lds_to_global = BlockwiseTensorSliceTransfer_v6r1<
-                BlockSize,                  // index_t BlockSize,
+            auto c_block_copy_lds_to_global = ThreadGroupTensorSliceTransfer_v6r1<
+                ThisThreadBlock,            // index_t BlockSize,
                 CElementwiseOperation,      // ElementwiseOperation,
                 CGlobalMemoryDataOperation, // DstInMemOp,
                 Sequence<1,
