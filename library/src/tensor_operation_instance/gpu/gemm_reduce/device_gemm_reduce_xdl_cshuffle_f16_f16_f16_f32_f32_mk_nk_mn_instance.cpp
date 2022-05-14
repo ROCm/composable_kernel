@@ -10,8 +10,8 @@ namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
 
-using F16 = ck::half_t;
-using F32 = float;
+using F16         = ck::half_t;
+using F32         = float;
 using DPtrsGlobal = ck::Tuple<F32*, F32*>;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
@@ -57,7 +57,9 @@ using device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_mk_nk_mn_instances = s
     >;
 
 void add_device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_mk_nk_mn_instances(
-    std::vector<DeviceGemmReducePtr<DPtrsGlobal, PassThrough, PassThrough, PassThrough, DElementOps>>& instances)
+    std::vector<
+        DeviceGemmReducePtr<DPtrsGlobal, PassThrough, PassThrough, PassThrough, DElementOps>>&
+        instances)
 {
     add_device_operation_instances(
         instances, device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_mk_nk_mn_instances{});
