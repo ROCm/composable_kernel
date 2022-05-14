@@ -3,7 +3,7 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <stdlib.h>
-#include <half.hpp>
+
 #include "check_err.hpp"
 #include "config.hpp"
 #include "device.hpp"
@@ -226,6 +226,7 @@ int main(int argc, char* argv[])
               << gemm.GetTypeString() << std::endl;
 
     bool pass = true;
+
     if(do_verification)
     {
         c_device_buf.FromDevice(c_m_n_device_result.mData.data());
@@ -264,18 +265,19 @@ int main(int argc, char* argv[])
             d1_m_host_result(m) = ck::type_convert<DDataType>(d1_acc);
         }
 
-        pass &= ck::utils::check_err(
-            c_m_n_device_result.mData, c_m_n_host_result.mData, "Error: Incorrect results c");
-        pass &= ck::utils::check_err(d0_m_device_result.mData,
-                                     d0_m_host_result.mData,
-                                     "Error: Incorrect results d0",
-                                     1e-3,
-                                     1e-3);
-        pass &= ck::utils::check_err(d1_m_device_result.mData,
-                                     d1_m_host_result.mData,
-                                     "Error: Incorrect results d1",
-                                     1e-3,
-                                     1e-3);
+        pass = ck::utils::check_err(c_m_n_device_result.mData,
+                                    c_m_n_host_result.mData,
+                                    "Error: Incorrect results c") &&
+               ck::utils::check_err(d0_m_device_result.mData,
+                                    d0_m_host_result.mData,
+                                    "Error: Incorrect results d0",
+                                    1e-4,
+                                    1e-5) &&
+               ck::utils::check_err(d1_m_device_result.mData,
+                                    d1_m_host_result.mData,
+                                    "Error: Incorrect results d1",
+                                    1e-3,
+                                    1e-5);
     }
 
     return pass ? 0 : 1;

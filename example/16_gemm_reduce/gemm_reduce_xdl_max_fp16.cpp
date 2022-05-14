@@ -3,7 +3,8 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <stdlib.h>
-#include <half.hpp>
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -28,7 +29,7 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 using ADataType         = F16;
 using BDataType         = F16;
 using CDataType         = F16;
-using ReduceAccDataType = F64;
+using ReduceAccDataType = F32;
 using DDataType         = F64;
 using DPtrsGlobal       = ck::Tuple<DDataType*>;
 
@@ -36,11 +37,11 @@ using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
 using CLayout = ck::tensor_layout::gemm::RowMajor;
 
-using AElementOp = ck::tensor_operation::element_wise::PassThrough;
-using BElementOp = ck::tensor_operation::element_wise::PassThrough;
-using CElementOp = ck::tensor_operation::element_wise::PassThrough;
-using DReduceOp  = ck::Tuple<ck::reduce::Max<ReduceAccDataType>>;
-using DElementOp = ck::Tuple<
+using AElementOp  = ck::tensor_operation::element_wise::PassThrough;
+using BElementOp  = ck::tensor_operation::element_wise::PassThrough;
+using CElementOp  = ck::tensor_operation::element_wise::PassThrough;
+using DsReduceOp  = ck::Tuple<ck::reduce::Max<ReduceAccDataType>>;
+using DsElementOp = ck::Tuple<
     ck::tensor_operation::element_wise::UnaryIdentic<ReduceAccDataType, ReduceAccDataType, false>>;
 using DGlobalMemOp =
     ck::InMemoryDataOperationEnumSequence<ck::InMemoryDataOperationEnum::AtomicMax>;
@@ -54,7 +55,7 @@ using DeviceGemmReduceInstance = ck::tensor_operation::device::DeviceGemmReduce_
 //######|        |        |        | Type|  Type|  Type| DataType| DataType|          DataType|    Type Tuple| Elementwise| Elementwise| Elementwise|      Reduce|             |    MemoryData|     Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN| MXdlPerWave| NXdlPerWave|            _MBlock_MPerBlock| ScalarPerVector| ThreadClusterLengths|     SrcDstScalarPerVector|        SrcDstScalarPerVector|
 //######|        |        |        |     |      |      |         |         |                  |              |   Operation|   Operation|   Operation|   Operation|             |     Operation|                   |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|            _NBlock_NPerBlock|      _NPerBlock| _MPerBlock_NPerBlock|                _NPerBlock|                   _MPerBlock|
 //######|        |        |        |     |      |      |         |         |                  |              |            |            |            |            |             |              |                   |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |                     |                          |                             |
-        <     Row,     Col,     Row,  F16,   F16,   F16,      F32,      F32, ReduceAccDataType,   DPtrsGlobal,  AElementOp,  BElementOp,  CElementOp, DReduceOp,   DElementOp,  DGlobalMemOp, GemmSpecialization,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8,             S<64, 4>,                         4,                            1>;
+        <     Row,     Col,     Row,  F16,   F16,   F16,      F32,      F32, ReduceAccDataType,   DPtrsGlobal,  AElementOp,  BElementOp,  CElementOp, DsReduceOp,   DsElementOp,  DGlobalMemOp, GemmSpecialization,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8,             S<64, 4>,                         4,                            1>;
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
@@ -62,9 +63,9 @@ using ReferenceGemmInstance = ck::tensor_operation::host::
 
 int main(int argc, char* argv[])
 {
-    bool do_verification = 1;
+    bool do_verification = true;
     int init_method      = 1;
-    int nrepeat          = 5;
+    bool time_kernel     = false;
 
     // GEMM shape
     ck::index_t M = 3840;
@@ -83,13 +84,13 @@ int main(int argc, char* argv[])
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
     }
     else if(argc == 10)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
 
         M = std::stoi(argv[4]);
         N = std::stoi(argv[5]);
@@ -159,11 +160,11 @@ int main(int argc, char* argv[])
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
 
-    auto a_element_op = AElementOp{};
-    auto b_element_op = BElementOp{};
-    auto c_element_op = CElementOp{};
-    auto d_element_op = DElementOp{};
-    auto d_global     = ck::make_tuple(static_cast<DDataType*>(d_device_buf.GetDeviceBuffer()));
+    auto a_element_op  = AElementOp{};
+    auto b_element_op  = BElementOp{};
+    auto c_element_op  = CElementOp{};
+    auto ds_element_op = DsElementOp{};
+    auto p_ds_global   = ck::make_tuple(static_cast<DDataType*>(d_device_buf.GetDeviceBuffer()));
 
     // do GEMM
     auto gemm     = DeviceGemmReduceInstance{};
@@ -171,7 +172,7 @@ int main(int argc, char* argv[])
     auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
                                       static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
                                       static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                      d_global,
+                                      p_ds_global,
                                       M,
                                       N,
                                       K,
@@ -181,7 +182,7 @@ int main(int argc, char* argv[])
                                       a_element_op,
                                       b_element_op,
                                       c_element_op,
-                                      d_element_op);
+                                      ds_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -190,29 +191,16 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    // warm up
-    invoker.Run(argument);
+    // init D
+#if 0
+    d_device_buf.SetValue(ck::NumericLimits<DDataType>::Lowest());
+#else
+    d_device_buf.SetValue(double(0));
+#endif
 
-    // timing
-    float total_time = 0;
-
-    for(int i = 0; i < nrepeat; ++i)
-    {
-        // init DO to 0
-        d_device_buf.SetZero();
-
-        KernelTimer timer;
-
-        timer.Start();
-
-        invoker.Run(argument);
-
-        timer.End();
-
-        total_time += timer.GetElapsedTime();
-    }
-
-    float ave_time = total_time / nrepeat;
+    // if time_kernel == true, kernel will run multiple times. This kernel use atomic-add so result
+    // will not be correct. need to set time_kernel = false for correctness test
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_btype =
@@ -224,6 +212,8 @@ int main(int argc, char* argv[])
 
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
+
+    bool pass = true;
 
     if(do_verification)
     {
@@ -238,7 +228,8 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
 
-        auto d_reduce_op = DReduceOp{}[ck::Number<0>{}];
+        auto d_reduce_op = DsReduceOp{}[ck::Number<0>{}];
+
         for(int m = 0; m < M; ++m)
         {
             ReduceAccDataType d_acc = d_reduce_op.GetReductionZeroVal();
@@ -249,13 +240,15 @@ int main(int argc, char* argv[])
             d_m_host_result(m) = d_acc;
         }
 
-        float diff = 0.0f;
-        diff += check_error(c_m_n_host_result, c_m_n_device_result);
-        diff += check_error(d_m_host_result, d_m_device_result);
-
-        if(diff > 0.0f)
-            return 1;
+        pass = ck::utils::check_err(c_m_n_device_result.mData,
+                                    c_m_n_host_result.mData,
+                                    "Error: Incorrect results c") &&
+               ck::utils::check_err(d_m_device_result.mData,
+                                    d_m_host_result.mData,
+                                    "Error: Incorrect results d",
+                                    1e-3,
+                                    1e-3);
     }
 
-    return 0;
+    return pass ? 0 : 1;
 }
