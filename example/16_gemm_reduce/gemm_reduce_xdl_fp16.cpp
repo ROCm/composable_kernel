@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
+#include "check_err.hpp"
 #include "config.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -211,6 +212,7 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
+    bool pass = true;
     if(do_verification)
     {
         c_device_buf.FromDevice(c_m_n_device_result.mData.data());
@@ -247,10 +249,19 @@ int main(int argc, char* argv[])
             d1_m_host_result(m) = ck::type_convert<DDataType>(d1_acc);
         }
 
-        check_error(c_m_n_host_result, c_m_n_device_result);
-        check_error(d0_m_host_result, d0_m_device_result);
-        check_error(d1_m_host_result, d1_m_device_result);
+        pass &= ck::utils::check_err(
+            c_m_n_device_result.mData, c_m_n_host_result.mData, "Error: Incorrect results c");
+        pass &= ck::utils::check_err(d0_m_device_result.mData,
+                                     d0_m_host_result.mData,
+                                     "Error: Incorrect results d0",
+                                     1e-3,
+                                     1e-3);
+        pass &= ck::utils::check_err(d1_m_device_result.mData,
+                                     d1_m_host_result.mData,
+                                     "Error: Incorrect results d1",
+                                     1e-3,
+                                     1e-3);
     }
 
-    return 0;
+    return pass ? 0 : 1;
 }
