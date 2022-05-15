@@ -896,6 +896,11 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             << "_B" << string_local_buffer(UseBLocalBuffer)
             << "_C" << string_local_buffer(UseCLocalBuffer)
             ;
+        if constexpr (!std::is_same<OutElementwiseOperation,
+                    ck::tensor_operation::cpu::element_wise::PassThrough>::value)
+        {
+            str << "_" << OutElementwiseOperation::Name();
+        }
         // clang-format on
 
         return str.str();

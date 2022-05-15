@@ -24,6 +24,15 @@ void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_local_c(
 void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_mt(
     std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>>& instances);
 
+void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_relu(
+    std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, Relu>>& instances);
+
+void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_local_c_relu(
+    std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, Relu>>& instances);
+
+void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_mt_relu(
+    std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, Relu>>& instances);
+
 } // namespace device_conv2d_fwd_avx2_instance
 } // namespace device
 } // namespace cpu

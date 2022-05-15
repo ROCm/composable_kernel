@@ -19,7 +19,8 @@ using InLayout                         = ck::tensor_layout::gemm::RowMajor;    /
 using WeiLayout                        = ck::tensor_layout::gemm::ColumnMajor; // KYXC
 static constexpr bool NonTemporalStore = false;
 
-using PT = ck::tensor_operation::cpu::element_wise::PassThrough;
+using PT   = ck::tensor_operation::cpu::element_wise::PassThrough;
+using Relu = ck::tensor_operation::cpu::element_wise::Relu;
 using ThreadwiseGemmAvx2_MxN_4x24_Dispatch =
     ck::cpu::ThreadwiseGemmAvx2_MxN_4x24_Dispatch<InType,
                                                   WeiType,
@@ -110,6 +111,59 @@ using device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_f32_mt_instances = std::tuple<
     DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, PT, 1024, 416, 128,  6, 16, true, true, true)>;
 // clang-format on
 
+using device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_f32_relu_instances = std::tuple<
+    // clang-format off
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  256, 128,  64,  6, 16, true, true, false),
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  256, 128, 128,  6, 16, true, true, false),
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  128, 256, 128,  6, 16, true, true, false),
+
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  512, 240, 128,  4, 24, true, true, false),
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  512, 256, 128,  6, 16, true, true, false),
+
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  768, 320, 128,  6, 16, true, true, false),
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  896, 352, 128,  6, 16, true, true, false),
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu, 1024, 416, 128,  6, 16, true, true, false)>;
+// clang-format on
+
+// use this in single thread, but gemm_n is not multiple of 8
+using device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_f32_local_c_relu_instances = std::tuple<
+    // clang-format off
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  256, 128,  64,  6, 16, true, true, true),
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  256, 128, 128,  6, 16, true, true, true),
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  128, 256, 128,  6, 16, true, true, true),
+
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  512, 240, 128,  4, 24, true, true, true),
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  512, 256, 128,  6, 16, true, true, true),
+
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  768, 320, 128,  6, 16, true, true, true),
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  896, 352, 128,  6, 16, true, true, true),
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu, 1024, 416, 128,  6, 16, true, true, true)>;
+// clang-format on
+
+// use this in multi thread environment (need local C buffer to avoid cache coherence, although some
+// time no local c is better...)
+using device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_f32_mt_relu_instances = std::tuple<
+    // clang-format off
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  48,  24, 128,  4, 24, true, true, true),
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  72,  16, 128,  6, 16, true, true, true),
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  72,  32, 128,  6, 16, true, true, true),
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  96,  32, 128,  6, 16, true, true, true),
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  96,  64, 128,  6, 16, true, true, true),
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  120, 32, 128,  6, 16, true, true, true),
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  120, 64, 128,  6, 16, true, true, true),
+
+    // DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, PT,  256, 128,  64,  6, 16, true, true, true),
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  256, 128, 128,  6, 16, true, true, true),
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  128, 256, 128,  6, 16, true, true, true),
+
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  512, 240, 128,  4, 24, true, true, true),
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  512, 256, 128,  6, 16, true, true, true),
+
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  768, 320, 128,  6, 16, true, true, true),
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu,  896, 352, 128,  6, 16, true, true, true),
+    DEVICE_CONV2D_FWD_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Relu, 1024, 416, 128,  6, 16, true, true, true)>;
+// clang-format on
+
 void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk(std::vector<DeviceConvFwdPtr<PT, PT, PT>>& instances)
 {
     ck::tensor_operation::device::add_device_operation_instances(
@@ -128,6 +182,27 @@ void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_mt(
 {
     ck::tensor_operation::device::add_device_operation_instances(
         instances, device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_f32_mt_instances{});
+}
+
+void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_relu(
+    std::vector<DeviceConvFwdPtr<PT, PT, Relu>>& instances)
+{
+    ck::tensor_operation::device::add_device_operation_instances(
+        instances, device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_f32_relu_instances{});
+}
+
+void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_local_c_relu(
+    std::vector<DeviceConvFwdPtr<PT, PT, Relu>>& instances)
+{
+    ck::tensor_operation::device::add_device_operation_instances(
+        instances, device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_f32_local_c_relu_instances{});
+}
+
+void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_mt_relu(
+    std::vector<DeviceConvFwdPtr<PT, PT, Relu>>& instances)
+{
+    ck::tensor_operation::device::add_device_operation_instances(
+        instances, device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_f32_mt_relu_instances{});
 }
 
 } // namespace device_conv2d_fwd_avx2_instance

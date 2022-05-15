@@ -11,45 +11,81 @@ using float4_t = ck::cpu::float4_t;
 
 struct PassThrough
 {
-    void operator()(float& y, const float& x) const { y = x; }
-    void operator()(float4_t& y, const float4_t& x) const { y = x; }
-    void operator()(float8_t& y, const float8_t& x) const { y = x; }
+    void operator()(float& y, const float& x) const { y = Apply(x); }
+    void operator()(float4_t& y, const float4_t& x) const { y = Apply(x); }
+    void operator()(float8_t& y, const float8_t& x) const { y = Apply(x); }
+
+    float Apply(const float& x) const { return x; }
+    float4_t Apply(const float4_t& x) const { return x; }
+    float8_t Apply(const float8_t& x) const { return x; }
+
+    static constexpr char* Name() { return "PassThrough"; }
 };
 
 struct Add
 {
-    void operator()(float& y, const float& x0, const float& x1) const { y = x0 + x1; }
+    void operator()(float& y, const float& x0, const float& x1) const { y = Apply(x0, x1); }
 
     void operator()(float4_t& y, const float4_t& x0, const float4_t& x1) const
     {
-        y = _mm_add_ps(x0, x1);
+        y = Apply(x0, x1);
     }
 
     void operator()(float8_t& y, const float8_t& x0, const float8_t& x1) const
     {
-        y = _mm256_add_ps(x0, x1);
+        y = Apply(x0, x1);
     }
+
+    float Apply(const float& x0, const float& x1) const { return x0 + x1; }
+    float4_t Apply(const float4_t& x0, const float4_t& x1) const { return _mm_add_ps(x0, x1); }
+    float8_t Apply(const float8_t& x0, const float8_t& x1) const { return _mm256_add_ps(x0, x1); }
+
+    static constexpr char* Name() { return "Add"; }
+};
+
+struct Relu
+{
+    void operator()(float& y, const float& x) const { y = Apply(x); }
+    void operator()(float4_t& y, const float4_t& x) const { y = Apply(x); }
+    void operator()(float8_t& y, const float8_t& x) const { y = Apply(x); }
+
+    float Apply(const float& x) const { return x > 0 ? x : 0; }
+    float4_t Apply(const float4_t& x) const { return _mm_max_ps(x, _mm_setzero_ps()); }
+    float8_t Apply(const float8_t& x) const { return _mm256_max_ps(x, _mm256_setzero_ps()); }
+
+    static constexpr char* Name() { return "Relu"; }
 };
 
 struct AlphaBetaAdd
 {
     AlphaBetaAdd(float alpha, float beta) : alpha_(alpha), beta_(beta) {}
 
-    void operator()(float& y, const float& x0, const float& x1) const
-    {
-        y = alpha_ * x0 + beta_ * x1;
-    }
+    void operator()(float& y, const float& x0, const float& x1) const { y = Apply(x0, x1); }
 
     void operator()(float4_t& y, const float4_t& x0, const float4_t& x1) const
     {
-        y = _mm_add_ps(_mm_mul_ps(x0, _mm_set1_ps(alpha_)), _mm_mul_ps(x1, _mm_set1_ps(beta_)));
+        y = Apply(x0, x1);
     }
 
     void operator()(float8_t& y, const float8_t& x0, const float8_t& x1) const
     {
-        y = _mm256_add_ps(_mm256_mul_ps(x0, _mm256_set1_ps(alpha_)),
-                          _mm256_mul_ps(x1, _mm256_set1_ps(beta_)));
+        y = Apply(x0, x1);
     }
+
+    float Apply(const float& x0, const float& x1) const { return alpha_ * x0 + beta_ * x1; }
+
+    float4_t Apply(const float4_t& x0, const float4_t& x1) const
+    {
+        return _mm_add_ps(_mm_mul_ps(x0, _mm_set1_ps(alpha_)), _mm_mul_ps(x1, _mm_set1_ps(beta_)));
+    }
+
+    float8_t Apply(const float8_t& x0, const float8_t& x1) const
+    {
+        return _mm256_add_ps(_mm256_mul_ps(x0, _mm256_set1_ps(alpha_)),
+                             _mm256_mul_ps(x1, _mm256_set1_ps(beta_)));
+    }
+
+    static constexpr char* Name() { return "AlphaBetaAdd"; }
 
     float alpha_;
     float beta_;
@@ -57,44 +93,36 @@ struct AlphaBetaAdd
 
 struct AddRelu
 {
-    void operator()(float& y, const float& x0, const float& x1) const
-    {
-        const float a = x0 + x1;
-        y             = a > 0 ? a : 0;
-    }
+    void operator()(float& y, const float& x0, const float& x1) const { y = Apply(x0, x1); }
 
     void operator()(float4_t& y, const float4_t& x0, const float4_t& x1) const
     {
-        y = _mm_max_ps(_mm_add_ps(x0, x1), _mm_setzero_ps());
+        y = Apply(x0, x1);
     }
 
     void operator()(float8_t& y, const float8_t& x0, const float8_t& x1) const
     {
-        y = _mm256_max_ps(_mm256_add_ps(x0, x1), _mm256_setzero_ps());
-    }
-};
-
-#if 0
-struct AddHardswish
-{
-    void operator()(float& y, const float& x0, const float& x1) const
-    {
-        float a = x0 + x1;
-        float b = a + float{3};
-        float c = (b > 0) * (b > float{6} ? float{6} : b) * a * float{0.166667};
-        y       = c;
+        y = Apply(x0, x1);
     }
 
-    void
-    operator()(half_t& y, const half_t& x0, const half_t& x1) const
+    float Apply(const float& x0, const float& x1) const
     {
-        float a = x0 + x1;
-        float b = a + float{3};
-        float c = (b > 0) * (b > float{6} ? float{6} : b) * a * float{0.166667};
-        y       = c;
+        const float a = x0 + x1;
+        return a > 0 ? a : 0;
     }
+
+    float4_t Apply(const float4_t& x0, const float4_t& x1) const
+    {
+        return _mm_max_ps(_mm_add_ps(x0, x1), _mm_setzero_ps());
+    }
+
+    float8_t Apply(const float8_t& x0, const float8_t& x1) const
+    {
+        return _mm256_max_ps(_mm256_add_ps(x0, x1), _mm256_setzero_ps());
+    }
+
+    static constexpr char* Name() { return "AddRelu"; }
 };
-#endif
 
 struct AddReluAdd
 {
@@ -119,65 +147,9 @@ struct AddReluAdd
         float8_t b = _mm256_max_ps(a, _mm256_setzero_ps());
         y          = _mm256_add_ps(b, x2);
     }
+
+    static constexpr char* Name() { return "AddReluAdd"; }
 };
-
-#if 0
-struct AddHardswishAdd
-{
-    void
-    operator()(float& y, const float& x0, const float& x1, const float& x2) const
-    {
-        float a = x0 + x1;
-        float b = a + float{3};
-        float c = (b > 0) * (b > float{6} ? float{6} : b) * a * float{0.166667};
-        float d = c + x2;
-        y       = d;
-    }
-
-    void
-    operator()(half_t& y, const half_t& x0, const half_t& x1, const half_t& x2) const
-    {
-        float a = x0 + x1;
-        float b = a + float{3};
-        float c = (b > 0) * (b > float{6} ? float{6} : b) * a * float{0.166667};
-        float d = c + x2;
-        y       = d;
-    }
-};
-#endif
-
-#if 0
-struct RequantReluRequant
-{
-    // FIXME: We just need one scale for Relu / Leaky Relu / PRelu
-    RequantReluRequant(float scaleGemm, float scaleRelu)
-        : scaleGemm_(scaleGemm), scaleRelu_(scaleRelu)
-    {
-    }
-
-    void operator()(int8_t& y, const int& x) const
-    {
-        float gemm_requant = scaleGemm_ * static_cast<float>(x);
-        float relu         = gemm_requant > 0 ? gemm_requant : 0;
-        float relu_requant = scaleRelu_ * relu;
-        y                  = static_cast<int8_t>(relu_requant > 127 ? 127
-                                                   : relu_requant < -128 ? -128 : relu_requant);
-    }
-
-    // for reference_gemm
-    void operator()(float& y, const float& x) const
-    {
-        float gemm_requant = scaleGemm_ * x;
-        float relu         = gemm_requant > 0 ? gemm_requant : 0;
-        float relu_requant = scaleRelu_ * relu;
-        y                  = static_cast<float>(relu_requant > 127 ? 127
-                                                  : relu_requant < -128 ? -128 : relu_requant);
-    }
-
-    float scaleGemm_;
-    float scaleRelu_;
-};
-#endif
 
 // Unary operators are usually called element-wisely before/after the reduction is executed on the
 // elements. They are needed for easy implementation of reduction types of AVG, NRM1, NRM2

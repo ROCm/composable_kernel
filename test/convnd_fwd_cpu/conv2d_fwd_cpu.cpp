@@ -12,6 +12,11 @@
 #include <omp.h>
 
 #define AVX2_DATA_ALIGNMENT 32
+
+#define TEST_FUSION_PASSTHROUGH 0
+#define TEST_FUSION_RELU 1
+#define TEST_FUSION TEST_FUSION_RELU
+
 using F32 = float;
 using F16 = ck::half_t;
 
@@ -22,6 +27,7 @@ namespace device {
 namespace device_conv2d_fwd_avx2_instance {
 
 using PassThrough = ck::tensor_operation::cpu::element_wise::PassThrough;
+using Relu        = ck::tensor_operation::cpu::element_wise::Relu;
 
 void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk(
     std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>>& instances);
@@ -32,6 +38,15 @@ void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_local_c(
 void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_mt(
     std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>>& instances);
 
+void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_relu(
+    std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, Relu>>& instances);
+
+void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_local_c_relu(
+    std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, Relu>>& instances);
+
+void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_mt_relu(
+    std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, Relu>>& instances);
+
 } // namespace device_conv2d_fwd_avx2_instance
 } // namespace device
 } // namespace cpu
@@ -40,7 +55,12 @@ void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_mt(
 
 using InElementOp  = ck::tensor_operation::cpu::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::cpu::element_wise::PassThrough;
+#if TEST_FUSION == TEST_FUSION_PASSTHROUGH
 using OutElementOp = ck::tensor_operation::cpu::element_wise::PassThrough;
+#endif
+#if TEST_FUSION == TEST_FUSION_RELU
+using OutElementOp = ck::tensor_operation::cpu::element_wise::Relu;
+#endif
 
 template <typename T>
 static bool
@@ -295,9 +315,16 @@ int main(int argc, char* argv[])
             ref_invoker.Run(ref_argument);
         }
 
-        using PassThrough          = ck::tensor_operation::cpu::element_wise::PassThrough;
+        using PassThrough = ck::tensor_operation::cpu::element_wise::PassThrough;
+        using Relu        = ck::tensor_operation::cpu::element_wise::Relu;
+#if TEST_FUSION == TEST_FUSION_PASSTHROUGH
         using DeviceConvFwdNoOpPtr = ck::tensor_operation::cpu::device::
             DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>;
+#endif
+#if TEST_FUSION == TEST_FUSION_RELU
+        using DeviceConvFwdNoOpPtr =
+            ck::tensor_operation::cpu::device::DeviceConvFwdPtr<PassThrough, PassThrough, Relu>;
+#endif
 
         // add device Conv instances
         std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
@@ -306,6 +333,7 @@ int main(int argc, char* argv[])
                      ck::is_same_v<ck::remove_cv_t<WeiDataType>, float> &&
                      ck::is_same_v<ck::remove_cv_t<OutDataType>, float>)
         {
+#if TEST_FUSION == TEST_FUSION_PASSTHROUGH
             if(omp_get_max_threads() > 1)
             {
                 ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
@@ -322,6 +350,25 @@ int main(int argc, char* argv[])
                     ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
                         add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_local_c(conv_ptrs);
             }
+#endif
+#if TEST_FUSION == TEST_FUSION_RELU
+            if(omp_get_max_threads() > 1)
+            {
+                ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
+                    add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_mt_relu(conv_ptrs);
+                ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
+                    add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_relu(conv_ptrs);
+            }
+            else
+            {
+                if(K % 8 == 0)
+                    ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
+                        add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_relu(conv_ptrs);
+                else
+                    ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
+                        add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_local_c_relu(conv_ptrs);
+            }
+#endif
         }
 
         if(conv_ptrs.size() <= 0)

@@ -8,7 +8,7 @@
 #include "tensor_descriptor_helper.hpp"
 #include "tensor_space_filling_curve.hpp"
 #include "dynamic_buffer_cpu.hpp"
-#include <immintrin.h>
+#include "element_wise_operation_cpu.hpp"
 #include "convolution_forward_specialization_cpu.hpp"
 #include <immintrin.h>
 
@@ -17,7 +17,8 @@ namespace cpu {
 
 namespace avx2_util {
 
-inline void memcpy32_avx2(void* dst, const void* src, const ck::index_t n)
+template <typename ElementwiseOp>
+void memcpy32_avx2(void* dst, const void* src, const ck::index_t n, const ElementwiseOp& element_op)
 {
     // 16-8-4-2-1 pattern
     ck::index_t i_n    = n;
@@ -25,33 +26,33 @@ inline void memcpy32_avx2(void* dst, const void* src, const ck::index_t n)
     const float* p_src = reinterpret_cast<const float*>(src);
     while(i_n >= 16)
     {
-        _mm256_storeu_ps(p_dst + 0, _mm256_loadu_ps(p_src + 0));
-        _mm256_storeu_ps(p_dst + 8, _mm256_loadu_ps(p_src + 8));
+        _mm256_storeu_ps(p_dst + 0, element_op.Apply(_mm256_loadu_ps(p_src + 0)));
+        _mm256_storeu_ps(p_dst + 8, element_op.Apply(_mm256_loadu_ps(p_src + 8)));
         p_dst += 16;
         p_src += 16;
         i_n -= 16;
     }
     if(i_n & 8)
     {
-        _mm256_storeu_ps(p_dst, _mm256_loadu_ps(p_src));
+        _mm256_storeu_ps(p_dst, element_op.Apply(_mm256_loadu_ps(p_src)));
         p_dst += 8;
         p_src += 8;
     }
     if(i_n & 4)
     {
-        _mm_storeu_ps(p_dst, _mm_loadu_ps(p_src));
+        _mm_storeu_ps(p_dst, element_op.Apply(_mm_loadu_ps(p_src)));
         p_dst += 4;
         p_src += 4;
     }
     if(i_n & 2)
     {
-        _mm_storeu_si64(p_dst, _mm_loadu_si64(p_src));
+        _mm_storeu_si64(p_dst, element_op.Apply(_mm_loadu_si64(p_src)));
         p_dst += 2;
         p_src += 2;
     }
     if(i_n & 1)
     {
-        *p_dst = *p_src;
+        *p_dst = element_op.Apply(*p_src);
     }
 }
 
@@ -90,8 +91,12 @@ inline void memset32_avx2(void* dst, const int32_t value, const ck::index_t n)
     }
 }
 
-inline void
-transpose8x8_avx2(void* dst, ck::index_t stride_dst, const void* src, ck::index_t stride_src)
+template <typename ElementwiseOp>
+void transpose8x8_avx2(void* dst,
+                       ck::index_t stride_dst,
+                       const void* src,
+                       ck::index_t stride_src,
+                       const ElementwiseOp& element_op)
 {
     // TODO: use vinsertf128 for better port usage. vpermf128 is slow
     __m256 r0, r1, r2, r3, r4, r5, r6, r7;
@@ -100,14 +105,14 @@ transpose8x8_avx2(void* dst, ck::index_t stride_dst, const void* src, ck::index_
     float* p_dst       = reinterpret_cast<float*>(dst);
     const float* p_src = reinterpret_cast<const float*>(src);
 
-    r0 = _mm256_loadu_ps(p_src + 0 * stride_src);
-    r1 = _mm256_loadu_ps(p_src + 1 * stride_src);
-    r2 = _mm256_loadu_ps(p_src + 2 * stride_src);
-    r3 = _mm256_loadu_ps(p_src + 3 * stride_src);
-    r4 = _mm256_loadu_ps(p_src + 4 * stride_src);
-    r5 = _mm256_loadu_ps(p_src + 5 * stride_src);
-    r6 = _mm256_loadu_ps(p_src + 6 * stride_src);
-    r7 = _mm256_loadu_ps(p_src + 7 * stride_src);
+    r0 = element_op.Apply(_mm256_loadu_ps(p_src + 0 * stride_src));
+    r1 = element_op.Apply(_mm256_loadu_ps(p_src + 1 * stride_src));
+    r2 = element_op.Apply(_mm256_loadu_ps(p_src + 2 * stride_src));
+    r3 = element_op.Apply(_mm256_loadu_ps(p_src + 3 * stride_src));
+    r4 = element_op.Apply(_mm256_loadu_ps(p_src + 4 * stride_src));
+    r5 = element_op.Apply(_mm256_loadu_ps(p_src + 5 * stride_src));
+    r6 = element_op.Apply(_mm256_loadu_ps(p_src + 6 * stride_src));
+    r7 = element_op.Apply(_mm256_loadu_ps(p_src + 7 * stride_src));
 
     t0 = _mm256_unpacklo_ps(r0, r1);
     t1 = _mm256_unpackhi_ps(r0, r1);
@@ -354,11 +359,12 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
 
     void SetDstSliceOrigin(const DstDesc&, const Index&) {}
 
-    template <typename SrcBuffer, typename DstBuffer>
-    void Run(const SrcDesc& src_desc,
-             const SrcBuffer& src_buf,
-             const DstDesc& dst_desc,
-             DstBuffer& dst_buf)
+    template <typename SrcBuffer, typename DstBuffer, typename SliceLengths>
+    void RunRead(const SrcDesc& src_desc,
+                 const SrcBuffer& src_buf,
+                 const DstDesc& dst_desc,
+                 DstBuffer& dst_buf,
+                 const SliceLengths& slice_length)
     {
         if constexpr(BypassTransfer)
         {
@@ -385,14 +391,22 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
                 // standard 8-4-2-1 pattern
                 while(i_m_itr >= 8)
                 {
-                    avx2_util::memcpy32_avx2(p_dst + 0 * k_per_block, p_src + 0 * C, k_per_block);
-                    avx2_util::memcpy32_avx2(p_dst + 1 * k_per_block, p_src + 1 * C, k_per_block);
-                    avx2_util::memcpy32_avx2(p_dst + 2 * k_per_block, p_src + 2 * C, k_per_block);
-                    avx2_util::memcpy32_avx2(p_dst + 3 * k_per_block, p_src + 3 * C, k_per_block);
-                    avx2_util::memcpy32_avx2(p_dst + 4 * k_per_block, p_src + 4 * C, k_per_block);
-                    avx2_util::memcpy32_avx2(p_dst + 5 * k_per_block, p_src + 5 * C, k_per_block);
-                    avx2_util::memcpy32_avx2(p_dst + 6 * k_per_block, p_src + 6 * C, k_per_block);
-                    avx2_util::memcpy32_avx2(p_dst + 7 * k_per_block, p_src + 7 * C, k_per_block);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 0 * k_per_block, p_src + 0 * C, k_per_block, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 1 * k_per_block, p_src + 1 * C, k_per_block, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 2 * k_per_block, p_src + 2 * C, k_per_block, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 3 * k_per_block, p_src + 3 * C, k_per_block, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 4 * k_per_block, p_src + 4 * C, k_per_block, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 5 * k_per_block, p_src + 5 * C, k_per_block, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 6 * k_per_block, p_src + 6 * C, k_per_block, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 7 * k_per_block, p_src + 7 * C, k_per_block, element_op_);
 
                     i_m_itr -= 8;
                     p_dst += 8 * k_per_block;
@@ -400,10 +414,14 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
                 }
                 if(i_m_itr & 4)
                 {
-                    avx2_util::memcpy32_avx2(p_dst + 0 * k_per_block, p_src + 0 * C, k_per_block);
-                    avx2_util::memcpy32_avx2(p_dst + 1 * k_per_block, p_src + 1 * C, k_per_block);
-                    avx2_util::memcpy32_avx2(p_dst + 2 * k_per_block, p_src + 2 * C, k_per_block);
-                    avx2_util::memcpy32_avx2(p_dst + 3 * k_per_block, p_src + 3 * C, k_per_block);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 0 * k_per_block, p_src + 0 * C, k_per_block, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 1 * k_per_block, p_src + 1 * C, k_per_block, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 2 * k_per_block, p_src + 2 * C, k_per_block, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 3 * k_per_block, p_src + 3 * C, k_per_block, element_op_);
 
                     p_dst += 4 * k_per_block;
                     p_src += 4 * C;
@@ -411,8 +429,10 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
 
                 if(i_m_itr & 2)
                 {
-                    avx2_util::memcpy32_avx2(p_dst + 0 * k_per_block, p_src + 0 * C, k_per_block);
-                    avx2_util::memcpy32_avx2(p_dst + 1 * k_per_block, p_src + 1 * C, k_per_block);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 0 * k_per_block, p_src + 0 * C, k_per_block, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 1 * k_per_block, p_src + 1 * C, k_per_block, element_op_);
 
                     p_dst += 2 * k_per_block;
                     p_src += 2 * C;
@@ -420,7 +440,8 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
 
                 if(i_m_itr & 1)
                 {
-                    avx2_util::memcpy32_avx2(p_dst + 0 * k_per_block, p_src + 0 * C, k_per_block);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 0 * k_per_block, p_src + 0 * C, k_per_block, element_op_);
                 }
             }
             else if constexpr(ConvForwardSpecialization ==
@@ -431,7 +452,7 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
                 ck::index_t i_ho_itr = i_ho;
                 while(i_m_itr > 0)
                 {
-                    avx2_util::memcpy32_avx2(p_dst, p_src, k_per_block);
+                    avx2_util::memcpy32_avx2(p_dst, p_src, k_per_block, element_op_);
                     p_dst += k_per_block;
                     i_wo_itr++;
                     p_src += input_offset_acc_wi;
@@ -468,7 +489,7 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
                     {
                         if((*reinterpret_cast<uint32_t*>(&i_hi_itr) < Hi) &&
                            (*reinterpret_cast<uint32_t*>(&i_wi_itr) < Wi))
-                            avx2_util::memcpy32_avx2(p_dst, p_src, k_per_block);
+                            avx2_util::memcpy32_avx2(p_dst, p_src, k_per_block, element_op_);
                         else
                             avx2_util::memset32_avx2(p_dst, 0, k_per_block);
 
@@ -523,7 +544,8 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
 
                             if((*reinterpret_cast<uint32_t*>(&i_hi_itr_k) < Hi) &&
                                (*reinterpret_cast<uint32_t*>(&i_wi_itr_k) < Wi))
-                                avx2_util::memcpy32_avx2(p_dst_k, p_src_k, current_k_block);
+                                avx2_util::memcpy32_avx2(
+                                    p_dst_k, p_src_k, current_k_block, element_op_);
                             else
                                 avx2_util::memset32_avx2(p_dst_k, 0, current_k_block);
 
@@ -730,8 +752,12 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_NHWC
 
     void SetDstSliceOrigin(const DstDesc&, const Index&) {}
 
-    template <typename SrcBuffer, typename DstBuffer>
-    void Run(const SrcDesc&, const SrcBuffer& src_buf, const DstDesc& dst_desc, DstBuffer& dst_buf)
+    template <typename SrcBuffer, typename DstBuffer, typename SliceLengths>
+    void RunRead(const SrcDesc&,
+                 const SrcBuffer& src_buf,
+                 const DstDesc& dst_desc,
+                 DstBuffer& dst_buf,
+                 const SliceLengths& slice_length)
     {
         if constexpr(BypassTransfer)
         {
@@ -766,85 +792,85 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_NHWC
                     float* p_dst_k       = p_dst;
                     while(i_k_itr >= 8)
                     {
-                        avx2_util::transpose8x8_avx2(p_dst_k, 8, p_src_k, GemmK);
+                        avx2_util::transpose8x8_avx2(p_dst_k, 8, p_src_k, GemmK, element_op_);
                         p_dst_k += 8 * 8;
                         p_src_k += 8;
                         i_k_itr -= 8;
                     }
                     if(i_k_itr & 4)
                     {
-                        p_dst_k[0 * 8 + 0] = p_src_k[0 * GemmK + 0];
-                        p_dst_k[0 * 8 + 1] = p_src_k[1 * GemmK + 0];
-                        p_dst_k[0 * 8 + 2] = p_src_k[2 * GemmK + 0];
-                        p_dst_k[0 * 8 + 3] = p_src_k[3 * GemmK + 0];
-                        p_dst_k[0 * 8 + 4] = p_src_k[4 * GemmK + 0];
-                        p_dst_k[0 * 8 + 5] = p_src_k[5 * GemmK + 0];
-                        p_dst_k[0 * 8 + 6] = p_src_k[6 * GemmK + 0];
-                        p_dst_k[0 * 8 + 7] = p_src_k[7 * GemmK + 0];
+                        p_dst_k[0 * 8 + 0] = element_op_.Apply(p_src_k[0 * GemmK + 0]);
+                        p_dst_k[0 * 8 + 1] = element_op_.Apply(p_src_k[1 * GemmK + 0]);
+                        p_dst_k[0 * 8 + 2] = element_op_.Apply(p_src_k[2 * GemmK + 0]);
+                        p_dst_k[0 * 8 + 3] = element_op_.Apply(p_src_k[3 * GemmK + 0]);
+                        p_dst_k[0 * 8 + 4] = element_op_.Apply(p_src_k[4 * GemmK + 0]);
+                        p_dst_k[0 * 8 + 5] = element_op_.Apply(p_src_k[5 * GemmK + 0]);
+                        p_dst_k[0 * 8 + 6] = element_op_.Apply(p_src_k[6 * GemmK + 0]);
+                        p_dst_k[0 * 8 + 7] = element_op_.Apply(p_src_k[7 * GemmK + 0]);
 
-                        p_dst_k[1 * 8 + 0] = p_src_k[0 * GemmK + 1];
-                        p_dst_k[1 * 8 + 1] = p_src_k[1 * GemmK + 1];
-                        p_dst_k[1 * 8 + 2] = p_src_k[2 * GemmK + 1];
-                        p_dst_k[1 * 8 + 3] = p_src_k[3 * GemmK + 1];
-                        p_dst_k[1 * 8 + 4] = p_src_k[4 * GemmK + 1];
-                        p_dst_k[1 * 8 + 5] = p_src_k[5 * GemmK + 1];
-                        p_dst_k[1 * 8 + 6] = p_src_k[6 * GemmK + 1];
-                        p_dst_k[1 * 8 + 7] = p_src_k[7 * GemmK + 1];
+                        p_dst_k[1 * 8 + 0] = element_op_.Apply(p_src_k[0 * GemmK + 1]);
+                        p_dst_k[1 * 8 + 1] = element_op_.Apply(p_src_k[1 * GemmK + 1]);
+                        p_dst_k[1 * 8 + 2] = element_op_.Apply(p_src_k[2 * GemmK + 1]);
+                        p_dst_k[1 * 8 + 3] = element_op_.Apply(p_src_k[3 * GemmK + 1]);
+                        p_dst_k[1 * 8 + 4] = element_op_.Apply(p_src_k[4 * GemmK + 1]);
+                        p_dst_k[1 * 8 + 5] = element_op_.Apply(p_src_k[5 * GemmK + 1]);
+                        p_dst_k[1 * 8 + 6] = element_op_.Apply(p_src_k[6 * GemmK + 1]);
+                        p_dst_k[1 * 8 + 7] = element_op_.Apply(p_src_k[7 * GemmK + 1]);
 
-                        p_dst_k[2 * 8 + 0] = p_src_k[0 * GemmK + 2];
-                        p_dst_k[2 * 8 + 1] = p_src_k[1 * GemmK + 2];
-                        p_dst_k[2 * 8 + 2] = p_src_k[2 * GemmK + 2];
-                        p_dst_k[2 * 8 + 3] = p_src_k[3 * GemmK + 2];
-                        p_dst_k[2 * 8 + 4] = p_src_k[4 * GemmK + 2];
-                        p_dst_k[2 * 8 + 5] = p_src_k[5 * GemmK + 2];
-                        p_dst_k[2 * 8 + 6] = p_src_k[6 * GemmK + 2];
-                        p_dst_k[2 * 8 + 7] = p_src_k[7 * GemmK + 2];
+                        p_dst_k[2 * 8 + 0] = element_op_.Apply(p_src_k[0 * GemmK + 2]);
+                        p_dst_k[2 * 8 + 1] = element_op_.Apply(p_src_k[1 * GemmK + 2]);
+                        p_dst_k[2 * 8 + 2] = element_op_.Apply(p_src_k[2 * GemmK + 2]);
+                        p_dst_k[2 * 8 + 3] = element_op_.Apply(p_src_k[3 * GemmK + 2]);
+                        p_dst_k[2 * 8 + 4] = element_op_.Apply(p_src_k[4 * GemmK + 2]);
+                        p_dst_k[2 * 8 + 5] = element_op_.Apply(p_src_k[5 * GemmK + 2]);
+                        p_dst_k[2 * 8 + 6] = element_op_.Apply(p_src_k[6 * GemmK + 2]);
+                        p_dst_k[2 * 8 + 7] = element_op_.Apply(p_src_k[7 * GemmK + 2]);
 
-                        p_dst_k[3 * 8 + 0] = p_src_k[0 * GemmK + 3];
-                        p_dst_k[3 * 8 + 1] = p_src_k[1 * GemmK + 3];
-                        p_dst_k[3 * 8 + 2] = p_src_k[2 * GemmK + 3];
-                        p_dst_k[3 * 8 + 3] = p_src_k[3 * GemmK + 3];
-                        p_dst_k[3 * 8 + 4] = p_src_k[4 * GemmK + 3];
-                        p_dst_k[3 * 8 + 5] = p_src_k[5 * GemmK + 3];
-                        p_dst_k[3 * 8 + 6] = p_src_k[6 * GemmK + 3];
-                        p_dst_k[3 * 8 + 7] = p_src_k[7 * GemmK + 3];
+                        p_dst_k[3 * 8 + 0] = element_op_.Apply(p_src_k[0 * GemmK + 3]);
+                        p_dst_k[3 * 8 + 1] = element_op_.Apply(p_src_k[1 * GemmK + 3]);
+                        p_dst_k[3 * 8 + 2] = element_op_.Apply(p_src_k[2 * GemmK + 3]);
+                        p_dst_k[3 * 8 + 3] = element_op_.Apply(p_src_k[3 * GemmK + 3]);
+                        p_dst_k[3 * 8 + 4] = element_op_.Apply(p_src_k[4 * GemmK + 3]);
+                        p_dst_k[3 * 8 + 5] = element_op_.Apply(p_src_k[5 * GemmK + 3]);
+                        p_dst_k[3 * 8 + 6] = element_op_.Apply(p_src_k[6 * GemmK + 3]);
+                        p_dst_k[3 * 8 + 7] = element_op_.Apply(p_src_k[7 * GemmK + 3]);
 
                         p_dst_k += 4 * 8;
                         p_src_k += 4;
                     }
                     if(i_k_itr & 2)
                     {
-                        p_dst_k[0 * 8 + 0] = p_src_k[0 * GemmK + 0];
-                        p_dst_k[0 * 8 + 1] = p_src_k[1 * GemmK + 0];
-                        p_dst_k[0 * 8 + 2] = p_src_k[2 * GemmK + 0];
-                        p_dst_k[0 * 8 + 3] = p_src_k[3 * GemmK + 0];
-                        p_dst_k[0 * 8 + 4] = p_src_k[4 * GemmK + 0];
-                        p_dst_k[0 * 8 + 5] = p_src_k[5 * GemmK + 0];
-                        p_dst_k[0 * 8 + 6] = p_src_k[6 * GemmK + 0];
-                        p_dst_k[0 * 8 + 7] = p_src_k[7 * GemmK + 0];
+                        p_dst_k[0 * 8 + 0] = element_op_.Apply(p_src_k[0 * GemmK + 0]);
+                        p_dst_k[0 * 8 + 1] = element_op_.Apply(p_src_k[1 * GemmK + 0]);
+                        p_dst_k[0 * 8 + 2] = element_op_.Apply(p_src_k[2 * GemmK + 0]);
+                        p_dst_k[0 * 8 + 3] = element_op_.Apply(p_src_k[3 * GemmK + 0]);
+                        p_dst_k[0 * 8 + 4] = element_op_.Apply(p_src_k[4 * GemmK + 0]);
+                        p_dst_k[0 * 8 + 5] = element_op_.Apply(p_src_k[5 * GemmK + 0]);
+                        p_dst_k[0 * 8 + 6] = element_op_.Apply(p_src_k[6 * GemmK + 0]);
+                        p_dst_k[0 * 8 + 7] = element_op_.Apply(p_src_k[7 * GemmK + 0]);
 
-                        p_dst_k[1 * 8 + 0] = p_src_k[0 * GemmK + 1];
-                        p_dst_k[1 * 8 + 1] = p_src_k[1 * GemmK + 1];
-                        p_dst_k[1 * 8 + 2] = p_src_k[2 * GemmK + 1];
-                        p_dst_k[1 * 8 + 3] = p_src_k[3 * GemmK + 1];
-                        p_dst_k[1 * 8 + 4] = p_src_k[4 * GemmK + 1];
-                        p_dst_k[1 * 8 + 5] = p_src_k[5 * GemmK + 1];
-                        p_dst_k[1 * 8 + 6] = p_src_k[6 * GemmK + 1];
-                        p_dst_k[1 * 8 + 7] = p_src_k[7 * GemmK + 1];
+                        p_dst_k[1 * 8 + 0] = element_op_.Apply(p_src_k[0 * GemmK + 1]);
+                        p_dst_k[1 * 8 + 1] = element_op_.Apply(p_src_k[1 * GemmK + 1]);
+                        p_dst_k[1 * 8 + 2] = element_op_.Apply(p_src_k[2 * GemmK + 1]);
+                        p_dst_k[1 * 8 + 3] = element_op_.Apply(p_src_k[3 * GemmK + 1]);
+                        p_dst_k[1 * 8 + 4] = element_op_.Apply(p_src_k[4 * GemmK + 1]);
+                        p_dst_k[1 * 8 + 5] = element_op_.Apply(p_src_k[5 * GemmK + 1]);
+                        p_dst_k[1 * 8 + 6] = element_op_.Apply(p_src_k[6 * GemmK + 1]);
+                        p_dst_k[1 * 8 + 7] = element_op_.Apply(p_src_k[7 * GemmK + 1]);
 
                         p_dst_k += 2 * 8;
                         p_src_k += 2;
                     }
                     if(i_k_itr & 1)
                     {
-                        p_dst_k[0 * 8 + 0] = p_src_k[0 * GemmK + 0];
-                        p_dst_k[0 * 8 + 1] = p_src_k[1 * GemmK + 0];
-                        p_dst_k[0 * 8 + 2] = p_src_k[2 * GemmK + 0];
-                        p_dst_k[0 * 8 + 3] = p_src_k[3 * GemmK + 0];
-                        p_dst_k[0 * 8 + 4] = p_src_k[4 * GemmK + 0];
-                        p_dst_k[0 * 8 + 5] = p_src_k[5 * GemmK + 0];
-                        p_dst_k[0 * 8 + 6] = p_src_k[6 * GemmK + 0];
-                        p_dst_k[0 * 8 + 7] = p_src_k[7 * GemmK + 0];
+                        p_dst_k[0 * 8 + 0] = element_op_.Apply(p_src_k[0 * GemmK + 0]);
+                        p_dst_k[0 * 8 + 1] = element_op_.Apply(p_src_k[1 * GemmK + 0]);
+                        p_dst_k[0 * 8 + 2] = element_op_.Apply(p_src_k[2 * GemmK + 0]);
+                        p_dst_k[0 * 8 + 3] = element_op_.Apply(p_src_k[3 * GemmK + 0]);
+                        p_dst_k[0 * 8 + 4] = element_op_.Apply(p_src_k[4 * GemmK + 0]);
+                        p_dst_k[0 * 8 + 5] = element_op_.Apply(p_src_k[5 * GemmK + 0]);
+                        p_dst_k[0 * 8 + 6] = element_op_.Apply(p_src_k[6 * GemmK + 0]);
+                        p_dst_k[0 * 8 + 7] = element_op_.Apply(p_src_k[7 * GemmK + 0]);
                     }
                 }
                 else
@@ -858,8 +884,9 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_NHWC
                         {
                             ck::index_t i_current_n_itr = i_n_itr + i_sub_n + i_gemm_n;
 
-                            float v =
-                                i_current_n_itr < GemmN ? p_src_k[i_sub_n * GemmK + i_sub_k] : .0f;
+                            float v = i_current_n_itr < GemmN
+                                          ? element_op_.Apply(p_src_k[i_sub_n * GemmK + i_sub_k])
+                                          : .0f;
 
                             p_dst_k[i_sub_k * 8 + i_sub_n] = v;
                         }
@@ -949,13 +976,100 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_MxN
         dst_offset = i_dst_gemm_m * DstGemmN + i_dst_gemm_n;
     }
 
-    template <typename SrcBuffer, typename DstBuffer>
-    void
-    Run(const SrcDesc& src_desc, SrcBuffer& src_buf, const DstDesc& dst_desc, DstBuffer& dst_buf)
+    template <typename SrcBuffer, typename DstBuffer, typename SliceLengths>
+    void RunRead(const SrcDesc& src_desc,
+                 SrcBuffer& src_buf,
+                 const DstDesc& dst_desc,
+                 DstBuffer& dst_buf,
+                 const SliceLengths& slice_length)
     {
         if constexpr(BypassTransfer)
         {
             src_buf.p_data_ = reinterpret_cast<float*>(dst_buf.p_data_) + src_offset;
+        }
+    }
+
+    template <typename SrcBuffer, typename DstBuffer, typename SliceLengths>
+    void RunWrite(const SrcDesc& src_desc,
+                  SrcBuffer& src_buf,
+                  const DstDesc& dst_desc,
+                  DstBuffer& dst_buf,
+                  const SliceLengths& slice_length)
+    {
+        if constexpr(BypassTransfer)
+        {
+            // src_buf.p_data_ = reinterpret_cast<float*>(dst_buf.p_data_) + src_offset;
+            if constexpr(!std::is_same<ElementwiseOperation,
+                                       ck::tensor_operation::cpu::element_wise::PassThrough>::value)
+            {
+                // if (true) {
+                const ck::index_t m_per_block = slice_length[Number<0>{}];
+                const ck::index_t n_per_block = slice_length[Number<1>{}];
+
+                const ck::index_t current_n = ck::math::min(DstGemmN - i_dst_gemm_n, n_per_block);
+
+                float* p_dst = reinterpret_cast<float*>(dst_buf.p_data_) + dst_offset;
+
+                ck::index_t i_m_itr = m_per_block;
+
+                // printf("xxxx %d, current_n:%d, DstGemmN:%d, n_per_block:%d,
+                // dst_offset:%d\n",__LINE__, current_n,
+                //  DstGemmN, n_per_block, dst_offset);fflush(stdout);
+
+                // standard 8-4-2-1 pattern
+                while(i_m_itr >= 8)
+                {
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 0 * DstGemmN, p_dst + 0 * DstGemmN, current_n, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 1 * DstGemmN, p_dst + 1 * DstGemmN, current_n, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 2 * DstGemmN, p_dst + 2 * DstGemmN, current_n, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 3 * DstGemmN, p_dst + 3 * DstGemmN, current_n, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 4 * DstGemmN, p_dst + 4 * DstGemmN, current_n, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 5 * DstGemmN, p_dst + 5 * DstGemmN, current_n, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 6 * DstGemmN, p_dst + 6 * DstGemmN, current_n, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 7 * DstGemmN, p_dst + 7 * DstGemmN, current_n, element_op_);
+
+                    i_m_itr -= 8;
+                    p_dst += 8 * DstGemmN;
+                }
+
+                if(i_m_itr & 4)
+                {
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 0 * DstGemmN, p_dst + 0 * DstGemmN, current_n, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 1 * DstGemmN, p_dst + 1 * DstGemmN, current_n, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 2 * DstGemmN, p_dst + 2 * DstGemmN, current_n, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 3 * DstGemmN, p_dst + 3 * DstGemmN, current_n, element_op_);
+
+                    p_dst += 4 * DstGemmN;
+                }
+
+                if(i_m_itr & 2)
+                {
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 0 * DstGemmN, p_dst + 0 * DstGemmN, current_n, element_op_);
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 1 * DstGemmN, p_dst + 1 * DstGemmN, current_n, element_op_);
+
+                    p_dst += 2 * DstGemmN;
+                }
+
+                if(i_m_itr & 1)
+                {
+                    avx2_util::memcpy32_avx2(
+                        p_dst + 0 * DstGemmN, p_dst + 0 * DstGemmN, current_n, element_op_);
+                }
+            }
         }
         else
         {
@@ -978,14 +1092,22 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_MxN
             // standard 8-4-2-1 pattern
             while(i_m_itr >= 8)
             {
-                avx2_util::memcpy32_avx2(p_dst + 0 * DstGemmN, p_src + 0 * n_per_block, current_n);
-                avx2_util::memcpy32_avx2(p_dst + 1 * DstGemmN, p_src + 1 * n_per_block, current_n);
-                avx2_util::memcpy32_avx2(p_dst + 2 * DstGemmN, p_src + 2 * n_per_block, current_n);
-                avx2_util::memcpy32_avx2(p_dst + 3 * DstGemmN, p_src + 3 * n_per_block, current_n);
-                avx2_util::memcpy32_avx2(p_dst + 4 * DstGemmN, p_src + 4 * n_per_block, current_n);
-                avx2_util::memcpy32_avx2(p_dst + 5 * DstGemmN, p_src + 5 * n_per_block, current_n);
-                avx2_util::memcpy32_avx2(p_dst + 6 * DstGemmN, p_src + 6 * n_per_block, current_n);
-                avx2_util::memcpy32_avx2(p_dst + 7 * DstGemmN, p_src + 7 * n_per_block, current_n);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 0 * DstGemmN, p_src + 0 * n_per_block, current_n, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 1 * DstGemmN, p_src + 1 * n_per_block, current_n, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 2 * DstGemmN, p_src + 2 * n_per_block, current_n, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 3 * DstGemmN, p_src + 3 * n_per_block, current_n, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 4 * DstGemmN, p_src + 4 * n_per_block, current_n, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 5 * DstGemmN, p_src + 5 * n_per_block, current_n, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 6 * DstGemmN, p_src + 6 * n_per_block, current_n, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 7 * DstGemmN, p_src + 7 * n_per_block, current_n, element_op_);
 
                 i_m_itr -= 8;
                 p_dst += 8 * DstGemmN;
@@ -994,10 +1116,14 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_MxN
 
             if(i_m_itr & 4)
             {
-                avx2_util::memcpy32_avx2(p_dst + 0 * DstGemmN, p_src + 0 * n_per_block, current_n);
-                avx2_util::memcpy32_avx2(p_dst + 1 * DstGemmN, p_src + 1 * n_per_block, current_n);
-                avx2_util::memcpy32_avx2(p_dst + 2 * DstGemmN, p_src + 2 * n_per_block, current_n);
-                avx2_util::memcpy32_avx2(p_dst + 3 * DstGemmN, p_src + 3 * n_per_block, current_n);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 0 * DstGemmN, p_src + 0 * n_per_block, current_n, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 1 * DstGemmN, p_src + 1 * n_per_block, current_n, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 2 * DstGemmN, p_src + 2 * n_per_block, current_n, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 3 * DstGemmN, p_src + 3 * n_per_block, current_n, element_op_);
 
                 p_dst += 4 * DstGemmN;
                 p_src += 4 * n_per_block;
@@ -1005,8 +1131,10 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_MxN
 
             if(i_m_itr & 2)
             {
-                avx2_util::memcpy32_avx2(p_dst + 0 * DstGemmN, p_src + 0 * n_per_block, current_n);
-                avx2_util::memcpy32_avx2(p_dst + 1 * DstGemmN, p_src + 1 * n_per_block, current_n);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 0 * DstGemmN, p_src + 0 * n_per_block, current_n, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 1 * DstGemmN, p_src + 1 * n_per_block, current_n, element_op_);
 
                 p_dst += 2 * DstGemmN;
                 p_src += 2 * n_per_block;
@@ -1014,7 +1142,8 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_MxN
 
             if(i_m_itr & 1)
             {
-                avx2_util::memcpy32_avx2(p_dst + 0 * DstGemmN, p_src + 0 * n_per_block, current_n);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 0 * DstGemmN, p_src + 0 * n_per_block, current_n, element_op_);
             }
 
             // printf("xxxx %d\n",__LINE__);fflush(stdout);
