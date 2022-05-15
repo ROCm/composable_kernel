@@ -16,11 +16,19 @@ namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
 
+using F32 = float;
+using F16 = ck::half_t;
+using DPtrsGlobal = ck::Tuple<F16*, F16*>;
+using Identity    = ck::tensor_operation::element_wise::UnaryIdentic<F32, F32, false>;
+using Square      = ck::tensor_operation::element_wise::UnarySquare<F32, F32, false>;
+using DElementOps = ck::Tuple<Identity, Square>;
+
 using DeviceGemmReduceNoOpPtr = ck::tensor_operation::device::DeviceGemmReducePtr<
+    DPtrsGlobal,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::UnarySquare<float, float, false>>;
+    DElementOps>;
 
 void add_device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_mk_kn_mn_instances(
     std::vector<DeviceGemmReduceNoOpPtr>&);
