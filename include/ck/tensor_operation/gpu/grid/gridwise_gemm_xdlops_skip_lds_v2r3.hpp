@@ -562,10 +562,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
                                                            I1,                    // waves
                                                            I1,                    // NPerXdlops
                                                            Number<K1>{}));
-        ignore = StaticBuffer<AddressSpaceEnum::Vgpr,
-                              FloatAB,
-                              b_thread_copy_desc_k0_k0b_n0_n1_n2_n3_k1.GetElementSpaceSize(),
-                              true>{};
+        auto b_thread_buf =
+            StaticBuffer<AddressSpaceEnum::Vgpr,
+                         FloatAB,
+                         b_thread_copy_desc_k0_k0b_n0_n1_n2_n3_k1.GetElementSpaceSize(),
+                         true>{};
 
         auto b_grid_desc_k0_k0b_n0_n1_n2_n3_k1 =
             MakeBGridDescriptor_K0_K0B_N0_N1_N2_N3_K1(b_grid_desc_k0_n_k1);
@@ -589,7 +590,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
                wave_k_n_id[I1]);
 #endif
 
-        ignore = ThreadwiseTensorSliceTransfer_v2<
+        auto b_threadwise_transfer = ThreadwiseTensorSliceTransfer_v2<
             FloatAB,
             FloatAB,
             decltype(b_grid_desc_k0_k0b_n0_n1_n2_n3_k1),
@@ -602,6 +603,23 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
             true>(b_grid_desc_k0_k0b_n0_n1_n2_n3_k1,
                   make_multi_index(
                       0, wave_k_n_id[I0], block_work_idx[I1], 0, wave_id[I1], wave_k_n_id[I1], 0));
+
+        constexpr auto a_block_slice_copy_step  = make_multi_index(K0PerBlock, 0, 0);
+        constexpr auto b_block_slice_copy_step  = make_multi_index(K0PerBlock, 0, 0);
+        constexpr auto b_thread_slice_copy_step = make_multi_index(1, 0, 0, 0, 0, 0, 0);
+        // preload data to regiester
+        {
+            // Read
+            b_threadwise_transfer.Run(b_grid_desc_k0_k0b_n0_n1_n2_n3_k1,
+                                      b_grid_buf,
+                                      b_thread_copy_desc_k0_k0b_n0_n1_n2_n3_k1,
+                                      make_tuple(I0, I0, I0, I0, I0, I0, I0),
+                                      b_thread_buf);
+
+            // Move
+            b_threadwise_transfer.MoveSrcSliceWindow(b_grid_desc_k0_k0b_n0_n1_n2_n3_k1,
+                                                     b_thread_slice_copy_step);
+        }
 
         auto b_blockwise_copy =
             BlockwiseTensorSliceTransfer_v4r1<BlockSize,
@@ -665,9 +683,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<FloatAB*>(p_shared) + a_block_space_size_aligned,
             b_block_desc_k0_n_k1.GetElementSpaceSize());
-
-        constexpr auto a_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0);
-        constexpr auto b_block_slice_copy_step = make_multi_index(K0PerBlock, 0, 0);
 
         // gridwise GEMM pipeline
         const auto gridwise_gemm_pipeline =
