@@ -350,15 +350,17 @@ pipeline {
                 }
 
             }
-            node("master")
-            {
-                dir("script")
+            steps{
+                node("master")
                 {
-                    def perf_log = "perf_gemm_${gpu_arch}.log"
-                    def artifact = "profile_gemm_${gpu_arch}.txt"
-                    unstash "${perf_log}"
-                    sh "python3 parse_perf_data.py ${perf_log} | tee ${artifact}"
-                    sh "rm ${perf_log}"
+                    dir("script")
+                    {
+                        def perf_log = "perf_gemm_${gpu_arch}.log"
+                        def artifact = "profile_gemm_${gpu_arch}.txt"
+                        unstash "${perf_log}"
+                        sh "python3 parse_perf_data.py ${perf_log} | tee ${artifact}"
+                        sh "rm ${perf_log}"
+                    }
                 }
             }
         }
