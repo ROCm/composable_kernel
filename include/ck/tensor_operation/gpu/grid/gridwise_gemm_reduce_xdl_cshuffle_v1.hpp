@@ -50,19 +50,19 @@ __global__ void
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
-                                                   p_b_grid,
-                                                   p_c_grid,
-                                                   p_ds_grid,
-                                                   p_shared,
-                                                   a_element_op,
-                                                   b_element_op,
-                                                   c_element_op,
-                                                   dxs_element_op_,
-                                                   a_grid_desc_ak0_m_ak1,
-                                                   b_grid_desc_bk0_n_bk1,
-                                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                   d_grid_desc_mblock_mperblock,
-                                                   block_2_ctile_map);
+                                                  p_b_grid,
+                                                  p_c_grid,
+                                                  p_ds_grid,
+                                                  p_shared,
+                                                  a_element_op,
+                                                  b_element_op,
+                                                  c_element_op,
+                                                  dxs_element_op_,
+                                                  a_grid_desc_ak0_m_ak1,
+                                                  b_grid_desc_bk0_n_bk1,
+                                                  c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                  d_grid_desc_mblock_mperblock,
+                                                  block_2_ctile_map);
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;

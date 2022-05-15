@@ -3,7 +3,8 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <stdlib.h>
-#include <half.hpp>
+
+#include "check_err.hpp"
 #include "config.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -45,8 +46,8 @@ using DxsReduceOp = ck::Tuple<D0ReduceOp, D1ReduceOp>;
 
 using D0ElementOp =
     ck::tensor_operation::element_wise::UnaryIdentic<ReduceAccDataType, ReduceAccDataType, false>;
-using D1ElementOp = ck::tensor_operation::element_wise::
-    UnarySquare<ReduceAccDataType, ReduceAccDataType, false>;
+using D1ElementOp =
+    ck::tensor_operation::element_wise::UnarySquare<ReduceAccDataType, ReduceAccDataType, false>;
 using DxsElementOp = ck::Tuple<D0ElementOp, D1ElementOp>;
 
 using DGlobalMemOp =
@@ -224,6 +225,8 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
+    bool pass = true;
+
     if(do_verification)
     {
         c_device_buf.FromDevice(c_m_n_device_result.mData.data());
@@ -262,10 +265,20 @@ int main(int argc, char* argv[])
             d1_m_host_result(m) = ck::type_convert<DDataType>(d1_acc);
         }
 
-        check_error(c_m_n_host_result, c_m_n_device_result);
-        check_error(d0_m_host_result, d0_m_device_result);
-        check_error(d1_m_host_result, d1_m_device_result);
+        pass = ck::utils::check_err(c_m_n_device_result.mData,
+                                    c_m_n_host_result.mData,
+                                    "Error: Incorrect results c") &&
+               ck::utils::check_err(d0_m_device_result.mData,
+                                    d0_m_host_result.mData,
+                                    "Error: Incorrect results d0",
+                                    1e-4,
+                                    1e-5) &&
+               ck::utils::check_err(d1_m_device_result.mData,
+                                    d1_m_host_result.mData,
+                                    "Error: Incorrect results d1",
+                                    1e-3,
+                                    1e-5);
     }
 
-    return 0;
+    return pass ? 0 : 1;
 }

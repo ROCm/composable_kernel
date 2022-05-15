@@ -10,6 +10,15 @@
 #include "stream_config.hpp"
 #include "ck/options.hpp"
 
+template <typename T>
+__global__ void set_buffer_value(T* p, T x, uint64_t buffer_element_size)
+{
+    for(uint64_t i = threadIdx.x; i < buffer_element_size; i += blockDim.x)
+    {
+        p[i] = x;
+    }
+}
+
 inline void hip_check_error(hipError_t x)
 {
     if(x != hipSuccess)
@@ -30,6 +39,16 @@ struct DeviceMem
     void ToDevice(const void* p);
     void FromDevice(void* p);
     void SetZero();
+    template <typename T>
+    void SetValue(T x)
+    {
+        if(mMemSize % sizeof(T) != 0)
+        {
+            throw std::runtime_error("wrong! not entire DeviceMem will be set");
+        }
+
+        set_buffer_value<T><<<1, 1024>>>(static_cast<T*>(mpDeviceBuf), x, mMemSize / sizeof(T));
+    }
     ~DeviceMem();
 
     void* mpDeviceBuf;
@@ -74,8 +93,7 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
         printf("Warm up 1 time\n");
 
         // warm up
-        hipLaunchKernelGGL(
-            kernel, grid_dim, block_dim, lds_byte, stream_config.stream_id_, args...);
+        kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
 
         printf("Start running %d times...\n", nrepeat);
 
@@ -84,8 +102,7 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
 
         for(int i = 0; i < nrepeat; ++i)
         {
-            hipLaunchKernelGGL(
-                kernel, grid_dim, block_dim, lds_byte, stream_config.stream_id_, args...);
+            kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
         }
 
         timer.End();
@@ -94,13 +111,12 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
     }
     else
     {
-        hipLaunchKernelGGL(
-            kernel, grid_dim, block_dim, lds_byte, stream_config.stream_id_, args...);
+        kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
 
         return 0;
     }
 #else
-    hipLaunchKernelGGL(kernel, grid_dim, block_dim, lds_byte, stream_config.stream_id_, args...);
+    kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
 
     return 0;
 #endif

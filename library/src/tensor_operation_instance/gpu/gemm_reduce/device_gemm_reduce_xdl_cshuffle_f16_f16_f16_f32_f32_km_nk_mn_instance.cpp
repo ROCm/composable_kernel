@@ -60,7 +60,9 @@ using device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_km_nk_mn_instances = s
     >;
 
 void add_device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_km_nk_mn_instances(
-    std::vector<DeviceGemmReducePtr<DPtrsGlobal, PassThrough, PassThrough, PassThrough, DElementOps>>& instances)
+    std::vector<
+        DeviceGemmReducePtr<DPtrsGlobal, PassThrough, PassThrough, PassThrough, DElementOps>>&
+        instances)
 {
     add_device_operation_instances(
         instances, device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_km_nk_mn_instances{});
