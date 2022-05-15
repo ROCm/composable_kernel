@@ -261,6 +261,20 @@ def runPerfTest(Map conf=[:]){
     }
 }
 
+def processPerfResults(){
+    node("master")
+    {
+        dir("script")
+        {
+            def perf_log = "perf_gemm_${gpu_arch}.log"
+            def artifact = "profile_gemm_${gpu_arch}.txt"
+            unstash "${perf_log}"
+            sh "python3 parse_perf_data.py ${perf_log} | tee ${artifact}"
+            sh "rm ${perf_log}"
+        }
+    }
+}
+
 
 pipeline {
     agent none
@@ -350,22 +364,29 @@ pipeline {
                 }
 
             }
-            stage("Process results")
-            {
-            steps{
-                node("master")
-                {
-                    dir("script")
-                    {
-                        def perf_log = "perf_gemm_${gpu_arch}.log"
-                        def artifact = "profile_gemm_${gpu_arch}.txt"
-                        unstash "${perf_log}"
-                        sh "python3 parse_perf_data.py ${perf_log} | tee ${artifact}"
-                        sh "rm ${perf_log}"
-                    }
-                }
-            }
-            }
+            //stage("Process results")
+            //{
+            //steps{
+            //    node("master")
+            //    {
+            //        dir("script")
+            //        {
+            //            def perf_log = "perf_gemm_${gpu_arch}.log"
+            //            def artifact = "profile_gemm_${gpu_arch}.txt"
+            //            unstash "${perf_log}"
+            //            sh "python3 parse_perf_data.py ${perf_log} | tee ${artifact}"
+            //            sh "rm ${perf_log}"
+            //        }
+            //    }
+            //}
+            //}
+        }
+        stage("Process Performance Tests Results")
+        {
+           steps
+           {
+               processPerfResults()
+           } 
         }
 		stage("Tests")
         {
