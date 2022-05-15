@@ -16,8 +16,8 @@ namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
 
-using F32 = float;
-using F16 = ck::half_t;
+using F32         = float;
+using F16         = ck::half_t;
 using DPtrsGlobal = ck::Tuple<F16*, F16*>;
 using Identity    = ck::tensor_operation::element_wise::UnaryIdentic<F32, F32, false>;
 using Square      = ck::tensor_operation::element_wise::UnarySquare<F32, F32, false>;
