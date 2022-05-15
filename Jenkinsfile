@@ -350,6 +350,8 @@ pipeline {
                 }
 
             }
+            stage("Process results")
+            {
             steps{
                 node("master")
                 {
@@ -362,6 +364,7 @@ pipeline {
                         sh "rm ${perf_log}"
                     }
                 }
+            }
             }
         }
 		stage("Tests")
