@@ -1,3 +1,4 @@
+#include <sstream>
 #include "config.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -404,7 +405,7 @@ int main(int argc, char* argv[])
             if(conv_ptr->IsSupportedArgument(argument_ptr.get()))
             {
                 auto invoker_ptr = conv_ptr->MakeInvokerPointer();
-                double time      = invoker_ptr->Run(argument_ptr.get(), 10);
+                double time      = invoker_ptr->Run(argument_ptr.get(), StreamConfig{}, 10);
 
                 double total_flop = static_cast<double>(2) * N * C * Ho * Wo * K * Y * X;
 

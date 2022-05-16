@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
+#include "check_err.hpp"
 #include "config.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -11,9 +12,10 @@
 #include "device_tensor.hpp"
 #include "device_gemm_reduce_xdl_cshuffle.hpp"
 #include "element_wise_operation.hpp"
+#include "reduction_operator.hpp"
 #include "reference_gemm.hpp"
 #include "gemm_specialization.hpp"
-#include "element_wise_reduce_operation.hpp"
+#include "reduction_operator.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -33,22 +35,23 @@ using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
 using CLayout = ck::tensor_layout::gemm::RowMajor;
 
-using AElementOp = ck::tensor_operation::element_wise::PassThrough;
-using BElementOp = ck::tensor_operation::element_wise::PassThrough;
-using CElementOp = ck::tensor_operation::element_wise::PassThrough;
-using D0ReduceOp = ck::tensor_operation::element_wise::ReduceSum;
-using D1ReduceOp = ck::tensor_operation::element_wise::ReduceSquareSum;
+using AElementOp  = ck::tensor_operation::element_wise::PassThrough;
+using BElementOp  = ck::tensor_operation::element_wise::PassThrough;
+using CElementOp  = ck::tensor_operation::element_wise::PassThrough;
+using D0ReduceOp  = ck::reduce::Add<float>;
+using D1ReduceOp  = ck::reduce::Add<float>;
+using D1ElementOp = ck::tensor_operation::element_wise::UnarySquare<float, float, false>;
 
 static constexpr auto GemmSpecialization =
     ck::tensor_operation::device::GemmSpecialization::Default;
 
 // clang-format off
 using DeviceGemmReduceInstance = ck::tensor_operation::device::DeviceGemmReduce_Xdl_CShuffle
-//######| ALayout| BLayout| CLayout|AData| BData| CData|  GemmAcc| CShuffle| ReduceAcc| DData|           A|           B|           C|         D0|         D1|               GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|              CReduce| CReduceThreadLds2VGprCopy| CReduceThreadVgpr2GlobalCopy|
+//######| ALayout| BLayout| CLayout|AData| BData| CData|  GemmAcc| CShuffle| ReduceAcc| DData|           A|           B|           C|         D0|         D1|    D1EleOp|    GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|              CReduce| CReduceThreadLds2VGprCopy| CReduceThreadVgpr2GlobalCopy|
 //######|        |        |        | Type|  Type|  Type| DataType| DataType|  DataType|  Type| Elementwise| Elementwise| Elementwise|     Reduce|     Reduce|     Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN| MXdlPerWave| NXdlPerWave|            _MBlock_MPerBlock| ScalarPerVector| ThreadClusterLengths|     SrcDstScalarPerVector|        SrcDstScalarPerVector|
 //######|        |        |        |     |      |      |         |         |          |      |   Operation|   Operation|   Operation|  Operation|  Operation|                   |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|            _NBlock_NPerBlock|      _NPerBlock| _MPerBlock_NPerBlock|                _NPerBlock|                   _MPerBlock|
 //######|        |        |        |     |      |      |         |         |          |      |            |            |            |           |           |                   |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |                     |                          |                             |
-        <     Row,     Col,     Row,  F16,   F16,   F16,      F32,      F32,       F32,   F32,  AElementOp,  BElementOp,  CElementOp, D0ReduceOp, D1ReduceOp, GemmSpecialization,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8,             S<64, 4>,                         4,                            1>;
+        <     Row,     Col,     Row,  F16,   F16,   F16,      F32,      F32,       F32,   F32,  AElementOp,  BElementOp,  CElementOp, D0ReduceOp, D1ReduceOp, D1ElementOp, GemmSpecialization,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8,             S<64, 4>,                         4,                            1>;
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
@@ -56,9 +59,9 @@ using ReferenceGemmInstance = ck::tensor_operation::host::
 
 int main(int argc, char* argv[])
 {
-    bool do_verification = 1;
+    bool do_verification = true;
     int init_method      = 1;
-    int nrepeat          = 5;
+    bool time_kernel     = false;
 
     // GEMM shape
     ck::index_t M = 3840;
@@ -77,13 +80,13 @@ int main(int argc, char* argv[])
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
     }
     else if(argc == 10)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
 
         M = std::stoi(argv[4]);
         N = std::stoi(argv[5]);
@@ -97,7 +100,7 @@ int main(int argc, char* argv[])
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: run kernel # of times (>1)\n");
+        printf("arg3: time kernel (0=n0, 1=yes)\n");
         printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC\n");
         exit(0);
     }
@@ -159,11 +162,10 @@ int main(int argc, char* argv[])
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
 
-    auto a_element_op = AElementOp{};
-    auto b_element_op = BElementOp{};
-    auto c_element_op = CElementOp{};
-    auto d0_reduce_op = D0ReduceOp{};
-    auto d1_reduce_op = D1ReduceOp{};
+    auto a_element_op  = AElementOp{};
+    auto b_element_op  = BElementOp{};
+    auto c_element_op  = CElementOp{};
+    auto d1_element_op = D1ElementOp{};
 
     // do GEMM
     auto gemm     = DeviceGemmReduceInstance{};
@@ -182,8 +184,7 @@ int main(int argc, char* argv[])
                                       a_element_op,
                                       b_element_op,
                                       c_element_op,
-                                      d0_reduce_op,
-                                      d1_reduce_op);
+                                      d1_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -192,30 +193,13 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    // warm up
-    invoker.Run(argument);
+    // init DO, D1 to 0
+    d0_device_buf.SetZero();
+    d1_device_buf.SetZero();
 
-    // timing
-    float total_time = 0;
-
-    for(int i = 0; i < nrepeat; ++i)
-    {
-        // init DO, D1 to 0
-        d0_device_buf.SetZero();
-        d1_device_buf.SetZero();
-
-        KernelTimer timer;
-
-        timer.Start();
-
-        invoker.Run(argument);
-
-        timer.End();
-
-        total_time += timer.GetElapsedTime();
-    }
-
-    float ave_time = total_time / nrepeat;
+    // if time_kernel == true, kernel will run multiple times. This kernel use atomic-add so result
+    // will not be correct. need to set time_kernel = false for correctness test
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_btype =
@@ -228,6 +212,7 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
+    bool pass = true;
     if(do_verification)
     {
         c_device_buf.FromDevice(c_m_n_device_result.mData.data());
@@ -242,25 +227,41 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
 
+        auto d0_reduce_op = D0ReduceOp{};
+        auto d1_reduce_op = D1ReduceOp{};
+
         for(int m = 0; m < M; ++m)
         {
-            float d0_acc = d0_reduce_op.GetReduceZeroValue();
-            float d1_acc = d1_reduce_op.GetReduceZeroValue();
+            float d0_acc = d0_reduce_op.GetReductionZeroVal();
+            float d1_acc = d1_reduce_op.GetReductionZeroVal();
 
             for(int n = 0; n < N; ++n)
             {
-                d0_reduce_op.Reduce(d0_acc, c_m_n_host_result(m, n));
-                d1_reduce_op.Reduce(d1_acc, c_m_n_host_result(m, n));
+                float d0_val = ck::type_convert<float>(c_m_n_host_result(m, n));
+                float d1_val;
+
+                d1_element_op(d1_val, d0_val);
+                d0_reduce_op(d0_acc, d0_val);
+                d1_reduce_op(d1_acc, d1_val);
             }
 
-            d0_m_host_result(m) = d0_acc;
-            d1_m_host_result(m) = d1_acc;
+            d0_m_host_result(m) = ck::type_convert<DDataType>(d0_acc);
+            d1_m_host_result(m) = ck::type_convert<DDataType>(d1_acc);
         }
 
-        check_error(c_m_n_host_result, c_m_n_device_result);
-        check_error(d0_m_host_result, d0_m_device_result);
-        check_error(d1_m_host_result, d1_m_device_result);
+        pass &= ck::utils::check_err(
+            c_m_n_device_result.mData, c_m_n_host_result.mData, "Error: Incorrect results c");
+        pass &= ck::utils::check_err(d0_m_device_result.mData,
+                                     d0_m_host_result.mData,
+                                     "Error: Incorrect results d0",
+                                     1e-3,
+                                     1e-3);
+        pass &= ck::utils::check_err(d1_m_device_result.mData,
+                                     d1_m_host_result.mData,
+                                     "Error: Incorrect results d1",
+                                     1e-3,
+                                     1e-3);
     }
 
-    return 0;
+    return pass ? 0 : 1;
 }

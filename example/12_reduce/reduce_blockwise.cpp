@@ -116,10 +116,9 @@ class SimpleAppArgs
     std::vector<size_t> inLengths;
     std::vector<float> scales;
 
-    bool do_verification = false;
-
-    int init_method = 1;
-    int nrepeat     = 5;
+    bool do_verification = true;
+    int init_method      = 1;
+    bool time_kernel     = false;
 
     public:
     void show_usage(const char* cmd)
@@ -135,12 +134,12 @@ class SimpleAppArgs
         std::cout << "Arg1 -- init method (0=no init, 1=single integer value, 2=scope integer "
                      "value, 3=decimal value)"
                   << std::endl;
-        std::cout << "Arg2 -- number of repeats to run the kernel" << std::endl;
+        std::cout << "Arg2 -- time kernel (0=n0, 1=yes)" << std::endl;
     };
 
     int processArgs(int argc, char* argv[])
     {
-        unsigned int ch;
+        int ch;
 
         while(1)
         {
@@ -182,7 +181,7 @@ class SimpleAppArgs
             throw std::runtime_error("Invalid cmd-line arguments, more argumetns are needed!");
 
         init_method = std::atoi(argv[optind++]);
-        nrepeat     = std::atoi(argv[optind]);
+        time_kernel = std::atoi(argv[optind]);
 
         if(scales.empty())
         {
@@ -352,7 +351,7 @@ int main(int argc, char* argv[])
 
     auto invoker_ptr = reduce.MakeInvokerPointer();
 
-    float avg_time = invoker_ptr->Run(argument_ptr.get(), args.nrepeat);
+    float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, args.time_kernel});
 
     std::size_t num_bytes = invariant_total_length * reduce_total_length * sizeof(InDataType) +
                             invariant_total_length * sizeof(OutDataType);
@@ -362,16 +361,17 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s, " << reduce_name
               << std::endl;
 
+    bool pass = true;
     if(args.do_verification)
     {
         out_dev.FromDevice(out.mData.data());
-        ck::utils::check_err(out.mData, out_ref.mData);
+        pass &= ck::utils::check_err(out.mData, out_ref.mData);
 
         if(NeedIndices)
         {
             out_indices_dev.FromDevice(out_indices.mData.data());
-            ck::utils::check_err(out_indices.mData, out_indices_ref.mData);
-            ;
+            pass &= ck::utils::check_err(out_indices.mData, out_indices_ref.mData);
         };
     };
+    return pass ? 0 : 1;
 }

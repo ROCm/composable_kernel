@@ -1241,7 +1241,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             float ave_time = 0;
             for(size_t i = 0; i < arg.a_grid_desc_k0_m_k1_container_.size(); i++)
@@ -1296,11 +1296,10 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                 const index_t grid_size =
                     GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_container_[i]);
 
-                const auto K0 = arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I0);
+                const auto K = arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I0) *
+                               arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I2);
 
-                const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
-
-                if(has_main_k0_block_loop)
+                if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
                 {
                     const auto kernel = kernel_gemm_xdlops_v2r3<
                         GridwiseGemm,
@@ -1317,8 +1316,8 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                         true>;
 
                     ave_time += launch_and_time_kernel(
+                        stream_config,
                         kernel,
-                        nrepeat,
                         dim3(grid_size),
                         dim3(BlockSize),
                         0,
@@ -1350,8 +1349,8 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                         false>;
 
                     ave_time += launch_and_time_kernel(
+                        stream_config,
                         kernel,
-                        nrepeat,
                         dim3(grid_size),
                         dim3(BlockSize),
                         0,
@@ -1370,9 +1369,10 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
             return ave_time;
         }
 
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 
@@ -1413,7 +1413,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
         }
 
         // Gridwise GEMM size
-        for(int i = 0; i < arg.a_grid_desc_k0_m_k1_container_.size(); i++)
+        for(std::size_t i = 0; i < arg.a_grid_desc_k0_m_k1_container_.size(); i++)
         {
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
                                             arg.b_grid_desc_k0_n_k1_container_[i],

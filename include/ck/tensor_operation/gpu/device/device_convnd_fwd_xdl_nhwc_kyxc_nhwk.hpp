@@ -747,7 +747,7 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
 #if 0
             {
@@ -775,13 +775,12 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
 
             const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_);
 
-            const auto K0 = arg.a_grid_desc_k0_m_k1_.GetLength(I0);
-
-            const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
+            const auto K =
+                arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
 
             float ave_time = 0;
 
-            if(has_main_k0_block_loop)
+            if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
                 const auto kernel = kernel_gemm_xdlops_v2r3<
                     GridwiseGemm,
@@ -796,8 +795,8 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                     remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                     true>;
 
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
                                                   dim3(grid_size),
                                                   dim3(BlockSize),
                                                   0,
@@ -827,8 +826,8 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                     remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                     false>;
 
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
                                                   dim3(grid_size),
                                                   dim3(BlockSize),
                                                   0,
@@ -847,9 +846,10 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             return ave_time;
         }
 
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 
@@ -862,17 +862,11 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
     static bool IsSupportedArgument(const Argument& arg)
     {
         // Input tensors can't be bigger than 2GB each.
-        constexpr std::size_t GB2 = 2 * 1e9;
+        constexpr ck::long_index_t GB2 = (ck::long_index_t{1} << 31);
 
-        if(arg.a_grid_desc_k0_m_k1_.GetElementSpaceSize() > GB2)
-        {
-            return false;
-        }
-        if(arg.b_grid_desc_k0_n_k1_.GetElementSpaceSize() > GB2)
-        {
-            return false;
-        }
-        if(arg.c_grid_desc_m_n_.GetElementSpaceSize() > GB2)
+        if(arg.a_grid_desc_k0_m_k1_.GetElementSpaceSize() * sizeof(ADataType) > GB2 ||
+           arg.b_grid_desc_k0_n_k1_.GetElementSpaceSize() * sizeof(BDataType) > GB2 ||
+           arg.c_grid_desc_m_n_.GetElementSpaceSize() * sizeof(CDataType) > GB2)
         {
             return false;
         }

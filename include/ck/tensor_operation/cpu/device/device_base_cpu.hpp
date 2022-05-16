@@ -2,6 +2,7 @@
 #define DEVICE_BASE_CPU_HPP
 
 #include <string>
+#include "stream_config.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -23,7 +24,7 @@ struct BaseInvoker
     BaseInvoker(const BaseInvoker&) = default;
     BaseInvoker& operator=(const BaseInvoker&) = default;
 
-    virtual float Run(const BaseArgument*, int = 1) = 0;
+    virtual float Run(const BaseArgument*, const StreamConfig& = StreamConfig{}, int = 1) = 0;
 
     virtual ~BaseInvoker() {}
 };

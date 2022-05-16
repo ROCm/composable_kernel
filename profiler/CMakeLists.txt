@@ -44,7 +44,7 @@ set(PROFILER_SOURCE
 add_executable(ckProfiler ${PROFILER_SOURCE})
 
 target_link_libraries(ckProfiler PRIVATE host_tensor)
-target_link_libraries(ckProfiler PRIVATE conv_fwd_util)
+target_link_libraries(ckProfiler PRIVATE conv_util)
 target_link_libraries(ckProfiler PRIVATE device_gemm_reduce_instance)
 target_link_libraries(ckProfiler PRIVATE device_gemm_instance)
 target_link_libraries(ckProfiler PRIVATE device_gemm_bias2d_instance)
