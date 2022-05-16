@@ -6,7 +6,8 @@
 #include "device.hpp"
 #include "device_reduce.hpp"
 #include "device_reduce_common.hpp"
-#include "gridwise_2d_reduction_blockwise.hpp"
+#include "gridwise_2d_reduction_multiblock.hpp"
+#include "gridwise_2d_reduction_threadwise.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -21,7 +22,8 @@ template <typename InDataType,
           typename InElementwiseOperation,
           typename AccElementwiseOperation,
           bool PropagateNan,
-          bool NeedIndices,
+          bool OutputIndex,
+          bool HaveIndexInputIfOutputIndex,
           index_t BlockSize,
           index_t MThreadClusterSize,
           index_t KThreadClusterSize,
@@ -43,7 +45,9 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
 
     using IndexDataType = int32_t;
 
-    static constexpr bool BetaIsZero = NeedIndices;
+    static constexpr bool HaveIndexInput = OutputIndex && HaveIndexInputIfOutputIndex;
+
+    static constexpr bool use_threadwise_reduce_kernel = (KThreadClusterSize == 1);
 
     static constexpr index_t NumInvariantDim = Rank - NumReduceDim;
 
@@ -51,11 +55,11 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
     static constexpr index_t numDstDim = (NumInvariantDim == 0) ? 1 : NumInvariantDim;
     static constexpr bool reduceAllDim = (NumInvariantDim == 0);
 
-    static constexpr int M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
-    static constexpr int K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
+    static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
+    static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
-    static auto MakeSrc2dDescriptor(const std::vector<int>& inLengths,
-                                    const std::vector<int>& inStrides)
+    static auto MakeSrc2dDescriptor(const std::vector<index_t>& inLengths,
+                                    const std::vector<index_t>& inStrides)
     {
         const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<numSrcDim>{});
         const auto tupleSrcStrides = make_tuple_from_array(inStrides, Number<numSrcDim>{});
@@ -114,8 +118,8 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
         return (in_grid_desc_m_k_padded);
     };
 
-    static auto MakeDst1dDescriptor(const std::vector<int>& outLengths,
-                                    const std::vector<int>& outStrides)
+    static auto MakeDst1dDescriptor(const std::vector<index_t>& outLengths,
+                                    const std::vector<index_t>& outStrides)
     {
         const auto tupleDstLengths = make_tuple_from_array(outLengths, Number<numDstDim>{});
         const auto tupleDstStrides = make_tuple_from_array(outStrides, Number<numDstDim>{});
@@ -130,12 +134,12 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
 
         const auto invariantLength = out_grid_desc_m.GetLength(Number<0>{});
 
-        const auto inPad =
+        const auto outPad =
             math::integer_least_multiple(invariantLength, M_BlockTileSize) - invariantLength;
 
         auto out_grid_desc_m_padded = transform_tensor_descriptor(
             out_grid_desc_m,
-            make_tuple(make_right_pad_transform(invariantLength, inPad)),
+            make_tuple(make_right_pad_transform(invariantLength, outPad)),
             make_tuple(Sequence<0>{}),
             make_tuple(Sequence<0>{}));
         return (out_grid_desc_m_padded);
@@ -143,29 +147,26 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
 
     struct Argument : public BaseArgument
     {
-        Argument(const std::vector<int> inLengths,
-                 const std::vector<int> inStrides,
-                 const std::vector<int> outLengths,
-                 const std::vector<int> outStrides,
+        Argument(const std::vector<index_t> inLengths,
+                 const std::vector<index_t> inStrides,
+                 const std::vector<index_t> outLengths,
+                 const std::vector<index_t> outStrides,
                  const std::vector<int> reduceDims,
                  float alpha,
                  float beta,
                  const InDataType* in_dev,
                  OutDataType* out_dev,
-                 IndexDataType* out_indices_dev,
-                 AccDataType* workspace_dev,
+                 IndexDataType* out_index_dev,
                  const InElementwiseOperation in_elementwise_op,
                  const AccElementwiseOperation acc_elementwise_op)
             : outLengths_{outLengths},
               outStrides_{outStrides},
               in_dev_{in_dev},
               out_dev_{out_dev},
-              out_indices_dev_{out_indices_dev},
+              out_index_dev_{out_index_dev},
               in_elementwise_op_{in_elementwise_op},
               acc_elementwise_op_{acc_elementwise_op}
         {
-            (void)workspace_dev;
-
             inLengths_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inLengths, reduceDims);
             inStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inStrides, reduceDims);
 
@@ -182,30 +183,33 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
 
             reduce_lowest_length = inLengths_[Rank - 1];
 
+            numBlockTileIteration = (reduce_total_length + K_BlockTileSize - 1) / K_BlockTileSize;
+
             gridSize = math::integer_least_multiple(invariant_total_length, M_BlockTileSize) /
                        M_BlockTileSize;
         }
 
-        std::vector<int> inLengths_;
-        std::vector<int> inStrides_;
-        std::vector<int> outLengths_;
-        std::vector<int> outStrides_;
+        std::vector<index_t> inLengths_;
+        std::vector<index_t> inStrides_;
+        std::vector<index_t> outLengths_;
+        std::vector<index_t> outStrides_;
 
         AccDataType alpha_;
         AccDataType beta_;
 
         const InDataType* in_dev_;
         OutDataType* out_dev_;
-        IndexDataType* out_indices_dev_;
+        IndexDataType* out_index_dev_;
 
         InElementwiseOperation in_elementwise_op_;
         AccElementwiseOperation acc_elementwise_op_;
 
-        int invariant_lowest_length;
-        int reduce_lowest_length;
-        size_t invariant_total_length;
-        size_t reduce_total_length;
+        index_t invariant_lowest_length;
+        index_t reduce_lowest_length;
+        long_index_t invariant_total_length;
+        long_index_t reduce_total_length;
 
+        int numBlockTileIteration;
         size_t gridSize;
     };
 
@@ -220,56 +224,116 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
             using InGridDesc_M_K = decltype(in_grid_desc_m_k);
             using OutGridDesc_M  = decltype(out_grid_desc_m);
 
-            using GridwiseReduce = GridwiseReduction_mk_to_m_blockwise<InDataType,
-                                                                       OutDataType,
-                                                                       AccDataType,
-                                                                       IndexDataType,
-                                                                       InGridDesc_M_K,
-                                                                       OutGridDesc_M,
-                                                                       ReduceOperation,
-                                                                       InElementwiseOperation,
-                                                                       AccElementwiseOperation,
-                                                                       PropagateNan,
-                                                                       BetaIsZero,
-                                                                       BlockSize,
-                                                                       MThreadClusterSize,
-                                                                       KThreadClusterSize,
-                                                                       MThreadSliceSize,
-                                                                       KThreadSliceSize,
-                                                                       InSrcVectorDim,
-                                                                       InSrcVectorSize,
-                                                                       OutDstVectorSize>;
-
             float avg_time = 0;
 
-            const auto kernel = kernel_reduce_blockwise<GridwiseReduce,
-                                                        NeedIndices,
-                                                        InDataType,
-                                                        OutDataType,
-                                                        AccDataType,
-                                                        IndexDataType,
-                                                        InGridDesc_M_K,
-                                                        OutGridDesc_M,
-                                                        InElementwiseOperation,
-                                                        AccElementwiseOperation>;
+            if constexpr(use_threadwise_reduce_kernel)
+            {
+                using GridwiseReduce =
+                    GridwiseReduction_mk_to_m_threadwise<InDataType,
+                                                         OutDataType,
+                                                         AccDataType,
+                                                         IndexDataType,
+                                                         InGridDesc_M_K,
+                                                         OutGridDesc_M,
+                                                         ReduceOperation,
+                                                         InElementwiseOperation,
+                                                         AccElementwiseOperation,
+                                                         InMemoryDataOperationEnum::Set,
+                                                         PropagateNan,
+                                                         BlockSize,
+                                                         MThreadClusterSize,
+                                                         KThreadClusterSize,
+                                                         MThreadSliceSize,
+                                                         KThreadSliceSize,
+                                                         InSrcVectorDim,
+                                                         InSrcVectorSize,
+                                                         OutDstVectorSize>;
 
-            avg_time = launch_and_time_kernel(stream_config,
-                                              kernel,
-                                              dim3(arg.gridSize),
-                                              dim3(BlockSize),
-                                              0,
-                                              in_grid_desc_m_k,
-                                              out_grid_desc_m,
-                                              arg.in_elementwise_op_,
-                                              arg.acc_elementwise_op_,
-                                              arg.alpha_,
-                                              arg.in_dev_,
-                                              arg.beta_,
-                                              arg.out_dev_,
-                                              nullptr,
-                                              arg.out_indices_dev_);
+                const auto kernel = kernel_reduce_threadwise<GridwiseReduce,
+                                                             OutputIndex,
+                                                             HaveIndexInput,
+                                                             InDataType,
+                                                             OutDataType,
+                                                             AccDataType,
+                                                             IndexDataType,
+                                                             InGridDesc_M_K,
+                                                             OutGridDesc_M,
+                                                             InElementwiseOperation,
+                                                             AccElementwiseOperation>;
 
-            return (avg_time);
+                avg_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
+                                                  dim3(arg.gridSize),
+                                                  dim3(BlockSize),
+                                                  0,
+                                                  in_grid_desc_m_k,
+                                                  out_grid_desc_m,
+                                                  arg.in_elementwise_op_,
+                                                  arg.acc_elementwise_op_,
+                                                  arg.alpha_,
+                                                  arg.in_dev_,
+                                                  nullptr,
+                                                  arg.beta_,
+                                                  arg.out_dev_,
+                                                  arg.out_index_dev_);
+
+                return (avg_time);
+            }
+            else
+            {
+                using GridwiseReduce =
+                    GridwiseReduction_mk_to_m_multiblock<InDataType,
+                                                         OutDataType,
+                                                         AccDataType,
+                                                         IndexDataType,
+                                                         InGridDesc_M_K,
+                                                         OutGridDesc_M,
+                                                         ReduceOperation,
+                                                         InElementwiseOperation,
+                                                         AccElementwiseOperation,
+                                                         InMemoryDataOperationEnum::Set,
+                                                         PropagateNan,
+                                                         BlockSize,
+                                                         MThreadClusterSize,
+                                                         KThreadClusterSize,
+                                                         MThreadSliceSize,
+                                                         KThreadSliceSize,
+                                                         InSrcVectorDim,
+                                                         InSrcVectorSize,
+                                                         OutDstVectorSize>;
+
+                const auto kernel = kernel_reduce_multiblock<GridwiseReduce,
+                                                             OutputIndex,
+                                                             HaveIndexInput,
+                                                             InDataType,
+                                                             OutDataType,
+                                                             AccDataType,
+                                                             IndexDataType,
+                                                             InGridDesc_M_K,
+                                                             OutGridDesc_M,
+                                                             InElementwiseOperation,
+                                                             AccElementwiseOperation>;
+
+                avg_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
+                                                  dim3(arg.gridSize),
+                                                  dim3(BlockSize),
+                                                  0,
+                                                  in_grid_desc_m_k,
+                                                  out_grid_desc_m,
+                                                  arg.in_elementwise_op_,
+                                                  arg.acc_elementwise_op_,
+                                                  static_cast<index_t>(1),
+                                                  static_cast<index_t>(arg.numBlockTileIteration),
+                                                  arg.alpha_,
+                                                  arg.in_dev_,
+                                                  nullptr,
+                                                  arg.beta_,
+                                                  arg.out_dev_,
+                                                  arg.out_index_dev_);
+
+                return (avg_time);
+            };
         };
 
         float Run(const BaseArgument* p_arg,
@@ -311,28 +375,34 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
         if(pArg->invariant_lowest_length % OutDstVectorSize != 0)
             return (false);
 
-        // cases with very small reduce_total_length should be handled by the ThreadWise method
-        if(pArg->reduce_total_length / KThreadSliceSize < 2)
+        // cases with very small reduce_total_length should be handled by ThreadWise kernel
+        if(!use_threadwise_reduce_kernel && pArg->reduce_total_length / KThreadSliceSize < 2)
+            return (false);
+
+        // cases with big reduce_total_length should be handled by Blockwise kernel
+        if(use_threadwise_reduce_kernel && pArg->reduce_total_length / KThreadSliceSize >= 32)
             return (false);
 
         return (true);
     };
 
     std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const std::vector<int> inLengths,
-                        const std::vector<int> inStrides,
-                        const std::vector<int> outLengths,
-                        const std::vector<int> outStrides,
+    MakeArgumentPointer(const std::vector<index_t> inLengths,
+                        const std::vector<index_t> inStrides,
+                        const std::vector<index_t> outLengths,
+                        const std::vector<index_t> outStrides,
                         const std::vector<int> reduceDims,
                         float alpha,
                         float beta,
                         const void* in_dev,
+                        const void* in_index_dev,
                         void* out_dev,
-                        void* out_indices_dev,
-                        void* workspace_dev,
+                        void* out_index_dev,
                         const InElementwiseOperation in_elementwise_op,
                         const AccElementwiseOperation acc_elementwise_op) override
     {
+        (void)in_index_dev;
+
         return std::make_unique<Argument>(inLengths,
                                           inStrides,
                                           outLengths,
@@ -342,8 +412,7 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
                                           beta,
                                           static_cast<const InDataType*>(in_dev),
                                           static_cast<OutDataType*>(out_dev),
-                                          static_cast<IndexDataType*>(out_indices_dev),
-                                          static_cast<AccDataType*>(workspace_dev),
+                                          static_cast<IndexDataType*>(out_index_dev),
                                           in_elementwise_op,
                                           acc_elementwise_op);
     };
