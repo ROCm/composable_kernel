@@ -261,7 +261,7 @@ def runPerfTest(Map conf=[:]){
     }
 }
 
-def processPerfResults(){
+def processPerfResults(Map conf=[:]){
     node("master")
     {
         dir("script")
