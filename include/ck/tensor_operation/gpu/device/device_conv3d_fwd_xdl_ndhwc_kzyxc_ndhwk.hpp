@@ -40,6 +40,7 @@ __global__ void
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
+            const index_t num_batches,
             const index_t a_batch_stride,
             const index_t b_batch_stride,
             const index_t c_batch_stride,
@@ -52,7 +53,9 @@ __global__ void
             const Block2CTileMap block_2_ctile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
-    const index_t g_idx = get_block_id_z();
+    const index_t num_blocks_per_batch =
+        __builtin_amdgcn_readfirstlane(get_grid_size() / num_batches);
+    const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
 
     const long_index_t a_batch_offset =
         __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(a_batch_stride) * g_idx);
@@ -79,6 +82,7 @@ __global__ void
     ignore = p_a_grid;
     ignore = p_b_grid;
     ignore = p_c_grid;
+    ignore = num_batches;
     ignore = a_batch_stride;
     ignore = b_batch_stride;
     ignore = c_batch_stride;
@@ -416,9 +420,9 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                     "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
             }
 
-            const dim3 grid_size(arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_),
-                                 1,
-                                 arg.num_subbatches_);
+            const index_t grid_size =
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_) *
+                arg.num_subbatches_;
 
             const auto K0 = arg.a_grid_desc_k0_m_k1_.GetLength(I0);
 
@@ -447,6 +451,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                                                   arg.p_a_grid_,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
+                                                  arg.num_subbatches_,
                                                   arg.a_batch_stride_,
                                                   arg.b_batch_stride_,
                                                   arg.c_batch_stride_,
@@ -481,6 +486,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                                                   arg.p_a_grid_,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
+                                                  arg.num_subbatches_,
                                                   arg.a_batch_stride_,
                                                   arg.b_batch_stride_,
                                                   arg.c_batch_stride_,

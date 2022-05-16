@@ -87,15 +87,16 @@ struct BlockToCTileMap_M00_N00_M01_N01
 
         const auto m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor =
             make_single_stage_tensor_adaptor(
-                make_tuple(make_unmerge_transform(make_tuple(M00, M01)),
+                make_tuple(make_insert_transform(1), // swallow the carry from lower dimensions
+                           make_unmerge_transform(make_tuple(M00, M01)),
                            make_unmerge_transform(make_tuple(N00, N01))),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1, 3>{}));
+                make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2, 4>{}));
 
         const auto cblockid_to_m00_m01_n00_n01_block_cluster_adaptor =
             make_single_stage_tensor_adaptor(
-                make_tuple(make_merge_transform(make_tuple(M00, N00, M01, N01))),
-                make_tuple(Sequence<0, 1, 2, 3>{}),
+                make_tuple(make_merge_transform(make_tuple(1, M00, N00, M01, N01))),
+                make_tuple(Sequence<0, 1, 2, 3, 4>{}),
                 make_tuple(Sequence<0>{}));
 
         const auto cblockid_to_m0_n0_block_cluster_adaptor =

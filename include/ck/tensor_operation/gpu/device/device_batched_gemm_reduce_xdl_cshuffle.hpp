@@ -39,6 +39,7 @@ __global__ void
             FloatC* __restrict__ p_c_grid,
             FloatD* __restrict__ p_d0_grid,
             FloatD* __restrict__ p_d1_grid,
+            const index_t batch_count,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op,
@@ -52,7 +53,9 @@ __global__ void
             const Block2CTileMap block_2_ctile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
-    const index_t g_idx = get_block_id_z();
+    const index_t num_blocks_per_batch =
+        __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
+    const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
 
     const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_base_ptr_of_batch_.GetABasePtr(g_idx)));
@@ -89,6 +92,7 @@ __global__ void
     ignore = p_c_grid;
     ignore = p_d0_grid;
     ignore = p_d1_grid;
+    ignore = batch_count;
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = c_element_op;
@@ -681,8 +685,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
 
-            const dim3 grid_size(
-                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_), 1, arg.BatchCount_);
+            const index_t grid_size =
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_) * arg.BatchCount_;
 
             const auto K =
                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
@@ -718,6 +722,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                                            arg.p_c_grid_,
                                            arg.p_d0_grid_,
                                            arg.p_d1_grid_,
+                                           arg.BatchCount_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
@@ -759,6 +764,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<AElementwi
                                            arg.p_c_grid_,
                                            arg.p_d0_grid_,
                                            arg.p_d1_grid_,
+                                           arg.BatchCount_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
