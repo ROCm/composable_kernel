@@ -510,7 +510,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                   arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                                   arg.block_2_ctile_map_);
 
-                    // c_real - aux here
+                    // c_real = c_real - aux needed here!!!
 
                     launch_kernel(kernel,
                                   dim3(grid_size),
@@ -542,7 +542,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                   arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                                   arg.block_2_ctile_map_);
 
-                    // c_imag + aux here
+                    // c_imag = c_imag + aux needed here!!!
                 }
                 else
                 {
@@ -580,7 +580,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                                arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                                                arg.block_2_ctile_map_);
 
-                    // c_real - aux here
+                    // // c_real = c_real - aux needed here!!!
 
                     ave_time +=
                         launch_and_time_kernel(kernel,
@@ -616,7 +616,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                                arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                                                arg.block_2_ctile_map_);
 
-                    // c_imag + aux here
+                    // c_imag = c_imag + aux needed here!!!
                 }
             }
             else
@@ -666,7 +666,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                   arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                                   arg.block_2_ctile_map_);
 
-                    // c_real - aux here
+                    // // c_real = c_real - aux needed here!!!
 
                     launch_kernel(kernel,
                                   dim3(grid_size),
@@ -698,7 +698,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                   arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                                   arg.block_2_ctile_map_);
 
-                    // c_imag + aux here
+                    // c_imag = c_imag + aux needed here!!!
                 }
                 else
                 {
@@ -736,7 +736,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                                arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                                                arg.block_2_ctile_map_);
 
-                    // c_real - aux here
+                    // c_real = c_real - aux needed here!!!
 
                     ave_time +=
                         launch_and_time_kernel(kernel,
@@ -772,7 +772,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                                arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                                                arg.block_2_ctile_map_);
 
-                    // c_imag + aux here
+                    // c_imag = c_imag + aux needed here!!!
                 }
             }
 
