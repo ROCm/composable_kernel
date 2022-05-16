@@ -60,7 +60,7 @@ struct ReferenceCGemm : public device::BaseOperator
         float Run(const Argument& arg)
         {
             auto f_mk_kn_mn_real = [&](auto m, auto n) {
-                const int K = arg.a_m_k_real_.mDesc.GetLengths()[1];
+                const std::size_t K = arg.a_m_k_real_.mDesc.GetLengths()[1];
 
                 if(K != arg.a_m_k_imag_.mDesc.GetLengths()[1])
                 {
@@ -69,7 +69,7 @@ struct ReferenceCGemm : public device::BaseOperator
 
                 float v_acc = 0;
 
-                for(int k = 0; k < K; ++k)
+                for(std::size_t k = 0; k < K; ++k)
                 {
                     float v_a_real;
                     float v_b_real;
@@ -92,7 +92,7 @@ struct ReferenceCGemm : public device::BaseOperator
             };
 
             auto f_mk_kn_mn_imag = [&](auto m, auto n) {
-                const int K = arg.a_m_k_real_.mDesc.GetLengths()[1];
+                const std::size_t K = arg.a_m_k_real_.mDesc.GetLengths()[1];
 
                 if(K != arg.a_m_k_imag_.mDesc.GetLengths()[1])
                 {
@@ -101,7 +101,7 @@ struct ReferenceCGemm : public device::BaseOperator
 
                 float v_acc = 0;
 
-                for(int k = 0; k < K; ++k)
+                for(std::size_t k = 0; k < K; ++k)
                 {
                     float v_a_real;
                     float v_b_real;

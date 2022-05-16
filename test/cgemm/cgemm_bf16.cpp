@@ -21,9 +21,9 @@
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 using DeviceCGemmNoOpPtr =
-    ck::tensor_operation::device::DeviceGemmPtr<ck::tensor_operation::element_wise::PassThrough,
-                                                ck::tensor_operation::element_wise::PassThrough,
-                                                ck::tensor_operation::element_wise::PassThrough>;
+    ck::tensor_operation::device::DeviceCGemmPtr<ck::tensor_operation::element_wise::PassThrough,
+                                                 ck::tensor_operation::element_wise::PassThrough,
+                                                 ck::tensor_operation::element_wise::PassThrough>;
 
 namespace ck {
 namespace tensor_operation {
@@ -48,9 +48,9 @@ int main()
     using ColumnMajor = ck::tensor_layout::gemm::ColumnMajor;
 
     bool res = true;
-    std::vector<DeviceCGemmNoOpPtr> gemmPtrs;
+    std::vector<DeviceCGemmNoOpPtr> cgemmPtrs;
 
-    ck::tensor_operation::device::device_gemm_instance::
+    ck::tensor_operation::device::device_cgemm_instance::
         add_device_cgemm_4gemm_xdl_c_shuffle_bf16_bf16_bf16_km_kn_mn_instances(cgemmPtrs);
 
     for(auto& cgemmPtr : cgemmPtrs)
@@ -76,7 +76,7 @@ int main()
                                              RowMajor,
                                              PassThrough,
                                              PassThrough,
-                                             PassThrough>{}(gemmPtr);
+                                             PassThrough>{}(cgemmPtr);
     }
 
     cgemmPtrs.clear();

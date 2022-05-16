@@ -18,7 +18,7 @@
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 using DeviceCGemmNoOpPtr =
-    ck::tensor_operation::device::DevicecgemmPtr<ck::tensor_operation::element_wise::PassThrough,
+    ck::tensor_operation::device::DeviceCGemmPtr<ck::tensor_operation::element_wise::PassThrough,
                                                  ck::tensor_operation::element_wise::PassThrough,
                                                  ck::tensor_operation::element_wise::PassThrough>;
 
@@ -50,10 +50,7 @@ int main()
 
     bool res = true;
     std::vector<DeviceCGemmNoOpPtr> cgemmPtrs;
-    ck::tensor_operation::device::device_cgemm_instance::
-        add_device_cgemm_4gemm_xdl_f16_f16_f16_km_kn_mn_instances(cgemmPtrs);
-    ck::tensor_operation::device::device_cgemm_instance::
-        add_device_cgemm_4gemm_xdl_splitk_f16_f16_f16_km_kn_mn_instances(cgemmPtrs);
+
     ck::tensor_operation::device::device_cgemm_instance::
         add_device_cgemm_4gemm_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances(cgemmPtrs);
 
@@ -73,10 +70,6 @@ int main()
 
     cgemmPtrs.clear();
     ck::tensor_operation::device::device_cgemm_instance::
-        add_device_cgemm_4gemm_xdl_f16_f16_f16_km_nk_mn_instances(cgemmPtrs);
-    ck::tensor_operation::device::device_cgemm_instance::
-        add_device_cgemm_4gemm_xdl_splitk_f16_f16_f16_km_nk_mn_instances(cgemmPtrs);
-    ck::tensor_operation::device::device_cgemm_instance::
         add_device_cgemm_4gemm_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(cgemmPtrs);
 
     for(auto& cgemmPtr : cgemmPtrs)
@@ -94,10 +87,6 @@ int main()
     }
 
     cgemmPtrs.clear();
-    ck::tensor_operation::device::device_cgemm_instance::
-        add_device_cgemm_4gemm_xdl_f16_f16_f16_mk_kn_mn_instances(cgemmPtrs);
-    ck::tensor_operation::device::device_cgemm_instance::
-        add_device_cgemm_4gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instances(cgemmPtrs);
     ck::tensor_operation::device::device_cgemm_instance::
         add_device_cgemm_4gemm_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances(cgemmPtrs);
 
@@ -117,13 +106,7 @@ int main()
 
     cgemmPtrs.clear();
     ck::tensor_operation::device::device_cgemm_instance::
-        add_device_cgemm_4gemm_xdl_f16_f16_f16_mk_nk_mn_instances(cgemmPtrs);
-    ck::tensor_operation::device::device_cgemm_instance::
-        add_device_cgemm_4gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instances(cgemmPtrs);
-    ck::tensor_operation::device::device_cgemm_instance::
         add_device_cgemm_4gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(cgemmPtrs);
-    ck::tensor_operation::device::device_cgemm_instance::
-        add_device_cgemm_4gemm_xdl_c_shuffle_2_stage_f16_f16_f16_mk_nk_mn_instances(cgemmPtrs);
 
     for(auto& cgemmPtr : cgemmPtrs)
     {

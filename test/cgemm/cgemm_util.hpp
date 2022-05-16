@@ -77,21 +77,23 @@ void RunDeviceCGEMM(DeviceCGemmPtr_& cgemmPtr,
                     BElementwiseOperation b_element_op,
                     CElementwiseOperation c_element_op)
 {
-    DeviceMem a_m_k_real_device_buf(sizeof(ADataType) * A.mDesc.GetElementSpace());
-    DeviceMem a_m_k_imag_device_buf(sizeof(ADataType) * A.mDesc.GetElementSpace());
-    DeviceMem b_k_n_real_device_buf(sizeof(BDataType) * B.mDesc.GetElementSpace());
-    DeviceMem b_k_n_imag_device_buf(sizeof(BDataType) * B.mDesc.GetElementSpace());
-    DeviceMem c_m_n_real_device_buf(sizeof(CDataType) * C.mDesc.GetElementSpace());
-    DeviceMem c_m_n_imag_device_buf(sizeof(CDataType) * C.mDesc.GetElementSpace());
-    DeviceMem aux_device_buf(sizeof(CDataType) * C.mDesc.GetElementSpace());
+    DeviceMem a_m_k_real_device_buf(sizeof(ADataType) * A_real.mDesc.GetElementSpace());
+    DeviceMem a_m_k_imag_device_buf(sizeof(ADataType) * A_imag.mDesc.GetElementSpace());
+    DeviceMem b_k_n_real_device_buf(sizeof(BDataType) * B_real.mDesc.GetElementSpace());
+    DeviceMem b_k_n_imag_device_buf(sizeof(BDataType) * B_imag.mDesc.GetElementSpace());
+    DeviceMem c_m_n_real_device_buf(sizeof(CDataType) * C_real.mDesc.GetElementSpace());
+    DeviceMem c_m_n_imag_device_buf(sizeof(CDataType) * C_imag.mDesc.GetElementSpace());
+    DeviceMem aux_device_buf(sizeof(CDataType) * Aux.mDesc.GetElementSpace());
 
-    a_m_k_device_buf.ToDevice(A.mData.data());
-    b_k_n_device_buf.ToDevice(B.mData.data());
+    a_m_k_real_device_buf.ToDevice(A_real.mData.data());
+    a_m_k_imag_device_buf.ToDevice(A_imag.mData.data());
+    b_k_n_real_device_buf.ToDevice(B_real.mData.data());
+    b_k_n_imag_device_buf.ToDevice(B_imag.mData.data());
 
     auto invoker_ptr  = cgemmPtr->MakeInvokerPointer();
     auto argument_ptr = cgemmPtr->MakeArgumentPointer(
         static_cast<ADataType*>(a_m_k_real_device_buf.GetDeviceBuffer()),
-        static_cast<ADataType*>(a_m_k_real_device_buf.GetDeviceBuffer()),
+        static_cast<ADataType*>(a_m_k_imag_device_buf.GetDeviceBuffer()),
         static_cast<BDataType*>(b_k_n_real_device_buf.GetDeviceBuffer()),
         static_cast<BDataType*>(b_k_n_imag_device_buf.GetDeviceBuffer()),
         static_cast<CDataType*>(c_m_n_real_device_buf.GetDeviceBuffer()),
@@ -255,7 +257,7 @@ struct TestCGemm
         if(std::is_same<CDataType, float>::value)
         {
             res = ck::utils::check_err(c_device_real.mData, c_host_real.mData) &&
-                  ck::utils::check_err(c_device_real.mData, c_host.mData);
+                  ck::utils::check_err(c_device_imag.mData, c_host_imag.mData);
             std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
         }
         else if(std::is_same<CDataType, ck::half_t>::value)
@@ -326,15 +328,13 @@ struct TestCGemmBF16
             f_host_tensor_descriptor(params.K, params.N, params.StrideB, BLayout{}));
         Tensor<float> b_k_n_imag_fp32(
             f_host_tensor_descriptor(params.K, params.N, params.StrideB, BLayout{}));
-        Tensor<float> c_m_n_host_real_fp32(
+        Tensor<float> c_m_n_real_host_fp32(
             f_host_tensor_descriptor(params.M, params.N, params.StrideC, CLayout{}));
-        Tensor<float> c_m_n_host_imag_fp32(
+        Tensor<float> c_m_n_imag_host_fp32(
             f_host_tensor_descriptor(params.M, params.N, params.StrideC, CLayout{}));
-        Tensor<float> c_m_n_device_real_fp32(
+        Tensor<float> c_m_n_real_device_fp32(
             f_host_tensor_descriptor(params.M, params.N, params.StrideC, CLayout{}));
-        Tensor<float> c_m_n_device_imag_fp32(
-            f_host_tensor_descriptor(params.M, params.N, params.StrideC, CLayout{}));
-        Tensor<float> aux_fp32(
+        Tensor<float> c_m_n_imag_device_fp32(
             f_host_tensor_descriptor(params.M, params.N, params.StrideC, CLayout{}));
 
         a_m_k_real_bf16.GenerateTensorValue(GeneratorTensor_3<BF16>{-0.5, 0.5});
@@ -361,8 +361,7 @@ struct TestCGemmBF16
                                c_m_n_real_host_fp32,
                                c_m_n_imag_host_fp32,
                                c_m_n_real_device_fp32,
-                               c_m_n_imag_device_fp32,
-                               aux_fp32);
+                               c_m_n_imag_device_fp32);
     }
 
     auto operator()(DeviceCGemmPtr_& cgemmPtr)
@@ -392,43 +391,42 @@ struct TestCGemmBF16
         Tensor<float>& c_imag_host_fp32   = std::get<12>(host_tensors);
         Tensor<float>& c_real_device_fp32 = std::get<13>(host_tensors);
         Tensor<float>& c_imag_device_fp32 = std::get<14>(host_tensors);
-        Tensor<float>& aux_fp32           = std::get<15>(host_tensors);
 
         auto a_element_op = AElementwiseOperation{};
         auto b_element_op = BElementwiseOperation{};
         auto c_element_op = CElementwiseOperation{};
 
         // use fp32 host kernel to verify bf16 device kernel
-        using ReferenceGemmInstance =
+        using ReferenceCGemmInstance =
             ck::tensor_operation::host::ReferenceCGemm<float,
                                                        float,
                                                        float,
                                                        AElementwiseOperation,
                                                        BElementwiseOperation,
                                                        CElementwiseOperation>;
-        ck::gemm_util::RunHostCGEMM<ReferenceCGemmInstance>(a_real_fp32,
-                                                            a_imag_fp32,
-                                                            b_real_fp32,
-                                                            b_imag_fp32,
-                                                            c_real_host_fp32,
-                                                            c_imag_fp32,
-                                                            a_element_op,
-                                                            b_element_op,
-                                                            c_element_op);
+        ck::cgemm_util::RunHostCGEMM<ReferenceCGemmInstance>(a_real_fp32,
+                                                             a_imag_fp32,
+                                                             b_real_fp32,
+                                                             b_imag_fp32,
+                                                             c_real_host_fp32,
+                                                             c_imag_host_fp32,
+                                                             a_element_op,
+                                                             b_element_op,
+                                                             c_element_op);
 
         // Act
-        ck::gemm_util::RunDeviceCGEMM(cgemmPtr,
-                                      params,
-                                      a_real_bf16,
-                                      a_imag_bf16,
-                                      b_real_bf16,
-                                      b_imag_bf16,
-                                      c_real_device_bf16,
-                                      c_imag_device_bf16,
-                                      aux_bf16,
-                                      a_element_op,
-                                      b_element_op,
-                                      c_element_op);
+        ck::cgemm_util::RunDeviceCGEMM(cgemmPtr,
+                                       params,
+                                       a_real_bf16,
+                                       a_imag_bf16,
+                                       b_real_bf16,
+                                       b_imag_bf16,
+                                       c_real_device_bf16,
+                                       c_imag_device_bf16,
+                                       aux_bf16,
+                                       a_element_op,
+                                       b_element_op,
+                                       c_element_op);
 
         bf16_to_f32_(c_real_device_bf16, c_real_device_fp32);
         bf16_to_f32_(c_imag_device_bf16, c_imag_device_fp32);
