@@ -38,7 +38,7 @@ __global__ void
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op,
-            const DxsElementwiseOperation dxs_element_op_,
+            const DxsElementwiseOperation dxs_element_op,
             const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
             const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
@@ -57,7 +57,7 @@ __global__ void
                                                   a_element_op,
                                                   b_element_op,
                                                   c_element_op,
-                                                  dxs_element_op_,
+                                                  dxs_element_op,
                                                   a_grid_desc_ak0_m_ak1,
                                                   b_grid_desc_bk0_n_bk1,
                                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
