@@ -1,5 +1,5 @@
-#ifndef CK_GRIDWISE_GEMM_XDLOPS_V2R3_HPP
-#define CK_GRIDWISE_GEMM_XDLOPS_V2R3_HPP
+#ifndef CK_GRIDWISE_GEMM_XDLOPS_SKIP_B_LDS_V2R3_HPP
+#define CK_GRIDWISE_GEMM_XDLOPS_SKIP_B_LDS_V2R3_HPP
 
 #include "common_header.hpp"
 #include "multi_index_transform_helper.hpp"
@@ -668,7 +668,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
                                           make_tuple(I0, I0, I0, I0, I0, I0, I0),
                                           b_thread_buf);
 
-                    // blockwise_gemm.Run(a_block_buf, b_thread_buf, c_thread_buf);
+                    blockwise_gemm.Run(a_block_buf, b_thread_buf, c_thread_buf);
 
                     block_sync_lds();
                     // move windows
@@ -687,7 +687,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
             {
                 block_sync_lds();
 
-                // blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+                blockwise_gemm.Run(a_block_buf, b_thread_buf, c_thread_buf);
             }
         }
 

@@ -250,13 +250,13 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
 
     template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>
     __device__ void Run(const ABlockBuffer& a_block_buf,
-                        const BBlockBuffer& b_block_buf,
+                        const BBlockBuffer& b_thread_buf,
                         CThreadBuffer& c_thread_buf) const
     {
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
             a_thread_desc_.GetElementSpaceSize());
-        auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
-            b_thread_desc_.GetElementSpaceSize());
+        // auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
+        //    b_thread_desc_.GetElementSpaceSize());
 
         static_for<0, MRepeat, 1>{}([&](auto m0) {
             // read A
@@ -269,13 +269,6 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
 
             static_for<0, NRepeat, 1>{}([&](auto n0) {
                 // read B
-                b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
-                                   make_tuple(n0, I0, I0, I0),
-                                   b_block_buf,
-                                   b_thread_desc_,
-                                   make_tuple(I0, I0, I0, I0),
-                                   b_thread_buf);
-
                 static_for<0, KPerThread, KPack>{}([&](auto k) {
                     vector_type<FloatAB, KPack> a_thread_vec;
                     vector_type<FloatAB, KPack> b_thread_vec;
@@ -283,8 +276,9 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
                     static_for<0, KPack, 1>{}([&](auto i) {
                         a_thread_vec.template AsType<FloatAB>()(i) = a_thread_buf
                             [Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];
-                        b_thread_vec.template AsType<FloatAB>()(i) = b_thread_buf
-                            [Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];
+                        b_thread_vec.template AsType<FloatAB>()(i) =
+                            b_thread_buf[Number<b_thread_desc_.CalculateOffset(
+                                make_tuple(0, k / KPack, 0, n0, 0, 0, i))>{}];
                     });
 
                     using mfma_input_type =
@@ -309,7 +303,13 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
 
     // B[N0, N1, N2, KPerThread]
     static constexpr auto b_thread_desc_ =
-        make_naive_tensor_descriptor_packed(make_tuple(I1, I1, I1, Number<KPerThread>{}));
+        make_naive_tensor_descriptor_packed(make_tuple(I1,
+                                                       Number<KPerThread>{}, // KPerThread
+                                                       I1,                   // NBlockId
+                                                       Number<NRepeat>{},    // repeat
+                                                       I1,                   // waves
+                                                       I1,                   // NPerXdlops
+                                                       Number<KPack>{}));
 
     // C[M, N, NumRegXdlops]
     static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(
@@ -325,18 +325,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
                                                          A_K1,
                                                          A_K1>;
 
-    using BThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatAB,
-                                                         FloatAB,
-                                                         decltype(b_block_desc_n0_n1_n2_k),
-                                                         decltype(b_thread_desc_),
-                                                         Sequence<1, 1, 1, KPerThread>,
-                                                         Sequence<0, 1, 2, 3>,
-                                                         3,
-                                                         B_K1,
-                                                         B_K1>;
-
     AThreadCopy a_thread_copy_{CalculateAThreadOriginDataIndex()};
-    BThreadCopy b_thread_copy_{CalculateBThreadOriginDataIndex()};
 };
 
 } // namespace ck
