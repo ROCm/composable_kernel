@@ -985,7 +985,7 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_MxN
     {
         if constexpr(BypassTransfer)
         {
-            src_buf.p_data_ = reinterpret_cast<float*>(dst_buf.p_data_) + src_offset;
+            dst_buf.p_data_ = reinterpret_cast<float*>(src_buf.p_data_) + src_offset;
         }
     }
 
