@@ -123,9 +123,16 @@ struct GridwiseGemmAvx2_MxN
         }
     }
 
-    static auto GetCBlockDescriptor(const ck::index_t m_per_blk, const ck::index_t n_per_blk)
+    static auto GetCBlockDescriptor(const ck::index_t m_per_blk,
+                                    const ck::index_t n_per_blk,
+                                    const CGridDesc& c_grid_desc)
     {
-        return make_naive_tensor_descriptor_packed(make_tuple(m_per_blk, n_per_blk));
+        if constexpr(UseCLocalBuffer)
+        {
+            return make_naive_tensor_descriptor_packed(make_tuple(m_per_blk, n_per_blk));
+        }
+        else
+            return c_grid_desc;
     }
 
     static auto GetASliceLength(const ck::index_t m_per_blk, const ck::index_t k_per_blk)
@@ -264,16 +271,16 @@ struct GridwiseGemmAvx2_MxN
             reinterpret_cast<FloatC*>(p_c_grid), c_grid_desc.GetElementSpaceSize());
 
         auto blockwise_gemm = BlockwiseGemmAvx2_MxN<
-            FloatA,                                                  // FloatA,
-            FloatB,                                                  // FloatB,
-            FloatC,                                                  // FloatC,
-            decltype(GetABlockDescriptor(m_per_block, k_per_block)), // ABlockDesc,
-            decltype(GetBBlockDescriptor(k_per_block, n_per_block)), // BBlockDesc,
-            decltype(GetCBlockDescriptor(m_per_block, n_per_block)), // CBlockDesc,
-            KPerBlock,                                               // KPerBlock,
-            ThreadwiseGemm_Dispatch,                                 // ThreadwiseGemm_Dispatch,
-            ThreadMNAccessOrder>{}; // ThreadMNAccessOrder  // how we acces
-                                    // gemm MN to utilize micro kernel>{};
+            FloatA,                                                               // FloatA,
+            FloatB,                                                               // FloatB,
+            FloatC,                                                               // FloatC,
+            decltype(GetABlockDescriptor(m_per_block, k_per_block)),              // ABlockDesc,
+            decltype(GetBBlockDescriptor(k_per_block, n_per_block)),              // BBlockDesc,
+            decltype(GetCBlockDescriptor(m_per_block, n_per_block, c_grid_desc)), // CBlockDesc,
+            KPerBlock,                                                            // KPerBlock,
+            ThreadwiseGemm_Dispatch, // ThreadwiseGemm_Dispatch,
+            ThreadMNAccessOrder>{};  // ThreadMNAccessOrder  // how we acces
+                                     // gemm MN to utilize micro kernel>{};
 
         int total_threads = omp_get_max_threads();
 
@@ -325,7 +332,7 @@ struct GridwiseGemmAvx2_MxN
                                     BElementwiseOperation{});
 
                 auto c_threadwise_copy =
-                    CThreadwiseCopy(GetCBlockDescriptor(m_per_block, n_per_block),
+                    CThreadwiseCopy(GetCBlockDescriptor(m_per_block, n_per_block, c_grid_desc),
                                     ck::make_zero_multi_index<2>(),
                                     c_grid_desc,
                                     ck::make_zero_multi_index<2>(),
@@ -373,8 +380,7 @@ struct GridwiseGemmAvx2_MxN
                     a_threadwise_copy.SetSrcSliceOrigin(a_grid_desc, GetAIndex(i_mc, 0));
                     b_threadwise_copy.SetSrcSliceOrigin(b_grid_desc, GetBIndex(0, i_nc));
 
-                    auto c_block_desc =
-                        UseCLocalBuffer ? GetCBlockDescriptor(mc_size, nc_size) : c_grid_desc;
+                    auto c_block_desc = GetCBlockDescriptor(mc_size, nc_size, c_grid_desc);
                     if constexpr(!UseCLocalBuffer)
                     {
                         c_threadwise_copy.SetSrcSliceOrigin(c_block_desc, GetCIndex(i_mc, i_nc));
@@ -456,7 +462,7 @@ struct GridwiseGemmAvx2_MxN
                                     BElementwiseOperation{});
 
                 auto c_threadwise_copy =
-                    CThreadwiseCopy(GetCBlockDescriptor(m_per_block, n_per_block),
+                    CThreadwiseCopy(GetCBlockDescriptor(m_per_block, n_per_block, c_grid_desc),
                                     ck::make_zero_multi_index<2>(),
                                     c_grid_desc,
                                     ck::make_zero_multi_index<2>(),
@@ -521,9 +527,7 @@ struct GridwiseGemmAvx2_MxN
                                                       b_block_buf,
                                                       GetBSliceLength(kc_size, nc_size));
 
-                            auto c_block_desc = UseCLocalBuffer
-                                                    ? GetCBlockDescriptor(mc_size, nc_size)
-                                                    : c_grid_desc;
+                            auto c_block_desc = GetCBlockDescriptor(mc_size, nc_size, c_grid_desc);
 
                             if constexpr(!UseCLocalBuffer)
                             {

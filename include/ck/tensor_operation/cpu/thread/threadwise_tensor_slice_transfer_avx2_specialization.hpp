@@ -368,15 +368,12 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
     {
         if constexpr(BypassTransfer)
         {
-            float* p_src    = reinterpret_cast<float*>(src_buf.p_data_) + src_offset;
-            dst_buf.p_data_ = p_src;
+            dst_buf.p_data_ = reinterpret_cast<float*>(src_buf.p_data_) + src_offset;
         }
         else
         {
-            const ck::index_t m_per_block =
-                dst_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<0>{}];
-            const ck::index_t k_per_block =
-                dst_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}];
+            const ck::index_t m_per_block = slice_length[Number<0>{}];
+            const ck::index_t k_per_block = slice_length[Number<1>{}];
 
             const float* p_src = reinterpret_cast<const float*>(src_buf.p_data_) + src_offset;
             float* p_dst       = reinterpret_cast<float*>(dst_buf.p_data_);
@@ -540,19 +537,23 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
                         ck::index_t i_k_itr = k_per_block;
                         while(i_k_itr > 0)
                         {
-                            ck::index_t current_k_block = ck::math::min(C - i_c_itr_k, k_per_block);
+                            ck::index_t current_k_block_along_c =
+                                ck::math::min(C - i_c_itr_k, i_k_itr);
+
+                            // printf("current_k_block_along_c:%d, i_c_itr_k:%d, k_per_block:%d\n",
+                            // current_k_block_along_c, i_c_itr_k,k_per_block); fflush(stdout);
 
                             if((*reinterpret_cast<uint32_t*>(&i_hi_itr_k) < Hi) &&
                                (*reinterpret_cast<uint32_t*>(&i_wi_itr_k) < Wi))
                                 avx2_util::memcpy32_avx2(
-                                    p_dst_k, p_src_k, current_k_block, element_op_);
+                                    p_dst_k, p_src_k, current_k_block_along_c, element_op_);
                             else
-                                avx2_util::memset32_avx2(p_dst_k, 0, current_k_block);
+                                avx2_util::memset32_avx2(p_dst_k, 0, current_k_block_along_c);
 
-                            p_dst_k += current_k_block;
-                            p_src_k += current_k_block;
+                            p_dst_k += current_k_block_along_c;
+                            p_src_k += current_k_block_along_c;
 
-                            i_c_itr_k += current_k_block;
+                            i_c_itr_k += current_k_block_along_c;
                             if(i_c_itr_k >= C)
                             {
                                 i_c_itr_k = 0;
@@ -569,7 +570,7 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
                                 p_src_k += input_offset_ovf_x_acc_y;
                             }
 
-                            i_k_itr -= current_k_block;
+                            i_k_itr -= current_k_block_along_c;
                         }
                         /***  go along Gemm K ***/
 
@@ -765,11 +766,8 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_NHWC
         }
         else
         {
-            const ck::index_t n_per_block =
-                dst_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<0>{}] *
-                dst_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<2>{}];
-            const ck::index_t k_per_block =
-                dst_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}];
+            const ck::index_t n_per_block = slice_length[Number<0>{}] * slice_length[Number<2>{}];
+            const ck::index_t k_per_block = slice_length[Number<1>{}];
 
             // printf(" >>>> %d, %d, %d -> %d(%dx%d), %d\n", GemmN, GemmK, GemmN1, n_per_block,
             //     dst_desc.GetTransforms()[Number<0>{}]
@@ -1002,7 +1000,6 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_MxN
             if constexpr(!std::is_same<ElementwiseOperation,
                                        ck::tensor_operation::cpu::element_wise::PassThrough>::value)
             {
-                // if (true) {
                 const ck::index_t m_per_block = slice_length[Number<0>{}];
                 const ck::index_t n_per_block = slice_length[Number<1>{}];
 
@@ -1073,11 +1070,8 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_MxN
         }
         else
         {
-            const ck::index_t m_per_block =
-                src_desc.GetTransforms()[Number<0>{}]
-                    .GetUpperLengths()[Number<0>{}]; // must be multiple of 8
-            const ck::index_t n_per_block =
-                src_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}];
+            const ck::index_t m_per_block = slice_length[Number<0>{}];
+            const ck::index_t n_per_block = slice_length[Number<1>{}];
 
             const ck::index_t current_n = ck::math::min(DstGemmN - i_dst_gemm_n, n_per_block);
 
