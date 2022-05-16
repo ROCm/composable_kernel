@@ -63,11 +63,11 @@ __global__ void
     const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_base_ptr_of_batch_.GetCBasePtr(g_idx)));
 
-    const long_index_t d_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch_.GetDBasePtr(g_idx)));
-
-    static_for<0, p_ds_grid.Size(), 1>{}(
-        [&](auto In) { p_ds_grid(In) = p_ds_grid(In) + d_batch_offset; });
+    static_for<0, p_ds_grid.Size(), 1>{}([&](auto In) {
+        const long_index_t d_batch_offset = __builtin_amdgcn_readfirstlane(
+            static_cast<long_index_t>(compute_base_ptr_of_batch_.GetDBasePtr(g_idx, In)));
+        p_ds_grid(In) = p_ds_grid(In) + d_batch_offset;
+    });
 
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
@@ -530,8 +530,12 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
             return g_idx * static_cast<long_index_t>(BatchStrideC_);
         }
 
-        __host__ __device__ constexpr long_index_t GetDBasePtr(index_t g_idx) const
+        template <index_t I>
+        __host__ __device__ constexpr long_index_t GetDBasePtr(index_t g_idx,
+                                                               Number<I> reduction_idx) const
         {
+            // TODO - Support sequence of StrideD in MakeArgument()
+            (void)reduction_idx;
             return g_idx * static_cast<long_index_t>(BatchStrideD_);
         }
 
