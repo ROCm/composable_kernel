@@ -264,10 +264,10 @@ def runPerfTest(Map conf=[:]){
 
 def processPerfResults(Map conf=[:]){
     try{
-    node("master")
+    node("ansible")
     {
         sh "echo NODE_NAME = ${NODE_NAME} "
-        
+
         env.HSA_ENABLE_SDMA=0
         checkout scm
 
@@ -333,12 +333,6 @@ def processPerfResults(Map conf=[:]){
         echo 'Exception occurred: ' + e.toString()
         throw e
     }
-    finally{
-        if (!conf.get("no_reboot", false)) {
-            reboot()
-        }
-    }
-
 }
 
 
@@ -431,6 +425,14 @@ pipeline {
         }
         stage("Process Performance Tests Results")
         {
+            environment{
+                dbuser = "${dbuser}"
+                dbpassword = "${dbpassword}"
+                dbsship = "${dbsship}"
+                dbsshport = "${dbsshport}"
+                dbsshuser = "${dbsshuser}"
+                dbsshpassword = "${dbsshpassword}"
+            }
            steps
            {
                processPerfResults()
