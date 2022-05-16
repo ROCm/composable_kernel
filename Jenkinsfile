@@ -265,7 +265,7 @@ def runPerfTest(Map conf=[:]){
 def processPerfResults(Map conf=[:]){
     node("master")
     {
-        show_node_info()
+        sh "echo NODE_NAME = ${NODE_NAME} "
         def image = "composable_kernels"
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
         def gpu_arch = conf.get("gpu_arch", "gfx908")
