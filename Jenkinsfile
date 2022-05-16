@@ -216,21 +216,21 @@ def runCKProfiler(Map conf=[:]){
 						//def artifact = "profile_gemm_${gpu_arch}.txt"
 						sh "echo Branch name: ${env.BRANCH_NAME} > ${perf_log}"
 						sh "./profile_gemm.sh gemm 0 0 0 1 0 5 | tee -a ${perf_log}"
-						sh "./profile_gemm.sh gemm 1 0 0 1 0 5 | tee -a ${perf_log}"
-						sh "./profile_gemm.sh gemm 2 0 0 1 0 5 | tee -a ${perf_log}"
-						sh "./profile_gemm.sh gemm 3 0 0 1 0 5 | tee -a ${perf_log}"
-						sh "./profile_gemm.sh gemm 0 1 0 1 0 5 | tee -a ${perf_log}"
-						sh "./profile_gemm.sh gemm 1 1 0 1 0 5 | tee -a ${perf_log}"
-						sh "./profile_gemm.sh gemm 2 1 0 1 0 5 | tee -a ${perf_log}"
-						sh "./profile_gemm.sh gemm 3 1 0 1 0 5 | tee -a ${perf_log}"
-						sh "./profile_gemm.sh gemm 0 2 0 1 0 5 | tee -a ${perf_log}"
-						sh "./profile_gemm.sh gemm 1 2 0 1 0 5 | tee -a ${perf_log}"
-						sh "./profile_gemm.sh gemm 2 2 0 1 0 5 | tee -a ${perf_log}"
-						sh "./profile_gemm.sh gemm 3 2 0 1 0 5 | tee -a ${perf_log}"
-						sh "./profile_gemm.sh gemm 0 3 0 1 0 5 | tee -a ${perf_log}"
-						sh "./profile_gemm.sh gemm 1 3 0 1 0 5 | tee -a ${perf_log}"
-						sh "./profile_gemm.sh gemm 2 3 0 1 0 5 | tee -a ${perf_log}"
-						sh "./profile_gemm.sh gemm 3 3 0 1 0 5 | tee -a ${perf_log}"
+						//sh "./profile_gemm.sh gemm 1 0 0 1 0 5 | tee -a ${perf_log}"
+						//sh "./profile_gemm.sh gemm 2 0 0 1 0 5 | tee -a ${perf_log}"
+						//sh "./profile_gemm.sh gemm 3 0 0 1 0 5 | tee -a ${perf_log}"
+						//sh "./profile_gemm.sh gemm 0 1 0 1 0 5 | tee -a ${perf_log}"
+						//sh "./profile_gemm.sh gemm 1 1 0 1 0 5 | tee -a ${perf_log}"
+						//sh "./profile_gemm.sh gemm 2 1 0 1 0 5 | tee -a ${perf_log}"
+						//sh "./profile_gemm.sh gemm 3 1 0 1 0 5 | tee -a ${perf_log}"
+						//sh "./profile_gemm.sh gemm 0 2 0 1 0 5 | tee -a ${perf_log}"
+						//sh "./profile_gemm.sh gemm 1 2 0 1 0 5 | tee -a ${perf_log}"
+						//sh "./profile_gemm.sh gemm 2 2 0 1 0 5 | tee -a ${perf_log}"
+						//sh "./profile_gemm.sh gemm 3 2 0 1 0 5 | tee -a ${perf_log}"
+						//sh "./profile_gemm.sh gemm 0 3 0 1 0 5 | tee -a ${perf_log}"
+						//sh "./profile_gemm.sh gemm 1 3 0 1 0 5 | tee -a ${perf_log}"
+						//sh "./profile_gemm.sh gemm 2 3 0 1 0 5 | tee -a ${perf_log}"
+						//sh "./profile_gemm.sh gemm 3 3 0 1 0 5 | tee -a ${perf_log}"
                         stash name: "${perf_log}" //stash perf_log for transpoting to master
 						//results will be parsed, stored, and analyzed within the python script
 						//the script will return 0 if the performance criteria are met
@@ -266,6 +266,7 @@ def processPerfResults(){
     {
         dir("script")
         {
+            def gpu_arch = conf.get("gpu_arch", "gfx908")
             def perf_log = "perf_gemm_${gpu_arch}.log"
             def artifact = "profile_gemm_${gpu_arch}.txt"
             unstash "${perf_log}"
@@ -360,26 +361,8 @@ pipeline {
                     steps{
                         runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
                     }
-
                 }
-
             }
-            //stage("Process results")
-            //{
-            //steps{
-            //    node("master")
-            //    {
-            //        dir("script")
-            //        {
-            //            def perf_log = "perf_gemm_${gpu_arch}.log"
-            //            def artifact = "profile_gemm_${gpu_arch}.txt"
-            //            unstash "${perf_log}"
-            //            sh "python3 parse_perf_data.py ${perf_log} | tee ${artifact}"
-            //            sh "rm ${perf_log}"
-            //        }
-            //    }
-            //}
-            //}
         }
         stage("Process Performance Tests Results")
         {
