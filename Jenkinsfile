@@ -263,9 +263,14 @@ def runPerfTest(Map conf=[:]){
 }
 
 def processPerfResults(Map conf=[:]){
+    try{
     node("master")
     {
         sh "echo NODE_NAME = ${NODE_NAME} "
+        
+        env.HSA_ENABLE_SDMA=0
+        checkout scm
+
         def image = "composable_kernels"
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
         def gpu_arch = conf.get("gpu_arch", "gfx908")
@@ -321,6 +326,19 @@ def processPerfResults(Map conf=[:]){
             }
         }
     }
+    }
+        
+    catch(e){
+        echo "throwing error exception while processing performance test results"
+        echo 'Exception occurred: ' + e.toString()
+        throw e
+    }
+    finally{
+        if (!conf.get("no_reboot", false)) {
+            reboot()
+        }
+    }
+
 }
 
 
