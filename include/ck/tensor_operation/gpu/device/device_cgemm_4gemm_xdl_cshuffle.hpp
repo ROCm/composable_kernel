@@ -55,7 +55,8 @@ template <typename ALayout,
           index_t CShuffleMXdlPerWavePerShuffle,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-          index_t CShuffleBlockTransferScalarPerVector_NPerBlock>
+          index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
+          LoopScheduler LoopSched = make_default_loop_scheduler()>
 struct DeviceCGemm_4Gemm_Xdl_CShuffle
     : public DeviceCGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
@@ -376,7 +377,8 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        CShuffleBlockTransferScalarPerVector_NPerBlock>;
+        CShuffleBlockTransferScalarPerVector_NPerBlock,
+        LoopSched>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -448,7 +450,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(!GridwiseGemm::CheckValidity(
                    arg.a_grid_desc_ak0_m_ak1_, arg.b_grid_desc_bk0_n_bk1_, arg.c_grid_desc_m_n_))
@@ -478,146 +480,77 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     true>;
 
-                if(nrepeat == 0)
-                {
-                    launch_kernel(kernel,
-                                  dim3(grid_size),
-                                  dim3(BlockSize),
-                                  0,
-                                  arg.p_a_grid_real_,
-                                  arg.p_b_grid_real_,
-                                  arg.p_c_grid_real_,
-                                  arg.a_element_op_,
-                                  arg.b_element_op_,
-                                  arg.c_element_op_,
-                                  arg.a_grid_desc_ak0_m_ak1_,
-                                  arg.b_grid_desc_bk0_n_bk1_,
-                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                  arg.block_2_ctile_map_);
+                ave_time +=
+                    launch_and_time_kernel(stream_config,
+                                           kernel,
+                                           dim3(grid_size),
+                                           dim3(BlockSize),
+                                           0,
+                                           arg.p_a_grid_real_,
+                                           arg.p_b_grid_real_,
+                                           arg.p_c_grid_real_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_,
+                                           arg.a_grid_desc_ak0_m_ak1_,
+                                           arg.b_grid_desc_bk0_n_bk1_,
+                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.block_2_ctile_map_);
 
-                    launch_kernel(kernel,
-                                  dim3(grid_size),
-                                  dim3(BlockSize),
-                                  0,
-                                  arg.p_a_grid_imag_,
-                                  arg.p_b_grid_imag_,
-                                  arg.p_aux_grid_,
-                                  arg.a_element_op_,
-                                  arg.b_element_op_,
-                                  arg.c_element_op_,
-                                  arg.a_grid_desc_ak0_m_ak1_,
-                                  arg.b_grid_desc_bk0_n_bk1_,
-                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                  arg.block_2_ctile_map_);
+                ave_time +=
+                    launch_and_time_kernel(stream_config,
+                                           kernel,
+                                           dim3(grid_size),
+                                           dim3(BlockSize),
+                                           0,
+                                           arg.p_a_grid_imag_,
+                                           arg.p_b_grid_imag_,
+                                           arg.p_aux_grid_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_,
+                                           arg.a_grid_desc_ak0_m_ak1_,
+                                           arg.b_grid_desc_bk0_n_bk1_,
+                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.block_2_ctile_map_);
 
-                    // c_real = c_real - aux needed here!!!
+                // c_real = c_real - aux needed here!!!
 
-                    launch_kernel(kernel,
-                                  dim3(grid_size),
-                                  dim3(BlockSize),
-                                  0,
-                                  arg.p_a_grid_real_,
-                                  arg.p_b_grid_imag_,
-                                  arg.p_c_grid_imag_,
-                                  arg.a_element_op_,
-                                  arg.b_element_op_,
-                                  arg.c_element_op_,
-                                  arg.a_grid_desc_ak0_m_ak1_,
-                                  arg.b_grid_desc_bk0_n_bk1_,
-                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                  arg.block_2_ctile_map_);
+                ave_time +=
+                    launch_and_time_kernel(stream_config,
+                                           kernel,
+                                           dim3(grid_size),
+                                           dim3(BlockSize),
+                                           0,
+                                           arg.p_a_grid_real_,
+                                           arg.p_b_grid_imag_,
+                                           arg.p_c_grid_imag_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_,
+                                           arg.a_grid_desc_ak0_m_ak1_,
+                                           arg.b_grid_desc_bk0_n_bk1_,
+                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.block_2_ctile_map_);
 
-                    launch_kernel(kernel,
-                                  dim3(grid_size),
-                                  dim3(BlockSize),
-                                  0,
-                                  arg.p_a_grid_imag_,
-                                  arg.p_b_grid_real_,
-                                  arg.p_aux_grid_,
-                                  arg.a_element_op_,
-                                  arg.b_element_op_,
-                                  arg.c_element_op_,
-                                  arg.a_grid_desc_ak0_m_ak1_,
-                                  arg.b_grid_desc_bk0_n_bk1_,
-                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                  arg.block_2_ctile_map_);
+                ave_time +=
+                    launch_and_time_kernel(stream_config,
+                                           kernel,
+                                           dim3(grid_size),
+                                           dim3(BlockSize),
+                                           0,
+                                           arg.p_a_grid_imag_,
+                                           arg.p_b_grid_real_,
+                                           arg.p_aux_grid_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_,
+                                           arg.a_grid_desc_ak0_m_ak1_,
+                                           arg.b_grid_desc_bk0_n_bk1_,
+                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.block_2_ctile_map_);
 
-                    // c_imag = c_imag + aux needed here!!!
-                }
-                else
-                {
-                    ave_time +=
-                        launch_and_time_kernel(kernel,
-                                               nrepeat,
-                                               dim3(grid_size),
-                                               dim3(BlockSize),
-                                               0,
-                                               arg.p_a_grid_real_,
-                                               arg.p_b_grid_real_,
-                                               arg.p_c_grid_real_,
-                                               arg.a_element_op_,
-                                               arg.b_element_op_,
-                                               arg.c_element_op_,
-                                               arg.a_grid_desc_ak0_m_ak1_,
-                                               arg.b_grid_desc_bk0_n_bk1_,
-                                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                               arg.block_2_ctile_map_);
-
-                    ave_time +=
-                        launch_and_time_kernel(kernel,
-                                               nrepeat,
-                                               dim3(grid_size),
-                                               dim3(BlockSize),
-                                               0,
-                                               arg.p_a_grid_imag_,
-                                               arg.p_b_grid_imag_,
-                                               arg.p_aux_grid_,
-                                               arg.a_element_op_,
-                                               arg.b_element_op_,
-                                               arg.c_element_op_,
-                                               arg.a_grid_desc_ak0_m_ak1_,
-                                               arg.b_grid_desc_bk0_n_bk1_,
-                                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                               arg.block_2_ctile_map_);
-
-                    // // c_real = c_real - aux needed here!!!
-
-                    ave_time +=
-                        launch_and_time_kernel(kernel,
-                                               nrepeat,
-                                               dim3(grid_size),
-                                               dim3(BlockSize),
-                                               0,
-                                               arg.p_a_grid_real_,
-                                               arg.p_b_grid_imag_,
-                                               arg.p_c_grid_imag_,
-                                               arg.a_element_op_,
-                                               arg.b_element_op_,
-                                               arg.c_element_op_,
-                                               arg.a_grid_desc_ak0_m_ak1_,
-                                               arg.b_grid_desc_bk0_n_bk1_,
-                                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                               arg.block_2_ctile_map_);
-
-                    ave_time +=
-                        launch_and_time_kernel(kernel,
-                                               nrepeat,
-                                               dim3(grid_size),
-                                               dim3(BlockSize),
-                                               0,
-                                               arg.p_a_grid_imag_,
-                                               arg.p_b_grid_real_,
-                                               arg.p_aux_grid_,
-                                               arg.a_element_op_,
-                                               arg.b_element_op_,
-                                               arg.c_element_op_,
-                                               arg.a_grid_desc_ak0_m_ak1_,
-                                               arg.b_grid_desc_bk0_n_bk1_,
-                                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                               arg.block_2_ctile_map_);
-
-                    // c_imag = c_imag + aux needed here!!!
-                }
+                // c_imag = c_imag + aux needed here!!!
             }
             else
             {
@@ -634,155 +567,87 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     false>;
 
-                if(nrepeat == 0)
-                {
-                    launch_kernel(kernel,
-                                  dim3(grid_size),
-                                  dim3(BlockSize),
-                                  0,
-                                  arg.p_a_grid_real_,
-                                  arg.p_b_grid_real_,
-                                  arg.p_c_grid_real_,
-                                  arg.a_element_op_,
-                                  arg.b_element_op_,
-                                  arg.c_element_op_,
-                                  arg.a_grid_desc_ak0_m_ak1_,
-                                  arg.b_grid_desc_bk0_n_bk1_,
-                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                  arg.block_2_ctile_map_);
+                ave_time +=
+                    launch_and_time_kernel(stream_config,
+                                           kernel,
+                                           dim3(grid_size),
+                                           dim3(BlockSize),
+                                           0,
+                                           arg.p_a_grid_real_,
+                                           arg.p_b_grid_real_,
+                                           arg.p_c_grid_real_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_,
+                                           arg.a_grid_desc_ak0_m_ak1_,
+                                           arg.b_grid_desc_bk0_n_bk1_,
+                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.block_2_ctile_map_);
 
-                    launch_kernel(kernel,
-                                  dim3(grid_size),
-                                  dim3(BlockSize),
-                                  0,
-                                  arg.p_a_grid_imag_,
-                                  arg.p_b_grid_imag_,
-                                  arg.p_aux_grid_,
-                                  arg.a_element_op_,
-                                  arg.b_element_op_,
-                                  arg.c_element_op_,
-                                  arg.a_grid_desc_ak0_m_ak1_,
-                                  arg.b_grid_desc_bk0_n_bk1_,
-                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                  arg.block_2_ctile_map_);
+                ave_time +=
+                    launch_and_time_kernel(stream_config,
+                                           kernel,
+                                           dim3(grid_size),
+                                           dim3(BlockSize),
+                                           0,
+                                           arg.p_a_grid_imag_,
+                                           arg.p_b_grid_imag_,
+                                           arg.p_aux_grid_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_,
+                                           arg.a_grid_desc_ak0_m_ak1_,
+                                           arg.b_grid_desc_bk0_n_bk1_,
+                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.block_2_ctile_map_);
 
-                    // // c_real = c_real - aux needed here!!!
+                // // c_real = c_real - aux needed here!!!
 
-                    launch_kernel(kernel,
-                                  dim3(grid_size),
-                                  dim3(BlockSize),
-                                  0,
-                                  arg.p_a_grid_real_,
-                                  arg.p_b_grid_imag_,
-                                  arg.p_c_grid_imag_,
-                                  arg.a_element_op_,
-                                  arg.b_element_op_,
-                                  arg.c_element_op_,
-                                  arg.a_grid_desc_ak0_m_ak1_,
-                                  arg.b_grid_desc_bk0_n_bk1_,
-                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                  arg.block_2_ctile_map_);
+                ave_time +=
+                    launch_and_time_kernel(stream_config,
+                                           kernel,
+                                           dim3(grid_size),
+                                           dim3(BlockSize),
+                                           0,
+                                           arg.p_a_grid_real_,
+                                           arg.p_b_grid_imag_,
+                                           arg.p_c_grid_imag_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_,
+                                           arg.a_grid_desc_ak0_m_ak1_,
+                                           arg.b_grid_desc_bk0_n_bk1_,
+                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.block_2_ctile_map_);
 
-                    launch_kernel(kernel,
-                                  dim3(grid_size),
-                                  dim3(BlockSize),
-                                  0,
-                                  arg.p_a_grid_imag_,
-                                  arg.p_b_grid_real_,
-                                  arg.p_aux_grid_,
-                                  arg.a_element_op_,
-                                  arg.b_element_op_,
-                                  arg.c_element_op_,
-                                  arg.a_grid_desc_ak0_m_ak1_,
-                                  arg.b_grid_desc_bk0_n_bk1_,
-                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                  arg.block_2_ctile_map_);
+                ave_time +=
+                    launch_and_time_kernel(stream_config,
+                                           kernel,
+                                           dim3(grid_size),
+                                           dim3(BlockSize),
+                                           0,
+                                           arg.p_a_grid_imag_,
+                                           arg.p_b_grid_real_,
+                                           arg.p_aux_grid_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_,
+                                           arg.a_grid_desc_ak0_m_ak1_,
+                                           arg.b_grid_desc_bk0_n_bk1_,
+                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.block_2_ctile_map_);
 
-                    // c_imag = c_imag + aux needed here!!!
-                }
-                else
-                {
-                    ave_time +=
-                        launch_and_time_kernel(kernel,
-                                               nrepeat,
-                                               dim3(grid_size),
-                                               dim3(BlockSize),
-                                               0,
-                                               arg.p_a_grid_real_,
-                                               arg.p_b_grid_real_,
-                                               arg.p_c_grid_real_,
-                                               arg.a_element_op_,
-                                               arg.b_element_op_,
-                                               arg.c_element_op_,
-                                               arg.a_grid_desc_ak0_m_ak1_,
-                                               arg.b_grid_desc_bk0_n_bk1_,
-                                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                               arg.block_2_ctile_map_);
-
-                    ave_time +=
-                        launch_and_time_kernel(kernel,
-                                               nrepeat,
-                                               dim3(grid_size),
-                                               dim3(BlockSize),
-                                               0,
-                                               arg.p_a_grid_imag_,
-                                               arg.p_b_grid_imag_,
-                                               arg.p_aux_grid_,
-                                               arg.a_element_op_,
-                                               arg.b_element_op_,
-                                               arg.c_element_op_,
-                                               arg.a_grid_desc_ak0_m_ak1_,
-                                               arg.b_grid_desc_bk0_n_bk1_,
-                                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                               arg.block_2_ctile_map_);
-
-                    // c_real = c_real - aux needed here!!!
-
-                    ave_time +=
-                        launch_and_time_kernel(kernel,
-                                               nrepeat,
-                                               dim3(grid_size),
-                                               dim3(BlockSize),
-                                               0,
-                                               arg.p_a_grid_real_,
-                                               arg.p_b_grid_imag_,
-                                               arg.p_c_grid_imag_,
-                                               arg.a_element_op_,
-                                               arg.b_element_op_,
-                                               arg.c_element_op_,
-                                               arg.a_grid_desc_ak0_m_ak1_,
-                                               arg.b_grid_desc_bk0_n_bk1_,
-                                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                               arg.block_2_ctile_map_);
-
-                    ave_time +=
-                        launch_and_time_kernel(kernel,
-                                               nrepeat,
-                                               dim3(grid_size),
-                                               dim3(BlockSize),
-                                               0,
-                                               arg.p_a_grid_imag_,
-                                               arg.p_b_grid_real_,
-                                               arg.p_aux_grid_,
-                                               arg.a_element_op_,
-                                               arg.b_element_op_,
-                                               arg.c_element_op_,
-                                               arg.a_grid_desc_ak0_m_ak1_,
-                                               arg.b_grid_desc_bk0_n_bk1_,
-                                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                               arg.block_2_ctile_map_);
-
-                    // c_imag = c_imag + aux needed here!!!
-                }
+                // c_imag = c_imag + aux needed here!!!
             }
 
             return ave_time;
         }
 
         // polymorphic
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 

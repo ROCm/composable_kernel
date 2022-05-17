@@ -6,7 +6,7 @@
 
 #include "data_type.hpp"
 #include "element_wise_operation.hpp"
-#include "conv_fwd_util.hpp"
+#include "library/include/ck/library/utility/conv_util.hpp"
 #include "conv_util.hpp"
 
 namespace {
@@ -19,13 +19,13 @@ bool test_conv1d_nwc_instances(const std::vector<test::conv::DeviceConvFwdNoOpPt
     namespace ctl = ck::tensor_layout::convolution;
 
     ck::utils::conv::ConvParams params;
-    params.num_dim_spatial        = 1;
-    params.filter_spatial_lengths = std::vector<ck::index_t>{3};
-    params.input_spatial_lengths  = std::vector<ck::index_t>{71};
-    params.conv_filter_strides    = std::vector<ck::index_t>{2};
-    params.conv_filter_dilations  = std::vector<ck::index_t>{1};
-    params.input_left_pads        = std::vector<ck::index_t>{1};
-    params.input_right_pads       = std::vector<ck::index_t>{1};
+    params.num_dim_spatial_        = 1;
+    params.filter_spatial_lengths_ = std::vector<ck::index_t>{3};
+    params.input_spatial_lengths_  = std::vector<ck::index_t>{71};
+    params.conv_filter_strides_    = std::vector<ck::index_t>{2};
+    params.conv_filter_dilations_  = std::vector<ck::index_t>{1};
+    params.input_left_pads_        = std::vector<ck::index_t>{1};
+    params.input_right_pads_       = std::vector<ck::index_t>{1};
 
     conv::ConvFwdOpInstance<T, T, T, ctl::NWC, ctl::KCX, ctl::NWK> conv_instance(params);
 
@@ -44,16 +44,16 @@ TEST(Conv1DFwdNWC, TestConv1D)
     namespace ctl = ck::tensor_layout::convolution;
 
     ck::utils::conv::ConvParams params;
-    params.num_dim_spatial        = 1;
-    params.N                      = 2;
-    params.K                      = 16;
-    params.C                      = 4;
-    params.filter_spatial_lengths = std::vector<ck::index_t>{3};
-    params.input_spatial_lengths  = std::vector<ck::index_t>{16};
-    params.conv_filter_strides    = std::vector<ck::index_t>{1};
-    params.conv_filter_dilations  = std::vector<ck::index_t>{1};
-    params.input_left_pads        = std::vector<ck::index_t>{1};
-    params.input_right_pads       = std::vector<ck::index_t>{1};
+    params.num_dim_spatial_        = 1;
+    params.N_                      = 2;
+    params.K_                      = 16;
+    params.C_                      = 4;
+    params.filter_spatial_lengths_ = std::vector<ck::index_t>{3};
+    params.input_spatial_lengths_  = std::vector<ck::index_t>{16};
+    params.conv_filter_strides_    = std::vector<ck::index_t>{1};
+    params.conv_filter_dilations_  = std::vector<ck::index_t>{1};
+    params.input_left_pads_        = std::vector<ck::index_t>{1};
+    params.input_right_pads_       = std::vector<ck::index_t>{1};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
     test::conv::get_test_convolution_fwd_instance<1>(conv_ptrs);

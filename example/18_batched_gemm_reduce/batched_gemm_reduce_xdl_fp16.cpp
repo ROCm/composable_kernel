@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <stdlib.h>
 #include <half.hpp>
+#include "check_err.hpp"
 #include "config.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -57,18 +58,18 @@ using ReferenceBatchedGemmInstance = ck::tensor_operation::host::
 
 int main(int argc, char* argv[])
 {
-    bool do_verification = 1;
+    bool do_verification = true;
     int init_method      = 1;
-    int nrepeat          = 5;
+    bool time_kernel     = false;
 
     // GEMM shape
-    ck::index_t M = 3840;
-    ck::index_t N = 4096;
-    ck::index_t K = 4096;
+    ck::index_t M = 2048;
+    ck::index_t N = 1920;
+    ck::index_t K = 2048;
 
-    ck::index_t StrideA = 4096;
-    ck::index_t StrideB = 4096;
-    ck::index_t StrideC = 4096;
+    ck::index_t StrideA = 2048;
+    ck::index_t StrideB = 2048;
+    ck::index_t StrideC = 1920;
 
     ck::index_t BatchCount = 4;
 
@@ -80,13 +81,13 @@ int main(int argc, char* argv[])
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
     }
     else if(argc == 11)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
 
         M = std::stoi(argv[4]);
         N = std::stoi(argv[5]);
@@ -96,13 +97,13 @@ int main(int argc, char* argv[])
         StrideB = std::stoi(argv[8]);
         StrideC = std::stoi(argv[9]);
 
-        BatchCount = std::stoi(argv[9]);
+        BatchCount = std::stoi(argv[10]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: run kernel # of times (>1)\n");
+        printf("arg3: time kernel (0=n0, 1=yes)\n");
         printf("arg4 to 10: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC, BatchCount\n");
         exit(0);
     }
@@ -204,30 +205,13 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    // warm up
-    invoker.Run(argument);
+    // init DO, D1 to 0
+    d0_device_buf.SetZero();
+    d1_device_buf.SetZero();
 
-    // timing
-    float total_time = 0;
-
-    for(int i = 0; i < nrepeat; ++i)
-    {
-        // init DO, D1 to 0
-        d0_device_buf.SetZero();
-        d1_device_buf.SetZero();
-
-        KernelTimer timer;
-
-        timer.Start();
-
-        invoker.Run(argument);
-
-        timer.End();
-
-        total_time += timer.GetElapsedTime();
-    }
-
-    float ave_time = total_time / nrepeat;
+    // if time_kernel == true, kernel will run multiple times. This kernel use atomic-add so result
+    // will not be correct. need to set time_kernel = false for correctness test
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     std::size_t flop      = std::size_t(2) * BatchCount * M * N * K;
     std::size_t num_btype = sizeof(ADataType) * BatchCount * M * K +
@@ -241,6 +225,7 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << batched_gemm.GetTypeString() << std::endl;
 
+    bool pass = true;
     if(do_verification)
     {
         c_device_buf.FromDevice(c_g_m_n_device_result.mData.data());
@@ -264,7 +249,7 @@ int main(int argc, char* argv[])
 
                 for(int n = 0; n < N; ++n)
                 {
-                    float d0_val = ck::type_convert<float>(c_g_m_n_host_result(m, n));
+                    float d0_val = ck::type_convert<float>(c_g_m_n_host_result(batch, m, n));
                     float d1_val;
 
                     d1_element_op(d1_val, d0_val);
@@ -277,10 +262,18 @@ int main(int argc, char* argv[])
             }
         }
 
-        check_error(c_g_m_n_host_result, c_g_m_n_device_result);
-        check_error(d0_g_m_host_result, d0_g_m_device_result);
-        check_error(d1_g_m_host_result, d1_g_m_device_result);
+        pass &= ck::utils::check_err(c_g_m_n_host_result.mData, c_g_m_n_device_result.mData);
+        pass &= ck::utils::check_err(d0_g_m_device_result.mData,
+                                     d0_g_m_host_result.mData,
+                                     "Error: Incorrect results! D0",
+                                     1e-3,
+                                     1e-3);
+        pass &= ck::utils::check_err(d1_g_m_device_result.mData,
+                                     d1_g_m_host_result.mData,
+                                     "Error: Incorrect results! D1",
+                                     1e-3,
+                                     1e-3);
     }
 
-    return 0;
+    return pass ? 0 : 1;
 }
