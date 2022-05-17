@@ -78,6 +78,9 @@ struct DeviceBinaryElementwise : public BaseOperator
                                   index_t gridSize,
                                   index_t threadPerBlock)
     {
+        static_assert(Dim == 1 || Dim == 2,
+                      "wrong! DeviceBinaryElementwise not support this dimension");
+
         if constexpr(Dim == 1)
             return MakeDescriptor_M0_1d(shape, stride, gridSize, threadPerBlock);
         else if constexpr(Dim == 2)
