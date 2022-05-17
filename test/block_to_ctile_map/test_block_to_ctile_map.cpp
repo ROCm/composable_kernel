@@ -8,6 +8,7 @@ using namespace ck;
 
 static auto I0 = Number<0>{};
 static auto I1 = Number<1>{};
+static auto I2 = Number<2>{};
 
 TEST(BlockToCTileMap, TestBlockToCTileMap_M00_N00_M01_N01_DeviceCTileIndexCheck1)
 {
@@ -256,6 +257,62 @@ TEST(BlockToCTileMap, TestBlockToCTileMap_M00_N0_M01Adapt)
             std::vector<int>{m0n0_idx[I0],
                              m0n0_idx[I1],
                              tile_map.ValidCTileIndex(m0n0_idx, make_tuple(MBlock, NBlock))};
+        EXPECT_TRUE(equal);
+    }
+}
+
+TEST(BlockToCTileMap, TestBlockToCTileMap_KSplit_M00_N0_M01Adapt)
+{
+    const index_t M         = 768;
+    const index_t N         = 384;
+    const index_t MPerBlock = 128;
+    const index_t NPerBlock = 128;
+    const index_t MBlock    = M / MPerBlock;
+    const index_t NBlock    = N / NPerBlock;
+    constexpr index_t M01   = 4;
+    const index_t KSplit    = 3;
+
+    auto c_grid_desc_m_n = make_naive_tensor_descriptor_packed(make_tuple(M, N));
+
+    printf("(M, N, MPerBlock, NPerBlock, M01) = (%d, %d, %d, %d, %d)\n",
+           M,
+           N,
+           MPerBlock,
+           NPerBlock,
+           M01);
+
+    BlockToCTileMap_KSplit_M00_N0_M01Adapt<MPerBlock, NPerBlock, decltype(c_grid_desc_m_n)>
+        tile_map(c_grid_desc_m_n, M01, KSplit);
+
+    EXPECT_TRUE(tile_map.CheckValidity(c_grid_desc_m_n) == true);
+    EXPECT_TRUE(tile_map.CalculateGridSize(c_grid_desc_m_n) == 18 * KSplit);
+
+    std::vector<std::vector<int>> expected_ksplitidx_m0idx_n0idx_valid = {
+        {0, 0, 0, 1}, {0, 1, 0, 1}, {0, 2, 0, 1}, {0, 3, 0, 1}, {0, 0, 1, 1}, {0, 1, 1, 1},
+        {0, 2, 1, 1}, {0, 3, 1, 1}, {0, 0, 2, 1}, {0, 1, 2, 1}, {0, 2, 2, 1}, {0, 3, 2, 1},
+        {0, 4, 0, 1}, {0, 5, 0, 1}, {0, 4, 1, 1}, {0, 5, 1, 1}, {0, 4, 2, 1}, {0, 5, 2, 1},
+        {1, 0, 0, 1}, {1, 1, 0, 1}, {1, 2, 0, 1}, {1, 3, 0, 1}, {1, 0, 1, 1}, {1, 1, 1, 1},
+        {1, 2, 1, 1}, {1, 3, 1, 1}, {1, 0, 2, 1}, {1, 1, 2, 1}, {1, 2, 2, 1}, {1, 3, 2, 1},
+        {1, 4, 0, 1}, {1, 5, 0, 1}, {1, 4, 1, 1}, {1, 5, 1, 1}, {1, 4, 2, 1}, {1, 5, 2, 1},
+        {2, 0, 0, 1}, {2, 1, 0, 1}, {2, 2, 0, 1}, {2, 3, 0, 1}, {2, 0, 1, 1}, {2, 1, 1, 1},
+        {2, 2, 1, 1}, {2, 3, 1, 1}, {2, 0, 2, 1}, {2, 1, 2, 1}, {2, 2, 2, 1}, {2, 3, 2, 1},
+        {2, 4, 0, 1}, {2, 5, 0, 1}, {2, 4, 1, 1}, {2, 5, 1, 1}, {2, 4, 2, 1}, {2, 5, 2, 1},
+    };
+
+    for(index_t i = 0; i < tile_map.CalculateGridSize(c_grid_desc_m_n); i++)
+    {
+        auto ksplitm0n0_idx = tile_map.CalculateBottomIndex(make_multi_index(i));
+        std::cout << "block_1d_id = " << i << ", ksplit, m0, n0 = " << ksplitm0n0_idx[I0] << ", "
+                  << ksplitm0n0_idx[I1] << ", " << ksplitm0n0_idx[I2];
+        std::cout << ", valid = "
+                  << tile_map.ValidCTileIndex(ksplitm0n0_idx, make_tuple(MBlock, NBlock))
+                  << std::endl;
+        bool equal =
+            expected_ksplitidx_m0idx_n0idx_valid[i] ==
+            std::vector<int>{ksplitm0n0_idx[I0],
+                             ksplitm0n0_idx[I1],
+                             ksplitm0n0_idx[I2],
+                             tile_map.ValidCTileIndex(ksplitm0n0_idx, make_tuple(MBlock, NBlock))};
         EXPECT_TRUE(equal);
     }
 }

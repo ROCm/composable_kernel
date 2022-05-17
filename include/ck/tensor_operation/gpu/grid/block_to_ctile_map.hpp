@@ -207,6 +207,75 @@ struct BlockToCTileMap_M00_N0_M01Adapt
     CGridDesc_M_N c_grid_desc_m_n_;
 };
 
+// 2D slices of column-vectors in 3D space
+// This C-tile map dynamically adjusts M01 when C-tile index is out of range
+template <index_t MPerBlock, index_t NPerBlock, typename CGridDesc_M_N>
+struct BlockToCTileMap_KSplit_M00_N0_M01Adapt
+{
+    static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
+    static constexpr auto I2 = Number<2>{};
+    static constexpr auto I3 = Number<3>{};
+
+    __host__ __device__ BlockToCTileMap_KSplit_M00_N0_M01Adapt() = default;
+
+    __host__ __device__ BlockToCTileMap_KSplit_M00_N0_M01Adapt(const CGridDesc_M_N& c_grid_desc_m_n,
+                                                               index_t M01    = 8,
+                                                               index_t KSplit = 1)
+        : M01_(M01), KSplit_(KSplit), c_grid_desc_m_n_(c_grid_desc_m_n)
+    {
+    }
+
+    __host__ constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n) const
+    {
+        const auto M0 = math::integer_divide_ceil(c_grid_desc_m_n.GetLength(I0), MPerBlock);
+        const auto N0 = math::integer_divide_ceil(c_grid_desc_m_n.GetLength(I1), NPerBlock);
+
+        const index_t grid_size = M0 * N0 * KSplit_;
+
+        return grid_size;
+    }
+
+    template <typename TopIdx>
+    __host__ __device__ constexpr auto CalculateBottomIndex(const TopIdx& idx_top) const
+    {
+        auto block_1d_id = idx_top[I0];
+
+        const auto M0 = math::integer_divide_ceil(c_grid_desc_m_n_.GetLength(I0), MPerBlock);
+        const auto N0 = math::integer_divide_ceil(c_grid_desc_m_n_.GetLength(I1), NPerBlock);
+
+        const index_t idx_ksplit = block_1d_id / (M0 * N0);
+        block_1d_id              = block_1d_id % (M0 * N0);
+
+        index_t idx_N0 = block_1d_id % N0;
+        index_t idx_M0 = block_1d_id / N0;
+
+        const auto M01_adapt = (idx_M0 < M0 - M0 % M01_) ? M01_ : M0 % M01_;
+
+        index_t idx_M00          = idx_M0 / M01_;
+        index_t idx_M01          = idx_M0 % M01_;
+        index_t idx_N0_M01_local = idx_N0 + idx_M01 * N0;
+
+        return make_tuple(idx_ksplit,
+                          idx_N0_M01_local % M01_adapt + idx_M00 * M01_,
+                          idx_N0_M01_local / M01_adapt);
+    }
+
+    template <typename CTileIdx, typename CTileDim>
+    __host__ __device__ bool ValidCTileIndex(const CTileIdx& /* c_tile_idx */,
+                                             const CTileDim& /* c_tile_dim */) const
+    {
+        return true; // always valid provided that user gets grid size from CalculateGridSize()
+    }
+
+    __host__ bool CheckValidity(const CGridDesc_M_N& /* c_grid_desc_m_n */) const { return true; }
+
+    private:
+    index_t M01_;
+    index_t KSplit_;
+    CGridDesc_M_N c_grid_desc_m_n_;
+};
+
 // Blocks of row-vectors
 template <index_t MPerBlock,
           index_t NPerBlock,
