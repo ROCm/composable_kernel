@@ -26,7 +26,7 @@ using EltwiseComputeDataType = F32;
 using Add = ck::tensor_operation::binary_element_wise::Add;
 
 using DeviceElementwiseAddInstance = ck::tensor_operation::device::
-    DeviceBinaryElementwise<F16, F16, CDataType, EltwiseComputeDataType, Add, 8>;
+    DeviceBinaryElementwise<F16, F16, CDataType, EltwiseComputeDataType, Add, 2, 8>;
 
 template <typename HostTensorA,
           typename HostTensorB,

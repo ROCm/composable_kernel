@@ -15,15 +15,16 @@ template <typename ADataType,
           typename CDataType,
           typename ComputeDataType,
           typename ElementwiseFunctor,
+          index_t Dim,
           index_t ScalarPerVector>
 struct DeviceBinaryElementwise : public BaseOperator
 {
     static constexpr auto I0 = Number<0>{};
 
-    static auto MakeDescriptor_M0(const std::vector<int>& shape,
-                                  const std::vector<int>& stride,
-                                  index_t gridSize,
-                                  index_t threadPerBlock)
+    static auto MakeDescriptor_M0_2d(const std::vector<int>& shape,
+                                     const std::vector<int>& stride,
+                                     index_t gridSize,
+                                     index_t threadPerBlock)
     {
         const int m = shape[0];
         const int n = shape[1];
@@ -49,6 +50,17 @@ struct DeviceBinaryElementwise : public BaseOperator
                                         make_tuple(Sequence<0>{}),
                                         make_tuple(Sequence<0>{}));
         return desc_m0_pad;
+    }
+
+    static auto MakeDescriptor_M0(const std::vector<int>& shape,
+                                  const std::vector<int>& stride,
+                                  index_t gridSize,
+                                  index_t threadPerBlock)
+    {
+        if constexpr(Dim == 2)
+            return MakeDescriptor_M0_2d(shape, stride, gridSize, threadPerBlock);
+        else
+            return make_naive_tensor_descriptor(make_tuple(0), make_tuple(0));
     }
 
     using GridDesc_M0        = decltype(MakeDescriptor_M0({1, 1}, {1, 1}, 1, 1));
