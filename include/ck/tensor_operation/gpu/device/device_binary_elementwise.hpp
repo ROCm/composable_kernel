@@ -21,6 +21,27 @@ struct DeviceBinaryElementwise : public BaseOperator
 {
     static constexpr auto I0 = Number<0>{};
 
+    static auto MakeDescriptor_M0_1d(const std::vector<int>& shape,
+                                     const std::vector<int>& stride,
+                                     index_t gridSize,
+                                     index_t threadPerBlock)
+    {
+        // 1d desc - [m]
+        const auto desc_m0 =
+            make_naive_tensor_descriptor(make_tuple(shape[0]), make_tuple(stride[0]));
+
+        // pad
+        const auto m0           = desc_m0.GetLength(I0);
+        const index_t loop_step = gridSize * threadPerBlock * ScalarPerVector;
+        const auto pad          = math::integer_least_multiple(m0, loop_step) - m0;
+        const auto desc_m0_pad =
+            transform_tensor_descriptor(desc_m0,
+                                        make_tuple(make_right_pad_transform(m0, pad)),
+                                        make_tuple(Sequence<0>{}),
+                                        make_tuple(Sequence<0>{}));
+        return desc_m0_pad;
+    }
+
     static auto MakeDescriptor_M0_2d(const std::vector<int>& shape,
                                      const std::vector<int>& stride,
                                      index_t gridSize,
@@ -57,7 +78,9 @@ struct DeviceBinaryElementwise : public BaseOperator
                                   index_t gridSize,
                                   index_t threadPerBlock)
     {
-        if constexpr(Dim == 2)
+        if constexpr(Dim == 1)
+            return MakeDescriptor_M0_1d(shape, stride, gridSize, threadPerBlock);
+        else if constexpr(Dim == 2)
             return MakeDescriptor_M0_2d(shape, stride, gridSize, threadPerBlock);
         else
             return make_naive_tensor_descriptor(make_tuple(0), make_tuple(0));
