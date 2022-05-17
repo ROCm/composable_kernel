@@ -70,12 +70,12 @@ class SimpleAppArgs
     int option_index = 0;
 
     public:
-    std::vector<size_t> inLengths;
-    std::vector<float> scales;
+    std::vector<size_t> inLengths = {16, 64, 32, 960};
+    std::vector<float> scales     = {1.0f, 0.0f};
 
     bool do_verification = true;
     int init_method      = 1;
-    bool time_kernel     = false;
+    bool time_kernel     = true;
 
     public:
     void show_usage(const char* cmd)
@@ -154,8 +154,11 @@ int main(int argc, char* argv[])
 
     SimpleAppArgs args;
 
-    if(args.processArgs(argc, argv) < 0)
-        return (-1);
+    if(argc > 1)
+    {
+        if(args.processArgs(argc, argv) < 0)
+            return (-1);
+    };
 
     constexpr bool op_support_indices =
         (ReduceOpId == ReduceTensorOp::MIN || ReduceOpId == ReduceTensorOp::MAX ||

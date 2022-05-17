@@ -103,7 +103,19 @@ int main(int argc, char* argv[])
     using namespace ck::host_reduce;
     using ck::host_common::to_int_vector;
 
-    if(argc != 4)
+    if(argc == 1)
+    {
+        do_verify   = true;
+        init_method = 2;
+        time_kernel = true;
+    }
+    else if(argc == 4)
+    {
+        do_verify   = static_cast<bool>(argv[1]);
+        init_method = atoi(argv[2]);
+        time_kernel = static_cast<bool>(atoi(argv[3]));
+    }
+    else
     {
         std::ostringstream ostr;
 
@@ -112,10 +124,6 @@ int main(int argc, char* argv[])
 
         throw std::runtime_error(ostr.str());
     };
-
-    do_verify   = static_cast<bool>(argv[1]);
-    init_method = atoi(argv[2]);
-    time_kernel = static_cast<bool>(atoi(argv[3]));
 
     alpha = 1.0f;
     beta  = 0.0f;
