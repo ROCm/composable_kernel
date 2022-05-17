@@ -151,6 +151,7 @@ int main(int argc, char* argv[])
     Tensor<CDataType> c_m_n_real_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_imag_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> aux(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<CDataType> aux_2(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
     std::cout << "a_m_k_real: " << a_m_k_real.mDesc << std::endl;
     std::cout << "a_m_k_imag: " << a_m_k_imag.mDesc << std::endl;
@@ -159,6 +160,7 @@ int main(int argc, char* argv[])
     std::cout << "c_m_n_real: " << c_m_n_real_device_result.mDesc << std::endl;
     std::cout << "c_m_n_imag: " << c_m_n_imag_device_result.mDesc << std::endl;
     std::cout << "aux: " << aux.mDesc << std::endl;
+    std::cout << "aux_2: " << aux_2.mDesc << std::endl;
 
     switch(init_method)
     {
@@ -185,6 +187,7 @@ int main(int argc, char* argv[])
     DeviceMem c_m_n_imag_device_buf(sizeof(CDataType) *
                                     c_m_n_imag_device_result.mDesc.GetElementSpace());
     DeviceMem aux_device_buf(sizeof(CDataType) * aux.mDesc.GetElementSpace());
+    DeviceMem aux_2_device_buf(sizeof(CDataType) * aux_2.mDesc.GetElementSpace());
 
     a_m_k_real_device_buf.ToDevice(a_m_k_real.mData.data());
     a_m_k_imag_device_buf.ToDevice(a_m_k_imag.mData.data());
@@ -206,6 +209,7 @@ int main(int argc, char* argv[])
                            static_cast<CDataType*>(c_m_n_real_device_buf.GetDeviceBuffer()),
                            static_cast<CDataType*>(c_m_n_imag_device_buf.GetDeviceBuffer()),
                            static_cast<CDataType*>(aux_device_buf.GetDeviceBuffer()),
+                           static_cast<CDataType*>(aux_2_device_buf.GetDeviceBuffer()),
                            M,
                            N,
                            K,

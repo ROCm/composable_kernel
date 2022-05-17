@@ -73,6 +73,7 @@ void RunDeviceCGEMM(DeviceCGemmPtr_& cgemmPtr,
                     Tensor<CDataType>& C_real,
                     Tensor<CDataType>& C_imag,
                     Tensor<CDataType>& Aux,
+                    Tensor<CDataType>& Aux_2,
                     AElementwiseOperation a_element_op,
                     BElementwiseOperation b_element_op,
                     CElementwiseOperation c_element_op)
@@ -84,6 +85,7 @@ void RunDeviceCGEMM(DeviceCGemmPtr_& cgemmPtr,
     DeviceMem c_m_n_real_device_buf(sizeof(CDataType) * C_real.mDesc.GetElementSpace());
     DeviceMem c_m_n_imag_device_buf(sizeof(CDataType) * C_imag.mDesc.GetElementSpace());
     DeviceMem aux_device_buf(sizeof(CDataType) * Aux.mDesc.GetElementSpace());
+    DeviceMem aux_2_device_buf(sizeof(CDataType) * Aux_2.mDesc.GetElementSpace());
 
     a_m_k_real_device_buf.ToDevice(A_real.mData.data());
     a_m_k_imag_device_buf.ToDevice(A_imag.mData.data());
@@ -99,6 +101,7 @@ void RunDeviceCGEMM(DeviceCGemmPtr_& cgemmPtr,
         static_cast<CDataType*>(c_m_n_real_device_buf.GetDeviceBuffer()),
         static_cast<CDataType*>(c_m_n_imag_device_buf.GetDeviceBuffer()),
         static_cast<CDataType*>(aux_device_buf.GetDeviceBuffer()),
+        static_cast<CDataType*>(aux_2_device_buf.GetDeviceBuffer()),
         params.M,
         params.N,
         params.K,
@@ -167,6 +170,8 @@ struct TestCGemm
             f_host_tensor_descriptor(params.M, params.N, params.StrideC, CLayout{}));
         Tensor<CDataType> aux(
             f_host_tensor_descriptor(params.M, params.N, params.StrideC, CLayout{}));
+        Tensor<CDataType> aux_2(
+            f_host_tensor_descriptor(params.M, params.N, params.StrideC, CLayout{}));
 
         auto f_generate_tensor_value = [](auto& tensor, auto type) {
             using dataType = decltype(type);
@@ -187,7 +192,8 @@ struct TestCGemm
                                c_m_n_imag_host_result,
                                c_m_n_real_device_result,
                                c_m_n_imag_device_result,
-                               aux);
+                               aux,
+                               aux_2);
     }
 
     auto operator()(DeviceCGemmPtr_& cgemmPtr)
@@ -216,6 +222,7 @@ struct TestCGemm
         Tensor<CDataType>& c_device_real = std::get<6>(host_tensors);
         Tensor<CDataType>& c_device_imag = std::get<7>(host_tensors);
         Tensor<CDataType>& aux           = std::get<8>(host_tensors);
+        Tensor<CDataType>& aux_2         = std::get<9>(host_tensors);
 
         auto a_element_op = AElementwiseOperation{};
         auto b_element_op = BElementwiseOperation{};
@@ -248,6 +255,7 @@ struct TestCGemm
                                        c_device_real,
                                        c_device_imag,
                                        aux,
+                                       aux_2,
                                        a_element_op,
                                        b_element_op,
                                        c_element_op);
@@ -319,6 +327,8 @@ struct TestCGemmBF16
             f_host_tensor_descriptor(params.M, params.N, params.StrideC, CLayout{}));
         Tensor<BF16> aux_bf16(
             f_host_tensor_descriptor(params.M, params.N, params.StrideC, CLayout{}));
+        Tensor<BF16> aux_2_bf16(
+            f_host_tensor_descriptor(params.M, params.N, params.StrideC, CLayout{}));
 
         Tensor<float> a_m_k_real_fp32(
             f_host_tensor_descriptor(params.M, params.K, params.StrideA, ALayout{}));
@@ -354,6 +364,7 @@ struct TestCGemmBF16
                                c_m_n_real_device_bf16,
                                c_m_n_imag_device_bf16,
                                aux_bf16,
+                               aux_2_bf16,
                                a_m_k_real_fp32,
                                a_m_k_imag_fp32,
                                b_k_n_real_fp32,
@@ -383,14 +394,15 @@ struct TestCGemmBF16
         Tensor<BF16>& c_real_device_bf16  = std::get<4>(host_tensors);
         Tensor<BF16>& c_imag_device_bf16  = std::get<5>(host_tensors);
         Tensor<BF16>& aux_bf16            = std::get<6>(host_tensors);
-        Tensor<float>& a_real_fp32        = std::get<7>(host_tensors);
-        Tensor<float>& a_imag_fp32        = std::get<8>(host_tensors);
-        Tensor<float>& b_real_fp32        = std::get<9>(host_tensors);
-        Tensor<float>& b_imag_fp32        = std::get<10>(host_tensors);
-        Tensor<float>& c_real_host_fp32   = std::get<11>(host_tensors);
-        Tensor<float>& c_imag_host_fp32   = std::get<12>(host_tensors);
-        Tensor<float>& c_real_device_fp32 = std::get<13>(host_tensors);
-        Tensor<float>& c_imag_device_fp32 = std::get<14>(host_tensors);
+        Tensor<BF16>& aux_2_bf16          = std::get<7>(host_tensors);
+        Tensor<float>& a_real_fp32        = std::get<8>(host_tensors);
+        Tensor<float>& a_imag_fp32        = std::get<9>(host_tensors);
+        Tensor<float>& b_real_fp32        = std::get<10>(host_tensors);
+        Tensor<float>& b_imag_fp32        = std::get<11>(host_tensors);
+        Tensor<float>& c_real_host_fp32   = std::get<12>(host_tensors);
+        Tensor<float>& c_imag_host_fp32   = std::get<13>(host_tensors);
+        Tensor<float>& c_real_device_fp32 = std::get<14>(host_tensors);
+        Tensor<float>& c_imag_device_fp32 = std::get<15>(host_tensors);
 
         auto a_element_op = AElementwiseOperation{};
         auto b_element_op = BElementwiseOperation{};
@@ -424,6 +436,7 @@ struct TestCGemmBF16
                                        c_real_device_bf16,
                                        c_imag_device_bf16,
                                        aux_bf16,
+                                       aux_2_bf16,
                                        a_element_op,
                                        b_element_op,
                                        c_element_op);

@@ -20,6 +20,7 @@ struct DeviceCGemm : public BaseOperator
                                                               void* p_c_real,
                                                               void* p_c_imag,
                                                               void* p_aux,
+                                                              void* p_aux_2,
                                                               ck::index_t M,
                                                               ck::index_t N,
                                                               ck::index_t K,

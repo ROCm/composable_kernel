@@ -390,6 +390,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                  CDataType* p_c_grid_real,
                  CDataType* p_c_grid_imag,
                  CDataType* p_aux_grid,
+                 CDataType* p_aux_2_grid,
                  index_t MRaw,
                  index_t NRaw,
                  index_t KRaw,
@@ -406,6 +407,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
               p_c_grid_real_{p_c_grid_real},
               p_c_grid_imag_{p_c_grid_imag},
               p_aux_grid_{p_aux_grid},
+              p_aux_2_grid_{p_aux_2_grid},
               a_grid_desc_ak0_m_ak1_{DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, KRaw, StrideA)},
               b_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1(KRaw, NRaw, StrideB)},
               c_grid_desc_m_n_{DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC)},
@@ -434,6 +436,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
         CDataType* p_c_grid_real_;
         CDataType* p_c_grid_imag_;
         CDataType* p_aux_grid_;
+        CDataType* p_aux_2_grid_;
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         CGridDesc_M_N c_grid_desc_m_n_;
@@ -488,7 +491,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                            0,
                                            arg.p_a_grid_real_,
                                            arg.p_b_grid_real_,
-                                           arg.p_c_grid_real_,
+                                           arg.p_aux_grid_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
@@ -505,7 +508,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                            0,
                                            arg.p_a_grid_imag_,
                                            arg.p_b_grid_imag_,
-                                           arg.p_aux_grid_,
+                                           arg.p_aux_2_grid_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
@@ -514,7 +517,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                            arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                                            arg.block_2_ctile_map_);
 
-                // c_real = c_real - aux needed here!!!
+                // c_real = aux - aux_2 needed here!!!
 
                 ave_time +=
                     launch_and_time_kernel(stream_config,
@@ -524,7 +527,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                            0,
                                            arg.p_a_grid_real_,
                                            arg.p_b_grid_imag_,
-                                           arg.p_c_grid_imag_,
+                                           arg.p_aux_grid_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
@@ -541,7 +544,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                            0,
                                            arg.p_a_grid_imag_,
                                            arg.p_b_grid_real_,
-                                           arg.p_aux_grid_,
+                                           arg.p_aux_2_grid_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
@@ -550,7 +553,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                            arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                                            arg.block_2_ctile_map_);
 
-                // c_imag = c_imag + aux needed here!!!
+                // c_imag = aux + aux_2 needed here!!!
             }
             else
             {
@@ -575,7 +578,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                            0,
                                            arg.p_a_grid_real_,
                                            arg.p_b_grid_real_,
-                                           arg.p_c_grid_real_,
+                                           arg.p_aux_grid_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
@@ -592,7 +595,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                            0,
                                            arg.p_a_grid_imag_,
                                            arg.p_b_grid_imag_,
-                                           arg.p_aux_grid_,
+                                           arg.p_aux_2_grid_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
@@ -601,7 +604,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                            arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                                            arg.block_2_ctile_map_);
 
-                // // c_real = c_real - aux needed here!!!
+                // // c_real = aux - aux_2 needed here!!!
 
                 ave_time +=
                     launch_and_time_kernel(stream_config,
@@ -611,7 +614,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                            0,
                                            arg.p_a_grid_real_,
                                            arg.p_b_grid_imag_,
-                                           arg.p_c_grid_imag_,
+                                           arg.p_aux_grid_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
@@ -628,7 +631,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                            0,
                                            arg.p_a_grid_imag_,
                                            arg.p_b_grid_real_,
-                                           arg.p_aux_grid_,
+                                           arg.p_aux_2_grid_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
@@ -637,7 +640,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                            arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                                            arg.block_2_ctile_map_);
 
-                // c_imag = c_imag + aux needed here!!!
+                // c_imag = aux + aux_2 needed here!!!
             }
 
             return ave_time;
@@ -676,6 +679,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                              CDataType* p_c_real,
                              CDataType* p_c_imag,
                              CDataType* p_aux,
+                             CDataType* p_aux_2,
                              index_t MRaw,
                              index_t NRaw,
                              index_t KRaw,
@@ -693,6 +697,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                         p_c_real,
                         p_c_imag,
                         p_aux,
+                        p_aux_2,
                         MRaw,
                         NRaw,
                         KRaw,
@@ -714,6 +719,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                                       void* p_c_real,
                                                       void* p_c_imag,
                                                       void* p_aux,
+                                                      void* p_aux_2,
                                                       index_t MRaw,
                                                       index_t NRaw,
                                                       index_t KRaw,
@@ -732,6 +738,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                           static_cast<CDataType*>(p_c_real),
                                           static_cast<CDataType*>(p_c_imag),
                                           static_cast<CDataType*>(p_aux),
+                                          static_cast<CDataType*>(p_aux_2),
                                           MRaw,
                                           NRaw,
                                           KRaw,
