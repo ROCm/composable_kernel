@@ -95,7 +95,7 @@ int main()
                                                      c_m_n_device_buf.GetDeviceBuffer(),
                                                      {M, N},
                                                      {Stride, 1},
-                                                     {0, 1},
+                                                     {0, 1}, // broadcast in first dimension
                                                      {Stride, 1},
                                                      Add{},
                                                      256);
