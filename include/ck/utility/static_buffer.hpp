@@ -38,6 +38,7 @@ struct StaticBuffer : public StaticallyIndexedArray<T, N>
     }
 };
 
+#ifndef CK_NOGPU
 // static buffer for vector
 template <AddressSpaceEnum AddressSpace,
           typename S,
@@ -151,6 +152,7 @@ struct StaticBufferTupleOfVector
         static_for<0, Number<numScalars>{}, 1>{}([&](auto i) { SetAsType(i, S{0}); });
     }
 };
+#endif
 
 template <AddressSpaceEnum AddressSpace, typename T, index_t N>
 __host__ __device__ constexpr auto make_static_buffer(Number<N>)

@@ -4,12 +4,14 @@
 #include <functional>
 #include <thread>
 #include <chrono>
+#include "ck/options.hpp"
+#ifndef CK_NOGPU
 #include <hip/hip_runtime.h>
 #include <hip/hip_fp16.h>
-
+#endif
 #include "stream_config.hpp"
-#include "ck/options.hpp"
 
+#ifndef CK_NOGPU
 inline void hip_check_error(hipError_t x)
 {
     if(x != hipSuccess)
@@ -36,22 +38,6 @@ struct DeviceMem
     std::size_t mMemSize;
 };
 
-struct DeviceAlignedMemCPU
-{
-    DeviceAlignedMemCPU() = delete;
-    DeviceAlignedMemCPU(std::size_t mem_size, std::size_t alignment);
-    void* GetDeviceBuffer();
-    std::size_t GetBufferSize();
-    void ToDevice(const void* p);
-    void FromDevice(void* p);
-    void SetZero();
-    ~DeviceAlignedMemCPU();
-
-    void* mpDeviceBuf;
-    std::size_t mMemSize;
-    std::size_t mAlignment;
-};
-
 struct KernelTimerImpl;
 
 struct KernelTimer
@@ -63,19 +49,6 @@ struct KernelTimer
     float GetElapsedTime() const;
 
     std::unique_ptr<KernelTimerImpl> impl;
-};
-
-struct WallTimerImpl;
-
-struct WallTimer
-{
-    WallTimer();
-    ~WallTimer();
-    void Start();
-    void End();
-    float GetElapsedTime() const;
-
-    std::unique_ptr<WallTimerImpl> impl;
 };
 
 using device_stream_t = hipStream_t;
@@ -136,6 +109,36 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
     return 0;
 #endif
 }
+#endif
+
+struct DeviceAlignedMemCPU
+{
+    DeviceAlignedMemCPU() = delete;
+    DeviceAlignedMemCPU(std::size_t mem_size, std::size_t alignment);
+    void* GetDeviceBuffer();
+    std::size_t GetBufferSize();
+    void ToDevice(const void* p);
+    void FromDevice(void* p);
+    void SetZero();
+    ~DeviceAlignedMemCPU();
+
+    void* mpDeviceBuf;
+    std::size_t mMemSize;
+    std::size_t mAlignment;
+};
+
+struct WallTimerImpl;
+
+struct WallTimer
+{
+    WallTimer();
+    ~WallTimer();
+    void Start();
+    void End();
+    float GetElapsedTime() const;
+
+    std::unique_ptr<WallTimerImpl> impl;
+};
 
 template <typename... Args, typename F>
 void launch_cpu_kernel(F kernel, Args... args)
@@ -162,4 +165,3 @@ float launch_and_time_cpu_kernel(F kernel, int nrepeat, Args... args)
 
     return timer.GetElapsedTime() / nrepeat;
 }
-

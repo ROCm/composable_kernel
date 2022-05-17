@@ -5,6 +5,7 @@
 #include "amd_buffer_addressing.hpp"
 #include "generic_memory_space_atomic_add.hpp"
 
+#ifndef CK_NOGPU
 namespace ck {
 
 // T may be scalar or vector
@@ -351,3 +352,4 @@ make_dynamic_buffer(T* p, ElementSpaceSize element_space_size, X invalid_element
 }
 
 } // namespace ck
+#endif

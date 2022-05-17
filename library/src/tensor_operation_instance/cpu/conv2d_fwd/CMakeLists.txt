@@ -6,8 +6,8 @@ set(DEVICE_CONV2D_FWD_CPU_INSTANCE_SOURCE
 add_library(device_conv2d_fwd_cpu_instance SHARED ${DEVICE_CONV2D_FWD_CPU_INSTANCE_SOURCE}) 
 target_compile_features(device_conv2d_fwd_cpu_instance PUBLIC)
 set_target_properties(device_conv2d_fwd_cpu_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
-target_link_libraries(device_conv2d_fwd_cpu_instance PRIVATE /opt/rocm/llvm/lib/libomp.so)
-target_compile_options(device_conv2d_fwd_cpu_instance PRIVATE -fopenmp=libomp -Wno-unused-command-line-argument)
+target_link_libraries(device_conv2d_fwd_cpu_instance PRIVATE "${OMP_LIBRARY}")
+target_compile_options(device_conv2d_fwd_cpu_instance PRIVATE "${OMP_CXX_FLAG}")
 install(TARGETS device_conv2d_fwd_cpu_instance LIBRARY DESTINATION lib) 
 
 clang_tidy_check(device_conv2d_fwd_cpu_instance)

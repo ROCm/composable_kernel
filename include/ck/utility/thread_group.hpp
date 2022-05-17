@@ -1,4 +1,5 @@
 #pragma once
+#ifndef CK_NOGPU
 #include "get_id.hpp"
 
 namespace ck {
@@ -16,3 +17,4 @@ struct ThisThreadBlock
 };
 
 } // namespace ck
+#endif

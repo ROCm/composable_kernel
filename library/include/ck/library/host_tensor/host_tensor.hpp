@@ -8,7 +8,7 @@
 #include <utility>
 #include <cassert>
 #include <iostream>
-#include "data_type.hpp"
+#include "common_header.hpp"
 
 template <typename Range>
 std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)

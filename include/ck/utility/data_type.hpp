@@ -1,10 +1,17 @@
 #pragma once
 #include "statically_indexed_array.hpp"
+#ifdef CK_NOGPU
+#include "half.hpp"
+#endif
 
 namespace ck {
 
 using bhalf_t = ushort;
-using half_t  = _Float16;
+#ifdef CK_NOGPU
+using half_t = half_float::half;
+#else
+using half_t = _Float16;
+#endif
 
 // vector_type
 template <typename T, index_t N>
@@ -14,8 +21,10 @@ struct vector_type;
 // intentionally have only declaration but no definition to cause compilation failure when trying to
 // instantiate this template. The purpose is to catch user's mistake when trying to make "vector of
 // vectors"
+#ifdef __clang__
 template <typename T, index_t V, index_t N>
 struct vector_type<T __attribute__((ext_vector_type(V))), N>;
+#endif
 
 // Caution: DO NOT REMOVE
 // intentionally have only declaration but no definition to cause compilation failure when trying to
@@ -32,11 +41,13 @@ struct vector_type_maker
     using type = vector_type<T, N>;
 };
 
+#ifdef __clang__
 template <typename T, index_t N0, index_t N1>
 struct vector_type_maker<T __attribute__((ext_vector_type(N1))), N0>
 {
     using type = vector_type<T, N0 * N1>;
 };
+#endif
 
 template <typename T, index_t N0, index_t N1>
 struct vector_type_maker<vector_type<T, N1>, N0>
@@ -69,12 +80,14 @@ template <typename X, typename Y>
 using has_same_scalar_type = is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                      typename scalar_type<remove_cvref_t<Y>>::type>;
 
+#ifdef __clang__
 template <typename T, index_t N>
 struct scalar_type<T __attribute__((ext_vector_type(N)))>
 {
     using type                           = T;
     static constexpr index_t vector_size = N;
 };
+#endif
 
 template <typename T, index_t N>
 struct scalar_type<vector_type<T, N>>

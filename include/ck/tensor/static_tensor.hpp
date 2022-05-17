@@ -79,6 +79,7 @@ struct StaticTensor
     T ignored_element_scalar_;
 };
 
+#ifndef CK_NOGPU
 // StaticTensor for vector
 template <AddressSpaceEnum AddressSpace,
           typename S,
@@ -244,6 +245,7 @@ struct StaticTensorTupleOfVectorBuffer
     const S invalid_element_scalar_value_ = S{0};
     S ignored_element_scalar_;
 };
+#endif
 
 template <AddressSpaceEnum AddressSpace,
           typename T,

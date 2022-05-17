@@ -4,6 +4,8 @@
 #include "data_type.hpp"
 #include "c_style_pointer_cast.hpp"
 
+#ifndef CK_NOGPU
+
 // TODO: deprecate all amd_assembly_outer_product_xxx
 
 namespace ck {
@@ -353,4 +355,5 @@ __device__ void amd_assembly_outer_product_1x4(int8x16_t a,
 }
 
 } // namespace ck
+#endif
 #endif

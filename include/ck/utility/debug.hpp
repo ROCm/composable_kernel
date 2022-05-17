@@ -1,6 +1,6 @@
 #ifndef UTILITY_DEBUG_HPP
 #define UTILITY_DEBUG_HPP
-
+#ifndef CK_NOGPU
 namespace ck {
 namespace debug {
 
@@ -74,4 +74,5 @@ __device__ void print_shared(T const* p_shared, index_t num_elements)
 } // namespace debug
 } // namespace ck
 
+#endif
 #endif // UTILITY_DEBUG_HPP

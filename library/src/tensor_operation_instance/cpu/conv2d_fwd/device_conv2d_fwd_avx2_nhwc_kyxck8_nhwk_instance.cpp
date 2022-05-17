@@ -1,6 +1,6 @@
 #include <stdlib.h>
-#include "convolution_forward_specialization_cpu.hpp"
 #include "config.hpp"
+#include "convolution_forward_specialization_cpu.hpp"
 #include "device_convnd_fwd_avx2_nhwc_kyxck8_nhwk.hpp"
 #include "element_wise_operation_cpu.hpp"
 #include "device_operation_instance.hpp"

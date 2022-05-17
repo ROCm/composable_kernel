@@ -118,7 +118,7 @@ struct MagicDivision
     {
         return CalculateMagicShift(integral_constant<uint32_t, Divisor>{});
     }
-
+#ifndef CK_NOGPU
     // magic division for uint32_t
     __device__ static constexpr uint32_t
     DoMagicDivision(uint32_t dividend, uint32_t multiplier, uint32_t shift)
@@ -126,7 +126,7 @@ struct MagicDivision
         uint32_t tmp = __umulhi(dividend, multiplier);
         return (tmp + dividend) >> shift;
     }
-
+#endif
     __host__ static constexpr uint32_t
     DoMagicDivision(uint32_t dividend, uint32_t multiplier, uint32_t shift)
     {
@@ -138,6 +138,7 @@ struct MagicDivision
     // HACK: use dividend_i32 as if it's uint32_t, dividend_i32 need to be
     // non-negative for result to be correct
     // TODO: figure out how to do magic number divison for int32_t as dividended
+#ifndef CK_NOGPU
     __device__ static constexpr int32_t
     DoMagicDivision(int32_t dividend_i32, uint32_t multiplier, uint32_t shift)
     {
@@ -145,6 +146,7 @@ struct MagicDivision
         uint32_t tmp          = __umulhi(dividend_u32, multiplier);
         return (tmp + dividend_u32) >> shift;
     }
+#endif
 
     __host__ static constexpr int32_t
     DoMagicDivision(int32_t dividend_i32, uint32_t multiplier, uint32_t shift)

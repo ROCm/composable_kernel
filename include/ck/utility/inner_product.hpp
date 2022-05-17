@@ -2,7 +2,7 @@
 #define CK_INNER_PRODUCT_HPP
 
 #include "data_type.hpp"
-
+#ifndef CK_NOGPU
 namespace ck {
 
 template <typename TA, typename TB, typename TC>
@@ -202,4 +202,5 @@ inner_product<int8x16_t, int8x16_t, int32_t>(const int8x16_t& a, const int8x16_t
 }
 
 } // namespace ck
+#endif
 #endif

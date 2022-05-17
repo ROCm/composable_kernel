@@ -1,4 +1,5 @@
 #pragma once
+#ifndef CK_NOGPU
 #include "data_type.hpp"
 
 namespace ck {
@@ -42,3 +43,4 @@ __device__ float2_t atomic_add<float2_t>(float2_t* p_dst, const float2_t& x)
 }
 
 } // namespace ck
+#endif

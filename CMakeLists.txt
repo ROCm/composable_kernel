@@ -7,6 +7,10 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 enable_testing()
 
+option(CK_NOGPU "build without gpu backend" OFF)
+
+
+if(NOT CK_NOGPU)
 find_package(ROCM REQUIRED PATHS /opt/rocm)
 
 include(ROCMInstallTargets)
@@ -19,6 +23,7 @@ include(CheckCXXCompilerFlag)
 rocm_setup_version(VERSION 1.0.0)
 include(TargetFlags)
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip)
+endif()
 
 ## C++
 enable_language(CXX)
@@ -31,25 +36,26 @@ option(CK_TIME_KERNEL "Turning off will disable kernel timing globally" ON)
 
 ## OpenMP
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-	# workaround issue hipcc in rocm3.5 cannot find openmp
-	set(OpenMP_CXX "${CMAKE_CXX_COMPILER}")
-	set(OpenMP_CXX_FLAGS "-fopenmp=libomp -Wno-unused-command-line-argument")
-	set(OpenMP_CXX_LIB_NAMES "libomp" "libgomp" "libiomp5")
-	set(OpenMP_libomp_LIBRARY ${OpenMP_CXX_LIB_NAMES})
-	set(OpenMP_libgomp_LIBRARY ${OpenMP_CXX_LIB_NAMES})
-	set(OpenMP_libiomp5_LIBRARY ${OpenMP_CXX_LIB_NAMES})
+    set(OMP_CXX_FLAG -fopenmp=libomp -Wno-unused-command-line-argument)
+    set(OMP_LIBRARY /opt/rocm/llvm/lib/libomp.so)
+    set(OMP_LINK_FLAG -Wl,-rpath,/opt/rocm/llvm/lib)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    set(OMP_CXX_FLAG -fopenmp)
+    set(OMP_LIBRARY "")
+    set(OMP_LINK_FLAG -fopenmp)
 else()
 	find_package(OpenMP REQUIRED)
 endif()
 
-message("OpenMP_CXX_LIB_NAMES: ${OpenMP_CXX_LIB_NAMES}")
-message("OpenMP_gomp_LIBRARY: ${OpenMP_gomp_LIBRARY}")
-message("OpenMP_pthread_LIBRARY: ${OpenMP_pthread_LIBRARY}")
-message("OpenMP_CXX_FLAGS: ${OpenMP_CXX_FLAGS}")
+# message("OpenMP_CXX_LIB_NAMES: ${OpenMP_CXX_LIB_NAMES}")
+# message("OpenMP_gomp_LIBRARY: ${OpenMP_gomp_LIBRARY}")
+# message("OpenMP_pthread_LIBRARY: ${OpenMP_pthread_LIBRARY}")
+# message("OpenMP_CXX_FLAGS: ${OpenMP_CXX_FLAGS}")
 
-link_libraries(${OpenMP_gomp_LIBRARY})
-link_libraries(${OpenMP_pthread_LIBRARY})
+# link_libraries(${OpenMP_gomp_LIBRARY})
+# link_libraries(${OpenMP_pthread_LIBRARY})
 
+if(NOT CK_NOGPU)
 ## HIP
 find_package(HIP REQUIRED)
 # Override HIP version in config.h, if necessary.
@@ -79,6 +85,7 @@ rocm_create_package(
     MAINTAINER "MIOpen Kernels Dev Team <dl.MIOpen@amd.com>"
     LDCONFIG
 )
+endif()
 
 ## half
 set(HALF_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/external/include/half")
@@ -94,7 +101,8 @@ elseif(CK_BACKEND STREQUAL "HIP" OR CK_BACKEND STREQUAL "HIPNOGPU")
     set(CK_TIDY_ERRORS ALL)
 endif()
 
-
+if(NOT CK_NOGPU)
+# currently tidy and cppcheck seems also need something from rocm environment
 include(ClangTidy)
 enable_clang_tidy(
     CHECKS
@@ -224,6 +232,11 @@ enable_cppcheck(
         CPPCHECK=1
         __linux__=1
 )
+else()
+function(clang_tidy_check TARGET)
+# dummy empty functoin
+endfunction()
+endif()
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)

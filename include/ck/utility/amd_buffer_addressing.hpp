@@ -1,6 +1,7 @@
 #pragma once
 #include "data_type.hpp"
 
+#ifndef CK_NOGPU
 namespace ck {
 
 template <typename T>
@@ -1047,3 +1048,5 @@ amd_buffer_atomic_add(const typename vector_type_maker<T, N>::type::type src_thr
 }
 
 } // namespace ck
+#endif
+

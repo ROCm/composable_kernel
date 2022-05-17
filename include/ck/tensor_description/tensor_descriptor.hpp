@@ -277,7 +277,12 @@ struct TensorCoordinateStep
     MultiIndex<NTransform> do_transforms_;
 
     // HACK: control UpdateLowerIndex()
+#if defined(__GNUC__) && !defined(__clang__) && !defined(__llvm__)
+    // constexpr static data member ‘update_lower_index_hack_’ must have an initializer
+    static constexpr UpdateLowerIndexHack update_lower_index_hack_{};
+#else
     static constexpr UpdateLowerIndexHack update_lower_index_hack_;
+#endif
 };
 
 // TODO: How to fix this? It uses an struct instead of lambda because lambda

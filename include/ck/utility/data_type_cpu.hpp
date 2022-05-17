@@ -1,8 +1,10 @@
 #pragma once
 
 #include <immintrin.h>
+#include "half.hpp"
 
 namespace ck {
+
 namespace cpu {
 
 // vector_type
@@ -13,8 +15,10 @@ struct vector_type;
 // intentionally have only declaration but no definition to cause compilation failure when trying to
 // instantiate this template. The purpose is to catch user's mistake when trying to make "vector of
 // vectors"
+#ifdef __clang__
 template <typename T, index_t V, index_t N>
 struct vector_type<T __attribute__((ext_vector_type(V))), N>;
+#endif
 
 // Caution: DO NOT REMOVE
 // intentionally have only declaration but no definition to cause compilation failure when trying to
@@ -111,9 +115,9 @@ struct vector_type<float, 4>
         return data_;
     }
 
-    constexpr void Load(const float* mem) { data_ = _mm_loadu_ps(mem); }
+    void Load(const float* mem) { data_ = _mm_loadu_ps(mem); }
 
-    constexpr void Store(float* mem) const { _mm_storeu_ps(mem, data_); }
+    void Store(float* mem) const { _mm_storeu_ps(mem, data_); }
 };
 
 template <>
@@ -149,9 +153,9 @@ struct vector_type<float, 8>
         return data_;
     }
 
-    constexpr void Load(const float* mem) { data_ = _mm256_loadu_ps(mem); }
+    void Load(const float* mem) { data_ = _mm256_loadu_ps(mem); }
 
-    constexpr void Store(float* mem) const { _mm256_storeu_ps(mem, data_); }
+    void Store(float* mem) const { _mm256_storeu_ps(mem, data_); }
 };
 
 template <typename T>

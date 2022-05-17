@@ -5,6 +5,7 @@
 #include "statically_indexed_array.hpp"
 #include "data_type.hpp"
 
+#ifndef CK_NOGPU
 namespace ck {
 
 template <typename S,
@@ -165,4 +166,5 @@ struct transpose_vectors<int8_t, NX, NY>
 };
 
 } // namespace ck
+#endif
 #endif

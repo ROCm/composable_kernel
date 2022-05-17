@@ -1,5 +1,6 @@
 #ifndef CK_SYNCHRONIZATION_AMD_HPP
 #define CK_SYNCHRONIZATION_AMD_HPP
+#ifndef CK_NOGPU
 
 #include "config.hpp"
 
@@ -18,4 +19,5 @@ __device__ void block_sync_lds()
 }
 
 } // namespace ck
+#endif
 #endif

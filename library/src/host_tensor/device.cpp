@@ -1,6 +1,9 @@
 #include <chrono>
+#include <assert.h>
+#include <string.h>
 #include "device.hpp"
 
+#ifndef CK_NOGPU
 DeviceMem::DeviceMem(std::size_t mem_size) : mMemSize(mem_size)
 {
     hip_check_error(hipMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize));
@@ -23,45 +26,6 @@ void DeviceMem::FromDevice(void* p)
 void DeviceMem::SetZero() { hip_check_error(hipMemset(mpDeviceBuf, 0, mMemSize)); }
 
 DeviceMem::~DeviceMem() { hip_check_error(hipFree(mpDeviceBuf)); }
-
-DeviceAlignedMemCPU::DeviceAlignedMemCPU(std::size_t mem_size, std::size_t alignment)
-    : mMemSize(mem_size), mAlignment(alignment)
-{
-    if(mem_size == 0)
-    {
-        mpDeviceBuf = nullptr;
-    }
-    else
-    {
-        assert(!(alignment == 0 || (alignment & (alignment - 1)))); // check pow of 2
-
-        void* p1;
-        void** p2;
-        int offset = alignment - 1 + sizeof(void*);
-        p1         = malloc(mem_size + offset);
-        assert(p1 != nullptr);
-
-        p2 = reinterpret_cast<void**>((reinterpret_cast<size_t>(p1) + offset) & ~(alignment - 1));
-        p2[-1]      = p1;
-        mpDeviceBuf = reinterpret_cast<void*>(p2);
-    }
-}
-
-void* DeviceAlignedMemCPU::GetDeviceBuffer() { return mpDeviceBuf; }
-
-std::size_t DeviceAlignedMemCPU::GetBufferSize() { return mMemSize; }
-
-void DeviceAlignedMemCPU::ToDevice(const void* p) { memcpy(mpDeviceBuf, p, mMemSize); }
-
-void DeviceAlignedMemCPU::FromDevice(void* p) { memcpy(p, mpDeviceBuf, mMemSize); }
-
-void DeviceAlignedMemCPU::SetZero() { memset(mpDeviceBuf, 0, mMemSize); }
-
-DeviceAlignedMemCPU::~DeviceAlignedMemCPU()
-{
-    if(mpDeviceBuf != nullptr)
-        free((reinterpret_cast<void**>(mpDeviceBuf))[-1]);
-}
 
 struct KernelTimerImpl
 {
@@ -108,6 +72,46 @@ void KernelTimer::Start() { impl->Start(); }
 void KernelTimer::End() { impl->End(); }
 
 float KernelTimer::GetElapsedTime() const { return impl->GetElapsedTime(); }
+#endif
+
+DeviceAlignedMemCPU::DeviceAlignedMemCPU(std::size_t mem_size, std::size_t alignment)
+    : mMemSize(mem_size), mAlignment(alignment)
+{
+    if(mem_size == 0)
+    {
+        mpDeviceBuf = nullptr;
+    }
+    else
+    {
+        assert(!(alignment == 0 || (alignment & (alignment - 1)))); // check pow of 2
+
+        void* p1;
+        void** p2;
+        int offset = alignment - 1 + sizeof(void*);
+        p1         = malloc(mem_size + offset);
+        assert(p1 != nullptr);
+
+        p2 = reinterpret_cast<void**>((reinterpret_cast<size_t>(p1) + offset) & ~(alignment - 1));
+        p2[-1]      = p1;
+        mpDeviceBuf = reinterpret_cast<void*>(p2);
+    }
+}
+
+void* DeviceAlignedMemCPU::GetDeviceBuffer() { return mpDeviceBuf; }
+
+std::size_t DeviceAlignedMemCPU::GetBufferSize() { return mMemSize; }
+
+void DeviceAlignedMemCPU::ToDevice(const void* p) { memcpy(mpDeviceBuf, p, mMemSize); }
+
+void DeviceAlignedMemCPU::FromDevice(void* p) { memcpy(p, mpDeviceBuf, mMemSize); }
+
+void DeviceAlignedMemCPU::SetZero() { memset(mpDeviceBuf, 0, mMemSize); }
+
+DeviceAlignedMemCPU::~DeviceAlignedMemCPU()
+{
+    if(mpDeviceBuf != nullptr)
+        free((reinterpret_cast<void**>(mpDeviceBuf))[-1]);
+}
 
 struct WallTimerImpl
 {

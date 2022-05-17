@@ -1,3 +1,4 @@
 #pragma once
 
 #cmakedefine01 CK_TIME_KERNEL
+#cmakedefine CK_NOGPU

@@ -1,6 +1,7 @@
 #ifndef CK_AMD_XDLOPS_HPP
 #define CK_AMD_XDLOPS_HPP
 
+#ifndef CK_NOGPU
 #include "data_type.hpp"
 
 namespace ck {
@@ -295,4 +296,5 @@ struct intrin_mfma_i32_16x16x16i8<16, 16>
 };
 
 } // namespace ck
+#endif
 #endif

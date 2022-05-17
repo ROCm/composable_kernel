@@ -1,7 +1,12 @@
 #ifndef CK_CONFIG_AMD_HPP
 #define CK_CONFIG_AMD_HPP
 
-#ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
+#include "ck/options.hpp"
+
+#ifdef CK_NOGPU
+#define __host__
+#define __device__
+#else
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
 #endif
@@ -23,6 +28,12 @@
 #if !(defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || defined(__gfx908__) || \
       defined(__gfx90a__) || defined(__gfx1030__))
 #error Not supported target
+#endif
+#endif
+
+#if defined(__GNUC__) && !defined(__clang__) && !defined(__llvm__)
+#if __GNUC__ < 9
+#error "If use gcc, need make sure use at least gcc-9"
 #endif
 #endif
 
