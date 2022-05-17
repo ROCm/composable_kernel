@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, io, argparse, datetime
+import os, io, argparse, datetime, paramiko, socket
 import numpy as np
 import sqlalchemy
 import pandas as pd
@@ -27,6 +27,15 @@ def parse_args():
         files = [args.filename]
     args.files = files
     return args
+
+def print_ssh_out(client_output):
+    ssh_stdin, ssh_stdout, ssh_stderr = client_output
+    ssh_stdin.close()
+    for line in ssh_stdout.read().splitlines():
+        print("{}".format(line))
+    for line in ssh_stderr.read().splitlines():
+        print("{}".format(line))
+
 
 def main():
     args = parse_args()
@@ -89,7 +98,7 @@ def main():
     print("Number of tests:",len(tests))
     print("Branch name:",branch_name)
     sorted_tests = sorted(tests)
-    #print("sorted tests:",sorted_tests)
+    print("sorted tests:",sorted_tests)
     sorted_tflops = [x for _,x in sorted(zip(tests,tflops))]
     #print("sorted tflops:",sorted_tflops)
     sorted_kernels = [x for _,x in sorted(zip(tests,kernels))]
@@ -132,17 +141,36 @@ def main():
     ssh_port = int(os.environ["dbsshport"])
     ssh_pass = os.environ["dbsshpassword"]
 
+
+
+    ssh=paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    ssh.connect(hostname=ssh_host, port=ssh_port,
+                username=ssh_user, password=ssh_pass,timeout=2)
+    print("client created")
+
+    # print remote dir layout
+    print_ssh_out(ssh.exec_command("pwd"))
+    print_ssh_out(ssh.exec_command("ls -l"))
+
+    ssh.close()
+
     with SSHTunnelForwarder(
             (ssh_host, ssh_port),
             ssh_username=ssh_user,
             ssh_password=ssh_pass,
-            remote_bind_address=(sql_hostname, sql_port)) as tunnel:
+            remote_bind_address=(sql_hostname, sql_port)#,
+            #local_bind_address=(ssh_host,20057)
+            ) as tunnel:
         '''
         conn = pymysql.connect(host=sql_hostname, user=sql_username,
             passwd=sql_password, db=sql_main_database,
             port=tunnel.local_bind_port)
         '''
 
+
+        print("local_bind_port:",tunnel.local_bind_port)
         sqlEngine = sqlalchemy.create_engine('mysql+pymysql://{0}:{1}@{2}:{3}/{4}'.
             format(sql_username, sql_password, sql_hostname, tunnel.local_bind_port, sql_main_database))
         conn = sqlEngine.connect()
@@ -159,7 +187,7 @@ def main():
         df=pd.DataFrame(np.transpose(ck_gemm_params),columns=['Test_number','Data_type',
             'Alayout','BLayout','M','N','K', 'StrideA','StrideB','StrideC'])
         print(df)
-        df.to_sql("ck_gemm_test_params",conn,if_exists='replace',index=False)
+        #df.to_sql("ck_gemm_test_params",conn,if_exists='replace',index=False)
 
         #read baseline results for the latest develop branch
         query = '''SELECT * from ck_gemm_tflops where Branch_ID="develop" and Datetime = (SELECT MAX(Datetime));'''
@@ -195,13 +223,20 @@ def main():
     #compare the results to the baseline
 
     regression=0
-    '''
-    for i in len(tflops_base):
+    base=tflops_base[['Test1','Test2','Test3','Test4']].to_numpy(dtype='float')
+    base_list=base[0]
+    print("baseline=",base_list)
+    print("test=",sorted_tflops)
+    ave_perf=0
+    for i in range(len(base_list)):
         # success criterion:
-        if tflops_base[i]>1.05*sorted_tflops[i]:
+        if base_list[i]>float(sorted_tflops[i]):
             print("test # ",i,"shows regression")
             regression=1
-    '''
+        ave_perf=ave_perf+float(sorted_tflops[i])/base_list[i]
+    ave_perf=ave_perf/len(base_list)
+    print("average performance relative to baseline:",ave_perf)
+
     #return 0 if performance criteria met, otherwise return 1
 
     return regression
