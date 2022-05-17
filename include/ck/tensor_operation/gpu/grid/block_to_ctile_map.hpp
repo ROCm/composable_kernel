@@ -107,7 +107,7 @@ struct BlockToCTileMap_M00_N0_M01
 
 // Rows of column-vectors
 // This C-tile map dynamically adjusts M01 when C-tile index is out of range
-template <index_t MPerBlock, index_t NPerBlock, typename CGridDesc_M_N, index_t M01 = 8>
+template <index_t MPerBlock, index_t NPerBlock, typename CGridDesc_M_N>
 struct BlockToCTileMap_M00_N0_M01Adapt
 {
     static constexpr auto I0 = Number<0>{};
@@ -117,8 +117,9 @@ struct BlockToCTileMap_M00_N0_M01Adapt
 
     __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt() = default;
 
-    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt(const CGridDesc_M_N& c_grid_desc_m_n)
-        : c_grid_desc_m_n_(c_grid_desc_m_n)
+    __host__ __device__ BlockToCTileMap_M00_N0_M01Adapt(const CGridDesc_M_N& c_grid_desc_m_n,
+                                                        index_t M01 = 8)
+        : M01_(M01), c_grid_desc_m_n_(c_grid_desc_m_n)
     {
     }
 
@@ -137,7 +138,7 @@ struct BlockToCTileMap_M00_N0_M01Adapt
     {
 #if 0
         // TODO: This version generates so many branch codes that it is not useable at this moment
-        const auto underlying_map = GetBlockToCTileMap(c_grid_desc_m_n_, idx_top[I0]);
+        const auto underlying_map = GetBlockToCTileMap(c_grid_desc_m_n_, idx_top[I0], M01_);
         return underlying_map.CalculateBottomIndex(idx_top);
 
 #else
@@ -151,13 +152,13 @@ struct BlockToCTileMap_M00_N0_M01Adapt
         index_t idx_N0 = block_1d_id % N0;
         index_t idx_M0 = block_1d_id / N0;
 
-        const auto M01_adapt = (idx_M0 < M0 - M0 % M01) ? M01 : M0 % M01;
+        const auto M01_adapt = (idx_M0 < M0 - M0 % M01_) ? M01_ : M0 % M01_;
 
-        index_t idx_M00          = idx_M0 / M01;
-        index_t idx_M01          = idx_M0 % M01;
+        index_t idx_M00          = idx_M0 / M01_;
+        index_t idx_M01          = idx_M0 % M01_;
         index_t idx_N0_M01_local = idx_N0 + idx_M01 * N0;
 
-        return make_tuple(idx_N0_M01_local % M01_adapt + idx_M00 * M01,
+        return make_tuple(idx_N0_M01_local % M01_adapt + idx_M00 * M01_,
                           idx_N0_M01_local / M01_adapt);
 #endif
     }
@@ -173,7 +174,7 @@ struct BlockToCTileMap_M00_N0_M01Adapt
 
     private:
     __host__ __device__ static constexpr auto
-    GetBlockToCTileMap(const CGridDesc_M_N& c_grid_desc_m_n, index_t block_1d_id)
+    GetBlockToCTileMap(const CGridDesc_M_N& c_grid_desc_m_n, index_t block_1d_id, index_t M01)
     {
         const auto M0 = math::integer_divide_ceil(c_grid_desc_m_n.GetLength(I0), MPerBlock);
         const auto N0 = math::integer_divide_ceil(c_grid_desc_m_n.GetLength(I1), NPerBlock);
@@ -202,7 +203,7 @@ struct BlockToCTileMap_M00_N0_M01Adapt
 
         return cblockid_to_m0_n0_block_cluster_adaptor;
     }
-
+    index_t M01_;
     CGridDesc_M_N c_grid_desc_m_n_;
 };
 

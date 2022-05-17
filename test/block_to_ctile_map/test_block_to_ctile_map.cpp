@@ -216,8 +216,8 @@ TEST(BlockToCTileMap, TestBlockToCTileMap_M00_N0_M01Adapt)
            NPerBlock,
            M01);
 
-    BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, decltype(c_grid_desc_m_n), M01> tile_map(
-        c_grid_desc_m_n);
+    BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, decltype(c_grid_desc_m_n)> tile_map(
+        c_grid_desc_m_n, M01);
 
     EXPECT_TRUE(tile_map.CheckValidity(c_grid_desc_m_n) == true);
     EXPECT_TRUE(tile_map.CalculateGridSize(c_grid_desc_m_n) == 18);
