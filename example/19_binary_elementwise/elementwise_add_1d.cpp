@@ -32,8 +32,7 @@ template <typename HostTensorA,
           typename HostTensorB,
           typename HostTensorC,
           typename ComputeDataType,
-          typename Functor,
-          int broadcastDim>
+          typename Functor>
 void host_elementwise1D(
     HostTensorC& C, const HostTensorA& A, const HostTensorB& B, int M, Functor functor)
 {
@@ -108,8 +107,7 @@ int main()
                            Tensor<ABDataType>,
                            Tensor<CDataType>,
                            EltwiseComputeDataType,
-                           Add,
-                           0>(host_c_m, a_m, b_m, M, Add{});
+                           Add>(host_c_m, a_m, b_m, M, Add{});
 
         pass &= ck::utils::check_err(
             c_m.mData, host_c_m.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
