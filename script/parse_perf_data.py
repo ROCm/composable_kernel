@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import os, io, argparse, datetime
 import numpy as np
-import pymysql
 import sqlalchemy
 import pandas as pd
 from sshtunnel import SSHTunnelForwarder
@@ -153,7 +152,7 @@ def main():
         print("data=",data)
 
         #write the ck_gemm_test_params table
-        #only needed once
+        #only needed once the test set changes
         ck_gemm_params=[test_list,sorted_dtypes,sorted_alayout,sorted_blayout,
                     sorted_M,sorted_N,sorted_K,sorted_StrideA,sorted_StrideB,
                     sorted_StrideC]
@@ -163,8 +162,9 @@ def main():
         df.to_sql("ck_gemm_test_params",conn,if_exists='replace',index=False)
 
         #read baseline results for the latest develop branch
-        #query = '''SELECT * from ck_gemm_tflops where Branch_ID="develop" and Datetime = (SELECT MAX(Datetime));'''
-        #tflops_base = pd.read_sql_query(query, conn)
+        query = '''SELECT * from ck_gemm_tflops where Branch_ID="develop" and Datetime = (SELECT MAX(Datetime));'''
+        tflops_base = pd.read_sql_query(query, conn)
+        print("tflops_base:",tflops_base)
 
         #write new results to the db
         testlist=[]
@@ -172,17 +172,24 @@ def main():
         for i in range(1,len(tests)+1):
             testlist.append("Test%i"%i)
         #print("testlist:",testlist)
+
+        #branch_name='develop'
+        #branch_name='lwpck-212'
+
         ck_gemm_tflops=[str(branch_name),str(datetime.datetime.now())]
         #print("ck_gemm_tflops:",ck_gemm_tflops)
 
         flops=pd.DataFrame(data=[ck_gemm_tflops],columns=['Branch_ID','Datetime'])
-        print("flops dataframe:",flops)
-        df_add=pd.DataFrame(data=[sorted_tflops],columns=[testlist])
-        #print("df_add:",df_add)
-        flops=pd.concat([flops,df_add],axis=1, ignore_index=False)
-        print("new flops df:",flops)
+        #print("df1:",flops)
+        #sorted_tflops=[32.9,37.6,42.5,26.8]
+        df_add=pd.DataFrame(data=[sorted_tflops],columns=testlist)
+        #print("df2:",df_add)
+        flops=pd.concat([flops,df_add],axis=1)
+        print("df1+df2:",flops)
 
-        #df.to_sql("ck_gemm_tflops",conn,if_exists='replace',index=False)
+        #flops.to_sql("ck_gemm_tflops",conn,if_exists='append',index=False)
+
+
         conn.close()
 
     #compare the results to the baseline
