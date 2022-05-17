@@ -484,8 +484,10 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
 
                     while(i_m_itr > 0)
                     {
-                        if((*reinterpret_cast<uint32_t*>(&i_hi_itr) < Hi) &&
-                           (*reinterpret_cast<uint32_t*>(&i_wi_itr) < Wi))
+                        if((*reinterpret_cast<uint32_t*>(&i_hi_itr) <
+                            *reinterpret_cast<uint32_t*>(&Hi)) &&
+                           (*reinterpret_cast<uint32_t*>(&i_wi_itr) <
+                            *reinterpret_cast<uint32_t*>(&Wi)))
                             avx2_util::memcpy32_avx2(p_dst, p_src, k_per_block, element_op_);
                         else
                             avx2_util::memset32_avx2(p_dst, 0, k_per_block);
@@ -543,8 +545,10 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
                             // printf("current_k_block_along_c:%d, i_c_itr_k:%d, k_per_block:%d\n",
                             // current_k_block_along_c, i_c_itr_k,k_per_block); fflush(stdout);
 
-                            if((*reinterpret_cast<uint32_t*>(&i_hi_itr_k) < Hi) &&
-                               (*reinterpret_cast<uint32_t*>(&i_wi_itr_k) < Wi))
+                            if((*reinterpret_cast<uint32_t*>(&i_hi_itr_k) <
+                                *reinterpret_cast<uint32_t*>(&Hi)) &&
+                               (*reinterpret_cast<uint32_t*>(&i_wi_itr_k) <
+                                *reinterpret_cast<uint32_t*>(&Wi)))
                                 avx2_util::memcpy32_avx2(
                                     p_dst_k, p_src_k, current_k_block_along_c, element_op_);
                             else
@@ -715,7 +719,7 @@ template <typename SrcData,
           bool BypassTransfer,
           ConvolutionForwardSpecialization_t ConvForwardSpecialization,
           ConvolutionForwardGemmKSpecialization_t GemmKSpecialization>
-struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_NHWC
+struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXC
 {
     static constexpr ck::index_t nDim = SrcDesc::GetNumOfDimension();
     using Index                       = MultiIndex<nDim>;
@@ -723,7 +727,7 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_NHWC
     // using SrcCoord = decltype(make_tensor_coordinate(SrcDesc{}, Index{}));
     // using DstCoord = decltype(make_tensor_coordinate(DstDesc{}, Index{}));
 
-    constexpr ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_NHWC(
+    constexpr ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXC(
         const SrcDesc& src_desc,
         const Index& src_slice_origin,
         const DstDesc& dst_desc,
@@ -908,6 +912,190 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_NHWC
         // printf("wei move:%d\n", move_k); fflush(stdout);
 
         src_offset += move_k + move_n0 * GemmK * GemmN1;
+    }
+
+    // dst_slice_origin_step_idx need to be known at compile-time, for performance reason
+    void MoveDstSliceWindow(const DstDesc&, const Index&) {}
+
+    private:
+    const ElementwiseOperation element_op_;
+
+    ck::index_t i_gemm_n;
+    // ck::index_t i_gemm_k;
+
+    // ck::index_t GemmN0;
+    ck::index_t GemmN1;
+    ck::index_t GemmN;
+    ck::index_t GemmK;
+
+    intptr_t src_offset;
+};
+
+template <typename SrcData,
+          typename DstData,
+          typename SrcDesc,
+          typename DstDesc,
+          typename ElementwiseOperation,
+          bool BypassTransfer,
+          ConvolutionForwardSpecialization_t ConvForwardSpecialization,
+          ConvolutionForwardGemmKSpecialization_t GemmKSpecialization>
+struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXCK8
+{
+    static constexpr ck::index_t nDim = SrcDesc::GetNumOfDimension();
+    using Index                       = MultiIndex<nDim>;
+
+    constexpr ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXCK8(
+        const SrcDesc& src_desc,
+        const Index& src_slice_origin,
+        const DstDesc& dst_desc,
+        const Index& dst_slice_origin,
+        const ElementwiseOperation& element_op)
+        : element_op_(element_op)
+    {
+        GemmN1 =
+            src_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<2>{}]; // Need to be 8
+        GemmN = src_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<0>{}];
+        GemmK = src_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}];
+    }
+
+    void SetSrcSliceOrigin(const SrcDesc&, const Index& src_slice_origin_idx)
+    {
+        ck::index_t idx_n0 = src_slice_origin_idx[Number<0>{}];
+        ck::index_t idx_k  = src_slice_origin_idx[Number<1>{}];
+        ck::index_t idx_n1 = src_slice_origin_idx[Number<2>{}];
+
+        src_offset = idx_n0 * GemmK * GemmN1 + idx_k * GemmN1 + idx_n1;
+
+        // printf("xxxx  i_gemm_n:%d, i_gemm_k:%d, src_offset:%d\n", i_gemm_n, i_gemm_k,
+        // src_offset);
+    }
+
+    void SetDstSliceOrigin(const DstDesc&, const Index&) {}
+
+    template <typename SrcBuffer, typename DstBuffer, typename SliceLengths>
+    void RunRead(const SrcDesc&,
+                 const SrcBuffer& src_buf,
+                 const DstDesc& dst_desc,
+                 DstBuffer& dst_buf,
+                 const SliceLengths& slice_length)
+    {
+        if constexpr(BypassTransfer) {}
+        else
+        {
+            const ck::index_t n0_per_block = slice_length[Number<0>{}];
+            const ck::index_t k_n1_per_block =
+                slice_length[Number<1>{}] * slice_length[Number<2>{}];
+            const ck::index_t SrcStride_K_N1 = GemmK * slice_length[Number<2>{}];
+
+            // printf(" >>>> %d, %d, %d -> %d(%dx%d), %d\n", GemmN, GemmK, GemmN1, n_per_block,
+            //     dst_desc.GetTransforms()[Number<0>{}]
+            //         .GetUpperLengths()[Number<0>{}],
+            //         dst_desc.GetTransforms()[Number<0>{}]
+            //         .GetUpperLengths()[Number<2>{}],
+            // k_per_block);
+
+            const float* p_src = reinterpret_cast<const float*>(src_buf.p_data_) + src_offset;
+            float* p_dst       = reinterpret_cast<float*>(dst_buf.p_data_);
+
+            // n0 * k * n1
+            index_t i_n0_itr = n0_per_block;
+            while(i_n0_itr >= 8)
+            {
+                avx2_util::memcpy32_avx2(p_dst + 0 * k_n1_per_block,
+                                         p_src + 0 * SrcStride_K_N1,
+                                         k_n1_per_block,
+                                         element_op_);
+                avx2_util::memcpy32_avx2(p_dst + 1 * k_n1_per_block,
+                                         p_src + 1 * SrcStride_K_N1,
+                                         k_n1_per_block,
+                                         element_op_);
+                avx2_util::memcpy32_avx2(p_dst + 2 * k_n1_per_block,
+                                         p_src + 2 * SrcStride_K_N1,
+                                         k_n1_per_block,
+                                         element_op_);
+                avx2_util::memcpy32_avx2(p_dst + 3 * k_n1_per_block,
+                                         p_src + 3 * SrcStride_K_N1,
+                                         k_n1_per_block,
+                                         element_op_);
+                avx2_util::memcpy32_avx2(p_dst + 4 * k_n1_per_block,
+                                         p_src + 4 * SrcStride_K_N1,
+                                         k_n1_per_block,
+                                         element_op_);
+                avx2_util::memcpy32_avx2(p_dst + 5 * k_n1_per_block,
+                                         p_src + 5 * SrcStride_K_N1,
+                                         k_n1_per_block,
+                                         element_op_);
+                avx2_util::memcpy32_avx2(p_dst + 6 * k_n1_per_block,
+                                         p_src + 6 * SrcStride_K_N1,
+                                         k_n1_per_block,
+                                         element_op_);
+                avx2_util::memcpy32_avx2(p_dst + 7 * k_n1_per_block,
+                                         p_src + 7 * SrcStride_K_N1,
+                                         k_n1_per_block,
+                                         element_op_);
+
+                i_n0_itr -= 8;
+                p_dst += 8 * k_n1_per_block;
+                p_src += 8 * SrcStride_K_N1;
+            }
+            if(i_n0_itr & 4)
+            {
+                avx2_util::memcpy32_avx2(p_dst + 0 * k_n1_per_block,
+                                         p_src + 0 * SrcStride_K_N1,
+                                         k_n1_per_block,
+                                         element_op_);
+                avx2_util::memcpy32_avx2(p_dst + 1 * k_n1_per_block,
+                                         p_src + 1 * SrcStride_K_N1,
+                                         k_n1_per_block,
+                                         element_op_);
+                avx2_util::memcpy32_avx2(p_dst + 2 * k_n1_per_block,
+                                         p_src + 2 * SrcStride_K_N1,
+                                         k_n1_per_block,
+                                         element_op_);
+                avx2_util::memcpy32_avx2(p_dst + 3 * k_n1_per_block,
+                                         p_src + 3 * SrcStride_K_N1,
+                                         k_n1_per_block,
+                                         element_op_);
+
+                p_dst += 4 * k_n1_per_block;
+                p_src += 4 * SrcStride_K_N1;
+            }
+            if(i_n0_itr & 2)
+            {
+                avx2_util::memcpy32_avx2(p_dst + 0 * k_n1_per_block,
+                                         p_src + 0 * SrcStride_K_N1,
+                                         k_n1_per_block,
+                                         element_op_);
+                avx2_util::memcpy32_avx2(p_dst + 1 * k_n1_per_block,
+                                         p_src + 1 * SrcStride_K_N1,
+                                         k_n1_per_block,
+                                         element_op_);
+
+                p_dst += 2 * k_n1_per_block;
+                p_src += 2 * SrcStride_K_N1;
+            }
+            if(i_n0_itr & 1)
+            {
+                avx2_util::memcpy32_avx2(p_dst + 0 * k_n1_per_block,
+                                         p_src + 0 * SrcStride_K_N1,
+                                         k_n1_per_block,
+                                         element_op_);
+            }
+        }
+    }
+
+    // src_slice_origin_step_idx need to be known at compile-time, for performance reason
+    void MoveSrcSliceWindow(const SrcDesc& src_desc, const Index& src_slice_origin_step_idx)
+    {
+        ck::index_t move_n0 = src_slice_origin_step_idx[Number<0>{}];
+        ck::index_t move_k  = src_slice_origin_step_idx[Number<1>{}];
+        ck::index_t move_n1 = src_slice_origin_step_idx[Number<2>{}];
+
+        // i_gemm_k += move_k;
+
+        // printf("wei move:%d\n", move_k); fflush(stdout);
+
+        src_offset += move_n0 * GemmK * GemmN1 + move_k * GemmN1 + move_n1;
     }
 
     // dst_slice_origin_step_idx need to be known at compile-time, for performance reason

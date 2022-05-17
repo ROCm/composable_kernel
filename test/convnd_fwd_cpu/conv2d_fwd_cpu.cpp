@@ -16,7 +16,11 @@
 
 #define TEST_FUSION_PASSTHROUGH 0
 #define TEST_FUSION_RELU 1
-#define TEST_FUSION TEST_FUSION_RELU
+#define TEST_FUSION TEST_FUSION_PASSTHROUGH
+
+#define TEST_LAYOUT_NHWC_KYXC_NHWK 0
+#define TEST_LAYOUT_NHWC_KYXCK8_NHWK 1
+#define TEST_LAYOUT TEST_LAYOUT_NHWC_KYXCK8_NHWK
 
 using F32 = float;
 using F16 = ck::half_t;
@@ -46,6 +50,24 @@ void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_local_c_relu(
     std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, Relu>>& instances);
 
 void add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_mt_relu(
+    std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, Relu>>& instances);
+
+void add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk(
+    std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>>& instances);
+
+void add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_local_c(
+    std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>>& instances);
+
+void add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_mt(
+    std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>>& instances);
+
+void add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_relu(
+    std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, Relu>>& instances);
+
+void add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_local_c_relu(
+    std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, Relu>>& instances);
+
+void add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_mt_relu(
     std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, Relu>>& instances);
 
 } // namespace device_conv2d_fwd_avx2_instance
@@ -114,6 +136,31 @@ check_out(const Tensor<T>& ref, const Tensor<T>& result, double nrms, int per_pi
 }
 
 float calculate_gflops() {}
+
+template <typename T>
+void transpose_kyxc_2_kyxc8k(Tensor<T>& dst,
+                             const Tensor<T>& src,
+                             ck::index_t K,
+                             ck::index_t Y,
+                             ck::index_t X,
+                             ck::index_t C)
+{
+    ck::index_t batch = K / 8;
+    ck::index_t row   = 8;
+    ck::index_t col   = C * Y * X;
+    for(auto i_b = 0; i_b < batch; i_b++)
+    {
+        for(auto i_r = 0; i_r < row; i_r++)
+        {
+            for(auto i_c = 0; i_c < col; i_c++)
+            {
+                ck::index_t src_idx = i_b * row * col + i_r * col + i_c;
+                ck::index_t dst_idx = i_b * col * row + i_c * row + i_r;
+                dst.mData[dst_idx]  = src.mData[src_idx];
+            }
+        }
+    }
+}
 
 int main(int argc, char* argv[])
 {
@@ -213,6 +260,10 @@ int main(int argc, char* argv[])
 
         Tensor<InDataType> in_n_c_hi_wi(f_host_tensor_descriptor(N, C, Hi, Wi));
         Tensor<WeiDataType> wei_k_c_y_x(f_host_tensor_descriptor(K, C, Y, X));
+#if TEST_LAYOUT == TEST_LAYOUT_NHWC_KYXCK8_NHWK
+        Tensor<WeiDataType> wei_k_c_y_x_k8(
+            f_host_tensor_descriptor(K, C, Y, X)); // TODO: This is only to hold data
+#endif
         Tensor<OutDataType> out_n_k_ho_wo_host_result(f_host_tensor_descriptor(N, K, Ho, Wo));
         Tensor<OutDataType> out_n_k_ho_wo_device_result(f_host_tensor_descriptor(N, K, Ho, Wo));
 
@@ -296,8 +347,13 @@ int main(int argc, char* argv[])
                                            AVX2_DATA_ALIGNMENT);
 
         in_device_buf.ToDevice(in_n_c_hi_wi.mData.data());
+#if TEST_LAYOUT == TEST_LAYOUT_NHWC_KYXC_NHWK
         wei_device_buf.ToDevice(wei_k_c_y_x.mData.data());
-
+#endif
+#if TEST_LAYOUT == TEST_LAYOUT_NHWC_KYXCK8_NHWK
+        transpose_kyxc_2_kyxc8k(wei_k_c_y_x_k8, wei_k_c_y_x, K, Y, X, C);
+        wei_device_buf.ToDevice(wei_k_c_y_x_k8.mData.data());
+#endif
         // get host result
         {
             auto ref_conv    = ReferenceConvFwdInstance{};
@@ -334,6 +390,7 @@ int main(int argc, char* argv[])
                      ck::is_same_v<ck::remove_cv_t<WeiDataType>, float> &&
                      ck::is_same_v<ck::remove_cv_t<OutDataType>, float>)
         {
+#if TEST_LAYOUT == TEST_LAYOUT_NHWC_KYXC_NHWK
 #if TEST_FUSION == TEST_FUSION_PASSTHROUGH
             if(omp_get_max_threads() > 1)
             {
@@ -369,6 +426,45 @@ int main(int argc, char* argv[])
                     ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
                         add_device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_local_c_relu(conv_ptrs);
             }
+#endif
+#endif
+#if TEST_LAYOUT == TEST_LAYOUT_NHWC_KYXCK8_NHWK
+#if TEST_FUSION == TEST_FUSION_PASSTHROUGH
+            if(omp_get_max_threads() > 1)
+            {
+                ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
+                    add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_mt(conv_ptrs);
+                ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
+                    add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk(conv_ptrs);
+            }
+            else
+            {
+                if(K % 8 == 0)
+                    ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
+                        add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk(conv_ptrs);
+                else
+                    ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
+                        add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_local_c(conv_ptrs);
+            }
+#endif
+#if TEST_FUSION == TEST_FUSION_RELU
+            if(omp_get_max_threads() > 1)
+            {
+                ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
+                    add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_mt_relu(conv_ptrs);
+                ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
+                    add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_relu(conv_ptrs);
+            }
+            else
+            {
+                if(K % 8 == 0)
+                    ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
+                        add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_relu(conv_ptrs);
+                else
+                    ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
+                        add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_local_c_relu(conv_ptrs);
+            }
+#endif
 #endif
         }
 
