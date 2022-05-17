@@ -370,18 +370,16 @@ struct DeviceGemmXdl_C_Shuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(ck::get_device_name() == "gfx1030")
+        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a"))
         {
             return false;
         }
-        else
-        {
-            return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
-                                               arg.b_grid_desc_k0_n_k1_,
-                                               arg.c_grid_desc_m_n_,
-                                               arg.M01_,
-                                               arg.N01_);
-        }
+
+        return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
+                                           arg.b_grid_desc_k0_n_k1_,
+                                           arg.c_grid_desc_m_n_,
+                                           arg.M01_,
+                                           arg.N01_);
     }
 
     // polymorphic

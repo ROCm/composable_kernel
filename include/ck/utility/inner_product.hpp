@@ -1,6 +1,4 @@
-#ifndef CK_INNER_PRODUCT_HPP
-#define CK_INNER_PRODUCT_HPP
-
+#pragma once
 #include "data_type.hpp"
 
 namespace ck {
@@ -71,12 +69,6 @@ inner_product<float4_t, float4_t, float>(const float4_t& a, const float4_t& b, f
 }
 
 template <>
-__device__ void inner_product<half_t, half_t, float>(const half_t& a, const half_t& b, float& c)
-{
-    c += a * b;
-}
-
-template <>
 __device__ void inner_product<half2_t, half2_t, float>(const half2_t& a, const half2_t& b, float& c)
 {
 #if defined(CK_USE_AMD_V_DOT2_F32_F16)
@@ -141,40 +133,10 @@ __device__ void inner_product<half8_t, half8_t, float>(const half8_t& a, const h
 }
 
 template <>
-__device__ void inner_product<int8_t, int8_t, int32_t>(const int8_t& a, const int8_t& b, int32_t& c)
-{
-    c += a * b;
-}
-
-template <>
-__device__ void
-inner_product<int8x2_t, int8x2_t, int32_t>(const int8x2_t& a, const int8x2_t& b, int32_t& c)
-{
-    // #if defined(CK_USE_DOT2_I32_I8)
-    // #if CK_USE_AMD_INNER_PRODUCT_INLINE_ASM
-    //     asm volatile("\n \
-//             v_dot2_i32_i8 %0, %1, %2, %0\n \
-//             "
-    //                  : "=v"(c)
-    //                  : "v"(bit_cast<int32_t>(a)), "v"(bit_cast<int32_t>(b)), "0"(c));
-    // #else
-    //     c = __builtin_amdgcn_sdot2(bit_cast<int32_t>(a), bit_cast<int32_t>(b), c, false);
-    // #endif
-    // #else
-    const vector_type<int8_t, 2> a_vector{a};
-    const vector_type<int8_t, 2> b_vector{b};
-
-    static_for<0, 2, 1>{}([&](auto i) {
-        c += type_convert<int32_t>(a_vector.AsType<int8_t>()[i]) *
-             type_convert<int32_t>(b_vector.AsType<int8_t>()[i]);
-    });
-    // #endif
-}
-template <>
 __device__ void
 inner_product<int8x4_t, int8x4_t, int32_t>(const int8x4_t& a, const int8x4_t& b, int32_t& c)
 {
-#if defined(CK_USE_DOT4_I32_I8)
+#if defined(CK_USE_AMD_V_DOT4_I32_I8)
 #if CK_USE_AMD_INNER_PRODUCT_INLINE_ASM
     asm volatile("\n \
             v_dot4_i32_i8 %0, %1, %2, %0\n \
@@ -238,4 +200,3 @@ inner_product<int8x16_t, int8x16_t, int32_t>(const int8x16_t& a, const int8x16_t
 }
 
 } // namespace ck
-#endif
