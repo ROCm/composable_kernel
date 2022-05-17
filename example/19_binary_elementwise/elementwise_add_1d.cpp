@@ -59,9 +59,7 @@ int main()
     };
 
     Tensor<ABDataType> a_m(f_host_tensor_descriptor1d(M, 1));
-
     Tensor<ABDataType> b_m(f_host_tensor_descriptor1d(M, 1));
-
     Tensor<ABDataType> c_m(f_host_tensor_descriptor1d(M, 1));
 
     a_m.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
