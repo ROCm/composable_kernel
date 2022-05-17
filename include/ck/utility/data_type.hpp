@@ -8,7 +8,8 @@ namespace ck {
 
 using bhalf_t = ushort;
 #ifdef CK_NOGPU
-using half_t = half_float::half;
+using half_t = int16_t; // TODO: some version of clang complains about half_float::half is not POD,
+                        // hence can't be used in ext_vector_type()
 #else
 using half_t = _Float16;
 #endif
