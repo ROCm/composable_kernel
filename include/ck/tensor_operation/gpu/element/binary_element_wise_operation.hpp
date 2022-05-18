@@ -22,7 +22,10 @@ struct Add
     __host__ __device__ constexpr void
     operator()(bhalf_t& dst, const bhalf_t& src1, const bhalf_t& src2) const
     {
-        dst = src1 + src2;
+        const float x1 = ck::type_convert<float>(src1);
+        const float x2 = ck::type_convert<float>(src2);
+        const float y  = x1 + x2;
+        dst            = ck::type_convert<bhalf_t>(y);
     }
 };
 
@@ -40,10 +43,14 @@ struct Substract
         dst = src1 - src2;
     }
 
+    // TO FIX!!!
     __host__ __device__ constexpr void
     operator()(bhalf_t& dst, const bhalf_t& src1, const bhalf_t& src2) const
     {
-        dst = src1 - src2;
+        const float x1 = ck::type_convert<float>(src1);
+        const float x2 = ck::type_convert<float>(src2);
+        const float y  = x1 - x2;
+        dst            = ck::type_convert<bhalf_t>(y);
     }
 };
 

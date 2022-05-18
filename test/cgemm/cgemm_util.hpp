@@ -264,20 +264,35 @@ struct TestCGemm
         bool res = false;
         if(std::is_same<CDataType, float>::value)
         {
-            res = ck::utils::check_err(c_device_real.mData, c_host_real.mData) &&
-                  ck::utils::check_err(c_device_imag.mData, c_host_imag.mData);
+            const bool res_real = ck::utils::check_err(
+                c_device_real.mData, c_host_real.mData, "Error: incorrect results in real part!");
+            const bool res_imag =
+                ck::utils::check_err(c_device_imag.mData,
+                                     c_host_imag.mData,
+                                     "Error: incorrect results in imaginary part!");
+            res = res_real && res_imag;
             std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
         }
         else if(std::is_same<CDataType, ck::half_t>::value)
         {
-            res = ck::utils::check_err(c_device_real.mData, c_host_real.mData) &&
-                  ck::utils::check_err(c_device_imag.mData, c_host_imag.mData);
+            const bool res_real = ck::utils::check_err(
+                c_device_real.mData, c_host_real.mData, "Error: incorrect results in real part!");
+            const bool res_imag =
+                ck::utils::check_err(c_device_imag.mData,
+                                     c_host_imag.mData,
+                                     "Error: incorrect results in imaginary part!");
+            res = res_real && res_imag;
             std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
         }
         else if(std::is_same<CDataType, int8_t>::value)
         {
-            res = ck::utils::check_err(c_device_real.mData, c_host_real.mData) &&
-                  ck::utils::check_err(c_device_imag.mData, c_host_imag.mData);
+            const bool res_real = ck::utils::check_err(
+                c_device_real.mData, c_host_real.mData, "Error: incorrect results in real part!");
+            const bool res_imag =
+                ck::utils::check_err(c_device_imag.mData,
+                                     c_host_imag.mData,
+                                     "Error: incorrect results in imaginary part!");
+            res = res_real && res_imag;
             std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
         }
 
@@ -445,16 +460,18 @@ struct TestCGemmBF16
         bf16_to_f32_(c_imag_device_bf16, c_imag_device_fp32);
 
         // Assert
-        bool res = ck::utils::check_err(c_real_device_fp32.mData,
-                                        c_real_host_fp32.mData,
-                                        "Error: incorrect results!",
-                                        1e-2f,
-                                        1e-3f) &&
-                   ck::utils::check_err(c_imag_device_fp32.mData,
-                                        c_imag_host_fp32.mData,
-                                        "Error: incorrect results!",
-                                        1e-2f,
-                                        1e-3f);
+        const bool res_real = ck::utils::check_err(c_real_device_fp32.mData,
+                                                   c_real_host_fp32.mData,
+                                                   "Error: incorrect results in real part!",
+                                                   1e-2f,
+                                                   1e-3f);
+        const bool res_imag = ck::utils::check_err(c_imag_device_fp32.mData,
+                                                   c_imag_host_fp32.mData,
+                                                   "Error: incorrect results in imaginary part!",
+                                                   1e-2f,
+                                                   1e-3f);
+        const bool res      = res_real && res_imag;
+
         std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
 
         return res;

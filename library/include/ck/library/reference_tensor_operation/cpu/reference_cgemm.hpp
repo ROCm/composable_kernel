@@ -113,7 +113,7 @@ struct ReferenceCGemm : public device::BaseOperator
                     arg.b_element_op_(v_b_real, static_cast<const float>(arg.b_k_n_real_(k, n)));
                     arg.b_element_op_(v_b_imag, static_cast<const float>(arg.b_k_n_imag_(k, n)));
 
-                    v_acc += v_a_real * v_b_imag - v_a_imag * v_b_real;
+                    v_acc += v_a_real * v_b_imag + v_a_imag * v_b_real;
                 }
 
                 float v_c_imag;
