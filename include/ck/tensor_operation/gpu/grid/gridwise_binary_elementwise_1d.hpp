@@ -111,10 +111,10 @@ struct GridwiseBinaryElementwise_1D
                                                false>{
                 c_grid_desc_m0, thread_to_global_offset, PassThrough{}};
 
-        const index_t threadPerBlock = get_block_size();
+        const index_t blockSize = get_block_size();
         const index_t blockPerGrid   = get_grid_size();
         const auto m0                = c_grid_desc_m0.GetLength(I0);
-        const index_t loop_step      = blockPerGrid * threadPerBlock * ScalarPerVector;
+        const index_t loop_step      = blockPerGrid * blockSize * ScalarPerVector;
         const auto loop_step_index   = make_multi_index(loop_step);
 
         index_t num_iter = m0 / (loop_step);

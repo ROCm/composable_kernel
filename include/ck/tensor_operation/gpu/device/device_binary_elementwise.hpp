@@ -19,18 +19,18 @@ template <typename ADataType,
           index_t ScalarPerVector>
 struct DeviceBinaryElementwise : public BaseOperator
 {
-    DeviceBinaryElementwise(index_t threadPerBlock = 256)
-        : BaseOperator(), threadPerBlock_(threadPerBlock)
+    DeviceBinaryElementwise(index_t blockSize = 256)
+        : BaseOperator(), blockSize_(blockSize)
     {
     }
 
     static constexpr auto I0 = Number<0>{};
 
     template <typename Desc_M0>
-    static auto PadDescriptor_M0_1d(Desc_M0 desc_m0, index_t gridSize, index_t threadPerBlock)
+    static auto PadDescriptor_M0_1d(Desc_M0 desc_m0, index_t gridSize, index_t blockSize)
     {
         const auto m0           = desc_m0.GetLength(I0);
-        const index_t loop_step = gridSize * threadPerBlock * ScalarPerVector;
+        const index_t loop_step = gridSize * blockSize * ScalarPerVector;
         const auto pad          = math::integer_least_multiple(m0, loop_step) - m0;
         const auto desc_m0_pad =
             transform_tensor_descriptor(desc_m0,
@@ -43,7 +43,7 @@ struct DeviceBinaryElementwise : public BaseOperator
     static auto MakeDescriptor_M0(const std::vector<int>& shape,
                                   const std::vector<int>& stride,
                                   index_t gridSize,
-                                  index_t threadPerBlock)
+                                  index_t blockSize)
     {
         auto tupleOfShape  = generate_tuple([&](auto I) { return shape[I]; }, Number<Dim>{});
         auto tupleOfStride = generate_tuple([&](auto I) { return stride[I]; }, Number<Dim>{});
@@ -60,10 +60,10 @@ struct DeviceBinaryElementwise : public BaseOperator
                 make_tuple(generate_sequence_v2([&](auto I) { return I; }, Number<Dim>{})),
                 make_tuple(Sequence<0>{}));
 
-            return PadDescriptor_M0_1d(desc_m0, gridSize, threadPerBlock);
+            return PadDescriptor_M0_1d(desc_m0, gridSize, blockSize);
         }
         else
-            return PadDescriptor_M0_1d(desc, gridSize, threadPerBlock);
+            return PadDescriptor_M0_1d(desc, gridSize, blockSize);
     }
 
     using GridDesc_M0        = decltype(MakeDescriptor_M0({1, 1}, {1, 1}, 1, 1));
@@ -85,16 +85,16 @@ struct DeviceBinaryElementwise : public BaseOperator
                  const std::vector<int>& stride_b,
                  const std::vector<int>& stride_c,
                  ElementwiseFunctor functor,
-                 index_t threadPerBlock)
+                 index_t blockSize)
             : p_a_(p_a),
               p_b_(p_b),
               p_c_(p_c),
               functor_(functor),
               gridSize_(120) // FIXME - Calculate the grid size by number of CU in the future
         {
-            a_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_a, gridSize_, threadPerBlock);
-            b_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_b, gridSize_, threadPerBlock);
-            c_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_c, gridSize_, threadPerBlock);
+            a_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_a, gridSize_, blockSize);
+            b_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_b, gridSize_, blockSize);
+            c_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_c, gridSize_, blockSize);
         }
 
         const ADataType* p_a_;
@@ -109,7 +109,7 @@ struct DeviceBinaryElementwise : public BaseOperator
 
     struct Invoker : public BaseInvoker
     {
-        Invoker(index_t threadPerBlock) : BaseInvoker(), threadPerBlock_(threadPerBlock) {}
+        Invoker(index_t blockSize) : BaseInvoker(), blockSize_(blockSize) {}
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
@@ -123,7 +123,7 @@ struct DeviceBinaryElementwise : public BaseOperator
             float elapsed_time = launch_and_time_kernel(stream_config,
                                                         kernel,
                                                         dim3(arg.gridSize_),
-                                                        dim3(threadPerBlock_),
+                                                        dim3(blockSize_),
                                                         0,
                                                         arg.p_a_,
                                                         arg.p_b_,
@@ -142,7 +142,7 @@ struct DeviceBinaryElementwise : public BaseOperator
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
 
-        index_t threadPerBlock_;
+        index_t blockSize_;
     };
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override
@@ -178,12 +178,12 @@ struct DeviceBinaryElementwise : public BaseOperator
                                           stride_b,
                                           stride_c,
                                           functor,
-                                          threadPerBlock_);
+                                          blockSize_);
     }
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer()
     {
-        return std::make_unique<Invoker>(Invoker{threadPerBlock_});
+        return std::make_unique<Invoker>(Invoker{blockSize_});
     }
 
     std::string GetTypeString() const override
@@ -200,7 +200,7 @@ struct DeviceBinaryElementwise : public BaseOperator
         return str.str();
     }
 
-    index_t threadPerBlock_;
+    index_t blockSize_;
 };
 
 } // namespace device
