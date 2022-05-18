@@ -34,6 +34,8 @@ void host_elementwise4D(HostTensorC& C,
                         const std::vector<std::size_t>& shape,
                         Functor functor)
 {
+    using ctype = ck::remove_reference_t<decltype(C(0, 0, 0, 0))>;
+
     for(std::size_t n = 0; n < shape[0]; ++n)
         for(std::size_t c = 0; c < shape[1]; ++c)
             for(std::size_t h = 0; h < shape[2]; ++h)
@@ -43,7 +45,7 @@ void host_elementwise4D(HostTensorC& C,
                     ComputeDataType b_val = static_cast<ComputeDataType>(B(n, c, h, w));
                     ComputeDataType c_val = 0;
                     functor(c_val, a_val, b_val);
-                    C(n, c, h, w) = static_cast<ComputeDataType>(c_val);
+                    C(n, c, h, w) = static_cast<ctype>(c_val);
                 }
 }
 

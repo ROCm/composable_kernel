@@ -30,13 +30,15 @@ template <typename HostTensorA,
 void host_elementwise1D(
     HostTensorC& C, const HostTensorA& A, const HostTensorB& B, int M, Functor functor)
 {
+    using ctype = ck::remove_reference_t<decltype(C(0))>;
+
     for(int m = 0; m < M; ++m)
     {
         ComputeDataType Am = static_cast<ComputeDataType>(A(m));
         ComputeDataType Bm = static_cast<ComputeDataType>(B(m));
         ComputeDataType Cm = 0;
         functor(Cm, Am, Bm);
-        C(m) = static_cast<HostTensorC>(Cm);
+        C(m) = static_cast<ctype>(Cm);
     }
 }
 

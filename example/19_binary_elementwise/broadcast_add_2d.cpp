@@ -31,6 +31,8 @@ template <typename HostTensorA,
 void host_broadcast2D(
     HostTensorC& C, const HostTensorA& A, const HostTensorB& B, int M, int N, Functor functor)
 {
+    using ctype = ck::remove_reference_t<decltype(C(0, 0))>;
+
     for(int m = 0; m < M; ++m)
     {
         for(int n = 0; n < N; ++n)
@@ -47,7 +49,7 @@ void host_broadcast2D(
                 ComputeDataType Bm = static_cast<ComputeDataType>(B(m));
                 functor(Cmn, Amn, Bm);
             }
-            C(m, n) = static_cast<ComputeDataType>(Cmn);
+            C(m, n) = static_cast<ctype>(Cmn);
         }
     }
 }
