@@ -80,8 +80,7 @@ int main()
                                                      {1},
                                                      {1},
                                                      {1},
-                                                     Add{},
-                                                     256);
+                                                     Add{});
 
     if(!broadcastAdd.IsSupportedArgument(argument.get()))
     {

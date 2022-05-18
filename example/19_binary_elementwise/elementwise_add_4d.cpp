@@ -82,8 +82,7 @@ int main()
                                                      ck::to_int_vector(a_m.mDesc.GetStrides()),
                                                      ck::to_int_vector(b_m.mDesc.GetStrides()),
                                                      ck::to_int_vector(c_m.mDesc.GetStrides()),
-                                                     Add{},
-                                                     256);
+                                                     Add{});
 
     if(!broadcastAdd.IsSupportedArgument(argument.get()))
     {

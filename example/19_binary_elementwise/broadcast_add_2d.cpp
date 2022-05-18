@@ -101,8 +101,7 @@ int main()
                                                      {Stride, 1},
                                                      {0, 1}, // broadcast in first dimension
                                                      {Stride, 1},
-                                                     Add{},
-                                                     256);
+                                                     Add{});
 
     if(!broadcastAdd.IsSupportedArgument(argument.get()))
     {
