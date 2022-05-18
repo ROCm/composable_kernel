@@ -37,8 +37,8 @@ struct DeviceBinaryElementwise : public BaseOperator
         return desc_m0_pad;
     }
 
-    static auto MakeDescriptor_M0(const std::vector<int>& shape,
-                                  const std::vector<int>& stride,
+    static auto MakeDescriptor_M0(const std::vector<index_t>& shape,
+                                  const std::vector<index_t>& stride,
                                   index_t gridSize,
                                   index_t blockSize)
     {
@@ -77,10 +77,10 @@ struct DeviceBinaryElementwise : public BaseOperator
         Argument(const ADataType* p_a,
                  const BDataType* p_b,
                  CDataType* p_c,
-                 const std::vector<int>& shape,
-                 const std::vector<int>& stride_a,
-                 const std::vector<int>& stride_b,
-                 const std::vector<int>& stride_c,
+                 const std::vector<index_t>& shape,
+                 const std::vector<index_t>& stride_a,
+                 const std::vector<index_t>& stride_b,
+                 const std::vector<index_t>& stride_c,
                  ElementwiseFunctor functor,
                  index_t blockSize)
             : p_a_(p_a),
@@ -160,10 +160,10 @@ struct DeviceBinaryElementwise : public BaseOperator
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
                                                       const void* p_b,
                                                       void* p_c,
-                                                      std::vector<int> shape,
-                                                      std::vector<int> stride_a,
-                                                      std::vector<int> stride_b,
-                                                      std::vector<int> stride_c,
+                                                      std::vector<index_t> shape,
+                                                      std::vector<index_t> stride_a,
+                                                      std::vector<index_t> stride_b,
+                                                      std::vector<index_t> stride_c,
                                                       ElementwiseFunctor functor)
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),

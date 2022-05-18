@@ -3,9 +3,9 @@
 #include "check_err.hpp"
 #include "config.hpp"
 #include "device.hpp"
-#include "host_reduce_util.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
+#include "host_utility.hpp"
 
 #include "device_tensor.hpp"
 #include "binary_element_wise_operation.hpp"
@@ -71,14 +71,15 @@ int main()
     b_m_device_buf.ToDevice(b_m.mData.data());
 
     auto broadcastAdd = DeviceElementwiseAddInstance{};
-    auto argument     = broadcastAdd.MakeArgumentPointer(a_m_device_buf.GetDeviceBuffer(),
-                                                     b_m_device_buf.GetDeviceBuffer(),
-                                                     c_m_device_buf.GetDeviceBuffer(),
-                                                     ck::to_int_vector(nchw),
-                                                     ck::to_int_vector(a_m.mDesc.GetStrides()),
-                                                     ck::to_int_vector(b_m.mDesc.GetStrides()),
-                                                     ck::to_int_vector(c_m.mDesc.GetStrides()),
-                                                     Add{});
+    auto argument     = broadcastAdd.MakeArgumentPointer(
+        a_m_device_buf.GetDeviceBuffer(),
+        b_m_device_buf.GetDeviceBuffer(),
+        c_m_device_buf.GetDeviceBuffer(),
+        ck::convert_vector_element_type<std::size_t, ck::index_t>(nchw),
+        ck::convert_vector_element_type<std::size_t, ck::index_t>(a_m.mDesc.GetStrides()),
+        ck::convert_vector_element_type<std::size_t, ck::index_t>(b_m.mDesc.GetStrides()),
+        ck::convert_vector_element_type<std::size_t, ck::index_t>(c_m.mDesc.GetStrides()),
+        Add{});
 
     if(!broadcastAdd.IsSupportedArgument(argument.get()))
     {
