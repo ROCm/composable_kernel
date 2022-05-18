@@ -308,15 +308,19 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s, " << reduce_name
               << std::endl;
 
+    bool pass = true;
+
     if(args.do_verification)
     {
         out_dev.FromDevice(out.mData.data());
-        ck::utils::check_err(out.mData, out_ref.mData);
+        pass = pass && ck::utils::check_err(out.mData, out_ref.mData);
 
         if(OutputIndex)
         {
             out_index_dev.FromDevice(out_indices.mData.data());
-            ck::utils::check_err(out_indices.mData, out_indices_ref.mData);
+            pass = pass && ck::utils::check_err(out_indices.mData, out_indices_ref.mData);
         };
     };
+
+    return (pass ? 0 : 1);
 }

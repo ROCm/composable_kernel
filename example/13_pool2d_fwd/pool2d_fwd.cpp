@@ -31,7 +31,7 @@ static constexpr auto ReduceOpId = ck::ReduceTensorOp::MAX;
 static constexpr auto ReduceOpId = ck::ReduceTensorOp::AVG;
 #endif
 
-static constexpr bool NeedIndices  = false;
+static constexpr bool OutputIndex  = false;
 static constexpr bool PropagateNan = false;
 
 using DevicePoolFwdInstance =
@@ -40,7 +40,7 @@ using DevicePoolFwdInstance =
         OutDataType, // OutDataType
         AccDataType, // AccDataType
         ReduceOpId,
-        NeedIndices,
+        OutputIndex,
         64, // BlockSize
         64, // ReduceMThreadClusterSize
         1,  // ReduceKThreadClusterSize
@@ -53,7 +53,7 @@ template <typename InDataType,
           typename AccDataType,
           ck::ReduceTensorOp ReduceOpId,
           bool PropagateNan,
-          bool NeedIndices>
+          bool OutputIndex>
 static void pool_host_verify(const Tensor<InDataType>& in,
                              Tensor<OutDataType>& out,
                              Tensor<IndexDataType>& out_indices,
@@ -69,7 +69,7 @@ static void pool_host_verify(const Tensor<InDataType>& in,
     const auto PreUnaryOp = PreUnaryOpFn<AccDataType, ReduceOpId>(divider);
     const auto PosUnaryOp = PosUnaryOpFn<AccDataType, ReduceOpId>(divider);
 
-    if constexpr(!NeedIndices)
+    if constexpr(!OutputIndex)
     {
         auto opReduce = ReduceOpFn<AccDataType, ReduceOpId>();
 
@@ -151,9 +151,9 @@ int main(int argc, char* argv[])
 {
     using namespace ck::host_reduce;
 
-    bool do_verification = true;
-    int init_method      = 1;
-    bool time_kernel     = false;
+    bool do_verification;
+    int init_method;
+    bool time_kernel;
 
     // Pool shape
     ck::index_t N               = 128;
@@ -169,7 +169,13 @@ int main(int argc, char* argv[])
     ck::index_t in_right_pad_h  = 1;
     ck::index_t in_right_pad_w  = 1;
 
-    if(argc == 4)
+    if(argc == 1)
+    {
+        do_verification = true;
+        init_method     = 1;
+        time_kernel     = true;
+    }
+    else if(argc == 4)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
@@ -289,6 +295,8 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
               << std::endl;
 
+    bool pass = true;
+
     if(do_verification)
     {
         pool_host_verify<InDataType,
@@ -296,7 +304,7 @@ int main(int argc, char* argv[])
                          AccDataType,
                          ReduceOpId,
                          PropagateNan,
-                         NeedIndices>(in_n_c_hi_wi,
+                         OutputIndex>(in_n_c_hi_wi,
                                       out_n_c_ho_wo_host,
                                       out_indices_n_c_ho_wo_host,
                                       window_spatial_lengths,
@@ -306,14 +314,16 @@ int main(int argc, char* argv[])
 
         out_device_buf.FromDevice(out_n_c_ho_wo_device.mData.data());
 
-        ck::utils::check_err(out_n_c_ho_wo_device.mData, out_n_c_ho_wo_host.mData);
+        pass = pass && ck::utils::check_err(out_n_c_ho_wo_device.mData, out_n_c_ho_wo_host.mData);
 
-        if constexpr(NeedIndices)
+        if constexpr(OutputIndex)
         {
             out_indices_device_buf.FromDevice(out_indices_n_c_ho_wo_device.mData.data());
 
-            //          ck::utils::check_err(out_indices_n_c_ho_wo_device.mData,
-            //          out_indices_n_c_ho_wo_host.mData);;
+            pass = pass && ck::utils::check_err(out_indices_n_c_ho_wo_device.mData,
+                                                out_indices_n_c_ho_wo_host.mData);
         };
     }
+
+    return (pass ? 0 : 1);
 }

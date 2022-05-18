@@ -279,9 +279,13 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << avg_time_1 + avg_time_2 << " ms, " << gb_per_sec << " GB/s, "
               << reduce_1.GetTypeString() << " => " << reduce_2.GetTypeString() << std::endl;
 
+    bool pass = true;
+
     if(do_verify)
     {
         out_dev.FromDevice(out.mData.data());
-        ck::utils::check_err(out.mData, out_ref.mData);
+        pass = pass && ck::utils::check_err(out.mData, out_ref.mData);
     };
+
+    return (pass ? 0 : 1);
 }
