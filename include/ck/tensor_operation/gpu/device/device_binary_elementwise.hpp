@@ -19,10 +19,7 @@ template <typename ADataType,
           index_t ScalarPerVector>
 struct DeviceBinaryElementwise : public BaseOperator
 {
-    DeviceBinaryElementwise(index_t blockSize = 256)
-        : BaseOperator(), blockSize_(blockSize)
-    {
-    }
+    DeviceBinaryElementwise(index_t blockSize = 256) : BaseOperator(), blockSize_(blockSize) {}
 
     static constexpr auto I0 = Number<0>{};
 
@@ -113,12 +110,12 @@ struct DeviceBinaryElementwise : public BaseOperator
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            const auto kernel = kernel_elementwise_1d<GridwiseBinEltwise,
-                                                      ADataType,
-                                                      BDataType,
-                                                      CDataType,
-                                                      GridDesc_M0,
-                                                      ElementwiseFunctor>;
+            const auto kernel = kernel_binary_elementwise_1d<GridwiseBinEltwise,
+                                                             ADataType,
+                                                             BDataType,
+                                                             CDataType,
+                                                             GridDesc_M0,
+                                                             ElementwiseFunctor>;
 
             float elapsed_time = launch_and_time_kernel(stream_config,
                                                         kernel,

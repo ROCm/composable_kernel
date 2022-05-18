@@ -13,13 +13,13 @@ template <typename GridwiseBinEltwise,
           typename CDataType,
           typename GridDesc_M0,
           typename ElementwiseFunctor>
-__global__ void kernel_elementwise_1d(const ADataType* __restrict__ p_a_global,
-                                      const BDataType* __restrict__ p_b_global,
-                                      CDataType* __restrict__ p_c_global,
-                                      const GridDesc_M0 a_grid_desc_m0,
-                                      const GridDesc_M0 b_grid_desc_m0,
-                                      const GridDesc_M0 c_grid_desc_m0,
-                                      const ElementwiseFunctor functor)
+__global__ void kernel_binary_elementwise_1d(const ADataType* __restrict__ p_a_global,
+                                             const BDataType* __restrict__ p_b_global,
+                                             CDataType* __restrict__ p_c_global,
+                                             const GridDesc_M0 a_grid_desc_m0,
+                                             const GridDesc_M0 b_grid_desc_m0,
+                                             const GridDesc_M0 c_grid_desc_m0,
+                                             const ElementwiseFunctor functor)
 {
     GridwiseBinEltwise::Run(p_a_global,
                             p_b_global,
@@ -111,11 +111,11 @@ struct GridwiseBinaryElementwise_1D
                                                false>{
                 c_grid_desc_m0, thread_to_global_offset, PassThrough{}};
 
-        const index_t blockSize = get_block_size();
-        const index_t blockPerGrid   = get_grid_size();
-        const auto m0                = c_grid_desc_m0.GetLength(I0);
-        const index_t loop_step      = blockPerGrid * blockSize * ScalarPerVector;
-        const auto loop_step_index   = make_multi_index(loop_step);
+        const index_t blockSize    = get_block_size();
+        const index_t blockPerGrid = get_grid_size();
+        const auto m0              = c_grid_desc_m0.GetLength(I0);
+        const index_t loop_step    = blockPerGrid * blockSize * ScalarPerVector;
+        const auto loop_step_index = make_multi_index(loop_step);
 
         index_t num_iter = m0 / (loop_step);
         do
