@@ -86,6 +86,7 @@ struct DeviceBinaryElementwise : public BaseOperator
             : p_a_(p_a),
               p_b_(p_b),
               p_c_(p_c),
+              shape_(shape),
               functor_(functor),
               gridSize_(120) // FIXME - Calculate the grid size by number of CU in the future
         {
@@ -97,6 +98,7 @@ struct DeviceBinaryElementwise : public BaseOperator
         const ADataType* p_a_;
         const BDataType* p_b_;
         CDataType* p_c_;
+        std::vector<int> shape_;
         GridDesc_M0 a_grid_desc_m0_;
         GridDesc_M0 b_grid_desc_m0_;
         GridDesc_M0 c_grid_desc_m0_;
@@ -149,10 +151,7 @@ struct DeviceBinaryElementwise : public BaseOperator
         if(pArg == nullptr)
             return false;
 
-        // shape[0] * shape[1] * shape[2] * ...
-        const auto m0 = pArg->c_grid_desc_m0_.GetLength(I0);
-
-        if(m0 % ScalarPerVector != 0)
+        if(pArg->shape_.back() % ScalarPerVector != 0)
             return false;
 
         return true;
