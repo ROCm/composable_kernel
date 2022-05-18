@@ -43,7 +43,7 @@ using BElementOp = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
-#define NORMAL_CONFIG 0
+#define NORMAL_CONFIG 1
 // clang-format off
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdlSkipLds
         //###########| AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C|          GEMM| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer|
@@ -229,7 +229,7 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
 
-#if 1
+#if 0
         {
             show_2d_matrix(std::cout << "a : ", a_m_k) << std::endl;
             show_2d_matrix(std::cout << "b: ", b_k_n) << std::endl;

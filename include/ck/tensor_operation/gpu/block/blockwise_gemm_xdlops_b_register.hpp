@@ -41,6 +41,8 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
     static constexpr auto xdlops_gemm = XdlopsGemm<FloatAB, MPerXDL, NPerXDL, KPack>{};
 
     static constexpr index_t KPerThread = KPerBlock / xdlops_gemm.K0PerXdlops;
+    static constexpr index_t K0PerThread =
+        BK0NK1BlockDesc{}.GetLength(I0) / xdlops_gemm.K0PerXdlops;
 
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
@@ -278,7 +280,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
                             [Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];
                         b_thread_vec.template AsType<FloatAB>()(i) =
                             b_thread_buf[Number<b_thread_desc_.CalculateOffset(
-                                make_tuple(0, k / KPack, 0, n0, 0, 0, i))>{}];
+                                make_tuple(0, 0, k / KPack, 0, n0, 0, 0, i))>{}];
                     });
 
                     using mfma_input_type =
@@ -304,11 +306,12 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
     // B[N0, N1, N2, KPerThread]
     static constexpr auto b_thread_desc_ =
         make_naive_tensor_descriptor_packed(make_tuple(I1,
-                                                       Number<KPerThread>{}, // KPerThread
-                                                       I1,                   // NBlockId
-                                                       Number<NRepeat>{},    // repeat
-                                                       I1,                   // waves
-                                                       I1,                   // NPerXdlops
+                                                       I1,
+                                                       Number<K0PerThread>{}, // KPerThread
+                                                       I1,                    // NBlockId
+                                                       Number<NRepeat>{},     // repeat
+                                                       I1,                    // waves
+                                                       I1,                    // NPerXdlops
                                                        Number<KPack>{}));
 
     // C[M, N, NumRegXdlops]
