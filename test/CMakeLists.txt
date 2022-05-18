@@ -69,6 +69,4 @@ add_subdirectory(reduce)
 add_subdirectory(conv2d_bwd_weight)
 add_subdirectory(convnd_bwd_data)
 add_subdirectory(cpu_ukernel)
-add_subdirectory(cpu_threadwise_transfer)
-add_subdirectory(convnd_fwd_cpu)
 # DONOT add client_app, that is tested via CI independently

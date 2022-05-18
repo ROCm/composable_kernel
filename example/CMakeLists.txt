@@ -10,6 +10,11 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/warp
     ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/thread
     ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/element
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/cpu/device
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/cpu/grid
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/cpu/block
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/cpu/thread
+    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/cpu/element
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/host_tensor
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/reference_tensor_operation/cpu
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/reference_tensor_operation/gpu
@@ -51,3 +56,5 @@ add_subdirectory(17_convnd_bwd_data_xdl)
 add_subdirectory(15_grouped_gemm)
 add_subdirectory(16_gemm_reduce)
 add_subdirectory(18_batched_gemm_reduce)
+
+add_subdirectory(cpu_01_conv2d_fwd)
