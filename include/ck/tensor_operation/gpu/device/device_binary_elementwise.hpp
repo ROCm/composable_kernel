@@ -86,7 +86,7 @@ struct DeviceBinaryElementwise : public BaseOperator
               p_c_(p_c),
               functor_(functor),
               threadPerBlock_(threadPerBlock),
-              gridSize_(128) // FIXME - Calculate the grid size by number of CU in the future
+              gridSize_(120) // FIXME - Calculate the grid size by number of CU in the future
         {
             a_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_a, gridSize_, threadPerBlock_);
             b_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_b, gridSize_, threadPerBlock_);
