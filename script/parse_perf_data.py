@@ -2,6 +2,7 @@
 import os, io, argparse, datetime, paramiko, socket
 import numpy as np
 import sqlalchemy
+import pymysql
 import pandas as pd
 from sshtunnel import SSHTunnelForwarder
 
@@ -160,9 +161,7 @@ def main():
             (ssh_host, ssh_port),
             ssh_username=ssh_user,
             ssh_password=ssh_pass,
-            remote_bind_address=(sql_hostname, sql_port)#,
-            #local_bind_address=(ssh_host,20057)
-            ) as tunnel:
+            remote_bind_address=(sql_hostname, sql_port)) as tunnel:
         '''
         conn = pymysql.connect(host=sql_hostname, user=sql_username,
             passwd=sql_password, db=sql_main_database,

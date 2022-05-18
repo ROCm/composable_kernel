@@ -86,6 +86,7 @@ RUN pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/6d78a0553ba
 # Install packages for processing the performance results
 RUN pip3 install --upgrade pip
 RUN pip3 install sqlalchemy
+RUN pip3 install pymysql
 RUN pip3 install pandas
 RUN pip3 install setuptools-rust
 RUN pip3 install sshtunnel
