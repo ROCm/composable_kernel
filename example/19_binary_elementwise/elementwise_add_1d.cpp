@@ -20,7 +20,7 @@ using EltwiseComputeDataType = F32;
 using Add = ck::tensor_operation::binary_element_wise::Add;
 
 using DeviceElementwiseAddInstance = ck::tensor_operation::device::
-    DeviceBinaryElementwise<F16, F16, CDataType, EltwiseComputeDataType, Add, 1, 8>;
+    DeviceBinaryElementwise<ABDataType, ABDataType, CDataType, EltwiseComputeDataType, Add, 1, 8>;
 
 template <typename HostTensorA,
           typename HostTensorB,
@@ -36,7 +36,7 @@ void host_elementwise1D(
         ComputeDataType Bm = static_cast<ComputeDataType>(B(m));
         ComputeDataType Cm = 0;
         functor(Cm, Am, Bm);
-        C(m) = static_cast<ComputeDataType>(Cm);
+        C(m) = static_cast<HostTensorC>(Cm);
     }
 }
 
