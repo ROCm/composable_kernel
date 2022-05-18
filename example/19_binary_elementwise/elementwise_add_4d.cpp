@@ -8,6 +8,7 @@
 #include "check_err.hpp"
 #include "config.hpp"
 #include "device.hpp"
+#include "host_reduce_util.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
 
@@ -26,24 +27,30 @@ using EltwiseComputeDataType = F32;
 using Add = ck::tensor_operation::binary_element_wise::Add;
 
 using DeviceElementwiseAddInstance = ck::tensor_operation::device::
-    DeviceBinaryElementwise<F16, F16, CDataType, EltwiseComputeDataType, Add, 1, 8>;
+    DeviceBinaryElementwise<F16, F16, CDataType, EltwiseComputeDataType, Add, 4, 8>;
 
 template <typename HostTensorA,
           typename HostTensorB,
           typename HostTensorC,
           typename ComputeDataType,
           typename Functor>
-void host_elementwise1D(
-    HostTensorC& C, const HostTensorA& A, const HostTensorB& B, int M, Functor functor)
+void host_elementwise4D(HostTensorC& C,
+                        const HostTensorA& A,
+                        const HostTensorB& B,
+                        const std::vector<std::size_t>& shape,
+                        Functor functor)
 {
-    for(int m = 0; m < M; ++m)
-    {
-        ComputeDataType Am = static_cast<ComputeDataType>(A(m));
-        ComputeDataType Bm = static_cast<ComputeDataType>(B(m));
-        ComputeDataType Cm = 0;
-        functor(Cm, Am, Bm);
-        C(m) = static_cast<ComputeDataType>(Cm);
-    }
+    for(std::size_t n = 0; n < shape[0]; ++n)
+        for(std::size_t c = 0; c < shape[1]; ++c)
+            for(std::size_t h = 0; h < shape[2]; ++h)
+                for(std::size_t w = 0; w < shape[3]; ++w)
+                {
+                    ComputeDataType a_val = static_cast<ComputeDataType>(A(n, c, h, w));
+                    ComputeDataType b_val = static_cast<ComputeDataType>(B(n, c, h, w));
+                    ComputeDataType c_val = 0;
+                    functor(c_val, a_val, b_val);
+                    C(n, c, h, w) = static_cast<ComputeDataType>(c_val);
+                }
 }
 
 int main()
@@ -51,16 +58,11 @@ int main()
     bool do_verification = true;
     bool time_kernel     = false;
 
-    ck::index_t M = 1024;
+    std::vector<std::size_t> nchw = {4, 16, 32, 32};
 
-    auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
-        return HostTensorDescriptor(std::vector<std::size_t>({len}),
-                                    std::vector<std::size_t>({stride}));
-    };
-
-    Tensor<ABDataType> a_m(f_host_tensor_descriptor1d(M, 1));
-    Tensor<ABDataType> b_m(f_host_tensor_descriptor1d(M, 1));
-    Tensor<ABDataType> c_m(f_host_tensor_descriptor1d(M, 1));
+    Tensor<ABDataType> a_m(nchw);
+    Tensor<ABDataType> b_m(nchw);
+    Tensor<ABDataType> c_m(nchw);
 
     a_m.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
     b_m.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
@@ -76,10 +78,10 @@ int main()
     auto argument     = broadcastAdd.MakeArgumentPointer(a_m_device_buf.GetDeviceBuffer(),
                                                      b_m_device_buf.GetDeviceBuffer(),
                                                      c_m_device_buf.GetDeviceBuffer(),
-                                                     {M},
-                                                     {1},
-                                                     {1},
-                                                     {1},
+                                                     ck::to_int_vector(nchw),
+                                                     ck::to_int_vector(a_m.mDesc.GetStrides()),
+                                                     ck::to_int_vector(b_m.mDesc.GetStrides()),
+                                                     ck::to_int_vector(c_m.mDesc.GetStrides()),
                                                      Add{});
 
     if(!broadcastAdd.IsSupportedArgument(argument.get()))
@@ -98,13 +100,13 @@ int main()
     if(do_verification)
     {
         c_m_device_buf.FromDevice(c_m.mData.data());
-        Tensor<CDataType> host_c_m(f_host_tensor_descriptor1d(M, 1));
+        Tensor<CDataType> host_c_m(nchw);
 
-        host_elementwise1D<Tensor<ABDataType>,
+        host_elementwise4D<Tensor<ABDataType>,
                            Tensor<ABDataType>,
                            Tensor<CDataType>,
                            EltwiseComputeDataType,
-                           Add>(host_c_m, a_m, b_m, M, Add{});
+                           Add>(host_c_m, a_m, b_m, nchw, Add{});
 
         pass &= ck::utils::check_err(
             c_m.mData, host_c_m.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
