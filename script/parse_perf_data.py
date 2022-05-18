@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, io, argparse, datetime, paramiko, socket
+import os, io, argparse, datetime
 import numpy as np
 import sqlalchemy
 import pymysql
@@ -28,15 +28,6 @@ def parse_args():
         files = [args.filename]
     args.files = files
     return args
-
-def print_ssh_out(client_output):
-    ssh_stdin, ssh_stdout, ssh_stderr = client_output
-    ssh_stdin.close()
-    for line in ssh_stdout.read().splitlines():
-        print("{}".format(line))
-    for line in ssh_stderr.read().splitlines():
-        print("{}".format(line))
-
 
 def main():
     args = parse_args()
@@ -99,7 +90,7 @@ def main():
     print("Number of tests:",len(tests))
     print("Branch name:",branch_name)
     sorted_tests = sorted(tests)
-    print("sorted tests:",sorted_tests)
+    #print("sorted tests:",sorted_tests)
     sorted_tflops = [x for _,x in sorted(zip(tests,tflops))]
     #print("sorted tflops:",sorted_tflops)
     sorted_kernels = [x for _,x in sorted(zip(tests,kernels))]
@@ -125,8 +116,6 @@ def main():
     test_list=list(range(1,len(tests)+1))
     #print("test list",test_list)
 
-
-
     print("now=",datetime.datetime.now())
 
     sql_hostname = '127.0.0.1'
@@ -142,34 +131,12 @@ def main():
     ssh_port = int(os.environ["dbsshport"])
     ssh_pass = os.environ["dbsshpassword"]
 
-
-
-    ssh=paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-    ssh.connect(hostname=ssh_host, port=ssh_port,
-                username=ssh_user, password=ssh_pass,timeout=2)
-    print("client created")
-
-    # print remote dir layout
-    print_ssh_out(ssh.exec_command("pwd"))
-    print_ssh_out(ssh.exec_command("ls -l"))
-
-    ssh.close()
-
     with SSHTunnelForwarder(
             (ssh_host, ssh_port),
             ssh_username=ssh_user,
             ssh_password=ssh_pass,
             remote_bind_address=(sql_hostname, sql_port)) as tunnel:
-        '''
-        conn = pymysql.connect(host=sql_hostname, user=sql_username,
-            passwd=sql_password, db=sql_main_database,
-            port=tunnel.local_bind_port)
-        '''
 
-
-        print("local_bind_port:",tunnel.local_bind_port)
         sqlEngine = sqlalchemy.create_engine('mysql+pymysql://{0}:{1}@{2}:{3}/{4}'.
             format(sql_username, sql_password, sql_hostname, tunnel.local_bind_port, sql_main_database))
         conn = sqlEngine.connect()
@@ -186,7 +153,7 @@ def main():
         df=pd.DataFrame(np.transpose(ck_gemm_params),columns=['Test_number','Data_type',
             'Alayout','BLayout','M','N','K', 'StrideA','StrideB','StrideC'])
         print(df)
-        #df.to_sql("ck_gemm_test_params",conn,if_exists='replace',index=False)
+        df.to_sql("ck_gemm_test_params",conn,if_exists='replace',index=False)
 
         #read baseline results for the latest develop branch
         query = '''SELECT * from ck_gemm_tflops where Branch_ID="develop" and Datetime = (SELECT MAX(Datetime));'''
@@ -207,16 +174,11 @@ def main():
         #print("ck_gemm_tflops:",ck_gemm_tflops)
 
         flops=pd.DataFrame(data=[ck_gemm_tflops],columns=['Branch_ID','Datetime'])
-        #print("df1:",flops)
-        #sorted_tflops=[32.9,37.6,42.5,26.8]
         df_add=pd.DataFrame(data=[sorted_tflops],columns=testlist)
-        #print("df2:",df_add)
         flops=pd.concat([flops,df_add],axis=1)
-        print("df1+df2:",flops)
+        print("new tflops results:",flops)
 
-        #flops.to_sql("ck_gemm_tflops",conn,if_exists='append',index=False)
-
-
+        flops.to_sql("ck_gemm_tflops",conn,if_exists='append',index=False)
         conn.close()
 
     #compare the results to the baseline

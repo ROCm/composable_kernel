@@ -232,11 +232,11 @@ def runCKProfiler(Map conf=[:]){
 						//sh "./profile_gemm.sh gemm 1 3 0 1 0 5 | tee -a ${perf_log}"
 						//sh "./profile_gemm.sh gemm 2 3 0 1 0 5 | tee -a ${perf_log}"
 						//sh "./profile_gemm.sh gemm 3 3 0 1 0 5 | tee -a ${perf_log}"
-                        stash name: "${perf_log}" //stash perf_log for transpoting to master
+                        //stash name: "${perf_log}" //stash perf_log for transpoting to master
 						//results will be parsed, stored, and analyzed within the python script
 						//the script will return 0 if the performance criteria are met
 						//or return 1 if the criteria are not met
-						//sh "python3 parse_perf_data.py ${perf_log} | tee ${artifact}"
+						sh "python3 parse_perf_data.py ${perf_log} | tee ${artifact}"
                         //sh "rm ${perf_log}"
 					}
                 }
@@ -423,21 +423,21 @@ pipeline {
                 }
             }
         }
-        stage("Process Performance Tests Results")
-        {
-            environment{
-                dbuser = "${dbuser}"
-                dbpassword = "${dbpassword}"
-                dbsship = "${dbsship}"
-                dbsshport = "${dbsshport}"
-                dbsshuser = "${dbsshuser}"
-                dbsshpassword = "${dbsshpassword}"
-            }
-           steps
-           {
-               processPerfResults()
-           } 
-        }
+        //stage("Process Performance Tests Results")
+        //{
+        //    environment{
+        //        dbuser = "${dbuser}"
+        //        dbpassword = "${dbpassword}"
+        //        dbsship = "${dbsship}"
+        //        dbsshport = "${dbsshport}"
+        //        dbsshuser = "${dbsshuser}"
+        //        dbsshpassword = "${dbsshpassword}"
+        //    }
+        //   steps
+        //   {
+        //       processPerfResults()
+        //   } 
+        //}
 		stage("Tests")
         {
             parallel
