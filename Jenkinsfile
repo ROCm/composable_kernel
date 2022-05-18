@@ -214,7 +214,7 @@ def runCKProfiler(Map conf=[:]){
 					dir("script"){
 						def perf_log = "perf_gemm_${gpu_arch}.log"
                         sh "rm -f ${perf_log}"
-						//def artifact = "profile_gemm_${gpu_arch}.txt"
+						def artifact = "profile_gemm_${gpu_arch}.txt"
 						sh "echo Branch name: ${env.BRANCH_NAME} > ${perf_log}"
 						sh "./profile_gemm.sh gemm 0 0 0 1 0 5 | tee -a ${perf_log}"
 						//sh "./profile_gemm.sh gemm 1 0 0 1 0 5 | tee -a ${perf_log}"
