@@ -45,7 +45,7 @@ struct GridwiseBinaryElementwise_1D
 
     using PassThrough = tensor_operation::element_wise::PassThrough;
 
-    static __device__ __host__ auto CalculateElementwiseIndex()
+    static __device__ auto CalculateElementwiseIndex()
     {
         const index_t global_thread_id = get_thread_global_1d_id();
         return make_multi_index(global_thread_id * ScalarPerVector);
@@ -70,7 +70,7 @@ struct GridwiseBinaryElementwise_1D
         StaticBuffer<AddressSpaceEnum::Vgpr, ComputeDataType, ScalarPerVector, true> b_thread_buf;
         StaticBuffer<AddressSpaceEnum::Vgpr, ComputeDataType, ScalarPerVector, true> c_thread_buf;
 
-        const auto thread_to_global_offset = CalculateElementwiseIndex();
+        const auto thread_store_global_offset = CalculateElementwiseIndex();
 
         auto a_global_load =
             ThreadwiseTensorSliceTransfer_v2<ADataType,
@@ -82,7 +82,7 @@ struct GridwiseBinaryElementwise_1D
                                              0,                         // SrcVectorDim
                                              ScalarPerVector,
                                              1, // SrcScalarStrideInVector
-                                             false>{a_grid_desc_m0, thread_to_global_offset};
+                                             false>{a_grid_desc_m0, thread_store_global_offset};
 
         auto b_global_load =
             ThreadwiseTensorSliceTransfer_v2<BDataType,
@@ -94,7 +94,7 @@ struct GridwiseBinaryElementwise_1D
                                              0,                         // SrcVectorDim
                                              ScalarPerVector,
                                              1, // SrcScalarStrideInVector
-                                             false>{b_grid_desc_m0, thread_to_global_offset};
+                                             false>{b_grid_desc_m0, thread_store_global_offset};
 
         auto c_global_write =
             ThreadwiseTensorSliceTransfer_v1r3<ComputeDataType,
@@ -109,7 +109,7 @@ struct GridwiseBinaryElementwise_1D
                                                InMemoryDataOperationEnum::Set,
                                                1, // DstScalarStrideInVector
                                                false>{
-                c_grid_desc_m0, thread_to_global_offset, PassThrough{}};
+                c_grid_desc_m0, thread_store_global_offset, PassThrough{}};
 
         const index_t blockSize    = get_block_size();
         const index_t blockPerGrid = get_grid_size();
