@@ -1,10 +1,5 @@
 #include <iostream>
-#include <numeric>
-#include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
-#include <half.hpp>
-#include <math.h>
 #include "check_err.hpp"
 #include "config.hpp"
 #include "device.hpp"
@@ -14,7 +9,6 @@
 
 #include "device_tensor.hpp"
 #include "binary_element_wise_operation.hpp"
-
 #include "device_binary_elementwise.hpp"
 
 using F16 = ck::half_t;
