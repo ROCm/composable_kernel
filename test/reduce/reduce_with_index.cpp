@@ -100,7 +100,7 @@ class SimpleAppArgs
            (reduceDims.size() != 1 && reduceDims.size() != 3 && reduceDims.size() != 4))
             return (-1);
 
-        if(data_type != 0 && data_type != 1 && data_type != 3 && data_type != 5)
+        if(data_type != 0 && data_type != 1 && data_type != 3 && data_type != 5 && data_type != 6)
             return (-1);
 
         return (0);
@@ -175,6 +175,20 @@ bool test_reduce_with_index(int data_type,
                                                                       true,
                                                                       alpha,
                                                                       beta);
+    }
+    else if(data_type == 6)
+    {
+        result = profile_reduce_impl<double, double, double>(true,
+                                                             init_method,
+                                                             false,
+                                                             false,
+                                                             inLengths,
+                                                             reduceDims,
+                                                             reduceOpId,
+                                                             propagateNan,
+                                                             true,
+                                                             alpha,
+                                                             beta);
     }
 
     return (result);
