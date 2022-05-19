@@ -148,6 +148,27 @@ struct AddReluAdd
         y          = _mm256_add_ps(b, x2);
     }
 
+    float Apply(const float& x0, const float& x1, const float& x2) const
+    {
+        float a = x0 + x1;
+        float b = a > 0 ? a : 0;
+        return b + x2;
+    }
+
+    float4_t Apply(const float4_t& x0, const float4_t& x1, const float4_t& x2) const
+    {
+        float4_t a = _mm_add_ps(x0, x1);
+        float4_t b = _mm_max_ps(a, _mm_setzero_ps());
+        return _mm_add_ps(b, x2);
+    }
+
+    float8_t Apply(const float8_t& x0, const float8_t& x1, const float8_t& x2) const
+    {
+        float8_t a = _mm256_add_ps(x0, x1);
+        float8_t b = _mm256_max_ps(a, _mm256_setzero_ps());
+        return _mm256_add_ps(b, x2);
+    }
+
     static constexpr char* Name() { return "AddReluAdd"; }
 };
 

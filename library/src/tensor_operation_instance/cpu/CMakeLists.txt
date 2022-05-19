@@ -22,3 +22,4 @@ function(add_instance_library INSTANCE_NAME)
 endfunction(add_instance_library INSTANCE_NAME)
 
 add_subdirectory(conv2d_fwd)
+add_subdirectory(conv2d_fwd_bias_activation_add)

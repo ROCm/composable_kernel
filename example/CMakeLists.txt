@@ -58,3 +58,4 @@ add_subdirectory(16_gemm_reduce)
 add_subdirectory(18_batched_gemm_reduce)
 
 add_subdirectory(cpu_01_conv2d_fwd)
+add_subdirectory(cpu_02_conv2d_fwd_bias_relu_add)

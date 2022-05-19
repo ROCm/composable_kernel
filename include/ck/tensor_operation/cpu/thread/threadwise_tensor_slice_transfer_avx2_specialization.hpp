@@ -62,6 +62,161 @@ void memcpy32_avx2(void* dst, const void* src, const ck::index_t n, const Elemen
     }
 }
 
+template <typename ElementwiseOp>
+void memcpy32_avx2_with_extra_2src(void* dst,
+                                   const void* src,
+                                   const void* src1,
+                                   const void* src2,
+                                   const ck::index_t n,
+                                   const ElementwiseOp& element_op)
+{
+    // 16-8-4-2-1 pattern
+    ck::index_t i_n     = n;
+    float* p_dst        = reinterpret_cast<float*>(dst);
+    const float* p_src  = reinterpret_cast<const float*>(src);
+    const float* p_src1 = reinterpret_cast<const float*>(src1);
+    const float* p_src2 = reinterpret_cast<const float*>(src2);
+    while(i_n >= 16)
+    {
+        _mm256_storeu_ps(p_dst + 0,
+                         element_op.Apply(_mm256_loadu_ps(p_src + 0),
+                                          _mm256_loadu_ps(p_src1 + 0),
+                                          _mm256_loadu_ps(p_src2 + 0)));
+        _mm256_storeu_ps(p_dst + 8,
+                         element_op.Apply(_mm256_loadu_ps(p_src + 8),
+                                          _mm256_loadu_ps(p_src1 + 8),
+                                          _mm256_loadu_ps(p_src2 + 8)));
+        p_dst += 16;
+        p_src += 16;
+        p_src1 += 16;
+        p_src2 += 16;
+        i_n -= 16;
+    }
+    if(i_n & 8)
+    {
+        _mm256_storeu_ps(p_dst,
+                         element_op.Apply(_mm256_loadu_ps(p_src),
+                                          _mm256_loadu_ps(p_src1),
+                                          _mm256_loadu_ps(p_src2)));
+        p_dst += 8;
+        p_src += 8;
+        p_src1 += 8;
+        p_src2 += 8;
+    }
+    if(i_n & 4)
+    {
+        _mm_storeu_ps(
+            p_dst,
+            element_op.Apply(_mm_loadu_ps(p_src), _mm_loadu_ps(p_src1), _mm_loadu_ps(p_src2)));
+        p_dst += 4;
+        p_src += 4;
+        p_src1 += 4;
+        p_src2 += 4;
+    }
+    if(i_n & 2)
+    {
+#if defined(__GNUC__) && !defined(__clang__) && !defined(__llvm__)
+        __m128i s = _mm_loadu_si64(p_src);
+        __m128 v  = element_op.Apply(*reinterpret_cast<__m128*>(&s));
+
+        __m128i s1 = _mm_loadu_si64(p_src1);
+        __m128 v1  = element_op.Apply(*reinterpret_cast<__m128*>(&s1));
+
+        __m128i s2 = _mm_loadu_si64(p_src2);
+        __m128 v2  = element_op.Apply(*reinterpret_cast<__m128*>(&s2));
+
+        _mm_storeu_si64(p_dst,
+                        *reinterpret_cast<__m128i*>(&v),
+                        *reinterpret_cast<__m128i*>(&v1),
+                        *reinterpret_cast<__m128i*>(&v2));
+#else
+        _mm_storeu_si64(p_dst,
+                        element_op.Apply(
+                            _mm_loadu_si64(p_src), _mm_loadu_si64(p_src1), _mm_loadu_si64(p_src2)));
+#endif
+        p_dst += 2;
+        p_src += 2;
+        p_src1 += 2;
+        p_src2 += 2;
+    }
+    if(i_n & 1)
+    {
+        *p_dst = element_op.Apply(*p_src, *p_src1, *p_src2);
+    }
+}
+
+template <typename ElementwiseOp>
+void memcpy32_avx2_with_extra_2src(void* dst,
+                                   const void* src,
+                                   float v_src1,
+                                   const void* src2,
+                                   const ck::index_t n,
+                                   const ElementwiseOp& element_op)
+{
+    // 16-8-4-2-1 pattern
+    ck::index_t i_n     = n;
+    float* p_dst        = reinterpret_cast<float*>(dst);
+    const float* p_src  = reinterpret_cast<const float*>(src);
+    const float* p_src2 = reinterpret_cast<const float*>(src2);
+
+    __m256 ymm_src1 = _mm256_set1_ps(*reinterpret_cast<const float*>(&v_src1));
+    __m128 xmm_src1 = _mm_set1_ps(*reinterpret_cast<const float*>(&v_src1));
+
+    while(i_n >= 16)
+    {
+        _mm256_storeu_ps(
+            p_dst + 0,
+            element_op.Apply(_mm256_loadu_ps(p_src + 0), ymm_src1, _mm256_loadu_ps(p_src2 + 0)));
+        _mm256_storeu_ps(
+            p_dst + 8,
+            element_op.Apply(_mm256_loadu_ps(p_src + 8), ymm_src1, _mm256_loadu_ps(p_src2 + 8)));
+        p_dst += 16;
+        p_src += 16;
+        p_src2 += 16;
+        i_n -= 16;
+    }
+    if(i_n & 8)
+    {
+        _mm256_storeu_ps(
+            p_dst, element_op.Apply(_mm256_loadu_ps(p_src), ymm_src1, _mm256_loadu_ps(p_src2)));
+        p_dst += 8;
+        p_src += 8;
+        p_src2 += 8;
+    }
+    if(i_n & 4)
+    {
+        _mm_storeu_ps(p_dst, element_op.Apply(_mm_loadu_ps(p_src), xmm_src1, _mm_loadu_ps(p_src2)));
+        p_dst += 4;
+        p_src += 4;
+        p_src2 += 4;
+    }
+    if(i_n & 2)
+    {
+#if defined(__GNUC__) && !defined(__clang__) && !defined(__llvm__)
+        __m128i s = _mm_loadu_si64(p_src);
+        __m128 v  = element_op.Apply(*reinterpret_cast<__m128*>(&s));
+
+        __m128i s2 = _mm_loadu_si64(p_src2);
+        __m128 v2  = element_op.Apply(*reinterpret_cast<__m128*>(&s2));
+
+        _mm_storeu_si64(p_dst,
+                        *reinterpret_cast<__m128i*>(&v),
+                        *reinterpret_cast<__m128i*>(&xmm_src1),
+                        *reinterpret_cast<__m128i*>(&v2));
+#else
+        _mm_storeu_si64(p_dst,
+                        element_op.Apply(_mm_loadu_si64(p_src), xmm_src1, _mm_loadu_si64(p_src2)));
+#endif
+        p_dst += 2;
+        p_src += 2;
+        p_src2 += 2;
+    }
+    if(i_n & 1)
+    {
+        *p_dst = element_op.Apply(*p_src, v_src1, *p_src2);
+    }
+}
+
 inline void memset32_avx2(void* dst, const int32_t value, const ck::index_t n)
 {
     // 16-8-4-2-1 pattern
@@ -1358,6 +1513,672 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_MxN
     ck::index_t DstGemmN;
 
     intptr_t src_offset;
+    intptr_t dst_offset;
+};
+
+template <typename SrcData,
+          typename Src1Data, // for Bias, per dimension
+          typename Src2Data, // for Residual, per pixel
+          typename DstData,
+          typename SrcDesc,
+          typename Src1Desc,
+          typename Src2Desc,
+          typename DstDesc,
+          typename ElementwiseOperation,
+          bool BypassTransfer,
+          bool Src1AlongDim0> // if true, src1 has dim along M, false, src1 has dim along N
+struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_Bias_Residual_MxN
+{
+    static constexpr ck::index_t nDim = SrcDesc::GetNumOfDimension();
+    using Index                       = MultiIndex<nDim>;
+
+    constexpr ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_Bias_Residual_MxN(
+        const SrcDesc& src_desc,
+        const Index&,
+        const DstDesc& dst_desc,
+        const Index&,
+        const ElementwiseOperation& element_op)
+        : element_op_(element_op)
+    {
+        DstGemmM = dst_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<0>{}];
+        DstGemmN = dst_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}];
+
+        src_offset  = 0;
+        src1_offset = 1;
+        src2_offset = 2;
+        dst_offset  = 0;
+    }
+
+    void SetSrcSliceOrigin(const SrcDesc&, const Index& src_slice_origin_idx)
+    {
+        if constexpr(BypassTransfer)
+        {
+            auto i_src_gemm_m = src_slice_origin_idx[Number<0>{}];
+            auto i_src_gemm_n = src_slice_origin_idx[Number<1>{}];
+
+            src_offset = i_src_gemm_m * DstGemmN + i_src_gemm_n;
+        }
+    }
+
+    void SetSrc1SliceOrigin(const SrcDesc&, const Index& src_slice_origin_idx)
+    {
+        if constexpr(Src1AlongDim0)
+        {
+            auto i_src_gemm_m = src_slice_origin_idx[Number<0>{}];
+            // auto i_src_gemm_n = src_slice_origin_idx[Number<1>{}];
+
+            src1_offset = i_src_gemm_m;
+        }
+        else
+        {
+            auto i_src_gemm_n = src_slice_origin_idx[Number<1>{}];
+            src1_offset       = i_src_gemm_n;
+        }
+    }
+
+    void SetSrc2SliceOrigin(const SrcDesc&, const Index& src_slice_origin_idx)
+    {
+        auto i_src_gemm_m = src_slice_origin_idx[Number<0>{}];
+        auto i_src_gemm_n = src_slice_origin_idx[Number<1>{}];
+
+        src2_offset = i_src_gemm_m * DstGemmN + i_src_gemm_n;
+    }
+
+    void SetDstSliceOrigin(const DstDesc&, const Index& dst_slice_origin_idx)
+    {
+        i_dst_gemm_m = dst_slice_origin_idx[Number<0>{}];
+        i_dst_gemm_n = dst_slice_origin_idx[Number<1>{}];
+
+        dst_offset = i_dst_gemm_m * DstGemmN + i_dst_gemm_n;
+    }
+
+    template <typename SrcBuffer,
+              typename Src1Buffer,
+              typename Src2Buffer,
+              typename DstBuffer,
+              typename SliceLengths>
+    void RunRead(const SrcDesc&,
+                 SrcBuffer& src_buf,
+                 const Src1Desc&,
+                 Src1Buffer&,
+                 const Src2Desc&,
+                 Src2Buffer&,
+                 const DstDesc&,
+                 DstBuffer& dst_buf,
+                 const SliceLengths&)
+    {
+        if constexpr(BypassTransfer)
+        {
+            dst_buf.p_data_ = reinterpret_cast<float*>(src_buf.p_data_) + src_offset;
+        }
+    }
+
+    template <typename SrcBuffer,
+              typename Src1Buffer,
+              typename Src2Buffer,
+              typename DstBuffer,
+              typename SliceLengths>
+    void RunWrite(const SrcDesc& src_desc,
+                  SrcBuffer& src_buf,
+                  const Src1Desc& src1_desc,
+                  Src1Buffer& src1_buf,
+                  const Src2Desc& src2_desc,
+                  Src2Buffer& src2_buf,
+                  const DstDesc& dst_desc,
+                  DstBuffer& dst_buf,
+                  const SliceLengths& slice_length)
+    {
+        if constexpr(BypassTransfer)
+        {
+            // src_buf.p_data_ = reinterpret_cast<float*>(dst_buf.p_data_) + src_offset;
+            if constexpr(!std::is_same<ElementwiseOperation,
+                                       ck::tensor_operation::cpu::element_wise::PassThrough>::value)
+            {
+                const ck::index_t m_per_block = slice_length[Number<0>{}];
+                const ck::index_t n_per_block = slice_length[Number<1>{}];
+
+                const ck::index_t current_n = ck::math::min(DstGemmN - i_dst_gemm_n, n_per_block);
+
+                float* p_dst = reinterpret_cast<float*>(dst_buf.p_data_) + dst_offset;
+                const float* p_src1 =
+                    reinterpret_cast<const float*>(src1_buf.p_data_) + src1_offset;
+                const float* p_src2 =
+                    reinterpret_cast<const float*>(src2_buf.p_data_) + src2_offset;
+
+                ck::index_t i_m_itr = m_per_block;
+
+                // printf("xxxx %d, current_n:%d, DstGemmN:%d, n_per_block:%d,
+                // dst_offset:%d\n",__LINE__, current_n,
+                //  DstGemmN, n_per_block, dst_offset);fflush(stdout);
+
+                // standard 8-4-2-1 pattern
+                if constexpr(Src1AlongDim0)
+                {
+                    while(i_m_itr >= 8)
+                    {
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 0 * DstGemmN,
+                                                                 p_dst + 0 * DstGemmN,
+                                                                 *(p_src1 + 0),
+                                                                 p_src2 + 0 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 1 * DstGemmN,
+                                                                 p_dst + 1 * DstGemmN,
+                                                                 *(p_src1 + 1),
+                                                                 p_src2 + 1 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 2 * DstGemmN,
+                                                                 p_dst + 2 * DstGemmN,
+                                                                 *(p_src1 + 2),
+                                                                 p_src2 + 2 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 3 * DstGemmN,
+                                                                 p_dst + 3 * DstGemmN,
+                                                                 *(p_src1 + 3),
+                                                                 p_src2 + 3 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 4 * DstGemmN,
+                                                                 p_dst + 4 * DstGemmN,
+                                                                 *(p_src1 + 4),
+                                                                 p_src2 + 4 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 5 * DstGemmN,
+                                                                 p_dst + 5 * DstGemmN,
+                                                                 *(p_src1 + 5),
+                                                                 p_src2 + 5 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 6 * DstGemmN,
+                                                                 p_dst + 6 * DstGemmN,
+                                                                 *(p_src1 + 6),
+                                                                 p_src2 + 6 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 7 * DstGemmN,
+                                                                 p_dst + 7 * DstGemmN,
+                                                                 *(p_src1 + 7),
+                                                                 p_src2 + 7 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+
+                        i_m_itr -= 8;
+                        p_dst += 8 * DstGemmN;
+                        p_src1 += 8;
+                        p_src2 += 8 * DstGemmN;
+                    }
+
+                    if(i_m_itr & 4)
+                    {
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 0 * DstGemmN,
+                                                                 p_dst + 0 * DstGemmN,
+                                                                 *(p_src1 + 0),
+                                                                 p_src2 + 0 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 1 * DstGemmN,
+                                                                 p_dst + 1 * DstGemmN,
+                                                                 *(p_src1 + 1),
+                                                                 p_src2 + 1 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 2 * DstGemmN,
+                                                                 p_dst + 2 * DstGemmN,
+                                                                 *(p_src1 + 2),
+                                                                 p_src2 + 2 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 3 * DstGemmN,
+                                                                 p_dst + 3 * DstGemmN,
+                                                                 *(p_src1 + 3),
+                                                                 p_src2 + 3 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+
+                        p_dst += 4 * DstGemmN;
+                        p_src1 += 4;
+                        p_src2 += 4 * DstGemmN;
+                    }
+
+                    if(i_m_itr & 2)
+                    {
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 0 * DstGemmN,
+                                                                 p_dst + 0 * DstGemmN,
+                                                                 *(p_src1 + 0),
+                                                                 p_src2 + 0 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 1 * DstGemmN,
+                                                                 p_dst + 1 * DstGemmN,
+                                                                 *(p_src1 + 1),
+                                                                 p_src2 + 1 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+
+                        p_dst += 2 * DstGemmN;
+                        p_src1 += 2;
+                        p_src2 += 2 * DstGemmN;
+                    }
+
+                    if(i_m_itr & 1)
+                    {
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 0 * DstGemmN,
+                                                                 p_dst + 0 * DstGemmN,
+                                                                 *(p_src1 + 0),
+                                                                 p_src2 + 0 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                    }
+                }
+                else
+                {
+                    while(i_m_itr >= 8)
+                    {
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 0 * DstGemmN,
+                                                                 p_dst + 0 * DstGemmN,
+                                                                 p_src1,
+                                                                 p_src2 + 0 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 1 * DstGemmN,
+                                                                 p_dst + 1 * DstGemmN,
+                                                                 p_src1,
+                                                                 p_src2 + 1 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 2 * DstGemmN,
+                                                                 p_dst + 2 * DstGemmN,
+                                                                 p_src1,
+                                                                 p_src2 + 2 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 3 * DstGemmN,
+                                                                 p_dst + 3 * DstGemmN,
+                                                                 p_src1,
+                                                                 p_src2 + 3 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 4 * DstGemmN,
+                                                                 p_dst + 4 * DstGemmN,
+                                                                 p_src1,
+                                                                 p_src2 + 4 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 5 * DstGemmN,
+                                                                 p_dst + 5 * DstGemmN,
+                                                                 p_src1,
+                                                                 p_src2 + 5 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 6 * DstGemmN,
+                                                                 p_dst + 6 * DstGemmN,
+                                                                 p_src1,
+                                                                 p_src2 + 6 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 7 * DstGemmN,
+                                                                 p_dst + 7 * DstGemmN,
+                                                                 p_src1,
+                                                                 p_src2 + 7 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+
+                        i_m_itr -= 8;
+                        p_dst += 8 * DstGemmN;
+                        p_src2 += 8 * DstGemmN;
+                    }
+
+                    if(i_m_itr & 4)
+                    {
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 0 * DstGemmN,
+                                                                 p_dst + 0 * DstGemmN,
+                                                                 p_src1,
+                                                                 p_src2 + 0 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 1 * DstGemmN,
+                                                                 p_dst + 1 * DstGemmN,
+                                                                 p_src1,
+                                                                 p_src2 + 1 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 2 * DstGemmN,
+                                                                 p_dst + 2 * DstGemmN,
+                                                                 p_src1,
+                                                                 p_src2 + 2 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 3 * DstGemmN,
+                                                                 p_dst + 3 * DstGemmN,
+                                                                 p_src1,
+                                                                 p_src2 + 3 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+
+                        p_dst += 4 * DstGemmN;
+                        p_src2 += 4 * DstGemmN;
+                    }
+
+                    if(i_m_itr & 2)
+                    {
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 0 * DstGemmN,
+                                                                 p_dst + 0 * DstGemmN,
+                                                                 p_src1,
+                                                                 p_src2 + 0 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 1 * DstGemmN,
+                                                                 p_dst + 1 * DstGemmN,
+                                                                 p_src1,
+                                                                 p_src2 + 1 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+
+                        p_dst += 2 * DstGemmN;
+                        p_src2 += 2 * DstGemmN;
+                    }
+
+                    if(i_m_itr & 1)
+                    {
+                        avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 0 * DstGemmN,
+                                                                 p_dst + 0 * DstGemmN,
+                                                                 p_src1,
+                                                                 p_src2 + 0 * DstGemmN,
+                                                                 current_n,
+                                                                 element_op_);
+                    }
+                }
+            }
+        }
+        else
+        {
+            const ck::index_t m_per_block = slice_length[Number<0>{}];
+            const ck::index_t n_per_block = slice_length[Number<1>{}];
+
+            const ck::index_t current_n = ck::math::min(DstGemmN - i_dst_gemm_n, n_per_block);
+
+            const float* p_src  = reinterpret_cast<const float*>(src_buf.p_data_) + src_offset;
+            float* p_dst        = reinterpret_cast<float*>(dst_buf.p_data_) + dst_offset;
+            const float* p_src1 = reinterpret_cast<const float*>(src1_buf.p_data_) + src1_offset;
+            const float* p_src2 = reinterpret_cast<const float*>(src2_buf.p_data_) + src2_offset;
+
+            ck::index_t i_m_itr = m_per_block;
+
+            // printf("xxxx %d, current_n:%d, DstGemmN:%d, n_per_block:%d\n",__LINE__, current_n,
+            // DstGemmN, n_per_block);fflush(stdout);
+
+            // standard 8-4-2-1 pattern
+            if constexpr(Src1AlongDim0)
+            {
+                while(i_m_itr >= 8)
+                {
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 0 * DstGemmN,
+                                                             p_src + 0 * n_per_block,
+                                                             *(p_src1 + 0),
+                                                             p_src2 + 0 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 1 * DstGemmN,
+                                                             p_src + 1 * n_per_block,
+                                                             *(p_src1 + 1),
+                                                             p_src2 + 1 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 2 * DstGemmN,
+                                                             p_src + 2 * n_per_block,
+                                                             *(p_src1 + 2),
+                                                             p_src2 + 2 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 3 * DstGemmN,
+                                                             p_src + 3 * n_per_block,
+                                                             *(p_src1 + 3),
+                                                             p_src2 + 3 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 4 * DstGemmN,
+                                                             p_src + 4 * n_per_block,
+                                                             *(p_src1 + 4),
+                                                             p_src2 + 4 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 5 * DstGemmN,
+                                                             p_src + 5 * n_per_block,
+                                                             *(p_src1 + 5),
+                                                             p_src2 + 5 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 6 * DstGemmN,
+                                                             p_src + 6 * n_per_block,
+                                                             *(p_src1 + 6),
+                                                             p_src2 + 6 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 7 * DstGemmN,
+                                                             p_src + 7 * n_per_block,
+                                                             *(p_src1 + 7),
+                                                             p_src2 + 7 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+
+                    i_m_itr -= 8;
+                    p_dst += 8 * DstGemmN;
+                    p_src += 8 * n_per_block;
+                    p_src1 += 8;
+                    p_src2 += 8 * DstGemmN;
+                }
+
+                if(i_m_itr & 4)
+                {
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 0 * DstGemmN,
+                                                             p_src + 0 * n_per_block,
+                                                             *(p_src1 + 0),
+                                                             p_src2 + 0 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 1 * DstGemmN,
+                                                             p_src + 1 * n_per_block,
+                                                             *(p_src1 + 1),
+                                                             p_src2 + 1 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 2 * DstGemmN,
+                                                             p_src + 2 * n_per_block,
+                                                             *(p_src1 + 2),
+                                                             p_src2 + 2 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 3 * DstGemmN,
+                                                             p_src + 3 * n_per_block,
+                                                             *(p_src1 + 3),
+                                                             p_src2 + 3 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+
+                    p_dst += 4 * DstGemmN;
+                    p_src += 4 * n_per_block;
+                    p_src1 += 4;
+                    p_src2 += 4 * DstGemmN;
+                }
+
+                if(i_m_itr & 2)
+                {
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 0 * DstGemmN,
+                                                             p_src + 0 * n_per_block,
+                                                             *(p_src1 + 0),
+                                                             p_src2 + 0 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 1 * DstGemmN,
+                                                             p_src + 1 * n_per_block,
+                                                             *(p_src1 + 1),
+                                                             p_src2 + 1 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+
+                    p_dst += 2 * DstGemmN;
+                    p_src += 2 * n_per_block;
+                    p_src1 += 2;
+                    p_src2 += 2 * DstGemmN;
+                }
+
+                if(i_m_itr & 1)
+                {
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 0 * DstGemmN,
+                                                             p_src + 0 * n_per_block,
+                                                             *(p_src1 + 0),
+                                                             p_src2 + 0 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                }
+            }
+            else
+            {
+                while(i_m_itr >= 8)
+                {
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 0 * DstGemmN,
+                                                             p_src + 0 * n_per_block,
+                                                             p_src1,
+                                                             p_src2 + 0 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 1 * DstGemmN,
+                                                             p_src + 1 * n_per_block,
+                                                             p_src1,
+                                                             p_src2 + 1 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 2 * DstGemmN,
+                                                             p_src + 2 * n_per_block,
+                                                             p_src1,
+                                                             p_src2 + 2 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 3 * DstGemmN,
+                                                             p_src + 3 * n_per_block,
+                                                             p_src1,
+                                                             p_src2 + 3 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 4 * DstGemmN,
+                                                             p_src + 4 * n_per_block,
+                                                             p_src1,
+                                                             p_src2 + 4 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 5 * DstGemmN,
+                                                             p_src + 5 * n_per_block,
+                                                             p_src1,
+                                                             p_src2 + 5 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 6 * DstGemmN,
+                                                             p_src + 6 * n_per_block,
+                                                             p_src1,
+                                                             p_src2 + 6 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 7 * DstGemmN,
+                                                             p_src + 7 * n_per_block,
+                                                             p_src1,
+                                                             p_src2 + 7 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+
+                    i_m_itr -= 8;
+                    p_dst += 8 * DstGemmN;
+                    p_src += 8 * n_per_block;
+                    p_src2 += 8 * DstGemmN;
+                }
+
+                if(i_m_itr & 4)
+                {
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 0 * DstGemmN,
+                                                             p_src + 0 * n_per_block,
+                                                             p_src1,
+                                                             p_src2 + 0 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 1 * DstGemmN,
+                                                             p_src + 1 * n_per_block,
+                                                             p_src1,
+                                                             p_src2 + 1 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 2 * DstGemmN,
+                                                             p_src + 2 * n_per_block,
+                                                             p_src1,
+                                                             p_src2 + 2 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 3 * DstGemmN,
+                                                             p_src + 3 * n_per_block,
+                                                             p_src1,
+                                                             p_src2 + 3 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+
+                    p_dst += 4 * DstGemmN;
+                    p_src += 4 * n_per_block;
+                    p_src2 += 4 * DstGemmN;
+                }
+
+                if(i_m_itr & 2)
+                {
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 0 * DstGemmN,
+                                                             p_src + 0 * n_per_block,
+                                                             p_src1,
+                                                             p_src2 + 0 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 1 * DstGemmN,
+                                                             p_src + 1 * n_per_block,
+                                                             p_src1,
+                                                             p_src2 + 1 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+
+                    p_dst += 2 * DstGemmN;
+                    p_src += 2 * n_per_block;
+                    p_src2 += 2 * DstGemmN;
+                }
+
+                if(i_m_itr & 1)
+                {
+                    avx2_util::memcpy32_avx2_with_extra_2src(p_dst + 0 * DstGemmN,
+                                                             p_src + 0 * n_per_block,
+                                                             p_src1,
+                                                             p_src2 + 0 * DstGemmN,
+                                                             current_n,
+                                                             element_op_);
+                }
+            }
+
+            // printf("xxxx %d\n",__LINE__);fflush(stdout);
+        }
+    }
+
+    // src_slice_origin_step_idx need to be known at compile-time, for performance reason
+    void MoveSrcSliceWindow(const SrcDesc&, const Index&) {}
+
+    // dst_slice_origin_step_idx need to be known at compile-time, for performance reason
+    void MoveDstSliceWindow(const DstDesc&, const Index&) {}
+
+    private:
+    const ElementwiseOperation element_op_;
+
+    ck::index_t i_dst_gemm_m;
+    ck::index_t i_dst_gemm_n;
+
+    ck::index_t DstGemmM;
+    ck::index_t DstGemmN;
+
+    intptr_t src_offset;
+    intptr_t src1_offset;
+    intptr_t src2_offset;
     intptr_t dst_offset;
 };
 
