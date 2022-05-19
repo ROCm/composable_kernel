@@ -1,10 +1,5 @@
 #include <iostream>
-#include <numeric>
-#include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
-#include <half.hpp>
-#include <math.h>
 #include "check_err.hpp"
 #include "config.hpp"
 #include "device.hpp"
@@ -13,7 +8,6 @@
 
 #include "device_tensor.hpp"
 #include "binary_element_wise_operation.hpp"
-
 #include "device_binary_elementwise.hpp"
 
 using F16 = ck::half_t;
@@ -26,7 +20,7 @@ using EltwiseComputeDataType = F32;
 using Add = ck::tensor_operation::binary_element_wise::Add;
 
 using DeviceElementwiseAddInstance = ck::tensor_operation::device::
-    DeviceBinaryElementwise<F16, F16, CDataType, EltwiseComputeDataType, Add, 2, 8>;
+    DeviceBinaryElementwise<ABDataType, ABDataType, CDataType, EltwiseComputeDataType, Add, 2, 8>;
 
 template <typename HostTensorA,
           typename HostTensorB,
@@ -37,6 +31,8 @@ template <typename HostTensorA,
 void host_broadcast2D(
     HostTensorC& C, const HostTensorA& A, const HostTensorB& B, int M, int N, Functor functor)
 {
+    using ctype = ck::remove_reference_t<decltype(C(0, 0))>;
+
     for(int m = 0; m < M; ++m)
     {
         for(int n = 0; n < N; ++n)
@@ -53,7 +49,7 @@ void host_broadcast2D(
                 ComputeDataType Bm = static_cast<ComputeDataType>(B(m));
                 functor(Cmn, Amn, Bm);
             }
-            C(m, n) = static_cast<ComputeDataType>(Cmn);
+            C(m, n) = static_cast<ctype>(Cmn);
         }
     }
 }

@@ -71,10 +71,10 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
     static constexpr auto ScalarPerVector = Number<4>{};
 
     template <typename Desc_M0>
-    static auto PadDescriptor_M0_1d(Desc_M0 desc_m0, index_t gridSize, index_t threadPerBlock)
+    static auto PadDescriptor_M0_1d(Desc_M0 desc_m0, index_t gridSize, index_t blockSize)
     {
         const auto m0           = desc_m0.GetLength(I0);
-        const index_t loop_step = gridSize * threadPerBlock * ScalarPerVector;
+        const index_t loop_step = gridSize * blockSize * ScalarPerVector;
         const auto pad          = math::integer_least_multiple(m0, loop_step) - m0;
         const auto desc_m0_pad =
             transform_tensor_descriptor(desc_m0,
@@ -87,7 +87,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
     static auto MakeDescriptor_M0(const std::vector<int>& shape,
                                   const std::vector<int>& stride,
                                   index_t gridSize,
-                                  index_t threadPerBlock)
+                                  index_t blockSize)
     {
         auto tupleOfShape  = generate_tuple([&](auto I) { return shape[I]; }, Number<2>{});
         auto tupleOfStride = generate_tuple([&](auto I) { return stride[I]; }, Number<2>{});
@@ -100,7 +100,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
             make_tuple(generate_sequence_v2([&](auto I) { return I; }, Number<2>{})),
             make_tuple(Sequence<0>{}));
 
-        return PadDescriptor_M0_1d(desc_m0, gridSize, threadPerBlock);
+        return PadDescriptor_M0_1d(desc_m0, gridSize,blockSize);
     }
 
     static auto MakeAGridDescriptor_AK0_M_AK1(index_t MRaw, index_t KRaw, index_t StrideA)
@@ -536,18 +536,18 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                                                       GridDesc_M0,
                                                                       Substract,
                                                                       ScalarPerVector>;
-            const auto add_kernel       = kernel_elementwise_1d<GridwiseBinAdd,
-                                                          CDataType,
-                                                          CDataType,
-                                                          CDataType,
-                                                          GridDesc_M0,
-                                                          Add>;
-            const auto substract_kernel = kernel_elementwise_1d<GridwiseBinSubstract,
-                                                                CDataType,
-                                                                CDataType,
-                                                                CDataType,
-                                                                GridDesc_M0,
-                                                                Substract>;
+            const auto add_kernel       = kernel_binary_elementwise_1d<GridwiseBinAdd,
+                                                                 CDataType,
+                                                                 CDataType,
+                                                                 CDataType,
+                                                                 GridDesc_M0,
+                                                                 Add>;
+            const auto substract_kernel = kernel_binary_elementwise_1d<GridwiseBinSubstract,
+                                                                       CDataType,
+                                                                       CDataType,
+                                                                       CDataType,
+                                                                       GridDesc_M0,
+                                                                       Substract>;
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {

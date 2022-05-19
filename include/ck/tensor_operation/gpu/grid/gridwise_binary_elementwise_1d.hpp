@@ -13,13 +13,13 @@ template <typename GridwiseBinEltwise,
           typename CDataType,
           typename GridDesc_M0,
           typename ElementwiseFunctor>
-__global__ void kernel_elementwise_1d(const ADataType* __restrict__ p_a_global,
-                                      const BDataType* __restrict__ p_b_global,
-                                      CDataType* __restrict__ p_c_global,
-                                      const GridDesc_M0 a_grid_desc_m0,
-                                      const GridDesc_M0 b_grid_desc_m0,
-                                      const GridDesc_M0 c_grid_desc_m0,
-                                      const ElementwiseFunctor functor)
+__global__ void kernel_binary_elementwise_1d(const ADataType* __restrict__ p_a_global,
+                                             const BDataType* __restrict__ p_b_global,
+                                             CDataType* __restrict__ p_c_global,
+                                             const GridDesc_M0 a_grid_desc_m0,
+                                             const GridDesc_M0 b_grid_desc_m0,
+                                             const GridDesc_M0 c_grid_desc_m0,
+                                             const ElementwiseFunctor functor)
 {
     GridwiseBinEltwise::Run(p_a_global,
                             p_b_global,
@@ -45,7 +45,7 @@ struct GridwiseBinaryElementwise_1D
 
     using PassThrough = tensor_operation::element_wise::PassThrough;
 
-    static __device__ __host__ auto CalculateElementwiseIndex()
+    static __device__ auto CalculateElementwiseIndex()
     {
         const index_t global_thread_id = get_thread_global_1d_id();
         return make_multi_index(global_thread_id * ScalarPerVector);
@@ -70,7 +70,7 @@ struct GridwiseBinaryElementwise_1D
         StaticBuffer<AddressSpaceEnum::Vgpr, ComputeDataType, ScalarPerVector, true> b_thread_buf;
         StaticBuffer<AddressSpaceEnum::Vgpr, ComputeDataType, ScalarPerVector, true> c_thread_buf;
 
-        const auto thread_to_global_offset = CalculateElementwiseIndex();
+        const auto thread_store_global_offset = CalculateElementwiseIndex();
 
         auto a_global_load =
             ThreadwiseTensorSliceTransfer_v2<ADataType,
@@ -82,7 +82,7 @@ struct GridwiseBinaryElementwise_1D
                                              0,                         // SrcVectorDim
                                              ScalarPerVector,
                                              1, // SrcScalarStrideInVector
-                                             false>{a_grid_desc_m0, thread_to_global_offset};
+                                             false>{a_grid_desc_m0, thread_store_global_offset};
 
         auto b_global_load =
             ThreadwiseTensorSliceTransfer_v2<BDataType,
@@ -94,7 +94,7 @@ struct GridwiseBinaryElementwise_1D
                                              0,                         // SrcVectorDim
                                              ScalarPerVector,
                                              1, // SrcScalarStrideInVector
-                                             false>{b_grid_desc_m0, thread_to_global_offset};
+                                             false>{b_grid_desc_m0, thread_store_global_offset};
 
         auto c_global_write =
             ThreadwiseTensorSliceTransfer_v1r3<ComputeDataType,
@@ -109,13 +109,13 @@ struct GridwiseBinaryElementwise_1D
                                                InMemoryDataOperationEnum::Set,
                                                1, // DstScalarStrideInVector
                                                false>{
-                c_grid_desc_m0, thread_to_global_offset, PassThrough{}};
+                c_grid_desc_m0, thread_store_global_offset, PassThrough{}};
 
-        const index_t threadPerBlock = get_block_size();
-        const index_t blockPerGrid   = get_grid_size();
-        const auto m0                = c_grid_desc_m0.GetLength(I0);
-        const index_t loop_step      = blockPerGrid * threadPerBlock * ScalarPerVector;
-        const auto loop_step_index   = make_multi_index(loop_step);
+        const index_t blockSize    = get_block_size();
+        const index_t blockPerGrid = get_grid_size();
+        const auto m0              = c_grid_desc_m0.GetLength(I0);
+        const index_t loop_step    = blockPerGrid * blockSize * ScalarPerVector;
+        const auto loop_step_index = make_multi_index(loop_step);
 
         index_t num_iter = m0 / (loop_step);
         do
