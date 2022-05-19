@@ -19,8 +19,6 @@ template <typename ADataType,
           index_t ScalarPerVector>
 struct DeviceBinaryElementwise : public BaseOperator
 {
-    DeviceBinaryElementwise(index_t blockSize = 256) : BaseOperator(), blockSize_(blockSize) {}
-
     static constexpr auto I0 = Number<0>{};
 
     template <typename Desc_M0>
@@ -88,6 +86,7 @@ struct DeviceBinaryElementwise : public BaseOperator
               p_c_(p_c),
               shape_(shape),
               functor_(functor),
+              blockSize_(blockSize),
               gridSize_(120) // FIXME - Calculate the grid size by number of CU in the future
         {
             a_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_a, gridSize_, blockSize);
@@ -103,13 +102,12 @@ struct DeviceBinaryElementwise : public BaseOperator
         GridDesc_M0 b_grid_desc_m0_;
         GridDesc_M0 c_grid_desc_m0_;
         ElementwiseFunctor functor_;
+        index_t blockSize_;
         index_t gridSize_;
     };
 
     struct Invoker : public BaseInvoker
     {
-        Invoker(index_t blockSize) : BaseInvoker(), blockSize_(blockSize) {}
-
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             const auto kernel = kernel_binary_elementwise_1d<GridwiseBinEltwise,
@@ -122,7 +120,7 @@ struct DeviceBinaryElementwise : public BaseOperator
             float elapsed_time = launch_and_time_kernel(stream_config,
                                                         kernel,
                                                         dim3(arg.gridSize_),
-                                                        dim3(blockSize_),
+                                                        dim3(arg.blockSize_),
                                                         0,
                                                         arg.p_a_,
                                                         arg.p_b_,
@@ -140,8 +138,6 @@ struct DeviceBinaryElementwise : public BaseOperator
         {
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
-
-        index_t blockSize_;
     };
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override
@@ -164,7 +160,8 @@ struct DeviceBinaryElementwise : public BaseOperator
                                                       std::vector<index_t> stride_a,
                                                       std::vector<index_t> stride_b,
                                                       std::vector<index_t> stride_c,
-                                                      ElementwiseFunctor functor)
+                                                      ElementwiseFunctor functor,
+                                                      index_t blockSize = 256)
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
@@ -174,13 +171,10 @@ struct DeviceBinaryElementwise : public BaseOperator
                                           stride_b,
                                           stride_c,
                                           functor,
-                                          blockSize_);
+                                          blockSize);
     }
 
-    std::unique_ptr<BaseInvoker> MakeInvokerPointer()
-    {
-        return std::make_unique<Invoker>(Invoker{blockSize_});
-    }
+    std::unique_ptr<BaseInvoker> MakeInvokerPointer() { return std::make_unique<Invoker>(); }
 
     std::string GetTypeString() const override
     {
@@ -195,8 +189,6 @@ struct DeviceBinaryElementwise : public BaseOperator
 
         return str.str();
     }
-
-    index_t blockSize_;
 };
 
 } // namespace device
