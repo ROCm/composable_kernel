@@ -104,8 +104,8 @@ int main()
                            EltwiseComputeDataType,
                            Add>(host_c, a, b, nchw, Add{});
 
-        pass &= ck::utils::check_err(
-            c.mData, host_c.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
+        pass &=
+            ck::utils::check_err(c.mData, host_c.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
     }
 
     return pass ? 0 : 1;
