@@ -265,6 +265,9 @@ struct DeviceGemmXdlSkipLds
 
                 block_2_ctile_map_ =
                     GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
+
+                b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3_ =
+                    GridwiseGemm::MakeBGridDescriptor_K0_K1_K2_N0_N1_N2_N3_K3(b_grid_desc_k0_n_k1_);
             }
         }
 
@@ -275,6 +278,8 @@ struct DeviceGemmXdlSkipLds
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
+        typename GridwiseGemm::BGridDesc_K0_K1_K2_N0_N1_N2_N3_K3
+            b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3_;
         typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2
             c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
@@ -331,6 +336,7 @@ struct DeviceGemmXdlSkipLds
                     CDataType,
                     remove_reference_t<DeviceGemmXdlSkipLds::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmXdlSkipLds::BGridDesc_K0_N_K1>,
+                    remove_reference_t<typename GridwiseGemm::BGridDesc_K0_K1_K2_N0_N1_N2_N3_K3>,
                     remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                     AElementwiseOperation,
                     BElementwiseOperation,
@@ -348,6 +354,7 @@ struct DeviceGemmXdlSkipLds
                                                   arg.p_c_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
+                                                  arg.b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
@@ -362,6 +369,7 @@ struct DeviceGemmXdlSkipLds
                     CDataType,
                     remove_reference_t<DeviceGemmXdlSkipLds::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmXdlSkipLds::BGridDesc_K0_N_K1>,
+                    remove_reference_t<typename GridwiseGemm::BGridDesc_K0_K1_K2_N0_N1_N2_N3_K3>,
                     remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                     AElementwiseOperation,
                     BElementwiseOperation,
@@ -379,6 +387,7 @@ struct DeviceGemmXdlSkipLds
                                                   arg.p_c_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
+                                                  arg.b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,

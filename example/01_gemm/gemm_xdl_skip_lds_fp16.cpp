@@ -84,7 +84,7 @@ int main(int argc, char* argv[])
 
     // GEMM shape
 #if NORMAL_CONFIG
-    ck::index_t M = 3840;
+    ck::index_t M = 256;
     ck::index_t N = 4096;
     ck::index_t K = 4096;
 
