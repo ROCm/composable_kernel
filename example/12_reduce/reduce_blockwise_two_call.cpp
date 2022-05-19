@@ -100,6 +100,12 @@ int main(int argc, char* argv[])
 
     const std::vector<size_t> inLengths_1 = {64, 320, 80, 4, 128};
 
+    // input lengths of the second reduction, which is also the output lengths of the first
+    // reduction
+    const std::vector<size_t> inLengths_2 = {64, 320, 80, 4};
+
+    const std::vector<size_t> outLengths = {64, 320, 80};
+
     using namespace ck::host_reduce;
     using ck::host_common::to_int_vector;
 
@@ -129,21 +135,6 @@ int main(int argc, char* argv[])
     beta  = 0.0f;
 
     Tensor<InOutDataType> in_1(inLengths_1);
-
-    std::vector<size_t> inLengths_2; // also the output lengths of the first reduction
-    std::vector<size_t> outLengths;
-
-    if(invariantDims_1.empty())
-        inLengths_2.push_back(1);
-    else
-        for(auto dim : invariantDims_1)
-            inLengths_2.push_back(inLengths_1[dim]);
-
-    if(invariantDims_2.empty())
-        outLengths.push_back(1);
-    else
-        for(auto dim : invariantDims_2)
-            outLengths.push_back(inLengths_2[dim]);
 
     Tensor<InOutDataType> out_ref(outLengths);
     Tensor<InOutDataType> in_2(inLengths_2); // also the output tensor of the first reduction
