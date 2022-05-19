@@ -147,7 +147,6 @@ class SimpleAppArgs
 int main(int argc, char* argv[])
 {
     using namespace ck::host_reduce;
-    using ck::host_common::to_int_vector;
 
     const std::vector<int> reduceDims{0, 1, 2};
     const std::vector<int> invariantDims{3};
@@ -265,10 +264,15 @@ int main(int argc, char* argv[])
             alpha, in.mData.data(), beta, out_ref.mData.data(), out_indices_ref.mData.data());
     };
 
-    const auto i_inLengths  = to_int_vector(args.inLengths);
-    const auto i_inStrides  = to_int_vector(inStrides);
-    const auto i_outLengths = to_int_vector(outLengths);
-    const auto i_outStrides = to_int_vector(outStrides);
+    std::vector<ck::index_t> i_inLengths;
+    std::vector<ck::index_t> i_inStrides;
+    std::vector<ck::index_t> i_outLengths;
+    std::vector<ck::index_t> i_outStrides;
+
+    i_inLengths.assign(args.inLengths.begin(), args.inLengths.end());
+    i_inStrides.assign(inStrides.begin(), inStrides.end());
+    i_outLengths.assign(outLengths.begin(), outLengths.end());
+    i_outStrides.assign(outStrides.begin(), outStrides.end());
 
     auto reduce = DeviceReduceInstance{};
 

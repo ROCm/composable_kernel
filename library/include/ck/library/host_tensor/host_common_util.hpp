@@ -37,16 +37,6 @@ namespace ck {
 
 namespace host_common {
 
-static inline std::vector<index_t> to_int_vector(const std::vector<size_t>& inData)
-{
-    std::vector<index_t> outData;
-
-    for(auto elem : inData)
-        outData.push_back(static_cast<index_t>(elem));
-
-    return (outData);
-};
-
 template <typename T>
 static inline void dumpBufferToFile(const char* fileName, T* data, size_t dataNumItems)
 {

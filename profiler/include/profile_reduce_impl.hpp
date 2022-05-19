@@ -140,7 +140,6 @@ bool profile_reduce_impl_impl(bool do_verification,
     using namespace ck::tensor_operation::device::device_reduce_instance;
     using namespace ck::host_reduce;
     using ck::host_common::dumpBufferToFile;
-    using ck::host_common::to_int_vector;
 
     constexpr bool op_support_indices =
         (ReduceOpId == ReduceTensorOp::MIN || ReduceOpId == ReduceTensorOp::MAX ||
@@ -316,10 +315,15 @@ bool profile_reduce_impl_impl(bool do_verification,
                 alpha, in.mData.data(), beta, out_ref.mData.data(), out_indices_ref.mData.data());
         };
 
-        const auto i_inLengths  = to_int_vector(inLengths);
-        const auto i_inStrides  = to_int_vector(inStrides);
-        const auto i_outLengths = to_int_vector(outLengths);
-        const auto i_outStrides = to_int_vector(outStrides);
+        std::vector<ck::index_t> i_inLengths;
+        std::vector<ck::index_t> i_inStrides;
+        std::vector<ck::index_t> i_outLengths;
+        std::vector<ck::index_t> i_outStrides;
+
+        i_inLengths.assign(inLengths.begin(), inLengths.end());
+        i_inStrides.assign(inStrides.begin(), inStrides.end());
+        i_outLengths.assign(outLengths.begin(), outLengths.end());
+        i_outStrides.assign(outStrides.begin(), outStrides.end());
 
         for(auto& reduce_ptr : reduce0_ptrs)
         {

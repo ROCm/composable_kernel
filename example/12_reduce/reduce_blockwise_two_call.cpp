@@ -107,7 +107,6 @@ int main(int argc, char* argv[])
     const std::vector<size_t> outLengths = {64, 320, 80};
 
     using namespace ck::host_reduce;
-    using ck::host_common::to_int_vector;
 
     if(argc == 1)
     {
@@ -200,12 +199,19 @@ int main(int argc, char* argv[])
         hostReduce.Run(alpha, in_1.mData.data(), beta, out_ref.mData.data(), nullptr);
     };
 
-    const auto i_inLengths_1 = to_int_vector(inLengths_1);
-    const auto i_inStrides_1 = to_int_vector(inStrides_1);
-    const auto i_inLengths_2 = to_int_vector(inLengths_2);
-    const auto i_inStrides_2 = to_int_vector(inStrides_2);
-    const auto i_outLengths  = to_int_vector(outLengths);
-    const auto i_outStrides  = to_int_vector(outStrides);
+    std::vector<ck::index_t> i_inLengths_1;
+    std::vector<ck::index_t> i_inStrides_1;
+    std::vector<ck::index_t> i_inLengths_2;
+    std::vector<ck::index_t> i_inStrides_2;
+    std::vector<ck::index_t> i_outLengths;
+    std::vector<ck::index_t> i_outStrides;
+
+    i_inLengths_1.assign(inLengths_1.begin(), inLengths_1.end());
+    i_inStrides_1.assign(inStrides_1.begin(), inStrides_1.end());
+    i_inLengths_2.assign(inLengths_2.begin(), inLengths_2.end());
+    i_inStrides_2.assign(inStrides_2.begin(), inStrides_2.end());
+    i_outLengths.assign(outLengths.begin(), outLengths.end());
+    i_outStrides.assign(outStrides.begin(), outStrides.end());
 
     auto reduce_1 = DeviceReduceInstance_1{};
 
