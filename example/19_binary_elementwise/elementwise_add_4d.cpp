@@ -5,7 +5,6 @@
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
-#include "host_utility.hpp"
 
 #include "device_tensor.hpp"
 #include "binary_element_wise_operation.hpp"
@@ -75,10 +74,10 @@ int main()
         a_m_device_buf.GetDeviceBuffer(),
         b_m_device_buf.GetDeviceBuffer(),
         c_m_device_buf.GetDeviceBuffer(),
-        ck::convert_vector_element_type<std::size_t, ck::index_t>(nchw),
-        ck::convert_vector_element_type<std::size_t, ck::index_t>(a_m.mDesc.GetStrides()),
-        ck::convert_vector_element_type<std::size_t, ck::index_t>(b_m.mDesc.GetStrides()),
-        ck::convert_vector_element_type<std::size_t, ck::index_t>(c_m.mDesc.GetStrides()),
+        std::vector<ck::index_t>{nchw.begin(), nchw.end()},
+        std::vector<ck::index_t>{a_m.mDesc.GetStrides().begin(), a_m.mDesc.GetStrides().end()},
+        std::vector<ck::index_t>{b_m.mDesc.GetStrides().begin(), b_m.mDesc.GetStrides().end()},
+        std::vector<ck::index_t>{c_m.mDesc.GetStrides().begin(), c_m.mDesc.GetStrides().end()},
         Add{});
 
     if(!broadcastAdd.IsSupportedArgument(argument.get()))
