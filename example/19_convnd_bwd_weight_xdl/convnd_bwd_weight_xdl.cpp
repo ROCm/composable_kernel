@@ -94,7 +94,7 @@ void print_use_msg()
               << "arg2: initialization (0=no init, 1=random value, 2= init to 1 )\n"
               << "arg3: time kernel (0=n0, 1=yes)\n"
               << "arg4: is show log (0=no, 1=yes)\n"
-        << "arg5: split-k \n"
+              << "arg5: split-k \n"
               << "arg6: N spatial dimensions (default 2)\n"
               << "Following arguments (depending on number of spatial dims):\n"
               << " N, K, C, \n"
@@ -264,9 +264,9 @@ int main(int argc, char* argv[])
         in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
     }
 
-    DeviceMem in_device_buf(sizeof(InDataType) *
-                            in_n_c_hi_wi.mDesc.GetElementSpace());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_k_c_y_x_device_result.mDesc.GetElementSpace());
+    DeviceMem in_device_buf(sizeof(InDataType) * in_n_c_hi_wi.mDesc.GetElementSpace());
+    DeviceMem wei_device_buf(sizeof(WeiDataType) *
+                             wei_k_c_y_x_device_result.mDesc.GetElementSpace());
     DeviceMem out_device_buf(sizeof(OutDataType) * out_n_k_ho_wo.mDesc.GetElementSpace());
 
     in_device_buf.ToDevice(in_n_c_hi_wi.mData.data());
@@ -275,25 +275,26 @@ int main(int argc, char* argv[])
     wei_device_buf.SetZero();
 
     // do GEMM
-    auto conv     = get_conv_instance(num_dim_spatial);
-    auto invoker  = conv->MakeInvokerPointer();
-    auto argument = conv->MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-                                      static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
-                                      static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-                                      params.N_,
-                                      params.K_,
-                                      params.C_,
-                                      params.input_spatial_lengths_,
-                                      params.filter_spatial_lengths_,
-                                      output_spatial_lengths,
-                                      params.conv_filter_strides_,
-                                      params.conv_filter_dilations_,
-                                      params.input_left_pads_,
-                                      params.input_right_pads_,
-                                      InElementOp{},
-                                      WeiElementOp{},
-                                      OutElementOp{},
-                                      split_k);
+    auto conv    = get_conv_instance(num_dim_spatial);
+    auto invoker = conv->MakeInvokerPointer();
+    auto argument =
+        conv->MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
+                                  static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+                                  static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
+                                  params.N_,
+                                  params.K_,
+                                  params.C_,
+                                  params.input_spatial_lengths_,
+                                  params.filter_spatial_lengths_,
+                                  output_spatial_lengths,
+                                  params.conv_filter_strides_,
+                                  params.conv_filter_dilations_,
+                                  params.input_left_pads_,
+                                  params.input_right_pads_,
+                                  InElementOp{},
+                                  WeiElementOp{},
+                                  OutElementOp{},
+                                  split_k);
 
     if(!conv->IsSupportedArgument(argument.get()))
     {
@@ -328,15 +329,15 @@ int main(int argc, char* argv[])
             auto ref_invoker = ref_conv.MakeInvoker();
 
             auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi,
-                                                  wei_k_c_y_x_host_result,
-                                                  out_n_k_ho_wo,
-                                                  params.conv_filter_strides_,
-                                      params.conv_filter_dilations_,
-                                      params.input_left_pads_,
-                                      params.input_right_pads_,
-                                                  InElementOp{},
-                                                  WeiElementOp{},
-                                                  OutElementOp{});
+                                                      wei_k_c_y_x_host_result,
+                                                      out_n_k_ho_wo,
+                                                      params.conv_filter_strides_,
+                                                      params.conv_filter_dilations_,
+                                                      params.input_left_pads_,
+                                                      params.input_right_pads_,
+                                                      InElementOp{},
+                                                      WeiElementOp{},
+                                                      OutElementOp{});
 
             ref_invoker.Run(ref_argument);
 

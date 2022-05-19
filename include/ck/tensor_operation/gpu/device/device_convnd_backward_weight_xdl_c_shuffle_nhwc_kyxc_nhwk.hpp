@@ -881,9 +881,9 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                                            arg.block_2_ctile_map_);
             };
 
-            if(has_main_k0_block_loop)
+            if constexpr(std::is_same<InDataType, ck::bhalf_t>::value)
             {
-                if(kbatch == 1)
+                if(has_main_k0_block_loop)
                 {
                     const auto kernel = kernel_gemm_xdlops_v2r4r2<
                         GridwiseGemm,
@@ -903,7 +903,7 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                 else
                 {
                     const auto kernel = kernel_gemm_xdlops_v2r4r2<
-                        GridwiseGemmAtomicAdd,
+                        GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
                         remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
@@ -913,46 +913,90 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                         InElementwiseOperation,
                         WeiElementwiseOperation,
                         remove_reference_t<DeviceOp::Block2CTileMap>,
-                        true>;
+                        false>;
 
                     Run(kernel);
                 }
             }
             else
             {
-                if(kbatch == 1)
+                if(has_main_k0_block_loop)
                 {
-                    const auto kernel = kernel_gemm_xdlops_v2r4r2<
-                        GridwiseGemm,
-                        ADataType, // TODO: distiguish A/B datatype
-                        CDataType,
-                        remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
-                        remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                        remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
-                        OutElementwiseOperation,
-                        InElementwiseOperation,
-                        WeiElementwiseOperation,
-                        remove_reference_t<DeviceOp::Block2CTileMap>,
-                        false>;
+                    if(kbatch == 1)
+                    {
+                        const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                            GridwiseGemm,
+                            ADataType, // TODO: distiguish A/B datatype
+                            CDataType,
+                            remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                            remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                            remove_reference_t<
+                                DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                            OutElementwiseOperation,
+                            InElementwiseOperation,
+                            WeiElementwiseOperation,
+                            remove_reference_t<DeviceOp::Block2CTileMap>,
+                            true>;
 
-                    Run(kernel);
+                        Run(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                            GridwiseGemmAtomicAdd,
+                            ADataType, // TODO: distiguish A/B datatype
+                            CDataType,
+                            remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                            remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                            remove_reference_t<
+                                DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                            OutElementwiseOperation,
+                            InElementwiseOperation,
+                            WeiElementwiseOperation,
+                            remove_reference_t<DeviceOp::Block2CTileMap>,
+                            true>;
+
+                        Run(kernel);
+                    }
                 }
                 else
                 {
-                    const auto kernel = kernel_gemm_xdlops_v2r4r2<
-                        GridwiseGemmAtomicAdd,
-                        ADataType, // TODO: distiguish A/B datatype
-                        CDataType,
-                        remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
-                        remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                        remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
-                        OutElementwiseOperation,
-                        InElementwiseOperation,
-                        WeiElementwiseOperation,
-                        remove_reference_t<DeviceOp::Block2CTileMap>,
-                        false>;
+                    if(kbatch == 1)
+                    {
+                        const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                            GridwiseGemm,
+                            ADataType, // TODO: distiguish A/B datatype
+                            CDataType,
+                            remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                            remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                            remove_reference_t<
+                                DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                            OutElementwiseOperation,
+                            InElementwiseOperation,
+                            WeiElementwiseOperation,
+                            remove_reference_t<DeviceOp::Block2CTileMap>,
+                            false>;
 
-                    Run(kernel);
+                        Run(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                            GridwiseGemmAtomicAdd,
+                            ADataType, // TODO: distiguish A/B datatype
+                            CDataType,
+                            remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                            remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                            remove_reference_t<
+                                DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                            OutElementwiseOperation,
+                            InElementwiseOperation,
+                            WeiElementwiseOperation,
+                            remove_reference_t<DeviceOp::Block2CTileMap>,
+                            false>;
+
+                        Run(kernel);
+                    }
                 }
             }
 
