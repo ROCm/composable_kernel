@@ -22,6 +22,7 @@ template <typename GridwiseGemm,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename DxsInElementwiseOperation,
+          typename DxsOutElementwiseOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
           typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -43,6 +44,7 @@ __global__ void
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op,
             const DxsInElementwiseOperation dxs_in_element_op,
+            const DxsOutElementwiseOperation dxs_out_element_op,
             const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
             const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
@@ -80,6 +82,7 @@ __global__ void
                                                    b_element_op,
                                                    c_element_op,
                                                    dxs_in_element_op,
+                                                   dxs_out_element_op,
                                                    a_grid_desc_ak0_m_ak1,
                                                    b_grid_desc_bk0_n_bk1,
                                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
@@ -95,6 +98,7 @@ __global__ void
     ignore = b_element_op;
     ignore = c_element_op;
     ignore = dxs_in_element_op;
+    ignore = dxs_out_element_op;
     ignore = a_grid_desc_ak0_m_ak1;
     ignore = b_grid_desc_bk0_n_bk1;
     ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
@@ -122,6 +126,7 @@ template <typename ALayout,
           typename CElementwiseOperation,
           typename DxsReduceOperation,
           typename DxsInElementwiseOperation,
+          typename DxsOutElementwiseOperation,
           typename DGlobalMemoryDataOperation,
           GemmSpecialization GemmSpec,
           index_t NumGemmKPrefetchStage,
@@ -161,7 +166,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
                                                                       AElementwiseOperation,
                                                                       BElementwiseOperation,
                                                                       CElementwiseOperation,
-                                                                      DxsInElementwiseOperation>
+                                                                      DxsInElementwiseOperation,
+                                                                      DxsOutElementwiseOperation>
 {
     using DeviceOp = DeviceBatchedGemmReduce_Xdl_CShuffle;
 
@@ -559,6 +565,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
         CElementwiseOperation,
         DxsReduceOperation,
         DxsInElementwiseOperation,
+        DxsOutElementwiseOperation,
         InMemoryDataOperationEnum::Set,
         DGlobalMemoryDataOperation,
         AGridDesc_AK0_M_AK1,
@@ -620,6 +627,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op,
                  DxsInElementwiseOperation dxs_in_element_op,
+                 DxsOutElementwiseOperation dxs_out_element_op,
                  index_t BatchCount)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
@@ -641,7 +649,8 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op},
-              dxs_in_element_op_{dxs_in_element_op}
+              dxs_in_element_op_{dxs_in_element_op},
+              dxs_out_element_op_{dxs_out_element_op}
         {
             if(GridwiseGemm::CheckValidity(
                    a_grid_desc_ak0_m_ak1_, b_grid_desc_bk0_n_bk1_, c_grid_desc_m_n_))
@@ -676,6 +685,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
         DxsInElementwiseOperation dxs_in_element_op_;
+        DxsOutElementwiseOperation dxs_out_element_op_;
     };
 
     // Invoker
@@ -731,6 +741,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
                     BElementwiseOperation,
                     CElementwiseOperation,
                     DxsInElementwiseOperation,
+                    DxsOutElementwiseOperation,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
                     typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -754,6 +765,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
                                            arg.b_element_op_,
                                            arg.c_element_op_,
                                            arg.dxs_in_element_op_,
+                                           arg.dxs_out_element_op_,
                                            arg.a_grid_desc_ak0_m_ak1_,
                                            arg.b_grid_desc_bk0_n_bk1_,
                                            arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
@@ -772,6 +784,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
                     BElementwiseOperation,
                     CElementwiseOperation,
                     DxsInElementwiseOperation,
+                    DxsOutElementwiseOperation,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
                     typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -795,6 +808,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
                                            arg.b_element_op_,
                                            arg.c_element_op_,
                                            arg.dxs_in_element_op_,
+                                           arg.dxs_out_element_op_,
                                            arg.a_grid_desc_ak0_m_ak1_,
                                            arg.b_grid_desc_bk0_n_bk1_,
                                            arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
@@ -854,6 +868,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op,
                              DxsInElementwiseOperation dxs_in_element_op,
+                             DxsOutElementwiseOperation dxs_out_element_op,
                              index_t BatchCount)
     {
         return Argument{p_a,
@@ -870,6 +885,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
                         b_element_op,
                         c_element_op,
                         dxs_in_element_op,
+                        dxs_out_element_op,
                         BatchCount};
     }
 
@@ -890,6 +906,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op,
                                                       DxsInElementwiseOperation dxs_in_element_op,
+                                                      DxsOutElementwiseOperation dxs_out_element_op,
                                                       index_t BatchCount) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
@@ -906,6 +923,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
                                           b_element_op,
                                           c_element_op,
                                           dxs_in_element_op,
+                                          dxs_out_element_op,
                                           BatchCount);
     }
 

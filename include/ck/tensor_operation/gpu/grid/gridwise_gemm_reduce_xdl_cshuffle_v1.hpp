@@ -20,6 +20,7 @@ template <typename GridwiseGemm,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename DxsInElementwiseOperation,
+          typename DxsOutElementwiseOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
           typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -39,6 +40,7 @@ __global__ void
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op,
             const DxsInElementwiseOperation dxs_in_element_op,
+            const DxsOutElementwiseOperation dxs_out_element_op,
             const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
             const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
@@ -58,6 +60,7 @@ __global__ void
                                                   b_element_op,
                                                   c_element_op,
                                                   dxs_in_element_op,
+                                                  dxs_out_element_op,
                                                   a_grid_desc_ak0_m_ak1,
                                                   b_grid_desc_bk0_n_bk1,
                                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
@@ -72,6 +75,7 @@ __global__ void
     ignore = b_element_op;
     ignore = c_element_op;
     ignore = dxs_in_element_op;
+    ignore = dxs_out_element_op;
     ignore = a_grid_desc_ak0_m_ak1;
     ignore = b_grid_desc_bk0_n_bk1;
     ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
@@ -91,6 +95,7 @@ template <typename FloatAB,
           typename CElementwiseOperation,
           typename DxsReduceOperation,
           typename DxsInElementwiseOperation,
+          typename DxsOutElementwiseOperation,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename DGlobalMemoryDataOperation,
           typename AGridDesc_AK0_M_AK1,
@@ -359,6 +364,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                const BElementwiseOperation& b_element_op,
                                const CElementwiseOperation& c_element_op,
                                const DxsInElementwiseOperation& dxs_in_element_op,
+                               const DxsOutElementwiseOperation& dxs_out_element_op,
                                const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
                                const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
                                const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
@@ -758,14 +764,15 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
             auto dxs_reduce_thread_copy_vgpr_to_global = generate_tuple(
                 [&](auto I) {
-                    auto p_d_grid = p_ds_grid[I];
+                    auto p_d_grid         = p_ds_grid[I];
+                    auto d_out_element_op = dxs_out_element_op[I];
 
                     return ThreadwiseTensorSliceTransfer_v1r3<
                         FloatReduceAcc,
                         remove_pointer_t<decltype(p_d_grid)>,
                         decltype(d_reduce_thread_desc_mblock_mperblock),
                         decltype(d_grid_desc_mblock_mperblock),
-                        ck::tensor_operation::element_wise::PassThrough,
+                        decltype(d_out_element_op),
                         Sequence<1, mreduce_per_thread>,
                         Sequence<0, 1>,
                         1,
@@ -775,7 +782,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                         false>{d_grid_desc_mblock_mperblock,
                                make_multi_index(block_work_idx[I0],                  // mblock
                                                 c_reduce_thread_data_idx_begin[I0]), // mperblock
-                               ck::tensor_operation::element_wise::PassThrough{}};
+                               d_out_element_op};
                 },
                 Number<p_ds_grid.Size()>{});
 
@@ -822,7 +829,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                             make_static_buffer<AddressSpaceEnum::Vgpr, FloatReduceAcc>(
                                 d_reduce_thread_desc_mperblock.GetElementSpaceSize());
 
-                        auto& d_element_op = dxs_in_element_op[In];
+                        auto& d_in_element_op = dxs_in_element_op[In];
 
                         auto& d_reduce_thread_copy_vgpr_to_global =
                             dxs_reduce_thread_copy_vgpr_to_global(In);
@@ -848,8 +855,8 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                     Number<c_reduce_thread_desc_mperblock_nperblock.CalculateOffset(
                                         make_tuple(im, in))>{};
 
-                                d_element_op(c_reduce_thread_buf(offset),
-                                             c_reduce_thread_buf(offset));
+                                d_in_element_op(c_reduce_thread_buf(offset),
+                                                c_reduce_thread_buf(offset));
                             });
                         });
 
