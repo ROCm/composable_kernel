@@ -100,7 +100,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
             make_tuple(generate_sequence_v2([&](auto I) { return I; }, Number<2>{})),
             make_tuple(Sequence<0>{}));
 
-        return PadDescriptor_M0_1d(desc_m0, gridSize,blockSize);
+        return PadDescriptor_M0_1d(desc_m0, gridSize, blockSize);
     }
 
     static auto MakeAGridDescriptor_AK0_M_AK1(index_t MRaw, index_t KRaw, index_t StrideA)

@@ -42,8 +42,8 @@ struct Substract
     {
         dst = src1 - src2;
     }
-    
-       __host__ __device__ constexpr void
+
+    __host__ __device__ constexpr void
     operator()(float& dst, const float& src1, const float& src2) const
     {
         dst = src1 - src2;

@@ -278,8 +278,16 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
 
-        ck::utils::check_err(c_m_n_real_device_f32_result.mData, c_m_n_real_host_result.mData);
-        ck::utils::check_err(c_m_n_imag_device_f32_result.mData, c_m_n_imag_host_result.mData);
+        ck::utils::check_err(c_m_n_real_device_f32_result.mData,
+                             c_m_n_real_host_result.mData,
+                             "Verification error: incorrect results in real part!",
+                             1e-2f,
+                             1e-3f);
+        ck::utils::check_err(c_m_n_imag_device_f32_result.mData,
+                             c_m_n_imag_host_result.mData,
+                             "Verification error: incorrect results in imaginary part!",
+                             1e-2f,
+                             1e-3f);
     }
 
     return 0;
