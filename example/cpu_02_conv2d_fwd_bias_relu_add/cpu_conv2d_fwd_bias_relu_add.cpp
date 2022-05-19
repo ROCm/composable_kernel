@@ -16,7 +16,7 @@
 
 #define TEST_LAYOUT_NHWC_KYXC_NHWK 0
 #define TEST_LAYOUT_NHWC_KYXCK8_NHWK 1
-#define TEST_LAYOUT TEST_LAYOUT_NHWC_KYXC_NHWK
+#define TEST_LAYOUT TEST_LAYOUT_NHWC_KYXCK8_NHWK
 
 using F32 = float;
 using F16 = ck::half_t;
@@ -39,6 +39,18 @@ void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxc_nhwk_local_c(
         instances);
 
 void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxc_nhwk_mt(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
+        instances);
+
+void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxck8_nhwk(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
+        instances);
+
+void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxck8_nhwk_local_c(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
+        instances);
+
+void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxck8_nhwk_mt(
     std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
         instances);
 
@@ -373,21 +385,24 @@ int main(int argc, char* argv[])
             {
                 ck::tensor_operation::cpu::device::
                     device_conv2d_fwd_bias_activation_add_avx2_instance::
-                        add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_mt(conv_ptrs);
+                        add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxck8_nhwk_mt(
+                            conv_ptrs);
                 ck::tensor_operation::cpu::device::
                     device_conv2d_fwd_bias_activation_add_avx2_instance::
-                        add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk(conv_ptrs);
+                        add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxck8_nhwk(conv_ptrs);
             }
             else
             {
                 if(K % 8 == 0)
                     ck::tensor_operation::cpu::device::
                         device_conv2d_fwd_bias_activation_add_avx2_instance::
-                            add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk(conv_ptrs);
+                            add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxck8_nhwk(
+                                conv_ptrs);
                 else
                     ck::tensor_operation::cpu::device::
                         device_conv2d_fwd_bias_activation_add_avx2_instance::
-                            add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_local_c(conv_ptrs);
+                            add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxck8_nhwk_local_c(
+                                conv_ptrs);
             }
 #endif
         }
