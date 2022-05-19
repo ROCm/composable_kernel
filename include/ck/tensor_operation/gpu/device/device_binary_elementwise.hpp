@@ -79,19 +79,18 @@ struct DeviceBinaryElementwise : public BaseOperator
                  const std::vector<index_t>& stride_a,
                  const std::vector<index_t>& stride_b,
                  const std::vector<index_t>& stride_c,
-                 ElementwiseFunctor functor,
-                 index_t blockSize)
+                 ElementwiseFunctor functor)
             : p_a_(p_a),
               p_b_(p_b),
               p_c_(p_c),
               shape_(shape),
               functor_(functor),
-              blockSize_(blockSize),
+              blockSize_(256),
               gridSize_(120) // FIXME - Calculate the grid size by number of CU in the future
         {
-            a_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_a, gridSize_, blockSize);
-            b_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_b, gridSize_, blockSize);
-            c_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_c, gridSize_, blockSize);
+            a_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_a, gridSize_, blockSize_);
+            b_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_b, gridSize_, blockSize_);
+            c_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_c, gridSize_, blockSize_);
         }
 
         const ADataType* p_a_;
@@ -160,8 +159,7 @@ struct DeviceBinaryElementwise : public BaseOperator
                                                       std::vector<index_t> stride_a,
                                                       std::vector<index_t> stride_b,
                                                       std::vector<index_t> stride_c,
-                                                      ElementwiseFunctor functor,
-                                                      index_t blockSize = 256)
+                                                      ElementwiseFunctor functor)
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
@@ -170,8 +168,7 @@ struct DeviceBinaryElementwise : public BaseOperator
                                           stride_a,
                                           stride_b,
                                           stride_c,
-                                          functor,
-                                          blockSize);
+                                          functor);
     }
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() { return std::make_unique<Invoker>(); }
