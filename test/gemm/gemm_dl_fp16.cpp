@@ -14,7 +14,7 @@
 #include "host_tensor_generator.hpp"
 #include "host_gemm.hpp"
 #include "device_tensor.hpp"
-#include "device_gemm_dlops.hpp"
+#include "device_gemm_dl.hpp"
 #include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"
 #include "gemm_specialization.hpp"
@@ -31,10 +31,10 @@ namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
 
-void add_device_gemm_dlops_int8_int8_int8_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_dlops_int8_int8_int8_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_dlops_int8_int8_int8_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_dlops_int8_int8_int8_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_dl_f16_f16_f16_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_dl_f16_f16_f16_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_dl_f16_f16_f16_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_dl_f16_f16_f16_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 
 } // namespace device_gemm_instance
 } // namespace device
@@ -43,17 +43,19 @@ void add_device_gemm_dlops_int8_int8_int8_mk_kn_mn_instances(std::vector<DeviceG
 
 int main()
 {
-    using ADataType = int8_t;
-    using BDataType = int8_t;
-    using CDataType = int8_t;
+    using ADataType = ck::half_t;
+    using BDataType = ck::half_t;
+    using CDataType = ck::half_t;
 
     using RowMajor    = ck::tensor_layout::gemm::RowMajor;
     using ColumnMajor = ck::tensor_layout::gemm::ColumnMajor;
 
     bool res = true;
+
     std::vector<DeviceGemmNoOpPtr> gemmPtrs;
+
     ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_dlops_int8_int8_int8_km_kn_mn_instances(gemmPtrs);
+        add_device_gemm_dl_f16_f16_f16_km_kn_mn_instances(gemmPtrs);
 
     for(auto& gemmPtr : gemmPtrs)
     {
@@ -62,43 +64,6 @@ int main()
                                        BDataType,
                                        CDataType,
                                        ColumnMajor,
-                                       RowMajor,
-                                       RowMajor,
-                                       PassThrough,
-                                       PassThrough,
-                                       PassThrough>{}(gemmPtr);
-    }
-
-#if 0
-    gemmPtrs.clear();
-    ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_dlops_int8_int8_int8_km_nk_mn_instances(gemmPtrs);
-
-    for(auto& gemmPtr : gemmPtrs)
-    {
-        res &= ck::gemm_util::TestGemm<DeviceGemmNoOpPtr,
-                                       ADataType,
-                                       BDataType,
-                                       CDataType,
-                                       ColumnMajor,
-                                       ColumnMajor,
-                                       RowMajor,
-                                       PassThrough,
-                                       PassThrough,
-                                       PassThrough>{}(gemmPtr);
-    }
-
-    gemmPtrs.clear();
-    ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_dlops_int8_int8_int8_mk_kn_mn_instances(gemmPtrs);
-
-    for(auto& gemmPtr : gemmPtrs)
-    {
-        res &= ck::gemm_util::TestGemm<DeviceGemmNoOpPtr,
-                                       ADataType,
-                                       BDataType,
-                                       CDataType,
-                                       RowMajor,
                                        RowMajor,
                                        RowMajor,
                                        PassThrough,
@@ -108,7 +73,43 @@ int main()
 
     gemmPtrs.clear();
     ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_dlops_int8_int8_int8_mk_nk_mn_instances(gemmPtrs);
+        add_device_gemm_dl_f16_f16_f16_km_nk_mn_instances(gemmPtrs);
+
+    for(auto& gemmPtr : gemmPtrs)
+    {
+        res &= ck::gemm_util::TestGemm<DeviceGemmNoOpPtr,
+                                       ADataType,
+                                       BDataType,
+                                       CDataType,
+                                       ColumnMajor,
+                                       ColumnMajor,
+                                       RowMajor,
+                                       PassThrough,
+                                       PassThrough,
+                                       PassThrough>{}(gemmPtr);
+    }
+
+    gemmPtrs.clear();
+    ck::tensor_operation::device::device_gemm_instance::
+        add_device_gemm_dl_f16_f16_f16_mk_kn_mn_instances(gemmPtrs);
+
+    for(auto& gemmPtr : gemmPtrs)
+    {
+        res &= ck::gemm_util::TestGemm<DeviceGemmNoOpPtr,
+                                       ADataType,
+                                       BDataType,
+                                       CDataType,
+                                       RowMajor,
+                                       RowMajor,
+                                       RowMajor,
+                                       PassThrough,
+                                       PassThrough,
+                                       PassThrough>{}(gemmPtr);
+    }
+
+    gemmPtrs.clear();
+    ck::tensor_operation::device::device_gemm_instance::
+        add_device_gemm_dl_f16_f16_f16_mk_nk_mn_instances(gemmPtrs);
 
     for(auto& gemmPtr : gemmPtrs)
     {
@@ -124,7 +125,6 @@ int main()
                                        PassThrough>{}(gemmPtr);
     }
 
-#endif
     std::cout << "TestGemm ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
     return res ? 0 : 1;
 }

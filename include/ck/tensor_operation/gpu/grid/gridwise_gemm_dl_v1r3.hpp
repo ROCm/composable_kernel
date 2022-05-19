@@ -451,15 +451,7 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
                 a_blockwise_copy.RunRead(a_grid_desc_k0_m0_m1_k1, a_global_buf);
                 b_blockwise_copy.RunRead(b_grid_desc_k0_n0_n1_k1, b_global_buf);
 
-#if 0
-                __syncthreads();
-#else
                 block_sync_lds();
-#endif
-
-                // LDS doubel buffer: load next data from device mem
-                //a_blockwise_copy.RunRead(a_grid_desc_k0_m0_m1_k1, a_global_buf);
-                //b_blockwise_copy.RunRead(b_grid_desc_k0_n0_n1_k1, b_global_buf);
 
                 // LDS double buffer: GEMM on current data
                 blockwise_gemm.Run(c_thread_desc_m10_m11_n10_n11,
@@ -481,15 +473,7 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
                 a_blockwise_copy.RunRead(a_grid_desc_k0_m0_m1_k1, a_global_buf);
                 b_blockwise_copy.RunRead(b_grid_desc_k0_n0_n1_k1, b_global_buf);
 
-#if 0
-                __syncthreads();
-#else
                 block_sync_lds();
-#endif
-
-                // LDS doubel buffer: load next data from device mem
-                //a_blockwise_copy.RunRead(a_grid_desc_k0_m0_m1_k1, a_global_buf);
-                //b_blockwise_copy.RunRead(b_grid_desc_k0_n0_n1_k1, b_global_buf);
 
                 // LDS double buffer: GEMM on current data
                 blockwise_gemm.Run(
@@ -509,11 +493,7 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
             a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m0_m1_k1, a_block_slice_copy_step);
             b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n0_n1_k1, b_block_slice_copy_step);
 
-#if 0
-                __syncthreads();
-#else
             block_sync_lds();
-#endif
 
             // LDS double buffer: load last data from device mem
             a_blockwise_copy.RunRead(a_grid_desc_k0_m0_m1_k1, a_global_buf);
@@ -527,11 +507,7 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
             a_blockwise_copy.RunWrite(a_block_desc_k0_m0_m1_k1, a_block_odd_buf);
             b_blockwise_copy.RunWrite(b_block_desc_k0_n0_n1_k1, b_block_odd_buf);
 
-#if 0
-                __syncthreads();
-#else
             block_sync_lds();
-#endif
 
             // LDS double buffer: GEMM on last data
             blockwise_gemm.Run(
@@ -539,11 +515,7 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
         }
         else // if has 1 iteration left
         {
-#if 0
-                __syncthreads();
-#else
-            block_sync_lds();
-#endif
+            __syncthreads();
 
             // LDS double buffer: GEMM on last data
             blockwise_gemm.Run(

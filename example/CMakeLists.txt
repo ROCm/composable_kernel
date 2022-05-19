@@ -34,7 +34,7 @@ function(add_example_executable_no_testing EXAMPLE_NAME FILE_NAME)
     add_executable(${EXAMPLE_NAME} ${FILE_NAME})
     target_link_libraries(${EXAMPLE_NAME} PRIVATE host_tensor)
     add_dependencies(examples ${EXAMPLE_NAME})
-endfunction(add_example_executable EXAMPLE_NAME)
+endfunction(add_example_executable_no_testing EXAMPLE_NAME)
 
 add_subdirectory(01_gemm)
 add_subdirectory(02_gemm_alpha_beta)
