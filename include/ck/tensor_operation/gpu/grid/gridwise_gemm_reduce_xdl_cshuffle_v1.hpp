@@ -19,7 +19,7 @@ template <typename GridwiseGemm,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          typename DxsElementwiseOperation,
+          typename DxsInElementwiseOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
           typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -38,7 +38,7 @@ __global__ void
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op,
-            const DxsElementwiseOperation dxs_element_op,
+            const DxsInElementwiseOperation dxs_in_element_op,
             const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
             const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
@@ -57,7 +57,7 @@ __global__ void
                                                   a_element_op,
                                                   b_element_op,
                                                   c_element_op,
-                                                  dxs_element_op,
+                                                  dxs_in_element_op,
                                                   a_grid_desc_ak0_m_ak1,
                                                   b_grid_desc_bk0_n_bk1,
                                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
@@ -71,7 +71,7 @@ __global__ void
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = c_element_op;
-    ignore = dxs_element_op;
+    ignore = dxs_in_element_op;
     ignore = a_grid_desc_ak0_m_ak1;
     ignore = b_grid_desc_bk0_n_bk1;
     ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
@@ -90,7 +90,7 @@ template <typename FloatAB,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename DxsReduceOperation,
-          typename DxsElementwiseOperation,
+          typename DxsInElementwiseOperation,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename DGlobalMemoryDataOperation,
           typename AGridDesc_AK0_M_AK1,
@@ -358,7 +358,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                const AElementwiseOperation& a_element_op,
                                const BElementwiseOperation& b_element_op,
                                const CElementwiseOperation& c_element_op,
-                               const DxsElementwiseOperation& dxs_element_op,
+                               const DxsInElementwiseOperation& dxs_in_element_op,
                                const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
                                const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
                                const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
@@ -822,7 +822,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                             make_static_buffer<AddressSpaceEnum::Vgpr, FloatReduceAcc>(
                                 d_reduce_thread_desc_mperblock.GetElementSpaceSize());
 
-                        auto& d_element_op = dxs_element_op[In];
+                        auto& d_element_op = dxs_in_element_op[In];
 
                         auto& d_reduce_thread_copy_vgpr_to_global =
                             dxs_reduce_thread_copy_vgpr_to_global(In);

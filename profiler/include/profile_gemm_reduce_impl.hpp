@@ -125,14 +125,14 @@ bool profile_gemm_reduce_impl(int do_verification,
     using CElementOp    = ck::tensor_operation::element_wise::PassThrough;
     using D0ReduceOp    = ck::reduce::Add<float>;
     using D1ReduceOp    = ck::reduce::Add<float>;
-    using D0ElementOp   = ck::tensor_operation::element_wise::UnaryIdentic<float, float, false>;
-    using D1ElementOp   = ck::tensor_operation::element_wise::UnarySquare<float, float, false>;
-    using DxsElementOps = ck::Tuple<D0ElementOp, D1ElementOp>;
+    using D0InElementOp   = ck::tensor_operation::element_wise::UnaryIdentic<float, float, false>;
+    using D1InElementOp   = ck::tensor_operation::element_wise::UnarySquare<float, float, false>;
+    using DxsInElementOps = ck::Tuple<D0InElementOp, D1InElementOp>;
 
     const auto a_element_op   = AElementOp{};
     const auto b_element_op   = BElementOp{};
     const auto c_element_op   = CElementOp{};
-    const auto dxs_element_op = DxsElementOps{};
+    const auto dxs_in_element_op = DxsInElementOps{};
     const auto d0_reduce_op   = D0ReduceOp{};
     const auto d1_reduce_op   = D1ReduceOp{};
 
@@ -159,7 +159,7 @@ bool profile_gemm_reduce_impl(int do_verification,
                 float d0_val = ck::type_convert<float>(c_m_n_host_result(m, n));
                 float d1_val;
 
-                D1ElementOp{}(d1_val, d0_val);
+                D1InElementOp{}(d1_val, d0_val);
                 d0_reduce_op(d0_acc, d0_val);
                 d1_reduce_op(d1_acc, d1_val);
             }
@@ -249,7 +249,7 @@ bool profile_gemm_reduce_impl(int do_verification,
                                           a_element_op,
                                           b_element_op,
                                           c_element_op,
-                                          dxs_element_op);
+                                          dxs_in_element_op);
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
 
