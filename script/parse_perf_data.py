@@ -2,6 +2,7 @@
 import os, io, argparse, datetime
 import numpy as np
 import sqlalchemy
+from sqlalchemy.types import NVARCHAR, Float, Integer
 import pymysql
 import pandas as pd
 from sshtunnel import SSHTunnelForwarder
@@ -90,7 +91,7 @@ def main():
     print("Number of tests:",len(tests))
     print("Branch name:",branch_name)
     sorted_tests = sorted(tests)
-    #print("sorted tests:",sorted_tests)
+    print("sorted tests:",sorted_tests)
     sorted_tflops = [x for _,x in sorted(zip(tests,tflops))]
     #print("sorted tflops:",sorted_tflops)
     sorted_kernels = [x for _,x in sorted(zip(tests,kernels))]
@@ -153,7 +154,20 @@ def main():
         df=pd.DataFrame(np.transpose(ck_gemm_params),columns=['Test_number','Data_type',
             'Alayout','BLayout','M','N','K', 'StrideA','StrideB','StrideC'])
         print(df)
-        df.to_sql("ck_gemm_test_params",conn,if_exists='replace',index=False)
+
+        dtypes = {
+            'Test_number': Integer(),
+            'Data_type': NVARCHAR(length=5),
+            'Alayout': NVARCHAR(length=12),
+            'Blayout': NVARCHAR(length=12),
+            'M': Integer(),
+            'N': Integer(),
+            'K': Integer(),
+            'StrideA': Integer(),
+            'StrideB': Integer(),
+            'StrideC': Integer()
+            }
+        df.to_sql("ck_gemm_test_params",conn,if_exists='replace',index=False, dtype=dtypes)
 
         #read baseline results for the latest develop branch
         query = '''SELECT * from ck_gemm_tflops where Branch_ID="develop" and Datetime = (SELECT MAX(Datetime));'''
@@ -177,6 +191,16 @@ def main():
         df_add=pd.DataFrame(data=[sorted_tflops],columns=testlist)
         flops=pd.concat([flops,df_add],axis=1)
         print("new tflops results:",flops)
+        '''
+        dtypes = {
+            'Branch_ID': NVARCHAR(length=25),
+            'Datetime': Datetime(),
+            'Test1': Float(),
+            'Test2': Float(),
+            'Test3': Float(),
+            'Test4': Float()
+            }
+        '''
 
         flops.to_sql("ck_gemm_tflops",conn,if_exists='append',index=False)
         conn.close()

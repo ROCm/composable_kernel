@@ -236,6 +236,7 @@ def runCKProfiler(Map conf=[:]){
 						//results will be parsed, stored, and analyzed within the python script
 						//the script will return 0 if the performance criteria are met
 						//or return 1 if the criteria are not met
+                        archiveArtifacts  "${perf_log}"
 						sh "python3 parse_perf_data.py ${perf_log} | tee ${artifact}"
                         //sh "rm ${perf_log}"
 					}
