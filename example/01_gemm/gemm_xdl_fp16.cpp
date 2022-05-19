@@ -27,7 +27,6 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-
 using ADataType   = ck::half_t;
 using BDataType   = ck::half_t;
 using CDataType   = ck::half_t;
