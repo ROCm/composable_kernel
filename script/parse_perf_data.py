@@ -32,7 +32,6 @@ def parse_args():
 
 def main():
     args = parse_args()
-    #results = []
     tests = []
     kernels=[]
     tflops=[]
@@ -52,15 +51,13 @@ def main():
             if 'Branch name' in line:
                 lst=line.split()
                 branch_name=lst[2]
-
     for filename in args.files:
         for line in open(filename):
-            if 'Best Perf for datatype' in line:
+            if 'Best Perf' in line:
                 lst=line.split()
                 #print("lst=",lst)
                 #print(len(lst))
-                #results.append(print_to_string(glue.join(lst[8:]),lst[4]))
-                if len(lst)==43: #the line is complete
+                if len(lst)>=37: #the line is complete
                     tests.append(glue.join(lst[5:30]))
                     kernels.append(glue.join(lst[37:]))
                     tflops.append(lst[33])
@@ -73,49 +70,41 @@ def main():
                     StrideA.append(lst[23])
                     StrideB.append(lst[26])
                     StrideC.append(lst[29])
-                elif len(lst)<43 and len(lst)>=30: #the name of the test is complete
+                elif len(lst)<37 and len(lst)>=33: #the tflops are available
                     tests.append(glue.join(lst[5:30]))
                     kernels.append("N/A")
-                    tflops.append(0.0)
-                    print("incomplete line:",lst)
-                elif len(lst)<30: #even the test name is incomplete
+                    tflops.append(lst[33])
+                    dtype.append(lst[5])
+                    alayout.append(lst[8])
+                    blayout.append(lst[11])
+                    M.append(lst[14])
+                    N.append(lst[17])
+                    K.append(lst[20])
+                    StrideA.append(lst[23])
+                    StrideB.append(lst[26])
+                    StrideC.append(lst[29])
+                    print("warning: incomplete line:",lst)
+                elif len(lst)<33: #even the tflops are not available
                     print("Error in ckProfiler output!")
-                    print("incomplete line=",lst)
+                    print("warning: incomplete line=",lst)
 
-
-
-    #print("results:",results)
-    #print("kernels:",kernels)
-    #print("tflops:",tflops)
     #sort results
     print("Number of tests:",len(tests))
     print("Branch name:",branch_name)
     sorted_tests = sorted(tests)
-    print("sorted tests:",sorted_tests)
+    #print("sorted tests:",sorted_tests)
     sorted_tflops = [x for _,x in sorted(zip(tests,tflops))]
-    #print("sorted tflops:",sorted_tflops)
     sorted_kernels = [x for _,x in sorted(zip(tests,kernels))]
-    #print("sorted kernels:",sorted_kernels)
     sorted_dtypes = [x for _,x in sorted(zip(tests,dtype))]
-    #print("sorted dtypes:",sorted_dtypes)
     sorted_alayout = [x for _,x in sorted(zip(tests,alayout))]
-    #print("sorted alayout:",sorted_alayout)
     sorted_blayout = [x for _,x in sorted(zip(tests,blayout))]
-    #print("sorted blayout:",sorted_blayout)
     sorted_M = [x for _,x in sorted(zip(tests,M))]
-    #print("sorted M:",sorted_M)
     sorted_N = [x for _,x in sorted(zip(tests,N))]
-    #print("sorted N:",sorted_N)
     sorted_K = [x for _,x in sorted(zip(tests,K))]
-    #print("sorted K:",sorted_K)
     sorted_StrideA = [x for _,x in sorted(zip(tests,StrideA))]
-    #print("sorted StrideA:",sorted_StrideA)
     sorted_StrideB = [x for _,x in sorted(zip(tests,StrideB))]
-    #print("sorted StrideB:",sorted_StrideB)
     sorted_StrideC = [x for _,x in sorted(zip(tests,StrideC))]
-    #print("sorted StrideC:",sorted_StrideC)
     test_list=list(range(1,len(tests)+1))
-    #print("test list",test_list)
 
     print("now=",datetime.datetime.now())
 
@@ -176,37 +165,17 @@ def main():
 
         #write new results to the db
         testlist=[]
-        #testlist=['Branch_ID','Datetime']
         for i in range(1,len(tests)+1):
             testlist.append("Test%i"%i)
-        #print("testlist:",testlist)
-
-        #branch_name='develop'
-        #branch_name='lwpck-212'
-
         ck_gemm_tflops=[str(branch_name),str(datetime.datetime.now())]
-        #print("ck_gemm_tflops:",ck_gemm_tflops)
-
         flops=pd.DataFrame(data=[ck_gemm_tflops],columns=['Branch_ID','Datetime'])
         df_add=pd.DataFrame(data=[sorted_tflops],columns=testlist)
         flops=pd.concat([flops,df_add],axis=1)
         print("new tflops results:",flops)
-        '''
-        dtypes = {
-            'Branch_ID': NVARCHAR(length=25),
-            'Datetime': Datetime(),
-            'Test1': Float(),
-            'Test2': Float(),
-            'Test3': Float(),
-            'Test4': Float()
-            }
-        '''
-
         flops.to_sql("ck_gemm_tflops",conn,if_exists='append',index=False)
         conn.close()
 
     #compare the results to the baseline
-
     regression=0
     base=tflops_base[['Test1','Test2','Test3','Test4']].to_numpy(dtype='float')
     base_list=base[0]

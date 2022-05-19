@@ -214,11 +214,10 @@ def runCKProfiler(Map conf=[:]){
 					dir("script"){
 						def perf_log = "perf_gemm_${gpu_arch}.log"
                         sh "rm -f ${perf_log}"
-						def artifact = "profile_gemm_${gpu_arch}.txt"
 						sh "echo Branch name: ${env.BRANCH_NAME} > ${perf_log}"
 						sh "./profile_gemm.sh gemm 0 0 0 1 0 5 | tee -a ${perf_log}"
-						//sh "./profile_gemm.sh gemm 1 0 0 1 0 5 | tee -a ${perf_log}"
-						//sh "./profile_gemm.sh gemm 2 0 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 1 0 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 2 0 0 1 0 5 | tee -a ${perf_log}"
 						//sh "./profile_gemm.sh gemm 3 0 0 1 0 5 | tee -a ${perf_log}"
 						//sh "./profile_gemm.sh gemm 0 1 0 1 0 5 | tee -a ${perf_log}"
 						//sh "./profile_gemm.sh gemm 1 1 0 1 0 5 | tee -a ${perf_log}"
@@ -232,13 +231,11 @@ def runCKProfiler(Map conf=[:]){
 						//sh "./profile_gemm.sh gemm 1 3 0 1 0 5 | tee -a ${perf_log}"
 						//sh "./profile_gemm.sh gemm 2 3 0 1 0 5 | tee -a ${perf_log}"
 						//sh "./profile_gemm.sh gemm 3 3 0 1 0 5 | tee -a ${perf_log}"
-                        //stash name: "${perf_log}" //stash perf_log for transpoting to master
 						//results will be parsed, stored, and analyzed within the python script
 						//the script will return 0 if the performance criteria are met
 						//or return 1 if the criteria are not met
                         archiveArtifacts  "${perf_log}"
-						sh "python3 parse_perf_data.py ${perf_log} | tee ${artifact}"
-                        //sh "rm ${perf_log}"
+						sh "python3 parse_perf_data.py ${perf_log}
 					}
                 }
             }
@@ -262,80 +259,6 @@ def runPerfTest(Map conf=[:]){
         }
     }
 }
-
-def processPerfResults(Map conf=[:]){
-    try{
-    node("ansible")
-    {
-        sh "echo NODE_NAME = ${NODE_NAME} "
-
-        env.HSA_ENABLE_SDMA=0
-        checkout scm
-
-        def image = "composable_kernels"
-        def prefixpath = conf.get("prefixpath", "/opt/rocm")
-        def gpu_arch = conf.get("gpu_arch", "gfx908")
-
-        // Jenkins is complaining about the render group 
-        // def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
-        def dockerOpts="--cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
-        if (conf.get("enforce_xnack_on", false)) {
-            dockerOpts = dockerOpts + " --env HSA_XNACK=1"
-        }
-        def dockerArgs = "--build-arg PREFIX=${prefixpath} "
-
-        def variant = env.STAGE_NAME
-
-        def retimage
-        gitStatusWrapper(credentialsId: '7126e5fe-eb51-4576-b52b-9aaf1de8f0fd', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
-            try {
-                retimage = docker.build("${image}", dockerArgs + '.')
-                withDockerContainer(image: image, args: dockerOpts) {
-                    timeout(time: 5, unit: 'MINUTES')
-                    {
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
-                    }
-                }
-            }
-            catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
-                echo "The job was cancelled or aborted"
-                throw e
-            }
-            catch(Exception ex) {
-                retimage = docker.build("${image}", dockerArgs + "--no-cache .")
-                withDockerContainer(image: image, args: dockerOpts) {
-                    timeout(time: 5, unit: 'MINUTES')
-                    {
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
-                    }
-                }
-            }
-
-            withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
-                timeout(time: 5, unit: 'HOURS')
-                {
-                    dir("script")
-                    {
-                        //def gpu_arch = conf.get("gpu_arch", "gfx908")
-                        def perf_log = "perf_gemm_${gpu_arch}.log"
-                        def artifact = "profile_gemm_${gpu_arch}.txt"
-                        unstash "${perf_log}"
-                        sh "python3 parse_perf_data.py ${perf_log} | tee ${artifact}"
-                        sh "rm ${perf_log}"
-                    }
-                }
-            }
-        }
-    }
-    }
-        
-    catch(e){
-        echo "throwing error exception while processing performance test results"
-        echo 'Exception occurred: ' + e.toString()
-        throw e
-    }
-}
-
 
 pipeline {
     agent none
@@ -424,21 +347,6 @@ pipeline {
                 }
             }
         }
-        //stage("Process Performance Tests Results")
-        //{
-        //    environment{
-        //        dbuser = "${dbuser}"
-        //        dbpassword = "${dbpassword}"
-        //        dbsship = "${dbsship}"
-        //        dbsshport = "${dbsshport}"
-        //        dbsshuser = "${dbsshuser}"
-        //        dbsshpassword = "${dbsshpassword}"
-        //    }
-        //   steps
-        //   {
-        //       processPerfResults()
-        //   } 
-        //}
 		stage("Tests")
         {
             parallel
