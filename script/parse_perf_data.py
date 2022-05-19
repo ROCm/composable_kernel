@@ -91,10 +91,10 @@ def main():
     #sort results
     print("Number of tests:",len(tests))
     print("Branch name:",branch_name)
-    sorted_tests = sorted(tests)
+    #sorted_tests = sorted(tests)
     #print("sorted tests:",sorted_tests)
     sorted_tflops = [x for _,x in sorted(zip(tests,tflops))]
-    sorted_kernels = [x for _,x in sorted(zip(tests,kernels))]
+    #sorted_kernels = [x for _,x in sorted(zip(tests,kernels))]
     sorted_dtypes = [x for _,x in sorted(zip(tests,dtype))]
     sorted_alayout = [x for _,x in sorted(zip(tests,alayout))]
     sorted_blayout = [x for _,x in sorted(zip(tests,blayout))]
@@ -131,10 +131,6 @@ def main():
             format(sql_username, sql_password, sql_hostname, tunnel.local_bind_port, sql_main_database))
         conn = sqlEngine.connect()
 
-        query = '''SELECT VERSION();'''
-        data = pd.read_sql_query(query, conn)
-        print("data=",data)
-
         #write the ck_gemm_test_params table
         #only needed once the test set changes
         ck_gemm_params=[test_list,sorted_dtypes,sorted_alayout,sorted_blayout,
@@ -161,7 +157,7 @@ def main():
         #read baseline results for the latest develop branch
         query = '''SELECT * from ck_gemm_tflops where Branch_ID="develop" and Datetime = (SELECT MAX(Datetime));'''
         tflops_base = pd.read_sql_query(query, conn)
-        print("tflops_base:",tflops_base)
+        #print("tflops_base:",tflops_base)
 
         #write new results to the db
         testlist=[]
@@ -179,8 +175,8 @@ def main():
     regression=0
     base=tflops_base[['Test1','Test2','Test3','Test4']].to_numpy(dtype='float')
     base_list=base[0]
-    print("baseline=",base_list)
-    print("test=",sorted_tflops)
+    #print("baseline=",base_list)
+    #print("test=",sorted_tflops)
     ave_perf=0
     for i in range(len(base_list)):
         # success criterion:
