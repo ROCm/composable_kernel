@@ -25,6 +25,12 @@ __device__ float atomic_add<float>(float* p_dst, const float& x)
 }
 
 template <>
+__device__ double atomic_add<double>(double* p_dst, const double& x)
+{
+    return atomicAdd(p_dst, x);
+}
+
+template <>
 __device__ float2_t atomic_add<float2_t>(float2_t* p_dst, const float2_t& x)
 {
     constexpr auto I0 = Number<0>{};
