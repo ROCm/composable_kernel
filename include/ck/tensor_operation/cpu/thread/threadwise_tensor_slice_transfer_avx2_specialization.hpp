@@ -116,19 +116,15 @@ void memcpy32_avx2_with_extra_2src(void* dst,
     if(i_n & 2)
     {
 #if defined(__GNUC__) && !defined(__clang__) && !defined(__llvm__)
-        __m128i s = _mm_loadu_si64(p_src);
-        __m128 v  = element_op.Apply(*reinterpret_cast<__m128*>(&s));
-
+        __m128i s  = _mm_loadu_si64(p_src);
         __m128i s1 = _mm_loadu_si64(p_src1);
-        __m128 v1  = element_op.Apply(*reinterpret_cast<__m128*>(&s1));
-
         __m128i s2 = _mm_loadu_si64(p_src2);
-        __m128 v2  = element_op.Apply(*reinterpret_cast<__m128*>(&s2));
 
-        _mm_storeu_si64(p_dst,
-                        *reinterpret_cast<__m128i*>(&v),
-                        *reinterpret_cast<__m128i*>(&v1),
-                        *reinterpret_cast<__m128i*>(&v2));
+        __m128 v = element_op.Apply(*reinterpret_cast<__m128*>(&s),
+                                    *reinterpret_cast<__m128*>(&s1),
+                                    *reinterpret_cast<__m128*>(&s2));
+
+        _mm_storeu_si64(p_dst, *reinterpret_cast<__m128i*>(&v));
 #else
         _mm_storeu_si64(p_dst,
                         element_op.Apply(
@@ -193,16 +189,13 @@ void memcpy32_avx2_with_extra_2src(void* dst,
     if(i_n & 2)
     {
 #if defined(__GNUC__) && !defined(__clang__) && !defined(__llvm__)
-        __m128i s = _mm_loadu_si64(p_src);
-        __m128 v  = element_op.Apply(*reinterpret_cast<__m128*>(&s));
-
+        __m128i s  = _mm_loadu_si64(p_src);
         __m128i s2 = _mm_loadu_si64(p_src2);
-        __m128 v2  = element_op.Apply(*reinterpret_cast<__m128*>(&s2));
 
-        _mm_storeu_si64(p_dst,
-                        *reinterpret_cast<__m128i*>(&v),
-                        *reinterpret_cast<__m128i*>(&xmm_src1),
-                        *reinterpret_cast<__m128i*>(&v2));
+        __m128 v = element_op.Apply(
+            *reinterpret_cast<__m128*>(&s), xmm_src1, *reinterpret_cast<__m128*>(&s2));
+
+        _mm_storeu_si64(p_dst, *reinterpret_cast<__m128i*>(&v));
 #else
         _mm_storeu_si64(p_dst,
                         element_op.Apply(_mm_loadu_si64(p_src), xmm_src1, _mm_loadu_si64(p_src2)));
