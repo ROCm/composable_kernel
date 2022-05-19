@@ -57,7 +57,7 @@ int main()
 
     Tensor<ABDataType> a_m(nchw);
     Tensor<ABDataType> b_m(nchw);
-    Tensor<ABDataType> c_m(nchw);
+    Tensor<CDataType> c_m(nchw);
 
     a_m.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
     b_m.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
