@@ -1,4 +1,5 @@
 #include <half.hpp>
+#include <memory>
 #include <iostream>
 #include <stdexcept>
 #include <tuple>
@@ -12,30 +13,48 @@
 
 namespace {
 
+using namespace std::placeholders;
+using namespace ck::utils;
+namespace ctl = ck::tensor_layout::convolution;
+
 template <typename T>
-bool test_conv3d_ndhwc_instances(const std::vector<test::conv::DeviceConvFwdNoOpPtr>& conv_ptrs)
+class TestConv3DNDHWCInstances : public ::testing::Test
 {
-    using namespace std::placeholders;
-    using namespace ck::utils;
-    namespace ctl = ck::tensor_layout::convolution;
+    public:
+    using ConvFwdOpInstanceT = conv::ConvFwdOpInstance<T, T, T, ctl::NDHWC, ctl::KZYXC, ctl::NDHWK>;
+    using OpInstanceRunEngineT = OpInstanceRunEngine<T, T, T>;
+    using ReferenceConvFwdFunT =
+        std::function<void(const Tensor<T>&, const Tensor<T>&, Tensor<T>&)>;
 
-    conv::ConvParams params;
-    params.N_                      = 64;
-    params.num_dim_spatial_        = 3;
-    params.filter_spatial_lengths_ = std::vector<ck::index_t>{3, 3, 2};
-    params.input_spatial_lengths_  = std::vector<ck::index_t>{32, 32, 2};
-    params.conv_filter_strides_    = std::vector<ck::index_t>{2, 2, 2};
-    params.conv_filter_dilations_  = std::vector<ck::index_t>{1, 1, 1};
-    params.input_left_pads_        = std::vector<ck::index_t>{1, 1, 1};
-    params.input_right_pads_       = std::vector<ck::index_t>{1, 1, 1};
+    static void SetUpTestSuite()
+    {
+        params_.N_                      = 64;
+        params_.num_dim_spatial_        = 3;
+        params_.filter_spatial_lengths_ = std::vector<ck::index_t>{3, 3, 2};
+        params_.input_spatial_lengths_  = std::vector<ck::index_t>{32, 32, 2};
+        params_.conv_filter_strides_    = std::vector<ck::index_t>{2, 2, 2};
+        params_.conv_filter_dilations_  = std::vector<ck::index_t>{1, 1, 1};
+        params_.input_left_pads_        = std::vector<ck::index_t>{1, 1, 1};
+        params_.input_right_pads_       = std::vector<ck::index_t>{1, 1, 1};
+    }
 
-    conv::ConvFwdOpInstance<T, T, T, ctl::NDHWC, ctl::KZYXC, ctl::NDHWK> conv_instance(params);
+    void SetUp() override
+    {
+        conv_instance_ = std::make_unique<ConvFwdOpInstanceT>(params_);
+        ref_fun_ =
+            std::bind(conv::run_reference_convolution_forward<3, T, T, T>, params_, _1, _2, _3);
+        run_engine_ = std::make_unique<OpInstanceRunEngineT>(*conv_instance_, ref_fun_);
+    }
 
-    auto reference_conv_fwd_fun =
-        std::bind(conv::run_reference_convolution_forward<3, T, T, T>, params, _1, _2, _3);
-    OpInstanceRunEngine<T, T, T> run_engine(conv_instance, reference_conv_fwd_fun);
-    return run_engine.Test(conv_ptrs);
-}
+    protected:
+    static inline conv::ConvParams params_;
+    std::unique_ptr<ConvFwdOpInstanceT> conv_instance_;
+    ReferenceConvFwdFunT ref_fun_;
+    std::unique_ptr<OpInstanceRunEngineT> run_engine_;
+};
+
+using Conv3DNDHWCInstancesTypes = ::testing::Types<ck::bhalf_t, ck::half_t, float, int8_t>;
+TYPED_TEST_SUITE(TestConv3DNDHWCInstances, Conv3DNDHWCInstancesTypes);
 
 } // anonymous namespace
 
@@ -189,26 +208,9 @@ TEST(Conv3DFwdNDHWC, OutputOver2GB)
     EXPECT_FALSE(conv_ptrs.back()->IsSupportedArgument(arg.get()));
 }
 
-TEST(Conv3DFwdNDHWC, Bf16Instances)
+TYPED_TEST(TestConv3DNDHWCInstances, TensorTypes)
 {
-    EXPECT_TRUE(test_conv3d_ndhwc_instances<ck::bhalf_t>(
-        ck::utils::conv::ConvolutionFwdInstances<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t>::Get<3>()));
-}
-
-TEST(Conv3DFwdNDHWC, F16Instances)
-{
-    EXPECT_TRUE(test_conv3d_ndhwc_instances<ck::half_t>(
-        ck::utils::conv::ConvolutionFwdInstances<ck::half_t, ck::half_t, ck::half_t>::Get<3>()));
-}
-
-TEST(Conv3DFwdNDHWC, F32Instances)
-{
-    EXPECT_TRUE(test_conv3d_ndhwc_instances<float>(
-        ck::utils::conv::ConvolutionFwdInstances<float, float, float>::Get<3>()));
-}
-
-TEST(Conv3DFwdNDHWC, Int8Instances)
-{
-    EXPECT_TRUE(test_conv3d_ndhwc_instances<int8_t>(
-        ck::utils::conv::ConvolutionFwdInstances<int8_t, int8_t, int8_t>::Get<3>()));
+    EXPECT_TRUE(this->run_engine_->Test(
+        ck::utils::conv::ConvolutionFwdInstances<TypeParam, TypeParam, TypeParam>::template Get<
+            3>()));
 }

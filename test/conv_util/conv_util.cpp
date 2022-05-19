@@ -38,7 +38,6 @@ class TestConvUtil : public ::testing::Test
 
 TEST_F(TestConvUtil, ConvParamsGetOutputSpatialLengths2D)
 {
-    ck::utils::conv::ConvParams conv_params;
     std::vector<ck::index_t> out_spatial_len = conv_params.GetOutputSpatialLengths();
     EXPECT_TRUE(ck::utils::check_err(out_spatial_len,
                                      std::vector<ck::index_t>{36, 36},

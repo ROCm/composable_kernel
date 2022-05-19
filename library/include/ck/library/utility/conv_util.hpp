@@ -465,13 +465,7 @@ class ConvFwdOpInstance : public ck::utils::OpInstance<OutDataType, InDataType, 
 
     virtual TensorPtr<OutDataType> GetOutputTensor() const override
     {
-        std::vector<std::size_t> output_dims{static_cast<std::size_t>(params_.N_),
-                                             static_cast<std::size_t>(params_.K_)};
-        output_dims.insert(std::end(output_dims),
-                           std::begin(output_spatial_lengths_),
-                           std::end(output_spatial_lengths_));
-        auto output = std::make_unique<Tensor<OutDataType>>(
-            get_host_tensor_descriptor(output_dims, OutLayout{}));
+        auto output = MakeOutputTensor<OutDataType>();
 
         if(do_init_)
         {
@@ -557,6 +551,17 @@ class ConvFwdOpInstance : public ck::utils::OpInstance<OutDataType, InDataType, 
     }
 
     private:
+    template <typename T>
+    TensorPtr<T> MakeOutputTensor() const
+    {
+        std::vector<std::size_t> output_dims{static_cast<std::size_t>(params_.N_),
+                                             static_cast<std::size_t>(params_.K_)};
+        output_dims.insert(std::end(output_dims),
+                           std::begin(output_spatial_lengths_),
+                           std::end(output_spatial_lengths_));
+        return std::make_unique<Tensor<T>>(get_host_tensor_descriptor(output_dims, OutLayout{}));
+    }
+
     const ConvParams& params_;
     const std::vector<ck::index_t> output_spatial_lengths_;
     const bool do_init_;
