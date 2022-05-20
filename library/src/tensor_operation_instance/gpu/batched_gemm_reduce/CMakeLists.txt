@@ -1,4 +1,4 @@
-set(DEVICE_BATCHED_GEMM_REDUCE_INSTANCE_SOURCE 
+set(DEVICE_BATCHED_GEMM_REDUCE_INSTANCE_SOURCE
     device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gmk_gkn_gmn_instance.cpp
     device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gmk_gnk_gmn_instance.cpp
     device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gkm_gkn_gmn_instance.cpp

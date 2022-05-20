@@ -6,40 +6,47 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename AElementwiseOperation,
+template <typename DPtrsGlobal,
+          typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          typename D1ElementwiseOperation>
+          typename DxsInElementwiseOperation,
+          typename DxsOutElementwiseOperation>
 struct DeviceGemmReduce : public BaseOperator
 {
-    virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
-                                                              const void* p_b,
-                                                              void* p_c,
-                                                              void* p_d0,
-                                                              void* p_d1,
-                                                              ck::index_t M,
-                                                              ck::index_t N,
-                                                              ck::index_t K,
-                                                              ck::index_t StrideA,
-                                                              ck::index_t StrideB,
-                                                              ck::index_t StrideC,
-                                                              AElementwiseOperation a_element_op,
-                                                              BElementwiseOperation b_element_op,
-                                                              CElementwiseOperation c_element_op,
-                                                              D1ElementwiseOperation d1_element_op,
-                                                              ck::index_t BatchCount = 1) = 0;
+    virtual std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(const void* p_a,
+                        const void* p_b,
+                        void* p_c,
+                        DPtrsGlobal p_dxs,
+                        ck::index_t M,
+                        ck::index_t N,
+                        ck::index_t K,
+                        ck::index_t StrideA,
+                        ck::index_t StrideB,
+                        ck::index_t StrideC,
+                        AElementwiseOperation a_element_op,
+                        BElementwiseOperation b_element_op,
+                        CElementwiseOperation c_element_op,
+                        DxsInElementwiseOperation dxs_in_element_op,
+                        DxsOutElementwiseOperation dxs_out_element_op,
+                        ck::index_t BatchCount = 1) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <typename AElementwiseOperation,
+template <typename DPtrsGlobal,
+          typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          typename D1ElementwiseOperation>
-using DeviceGemmReducePtr = std::unique_ptr<DeviceGemmReduce<AElementwiseOperation,
+          typename DxsInElementwiseOperation,
+          typename DxsOutElementwiseOperation>
+using DeviceGemmReducePtr = std::unique_ptr<DeviceGemmReduce<DPtrsGlobal,
+                                                             AElementwiseOperation,
                                                              BElementwiseOperation,
                                                              CElementwiseOperation,
-                                                             D1ElementwiseOperation>>;
+                                                             DxsInElementwiseOperation,
+                                                             DxsOutElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation
