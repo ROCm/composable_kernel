@@ -258,6 +258,14 @@ __device__ float llvm_amdgcn_raw_buffer_atomic_add_fp32(
     index_t soffset,
     index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fadd.f32");
 
+// buffer atomic-add fp32
+__device__ double
+llvm_amdgcn_raw_buffer_atomic_max_fp64(double vdata,
+                                       int32x4_t rsrc, // dst_wave_buffer_resource
+                                       int voffset,    // dst_thread_addr_offset
+                                       int soffset,    // dst_wave_addr_offset
+                                       int glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fmax.f64");
+
 template <typename T, index_t N>
 __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_wave_buffer_resource,
                                                                  index_t src_thread_addr_offset,
@@ -915,6 +923,71 @@ __device__ void amd_buffer_atomic_add_impl(const typename vector_type<T, N>::typ
     }
 }
 
+template <typename T, index_t N>
+__device__ void amd_buffer_atomic_max_impl(const typename vector_type<T, N>::type src_thread_data,
+                                           int32x4_t dst_wave_buffer_resource,
+                                           index_t dst_thread_addr_offset,
+                                           index_t dst_wave_addr_offset)
+{
+    static_assert((is_same<T, double>::value && (N == 1 || N == 2 || N == 4)),
+                  "wrong! not implemented");
+    if constexpr(is_same<T, double>::value)
+    {
+        if constexpr(N == 1)
+        {
+            llvm_amdgcn_raw_buffer_atomic_max_fp64(src_thread_data,
+                                                   dst_wave_buffer_resource,
+                                                   dst_thread_addr_offset,
+                                                   dst_wave_addr_offset,
+                                                   0);
+        }
+        else if constexpr(N == 2)
+        {
+            vector_type<double, 2> tmp{src_thread_data};
+
+            llvm_amdgcn_raw_buffer_atomic_max_fp64(tmp.AsType<double>()[Number<0>{}],
+                                                   dst_wave_buffer_resource,
+                                                   dst_thread_addr_offset,
+                                                   dst_wave_addr_offset,
+                                                   0);
+
+            llvm_amdgcn_raw_buffer_atomic_max_fp64(tmp.AsType<double>()[Number<1>{}],
+                                                   dst_wave_buffer_resource,
+                                                   dst_thread_addr_offset,
+                                                   dst_wave_addr_offset + sizeof(double),
+                                                   0);
+        }
+        else if constexpr(N == 4)
+        {
+            vector_type<double, 4> tmp{src_thread_data};
+
+            llvm_amdgcn_raw_buffer_atomic_max_fp64(tmp.AsType<double>()[Number<0>{}],
+                                                   dst_wave_buffer_resource,
+                                                   dst_thread_addr_offset,
+                                                   dst_wave_addr_offset,
+                                                   0);
+
+            llvm_amdgcn_raw_buffer_atomic_max_fp64(tmp.AsType<double>()[Number<1>{}],
+                                                   dst_wave_buffer_resource,
+                                                   dst_thread_addr_offset,
+                                                   dst_wave_addr_offset + sizeof(double),
+                                                   0);
+
+            llvm_amdgcn_raw_buffer_atomic_max_fp64(tmp.AsType<double>()[Number<2>{}],
+                                                   dst_wave_buffer_resource,
+                                                   dst_thread_addr_offset,
+                                                   dst_wave_addr_offset + 2 * sizeof(double),
+                                                   0);
+
+            llvm_amdgcn_raw_buffer_atomic_max_fp64(tmp.AsType<double>()[Number<3>{}],
+                                                   dst_wave_buffer_resource,
+                                                   dst_thread_addr_offset,
+                                                   dst_wave_addr_offset + 3 * sizeof(double),
+                                                   0);
+        }
+    }
+}
+
 // buffer_load requires:
 //   1) p_src_wave must point to global memory space
 //   2) p_src_wave must be a wavewise pointer.
@@ -1041,6 +1114,41 @@ amd_buffer_atomic_add(const typename vector_type_maker<T, N>::type::type src_thr
     if(dst_thread_element_valid)
     {
         amd_buffer_atomic_add_impl<scalar_t, vector_size>(
+            src_thread_data, dst_wave_buffer_resource, dst_thread_addr_offset, 0);
+    }
+#endif
+}
+
+// buffer_atomic_max requires:
+//   1) p_dst_wave must point to global memory
+//   2) p_dst_wave must be a wavewise pointer.
+// It is user's responsibility to make sure that is true.
+template <typename T, index_t N>
+__device__ void
+amd_buffer_atomic_max(const typename vector_type_maker<T, N>::type::type src_thread_data,
+                      T* p_dst_wave,
+                      const index_t dst_thread_element_offset,
+                      const bool dst_thread_element_valid,
+                      const index_t dst_element_space_size)
+{
+    const int32x4_t dst_wave_buffer_resource =
+        make_wave_buffer_resource(p_dst_wave, dst_element_space_size);
+
+    index_t dst_thread_addr_offset = dst_thread_element_offset * sizeof(T);
+
+    using vector_t                = typename vector_type_maker<T, N>::type::type;
+    using scalar_t                = typename scalar_type<vector_t>::type;
+    constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
+
+#if CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_MAX_OOB_CHECK_OFFSET_TRICK
+    uint32_t dst_addr_shift = dst_thread_element_valid ? 0 : 0x7fffffff;
+
+    amd_buffer_atomic_max_impl<scalar_t, vector_size>(
+        src_thread_data, dst_wave_buffer_resource, dst_addr_shift + dst_thread_addr_offset, 0);
+#else
+    if(dst_thread_element_valid)
+    {
+        amd_buffer_atomic_max_impl<scalar_t, vector_size>(
             src_thread_data, dst_wave_buffer_resource, dst_thread_addr_offset, 0);
     }
 #endif
