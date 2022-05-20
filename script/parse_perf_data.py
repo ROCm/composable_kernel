@@ -55,8 +55,6 @@ def main():
         for line in open(filename):
             if 'Best Perf' in line:
                 lst=line.split()
-                #print("lst=",lst)
-                #print(len(lst))
                 if len(lst)>=37: #the line is complete
                     tests.append(glue.join(lst[5:30]))
                     kernels.append(glue.join(lst[37:]))
@@ -95,18 +93,7 @@ def main():
     #print("sorted tests:",sorted_tests)
     sorted_tflops = [x for _,x in sorted(zip(tests,tflops))]
     #sorted_kernels = [x for _,x in sorted(zip(tests,kernels))]
-    sorted_dtypes = [x for _,x in sorted(zip(tests,dtype))]
-    sorted_alayout = [x for _,x in sorted(zip(tests,alayout))]
-    sorted_blayout = [x for _,x in sorted(zip(tests,blayout))]
-    sorted_M = [x for _,x in sorted(zip(tests,M))]
-    sorted_N = [x for _,x in sorted(zip(tests,N))]
-    sorted_K = [x for _,x in sorted(zip(tests,K))]
-    sorted_StrideA = [x for _,x in sorted(zip(tests,StrideA))]
-    sorted_StrideB = [x for _,x in sorted(zip(tests,StrideB))]
-    sorted_StrideC = [x for _,x in sorted(zip(tests,StrideC))]
     test_list=list(range(1,len(tests)+1))
-
-    print("now=",datetime.datetime.now())
 
     sql_hostname = '127.0.0.1'
     sql_username = os.environ["dbuser"]
@@ -133,6 +120,16 @@ def main():
 
         #write the ck_gemm_test_params table
         #only needed once the test set changes
+        '''
+        sorted_dtypes = [x for _,x in sorted(zip(tests,dtype))]
+        sorted_alayout = [x for _,x in sorted(zip(tests,alayout))]
+        sorted_blayout = [x for _,x in sorted(zip(tests,blayout))]
+        sorted_M = [x for _,x in sorted(zip(tests,M))]
+        sorted_N = [x for _,x in sorted(zip(tests,N))]
+        sorted_K = [x for _,x in sorted(zip(tests,K))]
+        sorted_StrideA = [x for _,x in sorted(zip(tests,StrideA))]
+        sorted_StrideB = [x for _,x in sorted(zip(tests,StrideB))]
+        sorted_StrideC = [x for _,x in sorted(zip(tests,StrideC))]
         ck_gemm_params=[test_list,sorted_dtypes,sorted_alayout,sorted_blayout,
                     sorted_M,sorted_N,sorted_K,sorted_StrideA,sorted_StrideB,
                     sorted_StrideC]
@@ -153,9 +150,10 @@ def main():
             'StrideC': Integer()
             }
         df.to_sql("ck_gemm_test_params",conn,if_exists='replace',index=False, dtype=dtypes)
+        '''
 
         #read baseline results for the latest develop branch
-        query = '''SELECT * from ck_gemm_tflops where Branch_ID="develop" and Datetime = (SELECT MAX(Datetime));'''
+        query = '''SELECT * from ck_gemm_tflops where Branch_ID="develop" and Datetime = (SELECT MAX(Datetime) FROM ck_gemm_tflops);'''
         tflops_base = pd.read_sql_query(query, conn)
         #print("tflops_base:",tflops_base)
 
@@ -173,10 +171,9 @@ def main():
 
     #compare the results to the baseline
     regression=0
-    base=tflops_base[['Test1','Test2','Test3','Test4']].to_numpy(dtype='float')
+    base=tflops_base[testlist].to_numpy(dtype='float')
     base_list=base[0]
     #print("baseline=",base_list)
-    #print("test=",sorted_tflops)
     ave_perf=0
     for i in range(len(base_list)):
         # success criterion:
@@ -184,6 +181,8 @@ def main():
             print("test # ",i,"shows regression")
             regression=1
         ave_perf=ave_perf+float(sorted_tflops[i])/base_list[i]
+    if regression==0:
+        print("no regressions found")
     ave_perf=ave_perf/len(base_list)
     print("average performance relative to baseline:",ave_perf)
 
