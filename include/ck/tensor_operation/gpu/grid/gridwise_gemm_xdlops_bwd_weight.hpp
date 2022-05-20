@@ -1,17 +1,137 @@
-#ifndef CK_GRIDWISE_GEMM_XDLOPS_V2R4R2_HPP
-#define CK_GRIDWISE_GEMM_XDLOPS_V2R4R2_HPP
+#pragma once
 
 #include "common_header.hpp"
 #include "multi_index_transform_helper.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
-#include "tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "blockwise_gemm_xdlops.hpp"
 #include "thread_group_tensor_slice_transfer_v4r1.hpp"
 #include "thread_group_tensor_slice_transfer_v6r1.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
+#include "gridwise_gemm_pipeline_v1.hpp"
 
 namespace ck {
+
+// Implementation of "Merge" transformation primitive that uses division and mod. It is supposed to
+// be used for low_lengths that are known at compile time and are power of 2, otherwise performance
+// will be very bad
+template <typename LowLengths>
+struct Merge_v4_no_carry
+{
+    static constexpr index_t NDimLow = LowLengths::Size();
+
+    using LowerIndex = MultiIndex<NDimLow>;
+    using UpperIndex = MultiIndex<1>;
+
+    using LowLengthsScan =
+        decltype(container_reverse_exclusive_scan(LowLengths{}, math::multiplies{}, Number<1>{}));
+
+    using UpLengths =
+        decltype(make_tuple(container_reduce(LowLengths{}, math::multiplies{}, Number<1>{})));
+
+    LowLengths low_lengths_;
+    LowLengthsScan low_lengths_scan_;
+    UpLengths up_lengths_;
+
+    __host__ __device__ constexpr Merge_v4_no_carry() = default;
+
+    __host__ __device__ constexpr Merge_v4_no_carry(const LowLengths& low_lengths)
+        : low_lengths_{low_lengths},
+          low_lengths_scan_{
+              container_reverse_exclusive_scan(low_lengths, math::multiplies{}, Number<1>{})},
+          up_lengths_{make_tuple(container_reduce(low_lengths, math::multiplies{}, Number<1>{}))}
+    {
+        static_assert(LowerIndex::Size() == NDimLow, "wrong!");
+    }
+
+    __host__ __device__ static constexpr index_t GetNumOfLowerDimension() { return NDimLow; }
+
+    __host__ __device__ static constexpr index_t GetNumOfUpperDimension() { return 1; }
+
+    __host__ __device__ constexpr const auto& GetUpperLengths() const { return up_lengths_; }
+
+    template <typename LowIdx, typename UpIdx>
+    __host__ __device__ constexpr void CalculateLowerIndex(LowIdx& idx_low,
+                                                           const UpIdx& idx_up) const
+    {
+        static_assert(LowIdx::Size() == NDimLow && UpIdx::Size() == 1,
+                      "wrong! inconsistent # of dimension");
+
+        index_t tmp = idx_up[Number<0>{}];
+
+        // division and mod
+        static_for<0, NDimLow - 1, 1>{}([&](auto i) {
+            idx_low(i) = tmp / this->low_lengths_scan_[i];
+            tmp %= this->low_lengths_scan_[i];
+        });
+
+        idx_low(Number<NDimLow - 1>{}) = tmp;
+    }
+
+    template <typename LowIdxDiff,
+              typename UpIdxDiff,
+              typename LowIdx,
+              typename UpIdx,
+              index_t Hack>
+    __host__ __device__ void UpdateLowerIndex(LowIdxDiff& idx_diff_low,
+                                              const UpIdxDiff& idx_up_diff,
+                                              LowIdx& idx_low,
+                                              const UpIdx& idx_up_new,
+                                              Number<Hack>) const
+    {
+        static_assert(LowIdxDiff::Size() == NDimLow && UpIdxDiff::Size() == 1 &&
+                          LowIdx::Size() == NDimLow && UpIdx::Size() == 1,
+                      "wrong! inconsistent # of dimension");
+
+        constexpr auto I0   = Number<0>{};
+        constexpr auto INm1 = Number<NDimLow - 1>{};
+
+        index_t tmp = idx_up_new[I0];
+
+        idx_low(INm1)      = tmp;
+        idx_diff_low(INm1) = idx_up_diff[I0];
+    }
+
+    __host__ __device__ static constexpr bool IsLinearTransform() { return false; }
+
+    __host__ __device__ static constexpr bool IsValidUpperIndexAlwaysMappedToValidLowerIndex()
+    {
+        return true;
+    }
+
+    __host__ __device__ static constexpr bool IsKnownAtCompileTime()
+    {
+        return is_known_at_compile_time<LowLengths>::value &&
+               is_known_at_compile_time<LowLengthsScan>::value &&
+               is_known_at_compile_time<UpLengths>::value;
+    }
+
+    template <typename UpIdx>
+    __host__ __device__ static constexpr bool
+    IsValidUpperIndexMappedToValidLowerIndex(const UpIdx& /* idx_up */)
+    {
+        return true;
+    }
+
+    __host__ __device__ void Print() const
+    {
+        printf("{");
+        printf("Merge_v3_direct_division_mod_wrw, ");
+        printf("low_lengths_ ");
+        print_multi_index(low_lengths_);
+        printf("low_lengths_scan_ ");
+        print_multi_index(low_lengths_scan_);
+        printf("up_lengths_ ");
+        print_multi_index(up_lengths_);
+        printf("}");
+    }
+};
+
+template <typename LowLengths>
+__host__ __device__ constexpr auto make_merge_transform_v4_no_carry(const LowLengths& low_lengths)
+{
+    return Merge_v4_no_carry<LowLengths>{low_lengths};
+}
 
 template <typename GridwiseGemm,
           typename FloatAB,
@@ -28,17 +148,17 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdlops_v2r4r2(const FloatAB* __restrict__ p_a_grid,
-                                  const FloatAB* __restrict__ p_b_grid,
-                                  FloatC* __restrict__ p_c_grid,
-                                  const AGridDesc_B_K0_M_K1 a_b_k0_m_k1_grid_desc,
-                                  const BGridDesc_B_K0_N_K1 b_b_k0_n_k1_grid_desc,
-                                  const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-                                      c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                  const AElementwiseOperation a_element_op,
-                                  const BElementwiseOperation b_element_op,
-                                  const CElementwiseOperation c_element_op,
-                                  const CBlockClusterAdaptor c_block_cluster_adaptor)
+        kernel_gemm_xdlops_bwd_weight(const FloatAB* __restrict__ p_a_grid,
+                                      const FloatAB* __restrict__ p_b_grid,
+                                      FloatC* __restrict__ p_c_grid,
+                                      const AGridDesc_B_K0_M_K1 a_b_k0_m_k1_grid_desc,
+                                      const BGridDesc_B_K0_N_K1 b_b_k0_n_k1_grid_desc,
+                                      const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+                                          c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                      const AElementwiseOperation a_element_op,
+                                      const BElementwiseOperation b_element_op,
+                                      const CElementwiseOperation c_element_op,
+                                      const CBlockClusterAdaptor c_block_cluster_adaptor)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     constexpr index_t shared_block_size =
@@ -98,6 +218,9 @@ template <index_t BlockSize,
           index_t ABlockTransferDstScalarPerVector_K1,
           bool AThreadTransferSrcResetCoordinateAfterRun,
           bool ABlockLdsExtraM,
+          index_t ABlockLdsM1PerBlock,
+          index_t ABlockLdsM0PerBlock,
+          index_t ABlockLdsM1Padding,
           typename BBlockTransferThreadClusterLengths_K0_N_K1,
           typename BBlockTransferThreadClusterArrangeOrder,
           typename BBlockTransferSrcAccessOrder,
@@ -106,11 +229,17 @@ template <index_t BlockSize,
           index_t BBlockTransferDstScalarPerVector_K1,
           bool BThreadTransferSrcResetCoordinateAfterRun,
           bool BBlockLdsExtraN,
+          index_t BBlockLdsN1PerBlock,
+          index_t BBlockLdsN0PerBlock,
+          index_t BBlockLdsN1Padding,
           index_t CShuffleMRepeatPerShuffle,
           index_t CShuffleNRepeatPerShuffle,
           index_t CBlockTransferScalarPerVector_NWaveNPerXDL,
-          typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>
-struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
+          typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+          bool ABlockLdsExtraM1Wrw      = false,
+          bool BBlockLdsExtraN1Wrw      = false,
+          index_t NumGemmKPrefetchStage = 1>
+struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -124,19 +253,54 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     // K1 should be Number<...>
     static constexpr auto K1 = Number<K1Value>{};
 
-    using ThisThreadBlock = ThisThreadBlock<BlockSize>;
+    using ThisThreadBlock  = ThisThreadBlock<BlockSize>;
+    using GridwiseGemmPipe = GridwiseGemmPipeline_v1<NumGemmKPrefetchStage>;
 
-    __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
+    // M0/M1/M1Padding
+    static constexpr auto M1PerBlock = Number<ABlockLdsM1PerBlock>{};
+    static constexpr auto M0PerBlock = Number<ABlockLdsM0PerBlock>{};
+    static constexpr auto M1Padding  = Number<ABlockLdsM1Padding>{};
+
+    // N0/N1/N1Padding
+    static constexpr auto N1PerBlock = Number<BBlockLdsN1PerBlock>{};
+    static constexpr auto N0PerBlock = Number<BBlockLdsN0PerBlock>{};
+    static constexpr auto N1Padding  = Number<BBlockLdsN1Padding>{};
+
+    __host__ __device__ static constexpr auto GetABlockDescriptor_K0PerBlock_MPerBlock_K1()
     {
         constexpr auto max_lds_align = K1;
 
         // A matrix in LDS memory, dst of blockwise copy
-        constexpr auto a_k0_m_k1_block_desc = [&]() {
+        constexpr auto a_block_desc_k0_m_k1 = [&]() {
             if constexpr(ABlockLdsExtraM)
             {
-                return make_naive_tensor_descriptor(
-                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
-                    make_tuple(Number<MPerBlock + 1>{} * K1, K1, I1));
+                if constexpr(ABlockLdsExtraM1Wrw)
+                {
+                    constexpr auto a_block_desc_k0_m0_m1_k1 = make_naive_tensor_descriptor(
+                        make_tuple(
+                            Number<K0PerBlock>{}, Number<M0PerBlock>{}, Number<M1PerBlock>{}, K1),
+                        make_tuple(Number<M0PerBlock>{} * (Number<M1PerBlock>{} * K1 + M1Padding),
+                                   Number<M1PerBlock>{} * K1 + M1Padding,
+                                   K1,
+                                   I1));
+
+                    constexpr auto a_block_desc_k0_m_k1_tmp = transform_tensor_descriptor(
+                        a_block_desc_k0_m0_m1_k1,
+                        make_tuple(make_pass_through_transform(Number<K0PerBlock>{}),
+                                   make_merge_transform_v3_division_mod(
+                                       make_tuple(Number<M0PerBlock>{}, Number<M1PerBlock>{})),
+                                   make_pass_through_transform(K1)),
+                        make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}),
+                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+
+                    return a_block_desc_k0_m_k1_tmp;
+                }
+                else
+                {
+                    return make_naive_tensor_descriptor(
+                        make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
+                        make_tuple(Number<MPerBlock + 1>{} * K1, K1, I1));
+                }
             }
             else
             {
@@ -145,13 +309,100 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             }
         }();
 
+        return a_block_desc_k0_m_k1;
+    }
+
+    __host__ __device__ static constexpr auto GetABlockDescriptor_Batch_K0PerBlock_MPerBlock_K1()
+    {
+        constexpr auto max_lds_align = K1;
+
+        // A matrix in LDS memory, dst of blockwise copy
+        constexpr auto a_block_desc_b_k0_m_k1 = [&]() {
+            if constexpr(ABlockLdsExtraM)
+            {
+                if constexpr(ABlockLdsExtraM1Wrw)
+                {
+                    constexpr auto a_block_desc_b_k0_m0_m1_k1 = make_naive_tensor_descriptor(
+                        make_tuple(Number<1>{},
+                                   Number<K0PerBlock>{},
+                                   Number<M0PerBlock>{},
+                                   Number<M1PerBlock>{},
+                                   K1),
+                        make_tuple(Number<K0PerBlock>{} * Number<M0PerBlock>{} *
+                                       (Number<M1PerBlock>{} * K1 + M1Padding),
+                                   Number<M0PerBlock>{} * (Number<M1PerBlock>{} * K1 + M1Padding),
+                                   Number<M1PerBlock>{} * K1 + M1Padding,
+                                   K1,
+                                   I1));
+
+                    constexpr auto a_block_desc_b_k0_m_k1_tmp = transform_tensor_descriptor(
+                        a_block_desc_b_k0_m0_m1_k1,
+                        make_tuple(make_pass_through_transform(Number<1>{}),
+                                   make_pass_through_transform(Number<K0PerBlock>{}),
+                                   make_merge_transform_v4_no_carry(
+                                       make_tuple(Number<M0PerBlock>{}, Number<M1PerBlock>{})),
+                                   make_pass_through_transform(K1)),
+                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4>{}),
+                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+
+                    return a_block_desc_b_k0_m_k1_tmp;
+                }
+                else
+                {
+                    return make_naive_tensor_descriptor(
+                        make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
+                        make_tuple(Number<K0PerBlock>{} * Number<MPerBlock + 1>{} * K1,
+                                   Number<MPerBlock + 1>{} * K1,
+                                   K1,
+                                   I1));
+                }
+            }
+            else
+            {
+                return make_naive_tensor_descriptor_aligned(
+                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
+                    max_lds_align);
+            }
+        }();
+
+        return a_block_desc_b_k0_m_k1;
+    }
+
+    __host__ __device__ static constexpr auto GetBBlockDescriptor_K0PerBlock_NPerBlock_K1()
+    {
+        constexpr auto max_lds_align = K1;
+
         // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_k0_n_k1_block_desc = [&]() {
+        constexpr auto b_block_desc_k0_n_k1 = [&]() {
             if constexpr(BBlockLdsExtraN)
             {
-                return make_naive_tensor_descriptor(
-                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
-                    make_tuple(Number<NPerBlock + 1>{} * K1, K1, I1));
+                if constexpr(BBlockLdsExtraN1Wrw)
+                {
+                    constexpr auto b_block_desc_k0_n0_n1_k1 = make_naive_tensor_descriptor(
+                        make_tuple(
+                            Number<K0PerBlock>{}, Number<N0PerBlock>{}, Number<N1PerBlock>{}, K1),
+                        make_tuple(Number<N0PerBlock>{} * (Number<N1PerBlock>{} * K1 + N1Padding),
+                                   Number<N1PerBlock>{} * K1 + N1Padding,
+                                   K1,
+                                   I1));
+
+                    constexpr auto b_block_desc_k0_n_k1_tmp = transform_tensor_descriptor(
+                        b_block_desc_k0_n0_n1_k1,
+                        make_tuple(make_pass_through_transform(Number<K0PerBlock>{}),
+                                   make_merge_transform_v3_division_mod(
+                                       make_tuple(Number<N0PerBlock>{}, Number<N1PerBlock>{})),
+                                   make_pass_through_transform(K1)),
+                        make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}),
+                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+
+                    return b_block_desc_k0_n_k1_tmp;
+                }
+                else
+                {
+                    return make_naive_tensor_descriptor(
+                        make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
+                        make_tuple(Number<NPerBlock + 1>{} * K1, K1, I1));
+                }
             }
             else
             {
@@ -160,12 +411,81 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             }
         }();
 
-        // LDS allocation for A and B: be careful of alignment
-        constexpr auto a_block_space_size =
-            math::integer_least_multiple(a_k0_m_k1_block_desc.GetElementSpaceSize(), max_lds_align);
+        return b_block_desc_k0_n_k1;
+    }
 
-        constexpr auto b_block_space_size =
-            math::integer_least_multiple(b_k0_n_k1_block_desc.GetElementSpaceSize(), max_lds_align);
+    __host__ __device__ static constexpr auto GetBBlockDescriptor_Batch_K0PerBlock_NPerBlock_K1()
+    {
+        constexpr auto max_lds_align = K1;
+
+        // B matrix in LDS memory, dst of blockwise copy
+        constexpr auto b_block_desc_b_k0_n_k1 = [&]() {
+            if constexpr(BBlockLdsExtraN)
+            {
+                if constexpr(BBlockLdsExtraN1Wrw)
+                {
+                    constexpr auto b_block_desc_b_k0_n0_n1_k1 = make_naive_tensor_descriptor(
+                        make_tuple(Number<1>{},
+                                   Number<K0PerBlock>{},
+                                   Number<N0PerBlock>{},
+                                   Number<N1PerBlock>{},
+                                   K1),
+                        make_tuple(Number<K0PerBlock>{} * Number<N0PerBlock>{} *
+                                       (Number<N1PerBlock>{} * K1 + N1Padding),
+                                   Number<N0PerBlock>{} * (Number<N1PerBlock>{} * K1 + N1Padding),
+                                   Number<N1PerBlock>{} * K1 + N1Padding,
+                                   K1,
+                                   I1));
+
+                    constexpr auto b_block_desc_b_k0_n_k1_tmp = transform_tensor_descriptor(
+                        b_block_desc_b_k0_n0_n1_k1,
+                        make_tuple(make_pass_through_transform(Number<1>{}),
+                                   make_pass_through_transform(Number<K0PerBlock>{}),
+                                   make_merge_transform_v4_no_carry(
+                                       make_tuple(Number<N0PerBlock>{}, Number<N1PerBlock>{})),
+                                   make_pass_through_transform(K1)),
+                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4>{}),
+                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+
+                    return b_block_desc_b_k0_n_k1_tmp;
+                }
+                else
+                {
+                    return make_naive_tensor_descriptor(
+                        make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
+                        make_tuple(Number<K0PerBlock>{} * Number<NPerBlock + 1>{} * K1,
+                                   Number<NPerBlock + 1>{} * K1,
+                                   K1,
+                                   I1));
+                }
+            }
+            else
+            {
+                return make_naive_tensor_descriptor_aligned(
+                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
+                    max_lds_align);
+            }
+        }();
+
+        return b_block_desc_b_k0_n_k1;
+    }
+
+    __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
+    {
+        constexpr auto max_lds_align = K1;
+
+        // A matrix in LDS memory, dst of blockwise copy
+        constexpr auto a_b_k0_m_k1_block_desc = GetABlockDescriptor_Batch_K0PerBlock_MPerBlock_K1();
+
+        // B matrix in LDS memory, dst of blockwise copy
+        constexpr auto b_b_k0_n_k1_block_desc = GetBBlockDescriptor_Batch_K0PerBlock_NPerBlock_K1();
+
+        // LDS allocation for A and B: be careful of alignment
+        constexpr auto a_block_space_size = math::integer_least_multiple(
+            a_b_k0_m_k1_block_desc.GetElementSpaceSize(), max_lds_align);
+
+        constexpr auto b_block_space_size = math::integer_least_multiple(
+            b_b_k0_n_k1_block_desc.GetElementSpaceSize(), max_lds_align);
 
         constexpr auto c_block_size =
             GetCBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock().GetElementSpaceSize();
@@ -175,12 +495,12 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
-    template <typename Block2CTileMap>
     __host__ __device__ static constexpr bool
     CheckValidity(const AGridDesc_B_K0_M_K1& a_b_k0_m_k1_grid_desc,
                   const BGridDesc_B_K0_N_K1& b_b_k0_n_k1_grid_desc,
                   const CMNGridDesc& c_m_n_grid_desc,
-                  const Block2CTileMap& block_2_ctile_map)
+                  index_t M01,
+                  index_t N01)
     {
         static_assert(is_known_at_compile_time<remove_cv_t<decltype(K1)>>::value,
                       "wrong! K1 need to be known at compile-time");
@@ -194,6 +514,14 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         const auto K0     = a_b_k0_m_k1_grid_desc.GetLength(I1);
         const auto KBatch = a_b_k0_m_k1_grid_desc.GetLength(I0);
 
+        // check gridwise gemm pipeline
+        const auto num_k_loop = K0 / K0PerBlock;
+
+        if(!GridwiseGemmPipe::IsSupported(num_k_loop))
+        {
+            return false;
+        }
+
         if(!(M == c_m_n_grid_desc.GetLength(I0) && N == c_m_n_grid_desc.GetLength(I1) &&
              K0 == b_b_k0_n_k1_grid_desc.GetLength(I1) &&
              K1 == a_b_k0_m_k1_grid_desc.GetLength(I3) &&
@@ -204,20 +532,39 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K0 % K0PerBlock == 0))
             return false;
 
-        if(!block_2_ctile_map.CheckValidity(c_m_n_grid_desc))
-        {
+        // check M01, N01
+        constexpr auto M1 = Number<MPerBlock>{};
+        constexpr auto N1 = Number<NPerBlock>{};
+
+        const auto M0 = M / M1;
+        const auto N0 = N / N1;
+
+        if(!(M0 % M01 == 0 && N0 % N01 == 0))
             return false;
-        }
 
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         return true;
     }
 
+    __host__ __device__ static constexpr index_t
+    CalculateGridSize(const CMNGridDesc& c_m_n_grid_desc, index_t KBatch)
+    {
+        const auto M = c_m_n_grid_desc.GetLength(I0);
+        const auto N = c_m_n_grid_desc.GetLength(I1);
+
+        const index_t grid_size = (M / MPerBlock) * (N / NPerBlock) * KBatch;
+
+        return grid_size;
+    }
+
     __host__ __device__ static constexpr bool CalculateHasMainK0BlockLoop(index_t K0)
     {
-        const bool has_main_k0_block_loop = K0 > K0PerBlock;
+        // const bool has_main_k0_block_loop = K0 > K0PerBlock;
+        const index_t num_loop = K0 / K0PerBlock;
 
-        return has_main_k0_block_loop;
+        return GridwiseGemmPipe::CalculateHasMainLoop(num_loop);
+
+        // return has_main_k0_block_loop;
     }
 
     __host__ __device__ static constexpr auto
@@ -241,8 +588,37 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     __host__ __device__ static constexpr auto MakeCBlockClusterAdaptor(
         const CMNGridDesc& c_m_n_grid_desc, index_t M01, index_t N01, index_t KBatch)
     {
-        return BlockToCTileMap_KSplit_M00_N00_M01_N01<MPerBlock, NPerBlock, CMNGridDesc>(
-            c_m_n_grid_desc, M01, N01, KBatch);
+        const auto M = c_m_n_grid_desc.GetLength(I0);
+        const auto N = c_m_n_grid_desc.GetLength(I1);
+
+        constexpr auto M1 = Number<MPerBlock>{};
+        constexpr auto N1 = Number<NPerBlock>{};
+
+        const auto M0 = M / M1;
+        const auto N0 = N / N1;
+
+        const auto M00 = M0 / M01;
+        const auto N00 = N0 / N01;
+
+        const auto kbatch_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor =
+            make_single_stage_tensor_adaptor(
+                make_tuple(make_pass_through_transform(KBatch),
+                           make_unmerge_transform(make_tuple(M00, M01)),
+                           make_unmerge_transform(make_tuple(N00, N01))),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2, 4>{}));
+
+        const auto c_blockid_to_kbatch_m00_m01_n00_n01_block_cluster_adaptor =
+            make_single_stage_tensor_adaptor(
+                make_tuple(make_merge_transform(make_tuple(KBatch, M00, N00, M01, N01))),
+                make_tuple(Sequence<0, 1, 2, 3, 4>{}),
+                make_tuple(Sequence<0>{}));
+
+        const auto c_blockid_to_kbatch_m0_n0_block_cluster_adaptor =
+            chain_tensor_adaptors(kbatch_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor,
+                                  c_blockid_to_kbatch_m00_m01_n00_n01_block_cluster_adaptor);
+
+        return c_blockid_to_kbatch_m0_n0_block_cluster_adaptor;
     }
 
     __host__ __device__ static constexpr auto
@@ -289,14 +665,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         const auto block_work_idx =
             c_block_cluster_adaptor.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
 
-        if(!c_block_cluster_adaptor.ValidCTileIndex(
-               make_tuple(block_work_idx[I1], block_work_idx[I2]),
-               make_tuple(c_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I0),
-                          c_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2))))
-        {
-            return;
-        }
-
         const index_t k_batch_id = block_work_idx[I0];
 
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
@@ -310,69 +678,13 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         constexpr auto max_lds_align = K1;
 
         // A matrix in LDS memory, dst of blockwise copy
-        constexpr auto a_k0_m_k1_block_desc = [&]() {
-            if constexpr(ABlockLdsExtraM)
-            {
-                return make_naive_tensor_descriptor(
-                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
-                    make_tuple(Number<MPerBlock + 1>{} * K1, K1, I1));
-            }
-            else
-            {
-                return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1), max_lds_align);
-            }
-        }();
+        constexpr auto a_k0_m_k1_block_desc = GetABlockDescriptor_K0PerBlock_MPerBlock_K1();
 
-        constexpr auto a_b_k0_m_k1_block_desc = [&]() {
-            if constexpr(ABlockLdsExtraM)
-            {
-                return make_naive_tensor_descriptor(
-                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
-                    make_tuple(Number<K0PerBlock>{} * Number<MPerBlock + 1>{} * K1,
-                               Number<MPerBlock + 1>{} * K1,
-                               K1,
-                               I1));
-            }
-            else
-            {
-                return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
-                    max_lds_align);
-            }
-        }();
+        constexpr auto a_b_k0_m_k1_block_desc = GetABlockDescriptor_Batch_K0PerBlock_MPerBlock_K1();
         // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_k0_n_k1_block_desc = [&]() {
-            if constexpr(BBlockLdsExtraN)
-            {
-                return make_naive_tensor_descriptor(
-                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
-                    make_tuple(Number<NPerBlock + 1>{} * K1, K1, I1));
-            }
-            else
-            {
-                return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
-            }
-        }();
+        constexpr auto b_k0_n_k1_block_desc = GetBBlockDescriptor_K0PerBlock_NPerBlock_K1();
 
-        constexpr auto b_b_k0_n_k1_block_desc = [&]() {
-            if constexpr(BBlockLdsExtraN)
-            {
-                return make_naive_tensor_descriptor(
-                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
-                    make_tuple(Number<K0PerBlock>{} * Number<NPerBlock + 1>{} * K1,
-                               Number<NPerBlock + 1>{} * K1,
-                               K1,
-                               I1));
-            }
-            else
-            {
-                return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
-                    max_lds_align);
-            }
-        }();
+        constexpr auto b_b_k0_n_k1_block_desc = GetBBlockDescriptor_Batch_K0PerBlock_NPerBlock_K1();
         // A matrix blockwise copy
         auto a_blockwise_copy =
             ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
@@ -441,6 +753,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         //       register
         // sanity check
 
+        constexpr index_t KPack =
+            math::max(K1, MfmaSelector<FloatAB, MPerXDL, NPerXDL>::selected_mfma.k_per_blk);
+
         auto blockwise_gemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                                 FloatAB,
@@ -451,7 +766,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                                                                 NPerXDL,
                                                                 MRepeat,
                                                                 NRepeat,
-                                                                K1>{};
+                                                                KPack>{};
 
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 
@@ -470,51 +785,24 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             p_b_block, b_k0_n_k1_block_desc.GetElementSpaceSize());
 
-        // preload data into LDS
-        {
-            a_blockwise_copy.RunRead(a_b_k0_m_k1_grid_desc, a_grid_buf);
-            b_blockwise_copy.RunRead(b_b_k0_n_k1_grid_desc, b_grid_buf);
+        // gridwise GEMM pipeline
+        const index_t K0BlockMainLoop = __builtin_amdgcn_readfirstlane(K0 / K0PerBlock);
 
-            a_blockwise_copy.RunWrite(a_b_k0_m_k1_block_desc, a_block_buf);
-            b_blockwise_copy.RunWrite(b_b_k0_n_k1_block_desc, b_block_buf);
-        }
-
-        // Initialize C
-        c_thread_buf.Clear();
-
-        // main body
-        if constexpr(HasMainKBlockLoop)
-        {
-            index_t k0_block_data_begin = 0;
-
-            do
-            {
-                a_blockwise_copy.MoveSrcSliceWindow(a_b_k0_m_k1_grid_desc, a_block_slice_copy_step);
-                b_blockwise_copy.MoveSrcSliceWindow(b_b_k0_n_k1_grid_desc, b_block_slice_copy_step);
-
-                a_blockwise_copy.RunRead(a_b_k0_m_k1_grid_desc, a_grid_buf);
-
-                block_sync_lds();
-
-                b_blockwise_copy.RunRead(b_b_k0_n_k1_grid_desc, b_grid_buf);
-
-                blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
-
-                block_sync_lds();
-
-                a_blockwise_copy.RunWrite(a_b_k0_m_k1_block_desc, a_block_buf);
-                b_blockwise_copy.RunWrite(b_b_k0_n_k1_block_desc, b_block_buf);
-
-                k0_block_data_begin += K0PerBlock;
-            } while(k0_block_data_begin < (K0 - K0PerBlock));
-        }
-
-        // tail
-        {
-            block_sync_lds();
-
-            blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
-        }
+        GridwiseGemmPipe::template Run<HasMainKBlockLoop>(a_b_k0_m_k1_grid_desc,
+                                                          a_b_k0_m_k1_block_desc,
+                                                          a_blockwise_copy,
+                                                          a_grid_buf,
+                                                          a_block_buf,
+                                                          a_block_slice_copy_step,
+                                                          b_b_k0_n_k1_grid_desc,
+                                                          b_b_k0_n_k1_block_desc,
+                                                          b_blockwise_copy,
+                                                          b_grid_buf,
+                                                          b_block_buf,
+                                                          b_block_slice_copy_step,
+                                                          blockwise_gemm,
+                                                          c_thread_buf,
+                                                          K0BlockMainLoop);
 
         // output: register to global memory
         {
@@ -720,4 +1008,3 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 }; // namespace ck
 
 } // namespace ck
-#endif
