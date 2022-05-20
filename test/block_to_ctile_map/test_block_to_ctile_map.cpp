@@ -1,5 +1,5 @@
 #include <ck/config.hpp>
-#include <ck/utility/block_to_ctile_map.hpp>
+#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "gtest/gtest.h"
 #include <iostream>
 #include <vector>
