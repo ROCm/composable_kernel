@@ -235,20 +235,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
             make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
     }
 
-    __host__ __device__ static constexpr auto MakeBBlockDescriptor_N0_N1_N2_K()
-    {
-        return transform_tensor_descriptor(
-            BK0NK1BlockDesc{},
-            make_tuple(
-                make_merge_transform_v3_division_mod(make_tuple(Number<B_K0>{}, Number<B_K1>{})),
-                make_unmerge_transform(
-                    make_tuple(Number<NRepeat>{}, Number<NWaves>{}, Number<NPerXDL>{}))),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
-            make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
-    }
-
     static constexpr auto a_block_desc_m0_m1_m2_k = MakeABlockDescriptor_M0_M1_M2_K();
-    static constexpr auto b_block_desc_n0_n1_n2_k = MakeBBlockDescriptor_N0_N1_N2_K();
 
     template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>
     __device__ void Run(const ABlockBuffer& a_block_buf,
@@ -278,9 +265,8 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
                     static_for<0, KPack, 1>{}([&](auto i) {
                         a_thread_vec.template AsType<FloatAB>()(i) = a_thread_buf
                             [Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];
-                        b_thread_vec.template AsType<FloatAB>()(i) =
-                            b_thread_buf[Number<b_thread_desc_.CalculateOffset(
-                                make_tuple(0, 0, k / KPack, 0, n0, 0, 0, i))>{}];
+                        b_thread_vec.template AsType<FloatAB>()(i) = b_thread_buf
+                            [Number<b_thread_desc_.CalculateOffset(make_tuple(n0, k + i))>{}];
                     });
 
                     using mfma_input_type =
@@ -304,15 +290,17 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
         make_naive_tensor_descriptor_packed(make_tuple(I1, I1, I1, Number<KPerThread>{}));
 
     // B[N0, N1, N2, KPerThread]
-    static constexpr auto b_thread_desc_ =
-        make_naive_tensor_descriptor_packed(make_tuple(I1,
-                                                       I1,
-                                                       Number<K0PerThread>{}, // KPerThread
-                                                       I1,                    // NBlockId
+    static constexpr auto b_thread_desc =
+        make_naive_tensor_descriptor_packed(make_tuple(Number<K0PerThread>{}, // KPerThread
                                                        Number<NRepeat>{},     // repeat
-                                                       I1,                    // waves
-                                                       I1,                    // NPerXdlops
                                                        Number<KPack>{}));
+
+    static constexpr auto b_thread_desc_ = transform_tensor_descriptor(
+        b_thread_desc,
+        make_tuple(make_pass_through_transform(NRepeat),
+                   make_merge_transform_v3_division_mod(make_tuple(K0PerThread, KPack))),
+        make_tuple(Sequence<1>{}, Sequence<0, 2>{}),
+        make_tuple(Sequence<0>{}, Sequence<1>{}));
 
     // C[M, N, NumRegXdlops]
     static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(

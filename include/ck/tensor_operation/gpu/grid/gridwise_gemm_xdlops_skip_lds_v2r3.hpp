@@ -576,11 +576,12 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
                                                            I1,                    // waves
                                                            I1,                    // NPerXdlops
                                                            Number<K1>{}));
-        auto b_thread_buf =
-            StaticBuffer<AddressSpaceEnum::Vgpr,
-                         FloatAB,
-                         b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3.GetElementSpaceSize(),
-                         true>{};
+
+        StaticBuffer<AddressSpaceEnum::Vgpr,
+                     FloatAB,
+                     b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3.GetElementSpaceSize(),
+                     true>
+            b_thread_even_buf, b_thread_odd_buf;
 
         const auto wave_id     = GetWaveIdx();
         const auto wave_k_n_id = GetWaveKNIdx(wave_id[I2]);
@@ -662,7 +663,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
                                   b_grid_buf,
                                   b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                   make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                  b_thread_buf);
+                                  b_thread_even_buf);
 
             // Move
             a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1, a_block_slice_copy_step);
@@ -684,34 +685,53 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
                     a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
 
                     block_sync_lds();
-                    blockwise_gemm.Run(a_block_buf, b_thread_buf, c_thread_buf);
-                    // read b after gemm
                     b_threadwise_copy.Run(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                           b_grid_buf,
                                           b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                           make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                          b_thread_buf);
+                                          b_thread_odd_buf);
+
+                    blockwise_gemm.Run(a_block_buf, b_thread_even_buf, c_thread_buf);
+
                     block_sync_lds();
+
+                    a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
                     // move windows
                     a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1,
                                                         a_block_slice_copy_step);
                     b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                                          b_thread_slice_copy_step);
 
-                    a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
+                    a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
 
-                    ++i;
+                    block_sync_lds();
+                    b_threadwise_copy.Run(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
+                                          b_grid_buf,
+                                          b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3,
+                                          make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
+                                          b_thread_even_buf);
+
+                    blockwise_gemm.Run(a_block_buf, b_thread_odd_buf, c_thread_buf);
+                    block_sync_lds();
+                    a_blockwise_copy.RunWrite(a_block_desc_k0_m_k1, a_block_buf);
+                    a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1,
+                                                        a_block_slice_copy_step);
+                    b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
+                                                         b_thread_slice_copy_step);
+
+                    i += 2;
                 } while(i < (K0BlockMainLoop - 1));
             }
 
             // tail
             {
-                block_sync_lds();
+                //  block_sync_lds();
 
-                blockwise_gemm.Run(a_block_buf, b_thread_buf, c_thread_buf);
+                // blockwise_gemm.Run(a_block_buf, b_thread_buf, c_thread_buf);
             }
         }
 #else
+        ignore = b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3;
         // B matrix blockwise copy
         auto b_blockwise_copy =
             BlockwiseTensorSliceTransfer_v4r1<BlockSize,

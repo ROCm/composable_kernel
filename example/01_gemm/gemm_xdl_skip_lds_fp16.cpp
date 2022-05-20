@@ -86,10 +86,10 @@ int main(int argc, char* argv[])
 #if NORMAL_CONFIG
     ck::index_t M = 256;
     ck::index_t N = 4096;
-    ck::index_t K = 4096;
+    ck::index_t K = 64;
 
-    ck::index_t StrideA = 4096;
-    ck::index_t StrideB = 4096;
+    ck::index_t StrideA = 64;
+    ck::index_t StrideB = 64;
     ck::index_t StrideC = 4096;
 #else
     ck::index_t M = 16;
