@@ -93,6 +93,13 @@ __host__ __device__ constexpr auto operator*(index_t a, const Tuple<Xs...>& x)
     return r;
 }
 
+// MultiIndex = MultiIndex * index_t
+template <typename... Xs>
+__host__ __device__ constexpr auto operator*(const Tuple<Xs...>& x, index_t a)
+{
+    return a * x;
+}
+
 template <typename... Xs>
 __host__ __device__ void print_multi_index(const Tuple<Xs...>& x)
 {

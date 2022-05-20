@@ -486,13 +486,16 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                     b_grid_desc_k0_n_k1_container_.push_back(descs[I1]);
                     c_grid_desc_m_n_container_.push_back(descs[I2]);
 
-                    if(GridwiseGemm::CheckValidity(descs[I0], descs[I1], descs[I2], M01_, N01_))
+                    auto block_2_ctile_map =
+                        GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2], M01, N01);
+
+                    if(GridwiseGemm::CheckValidity(
+                           descs[I0], descs[I1], descs[I2], block_2_ctile_map))
                     {
                         c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_.push_back(
                             GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(descs[I2]));
 
-                        block_2_ctile_map_container_.push_back(
-                            GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2], M01, N01));
+                        block_2_ctile_map_container_.push_back(block_2_ctile_map);
                     }
                 }
             }
@@ -572,15 +575,14 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                 if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
                                                 arg.b_grid_desc_k0_n_k1_container_[i],
                                                 arg.c_grid_desc_m_n_container_[i],
-                                                arg.M01_,
-                                                arg.N01_))
+                                                arg.block_2_ctile_map_container_[i]))
                 {
                     throw std::runtime_error(
                         "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v3r1 has invalid setting");
                 }
 
-                const index_t grid_size =
-                    GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_container_[i]);
+                const index_t grid_size = arg.block_2_ctile_map_container_[i].CalculateGridSize(
+                    arg.c_grid_desc_m_n_container_[i]);
 
                 const auto K = arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I0) *
                                arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I2);
@@ -703,8 +705,7 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
                                             arg.b_grid_desc_k0_n_k1_container_[i],
                                             arg.c_grid_desc_m_n_container_[i],
-                                            arg.M01_,
-                                            arg.N01_))
+                                            arg.block_2_ctile_map_container_[i]))
             {
                 return false;
             }
