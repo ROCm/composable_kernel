@@ -13,5 +13,13 @@
 #include "device_reduce_instance_multiblock_atomic_add_f32_f32_f32.hpp"
 #include "device_reduce_instance_multiblock_atomic_add_f32_f64_f32.hpp"
 #include "device_reduce_instance_multiblock_atomic_add_b16_f32_f32.hpp"
+#include "device_reduce_instance_threadwise_f16_f16_f16.hpp"
+#include "device_reduce_instance_threadwise_f16_f32_f16.hpp"
+#include "device_reduce_instance_threadwise_f32_f32_f32.hpp"
+#include "device_reduce_instance_threadwise_f32_f64_f32.hpp"
+#include "device_reduce_instance_threadwise_f64_f64_f64.hpp"
+#include "device_reduce_instance_threadwise_i8_i8_i8.hpp"
+#include "device_reduce_instance_threadwise_i8_i32_i8.hpp"
+#include "device_reduce_instance_threadwise_b16_f32_b16.hpp"
 
 #endif

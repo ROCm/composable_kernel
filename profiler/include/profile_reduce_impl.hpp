@@ -273,6 +273,15 @@ bool profile_reduce_impl_impl(bool do_verification,
 
         std::vector<DeviceReduceInstPtr0> reduce0_ptrs;
 
+        add_device_reduce_instance_threadwise<InDataType,
+                                              AccDataType,
+                                              OutDataType,
+                                              Rank,
+                                              NumReduceDim,
+                                              ReduceOpId,
+                                              PropagateNan,
+                                              UseIndex>(reduce0_ptrs);
+
         add_device_reduce_instance_blockwise<InDataType,
                                              AccDataType,
                                              OutDataType,

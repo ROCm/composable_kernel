@@ -13,7 +13,6 @@ namespace device_reduce_instance {
 using reduce_configuration_1_instances_blockwise = std::tuple<
     // clang-format off
     // BlockSize | MThreadClusterSize | KThreadClusterSize
-    ReductionConfiguration_1<256, 256, 1>,
     ReductionConfiguration_1<256, 128, 2>,
     ReductionConfiguration_1<256, 64, 4>,
     ReductionConfiguration_1<256, 32, 8>,

@@ -217,8 +217,6 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
                                                      InMemoryDataOperationEnum::Set,
                                                      false, // propagate_nan
                                                      BlockSize,
-                                                     ReduceMThreadClusterSize,
-                                                     ReduceKThreadClusterSize,
                                                      ReduceMThreadSliceSize,
                                                      ReduceKThreadSliceSize,
                                                      InSrcOutDstVectorDim,

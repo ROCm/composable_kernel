@@ -1,5 +1,5 @@
-#ifndef DEVICE_REDUCE_BLOCKWISE_HPP
-#define DEVICE_REDUCE_BLOCKWISE_HPP
+#ifndef DEVICE_REDUCE_THREADWISE_HPP
+#define DEVICE_REDUCE_THREADWISE_HPP
 
 #include <iostream>
 #include <sstream>
@@ -25,21 +25,14 @@ template <typename InDataType,
           bool OutputIndex,
           bool HaveIndexInputIfOutputIndex,
           index_t BlockSize,
-          index_t MThreadClusterSize,
-          index_t KThreadClusterSize,
           index_t MThreadSliceSize,
           index_t KThreadSliceSize,
           index_t InSrcVectorDim,
           index_t InSrcVectorSize,
           index_t OutDstVectorSize>
-struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccElementwiseOperation>
+struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, AccElementwiseOperation>
 {
     static_assert(Rank <= 6, "Bigger Rank size is not supported!");
-    static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
-                  "Invalid thread cluster size assignments!");
-
-    static_assert(KThreadClusterSize > 1,
-                  "KThreadClusterSize of 1 should cal DeviceReduceThreadWise!");
 
     static_assert(((InSrcVectorDim == 0 && MThreadSliceSize % InSrcVectorSize == 0) ||
                    (InSrcVectorDim == 1 && KThreadSliceSize % InSrcVectorSize == 0)) &&
@@ -56,8 +49,8 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
     static constexpr index_t numDstDim = (NumInvariantDim == 0) ? 1 : NumInvariantDim;
     static constexpr bool reduceAllDim = (NumInvariantDim == 0);
 
-    static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
-    static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
+    static constexpr index_t M_BlockTileSize = BlockSize * MThreadSliceSize;
+    static constexpr index_t K_BlockTileSize = 1 * KThreadSliceSize;
 
     static auto MakeSrc2dDescriptor(const std::vector<index_t>& inLengths,
                                     const std::vector<index_t>& inStrides)
@@ -219,16 +212,16 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             const auto in_grid_desc_m_k =
-                DeviceReduceBlockWise::MakeSrc2dDescriptor(arg.inLengths_, arg.inStrides_);
+                DeviceReduceThreadWise::MakeSrc2dDescriptor(arg.inLengths_, arg.inStrides_);
             const auto out_grid_desc_m =
-                DeviceReduceBlockWise::MakeDst1dDescriptor(arg.outLengths_, arg.outStrides_);
+                DeviceReduceThreadWise::MakeDst1dDescriptor(arg.outLengths_, arg.outStrides_);
             using InGridDesc_M_K = decltype(in_grid_desc_m_k);
             using OutGridDesc_M  = decltype(out_grid_desc_m);
 
             float avg_time = 0;
 
             using GridwiseReduce =
-                GridwiseReduction_mk_to_m_multiblock<InDataType,
+                GridwiseReduction_mk_to_m_threadwise<InDataType,
                                                      OutDataType,
                                                      AccDataType,
                                                      IndexDataType,
@@ -240,15 +233,13 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
                                                      InMemoryDataOperationEnum::Set,
                                                      PropagateNan,
                                                      BlockSize,
-                                                     MThreadClusterSize,
-                                                     KThreadClusterSize,
                                                      MThreadSliceSize,
                                                      KThreadSliceSize,
                                                      InSrcVectorDim,
                                                      InSrcVectorSize,
                                                      OutDstVectorSize>;
 
-            const auto kernel = kernel_reduce_multiblock<GridwiseReduce,
+            const auto kernel = kernel_reduce_threadwise<GridwiseReduce,
                                                          OutputIndex,
                                                          HaveIndexInput,
                                                          InDataType,
@@ -269,8 +260,6 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
                                               out_grid_desc_m,
                                               arg.in_elementwise_op_,
                                               arg.acc_elementwise_op_,
-                                              static_cast<index_t>(1),
-                                              static_cast<index_t>(arg.numBlockTileIteration),
                                               arg.alpha_,
                                               arg.in_dev_,
                                               nullptr,
@@ -320,8 +309,8 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
         if(pArg->invariant_lowest_length % OutDstVectorSize != 0)
             return (false);
 
-        // cases with very small reduce_total_length should be handled by ThreadWise kernel
-        if(pArg->reduce_total_length / KThreadSliceSize < 2)
+        // cases with big reduce_total_length should be handled by Blockwise kernel
+        if(pArg->reduce_total_length / KThreadSliceSize >= 32)
             return (false);
 
         return (true);
@@ -368,9 +357,9 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceReduceBlockWise<" << BlockSize << ",";
-        str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
-        str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
+        str << "DeviceReduceThreadWise<" << BlockSize << ",";
+        str << "M_C" << BlockSize << "_S" << MThreadSliceSize << ",";
+        str << "K_C" << 1 << "_S" << KThreadSliceSize << ",";
         str << "InSrcVectorDim_" << InSrcVectorDim << "_InSrcVectorSize_" << InSrcVectorSize << "_OutDstVectorSize_" << OutDstVectorSize << ">";
         // clang-format on
 

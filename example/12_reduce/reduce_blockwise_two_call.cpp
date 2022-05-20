@@ -71,8 +71,8 @@ using DeviceReduceInstance_2 = DeviceReduceBlockWise<InOutDataType,
                                                      OutputIndex,
                                                      false, // HaveIndexInputIfOutputIndex
                                                      256,
-                                                     256,
-                                                     1,
+                                                     128,
+                                                     2,
                                                      1,
                                                      1,
                                                      1, // vector dim
