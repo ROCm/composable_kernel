@@ -369,8 +369,8 @@ struct TestCGemmBF16
 
         bf16_to_f32_(a_m_k_real_bf16, a_m_k_real_fp32);
         bf16_to_f32_(a_m_k_imag_bf16, a_m_k_imag_fp32);
-        bf16_to_f32_(b_k_n_real_bf16, b_k_n_imag_fp32);
-        bf16_to_f32_(b_k_n_real_bf16, b_k_n_imag_fp32);
+        bf16_to_f32_(b_k_n_real_bf16, b_k_n_real_fp32);
+        bf16_to_f32_(b_k_n_imag_bf16, b_k_n_imag_fp32);
 
         return std::make_tuple(a_m_k_real_bf16,
                                a_m_k_imag_bf16,
@@ -464,12 +464,12 @@ struct TestCGemmBF16
                                                    c_real_host_fp32.mData,
                                                    "Error: incorrect results in real part!",
                                                    1e-2f,
-                                                   1e-3f);
+                                                   1e-1f);
         const bool res_imag = ck::utils::check_err(c_imag_device_fp32.mData,
                                                    c_imag_host_fp32.mData,
                                                    "Error: incorrect results in imaginary part!",
                                                    1e-2f,
-                                                   1e-3f);
+                                                   1e-1f);
         const bool res      = res_real && res_imag;
 
         std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
