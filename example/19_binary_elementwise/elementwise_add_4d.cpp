@@ -5,7 +5,6 @@
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
-#include "host_utility.hpp"
 
 #include "device_tensor.hpp"
 #include "binary_element_wise_operation.hpp"
@@ -56,29 +55,29 @@ int main()
 
     std::vector<std::size_t> nchw = {4, 16, 32, 32};
 
-    Tensor<ABDataType> a_m(nchw);
-    Tensor<ABDataType> b_m(nchw);
-    Tensor<ABDataType> c_m(nchw);
+    Tensor<ABDataType> a(nchw);
+    Tensor<ABDataType> b(nchw);
+    Tensor<CDataType> c(nchw);
 
-    a_m.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
-    b_m.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
+    a.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
+    b.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
 
-    DeviceMem a_m_device_buf(sizeof(ABDataType) * a_m.mDesc.GetElementSpace());
-    DeviceMem b_m_device_buf(sizeof(ABDataType) * b_m.mDesc.GetElementSpace());
-    DeviceMem c_m_device_buf(sizeof(CDataType) * c_m.mDesc.GetElementSpace());
+    DeviceMem a_device_buf(sizeof(ABDataType) * a.mDesc.GetElementSpace());
+    DeviceMem b_device_buf(sizeof(ABDataType) * b.mDesc.GetElementSpace());
+    DeviceMem c_device_buf(sizeof(CDataType) * c.mDesc.GetElementSpace());
 
-    a_m_device_buf.ToDevice(a_m.mData.data());
-    b_m_device_buf.ToDevice(b_m.mData.data());
+    a_device_buf.ToDevice(a.mData.data());
+    b_device_buf.ToDevice(b.mData.data());
 
     auto broadcastAdd = DeviceElementwiseAddInstance{};
     auto argument     = broadcastAdd.MakeArgumentPointer(
-        a_m_device_buf.GetDeviceBuffer(),
-        b_m_device_buf.GetDeviceBuffer(),
-        c_m_device_buf.GetDeviceBuffer(),
-        ck::convert_vector_element_type<std::size_t, ck::index_t>(nchw),
-        ck::convert_vector_element_type<std::size_t, ck::index_t>(a_m.mDesc.GetStrides()),
-        ck::convert_vector_element_type<std::size_t, ck::index_t>(b_m.mDesc.GetStrides()),
-        ck::convert_vector_element_type<std::size_t, ck::index_t>(c_m.mDesc.GetStrides()),
+        a_device_buf.GetDeviceBuffer(),
+        b_device_buf.GetDeviceBuffer(),
+        c_device_buf.GetDeviceBuffer(),
+        std::vector<ck::index_t>{nchw.begin(), nchw.end()},
+        std::vector<ck::index_t>{a.mDesc.GetStrides().begin(), a.mDesc.GetStrides().end()},
+        std::vector<ck::index_t>{b.mDesc.GetStrides().begin(), b.mDesc.GetStrides().end()},
+        std::vector<ck::index_t>{c.mDesc.GetStrides().begin(), c.mDesc.GetStrides().end()},
         Add{});
 
     if(!broadcastAdd.IsSupportedArgument(argument.get()))
@@ -96,17 +95,17 @@ int main()
     bool pass = true;
     if(do_verification)
     {
-        c_m_device_buf.FromDevice(c_m.mData.data());
-        Tensor<CDataType> host_c_m(nchw);
+        c_device_buf.FromDevice(c.mData.data());
+        Tensor<CDataType> host_c(nchw);
 
         host_elementwise4D<Tensor<ABDataType>,
                            Tensor<ABDataType>,
                            Tensor<CDataType>,
                            EltwiseComputeDataType,
-                           Add>(host_c_m, a_m, b_m, nchw, Add{});
+                           Add>(host_c, a, b, nchw, Add{});
 
-        pass &= ck::utils::check_err(
-            c_m.mData, host_c_m.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
+        pass &=
+            ck::utils::check_err(c.mData, host_c.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
     }
 
     return pass ? 0 : 1;
