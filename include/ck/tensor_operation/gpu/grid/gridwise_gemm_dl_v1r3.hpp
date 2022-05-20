@@ -1,8 +1,10 @@
 #pragma once
+
 #include "common_header.hpp"
 #include "multi_index_transform_helper.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
+#include "tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "blockwise_gemm_dl_v2r3.hpp"
 #include "blockwise_tensor_slice_transfer_v5r1.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
@@ -56,7 +58,7 @@ template <index_t BlockSize,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename AGridDesc_K0_M_K1,
           typename BGridDesc_K0_N_K1,
-          typename CMNGridDesc,
+          typename CGridDesc_M_N,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t K0PerBlock,
@@ -121,7 +123,7 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
     __host__ __device__ static constexpr bool
     CheckValidity(const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
                   const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
-                  const CMNGridDesc& c_grid_desc_m_n)
+                  const CGridDesc_M_N& c_grid_desc_m_n)
     {
         const auto M  = a_grid_desc_k0_m_k1.GetLength(I1);
         const auto N  = b_grid_desc_k0_n_k1.GetLength(I1);
@@ -198,7 +200,7 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
     }
 
     __host__ __device__ static constexpr auto
-    MakeCGridDescriptor_M0_M10_M11_N0_N10_N11(const CMNGridDesc& c_grid_desc_m_n)
+    MakeCGridDescriptor_M0_M10_M11_N0_N10_N11(const CGridDesc_M_N& c_grid_desc_m_n)
     {
         const auto M = c_grid_desc_m_n.GetLength(I0);
         const auto N = c_grid_desc_m_n.GetLength(I1);
@@ -229,31 +231,19 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
         return c_grid_desc_m0_m10_m11_n0_n10_n11;
     }
 
+    // return block_id to C matrix tile idx (m0, n0) mapping
     __host__ __device__ static constexpr auto
-    MakeDefaultBlock2CTileMap(const CMNGridDesc& c_grid_desc_m_n)
+    MakeDefaultBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n)
     {
-        const auto M = c_grid_desc_m_n.GetLength(I0);
-        const auto N = c_grid_desc_m_n.GetLength(I1);
-
-        constexpr auto M1 = Number<MPerBlock>{};
-        constexpr auto N1 = Number<NPerBlock>{};
-
-        const auto M0 = M / M1;
-        const auto N0 = N / N1;
-
-        const auto block_2_ctile_map =
-            make_single_stage_tensor_adaptor(make_tuple(make_merge_transform(make_tuple(M0, N0))),
-                                             make_tuple(Sequence<0, 1>{}),
-                                             make_tuple(Sequence<0>{}));
-
-        return block_2_ctile_map;
+        return BlockToCTileMap_M00_N00_M01_N01<MPerBlock, NPerBlock, CGridDesc_M_N>(
+            c_grid_desc_m_n);
     }
 
     using AGridDesc_K0_M0_M1_K1 = decltype(MakeAGridDescriptor_K0_M0_M1_K1(AGridDesc_K0_M_K1{}));
     using BGridDesc_K0_N0_N1_K1 = decltype(MakeBGridDescriptor_K0_N0_N1_K1(BGridDesc_K0_N_K1{}));
     using CGridDesc_M0_M10_M11_N0_N10_N11 =
-        decltype(MakeCGridDescriptor_M0_M10_M11_N0_N10_N11(CMNGridDesc{}));
-    using Block2CTileMap = decltype(MakeDefaultBlock2CTileMap(CMNGridDesc{}));
+        decltype(MakeCGridDescriptor_M0_M10_M11_N0_N10_N11(CGridDesc_M_N{}));
+    using Block2CTileMap = decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}));
 
     template <bool HasMainKBlockLoop, bool HasDoubleTailKBlockLoop>
     __device__ static void
