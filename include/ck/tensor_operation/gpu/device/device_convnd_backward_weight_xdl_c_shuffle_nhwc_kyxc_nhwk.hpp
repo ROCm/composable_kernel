@@ -10,7 +10,7 @@
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdlops_v2r4r2.hpp"
+#include "gridwise_gemm_xdlops_bwd_weight.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -81,6 +81,20 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
 
     static constexpr auto K1Number     = Number<K1>{};
     static constexpr auto GemmK1Number = K1Number;
+
+    // Bytes per 32 lds bank: 32 * 4 bytes
+    static constexpr auto BankLength = 128;
+    static constexpr auto ElePerBank = BankLength / sizeof(ADataType);
+
+    // M1 & M0
+    static constexpr auto ABlockLdsM1PerBlock = ElePerBank / K1;
+    static constexpr auto ABlockLdsM0PerBlock = MPerBlock / ABlockLdsM1PerBlock;
+    static constexpr auto ABlockLdsM1Padding  = 4;
+
+    // N1 & N0
+    static constexpr auto BBlockLdsN1PerBlock = ElePerBank / K1;
+    static constexpr auto BBlockLdsN0PerBlock = NPerBlock / BBlockLdsN1PerBlock;
+    static constexpr auto BBlockLdsN1Padding  = 4;
 
     template <ck::index_t NDim, typename ck::enable_if<NDim == 1, bool>::type = false>
     static auto
@@ -621,7 +635,7 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
     using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
+    using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight<
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
@@ -649,6 +663,9 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         ABlockTransferDstScalarPerVector_K1,
         false, // AThreadTransferSrcResetCoordinateAfterRun,
         ABlockLdsAddExtraM,
+        ABlockLdsM1PerBlock,
+        ABlockLdsM0PerBlock,
+        ABlockLdsM1Padding,
         BBlockTransferThreadClusterLengths_K0_N_K1,
         BBlockTransferThreadClusterArrangeOrder,
         BBlockTransferSrcAccessOrder,
@@ -657,12 +674,17 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         BBlockTransferDstScalarPerVector_K1,
         false, // BThreadTransferSrcResetCoordinateAfterRun,
         BBlockLdsAddExtraN,
+        BBlockLdsN1PerBlock,
+        BBlockLdsN0PerBlock,
+        BBlockLdsN1Padding,
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
         CBlockTransferScalarPerVector_NWaveNPerXdl,
-        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>;
+        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        true,
+        true>;
 
-    using GridwiseGemmAtomicAdd = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
+    using GridwiseGemmAtomicAdd = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight<
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
@@ -690,6 +712,9 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         ABlockTransferDstScalarPerVector_K1,
         false, // AThreadTransferSrcResetCoordinateAfterRun,
         ABlockLdsAddExtraM,
+        ABlockLdsM1PerBlock,
+        ABlockLdsM0PerBlock,
+        ABlockLdsM1Padding,
         BBlockTransferThreadClusterLengths_K0_N_K1,
         BBlockTransferThreadClusterArrangeOrder,
         BBlockTransferSrcAccessOrder,
@@ -698,10 +723,15 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         BBlockTransferDstScalarPerVector_K1,
         false, // BThreadTransferSrcResetCoordinateAfterRun,
         BBlockLdsAddExtraN,
+        BBlockLdsN1PerBlock,
+        BBlockLdsN0PerBlock,
+        BBlockLdsN1Padding,
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
         CBlockTransferScalarPerVector_NWaveNPerXdl,
-        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>;
+        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        true,
+        true>;
 
     // Argument
     using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
@@ -885,7 +915,7 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             {
                 if(has_main_k0_block_loop)
                 {
-                    const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                    const auto kernel = kernel_gemm_xdlops_bwd_weight<
                         GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
@@ -902,7 +932,7 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                 }
                 else
                 {
-                    const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                    const auto kernel = kernel_gemm_xdlops_bwd_weight<
                         GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
@@ -924,7 +954,7 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                 {
                     if(kbatch == 1)
                     {
-                        const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                        const auto kernel = kernel_gemm_xdlops_bwd_weight<
                             GridwiseGemm,
                             ADataType, // TODO: distiguish A/B datatype
                             CDataType,
@@ -942,7 +972,7 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                     }
                     else
                     {
-                        const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                        const auto kernel = kernel_gemm_xdlops_bwd_weight<
                             GridwiseGemmAtomicAdd,
                             ADataType, // TODO: distiguish A/B datatype
                             CDataType,
@@ -963,7 +993,7 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                 {
                     if(kbatch == 1)
                     {
-                        const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                        const auto kernel = kernel_gemm_xdlops_bwd_weight<
                             GridwiseGemm,
                             ADataType, // TODO: distiguish A/B datatype
                             CDataType,
@@ -981,7 +1011,7 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                     }
                     else
                     {
-                        const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                        const auto kernel = kernel_gemm_xdlops_bwd_weight<
                             GridwiseGemmAtomicAdd,
                             ADataType, // TODO: distiguish A/B datatype
                             CDataType,
