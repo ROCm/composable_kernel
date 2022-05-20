@@ -63,4 +63,5 @@ add_subdirectory(convnd_fwd)
 add_subdirectory(reduce)
 add_subdirectory(conv2d_bwd_weight)
 add_subdirectory(convnd_bwd_data)
+add_subdirectory(block_to_ctile_map)
 # DONOT add client_app, that is tested via CI independently
