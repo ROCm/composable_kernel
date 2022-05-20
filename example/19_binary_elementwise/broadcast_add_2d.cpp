@@ -74,9 +74,7 @@ int main()
     };
 
     Tensor<ABDataType> a_m_n(f_host_tensor_descriptor2d(M, N, Stride));
-
     Tensor<ABDataType> b_n(f_host_tensor_descriptor1d(N, 1));
-
     Tensor<CDataType> c_m_n(f_host_tensor_descriptor2d(M, N, Stride));
 
     a_m_n.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
