@@ -358,11 +358,11 @@ pipeline {
         {
             parallel
             {
-                stage("Run ckProfiler: gfx907")
+                stage("Run ckProfiler: gfx908")
                 {
-                    agent{ label rocmnode("gfx907")}
+                    agent{ label rocmnode("gfx908")}
                     environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx907 -O3 " -DBUILD_DEV=On """
+                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
                         dbuser = "${dbuser}"
                         dbpassword = "${dbpassword}"
                         dbsship = "${dbsship}"
