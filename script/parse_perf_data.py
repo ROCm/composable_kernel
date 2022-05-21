@@ -153,9 +153,8 @@ def main():
         '''
 
         #read baseline results for the latest develop branch
-        query = '''SELECT * from ck_gemm_tflops where Branch_ID="develop" and Datetime = (SELECT MAX(Datetime) FROM ck_gemm_tflops);'''
+        query = '''SELECT * from ck_gemm_tflops WHERE Datetime = (SELECT MAX(Datetime) FROM ck_gemm_tflops where Branch_ID='develop' );'''
         tflops_base = pd.read_sql_query(query, conn)
-        #print("tflops_base:",tflops_base)
 
         #write new results to the db
         testlist=[]
@@ -173,12 +172,12 @@ def main():
     regression=0
     base=tflops_base[testlist].to_numpy(dtype='float')
     base_list=base[0]
-    #print("baseline=",base_list)
     ave_perf=0
     for i in range(len(base_list)):
         # success criterion:
-        if base_list[i]>float(sorted_tflops[i]):
-            print("test # ",i,"shows regression")
+        if base_list[i]>1.01*float(sorted_tflops[i]):
+            print("test # ",i,"shows regression by {:.3f}%".format(
+                (float(sorted_tflops[i])-base_list[i])/base_list[i]*100))
             regression=1
         ave_perf=ave_perf+float(sorted_tflops[i])/base_list[i]
     if regression==0:
