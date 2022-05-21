@@ -12,7 +12,7 @@
 #include "host_tensor_generator.hpp"
 #include "device_tensor.hpp"
 #include "device_base.hpp"
-#include "device_reduce_blockwise.hpp"
+#include "device_reduce_multiblock.hpp"
 #include "host_common_util.hpp"
 #include "host_reduction.hpp"
 
@@ -39,25 +39,26 @@ using InElementwiseOperation =
 using AccElementwiseOperation =
     typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::AccElementwiseOperation;
 
-using DeviceReduceInstance = DeviceReduceBlockWise<InDataType,
-                                                   AccDataType,
-                                                   OutDataType,
-                                                   Rank,
-                                                   NumReduceDim,
-                                                   ReduceOperation,
-                                                   InElementwiseOperation,
-                                                   AccElementwiseOperation,
-                                                   PropagateNan,
-                                                   OutputIndex,
-                                                   false, // HaveIndexInputIfOutputIndex
-                                                   256,
-                                                   4,
-                                                   64,
-                                                   1,
-                                                   1,
-                                                   0,
-                                                   1,
-                                                   1>;
+using DeviceReduceInstance = DeviceReduceMultiBlock<InDataType,
+                                                    AccDataType,
+                                                    OutDataType,
+                                                    Rank,
+                                                    NumReduceDim,
+                                                    ReduceOperation,
+                                                    InElementwiseOperation,
+                                                    AccElementwiseOperation,
+                                                    InMemoryDataOperationEnum::Set,
+                                                    PropagateNan,
+                                                    OutputIndex,
+                                                    false, // HaveIndexInputIfOutputIndex
+                                                    256,
+                                                    4,
+                                                    64,
+                                                    1,
+                                                    1,
+                                                    0,
+                                                    1,
+                                                    1>;
 
 static struct option long_options[] = {{"inLengths", required_argument, nullptr, 'D'},
                                        {"verify", required_argument, nullptr, 'v'},

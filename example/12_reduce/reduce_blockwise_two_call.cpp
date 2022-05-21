@@ -13,7 +13,7 @@
 #include "host_tensor_generator.hpp"
 #include "device_tensor.hpp"
 #include "device_base.hpp"
-#include "device_reduce_blockwise.hpp"
+#include "device_reduce_multiblock.hpp"
 #include "host_common_util.hpp"
 #include "host_reduction.hpp"
 
@@ -39,45 +39,47 @@ using AccElementwiseOperation =
 
 using PassThroughOp = tensor_operation::element_wise::UnaryIdentic<AccDataType, AccDataType>;
 
-using DeviceReduceInstance_1 = DeviceReduceBlockWise<InOutDataType,
-                                                     AccDataType,
-                                                     InOutDataType,
-                                                     5, // Rank
-                                                     1, // NumReduceDim
-                                                     ReduceOperation,
-                                                     InElementwiseOperation,
-                                                     PassThroughOp,
-                                                     PropagateNan,
-                                                     OutputIndex,
-                                                     false, // HaveIndexInputIfOutputIndex
-                                                     256,
-                                                     32,
-                                                     8,
-                                                     1,
-                                                     1,
-                                                     1, // vector dim
-                                                     1,
-                                                     1>;
+using DeviceReduceInstance_1 = DeviceReduceMultiBlock<InOutDataType,
+                                                      AccDataType,
+                                                      InOutDataType,
+                                                      5, // Rank
+                                                      1, // NumReduceDim
+                                                      ReduceOperation,
+                                                      InElementwiseOperation,
+                                                      PassThroughOp,
+                                                      InMemoryDataOperationEnum::Set,
+                                                      PropagateNan,
+                                                      OutputIndex,
+                                                      false, // HaveIndexInputIfOutputIndex
+                                                      256,
+                                                      32,
+                                                      8,
+                                                      1,
+                                                      1,
+                                                      1, // vector dim
+                                                      1,
+                                                      1>;
 
-using DeviceReduceInstance_2 = DeviceReduceBlockWise<InOutDataType,
-                                                     AccDataType,
-                                                     InOutDataType,
-                                                     4, // Rank
-                                                     1, // NumReduceDim
-                                                     ReduceOperation,
-                                                     PassThroughOp,
-                                                     AccElementwiseOperation,
-                                                     PropagateNan,
-                                                     OutputIndex,
-                                                     false, // HaveIndexInputIfOutputIndex
-                                                     256,
-                                                     128,
-                                                     2,
-                                                     1,
-                                                     1,
-                                                     1, // vector dim
-                                                     1,
-                                                     1>;
+using DeviceReduceInstance_2 = DeviceReduceMultiBlock<InOutDataType,
+                                                      AccDataType,
+                                                      InOutDataType,
+                                                      4, // Rank
+                                                      1, // NumReduceDim
+                                                      ReduceOperation,
+                                                      PassThroughOp,
+                                                      AccElementwiseOperation,
+                                                      InMemoryDataOperationEnum::Set,
+                                                      PropagateNan,
+                                                      OutputIndex,
+                                                      false, // HaveIndexInputIfOutputIndex
+                                                      256,
+                                                      128,
+                                                      2,
+                                                      1,
+                                                      1,
+                                                      1, // vector dim
+                                                      1,
+                                                      1>;
 
 static bool do_verify;
 static int init_method;

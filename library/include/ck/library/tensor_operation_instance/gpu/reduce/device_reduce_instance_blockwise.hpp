@@ -3,7 +3,7 @@
 
 #include "reduction_operator_mapping.hpp"
 #include "device_reduce_instance_impl_common.hpp"
-#include "device_reduce_blockwise.hpp"
+#include "device_reduce_multiblock.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -100,25 +100,26 @@ void add_device_reduce_instance_blockwise(
                         std::get<j.value>(reduce_configuration_2_instances_blockwise{}))>;
 
                     using ReduceOpInstance =
-                        DeviceReduceBlockWise<InDataType,
-                                              AccDataType,
-                                              OutDataType,
-                                              Rank,
-                                              NumReduceDim,
-                                              ReduceOperation,
-                                              InElementwiseOperation,
-                                              AccElementwiseOperation,
-                                              PropagateNan,
-                                              OutputIndex,
-                                              false, // HaveIndexInputIfOutputIndex
-                                              cfg1::BlockSize_,
-                                              cfg1::MThreadClusterSize_,
-                                              cfg1::KThreadClusterSize_,
-                                              cfg2::MThreadSliceSize_,
-                                              cfg2::KThreadSliceSize_,
-                                              cfg2::InSrcVectorDim_,
-                                              cfg2::InSrcVectorSize_,
-                                              cfg2::OutDstVectorSize_>;
+                        DeviceReduceMultiBlock<InDataType,
+                                               AccDataType,
+                                               OutDataType,
+                                               Rank,
+                                               NumReduceDim,
+                                               ReduceOperation,
+                                               InElementwiseOperation,
+                                               AccElementwiseOperation,
+                                               InMemoryDataOperationEnum::Set,
+                                               PropagateNan,
+                                               OutputIndex,
+                                               false, // HaveIndexInputIfOutputIndex
+                                               cfg1::BlockSize_,
+                                               cfg1::MThreadClusterSize_,
+                                               cfg1::KThreadClusterSize_,
+                                               cfg2::MThreadSliceSize_,
+                                               cfg2::KThreadSliceSize_,
+                                               cfg2::InSrcVectorDim_,
+                                               cfg2::InSrcVectorSize_,
+                                               cfg2::OutDstVectorSize_>;
 
                     device_op_instances.push_back(
                         std::make_unique<ReduceOpInstance>(ReduceOpInstance{}));
