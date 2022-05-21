@@ -433,16 +433,17 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             b_grid_desc_kbatch_k0_n_k1_ = descs[I1];
             c_grid_desc_m_n_            = descs[I2];
 
-            block_2_ctile_map_ =
-                GridwiseGemm::MakeCBlockClusterAdaptor(c_grid_desc_m_n_, M01, N01, k_batch_);
-
             if(GridwiseGemm::CheckValidity(a_grid_desc_kbatch_k0_m_k1_,
                                            b_grid_desc_kbatch_k0_n_k1_,
                                            c_grid_desc_m_n_,
-                                           block_2_ctile_map_))
+                                           M01_,
+                                           N01_))
             {
                 c_grid_desc_mblock_mperblock_nblock_nperblock_ =
                     GridwiseGemm::MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n_);
+
+                block_2_ctile_map_ =
+                    GridwiseGemm::MakeCBlockClusterAdaptor(c_grid_desc_m_n_, M01, N01, k_batch_);
             }
         }
 
@@ -501,14 +502,14 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_kbatch_k0_m_k1_,
                                             arg.b_grid_desc_kbatch_k0_n_k1_,
                                             arg.c_grid_desc_m_n_,
-                                            arg.block_2_ctile_map_))
+                                            arg.M01_,
+                                            arg.N01_))
             {
                 throw std::runtime_error(
                     "wrong! GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight has invalid setting");
             }
-            const auto kbatch = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I0);
-            const index_t grid_size =
-                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_);
+            const auto kbatch       = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I0);
+            const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_, kbatch);
 
             const auto K0 = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I1);
 
@@ -658,7 +659,8 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_kbatch_k0_m_k1_,
                                            arg.b_grid_desc_kbatch_k0_n_k1_,
                                            arg.c_grid_desc_m_n_,
-                                           arg.block_2_ctile_map_);
+                                           arg.M01_,
+                                           arg.N01_);
     }
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override
