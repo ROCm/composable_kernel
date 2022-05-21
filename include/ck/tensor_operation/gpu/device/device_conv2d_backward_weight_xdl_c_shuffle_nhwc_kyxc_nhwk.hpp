@@ -11,7 +11,7 @@
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdlops_v2r4r2.hpp"
+#include "gridwise_gemm_xdlops_bwd_weight.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -81,6 +81,22 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
     static constexpr auto K1Number     = Number<K1>{};
     static constexpr auto GemmK1Number = K1Number;
 
+    static constexpr auto N1Number = K1Number;
+
+    // Bytes per 32 lds bank: 32 * 4 bytes
+    static constexpr auto BankLength = 128;
+    static constexpr auto ElePerBank = BankLength / sizeof(ADataType);
+
+    // M1 & M0
+    static constexpr auto ABlockLdsM1PerBlock = ElePerBank / K1;
+    static constexpr auto ABlockLdsM0PerBlock = MPerBlock / ABlockLdsM1PerBlock;
+    static constexpr auto ABlockLdsM1Padding  = 4;
+
+    // N1 & N0
+    static constexpr auto BBlockLdsN1PerBlock = ElePerBank / K1;
+    static constexpr auto BBlockLdsN0PerBlock = NPerBlock / BBlockLdsN1PerBlock;
+    static constexpr auto BBlockLdsN1Padding  = 4;
+
     static auto
     MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(ck::index_t N,
                                                     ck::index_t K,
@@ -125,27 +141,51 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         const index_t GemmK0 =
             math::integer_divide_ceil(GemmKTotal, GemmK1Number * K0PerBlock * GemmKBatch) *
             K0PerBlock;
-        const index_t GemmKPad = GemmKBatch * GemmK0 * GemmK1Number;
 
-        const auto out_gemmktotal_gemmm_grid_desc =
-            make_naive_tensor_descriptor_packed(make_tuple(N * Ho * Wo, K));
         const auto in_n_hi_wi_c_grid_desc =
             make_naive_tensor_descriptor_packed(make_tuple(N, Hi, Wi, C));
 
         // A: output tensor
-        const auto out_gemmkpad_gemmm_grid_desc = transform_tensor_descriptor(
-            out_gemmktotal_gemmm_grid_desc,
-            make_tuple(make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
-                       make_pass_through_transform(GemmM)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}));
+        const index_t N0          = N / N1Number;
+        const index_t GemmK0Total = N0 * Ho * Wo;
+
+        const index_t GemmK0S =
+            math::integer_divide_ceil(GemmK0Total, K0PerBlock * GemmKBatch) * K0PerBlock;
+        const index_t GemmK0Pad = GemmKBatch * GemmK0S;
+        const auto out_n_ho_wo_k_grid_desc =
+            make_naive_tensor_descriptor_packed(make_tuple(N, Ho * Wo, K));
+
+        const auto out_n0_ho_wo_k_n1_grid_desc =
+            transform_tensor_descriptor(out_n_ho_wo_k_grid_desc,
+                                        make_tuple(make_unmerge_transform(make_tuple(N0, N1Number)),
+                                                   make_pass_through_transform(Ho * Wo),
+                                                   make_pass_through_transform(K)),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                                        make_tuple(Sequence<0, 3>{}, Sequence<1>{}, Sequence<2>{}));
+
+        const auto out_gemmk0total_gemmm_gemmk1_grid_desc =
+            transform_tensor_descriptor(out_n0_ho_wo_k_n1_grid_desc,
+                                        make_tuple(make_merge_transform(make_tuple(N0, Ho * Wo)),
+                                                   make_pass_through_transform(K),
+                                                   make_pass_through_transform(N1Number)),
+                                        make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+
+        const auto out_gemmk0pad_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
+            out_gemmk0total_gemmm_gemmk1_grid_desc,
+            make_tuple(make_right_pad_transform(GemmK0Total, GemmK0Pad - GemmK0Total),
+                       make_pass_through_transform(GemmM),
+                       make_pass_through_transform(N1Number)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
         const auto out_gemmkbatch_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
-            out_gemmkpad_gemmm_grid_desc,
-            make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0, GemmK1Number)),
-                       make_pass_through_transform(GemmM)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
+            out_gemmk0pad_gemmm_gemmk1_grid_desc,
+            make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0)),
+                       make_pass_through_transform(GemmM),
+                       make_pass_through_transform(N1Number)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+            make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}));
 
         // B: input tensor
         const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
@@ -167,26 +207,50 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
             make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
 
-        const auto in_gemmktotal_gemmn_grid_desc =
+        const auto in_n0_y_ho_x_wo_c_n1_grid_desc =
             transform_tensor_descriptor(in_n_y_ho_x_wo_c_grid_desc,
-                                        make_tuple(make_merge_transform(make_tuple(Y, X, C)),
-                                                   make_merge_transform(make_tuple(N, Ho, Wo))),
-                                        make_tuple(Sequence<1, 3, 5>{}, Sequence<0, 2, 4>{}),
-                                        make_tuple(Sequence<1>{}, Sequence<0>{}));
+                                        make_tuple(make_unmerge_transform(make_tuple(N0, N1Number)),
+                                                   make_pass_through_transform(Y),
+                                                   make_pass_through_transform(Ho),
+                                                   make_pass_through_transform(X),
+                                                   make_pass_through_transform(Wo),
+                                                   make_pass_through_transform(C)),
+                                        make_tuple(Sequence<0>{},
+                                                   Sequence<1>{},
+                                                   Sequence<2>{},
+                                                   Sequence<3>{},
+                                                   Sequence<4>{},
+                                                   Sequence<5>{}),
+                                        make_tuple(Sequence<0, 6>{},
+                                                   Sequence<1>{},
+                                                   Sequence<2>{},
+                                                   Sequence<3>{},
+                                                   Sequence<4>{},
+                                                   Sequence<5>{}));
 
-        const auto in_gemmkpad_gemmn_grid_desc = transform_tensor_descriptor(
-            in_gemmktotal_gemmn_grid_desc,
-            make_tuple(make_right_pad_transform(GemmKTotal, GemmKPad - GemmKTotal),
-                       make_pass_through_transform(GemmN)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}));
+        const auto in_gemmk0total_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
+            in_n0_y_ho_x_wo_c_n1_grid_desc,
+            make_tuple(make_merge_transform(make_tuple(N0, Ho, Wo)),
+                       make_merge_transform(make_tuple(Y, X, C)),
+                       make_pass_through_transform(N1Number)),
+            make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5>{}, Sequence<6>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+
+        const auto in_gemmk0pad_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
+            in_gemmk0total_gemmn_gemmk1_grid_desc,
+            make_tuple(make_right_pad_transform(GemmK0Total, GemmK0Pad - GemmK0Total),
+                       make_pass_through_transform(GemmN),
+                       make_pass_through_transform(N1Number)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
         const auto in_gemmkbatch_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
-            in_gemmkpad_gemmn_grid_desc,
-            make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0, GemmK1Number)),
-                       make_pass_through_transform(GemmN)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
+            in_gemmk0pad_gemmn_gemmk1_grid_desc,
+            make_tuple(make_unmerge_transform(make_tuple(GemmKBatch, GemmK0)),
+                       make_pass_through_transform(GemmN),
+                       make_pass_through_transform(N1Number)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+            make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}));
 
         // C: weight tensor
         const auto wei_gemmm_gemmn_grid_desc =
@@ -205,7 +269,7 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
     using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
+    using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight<
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
@@ -233,6 +297,9 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         ABlockTransferDstScalarPerVector_K1,
         false, // AThreadTransferSrcResetCoordinateAfterRun,
         ABlockLdsAddExtraM,
+        ABlockLdsM1PerBlock,
+        ABlockLdsM0PerBlock,
+        ABlockLdsM1Padding,
         BBlockTransferThreadClusterLengths_K0_N_K1,
         BBlockTransferThreadClusterArrangeOrder,
         BBlockTransferSrcAccessOrder,
@@ -241,12 +308,17 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         BBlockTransferDstScalarPerVector_K1,
         false, // BThreadTransferSrcResetCoordinateAfterRun,
         BBlockLdsAddExtraN,
+        BBlockLdsN1PerBlock,
+        BBlockLdsN0PerBlock,
+        BBlockLdsN1Padding,
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
         CBlockTransferScalarPerVector_NWaveNPerXdl,
-        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>;
+        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        true,
+        true>;
 
-    using GridwiseGemmAtomicAdd = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
+    using GridwiseGemmAtomicAdd = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight<
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
@@ -274,6 +346,9 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         ABlockTransferDstScalarPerVector_K1,
         false, // AThreadTransferSrcResetCoordinateAfterRun,
         ABlockLdsAddExtraM,
+        ABlockLdsM1PerBlock,
+        ABlockLdsM0PerBlock,
+        ABlockLdsM1Padding,
         BBlockTransferThreadClusterLengths_K0_N_K1,
         BBlockTransferThreadClusterArrangeOrder,
         BBlockTransferSrcAccessOrder,
@@ -282,10 +357,15 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         BBlockTransferDstScalarPerVector_K1,
         false, // BThreadTransferSrcResetCoordinateAfterRun,
         BBlockLdsAddExtraN,
+        BBlockLdsN1PerBlock,
+        BBlockLdsN0PerBlock,
+        BBlockLdsN1Padding,
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
         CBlockTransferScalarPerVector_NWaveNPerXdl,
-        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>;
+        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        true,
+        true>;
     // Argument
     using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
         decltype(GridwiseGemm::MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}));
@@ -426,7 +506,7 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                                             arg.N01_))
             {
                 throw std::runtime_error(
-                    "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v3r1 has invalid setting");
+                    "wrong! GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight has invalid setting");
             }
             const auto kbatch       = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I0);
             const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_, kbatch);
@@ -444,28 +524,29 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                     arg.c_grid_desc_mblock_mperblock_nblock_nperblock_.GetElementSpaceSize() *
                         sizeof(CDataType)));
 
-                launch_and_time_kernel(stream_config,
-                                       kernel,
-                                       dim3(grid_size),
-                                       dim3(BlockSize),
-                                       0,
-                                       arg.p_a_grid_,
-                                       arg.p_b_grid_,
-                                       arg.p_c_grid_,
-                                       arg.a_grid_desc_kbatch_k0_m_k1_,
-                                       arg.b_grid_desc_kbatch_k0_n_k1_,
-                                       arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                       arg.a_element_op_,
-                                       arg.b_element_op_,
-                                       arg.c_element_op_,
-                                       arg.block_2_ctile_map_);
+                ave_time =
+                    launch_and_time_kernel(stream_config,
+                                           kernel,
+                                           dim3(grid_size),
+                                           dim3(BlockSize),
+                                           0,
+                                           arg.p_a_grid_,
+                                           arg.p_b_grid_,
+                                           arg.p_c_grid_,
+                                           arg.a_grid_desc_kbatch_k0_m_k1_,
+                                           arg.b_grid_desc_kbatch_k0_n_k1_,
+                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_,
+                                           arg.block_2_ctile_map_);
             };
 
             if(has_main_k0_block_loop)
             {
                 if(kbatch == 1)
                 {
-                    const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                    const auto kernel = kernel_gemm_xdlops_bwd_weight<
                         GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
@@ -482,7 +563,7 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                 }
                 else
                 {
-                    const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                    const auto kernel = kernel_gemm_xdlops_bwd_weight<
                         GridwiseGemmAtomicAdd,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
@@ -502,7 +583,7 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             {
                 if(kbatch == 1)
                 {
-                    const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                    const auto kernel = kernel_gemm_xdlops_bwd_weight<
                         GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
@@ -519,7 +600,7 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                 }
                 else
                 {
-                    const auto kernel = kernel_gemm_xdlops_v2r4r2<
+                    const auto kernel = kernel_gemm_xdlops_bwd_weight<
                         GridwiseGemmAtomicAdd,
                         ADataType, // TODO: distiguish A/B datatype
                         CDataType,
@@ -558,6 +639,12 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         if(!(ABlockTransferSrcVectorDim == 2 && BBlockTransferSrcVectorDim == 2 &&
              arg.Conv_K_ % ABlockTransferSrcScalarPerVector == 0 &&
              arg.Conv_C_ % BBlockTransferSrcScalarPerVector == 0))
+        {
+            return false;
+        }
+
+        // unmerge N to N0 and N1, where N1 equals to K1
+        if(!(arg.Conv_N_ % K1 == 0))
         {
             return false;
         }
