@@ -183,9 +183,8 @@ T GetAtomicOperationZeroValue(InMemoryDataOperationEnum operation)
 {
     T result = ck::type_convert<T>(0.0f);
 
-    // ToDo: Add support for other AtomicOperations(eg. AtomicMax)
-    if(operation == InMemoryDataOperationEnum::AtomicAdd)
-        result = ck::reduce::Add<T>::GetReductionZeroVal();
+    if(operation == InMemoryDataOperationEnum::AtomicMax)
+        result = ck::NumericLimits<T>::Lowest();
 
     return (result);
 };
