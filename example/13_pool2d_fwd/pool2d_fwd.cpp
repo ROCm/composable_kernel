@@ -80,8 +80,8 @@ static void pool_host_verify(const Tensor<InDataType>& in,
                 for(int x = 0; x < window_spatial_lengths[1]; ++x)
                 {
                     int wi = wo * window_strides[1] + x - in_left_pads[1];
-                    if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
-                       wi < in.mDesc.GetLengths()[3])
+                    if(hi >= 0 && hi < ck::type_convert<int>(in.mDesc.GetLengths()[2]) && wi >= 0 &&
+                       wi < ck::type_convert<int>(in.mDesc.GetLengths()[3]))
                     {
                         AccDataType currVal = static_cast<AccDataType>(in(n, c, hi, wi));
 
@@ -149,9 +149,9 @@ int main(int argc, char* argv[])
 {
     using namespace ck::host_reduce;
 
-    bool do_verification = 0;
-    int init_method      = 0;
-    int nrepeat          = 5;
+    bool do_verification = true;
+    int init_method      = 1;
+    bool time_kernel     = false;
 
     // Pool shape
     ck::index_t N               = 128;
@@ -171,13 +171,13 @@ int main(int argc, char* argv[])
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
     }
     else if(argc == 16)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
 
         N               = std::stoi(argv[4]);
         C               = std::stoi(argv[5]);
@@ -196,7 +196,7 @@ int main(int argc, char* argv[])
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: run kernel # of times (>1)\n");
+        printf("arg3: time kernel (0=n0, 1=yes)\n");
         printf("arg4 to 15: N, C, Y, X, Hi, Wi, Sy, Sx, LeftPy, LeftPx, RightPy, "
                "RightPx\n");
         exit(0);
@@ -271,7 +271,7 @@ int main(int argc, char* argv[])
                                  "not support this problem");
     }
 
-    float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
+    float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
     std::size_t flop = std::size_t(2) * N * C * Ho * Wo * Y * X;
 
@@ -285,6 +285,7 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
               << std::endl;
 
+    bool pass = true;
     if(do_verification)
     {
         pool_host_verify<InDataType,
@@ -302,14 +303,15 @@ int main(int argc, char* argv[])
 
         out_device_buf.FromDevice(out_n_c_ho_wo_device.mData.data());
 
-        ck::utils::check_err(out_n_c_ho_wo_device.mData, out_n_c_ho_wo_host.mData);
+        pass &= ck::utils::check_err(out_n_c_ho_wo_device.mData, out_n_c_ho_wo_host.mData);
 
         if constexpr(NeedIndices)
         {
             out_indices_device_buf.FromDevice(out_indices_n_c_ho_wo_device.mData.data());
 
-            //          ck::utils::check_err(out_indices_n_c_ho_wo_device.mData,
-            //          out_indices_n_c_ho_wo_host.mData);;
+            pass &= ck::utils::check_err(out_indices_n_c_ho_wo_device.mData,
+                                         out_indices_n_c_ho_wo_host.mData);
         };
     }
+    return pass ? 0 : 1;
 }

@@ -18,6 +18,8 @@ list(APPEND GTEST_CMAKE_CXX_FLAGS
      -Wno-switch-enum
      -Wno-zero-as-null-pointer-constant
      -Wno-unused-member-function
+     -Wno-comma
+     -Wno-old-style-cast
 )
 message(STATUS "Suppressing googltest warnings with flags: ${GTEST_CMAKE_CXX_FLAGS}")
 
@@ -33,4 +35,5 @@ FetchContent_MakeAvailable(googletest)
 
 target_compile_options(gtest PRIVATE ${GTEST_CMAKE_CXX_FLAGS})
 target_compile_options(gtest_main PRIVATE ${GTEST_CMAKE_CXX_FLAGS})
-
+target_compile_options(gmock PRIVATE ${GTEST_CMAKE_CXX_FLAGS})
+target_compile_options(gmock_main PRIVATE ${GTEST_CMAKE_CXX_FLAGS})
