@@ -427,8 +427,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                  const BDataType* p_b_grid_imag,
                  CDataType* p_c_grid_real,
                  CDataType* p_c_grid_imag,
-                 CDataType* p_aux_grid,
-                 CDataType* p_aux_2_grid,
+                 CDataType* p_workspace,
                  index_t MRaw,
                  index_t NRaw,
                  index_t KRaw,
@@ -444,8 +443,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
               p_b_grid_imag_{p_b_grid_imag},
               p_c_grid_real_{p_c_grid_real},
               p_c_grid_imag_{p_c_grid_imag},
-              p_aux_grid_{p_aux_grid},
-              p_aux_2_grid_{p_aux_2_grid},
+              p_aux_grid_{p_workspace},
               a_grid_desc_ak0_m_ak1_{DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, KRaw, StrideA)},
               b_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1(KRaw, NRaw, StrideB)},
               c_grid_desc_m_n_{DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC)},
@@ -477,6 +475,8 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                 c_grid_desc_m0_ =
                     DeviceOp::MakeDescriptor_M0({MRaw, NRaw}, {I1, StrideC}, grid_size, BlockSize);
             }
+
+            p_aux_2_grid_ = p_workspace + c_grid_desc_m_n_.GetElementSpaceSize();
         }
 
         //  private:
@@ -812,8 +812,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                              const BDataType* p_b_imag,
                              CDataType* p_c_real,
                              CDataType* p_c_imag,
-                             CDataType* p_aux,
-                             CDataType* p_aux_2,
+                             CDataType* p_workspace,
                              index_t MRaw,
                              index_t NRaw,
                              index_t KRaw,
@@ -830,8 +829,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                         p_b_imag,
                         p_c_real,
                         p_c_imag,
-                        p_aux,
-                        p_aux_2,
+                        p_workspace,
                         MRaw,
                         NRaw,
                         KRaw,
@@ -852,8 +850,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                                       const void* p_b_imag,
                                                       void* p_c_real,
                                                       void* p_c_imag,
-                                                      void* p_aux,
-                                                      void* p_aux_2,
+                                                      void* p_workspace,
                                                       index_t MRaw,
                                                       index_t NRaw,
                                                       index_t KRaw,
@@ -871,8 +868,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                           static_cast<const BDataType*>(p_b_imag),
                                           static_cast<CDataType*>(p_c_real),
                                           static_cast<CDataType*>(p_c_imag),
-                                          static_cast<CDataType*>(p_aux),
-                                          static_cast<CDataType*>(p_aux_2),
+                                          static_cast<CDataType*>(p_workspace),
                                           MRaw,
                                           NRaw,
                                           KRaw,
@@ -908,6 +904,18 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
         // clang-format on
 
         return str.str();
+    }
+
+    std::size_t GetWorkspaceSize([[maybe_unused]] index_t MRaw,
+                                 [[maybe_unused]] index_t NRaw,
+                                 [[maybe_unused]] index_t KRaw,
+                                 [[maybe_unused]] index_t StrideA,
+                                 [[maybe_unused]] index_t StrideB,
+                                 [[maybe_unused]] index_t StrideC) override
+    {
+        const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC);
+
+        return 2 * sizeof(CDataType) * c_grid_desc_m_n.GetElementSpaceSize();
     }
 };
 

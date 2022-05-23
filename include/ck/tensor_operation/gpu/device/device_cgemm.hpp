@@ -19,8 +19,7 @@ struct DeviceCGemm : public BaseOperator
                                                               const void* p_b_imag,
                                                               void* p_c_real,
                                                               void* p_c_imag,
-                                                              void* p_aux,
-                                                              void* p_aux_2,
+                                                              void* p_workspace,
                                                               ck::index_t M,
                                                               ck::index_t N,
                                                               ck::index_t K,
@@ -33,6 +32,12 @@ struct DeviceCGemm : public BaseOperator
                                                               ck::index_t KBatch = 1) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
+    virtual std::size_t GetWorkspaceSize(index_t MRaw,
+                                         index_t NRaw,
+                                         index_t KRaw,
+                                         index_t StrideA,
+                                         index_t StrideB,
+                                         index_t StrideC)     = 0;
 };
 
 template <typename AElementwiseOperation,
