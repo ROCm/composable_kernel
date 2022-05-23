@@ -273,6 +273,14 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
         const index_t im0 = __builtin_amdgcn_readfirstlane(c_m0_n0_block_cluster_idx[I0]);
         const index_t in0 = __builtin_amdgcn_readfirstlane(c_m0_n0_block_cluster_idx[I1]);
 
+        if(!block_2_ctile_map.ValidCTileIndex(
+               make_tuple(im0, in0),
+               make_tuple(c_grid_desc_m0_m10_m11_n0_n10_n11.GetLength(I0),
+                          c_grid_desc_m0_m10_m11_n0_n10_n11.GetLength(I3))))
+        {
+            return;
+        }
+
         // TODO: change this. I think it needs multi-dimensional alignment
         constexpr auto max_lds_align = K1;
 
