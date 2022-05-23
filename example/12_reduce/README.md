@@ -11,7 +11,7 @@
 
 Result
 ```
-root@dc-smc-18:/data/composable_kernel/Build3# bin/example_reduce_blockwise -D 16,64,32,960 -v 1 1 1
+./bin/example_reduce_blockwise -D 16,64,32,960 -v 1 1 1
 launch_and_time_kernel: grid_dim {240, 1, 1}, block_dim {256, 1, 1} 
 Warm up 1 time
 Start running 10 times...
@@ -30,7 +30,7 @@ Perf: 0.282592 ms, 222.641 GB/s, DeviceReduceBlockWise<256,M_C4_S1,K_C64_S1,InSr
 
 Result
 ```
-root@dc-smc-18:/data/composable_kernel/Build# bin/example_reduce_blockwise_two_call 1 2 1
+./bin/example_reduce_blockwise_two_call 1 2 1
 launch_and_time_kernel: grid_dim {204800, 1, 1}, block_dim {256, 1, 1} 
 Warm up 1 time
 Start running 10 times...
