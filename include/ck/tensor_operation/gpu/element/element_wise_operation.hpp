@@ -30,7 +30,7 @@ struct Gelu
         const float c = b * x;
         const float d = tanh(c);
         const float e = float(1.0) + d;
-        y       = float(0.5) * x * e;
+        y             = float(0.5) * x * e;
     }
 };
 
@@ -38,9 +38,9 @@ struct FastGelu
 {
     __host__ __device__ void operator()(float& y, const float& x) const
     {
-        const float u = float(2) * x * (float(0.035677) * x * x + float(0.797885));
+        const float u   = float(2) * x * (float(0.035677) * x * x + float(0.797885));
         const float emu = exp(-u);
-        const float cdf = float(0.5) + float(0.5) * (float(2)/(float(1) + emu) - float(1));
+        const float cdf = float(0.5) + float(0.5) * (float(2) / (float(1) + emu) - float(1));
 
         y = x * cdf;
     }
