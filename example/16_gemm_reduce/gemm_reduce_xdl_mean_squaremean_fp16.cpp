@@ -45,11 +45,13 @@ using D1ReduceOp  = ck::reduce::Add<ReduceAccDataType>;
 using DxsReduceOp = ck::Tuple<D0ReduceOp, D1ReduceOp>;
 
 using UnaryIdenticElementOp =
+    ck::tensor_operation::element_wise::UnaryIdentic<ReduceAccDataType, ReduceAccDataType, false>;
+using UnaryDivElementOp =
     ck::tensor_operation::element_wise::UnaryIdentic<ReduceAccDataType, ReduceAccDataType, true>;
 using UnarySquareElementOp =
     ck::tensor_operation::element_wise::UnarySquare<ReduceAccDataType, ReduceAccDataType, false>;
 using DxsInElementOp  = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
-using DxsOutElementOp = ck::Tuple<UnaryIdenticElementOp, UnaryIdenticElementOp>;
+using DxsOutElementOp = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
 
 using DGlobalMemOp =
     ck::InMemoryDataOperationEnumSequence<ck::InMemoryDataOperationEnum::AtomicAdd,

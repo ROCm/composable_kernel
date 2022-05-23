@@ -24,10 +24,11 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using ReduceSum   = ck::reduce::Add<F32>;
 using ReduceOps   = ck::Tuple<ReduceSum, ReduceSum>;
 
+using Div            = ck::tensor_operation::element_wise::UnaryIdentic<F32, F32, true>;
 using Identity       = ck::tensor_operation::element_wise::UnaryIdentic<F32, F32, false>;
 using Square         = ck::tensor_operation::element_wise::UnarySquare<F32, F32, false>;
 using DInElementOps  = ck::Tuple<Identity, Square>;
-using DOutElementOps = ck::Tuple<Identity, Identity>;
+using DOutElementOps = ck::Tuple<Div, Div>;
 
 using ReduceMemOp = ck::InMemoryDataOperationEnumSequence<ck::InMemoryDataOperationEnum::AtomicAdd,
                                                           ck::InMemoryDataOperationEnum::AtomicAdd>;
