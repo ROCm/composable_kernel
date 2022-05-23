@@ -224,9 +224,10 @@ int main(int argc, char* argv[])
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-    std::size_t flop      = std::size_t(8) * M * N * K;
-    std::size_t num_btype = std::size_t(2) * sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
-                            sizeof(CDataType) * M * N;
+    std::size_t flop = std::size_t(8) * M * N * K;
+    std::size_t num_btype =
+        std::size_t(2) *
+        (sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N);
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
