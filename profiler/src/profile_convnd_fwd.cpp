@@ -347,5 +347,5 @@ int ck::profiler::profile_convnd_fwd(int argc, char* argv[])
                                  std::to_string(num_dim_spatial));
     }
 
-    return 1;
+    return 0;
 }

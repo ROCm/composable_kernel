@@ -142,5 +142,5 @@ int profile_conv_bwd_weight(int argc, char* argv[])
         throw std::runtime_error("wrong! this Conv data_type & layout is not implemented");
     }
 
-    return 1;
+    return 0;
 }

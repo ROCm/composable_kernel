@@ -388,5 +388,5 @@ int profile_gemm(int argc, char* argv[])
         throw std::runtime_error("wrong! this GEMM data_type & layout is not implemented");
     }
 
-    return 1;
+    return 0;
 }
