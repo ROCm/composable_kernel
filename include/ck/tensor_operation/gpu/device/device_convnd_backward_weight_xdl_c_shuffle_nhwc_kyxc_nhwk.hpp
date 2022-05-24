@@ -1175,6 +1175,67 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
 
         return str.str();
     }
+
+    template <ck::index_t NDim, typename ck::enable_if<NDim == 1, bool>::type = false>
+    static size_t GetWorkSpaceSize(const Argument& arg)
+    {
+        size_t WorkSpaceSize = 0;
+        if constexpr(std::is_same<InDataType, ck::bhalf_t>::value)
+        {
+            WorkSpaceSize =
+                arg.Conv_K_ * arg.Conv_C_ * arg.filter_spatial_lengths_[0] * sizeof(float);
+        }
+        else
+        {
+            WorkSpaceSize = arg.Conv_K_ * 0;
+        }
+        return WorkSpaceSize;
+    }
+
+    template <ck::index_t NDim, typename ck::enable_if<NDim == 2, bool>::type = false>
+    static size_t GetWorkSpaceSize(const Argument& arg)
+    {
+        size_t WorkSpaceSize = 0;
+        if constexpr(std::is_same<InDataType, ck::bhalf_t>::value)
+        {
+            WorkSpaceSize = arg.Conv_K_ * arg.Conv_C_ * arg.filter_spatial_lengths_[0] *
+                            arg.filter_spatial_lengths_[1] * sizeof(float);
+        }
+        else
+        {
+            WorkSpaceSize = arg.Conv_K_ * 0;
+        }
+        return WorkSpaceSize;
+    }
+
+    template <ck::index_t NDim, typename ck::enable_if<NDim == 3, bool>::type = false>
+    static size_t GetWorkSpaceSize(const Argument& arg)
+    {
+        size_t WorkSpaceSize = 0;
+        if(arg.k_batch_ > 1)
+        {
+            if constexpr(std::is_same<InDataType, ck::bhalf_t>::value)
+            {
+                WorkSpaceSize = arg.Conv_K_ * arg.Conv_C_ * arg.filter_spatial_lengths_[0] *
+                                arg.filter_spatial_lengths_[1] * arg.filter_spatial_lengths_[2] *
+                                sizeof(float);
+            }
+            else
+            {
+                WorkSpaceSize = arg.Conv_K_ * 0;
+            }
+        }
+        else
+        {
+            WorkSpaceSize = arg.Conv_K_ * 0;
+        }
+        return WorkSpaceSize;
+    }
+
+    size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override final
+    {
+        return GetWorkSpaceSize<NumDimSpatial>(*dynamic_cast<const Argument*>(p_arg));
+    }
 };
 
 } // namespace device
