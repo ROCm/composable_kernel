@@ -83,7 +83,7 @@ int main()
     if(!broadcastAdd.IsSupportedArgument(argument.get()))
     {
         throw std::runtime_error("The runtime parameters seems not supported by the "
-                                 "DeviceBinaryElementwise_2D instance, exiting!");
+                                 "DeviceBinaryElementwise instance, exiting!");
     };
 
     auto broadcastAdd_invoker_ptr = broadcastAdd.MakeInvokerPointer();
@@ -105,7 +105,7 @@ int main()
                            Add>(host_c, a, b, nchw, Add{});
 
         pass &=
-            ck::utils::check_err(c.mData, host_c.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
+            ck::utils::check_err(c.mData, host_c.mData, "Error: Incorrect results c", 1e-3, 1e-3);
     }
 
     return pass ? 0 : 1;
