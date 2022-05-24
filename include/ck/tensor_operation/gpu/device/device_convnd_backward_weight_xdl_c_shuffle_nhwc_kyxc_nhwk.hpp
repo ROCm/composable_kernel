@@ -1180,14 +1180,13 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
     static size_t GetWorkSpaceSize(const Argument& arg)
     {
         size_t WorkSpaceSize = 0;
-        if constexpr(std::is_same<InDataType, ck::bhalf_t>::value)
+        if(arg.k_batch_ > 1)
         {
-            WorkSpaceSize =
-                arg.Conv_K_ * arg.Conv_C_ * arg.filter_spatial_lengths_[0] * sizeof(float);
-        }
-        else
-        {
-            WorkSpaceSize = arg.Conv_K_ * 0;
+            if constexpr(std::is_same<InDataType, ck::bhalf_t>::value)
+            {
+                WorkSpaceSize =
+                    arg.Conv_K_ * arg.Conv_C_ * arg.filter_spatial_lengths_[0] * sizeof(float);
+            }
         }
         return WorkSpaceSize;
     }
@@ -1196,14 +1195,13 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
     static size_t GetWorkSpaceSize(const Argument& arg)
     {
         size_t WorkSpaceSize = 0;
-        if constexpr(std::is_same<InDataType, ck::bhalf_t>::value)
+        if(arg.k_batch_ > 1)
         {
-            WorkSpaceSize = arg.Conv_K_ * arg.Conv_C_ * arg.filter_spatial_lengths_[0] *
-                            arg.filter_spatial_lengths_[1] * sizeof(float);
-        }
-        else
-        {
-            WorkSpaceSize = arg.Conv_K_ * 0;
+            if constexpr(std::is_same<InDataType, ck::bhalf_t>::value)
+            {
+                WorkSpaceSize = arg.Conv_K_ * arg.Conv_C_ * arg.filter_spatial_lengths_[0] *
+                                arg.filter_spatial_lengths_[1] * sizeof(float);
+            }
         }
         return WorkSpaceSize;
     }
