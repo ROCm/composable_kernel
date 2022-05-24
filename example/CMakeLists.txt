@@ -1,6 +1,7 @@
 include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/include/ck
     ${PROJECT_SOURCE_DIR}/include/ck/utility
+    ${PROJECT_SOURCE_DIR}/include/ck/host_utility
     ${PROJECT_SOURCE_DIR}/include/ck/tensor_description
     ${PROJECT_SOURCE_DIR}/include/ck/tensor
     ${PROJECT_SOURCE_DIR}/include/ck/problem_transform

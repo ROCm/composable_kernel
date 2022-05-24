@@ -75,14 +75,13 @@ struct BlockwiseTensorSliceTransfer_v5r1
         }
     }
 
-    template <typename SrcBuffer, typename SrcStepHacks>
-    __device__ void
-    RunRead(const SrcDesc& src_desc, const SrcBuffer& src_buf, const SrcStepHacks& src_step_hacks)
+    template <typename SrcBuffer>
+    __device__ void RunRead(const SrcDesc& src_desc, const SrcBuffer& src_buf)
     {
         if(BlockSize == thread_cluster_desc_.GetElementSize() or
            get_thread_local_1d_id() < thread_cluster_desc_.GetElementSize())
         {
-            threadwise_transfer_.RunRead(src_desc, src_buf, src_step_hacks);
+            threadwise_transfer_.RunRead(src_desc, src_buf);
         }
     }
 
