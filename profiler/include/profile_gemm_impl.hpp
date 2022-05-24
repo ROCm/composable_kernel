@@ -1,5 +1,7 @@
 #pragma once
 #include <iomanip>
+#include <iostream>
+#include <typeinfo>
 
 #include "check_err.hpp"
 #include "config.hpp"
@@ -527,8 +529,45 @@ void profile_gemm_impl(int do_verification,
         }
     }
 
-    std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
-              << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
+    if constexpr(is_same<CDataType, float>::value)
+    {
+        std::cout << "Best Perf for datatype = f32";
+    }
+    else if constexpr(is_same<CDataType, half_t>::value)
+    {
+        std::cout << "Best Perf for datatype = f16";
+    }
+    else if constexpr(is_same<CDataType, bhalf_t>::value)
+    {
+        std::cout << "Best Perf for datatype = bf16";
+    }
+    else if constexpr(is_same<CDataType, int8_t>::value)
+    {
+        std::cout << "Best Perf for datatype = int8";
+    }
+
+    if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value)
+    {
+        std::cout << " ALayout =  RowMajor";
+    }
+    else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value)
+    {
+        std::cout << " ALayout =  ColumnMajor";
+    }
+
+    if constexpr(is_same<BLayout, tensor_layout::gemm::RowMajor>::value)
+    {
+        std::cout << " BLayout =  RowMajor";
+    }
+    else if constexpr(is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value)
+    {
+        std::cout << " BLayout =  ColumnMajor";
+    }
+
+    std::cout << " M = " << M << " N = " << N << " K = " << K << " StrideA = " << StrideA
+              << " StrideB = " << StrideB << " StrideC = " << StrideC << " : " << best_ave_time
+              << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec << " GB/s, "
+              << best_gemm_name << std::endl;
 }
 
 } // namespace profiler

@@ -35,7 +35,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     llvm-amdgpu \
     pkg-config \
     python \
-    python3 \
+    python3.8 \
     python-dev \
     python3-dev \
     python-pip \
@@ -72,6 +72,13 @@ ARG PREFIX=/opt/rocm
 RUN cget install pfultz2/rocm-recipes
 # Install rbuild
 RUN pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/6d78a0553babdaea8d2da5de15cbda7e869594b8.tar.gz
+# Install packages for processing the performance results
+RUN pip3 install --upgrade pip
+RUN pip3 install sqlalchemy
+RUN pip3 install pymysql
+RUN pip3 install pandas
+RUN pip3 install setuptools-rust
+RUN pip3 install sshtunnel
 # Setup ubsan environment to printstacktrace
 ENV UBSAN_OPTIONS=print_stacktrace=1
 
