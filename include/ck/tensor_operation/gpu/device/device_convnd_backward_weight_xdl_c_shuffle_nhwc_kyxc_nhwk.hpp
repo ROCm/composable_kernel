@@ -1220,14 +1220,6 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                                 arg.filter_spatial_lengths_[1] * arg.filter_spatial_lengths_[2] *
                                 sizeof(float);
             }
-            else
-            {
-                WorkSpaceSize = arg.Conv_K_ * 0;
-            }
-        }
-        else
-        {
-            WorkSpaceSize = arg.Conv_K_ * 0;
         }
         return WorkSpaceSize;
     }
