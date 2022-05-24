@@ -299,7 +299,7 @@ int main(int argc, char* argv[])
     // alloc work space
     size_t bwd_weight_workspace_size = conv->GetWorkSpaceSize(argument.get());
     float ave_time                   = 0.f;
-    if(bwd_weight_workspace_size > 0)
+    if(std::is_same<InDataType, ck::bhalf_t>::value && split_k > 1)
     {
         DeviceMem wei_work_space_device_buf(bwd_weight_workspace_size);
         wei_work_space_device_buf.SetZero();
