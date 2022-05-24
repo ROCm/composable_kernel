@@ -485,10 +485,6 @@ struct DeviceGroupedGemmXdl
                 }
             }
 
-            KernelTimer timer;
-
-            timer.Start();
-
             void* gemm_descs_const_;
             hipGetErrorString(hipMalloc(
                 &gemm_descs_const_, arg.gemm_desc_kernel_arg_.size() * sizeof(GemmDescKernelArg)));
@@ -498,9 +494,6 @@ struct DeviceGroupedGemmXdl
                           arg.gemm_desc_kernel_arg_.data(),
                           arg.gemm_desc_kernel_arg_.size() * sizeof(GemmDescKernelArg),
                           hipMemcpyHostToDevice));
-            timer.End();
-
-            std::cout << "HipMemCpy time: " << timer.GetElapsedTime() << std::endl;
 
             float ave_time = 0;
 
@@ -574,8 +567,8 @@ struct DeviceGroupedGemmXdl
     {
         if(ck::type_convert<ck::index_t>(arg.gemm_desc_kernel_arg_.size()) != arg.group_count_)
             return false;
-
-        return true;
+        else
+            return true;
     }
 
     // polymorphic
