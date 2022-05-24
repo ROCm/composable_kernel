@@ -16,7 +16,9 @@ template <typename ADataType,
           typename ComputeDataType,
           typename ElementwiseFunctor,
           index_t Dim,
-          index_t ScalarPerVector>
+          index_t M0PerThread,
+          index_t AScalarPerVector = M0PerThread,
+          index_t BScalarPerVector = M0PerThread>
 struct DeviceBinaryElementwise : public BaseOperator
 {
     static constexpr auto I0 = Number<0>{};
@@ -25,7 +27,7 @@ struct DeviceBinaryElementwise : public BaseOperator
     static auto PadDescriptor_M0_1d(Desc_M0 desc_m0, index_t gridSize, index_t blockSize)
     {
         const auto m0           = desc_m0.GetLength(I0);
-        const index_t loop_step = gridSize * blockSize * ScalarPerVector;
+        const index_t loop_step = gridSize * blockSize * M0PerThread;
         const auto pad          = math::integer_least_multiple(m0, loop_step) - m0;
         const auto desc_m0_pad =
             transform_tensor_descriptor(desc_m0,
@@ -68,7 +70,9 @@ struct DeviceBinaryElementwise : public BaseOperator
                                                             ComputeDataType,
                                                             GridDesc_M0,
                                                             ElementwiseFunctor,
-                                                            ScalarPerVector>;
+                                                            M0PerThread,
+                                                            AScalarPerVector,
+                                                            BScalarPerVector>;
 
     struct Argument : public BaseArgument
     {
@@ -84,6 +88,8 @@ struct DeviceBinaryElementwise : public BaseOperator
               p_b_(p_b),
               p_c_(p_c),
               shape_(shape),
+              stride_a_(stride_a),
+              stride_b_(stride_b),
               functor_(functor),
               blockSize_(256),
               gridSize_(120) // FIXME - Calculate the grid size by number of CU in the future
@@ -100,6 +106,8 @@ struct DeviceBinaryElementwise : public BaseOperator
         GridDesc_M0 a_grid_desc_m0_;
         GridDesc_M0 b_grid_desc_m0_;
         GridDesc_M0 c_grid_desc_m0_;
+        std::vector<index_t> stride_a_;
+        std::vector<index_t> stride_b_;
         ElementwiseFunctor functor_;
         index_t blockSize_;
         index_t gridSize_;
@@ -139,6 +147,18 @@ struct DeviceBinaryElementwise : public BaseOperator
         }
     };
 
+    bool IsScalarPerVectorValid(bool broadcastOnFastest, int scalarPerVector)
+    {
+        bool ret = true;
+
+        if(broadcastOnFastest)
+            ret = scalarPerVector == 1;
+        else
+            ret = M0PerThread % scalarPerVector == 0;
+
+        return ret;
+    }
+
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
@@ -146,7 +166,13 @@ struct DeviceBinaryElementwise : public BaseOperator
         if(pArg == nullptr)
             return false;
 
-        if(pArg->shape_.back() % ScalarPerVector != 0)
+        if(pArg->shape_.back() % M0PerThread != 0)
+            return false;
+
+        if(!IsScalarPerVectorValid(pArg->stride_a_.back() == 0, AScalarPerVector))
+            return false;
+
+        if(!IsScalarPerVectorValid(pArg->stride_b_.back() == 0, BScalarPerVector))
             return false;
 
         return true;
@@ -180,7 +206,7 @@ struct DeviceBinaryElementwise : public BaseOperator
         // clang-format off
         str << "DeviceBinaryElementwise"
             << "<"
-            << "ScalarPerVector = " << ScalarPerVector
+            << "M0PerThread = " << M0PerThread
             << ">";
         // clang-format on
 

@@ -36,19 +36,21 @@ template <typename ADataType,
           typename ComputeDataType,
           typename GridDesc_M0,
           typename ElementwiseFunctor,
-          index_t ScalarPerVector>
+          index_t M0PerThread,
+          index_t AScalarPerVector = M0PerThread,
+          index_t BScalarPerVector = M0PerThread>
 struct GridwiseBinaryElementwise_1D
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto thread_desc_m0 =
-        make_naive_tensor_descriptor_packed(make_tuple(Number<ScalarPerVector>{}));
+        make_naive_tensor_descriptor_packed(make_tuple(Number<M0PerThread>{}));
 
     using PassThrough = tensor_operation::element_wise::PassThrough;
 
     static __device__ auto CalculateElementwiseIndex()
     {
         const index_t global_thread_id = get_thread_global_1d_id();
-        return make_multi_index(global_thread_id * ScalarPerVector);
+        return make_multi_index(global_thread_id * M0PerThread);
     }
 
     __device__ static void Run(const ADataType* __restrict__ p_a_global,
@@ -66,9 +68,9 @@ struct GridwiseBinaryElementwise_1D
         auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_global, c_grid_desc_m0.GetElementSpaceSize());
 
-        StaticBuffer<AddressSpaceEnum::Vgpr, ComputeDataType, ScalarPerVector, true> a_thread_buf;
-        StaticBuffer<AddressSpaceEnum::Vgpr, ComputeDataType, ScalarPerVector, true> b_thread_buf;
-        StaticBuffer<AddressSpaceEnum::Vgpr, ComputeDataType, ScalarPerVector, true> c_thread_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, ComputeDataType, M0PerThread, true> a_thread_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, ComputeDataType, M0PerThread, true> b_thread_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, ComputeDataType, M0PerThread, true> c_thread_buf;
 
         const auto thread_store_global_offset = CalculateElementwiseIndex();
 
@@ -77,10 +79,10 @@ struct GridwiseBinaryElementwise_1D
                                              ComputeDataType,
                                              GridDesc_M0,
                                              decltype(thread_desc_m0),
-                                             Sequence<ScalarPerVector>, // SliceLengths
-                                             Sequence<0>,               // DimAccessOrder
-                                             0,                         // SrcVectorDim
-                                             ScalarPerVector,
+                                             Sequence<M0PerThread>, // SliceLengths
+                                             Sequence<0>,           // DimAccessOrder
+                                             0,                     // SrcVectorDim
+                                             AScalarPerVector,
                                              1, // SrcScalarStrideInVector
                                              false>{a_grid_desc_m0, thread_store_global_offset};
 
@@ -89,10 +91,10 @@ struct GridwiseBinaryElementwise_1D
                                              ComputeDataType,
                                              GridDesc_M0,
                                              decltype(thread_desc_m0),
-                                             Sequence<ScalarPerVector>, // SliceLengths
-                                             Sequence<0>,               // DimAccessOrder
-                                             0,                         // SrcVectorDim
-                                             ScalarPerVector,
+                                             Sequence<M0PerThread>, // SliceLengths
+                                             Sequence<0>,           // DimAccessOrder
+                                             0,                     // SrcVectorDim
+                                             BScalarPerVector,
                                              1, // SrcScalarStrideInVector
                                              false>{b_grid_desc_m0, thread_store_global_offset};
 
@@ -102,10 +104,10 @@ struct GridwiseBinaryElementwise_1D
                                                decltype(thread_desc_m0),
                                                GridDesc_M0,
                                                PassThrough,
-                                               Sequence<ScalarPerVector>, // SliceLengths
-                                               Sequence<0>,               // DimAccessOrder
-                                               0,                         // DstVectorDim
-                                               ScalarPerVector,
+                                               Sequence<M0PerThread>, // SliceLengths
+                                               Sequence<0>,           // DimAccessOrder
+                                               0,                     // DstVectorDim
+                                               M0PerThread,
                                                InMemoryDataOperationEnum::Set,
                                                1, // DstScalarStrideInVector
                                                false>{
@@ -114,20 +116,20 @@ struct GridwiseBinaryElementwise_1D
         const index_t blockSize    = get_block_size();
         const index_t blockPerGrid = get_grid_size();
         const auto m0              = c_grid_desc_m0.GetLength(I0);
-        const index_t loop_step    = blockPerGrid * blockSize * ScalarPerVector;
+        const index_t loop_step    = blockPerGrid * blockSize * M0PerThread;
         const auto loop_step_index = make_multi_index(loop_step);
 
         index_t num_iter = m0 / (loop_step);
         do
         {
-            // read and process ScalarPerVector elements
+            // read and process M0PerThread elements
             a_global_load.Run(
                 a_grid_desc_m0, a_global_buf, thread_desc_m0, make_tuple(I0), a_thread_buf);
 
             b_global_load.Run(
                 b_grid_desc_m0, b_global_buf, thread_desc_m0, make_tuple(I0), b_thread_buf);
 
-            static_for<0, ScalarPerVector, 1>{}([&](auto m) {
+            static_for<0, M0PerThread, 1>{}([&](auto m) {
                 constexpr auto offset = thread_desc_m0.CalculateOffset(make_tuple(m));
                 functor(c_thread_buf(Number<offset>{}),
                         a_thread_buf(Number<offset>{}),
