@@ -25,7 +25,8 @@ int main(int argc, char* argv[])
 {
     if(strcmp(argv[1], "gemm") == 0)
     {
-        return profile_gemm(argc, argv);
+        int stat = profile_gemm(argc, argv);
+        return stat;
     }
     else if(strcmp(argv[1], "gemm_bias_2d") == 0)
     {
