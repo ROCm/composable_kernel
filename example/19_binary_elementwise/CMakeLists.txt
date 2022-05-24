@@ -1,3 +1,4 @@
 add_example_executable(example_broadcast_add_2d broadcast_add_2d.cpp)
+add_example_executable(example_broadcast_add_2d_fastest broadcast_add_2d_fastest.cpp)
 add_example_executable(example_elementwise_add_1d elementwise_add_1d.cpp)
 add_example_executable(example_elementwise_add_4d elementwise_add_4d.cpp)
