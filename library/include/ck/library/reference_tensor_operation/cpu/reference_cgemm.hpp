@@ -76,10 +76,10 @@ struct ReferenceCGemm : public device::BaseOperator
                     float v_a_imag;
                     float v_b_imag;
 
-                    arg.a_element_op_(v_a_real, static_cast<const float>(arg.a_m_k_real_(m, k)));
-                    arg.a_element_op_(v_a_imag, static_cast<const float>(arg.a_m_k_imag_(m, k)));
-                    arg.b_element_op_(v_b_real, static_cast<const float>(arg.b_k_n_real_(k, n)));
-                    arg.b_element_op_(v_b_imag, static_cast<const float>(arg.b_k_n_imag_(k, n)));
+                    arg.a_element_op_(v_a_real, ck::type_convert<float>(arg.a_m_k_real_(m, k)));
+                    arg.a_element_op_(v_a_imag, ck::type_convert<float>(arg.a_m_k_imag_(m, k)));
+                    arg.b_element_op_(v_b_real, ck::type_convert<float>(arg.b_k_n_real_(k, n)));
+                    arg.b_element_op_(v_b_imag, ck::type_convert<float>(arg.b_k_n_imag_(k, n)));
 
                     v_acc += v_a_real * v_b_real - v_a_imag * v_b_imag;
                 }
@@ -108,10 +108,10 @@ struct ReferenceCGemm : public device::BaseOperator
                     float v_a_imag;
                     float v_b_imag;
 
-                    arg.a_element_op_(v_a_real, static_cast<const float>(arg.a_m_k_real_(m, k)));
-                    arg.a_element_op_(v_a_imag, static_cast<const float>(arg.a_m_k_imag_(m, k)));
-                    arg.b_element_op_(v_b_real, static_cast<const float>(arg.b_k_n_real_(k, n)));
-                    arg.b_element_op_(v_b_imag, static_cast<const float>(arg.b_k_n_imag_(k, n)));
+                    arg.a_element_op_(v_a_real, ck::type_convert<float>(arg.a_m_k_real_(m, k)));
+                    arg.a_element_op_(v_a_imag, ck::type_convert<float>(arg.a_m_k_imag_(m, k)));
+                    arg.b_element_op_(v_b_real, ck::type_convert<float>(arg.b_k_n_real_(k, n)));
+                    arg.b_element_op_(v_b_imag, ck::type_convert<float>(arg.b_k_n_imag_(k, n)));
 
                     v_acc += v_a_real * v_b_imag + v_a_imag * v_b_real;
                 }
