@@ -14,13 +14,13 @@ namespace device {
 
 // here, inLengths[] is already shuffled so that lengths of invariant dims are included before those
 // of reduce dims
-template <int Rank, int NumReduceDim>
-std::pair<size_t, size_t> get_2d_lengths(const std::vector<int>& inLengths)
+template <index_t Rank, int NumReduceDim>
+std::pair<long_index_t, long_index_t> get_2d_lengths(const std::vector<index_t>& inLengths)
 {
     static_assert(Rank <= 6, "bigger Rank size not supported!");
 
-    size_t invariant_total_length = 1;
-    size_t reduce_total_length    = 1;
+    long_index_t invariant_total_length = 1;
+    long_index_t reduce_total_length    = 1;
 
     constexpr int NumInvariantDim = Rank - NumReduceDim;
 
@@ -35,13 +35,13 @@ std::pair<size_t, size_t> get_2d_lengths(const std::vector<int>& inLengths)
 
 // helper functions using variadic template arguments
 template <index_t... Ns>
-auto make_tuple_from_array_and_index_seq(const std::vector<int>& lengths, Sequence<Ns...>)
+auto make_tuple_from_array_and_index_seq(const std::vector<index_t>& lengths, Sequence<Ns...>)
 {
     return make_tuple(static_cast<index_t>(lengths[Ns])...);
 };
 
 template <index_t arraySize>
-static auto make_tuple_from_array(const std::vector<int>& lengths, Number<arraySize>)
+auto make_tuple_from_array(const std::vector<index_t>& lengths, Number<arraySize>)
 {
     static_assert(arraySize >= 1 && arraySize <= 6, "The tensor should have 1 to 6 dimensions");
 
@@ -51,10 +51,10 @@ static auto make_tuple_from_array(const std::vector<int>& lengths, Number<arrayS
 };
 
 template <index_t Rank, index_t NumReduceDim>
-std::vector<int> shuffle_tensor_dimensions(const std::vector<int>& origLengthsStrides,
-                                           const std::vector<int>& reduceDims)
+std::vector<index_t> shuffle_tensor_dimensions(const std::vector<index_t>& origLengthsStrides,
+                                               const std::vector<int>& reduceDims)
 {
-    std::vector<int> newLengthsStrides;
+    std::vector<index_t> newLengthsStrides;
 
     assert(Rank == origLengthsStrides.size() && NumReduceDim == reduceDims.size());
 

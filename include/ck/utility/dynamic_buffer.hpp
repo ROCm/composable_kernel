@@ -325,7 +325,7 @@ struct DynamicBuffer
         {
             if(is_valid_element)
             {
-                atomic_add<X>(c_style_pointer_cast<X*>(&p_data_[i]), x);
+                atomic_add(c_style_pointer_cast<X*>(&p_data_[i]), x);
             }
         }
     }

@@ -58,8 +58,8 @@ template <typename InDataType,
           int Rank,
           int NumReduceDim,
           ReduceTensorOp ReduceOpId,
-          NanPropagation NanOpt,
-          ReduceTensorIndices IndicesOpt>
+          bool PropagateNan,
+          bool UseIndex>
 void add_device_reduce_instance_threadwise(
     std::vector<deviceReduceThreadWisePtrType<AccDataType, ReduceOpId>>& device_op_instances)
 {
@@ -73,9 +73,7 @@ void add_device_reduce_instance_threadwise(
     constexpr bool Indexable =
         (ReduceOpId == ReduceTensorOp::MIN || ReduceOpId == ReduceTensorOp::MAX ||
          ReduceOpId == ReduceTensorOp::AMAX);
-    constexpr bool NeedIndices = Indexable && (IndicesOpt != ReduceTensorIndices::NO_INDICES);
-
-    constexpr bool PropagateNan = (NanOpt == NanPropagation::NOT_PROPAGATE_NAN) ? false : true;
+    constexpr bool OutputIndex = Indexable && UseIndex;
 
     using cfg1 = ReductionConfiguration_1<256, 256, 1>;
 
@@ -93,10 +91,9 @@ void add_device_reduce_instance_threadwise(
                                                             InElementwiseOperation,
                                                             AccElementwiseOperation,
                                                             PropagateNan,
-                                                            NeedIndices,
+                                                            OutputIndex,
+                                                            false, // HaveIndexInputIfOutputIndex
                                                             cfg1::BlockSize_,
-                                                            cfg1::MThreadClusterSize_,
-                                                            cfg1::KThreadClusterSize_,
                                                             cfg2::MThreadSliceSize_,
                                                             cfg2::KThreadSliceSize_,
                                                             cfg2::InSrcVectorDim_,
@@ -107,54 +104,54 @@ void add_device_reduce_instance_threadwise(
         });
 };
 
-#define ADD_THREADWISE_INST_BY_TYPE(                                      \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim) \
-    template void add_device_reduce_instance_threadwise<inT,              \
-                                                        compT,            \
-                                                        outT,             \
-                                                        Rank,             \
-                                                        NumReduceDim,     \
-                                                        ReduceOpId,       \
-                                                        NanOpt,           \
-                                                        IndicesOpt>(      \
+#define ADD_THREADWISE_INST_BY_TYPE(                                          \
+    inT, compT, outT, ReduceOpId, PropagateNan, UseIndex, Rank, NumReduceDim) \
+    template void add_device_reduce_instance_threadwise<inT,                  \
+                                                        compT,                \
+                                                        outT,                 \
+                                                        Rank,                 \
+                                                        NumReduceDim,         \
+                                                        ReduceOpId,           \
+                                                        PropagateNan,         \
+                                                        UseIndex>(            \
         std::vector<deviceReduceThreadWisePtrType<compT, ReduceOpId>> & device_op_instances)
 
-#define ADD_THREADWISE_INST_BY_ID(                                            \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)     \
-    ADD_THREADWISE_INST_BY_TYPE(inT,                                          \
-                                compT,                                        \
-                                outT,                                         \
-                                static_cast<ReduceTensorOp>(ReduceOpId),      \
-                                static_cast<NanPropagation>(NanOpt),          \
-                                static_cast<ReduceTensorIndices>(IndicesOpt), \
-                                Rank,                                         \
+#define ADD_THREADWISE_INST_BY_ID(                                        \
+    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim) \
+    ADD_THREADWISE_INST_BY_TYPE(inT,                                      \
+                                compT,                                    \
+                                outT,                                     \
+                                static_cast<ReduceTensorOp>(ReduceOpId),  \
+                                static_cast<bool>(NanOpt),                \
+                                static_cast<bool>(IndicesOpt),            \
+                                Rank,                                     \
                                 NumReduceDim)
 
 #define ADD_THREADWISE_INST_REF_BY_TYPE(                                                           \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)                          \
+    inT, compT, outT, ReduceOpId, PropagateNan, UseIndex, Rank, NumReduceDim)                      \
     extern template void add_device_reduce_instance_threadwise<inT,                                \
                                                                compT,                              \
                                                                outT,                               \
                                                                Rank,                               \
                                                                NumReduceDim,                       \
                                                                ReduceOpId,                         \
-                                                               NanOpt,                             \
-                                                               IndicesOpt>(                        \
+                                                               PropagateNan,                       \
+                                                               UseIndex>(                          \
         std::vector<DeviceReducePtr<                                                               \
             typename reduce_unary_operator<compT, ReduceOpId, true, true>::InElementwiseOperation, \
             typename reduce_unary_operator<compT, ReduceOpId, true, true>::                        \
                 AccElementwiseOperation>> &                                                        \
         device_op_instances)
 
-#define ADD_THREADWISE_INST_REF_BY_ID(                                            \
-    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)         \
-    ADD_THREADWISE_INST_REF_BY_TYPE(inT,                                          \
-                                    compT,                                        \
-                                    outT,                                         \
-                                    static_cast<ReduceTensorOp>(ReduceOpId),      \
-                                    static_cast<NanPropagation>(NanOpt),          \
-                                    static_cast<ReduceTensorIndices>(IndicesOpt), \
-                                    Rank,                                         \
+#define ADD_THREADWISE_INST_REF_BY_ID(                                       \
+    inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)    \
+    ADD_THREADWISE_INST_REF_BY_TYPE(inT,                                     \
+                                    compT,                                   \
+                                    outT,                                    \
+                                    static_cast<ReduceTensorOp>(ReduceOpId), \
+                                    static_cast<bool>(NanOpt),               \
+                                    static_cast<bool>(IndicesOpt),           \
+                                    Rank,                                    \
                                     NumReduceDim)
 
 } // namespace device_reduce_instance
