@@ -15,6 +15,17 @@ bin/test_reduce_with_index -D 64,4,280,82  -R 1  0 2
 bin/test_reduce_with_index -D 64,4,280,82  -R 2  0 2
 bin/test_reduce_with_index -D 64,4,280,82  -R 3  0 2
 
+## for float64
+bin/test_reduce_with_index -D 64,4,280,82  -R 0,1,2,3  6 2
+bin/test_reduce_with_index -D 64,4,280,82  -R 0,1,2  6 2
+bin/test_reduce_with_index -D 64,4,280,82  -R 0,1,3  6 2
+bin/test_reduce_with_index -D 64,4,280,82  -R 0,2,3  6 2
+bin/test_reduce_with_index -D 64,4,280,82  -R 1,2,3  6 2
+bin/test_reduce_with_index -D 64,4,280,82  -R 0  6 2
+bin/test_reduce_with_index -D 64,4,280,82  -R 1  6 2
+bin/test_reduce_with_index -D 64,4,280,82  -R 2  6 2
+bin/test_reduce_with_index -D 64,4,280,82  -R 3  6 2
+
 ## for float16
 bin/test_reduce_with_index -D 64,4,280,82  -R 0,1,2,3  1 2
 bin/test_reduce_with_index -D 64,4,280,82  -R 0,1,2  1 2
