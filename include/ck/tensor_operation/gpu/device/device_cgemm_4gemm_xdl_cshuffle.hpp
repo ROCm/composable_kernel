@@ -523,8 +523,10 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
 
             float ave_time = 0;
 
-            using Add                   = ck::tensor_operation::binary_element_wise::Add;
-            using Substract             = ck::tensor_operation::binary_element_wise::Substract;
+            using Add =
+                ck::tensor_operation::binary_element_wise::Add<CDataType, CDataType, CDataType>;
+            using Substract = ck::tensor_operation::binary_element_wise::
+                Substract<CDataType, CDataType, CDataType>;
             using GridwiseBinAdd        = GridwiseBinaryElementwise_1D<CDataType,
                                                                 CDataType,
                                                                 CDataType,

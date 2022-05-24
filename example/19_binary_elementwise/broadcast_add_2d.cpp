@@ -17,7 +17,8 @@ using ABDataType             = F16;
 using CDataType              = F16;
 using EltwiseComputeDataType = F32;
 
-using Add = ck::tensor_operation::binary_element_wise::Add;
+using Add = ck::tensor_operation::binary_element_wise::
+    Add<EltwiseComputeDataType, EltwiseComputeDataType, EltwiseComputeDataType>;
 
 using DeviceElementwiseAddInstance = ck::tensor_operation::device::
     DeviceBinaryElementwise<ABDataType, ABDataType, CDataType, EltwiseComputeDataType, Add, 2, 8>;
@@ -37,19 +38,19 @@ void host_broadcast2D(
     {
         for(int n = 0; n < N; ++n)
         {
-            ComputeDataType Amn = static_cast<ComputeDataType>(A(m, n));
+            ComputeDataType Amn = ck::type_convert<ComputeDataType>(A(m, n));
             ComputeDataType Cmn = 0;
             if constexpr(broadcastDim == 0)
             {
-                ComputeDataType Bn = static_cast<ComputeDataType>(B(n));
+                ComputeDataType Bn = ck::type_convert<ComputeDataType>(B(n));
                 functor(Cmn, Amn, Bn);
             }
             else
             {
-                ComputeDataType Bm = static_cast<ComputeDataType>(B(m));
+                ComputeDataType Bm = ck::type_convert<ComputeDataType>(B(m));
                 functor(Cmn, Amn, Bm);
             }
-            C(m, n) = static_cast<ctype>(Cmn);
+            C(m, n) = ck::type_convert<ctype>(Cmn);
         }
     }
 }

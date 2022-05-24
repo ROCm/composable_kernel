@@ -17,7 +17,8 @@ using ABDataType             = F16;
 using CDataType              = F16;
 using EltwiseComputeDataType = F32;
 
-using Add = ck::tensor_operation::binary_element_wise::Add;
+using Add = ck::tensor_operation::binary_element_wise::
+    Add<EltwiseComputeDataType, EltwiseComputeDataType, EltwiseComputeDataType>;
 
 using DeviceElementwiseAddInstance = ck::tensor_operation::device::
     DeviceBinaryElementwise<ABDataType, ABDataType, CDataType, EltwiseComputeDataType, Add, 1, 8>;
@@ -34,11 +35,11 @@ void host_elementwise1D(
 
     for(int m = 0; m < M; ++m)
     {
-        ComputeDataType Am = static_cast<ComputeDataType>(A(m));
-        ComputeDataType Bm = static_cast<ComputeDataType>(B(m));
+        ComputeDataType Am = ck::type_convert<ComputeDataType>(A(m));
+        ComputeDataType Bm = ck::type_convert<ComputeDataType>(B(m));
         ComputeDataType Cm = 0;
         functor(Cm, Am, Bm);
-        C(m) = static_cast<ctype>(Cm);
+        C(m) = ck::type_convert<ctype>(Cm);
     }
 }
 

@@ -17,7 +17,8 @@ using ABDataType             = F16;
 using CDataType              = F16;
 using EltwiseComputeDataType = F32;
 
-using Add = ck::tensor_operation::binary_element_wise::Add;
+using Add = ck::tensor_operation::binary_element_wise::
+    Add<EltwiseComputeDataType, EltwiseComputeDataType, EltwiseComputeDataType>;
 
 using DeviceElementwiseAddInstance = ck::tensor_operation::device::
     DeviceBinaryElementwise<ABDataType, ABDataType, CDataType, EltwiseComputeDataType, Add, 4, 8>;
@@ -40,11 +41,11 @@ void host_elementwise4D(HostTensorC& C,
             for(std::size_t h = 0; h < shape[2]; ++h)
                 for(std::size_t w = 0; w < shape[3]; ++w)
                 {
-                    ComputeDataType a_val = static_cast<ComputeDataType>(A(n, c, h, w));
-                    ComputeDataType b_val = static_cast<ComputeDataType>(B(n, c, h, w));
+                    ComputeDataType a_val = ck::type_convert<ComputeDataType>(A(n, c, h, w));
+                    ComputeDataType b_val = ck::type_convert<ComputeDataType>(B(n, c, h, w));
                     ComputeDataType c_val = 0;
                     functor(c_val, a_val, b_val);
-                    C(n, c, h, w) = static_cast<ctype>(c_val);
+                    C(n, c, h, w) = ck::type_convert<ctype>(c_val);
                 }
 }
 

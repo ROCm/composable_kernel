@@ -5,26 +5,42 @@ namespace ck {
 namespace tensor_operation {
 namespace binary_element_wise {
 
-struct Add
+template <typename Y, typename X1, typename X2>
+struct Add;
+
+template <>
+struct Add<double, double, double>
 {
     __host__ __device__ constexpr void
     operator()(double& dst, const double& src1, const double& src2) const
     {
         dst = src1 + src2;
     }
+};
 
+template <>
+struct Add<float, float, float>
+{
     __host__ __device__ constexpr void
     operator()(float& dst, const float& src1, const float& src2) const
     {
         dst = src1 + src2;
     }
+};
 
+template <>
+struct Add<half_t, half_t, half_t>
+{
     __host__ __device__ constexpr void
     operator()(half_t& dst, const half_t& src1, const half_t& src2) const
     {
         dst = src1 + src2;
     }
+};
 
+template <>
+struct Add<bhalf_t, bhalf_t, bhalf_t>
+{
     __host__ __device__ constexpr void
     operator()(bhalf_t& dst, const bhalf_t& src1, const bhalf_t& src2) const
     {
@@ -35,26 +51,42 @@ struct Add
     }
 };
 
-struct Substract
+template <typename Y, typename X1, typename X2>
+struct Substract;
+
+template <>
+struct Substract<double, double, double>
 {
     __host__ __device__ constexpr void
     operator()(double& dst, const double& src1, const double& src2) const
     {
         dst = src1 - src2;
     }
+};
 
+template <>
+struct Substract<float, float, float>
+{
     __host__ __device__ constexpr void
     operator()(float& dst, const float& src1, const float& src2) const
     {
         dst = src1 - src2;
     }
+};
 
+template <>
+struct Substract<half_t, half_t, half_t>
+{
     __host__ __device__ constexpr void
     operator()(half_t& dst, const half_t& src1, const half_t& src2) const
     {
         dst = src1 - src2;
     }
+};
 
+template <>
+struct Substract<bhalf_t, bhalf_t, bhalf_t>
+{
     __host__ __device__ constexpr void
     operator()(bhalf_t& dst, const bhalf_t& src1, const bhalf_t& src2) const
     {
