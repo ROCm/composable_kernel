@@ -162,14 +162,14 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        a_m_k_real.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        a_m_k_imag.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b_k_n_real.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
-        b_k_n_imag.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        a_m_k_real.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        a_m_k_imag.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        b_k_n_real.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
+        b_k_n_imag.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
         break;
     default:
-        a_m_k_real.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        a_m_k_imag.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+        a_m_k_real.GenerateTensorValue(GeneratorTensor_3<ADataType>{-0.5, 0.5});
+        a_m_k_imag.GenerateTensorValue(GeneratorTensor_3<ADataType>{-0.5, 0.5});
         b_k_n_real.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
         b_k_n_imag.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
     }
@@ -278,12 +278,12 @@ int main(int argc, char* argv[])
                              c_m_n_real_host_result.mData,
                              "Verification error: incorrect results in real part!",
                              1e-2f,
-                             1e-3f);
+                             1e-1f);
         ck::utils::check_err(c_m_n_imag_device_f32_result.mData,
                              c_m_n_imag_host_result.mData,
                              "Verification error: incorrect results in imaginary part!",
                              1e-2f,
-                             1e-3f);
+                             1e-1f);
     }
 
     return 0;
