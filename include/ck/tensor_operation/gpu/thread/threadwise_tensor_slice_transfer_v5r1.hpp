@@ -1,5 +1,4 @@
-#ifndef CK_THREADWISE_TENSOR_SLICE_TRANSFER_V5R1_HPP
-#define CK_THREADWISE_TENSOR_SLICE_TRANSFER_V5R1_HPP
+#pragma once
 
 #include "common_header.hpp"
 #include "tensor_descriptor.hpp"
@@ -609,4 +608,3 @@ struct ThreadwiseTensorSliceTransfer_v5r1
 };
 
 } // namespace ck
-#endif

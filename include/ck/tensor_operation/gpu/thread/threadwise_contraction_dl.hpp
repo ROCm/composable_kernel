@@ -1,6 +1,4 @@
-#ifndef CK_THREADWISE_CONTRACTION_DLOPS_HPP
-#define CK_THREADWISE_CONTRACTION_DLOPS_HPP
-
+#pragma once
 #include "common_header.hpp"
 #include "math.hpp"
 
@@ -25,9 +23,9 @@ template <typename FloatA,
                                  BThreadDesc_TK0_TN0_TN1_TK1::IsKnownAtCompileTime() &&
                                  CThreadDesc_TM0_TM1_TN0_TN1::IsKnownAtCompileTime(),
                              bool>::type = false>
-struct ThreadwiseGemmDlops_km0m1_kn0n1_m0m1n0n1
+struct ThreadwiseGemmDl_km0m1_kn0n1_m0m1n0n1
 {
-    __device__ constexpr ThreadwiseGemmDlops_km0m1_kn0n1_m0m1n0n1()
+    __device__ constexpr ThreadwiseGemmDl_km0m1_kn0n1_m0m1n0n1()
     {
         static_assert(AThreadDesc_TK0_TM0_TM1_TK1::IsKnownAtCompileTime() &&
                           BThreadDesc_TK0_TN0_TN1_TK1::IsKnownAtCompileTime() &&
@@ -124,9 +122,9 @@ template <typename FloatA,
                                  BThreadDesc_TK0_TN0_TN1_TK1::IsKnownAtCompileTime() &&
                                  CThreadDesc_TM0_TM1_TN0_TN1::IsKnownAtCompileTime(),
                              bool>::type = false>
-struct ThreadwiseContractionDlops_A_TK0_TM0_TM1_TK1_B_TK0_TN0_TN1_TK1_C_TM0_TM1_TN0_TN1
+struct ThreadwiseContractionDl_A_TK0_TM0_TM1_TK1_B_TK0_TN0_TN1_TK1_C_TM0_TM1_TN0_TN1
 {
-    __device__ constexpr ThreadwiseContractionDlops_A_TK0_TM0_TM1_TK1_B_TK0_TN0_TN1_TK1_C_TM0_TM1_TN0_TN1()
+    __device__ constexpr ThreadwiseContractionDl_A_TK0_TM0_TM1_TK1_B_TK0_TN0_TN1_TK1_C_TM0_TM1_TN0_TN1()
     {
         static_assert(AThreadDesc_TK0_TM0_TM1_TK1::IsKnownAtCompileTime() &&
                           BThreadDesc_TK0_TN0_TN1_TK1::IsKnownAtCompileTime() &&
@@ -220,4 +218,3 @@ struct ThreadwiseContractionDlops_A_TK0_TM0_TM1_TK1_B_TK0_TN0_TN1_TK1_C_TM0_TM1_
 };
 
 } // namespace ck
-#endif

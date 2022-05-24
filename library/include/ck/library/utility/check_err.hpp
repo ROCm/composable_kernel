@@ -24,7 +24,7 @@ check_err(const std::vector<T>& out,
           const std::vector<T>& ref,
           const std::string& msg = "Error: Incorrect results!",
           double rtol            = 1e-5,
-          double atol            = 1e-8)
+          double atol            = 3e-6)
 {
     if(out.size() != ref.size())
     {
@@ -173,8 +173,8 @@ check_err(const std::vector<T>& out,
     {
         if(out[i] != ref[i])
         {
-            std::cout << "out[" << i << "] != ref[" << i << "]: " << out[i] << " != " << ref[i]
-                      << std::endl
+            std::cout << "out[" << i << "] != ref[" << i << "]: " << static_cast<int>(out[i])
+                      << " != " << static_cast<int>(ref[i]) << std::endl
                       << msg << std::endl;
             return false;
         }
