@@ -136,12 +136,6 @@ struct BlockToCTileMap_M00_N0_M01Adapt
     template <typename TopIdx>
     __host__ __device__ constexpr auto CalculateBottomIndex(const TopIdx& idx_top) const
     {
-#if 0
-        // TODO: This version generates so many branch codes that it is not useable at this moment
-        const auto underlying_map = GetBlockToCTileMap(c_grid_desc_m_n_, idx_top[I0], M01_);
-        return underlying_map.CalculateBottomIndex(idx_top);
-
-#else
         auto block_1d_id = idx_top[I0];
 
         const auto M0 = math::integer_divide_ceil(c_grid_desc_m_n_.GetLength(I0), MPerBlock);
@@ -160,7 +154,6 @@ struct BlockToCTileMap_M00_N0_M01Adapt
 
         return make_tuple(idx_N0_M01_local % M01_adapt + idx_M00 * M01_,
                           idx_N0_M01_local / M01_adapt);
-#endif
     }
 
     template <typename CTileIdx, typename CTileDim>
@@ -173,36 +166,6 @@ struct BlockToCTileMap_M00_N0_M01Adapt
     __host__ bool CheckValidity(const CGridDesc_M_N& /* c_grid_desc_m_n */) const { return true; }
 
     private:
-    __host__ __device__ static constexpr auto
-    GetBlockToCTileMap(const CGridDesc_M_N& c_grid_desc_m_n, index_t block_1d_id, index_t M01)
-    {
-        const auto M0 = math::integer_divide_ceil(c_grid_desc_m_n.GetLength(I0), MPerBlock);
-        const auto N0 = math::integer_divide_ceil(c_grid_desc_m_n.GetLength(I1), NPerBlock);
-
-        const auto M00 = M0 / M01;
-
-        const auto M01_adapt = (block_1d_id < N0 * M00 * M01) ? M01 : M0 % M01;
-
-        const auto m00_n0_m01adapt_to_m0_n0_block_cluster_adaptor =
-            make_single_stage_tensor_adaptor(
-                make_tuple(make_insert_transform(1),
-                           make_unmerge_transform(make_tuple(M00, M01_adapt)),
-                           make_pass_through_transform(make_tuple(N0))),
-                make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2>{}));
-
-        const auto cblockid_to_m00_n0_m01adapt_block_cluster_adaptor =
-            make_single_stage_tensor_adaptor(
-                make_tuple(make_merge_transform(make_tuple(1, M00, N0, M01_adapt))),
-                make_tuple(Sequence<0, 1, 2, 3>{}),
-                make_tuple(Sequence<0>{}));
-
-        const auto cblockid_to_m0_n0_block_cluster_adaptor =
-            chain_tensor_adaptors(m00_n0_m01adapt_to_m0_n0_block_cluster_adaptor,
-                                  cblockid_to_m00_n0_m01adapt_block_cluster_adaptor);
-
-        return cblockid_to_m0_n0_block_cluster_adaptor;
-    }
     index_t M01_;
     CGridDesc_M_N c_grid_desc_m_n_;
 };
