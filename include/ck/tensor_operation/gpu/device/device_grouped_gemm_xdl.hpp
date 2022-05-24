@@ -281,6 +281,11 @@ struct DeviceGroupedGemmXdl
 
     struct GroupedGemmBlock2CTileMap
     {
+        using UnderlyingBlock2CTileMap = typename GridwiseGemm::DefaultBlock2CTileMap;
+        static_assert(
+            std::is_same<decltype(GridwiseGemm::MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1)),
+                         typename GridwiseGemm::DefaultBlock2CTileMap>::value,
+            "Wrong! Should be the same type name");
         GroupedGemmBlock2CTileMap()
         {
             block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1);
@@ -301,6 +306,18 @@ struct DeviceGroupedGemmXdl
         {
             return block_2_ctile_map_.CalculateBottomIndex(
                 make_multi_index(idx_top[I0] - BlockStart_));
+        }
+
+        template <typename CTileIdx, typename CTileDim>
+        __host__ __device__ bool ValidCTileIndex(const CTileIdx& c_tile_idx,
+                                                 const CTileDim& c_tile_dim) const
+        {
+            return block_2_ctile_map_.ValidCTileIndex(c_tile_idx, c_tile_dim);
+        }
+
+        __host__ bool CheckValidity(const CGridDesc_M_N& c_grid_desc_m_n) const
+        {
+            return block_2_ctile_map_.CheckValidity(c_grid_desc_m_n);
         }
 
         private:
@@ -374,21 +391,26 @@ struct DeviceGroupedGemmXdl
                 const auto c_grid_desc_m_n_ =
                     DeviceGroupedGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC);
 
-                const index_t grid_size_grp = GridwiseGemm::CalculateGridSize(c_grid_desc_m_n_);
+                const index_t grid_size_grp =
+                    typename GroupedGemmBlock2CTileMap::UnderlyingBlock2CTileMap(
+                        c_grid_desc_m_n_, M01, N01)
+                        .CalculateGridSize(c_grid_desc_m_n_);
 
                 const index_t BlockStart = grid_size_;
                 const index_t BlockEnd   = grid_size_ + grid_size_grp;
 
                 grid_size_ += grid_size_grp;
 
-                if(GridwiseGemm::CheckValidity(
-                       a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
+                const auto grouped_gemm_block_2_ctile_map_ =
+                    GroupedGemmBlock2CTileMap(c_grid_desc_m_n_, M01, N01, BlockStart);
+
+                if(GridwiseGemm::CheckValidity(a_grid_desc_k0_m_k1_,
+                                               b_grid_desc_k0_n_k1_,
+                                               c_grid_desc_m_n_,
+                                               grouped_gemm_block_2_ctile_map_))
                 {
                     const auto c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
                         GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
-
-                    const auto grouped_gemm_block_2_ctile_map_ =
-                        GroupedGemmBlock2CTileMap(c_grid_desc_m_n_, M01, N01, BlockStart);
 
                     gemm_desc_kernel_arg_.push_back(
                         GemmDescKernelArg{a_grid_desc_k0_m_k1_,
@@ -423,7 +445,7 @@ struct DeviceGroupedGemmXdl
     {
         using Argument = DeviceGroupedGemmXdl::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             bool has_main_k_block_loop = true;
 
@@ -444,11 +466,11 @@ struct DeviceGroupedGemmXdl
                           << arg.gemm_desc_kernel_arg_[i].c_grid_desc_m_n_.GetLength(I1) << "}"
                           << std::endl;
 
-                if(!GridwiseGemm::CheckValidity(arg.gemm_desc_kernel_arg_[i].a_grid_desc_k0_m_k1_,
-                                                arg.gemm_desc_kernel_arg_[i].b_grid_desc_k0_n_k1_,
-                                                arg.gemm_desc_kernel_arg_[i].c_grid_desc_m_n_,
-                                                arg.M01_,
-                                                arg.N01_))
+                if(!GridwiseGemm::CheckValidity(
+                       arg.gemm_desc_kernel_arg_[i].a_grid_desc_k0_m_k1_,
+                       arg.gemm_desc_kernel_arg_[i].b_grid_desc_k0_n_k1_,
+                       arg.gemm_desc_kernel_arg_[i].c_grid_desc_m_n_,
+                       arg.gemm_desc_kernel_arg_[i].grouped_gemm_block_2_ctile_map_))
                 {
                     throw std::runtime_error(
                         "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
@@ -495,8 +517,8 @@ struct DeviceGroupedGemmXdl
                                                     true>;
 
                 ave_time = launch_and_time_kernel(
+                    stream_config,
                     kernel,
-                    nrepeat,
                     dim3(arg.grid_size_),
                     dim3(BlockSize),
                     0,
@@ -519,8 +541,8 @@ struct DeviceGroupedGemmXdl
                                                     false>;
 
                 ave_time = launch_and_time_kernel(
+                    stream_config,
                     kernel,
-                    nrepeat,
                     dim3(arg.grid_size_),
                     dim3(BlockSize),
                     0,
@@ -535,9 +557,10 @@ struct DeviceGroupedGemmXdl
         }
 
         // polymorphic
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 

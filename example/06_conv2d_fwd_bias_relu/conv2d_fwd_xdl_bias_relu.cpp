@@ -93,7 +93,7 @@ void PrintUseMsg()
 {
     std::cout << "arg1: verification (0=no, 1=yes)\n"
               << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
-              << "arg3: run kernel # of times (>1)\n"
+              << "arg3: time kernel (0=n0, 1=yes)\n"
               << "Following arguments:\n"
               << " N, K, C, \n"
               << " <filter spatial dimensions>, (ie Y, X for 2D)\n"
@@ -165,9 +165,9 @@ int main(int argc, char* argv[])
 {
     using namespace ck::utils::conv;
 
-    bool do_verification      = 0;
-    int init_method           = 0;
-    int nrepeat               = 5;
+    bool do_verification      = true;
+    int init_method           = 1;
+    bool time_kernel          = false;
     const int num_dim_spatial = 2;
 
     ck::utils::conv::ConvParams params;
@@ -176,7 +176,7 @@ int main(int argc, char* argv[])
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
     }
 
     if(argc >= 5)
@@ -269,7 +269,7 @@ int main(int argc, char* argv[])
             "not support this problem");
     }
 
-    float ave_time = invoker.Run(argument, nrepeat);
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     std::size_t flop = get_flops(
         params.N_, params.C_, params.K_, params.filter_spatial_lengths_, output_spatial_lengths);
@@ -305,7 +305,8 @@ int main(int argc, char* argv[])
                                                   OutElementOp{});
         ref_invoker.Run(ref_argument);
         out_device_buf.FromDevice(device_output.mData.data());
-        ck::utils::check_err(
-            host_output.mData, device_output.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
+        return ck::utils::check_err(device_output.mData, host_output.mData) ? 0 : 1;
     }
+
+    return 0;
 }
