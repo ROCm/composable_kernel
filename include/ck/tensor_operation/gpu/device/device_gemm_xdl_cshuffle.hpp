@@ -9,6 +9,7 @@
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdl_cshuffle_v1.hpp"
 #include "tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "device_prop.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -558,6 +559,11 @@ struct DeviceGemm_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a"))
+        {
+            return false;
+        }
+
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
                                            arg.b_grid_desc_bk0_n_bk1_,
                                            arg.c_grid_desc_m_n_,
