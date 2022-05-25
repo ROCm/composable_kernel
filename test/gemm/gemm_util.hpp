@@ -223,7 +223,6 @@ struct TestGemm
                 std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
             }
 
-
             return res;
         }
         else

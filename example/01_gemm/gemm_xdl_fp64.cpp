@@ -85,7 +85,7 @@ std::ostream& show_2d_matrix(std::ostream& os, Tensor<DataType>& matrix)
 int main(int argc, char* argv[])
 {
     bool do_verification = 0;
-    int  init_method     = 0;
+    int init_method      = 0;
     bool time_kernel     = false;
 
     // GEMM shape
@@ -101,13 +101,13 @@ int main(int argc, char* argv[])
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        time_kernel         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
     }
     else if(argc == 10)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        time_kernel         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
 
         M = std::stoi(argv[4]);
         N = std::stoi(argv[5]);

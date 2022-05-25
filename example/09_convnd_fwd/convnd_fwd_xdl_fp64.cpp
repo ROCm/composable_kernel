@@ -190,7 +190,7 @@ int main(int argc, char* argv[])
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        time_kernel         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
         num_dim_spatial = std::stoi(argv[4]);
     }
 
