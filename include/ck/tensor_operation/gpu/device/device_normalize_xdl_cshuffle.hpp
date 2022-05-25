@@ -83,7 +83,6 @@ struct DeviceNormalize_Xdl_CShuffle : public BaseOperator
                  const GammaDataType* p_gamma,
                  const BetaDataType* p_beta,
                  OutDataType* p_output,
-                 MeanSquareDataType epsilon,
                  const std::vector<index_t>& shape,
                  const std::vector<index_t>& stride_x,
                  const std::vector<index_t>& stride_mean,
@@ -98,7 +97,6 @@ struct DeviceNormalize_Xdl_CShuffle : public BaseOperator
               p_gamma_(p_gamma),
               p_beta_(p_beta),
               p_output_(p_output),
-              epsilon_(epsilon),
               shape_(shape),
               stride_x_(stride_x),
               stride_mean_(stride_mean),
@@ -124,7 +122,6 @@ struct DeviceNormalize_Xdl_CShuffle : public BaseOperator
         const GammaDataType* p_gamma_;
         const BetaDataType* p_beta_;
         OutDataType* p_output_;
-        MeanSquareDataType epsilon_;
         std::vector<index_t> shape_;
         GridDesc_M0 x_grid_desc_m0_;
         GridDesc_M0 mean_grid_desc_m0_;
@@ -177,6 +174,9 @@ struct DeviceNormalize_Xdl_CShuffle : public BaseOperator
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
         if(pArg == nullptr)
+            return false;
+
+        if(pArg->shape_.size() != Dim)
             return false;
 
         if(pArg->shape_.back() % M0PerThread != 0)
