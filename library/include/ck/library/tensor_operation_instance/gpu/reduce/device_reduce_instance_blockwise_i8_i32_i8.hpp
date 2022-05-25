@@ -1,8 +1,6 @@
 #ifndef DEVICE_REDUCE_INSTANCE_BLOCKWISE_I8_I32_I8_HPP
 #define DEVICE_REDUCE_INSTANCE_BLOCKWISE_I8_I32_I8_HPP
 
-#include "reduction_enums.hpp"
-#include "reduction_operator_mapping.hpp"
 #include "device_reduce_instance_blockwise.hpp"
 
 namespace ck {

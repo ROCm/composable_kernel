@@ -20,6 +20,8 @@ using InDataType  = ck::half_t;
 using OutDataType = ck::half_t;
 using AccDataType = float;
 
+using IndexDataType = int32_t;
+
 using InLayout  = ck::tensor_layout::convolution::NHWC;
 using OutLayout = ck::tensor_layout::convolution::NHWC;
 
@@ -29,7 +31,7 @@ static constexpr auto ReduceOpId = ck::ReduceTensorOp::MAX;
 static constexpr auto ReduceOpId = ck::ReduceTensorOp::AVG;
 #endif
 
-static constexpr bool NeedIndices  = false;
+static constexpr bool OutputIndex  = false;
 static constexpr bool PropagateNan = false;
 
 using DevicePoolFwdInstance =
@@ -38,7 +40,7 @@ using DevicePoolFwdInstance =
         OutDataType, // OutDataType
         AccDataType, // AccDataType
         ReduceOpId,
-        NeedIndices,
+        OutputIndex,
         64, // BlockSize
         64, // ReduceMThreadClusterSize
         1,  // ReduceKThreadClusterSize
@@ -51,10 +53,10 @@ template <typename InDataType,
           typename AccDataType,
           ck::ReduceTensorOp ReduceOpId,
           bool PropagateNan,
-          bool NeedIndices>
+          bool OutputIndex>
 static void pool_host_verify(const Tensor<InDataType>& in,
                              Tensor<OutDataType>& out,
-                             Tensor<int>& out_indices,
+                             Tensor<IndexDataType>& out_indices,
                              const std::array<ck::index_t, 2>& window_spatial_lengths,
                              const std::array<ck::index_t, 2>& window_strides,
                              const std::array<ck::index_t, 2>& in_left_pads,
@@ -62,26 +64,26 @@ static void pool_host_verify(const Tensor<InDataType>& in,
 {
     using namespace ck::host_reduce;
 
-    const int divider = window_spatial_lengths[0] * window_spatial_lengths[1];
+    const int32_t divider = window_spatial_lengths[0] * window_spatial_lengths[1];
 
     const auto PreUnaryOp = PreUnaryOpFn<AccDataType, ReduceOpId>(divider);
     const auto PosUnaryOp = PosUnaryOpFn<AccDataType, ReduceOpId>(divider);
 
-    if constexpr(!NeedIndices)
+    if constexpr(!OutputIndex)
     {
         auto opReduce = ReduceOpFn<AccDataType, ReduceOpId>();
 
         auto f_nchw = [&](auto n, auto c, auto ho, auto wo) {
             auto accuVal = ReduceOpZeroVal<AccDataType, ReduceOpId>();
 
-            for(int y = 0; y < window_spatial_lengths[0]; ++y)
+            for(ck::index_t y = 0; y < window_spatial_lengths[0]; ++y)
             {
-                int hi = ho * window_strides[0] + y - in_left_pads[0];
-                for(int x = 0; x < window_spatial_lengths[1]; ++x)
+                ck::index_t hi = ho * window_strides[0] + y - in_left_pads[0];
+                for(ck::index_t x = 0; x < window_spatial_lengths[1]; ++x)
                 {
-                    int wi = wo * window_strides[1] + x - in_left_pads[1];
-                    if(hi >= 0 && hi < ck::type_convert<int>(in.mDesc.GetLengths()[2]) && wi >= 0 &&
-                       wi < ck::type_convert<int>(in.mDesc.GetLengths()[3]))
+                    ck::index_t wi = wo * window_strides[1] + x - in_left_pads[1];
+                    if(hi >= 0 && hi < static_cast<ck::index_t>(in.mDesc.GetLengths()[2]) &&
+                       wi >= 0 && wi < static_cast<ck::index_t>(in.mDesc.GetLengths()[3]))
                     {
                         AccDataType currVal = static_cast<AccDataType>(in(n, c, hi, wi));
 
@@ -108,24 +110,24 @@ static void pool_host_verify(const Tensor<InDataType>& in,
         auto opReduce = ReduceOpFn2<AccDataType, ReduceOpId>();
 
         auto f_nchw = [&](auto n, auto c, auto ho, auto wo) {
-            auto accuVal  = ReduceOpZeroVal<AccDataType, ReduceOpId>();
-            int accuIndex = 0;
+            auto accuVal            = ReduceOpZeroVal<AccDataType, ReduceOpId>();
+            IndexDataType accuIndex = 0;
 
-            for(int y = 0; y < window_spatial_lengths[0]; ++y)
+            for(ck::index_t y = 0; y < window_spatial_lengths[0]; ++y)
             {
-                int hi = ho * window_strides[0] + y - in_left_pads[0];
-                for(int x = 0; x < window_spatial_lengths[1]; ++x)
+                ck::index_t hi = ho * window_strides[0] + y - in_left_pads[0];
+                for(ck::index_t x = 0; x < window_spatial_lengths[1]; ++x)
                 {
-                    int wi = wo * window_strides[1] + x - in_left_pads[1];
+                    ck::index_t wi = wo * window_strides[1] + x - in_left_pads[1];
                     if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
                        wi < in.mDesc.GetLengths()[3])
                     {
-                        AccDataType currVal = static_cast<AccDataType>(in(n, c, hi, wi));
-                        int currIndex       = y * window_spatial_lengths[1] + x;
+                        AccDataType currVal     = static_cast<AccDataType>(in(n, c, hi, wi));
+                        IndexDataType currIndex = y * window_spatial_lengths[1] + x;
 
                         PreUnaryOp(currVal);
 
-                        binop_with_nan_check2<AccDataType, PropagateNan>(
+                        binop_with_index_and_nan_check<AccDataType, IndexDataType, PropagateNan>(
                             opReduce, accuVal, currVal, accuIndex, currIndex);
                     }
                 }
@@ -149,9 +151,9 @@ int main(int argc, char* argv[])
 {
     using namespace ck::host_reduce;
 
-    bool do_verification = true;
-    int init_method      = 1;
-    bool time_kernel     = false;
+    bool do_verification;
+    int init_method;
+    bool time_kernel;
 
     // Pool shape
     ck::index_t N               = 128;
@@ -167,17 +169,23 @@ int main(int argc, char* argv[])
     ck::index_t in_right_pad_h  = 1;
     ck::index_t in_right_pad_w  = 1;
 
-    if(argc == 4)
+    if(argc == 1)
+    {
+        do_verification = true;
+        init_method     = 1;
+        time_kernel     = true;
+    }
+    else if(argc == 4)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        time_kernel     = std::stoi(argv[3]);
+        time_kernel     = static_cast<bool>(std::stoi(argv[3]));
     }
     else if(argc == 16)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        time_kernel     = std::stoi(argv[3]);
+        time_kernel     = static_cast<bool>(std::stoi(argv[3]));
 
         N               = std::stoi(argv[4]);
         C               = std::stoi(argv[5]);
@@ -196,7 +204,7 @@ int main(int argc, char* argv[])
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: time kernel (0=n0, 1=yes)\n");
+        printf("arg3: time kernel (0=no, 1=yes)\n");
         printf("arg4 to 15: N, C, Y, X, Hi, Wi, Sy, Sx, LeftPy, LeftPx, RightPy, "
                "RightPx\n");
         exit(0);
@@ -228,9 +236,11 @@ int main(int argc, char* argv[])
 
     Tensor<InDataType> in_n_c_hi_wi(f_host_tensor_descriptor(N, C, Hi, Wi, InLayout{}));
     Tensor<OutDataType> out_n_c_ho_wo_host(f_host_tensor_descriptor(N, C, Ho, Wo, OutLayout{}));
-    Tensor<int> out_indices_n_c_ho_wo_host(f_host_tensor_descriptor(N, C, Ho, Wo, OutLayout{}));
+    Tensor<IndexDataType> out_indices_n_c_ho_wo_host(
+        f_host_tensor_descriptor(N, C, Ho, Wo, OutLayout{}));
     Tensor<OutDataType> out_n_c_ho_wo_device(f_host_tensor_descriptor(N, C, Ho, Wo, OutLayout{}));
-    Tensor<int> out_indices_n_c_ho_wo_device(f_host_tensor_descriptor(N, C, Ho, Wo, OutLayout{}));
+    Tensor<IndexDataType> out_indices_n_c_ho_wo_device(
+        f_host_tensor_descriptor(N, C, Ho, Wo, OutLayout{}));
 
     std::cout << "in_n_c_hi_wi: " << in_n_c_hi_wi.mDesc << std::endl;
     std::cout << "out_n_c_ho_wo: " << out_n_c_ho_wo_host.mDesc << std::endl;
@@ -245,25 +255,25 @@ int main(int argc, char* argv[])
 
     DeviceMem in_device_buf(sizeof(InDataType) * in_n_c_hi_wi.mDesc.GetElementSpace());
     DeviceMem out_device_buf(sizeof(OutDataType) * out_n_c_ho_wo_device.mDesc.GetElementSpace());
-    DeviceMem out_indices_device_buf(sizeof(int) *
+    DeviceMem out_indices_device_buf(sizeof(IndexDataType) *
                                      out_indices_n_c_ho_wo_device.mDesc.GetElementSpace());
 
     in_device_buf.ToDevice(in_n_c_hi_wi.mData.data());
 
-    auto pool        = DevicePoolFwdInstance{};
-    auto invoker_ptr = pool.MakeInvokerPointer();
-    auto argument_ptr =
-        pool.MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-                                 static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-                                 static_cast<int*>(out_indices_device_buf.GetDeviceBuffer()),
-                                 N,
-                                 C,
-                                 std::array<ck::index_t, 2>{{Hi, Wi}},
-                                 std::array<ck::index_t, 2>{{Y, X}},
-                                 std::array<ck::index_t, 2>{{Ho, Wo}},
-                                 window_strides,
-                                 input_left_pads,
-                                 input_right_pads);
+    auto pool         = DevicePoolFwdInstance{};
+    auto invoker_ptr  = pool.MakeInvokerPointer();
+    auto argument_ptr = pool.MakeArgumentPointer(
+        static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
+        static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
+        static_cast<IndexDataType*>(out_indices_device_buf.GetDeviceBuffer()),
+        N,
+        C,
+        std::array<ck::index_t, 2>{{Hi, Wi}},
+        std::array<ck::index_t, 2>{{Y, X}},
+        std::array<ck::index_t, 2>{{Ho, Wo}},
+        window_strides,
+        input_left_pads,
+        input_right_pads);
 
     if(!pool.IsSupportedArgument(argument_ptr.get()))
     {
@@ -286,6 +296,7 @@ int main(int argc, char* argv[])
               << std::endl;
 
     bool pass = true;
+
     if(do_verification)
     {
         pool_host_verify<InDataType,
@@ -293,7 +304,7 @@ int main(int argc, char* argv[])
                          AccDataType,
                          ReduceOpId,
                          PropagateNan,
-                         NeedIndices>(in_n_c_hi_wi,
+                         OutputIndex>(in_n_c_hi_wi,
                                       out_n_c_ho_wo_host,
                                       out_indices_n_c_ho_wo_host,
                                       window_spatial_lengths,
@@ -303,15 +314,16 @@ int main(int argc, char* argv[])
 
         out_device_buf.FromDevice(out_n_c_ho_wo_device.mData.data());
 
-        pass &= ck::utils::check_err(out_n_c_ho_wo_device.mData, out_n_c_ho_wo_host.mData);
+        pass = pass && ck::utils::check_err(out_n_c_ho_wo_device.mData, out_n_c_ho_wo_host.mData);
 
-        if constexpr(NeedIndices)
+        if constexpr(OutputIndex)
         {
             out_indices_device_buf.FromDevice(out_indices_n_c_ho_wo_device.mData.data());
 
-            pass &= ck::utils::check_err(out_indices_n_c_ho_wo_device.mData,
-                                         out_indices_n_c_ho_wo_host.mData);
+            pass = pass && ck::utils::check_err(out_indices_n_c_ho_wo_device.mData,
+                                                out_indices_n_c_ho_wo_host.mData);
         };
     }
-    return pass ? 0 : 1;
+
+    return (pass ? 0 : 1);
 }

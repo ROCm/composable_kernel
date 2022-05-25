@@ -12,6 +12,7 @@
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdlops_v2r4.hpp"
 #include "gemm_specialization.hpp"
+#include "device_prop.hpp"
 
 #ifndef CK_RUN_KERNEL_AND_TIME
 #define CK_RUN_KERNEL_AND_TIME 1
@@ -528,6 +529,11 @@ struct DeviceGemmXdlSplitK
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a"))
+        {
+            return false;
+        }
+
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_kbatch_k0_m_k1_,
                                            arg.b_grid_desc_kbatch_k0_n_k1_,
                                            arg.c_grid_desc_m_n_,
