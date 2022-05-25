@@ -325,18 +325,7 @@ struct DynamicBuffer
         {
             if(is_valid_element)
             {
-                constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
-
-                if constexpr(t_per_x > 1)
-                {
-                    static_for<0, t_per_x, 1>{}([&](auto K) constexpr {
-                        atomic_add(c_style_pointer_cast<scalar_t*>(&p_data_[i + K]), x[K()]);
-                    });
-                }
-                else
-                {
-                    atomic_add(c_style_pointer_cast<scalar_t*>(&p_data_[i]), x);
-                };
+                atomic_add<X>(c_style_pointer_cast<X*>(&p_data_[i]), x);
             }
         }
     }

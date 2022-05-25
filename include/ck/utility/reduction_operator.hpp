@@ -42,8 +42,10 @@ namespace reduce {
 //                    when operated against them, and the concept is similar to zero vector in
 //                    vector space
 //                    (http://pages.cs.wisc.edu/~matthewb/pages/notes/pdf/linearalgebra/VectorSpaces.pdf).
-// 2) IsCompatible() -- return true if the reduction task corresponding to this operator can use the
-// InMemoryDataOperation to finalize, or else it return false
+// 2) IsCompatibleInMemoryDataOperation() -- return true if the reduction task corresponding to this
+// operator can use the InMemoryDataOperation to finalize, or else it return false 3) operator() --
+// the first argument of the operator must be both an input & output, and the corresponding variable
+// usually stores
 // 3) operator() -- the first argument of the operator must be both an input & output, and the
 // corresponding variable usually stores
 //                  the accumulated result of many operator() calls; the second argument is only an
@@ -61,7 +63,8 @@ struct Add
 
     __host__ __device__ static constexpr T GetReductionZeroVal() { return static_cast<T>(0.0f); };
 
-    __device__ static constexpr bool IsCompatible(InMemoryDataOperationEnum operation)
+    __device__ static constexpr bool
+    IsCompatibleInMemoryDataOperation(InMemoryDataOperationEnum operation)
     {
         return operation == InMemoryDataOperationEnum::AtomicAdd ||
                operation == InMemoryDataOperationEnum::Set;
@@ -77,7 +80,8 @@ struct Mul
 
     __host__ __device__ static constexpr T GetReductionZeroVal() { return static_cast<T>(1.0f); };
 
-    __device__ static constexpr bool IsCompatible(InMemoryDataOperationEnum operation)
+    __device__ static constexpr bool
+    IsCompatibleInMemoryDataOperation(InMemoryDataOperationEnum operation)
     {
         return operation == InMemoryDataOperationEnum::Set;
     };
@@ -95,7 +99,8 @@ struct Max
         return NumericLimits<T>::Lowest();
     };
 
-    __device__ static constexpr bool IsCompatible(InMemoryDataOperationEnum operation)
+    __device__ static constexpr bool
+    IsCompatibleInMemoryDataOperation(InMemoryDataOperationEnum operation)
     {
         // ToChange: atomic_max to be added
         return operation == InMemoryDataOperationEnum::Set;
@@ -127,7 +132,8 @@ struct Min
         return NumericLimits<T>::Max();
     };
 
-    __device__ static constexpr bool IsCompatible(InMemoryDataOperationEnum operation)
+    __device__ static constexpr bool
+    IsCompatibleInMemoryDataOperation(InMemoryDataOperationEnum operation)
     {
         // ToChange: atomic_min to be added
         return operation == InMemoryDataOperationEnum::Set;
@@ -156,7 +162,8 @@ struct AMax
 
     __host__ __device__ static constexpr T GetReductionZeroVal() { return static_cast<T>(0.0f); };
 
-    __device__ static constexpr bool IsCompatible(InMemoryDataOperationEnum operation)
+    __device__ static constexpr bool
+    IsCompatibleInMemoryDataOperation(InMemoryDataOperationEnum operation)
     {
         // ToChange: atomic_max to be added
         return operation == InMemoryDataOperationEnum::Set;
@@ -179,7 +186,7 @@ struct AMax
 };
 
 template <typename T>
-T GetAtomicOperationZeroValue(InMemoryDataOperationEnum operation)
+T GetReductionZeroValueForInMemoryDataOperation(InMemoryDataOperationEnum operation)
 {
     T result = ck::type_convert<T>(0.0f);
 

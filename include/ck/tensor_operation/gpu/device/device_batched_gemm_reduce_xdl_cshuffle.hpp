@@ -470,44 +470,6 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
     using CGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
     using DGridDesc_M         = decltype(MakeDGridDescriptor_M(1));
 
-    static constexpr auto MakeBlock2CTileMap(index_t batch_count,
-                                             const CGridDesc_M_N& c_grid_desc_m_n,
-                                             index_t M01,
-                                             index_t N01)
-    {
-        const auto M = c_grid_desc_m_n.GetLength(I0);
-        const auto N = c_grid_desc_m_n.GetLength(I1);
-
-        constexpr auto M1 = Number<MPerBlock>{};
-        constexpr auto N1 = Number<NPerBlock>{};
-
-        const auto M0 = M / M1;
-        const auto N0 = N / N1;
-
-        const auto M00 = M0 / M01;
-        const auto N00 = N0 / N01;
-
-        const auto g_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor =
-            make_single_stage_tensor_adaptor(
-                make_tuple(make_insert_transform(batch_count),
-                           make_unmerge_transform(make_tuple(M00, M01)),
-                           make_unmerge_transform(make_tuple(N00, N01))),
-                make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2, 4>{}));
-
-        const auto globalblockid_to_m00_m01_n00_n01_block_cluster_adaptor =
-            make_single_stage_tensor_adaptor(
-                make_tuple(make_merge_transform(make_tuple(batch_count, M00, N00, M01, N01))),
-                make_tuple(Sequence<0, 1, 2, 3, 4>{}),
-                make_tuple(Sequence<0>{}));
-
-        const auto globalblockid_to_m0_n0_block_cluster_adaptor =
-            chain_tensor_adaptors(g_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor,
-                                  globalblockid_to_m00_m01_n00_n01_block_cluster_adaptor);
-
-        return globalblockid_to_m0_n0_block_cluster_adaptor;
-    }
-
     struct ComputeBasePtrOfStridedBatch
     {
         ComputeBasePtrOfStridedBatch(index_t BatchStrideA,
@@ -608,8 +570,6 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
         CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock,
         LoopSched>;
 
-    using Block2CTileMap = decltype(MakeBlock2CTileMap(1, CGridDesc_M_N{}, 1, 1));
-
     // Argument
     struct Argument : public BaseArgument
     {
@@ -645,15 +605,17 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
                   type_convert<index_t>(b_grid_desc_bk0_n_bk1_.GetElementSpaceSize()),
                   type_convert<index_t>(c_grid_desc_m_n_.GetElementSpaceSize()),
                   type_convert<index_t>(d_grid_desc_m_.GetElementSpaceSize())},
-              block_2_ctile_map_{},
+              block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op},
               dxs_in_element_op_{dxs_in_element_op},
               dxs_out_element_op_{dxs_out_element_op}
         {
-            if(GridwiseGemm::CheckValidity(
-                   a_grid_desc_ak0_m_ak1_, b_grid_desc_bk0_n_bk1_, c_grid_desc_m_n_))
+            if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
+                                           b_grid_desc_bk0_n_bk1_,
+                                           c_grid_desc_m_n_,
+                                           block_2_ctile_map_))
             {
                 c_grid_desc_mblock_mperblock_nblock_nperblock_ =
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
@@ -661,8 +623,6 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
 
                 d_grid_desc_mblock_mperblock_ =
                     GridwiseGemm::MakeDGridDescriptor_MBlock_MPerBlock(d_grid_desc_m_);
-
-                block_2_ctile_map_ = MakeBlock2CTileMap(BatchCount, c_grid_desc_m_n_, 1, 1);
             }
         }
 
@@ -680,7 +640,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
         typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock d_grid_desc_mblock_mperblock_;
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
-        Block2CTileMap block_2_ctile_map_;
+        typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
@@ -717,14 +677,16 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
             }
 #endif
 
-            if(!GridwiseGemm::CheckValidity(
-                   arg.a_grid_desc_ak0_m_ak1_, arg.b_grid_desc_bk0_n_bk1_, arg.c_grid_desc_m_n_))
+            if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
+                                            arg.b_grid_desc_bk0_n_bk1_,
+                                            arg.c_grid_desc_m_n_,
+                                            arg.block_2_ctile_map_))
             {
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
 
             const index_t grid_size =
-                GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_) * arg.BatchCount_;
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_) * arg.BatchCount_;
 
             const auto K =
                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
@@ -747,7 +709,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
                     typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock,
                     ComputeBasePtrOfStridedBatch,
-                    remove_reference_t<Block2CTileMap>,
+                    typename GridwiseGemm::DefaultBlock2CTileMap,
                     true>;
 
                 elapsed_time =
@@ -790,7 +752,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
                     typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock,
                     ComputeBasePtrOfStridedBatch,
-                    remove_reference_t<Block2CTileMap>,
+                    typename GridwiseGemm::DefaultBlock2CTileMap,
                     false>;
 
                 elapsed_time =
@@ -836,8 +798,10 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGloba
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        return GridwiseGemm::CheckValidity(
-            arg.a_grid_desc_ak0_m_ak1_, arg.b_grid_desc_bk0_n_bk1_, arg.c_grid_desc_m_n_);
+        return GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
+                                           arg.b_grid_desc_bk0_n_bk1_,
+                                           arg.c_grid_desc_m_n_,
+                                           arg.block_2_ctile_map_);
     }
 
     // polymorphic

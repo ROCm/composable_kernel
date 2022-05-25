@@ -40,6 +40,8 @@ struct BaseOperator
     virtual bool IsSupportedArgument(const BaseArgument*) { return false; }
     virtual std::string GetTypeString() const { return ""; }
 
+    virtual size_t GetWorkSpaceSize(const BaseArgument*) const { return 0; }
+
     virtual ~BaseOperator() {}
 };
 

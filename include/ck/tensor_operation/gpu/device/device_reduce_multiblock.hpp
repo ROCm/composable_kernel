@@ -72,7 +72,7 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
                   "MultiBlock reduction can only be used when outputing index is not required");
 
     static_assert(
-        ReduceOperation::IsCompatible(OutMemoryDataOperation),
+        ReduceOperation::IsCompatibleInMemoryDataOperation(OutMemoryDataOperation),
         "The reduction accumulation operation must be compatible with the OutMemoryDataOperation!");
 
     static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
@@ -349,7 +349,8 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
             if constexpr(use_multiblock)
             {
                 const auto zeroVal =
-                    ck::reduce::GetAtomicOperationZeroValue<OutDataType>(OutMemoryDataOperation);
+                    ck::reduce::GetReductionZeroValueForInMemoryDataOperation<OutDataType>(
+                        OutMemoryDataOperation);
 
                 const auto kernel_pre =
                     kernel_buffer_set_value<BlockSize, OutDataType, OutGridDesc_M_2>;

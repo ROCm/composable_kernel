@@ -1,6 +1,7 @@
 include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/include/ck
     ${PROJECT_SOURCE_DIR}/include/ck/utility
+    ${PROJECT_SOURCE_DIR}/include/ck/host_utility
     ${PROJECT_SOURCE_DIR}/include/ck/tensor_description
     ${PROJECT_SOURCE_DIR}/include/ck/tensor
     ${PROJECT_SOURCE_DIR}/include/ck/problem_transform
@@ -52,4 +53,5 @@ add_subdirectory(15_grouped_gemm)
 add_subdirectory(16_gemm_reduce)
 add_subdirectory(18_batched_gemm_reduce)
 add_subdirectory(19_binary_elementwise)
-add_subdirectory(20_lnorm)
+add_subdirectory(20_convnd_bwd_weight_xdl)
+add_subdirectory(21_lnorm)
