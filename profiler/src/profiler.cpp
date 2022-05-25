@@ -26,8 +26,7 @@ int main(int argc, char* argv[])
 {
     if(strcmp(argv[1], "gemm") == 0)
     {
-        int stat = profile_gemm(argc, argv);
-        return stat;
+        return profile_gemm(argc, argv);
     }
     else if(strcmp(argv[1], "gemm_bias_2d") == 0)
     {
@@ -55,7 +54,7 @@ int main(int argc, char* argv[])
     }
     else if(strcmp(argv[1], "grouped_gemm") == 0)
     {
-        profile_grouped_gemm(argc, argv);
+        return profile_grouped_gemm(argc, argv);
     }
     else if(strcmp(argv[1], "conv_fwd") == 0)
     {
