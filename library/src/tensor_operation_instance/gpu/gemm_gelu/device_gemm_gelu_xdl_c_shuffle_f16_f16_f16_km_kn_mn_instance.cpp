@@ -1,4 +1,5 @@
 #include <stdlib.h>
+
 #include "config.hpp"
 #include "device_gemm_xdl_cshuffle.hpp"
 #include "element_wise_operation.hpp"
