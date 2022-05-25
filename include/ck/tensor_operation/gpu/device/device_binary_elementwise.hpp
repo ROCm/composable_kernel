@@ -18,7 +18,8 @@ template <typename ADataType,
           index_t Dim,
           index_t M0PerThread,
           index_t AScalarPerVector,
-          index_t BScalarPerVector>
+          index_t BScalarPerVector,
+          index_t CScalarPerVector>
 struct DeviceBinaryElementwise : public BaseOperator
 {
     static constexpr auto I0 = Number<0>{};
@@ -72,7 +73,8 @@ struct DeviceBinaryElementwise : public BaseOperator
                                                             ElementwiseFunctor,
                                                             M0PerThread,
                                                             AScalarPerVector,
-                                                            BScalarPerVector>;
+                                                            BScalarPerVector,
+                                                            CScalarPerVector>;
 
     struct Argument : public BaseArgument
     {
@@ -90,6 +92,7 @@ struct DeviceBinaryElementwise : public BaseOperator
               shape_(shape),
               stride_a_(stride_a),
               stride_b_(stride_b),
+              stride_c_(stride_c),
               functor_(functor),
               blockSize_(256),
               gridSize_(120) // FIXME - Calculate the grid size by number of CU in the future
@@ -108,6 +111,7 @@ struct DeviceBinaryElementwise : public BaseOperator
         GridDesc_M0 c_grid_desc_m0_;
         std::vector<index_t> stride_a_;
         std::vector<index_t> stride_b_;
+        std::vector<index_t> stride_c_;
         ElementwiseFunctor functor_;
         index_t blockSize_;
         index_t gridSize_;
@@ -147,11 +151,11 @@ struct DeviceBinaryElementwise : public BaseOperator
         }
     };
 
-    bool IsScalarPerVectorValid(bool broadcastOnFastest, int scalarPerVector)
+    bool IsScalarPerVectorValid(bool isFastestAxisCoalesce, int scalarPerVector)
     {
         bool ret = true;
 
-        if(broadcastOnFastest)
+        if(!isFastestAxisCoalesce)
             ret = scalarPerVector == 1;
         else
             ret = M0PerThread % scalarPerVector == 0;
@@ -172,10 +176,13 @@ struct DeviceBinaryElementwise : public BaseOperator
         if(pArg->shape_.back() % M0PerThread != 0)
             return false;
 
-        if(!IsScalarPerVectorValid(pArg->stride_a_.back() == 0, AScalarPerVector))
+        if(!IsScalarPerVectorValid(pArg->stride_a_.back() == 1, AScalarPerVector))
             return false;
 
-        if(!IsScalarPerVectorValid(pArg->stride_b_.back() == 0, BScalarPerVector))
+        if(!IsScalarPerVectorValid(pArg->stride_b_.back() == 1, BScalarPerVector))
+            return false;
+
+        if(!IsScalarPerVectorValid(pArg->stride_c_.back() == 1, CScalarPerVector))
             return false;
 
         return true;

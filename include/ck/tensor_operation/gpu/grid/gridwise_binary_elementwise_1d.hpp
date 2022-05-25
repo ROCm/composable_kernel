@@ -38,7 +38,8 @@ template <typename ADataType,
           typename ElementwiseFunctor,
           index_t M0PerThread,
           index_t AScalarPerVector,
-          index_t BScalarPerVector>
+          index_t BScalarPerVector,
+          index_t CScalarPerVector>
 struct GridwiseBinaryElementwise_1D
 {
     static constexpr auto I0 = Number<0>{};
@@ -82,8 +83,8 @@ struct GridwiseBinaryElementwise_1D
                                              Sequence<M0PerThread>, // SliceLengths
                                              Sequence<0>,           // DimAccessOrder
                                              0,                     // SrcVectorDim
-                                             AScalarPerVector,
-                                             1, // SrcScalarStrideInVector
+                                             AScalarPerVector,      // ScalarPerVector
+                                             1,                     // SrcScalarStrideInVector
                                              false>{a_grid_desc_m0, thread_store_global_offset};
 
         auto b_global_load =
@@ -94,8 +95,8 @@ struct GridwiseBinaryElementwise_1D
                                              Sequence<M0PerThread>, // SliceLengths
                                              Sequence<0>,           // DimAccessOrder
                                              0,                     // SrcVectorDim
-                                             BScalarPerVector,
-                                             1, // SrcScalarStrideInVector
+                                             BScalarPerVector,      // ScalarPerVector
+                                             1,                     // SrcScalarStrideInVector
                                              false>{b_grid_desc_m0, thread_store_global_offset};
 
         auto c_global_write =
@@ -107,7 +108,7 @@ struct GridwiseBinaryElementwise_1D
                                                Sequence<M0PerThread>, // SliceLengths
                                                Sequence<0>,           // DimAccessOrder
                                                0,                     // DstVectorDim
-                                               M0PerThread,
+                                               CScalarPerVector,      // ScalarPerVector
                                                InMemoryDataOperationEnum::Set,
                                                1, // DstScalarStrideInVector
                                                false>{

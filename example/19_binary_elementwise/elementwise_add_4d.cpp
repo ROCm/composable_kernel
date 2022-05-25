@@ -28,6 +28,7 @@ using DeviceElementwiseAddInstance =
                                                           4,
                                                           8,
                                                           8,
+                                                          8,
                                                           8>;
 
 template <typename HostTensorA,
