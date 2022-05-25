@@ -17,8 +17,8 @@ template <typename ADataType,
           typename ElementwiseFunctor,
           index_t Dim,
           index_t M0PerThread,
-          index_t AScalarPerVector = M0PerThread,
-          index_t BScalarPerVector = M0PerThread>
+          index_t AScalarPerVector,
+          index_t BScalarPerVector>
 struct DeviceBinaryElementwise : public BaseOperator
 {
     static constexpr auto I0 = Number<0>{};

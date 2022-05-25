@@ -37,8 +37,8 @@ template <typename ADataType,
           typename GridDesc_M0,
           typename ElementwiseFunctor,
           index_t M0PerThread,
-          index_t AScalarPerVector = M0PerThread,
-          index_t BScalarPerVector = M0PerThread>
+          index_t AScalarPerVector,
+          index_t BScalarPerVector>
 struct GridwiseBinaryElementwise_1D
 {
     static constexpr auto I0 = Number<0>{};
