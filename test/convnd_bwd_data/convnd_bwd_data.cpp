@@ -27,20 +27,20 @@ int main()
                                                            ck::tensor_layout::convolution::NWC,
                                                            ck::tensor_layout::convolution::KXC,
                                                            ck::tensor_layout::convolution::NWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
 
         pass &= ck::profiler::profile_convnd_bwd_data_impl<1,
                                                            ck::half_t,
@@ -50,20 +50,20 @@ int main()
                                                            ck::tensor_layout::convolution::NWC,
                                                            ck::tensor_layout::convolution::KXC,
                                                            ck::tensor_layout::convolution::NWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
 
         pass &= ck::profiler::profile_convnd_bwd_data_impl<1,
                                                            ck::bhalf_t,
@@ -73,20 +73,20 @@ int main()
                                                            ck::tensor_layout::convolution::NWC,
                                                            ck::tensor_layout::convolution::KXC,
                                                            ck::tensor_layout::convolution::NWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
 
         pass &= ck::profiler::profile_convnd_bwd_data_impl<1,
                                                            int8_t,
@@ -96,20 +96,20 @@ int main()
                                                            ck::tensor_layout::convolution::NWC,
                                                            ck::tensor_layout::convolution::KXC,
                                                            ck::tensor_layout::convolution::NWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
     }
 
     // check 2d
@@ -128,20 +128,20 @@ int main()
                                                            ck::tensor_layout::convolution::NHWC,
                                                            ck::tensor_layout::convolution::KYXC,
                                                            ck::tensor_layout::convolution::NHWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
 
         pass &= ck::profiler::profile_convnd_bwd_data_impl<2,
                                                            ck::half_t,
@@ -151,20 +151,20 @@ int main()
                                                            ck::tensor_layout::convolution::NHWC,
                                                            ck::tensor_layout::convolution::KYXC,
                                                            ck::tensor_layout::convolution::NHWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
 
         pass &= ck::profiler::profile_convnd_bwd_data_impl<2,
                                                            ck::bhalf_t,
@@ -174,20 +174,20 @@ int main()
                                                            ck::tensor_layout::convolution::NHWC,
                                                            ck::tensor_layout::convolution::KYXC,
                                                            ck::tensor_layout::convolution::NHWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
 
         pass &= ck::profiler::profile_convnd_bwd_data_impl<2,
                                                            int8_t,
@@ -197,20 +197,20 @@ int main()
                                                            ck::tensor_layout::convolution::NHWC,
                                                            ck::tensor_layout::convolution::KYXC,
                                                            ck::tensor_layout::convolution::NHWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
     }
 
     // check 3d
@@ -232,20 +232,20 @@ int main()
                                                            ck::tensor_layout::convolution::NDHWC,
                                                            ck::tensor_layout::convolution::KZYXC,
                                                            ck::tensor_layout::convolution::NDHWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
 
         pass &= ck::profiler::profile_convnd_bwd_data_impl<3,
                                                            ck::half_t,
@@ -255,20 +255,20 @@ int main()
                                                            ck::tensor_layout::convolution::NDHWC,
                                                            ck::tensor_layout::convolution::KZYXC,
                                                            ck::tensor_layout::convolution::NDHWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
 
         pass &= ck::profiler::profile_convnd_bwd_data_impl<3,
                                                            ck::bhalf_t,
@@ -278,20 +278,20 @@ int main()
                                                            ck::tensor_layout::convolution::NDHWC,
                                                            ck::tensor_layout::convolution::KZYXC,
                                                            ck::tensor_layout::convolution::NDHWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
 
         pass &= ck::profiler::profile_convnd_bwd_data_impl<3,
                                                            int8_t,
@@ -301,20 +301,20 @@ int main()
                                                            ck::tensor_layout::convolution::NDHWC,
                                                            ck::tensor_layout::convolution::KZYXC,
                                                            ck::tensor_layout::convolution::NDHWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
-            param.N,
-            param.K,
-            param.C,
-            param.input_spatial_lengths,
-            param.filter_spatial_lengths,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
+            param.N_,
+            param.K_,
+            param.C_,
+            param.input_spatial_lengths_,
+            param.filter_spatial_lengths_,
             param.GetOutputSpatialLengths(),
-            param.conv_filter_strides,
-            param.conv_filter_dilations,
-            param.input_left_pads,
-            param.input_right_pads);
+            param.conv_filter_strides_,
+            param.conv_filter_dilations_,
+            param.input_left_pads_,
+            param.input_right_pads_);
     }
 
     if(pass)

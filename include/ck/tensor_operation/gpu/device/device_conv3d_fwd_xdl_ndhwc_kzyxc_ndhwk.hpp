@@ -259,50 +259,6 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
     using BGridDesc_K0_N_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
     using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
-    struct Block2CTileMapMaker
-    {
-        Block2CTileMapMaker(index_t num_batches) : num_batches_(num_batches) {}
-
-        __host__ __device__ constexpr auto
-        MakeBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n, index_t M01, index_t N01)
-        {
-            const auto M = c_grid_desc_m_n.GetLength(I0);
-            const auto N = c_grid_desc_m_n.GetLength(I1);
-
-            constexpr auto M1 = Number<MPerBlock>{};
-            constexpr auto N1 = Number<NPerBlock>{};
-
-            const auto M0 = M / M1;
-            const auto N0 = N / N1;
-
-            const auto M00 = M0 / M01;
-            const auto N00 = N0 / N01;
-
-            const auto g_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor =
-                make_single_stage_tensor_adaptor(
-                    make_tuple(make_insert_transform(num_batches_),
-                               make_unmerge_transform(make_tuple(M00, M01)),
-                               make_unmerge_transform(make_tuple(N00, N01))),
-                    make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}),
-                    make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2, 4>{}));
-
-            const auto globalblockid_to_g_m00_m01_n00_n01_block_cluster_adaptor =
-                make_single_stage_tensor_adaptor(
-                    make_tuple(make_merge_transform(make_tuple(num_batches_, M00, N00, M01, N01))),
-                    make_tuple(Sequence<0, 1, 2, 3, 4>{}),
-                    make_tuple(Sequence<0>{}));
-
-            const auto globalblockid_to_m0_n0_block_cluster_adaptor =
-                chain_tensor_adaptors(g_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor,
-                                      globalblockid_to_g_m00_m01_n00_n01_block_cluster_adaptor);
-
-            return globalblockid_to_m0_n0_block_cluster_adaptor;
-        }
-
-        private:
-        index_t num_batches_;
-    };
-
     using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3<
         BlockSize,
         InDataType,
@@ -345,8 +301,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
 
     using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
         decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
-    using Block2CTileMap =
-        decltype(Block2CTileMapMaker{1}.MakeBlock2CTileMap(CGridDesc_M_N{}, 1, 1));
+    using Block2CTileMap = typename GridwiseGemm::DefaultBlock2CTileMap;
 
     // Argument
     struct Argument : public BaseArgument
@@ -398,18 +353,20 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
             b_grid_desc_k0_n_k1_ = descs[I1];
             c_grid_desc_m_n_     = descs[I2];
 
+            block_2_ctile_map_ =
+                GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
+
             a_batch_stride_ = a_grid_desc_k0_m_k1_.GetElementSpaceSize();
             b_batch_stride_ = 0;
             c_batch_stride_ = c_grid_desc_m_n_.GetElementSpaceSize();
 
-            if(GridwiseGemm::CheckValidity(
-                   a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
+            if(GridwiseGemm::CheckValidity(a_grid_desc_k0_m_k1_,
+                                           b_grid_desc_k0_n_k1_,
+                                           c_grid_desc_m_n_,
+                                           block_2_ctile_map_))
             {
                 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
                     GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
-
-                block_2_ctile_map_ = Block2CTileMapMaker{num_subbatches_}.MakeBlock2CTileMap(
-                    c_grid_desc_m_n_, M01, N01);
             }
         }
 
@@ -438,7 +395,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             {
                 std::cout << "num_batches_of_GEMM = " << arg.num_subbatches_ << std::endl;
@@ -457,16 +414,15 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                             arg.b_grid_desc_k0_n_k1_,
                                             arg.c_grid_desc_m_n_,
-                                            arg.M01_,
-                                            arg.N01_))
+                                            arg.block_2_ctile_map_))
             {
                 throw std::runtime_error(
                     "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
             }
 
-            // todo: grid_size times arg.num_subbatches_
             const index_t grid_size =
-                GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_) * arg.num_subbatches_;
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_) *
+                arg.num_subbatches_;
 
             const auto K0 = arg.a_grid_desc_k0_m_k1_.GetLength(I0);
 
@@ -487,8 +443,8 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                     OutElementwiseOperation,
                     remove_reference_t<Block2CTileMap>,
                     true>;
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
                                                   dim3(grid_size),
                                                   dim3(BlockSize),
                                                   0,
@@ -522,8 +478,8 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
                     remove_reference_t<Block2CTileMap>,
                     false>;
 
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
                                                   dim3(grid_size),
                                                   dim3(BlockSize),
                                                   0,
@@ -547,9 +503,10 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         }
 
         // polymorphic
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 
@@ -564,8 +521,7 @@ struct DeviceConv3dFwdXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                            arg.b_grid_desc_k0_n_k1_,
                                            arg.c_grid_desc_m_n_,
-                                           arg.M01_,
-                                           arg.N01_);
+                                           arg.block_2_ctile_map_);
     }
 
     // polymorphic

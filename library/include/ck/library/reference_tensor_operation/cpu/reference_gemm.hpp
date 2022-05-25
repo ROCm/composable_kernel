@@ -1,6 +1,4 @@
-#ifndef REFERENCE_GEMM_HPP
-#define REFERENCE_GEMM_HPP
-
+#pragma once
 #include <iostream>
 #include <sstream>
 #include "device_base.hpp"
@@ -83,7 +81,8 @@ struct ReferenceGemm : public device::BaseOperator
             return 0;
         }
 
-        float Run(const device::BaseArgument* p_arg, int) override
+        float Run(const device::BaseArgument* p_arg,
+                  const StreamConfig& /* stream_config */ = StreamConfig{}) override
         {
             return Run(*dynamic_cast<const Argument*>(p_arg));
         }
@@ -130,4 +129,3 @@ struct ReferenceGemm : public device::BaseOperator
 } // namespace host
 } // namespace tensor_operation
 } // namespace ck
-#endif

@@ -17,6 +17,88 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+template <typename GridwiseGemm,
+          typename FloatAB,
+          typename FloatC,
+          typename GemmDesc,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation,
+          bool HasMainKBlockLoop,
+          index_t MaxGroupCount>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+        kernel_grouped_gemm_xdlops_v2r3(
+            const StaticallyIndexedArray<GemmDesc, MaxGroupCount> gemm_descs,
+            const index_t group_count,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const CElementwiseOperation c_element_op)
+{
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
+    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+
+    const index_t block_id = get_block_1d_id();
+
+#if 1
+    static_for<0, MaxGroupCount, 1>{}([&](auto i) {
+        if(block_id >= gemm_descs[i].BlockStart_ && block_id < gemm_descs[i].BlockEnd_ &&
+           i < group_count)
+        {
+            auto group_id = i;
+
+            GridwiseGemm::template Run<HasMainKBlockLoop>(
+                gemm_descs[group_id].a_ptr,
+                gemm_descs[group_id].b_ptr,
+                gemm_descs[group_id].c_ptr,
+                p_shared,
+                gemm_descs[group_id].a_grid_desc_k0_m_k1_,
+                gemm_descs[group_id].b_grid_desc_k0_n_k1_,
+                gemm_descs[group_id].c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                a_element_op,
+                b_element_op,
+                c_element_op,
+                gemm_descs[group_id].grouped_gemm_block_2_ctile_map_);
+        }
+    });
+#else
+    const auto gemm_desc_ptr = reinterpret_cast<const GemmDesc*>(&gemm_descs);
+
+    index_t group_id = 0;
+    static_for<0, MaxGroupCount, 1>{}([&](auto i) {
+        group_id = (block_id >= gemm_descs[i].BlockStart && block_id < gemm_descs[i].BlockEnd &&
+                    i < group_count)
+                       ? i
+                       : group_id;
+    });
+
+    const index_t block_id_grp = block_id - gemm_desc_ptr[group_id].BlockStart;
+
+    GridwiseGemm::template Run<HasMainKBlockLoop>(
+        gemm_desc_ptr[group_id].a_ptr,
+        gemm_desc_ptr[group_id].b_ptr,
+        gemm_desc_ptr[group_id].c_ptr,
+        p_shared,
+        gemm_desc_ptr[group_id].a_grid_desc_k0_m_k1_,
+        gemm_desc_ptr[group_id].b_grid_desc_k0_n_k1_,
+        gemm_desc_ptr[group_id].c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+        a_element_op,
+        b_element_op,
+        c_element_op,
+        gemm_desc_ptr[group_id].block_2_ctile_map_,
+        block_id_grp);
+#endif
+#else
+    ignore = gemm_descs;
+    ignore = group_count;
+    ignore = a_element_op;
+    ignore = b_element_op;
+    ignore = c_element_op;
+#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+}
+
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
@@ -225,6 +307,11 @@ struct DeviceGroupedGemmXdl
 
     struct GroupedGemmBlock2CTileMap
     {
+        using UnderlyingBlock2CTileMap = typename GridwiseGemm::DefaultBlock2CTileMap;
+        static_assert(
+            std::is_same<decltype(GridwiseGemm::MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1)),
+                         typename GridwiseGemm::DefaultBlock2CTileMap>::value,
+            "Wrong! Should be the same type name");
         GroupedGemmBlock2CTileMap()
         {
             block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1);
@@ -245,6 +332,18 @@ struct DeviceGroupedGemmXdl
         {
             return block_2_ctile_map_.CalculateBottomIndex(
                 make_multi_index(idx_top[I0] - BlockStart_));
+        }
+
+        template <typename CTileIdx, typename CTileDim>
+        __host__ __device__ bool ValidCTileIndex(const CTileIdx& c_tile_idx,
+                                                 const CTileDim& c_tile_dim) const
+        {
+            return block_2_ctile_map_.ValidCTileIndex(c_tile_idx, c_tile_dim);
+        }
+
+        __host__ bool CheckValidity(const CGridDesc_M_N& c_grid_desc_m_n) const
+        {
+            return block_2_ctile_map_.CheckValidity(c_grid_desc_m_n);
         }
 
         private:
@@ -290,17 +389,18 @@ struct DeviceGroupedGemmXdl
         {
             grid_size_ = 0;
 
-            group_count_ = static_cast<int>(gemm_shapes.size());
+            group_count_ = ck::type_convert<ck::index_t>(gemm_shapes.size());
 
-            if(!(group_count_ == p_a.size() && group_count_ == p_b.size() &&
-                 group_count_ == p_c.size()))
+            if(!(group_count_ == ck::type_convert<ck::index_t>(p_a.size()) &&
+                 group_count_ == ck::type_convert<ck::index_t>(p_b.size()) &&
+                 group_count_ == ck::type_convert<ck::index_t>(p_c.size())))
             {
                 throw std::runtime_error("wrong! group_count_ != P_a/b/c.size");
             }
 
             gemm_desc_kernel_arg_.reserve(group_count_);
 
-            for(index_t i = 0; i < gemm_shapes.size(); i++)
+            for(std::size_t i = 0; i < gemm_shapes.size(); i++)
             {
                 const index_t M = gemm_shapes[i].M;
                 const index_t N = gemm_shapes[i].N;
@@ -317,21 +417,26 @@ struct DeviceGroupedGemmXdl
                 const auto c_grid_desc_m_n_ =
                     DeviceGroupedGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC);
 
-                const index_t grid_size_grp = GridwiseGemm::CalculateGridSize(c_grid_desc_m_n_);
+                const index_t grid_size_grp =
+                    typename GroupedGemmBlock2CTileMap::UnderlyingBlock2CTileMap(
+                        c_grid_desc_m_n_, M01, N01)
+                        .CalculateGridSize(c_grid_desc_m_n_);
 
                 const index_t BlockStart = grid_size_;
                 const index_t BlockEnd   = grid_size_ + grid_size_grp;
 
                 grid_size_ += grid_size_grp;
 
-                if(GridwiseGemm::CheckValidity(
-                       a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
+                const auto grouped_gemm_block_2_ctile_map_ =
+                    GroupedGemmBlock2CTileMap(c_grid_desc_m_n_, M01, N01, BlockStart);
+
+                if(GridwiseGemm::CheckValidity(a_grid_desc_k0_m_k1_,
+                                               b_grid_desc_k0_n_k1_,
+                                               c_grid_desc_m_n_,
+                                               grouped_gemm_block_2_ctile_map_))
                 {
                     const auto c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
                         GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
-
-                    const auto grouped_gemm_block_2_ctile_map_ =
-                        GroupedGemmBlock2CTileMap(c_grid_desc_m_n_, M01, N01, BlockStart);
 
                     gemm_desc_kernel_arg_.push_back(
                         GemmDescKernelArg{a_grid_desc_k0_m_k1_,
@@ -366,61 +471,55 @@ struct DeviceGroupedGemmXdl
     {
         using Argument = DeviceGroupedGemmXdl::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            StaticallyIndexedArray<GemmDescKernelArg, MaxGroupCount> gemm_desc_kernel_arg_arg;
+            StaticallyIndexedArray<GemmDescKernelArg, MaxGroupCount> gemm_desc_kernel_args;
 
-            bool has_main_k0_block_loop = true;
+            bool has_main_k_block_loop = true;
 
             static_for<0, MaxGroupCount, 1>{}([&](auto i) {
                 if(i < arg.gemm_desc_kernel_arg_.size())
                 {
-                    gemm_desc_kernel_arg_arg(i) = arg.gemm_desc_kernel_arg_[i];
+                    gemm_desc_kernel_args(i) = arg.gemm_desc_kernel_arg_[i];
 
                     std::cout << "group: " << i << " arg.a_grid_desc_k0_m_k1_{"
-                              << gemm_desc_kernel_arg_arg[i].a_grid_desc_k0_m_k1_.GetLength(I0)
-                              << ", "
-                              << gemm_desc_kernel_arg_arg[i].a_grid_desc_k0_m_k1_.GetLength(I1)
-                              << ", "
-                              << gemm_desc_kernel_arg_arg[i].a_grid_desc_k0_m_k1_.GetLength(I2)
-                              << "}";
+                              << gemm_desc_kernel_args[i].a_grid_desc_k0_m_k1_.GetLength(I0) << ", "
+                              << gemm_desc_kernel_args[i].a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
+                              << gemm_desc_kernel_args[i].a_grid_desc_k0_m_k1_.GetLength(I2) << "}";
 
                     std::cout << ", arg.b_grid_desc_k0_n_k1_{"
-                              << gemm_desc_kernel_arg_arg[i].b_grid_desc_k0_n_k1_.GetLength(I0)
-                              << ", "
-                              << gemm_desc_kernel_arg_arg[i].b_grid_desc_k0_n_k1_.GetLength(I1)
-                              << ", "
-                              << gemm_desc_kernel_arg_arg[i].b_grid_desc_k0_n_k1_.GetLength(I2)
-                              << "}";
+                              << gemm_desc_kernel_args[i].b_grid_desc_k0_n_k1_.GetLength(I0) << ", "
+                              << gemm_desc_kernel_args[i].b_grid_desc_k0_n_k1_.GetLength(I1) << ", "
+                              << gemm_desc_kernel_args[i].b_grid_desc_k0_n_k1_.GetLength(I2) << "}";
 
                     std::cout << ", arg.c_grid_desc_m_n_{ "
-                              << gemm_desc_kernel_arg_arg[i].c_grid_desc_m_n_.GetLength(I0) << ", "
-                              << gemm_desc_kernel_arg_arg[i].c_grid_desc_m_n_.GetLength(I1) << "}"
+                              << gemm_desc_kernel_args[i].c_grid_desc_m_n_.GetLength(I0) << ", "
+                              << gemm_desc_kernel_args[i].c_grid_desc_m_n_.GetLength(I1) << "}"
                               << std::endl;
 
                     if(!GridwiseGemm::CheckValidity(
-                           gemm_desc_kernel_arg_arg[i].a_grid_desc_k0_m_k1_,
-                           gemm_desc_kernel_arg_arg[i].b_grid_desc_k0_n_k1_,
-                           gemm_desc_kernel_arg_arg[i].c_grid_desc_m_n_,
-                           arg.M01_,
-                           arg.N01_))
+                           gemm_desc_kernel_args[i].a_grid_desc_k0_m_k1_,
+                           gemm_desc_kernel_args[i].b_grid_desc_k0_n_k1_,
+                           gemm_desc_kernel_args[i].c_grid_desc_m_n_,
+                           gemm_desc_kernel_args[i].grouped_gemm_block_2_ctile_map_))
                     {
                         throw std::runtime_error(
                             "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
                     }
 
-                    const auto K0 = gemm_desc_kernel_arg_arg[i].a_grid_desc_k0_m_k1_.GetLength(I0);
+                    const auto K = gemm_desc_kernel_args[i].a_grid_desc_k0_m_k1_.GetLength(I0) *
+                                   gemm_desc_kernel_args[i].a_grid_desc_k0_m_k1_.GetLength(I2);
 
-                    if(GridwiseGemm::CalculateHasMainK0BlockLoop(K0) != has_main_k0_block_loop)
+                    if(GridwiseGemm::CalculateHasMainKBlockLoop(K) != has_main_k_block_loop)
                     {
-                        throw std::runtime_error("wrong! not all gemm has_main_k0_block_loop");
+                        throw std::runtime_error("wrong! not all gemm has_main_k_block_loop");
                     }
                 }
             });
 
             float ave_time = 0;
 
-            if(has_main_k0_block_loop)
+            if(has_main_k_block_loop)
             {
                 const auto kernel =
                     kernel_grouped_gemm_xdlops_v2r3<GridwiseGemm,
@@ -433,12 +532,12 @@ struct DeviceGroupedGemmXdl
                                                     true,
                                                     MaxGroupCount>;
 
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
                                                   dim3(arg.grid_size_),
                                                   dim3(BlockSize),
                                                   0,
-                                                  gemm_desc_kernel_arg_arg,
+                                                  gemm_desc_kernel_args,
                                                   arg.gemm_desc_kernel_arg_.size(),
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
@@ -457,12 +556,12 @@ struct DeviceGroupedGemmXdl
                                                     false,
                                                     MaxGroupCount>;
 
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
                                                   dim3(arg.grid_size_),
                                                   dim3(BlockSize),
                                                   0,
-                                                  gemm_desc_kernel_arg_arg,
+                                                  gemm_desc_kernel_args,
                                                   arg.gemm_desc_kernel_arg_.size(),
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
@@ -473,9 +572,10 @@ struct DeviceGroupedGemmXdl
         }
 
         // polymorphic
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 
@@ -487,7 +587,7 @@ struct DeviceGroupedGemmXdl
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(arg.gemm_desc_kernel_arg_.size() != arg.group_count_)
+        if(ck::type_convert<ck::index_t>(arg.gemm_desc_kernel_arg_.size()) != arg.group_count_)
             return false;
         else
             return true;

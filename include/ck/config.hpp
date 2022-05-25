@@ -26,17 +26,14 @@
 #endif
 #endif
 
-// buffer resourse, wave size
+// buffer resource
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_BUFFER_RESOURCE_3RD_DWORD -1
-#define CK_GPU_WAVE_SIZE -1
 #elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || defined(__gfx908__) || \
     defined(__gfx90a__) // for GPU code
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x00020000
-#define CK_GPU_WAVE_SIZE 64
 #elif defined(__gfx1030__) // for GPU code
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31014000
-#define CK_GPU_WAVE_SIZE 32
 #endif
 
 // FMA instruction
@@ -79,6 +76,12 @@
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 0
 #endif
 
+#if defined(__gfx90a__) // for GPU code
+#define CK_USE_AMD_BUFFER_ATOMIC_MAX_FLOAT64 1
+#else
+#define CK_USE_AMD_BUFFER_ATOMIC_MAX_FLOAT64 0
+#endif
+
 // inline asm
 #define CK_USE_AMD_INLINE_ASM 1
 
@@ -94,10 +97,11 @@
 // experimental feature: static tensor descriptor
 #define CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR 0
 
-// experimental feature: buffer load/store/atomic-add OOB trick
+// experimental feature: buffer load/store/atomic-add/ OOB trick
 #define CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK 0
 #define CK_EXPERIMENTAL_USE_BUFFER_STORE_OOB_CHECK_OFFSET_TRICK 1
 #define CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_ADD_OOB_CHECK_OFFSET_TRICK 1
+#define CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_MAX_OOB_CHECK_OFFSET_TRICK 1
 
 // experimental feature: in-regsiter sub-dword transpose
 #define CK_EXPERIMENTAL_USE_IN_REGISTER_SUB_DWORD_TRANSPOSE 1
@@ -111,6 +115,10 @@
 
 // experimental feature: use __builtin_memcpy instead of union to do bit_cast
 #define CK_EXPERIMENTAL_USE_MEMCPY_FOR_BIT_CAST 1
+
+// experimental feature: optimize for inter-wave scheduling policy
+#define CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING 0
+#define CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS 1
 
 // hack: have underlying assumption that need to be satsified, otherwise it's a bug
 // hack for forcing register to keep idx_diff_low_const in SGPR. idx_diff_low_const must be
@@ -141,7 +149,21 @@ enum struct InMemoryDataOperationEnum
 {
     Set,
     AtomicAdd,
+    AtomicMax,
     Add
+};
+
+template <InMemoryDataOperationEnum... Is>
+struct InMemoryDataOperationEnumSequence
+{
+    static constexpr int mSize = sizeof...(Is);
+
+    __host__ __device__ static constexpr InMemoryDataOperationEnum At(int I)
+    {
+        // the last dummy element is to prevent compiler complain about empty array, when mSize = 0
+        const InMemoryDataOperationEnum mData[mSize + 1] = {Is..., InMemoryDataOperationEnum::Set};
+        return mData[I];
+    }
 };
 
 // TODO: no longer needed, remove this

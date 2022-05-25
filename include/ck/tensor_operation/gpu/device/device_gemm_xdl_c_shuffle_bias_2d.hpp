@@ -1,6 +1,4 @@
-#ifndef DEVICE_GEMM_XDL_C_SHUFFLE_BIAS_2D_HPP
-#define DEVICE_GEMM_XDL_C_SHUFFLE_BIAS_2D_HPP
-
+#pragma once
 #include <iostream>
 #include <sstream>
 #include "device.hpp"
@@ -220,8 +218,13 @@ struct DeviceGemmXdl_C_Shuffle_Bias_2d
             c_grid_desc_m_n_ =
                 DeviceGemmXdl_C_Shuffle_Bias_2d::MakeCGridDescriptor_M_N(M, N, StrideC);
 
-            if(GridwiseGemm::CheckValidity(
-                   a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
+            block_2_ctile_map_ =
+                GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
+
+            if(GridwiseGemm::CheckValidity(a_grid_desc_k0_m_k1_,
+                                           b_grid_desc_k0_n_k1_,
+                                           c_grid_desc_m_n_,
+                                           block_2_ctile_map_))
             {
                 c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_ =
                     GridwiseGemm::
@@ -232,9 +235,6 @@ struct DeviceGemmXdl_C_Shuffle_Bias_2d
                     GridwiseGemm::
                         MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
                             c_grid_desc_m_n_);
-
-                block_2_ctile_map_ =
-                    GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
             }
         }
 
@@ -266,7 +266,7 @@ struct DeviceGemmXdl_C_Shuffle_Bias_2d
     {
         using Argument = DeviceGemmXdl_C_Shuffle_Bias_2d::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             {
                 std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
@@ -287,22 +287,21 @@ struct DeviceGemmXdl_C_Shuffle_Bias_2d
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                             arg.b_grid_desc_k0_n_k1_,
                                             arg.c_grid_desc_m_n_,
-                                            arg.M01_,
-                                            arg.N01_))
+                                            arg.block_2_ctile_map_))
             {
                 throw std::runtime_error(
-                    "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v2r3 has invalid setting");
+                    "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r2 has invalid setting");
             }
 
-            const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_);
+            const index_t grid_size =
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_);
 
-            const auto K0 = arg.a_grid_desc_k0_m_k1_.GetLength(I0);
-
-            const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
+            const auto K =
+                arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
 
             float ave_time = 0;
 
-            if(has_main_k0_block_loop)
+            if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
                 const auto kernel = kernel_gemm_xdlops_v3r2<
                     GridwiseGemm,
@@ -323,8 +322,8 @@ struct DeviceGemmXdl_C_Shuffle_Bias_2d
                     true>;
 
                 ave_time = launch_and_time_kernel(
+                    stream_config,
                     kernel,
-                    nrepeat,
                     dim3(grid_size),
                     dim3(BlockSize),
                     0,
@@ -362,8 +361,8 @@ struct DeviceGemmXdl_C_Shuffle_Bias_2d
                     false>;
 
                 ave_time = launch_and_time_kernel(
+                    stream_config,
                     kernel,
-                    nrepeat,
                     dim3(grid_size),
                     dim3(BlockSize),
                     0,
@@ -385,9 +384,10 @@ struct DeviceGemmXdl_C_Shuffle_Bias_2d
         }
 
         // polymorphic
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 
@@ -402,8 +402,7 @@ struct DeviceGemmXdl_C_Shuffle_Bias_2d
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                            arg.b_grid_desc_k0_n_k1_,
                                            arg.c_grid_desc_m_n_,
-                                           arg.M01_,
-                                           arg.N01_);
+                                           arg.block_2_ctile_map_);
     }
 
     // polymorphic
@@ -505,4 +504,3 @@ struct DeviceGemmXdl_C_Shuffle_Bias_2d
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

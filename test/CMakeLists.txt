@@ -1,6 +1,8 @@
 include_directories(BEFORE
+    ${PROJECT_SOURCE_DIR}/
     ${PROJECT_SOURCE_DIR}/include/ck
     ${PROJECT_SOURCE_DIR}/include/ck/utility
+    ${PROJECT_SOURCE_DIR}/include/ck/host_utility
     ${PROJECT_SOURCE_DIR}/include/ck/tensor_description
     ${PROJECT_SOURCE_DIR}/include/ck/tensor
     ${PROJECT_SOURCE_DIR}/include/ck/problem_transform
@@ -21,8 +23,10 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/external/include/half
 )
 
-add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
+include(googletest)
+
 add_custom_target(tests)
+
 
 function(add_test_executable TEST_NAME)
     message("adding test ${TEST_NAME}")
@@ -31,6 +35,20 @@ function(add_test_executable TEST_NAME)
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
 endfunction(add_test_executable TEST_NAME)
+
+include(GoogleTest)
+
+function(add_gtest_executable TEST_NAME)
+    message("adding gtest ${TEST_NAME}")
+    add_executable(${TEST_NAME} ${ARGN})
+    add_dependencies(tests ${TEST_NAME})
+    add_dependencies(check ${TEST_NAME})
+    # suppress gtest warnings
+    target_compile_options(${TEST_NAME} PRIVATE -Wno-global-constructors -Wno-undef)
+    target_link_libraries(${TEST_NAME} PRIVATE gtest_main)
+    gtest_discover_tests(${TEST_NAME})
+endfunction(add_gtest_executable TEST_NAME)
+
 
 add_subdirectory(magic_number_division)
 add_subdirectory(space_filling_curve)
@@ -45,3 +63,6 @@ add_subdirectory(grouped_gemm)
 add_subdirectory(convnd_fwd)
 add_subdirectory(reduce)
 add_subdirectory(conv2d_bwd_weight)
+add_subdirectory(convnd_bwd_data)
+add_subdirectory(block_to_ctile_map)
+# DONOT add client_app, that is tested via CI independently
