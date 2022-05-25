@@ -350,6 +350,7 @@ struct DeviceGroupedGemmXdl
                  std::vector<const void*>& p_b,
                  std::vector<void*>& p_c,
                  std::vector<GemmShape>& gemm_shapes,
+                 void* gemm_descs_args_workspace,
                  index_t M01,
                  index_t N01,
                  AElementwiseOperation a_element_op,
@@ -362,6 +363,8 @@ struct DeviceGroupedGemmXdl
               c_element_op_{c_element_op}
         {
             grid_size_ = 0;
+
+            gemm_descs_args_workspace_ = gemm_descs_args_workspace;
 
             group_count_ = ck::type_convert<ck::index_t>(gemm_shapes.size());
 
@@ -437,6 +440,8 @@ struct DeviceGroupedGemmXdl
 
         std::vector<GemmDescKernelArg> gemm_desc_kernel_arg_;
 
+        void* gemm_descs_args_workspace_;
+
         index_t grid_size_;
     };
 
@@ -485,12 +490,13 @@ struct DeviceGroupedGemmXdl
                 }
             }
 
-            void* gemm_descs_const_;
-            hipGetErrorString(hipMalloc(
-                &gemm_descs_const_, arg.gemm_desc_kernel_arg_.size() * sizeof(GemmDescKernelArg)));
+            // void* gemm_descs_args_workspace;
+            // hipGetErrorString(hipMalloc(
+            //    &gemm_descs_args_workspace, arg.gemm_desc_kernel_arg_.size() *
+            //    sizeof(GemmDescKernelArg)));
 
             hipGetErrorString(
-                hipMemcpy(gemm_descs_const_,
+                hipMemcpy(arg.gemm_descs_args_workspace_,
                           arg.gemm_desc_kernel_arg_.data(),
                           arg.gemm_desc_kernel_arg_.size() * sizeof(GemmDescKernelArg),
                           hipMemcpyHostToDevice));
@@ -515,7 +521,7 @@ struct DeviceGroupedGemmXdl
                     dim3(arg.grid_size_),
                     dim3(BlockSize),
                     0,
-                    cast_pointer_to_constant_address_space(gemm_descs_const_),
+                    cast_pointer_to_constant_address_space(arg.gemm_descs_args_workspace_),
                     arg.gemm_desc_kernel_arg_.size(),
                     arg.a_element_op_,
                     arg.b_element_op_,
@@ -539,7 +545,7 @@ struct DeviceGroupedGemmXdl
                     dim3(arg.grid_size_),
                     dim3(BlockSize),
                     0,
-                    cast_pointer_to_constant_address_space(gemm_descs_const_),
+                    cast_pointer_to_constant_address_space(arg.gemm_descs_args_workspace_),
                     arg.gemm_desc_kernel_arg_.size(),
                     arg.a_element_op_,
                     arg.b_element_op_,
@@ -581,11 +587,21 @@ struct DeviceGroupedGemmXdl
                              std::vector<const void*>& p_b,
                              std::vector<void*>& p_c,
                              std::vector<GemmShape> gemm_shapes,
+                             void* gemm_descs_args_workspace,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
-        return Argument{p_a, p_b, p_c, gemm_shapes, 1, 1, a_element_op, b_element_op, c_element_op};
+        return Argument{p_a,
+                        p_b,
+                        p_c,
+                        gemm_shapes,
+                        gemm_descs_args_workspace,
+                        1,
+                        1,
+                        a_element_op,
+                        b_element_op,
+                        c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -595,13 +611,22 @@ struct DeviceGroupedGemmXdl
                                                       std::vector<const void*>& p_b,
                                                       std::vector<void*>& p_c,
                                                       std::vector<GemmShape>& gemm_shapes,
+                                                      void* gemm_descs_args_workspace,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op,
                                                       index_t /* KBatch */ = 1) override
     {
-        return std::make_unique<Argument>(
-            p_a, p_b, p_c, gemm_shapes, 1, 1, a_element_op, b_element_op, c_element_op);
+        return std::make_unique<Argument>(p_a,
+                                          p_b,
+                                          p_c,
+                                          gemm_shapes,
+                                          gemm_descs_args_workspace,
+                                          1,
+                                          1,
+                                          a_element_op,
+                                          b_element_op,
+                                          c_element_op);
     }
 
     // polymorphic
@@ -631,6 +656,11 @@ struct DeviceGroupedGemmXdl
         // clang-format on
 
         return str.str();
+    }
+
+    static size_t GetWorkSpaceSize(const index_t group_count)
+    {
+        return group_count * sizeof(GemmDescKernelArg);
     }
 };
 
