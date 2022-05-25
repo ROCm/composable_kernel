@@ -166,6 +166,9 @@ struct DeviceBinaryElementwise : public BaseOperator
         if(pArg == nullptr)
             return false;
 
+        if(pArg->shape_.size() != Dim)
+            return false;
+
         if(pArg->shape_.back() % M0PerThread != 0)
             return false;
 
