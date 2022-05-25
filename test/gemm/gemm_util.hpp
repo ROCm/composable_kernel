@@ -217,6 +217,12 @@ struct TestGemm
                 res = ck::utils::check_err(c_device.mData, c_host.mData);
                 std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
             }
+            else if(std::is_same<CDataType, double>::value)
+            {
+                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
+            }
+
 
             return res;
         }

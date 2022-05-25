@@ -1,7 +1,7 @@
 # GEMM XDL
-add_test_executable(test_gemm_fp64 gemm_fp64.cpp)
-target_link_libraries(test_gemm_fp64 PRIVATE host_tensor)
-target_link_libraries(test_gemm_fp64 PRIVATE device_gemm_instance)
+add_test_executable(test_gemm_xdl_fp64 gemm_xdl_fp64.cpp)
+target_link_libraries(test_gemm_xdl_fp64 PRIVATE host_tensor)
+target_link_libraries(test_gemm_xdl_fp64 PRIVATE device_gemm_instance)
 
 add_test_executable(test_gemm_xdl_fp32 gemm_xdl_fp32.cpp)
 target_link_libraries(test_gemm_xdl_fp32 PRIVATE host_tensor)

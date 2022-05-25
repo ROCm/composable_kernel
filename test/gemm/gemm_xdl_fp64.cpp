@@ -15,7 +15,6 @@
 #include "host_gemm.hpp"
 #include "device_tensor.hpp"
 #include "device_gemm_xdl.hpp"
-#include "device_gemm_xdl_c_shuffle.hpp"
 #include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"
 #include "gemm_specialization.hpp"
