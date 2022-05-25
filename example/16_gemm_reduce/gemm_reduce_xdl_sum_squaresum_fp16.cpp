@@ -32,6 +32,7 @@ using CDataType         = F16;
 using ReduceAccDataType = F32;
 using DDataType         = F32;
 using DPtrsGlobal       = ck::Tuple<DDataType*, DDataType*>;
+using AccDataType       = F32;
 
 using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;

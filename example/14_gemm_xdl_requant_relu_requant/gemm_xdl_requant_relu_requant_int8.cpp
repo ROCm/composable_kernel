@@ -103,7 +103,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle
 using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                         BDataType,
                                                                         CDataType,
-                                                                        AccDataType,
+                                                                        float,
                                                                         PassThrough,
                                                                         PassThrough,
                                                                         RequantReluRequant>;
