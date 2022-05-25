@@ -239,10 +239,10 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 
     // return block_id to C matrix tile idx (m0, n0) mapping
     __host__ __device__ static constexpr auto MakeCBlockClusterAdaptor(
-        const CMNGridDesc& c_m_n_grid_desc, index_t M01, index_t N01, index_t KBatch)
+        const CMNGridDesc& c_m_n_grid_desc, index_t /* M01 */, index_t /* N01 */, index_t KBatch)
     {
-        return BlockToCTileMap_KSplit_M00_N00_M01_N01<MPerBlock, NPerBlock, CMNGridDesc>(
-            c_m_n_grid_desc, M01, N01, KBatch);
+        return BlockToCTileMap_KSplit_M00_N0_M01Adapt<MPerBlock, NPerBlock, CMNGridDesc>(
+            c_m_n_grid_desc, 8, KBatch);
     }
 
     __host__ __device__ static constexpr auto

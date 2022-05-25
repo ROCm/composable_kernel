@@ -346,7 +346,6 @@ struct DeviceGroupedGemmXdl
             return block_2_ctile_map_.CheckValidity(c_grid_desc_m_n);
         }
 
-        private:
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         ck::index_t BlockStart_;
     };
@@ -418,9 +417,8 @@ struct DeviceGroupedGemmXdl
                     DeviceGroupedGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC);
 
                 const index_t grid_size_grp =
-                    typename GroupedGemmBlock2CTileMap::UnderlyingBlock2CTileMap(
-                        c_grid_desc_m_n_, M01, N01)
-                        .CalculateGridSize(c_grid_desc_m_n_);
+                    GroupedGemmBlock2CTileMap(c_grid_desc_m_n_, M01, N01, 0)
+                        .block_2_ctile_map_.CalculateGridSize(c_grid_desc_m_n_);
 
                 const index_t BlockStart = grid_size_;
                 const index_t BlockEnd   = grid_size_ + grid_size_grp;
