@@ -933,12 +933,12 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
         return str.str();
     }
 
-    std::size_t GetWorkspaceSize([[maybe_unused]] index_t MRaw,
-                                 [[maybe_unused]] index_t NRaw,
+    std::size_t GetWorkspaceSize(index_t MRaw,
+                                 index_t NRaw,
                                  [[maybe_unused]] index_t KRaw,
                                  [[maybe_unused]] index_t StrideA,
                                  [[maybe_unused]] index_t StrideB,
-                                 [[maybe_unused]] index_t StrideC) override
+                                 index_t StrideC) override
     {
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC);
 
