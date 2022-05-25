@@ -38,13 +38,13 @@ struct DeviceBinaryElementwise : public BaseOperator
         return desc_m0_pad;
     }
 
-    static auto MakeDescriptor_M0(const std::vector<index_t>& shape,
-                                  const std::vector<index_t>& stride,
+    static auto MakeDescriptor_M0(const std::vector<index_t>& lengths,
+                                  const std::vector<index_t>& strides,
                                   index_t gridSize,
                                   index_t blockSize)
     {
-        auto tupleOfShape  = generate_tuple([&](auto I) { return shape[I]; }, Number<Dim>{});
-        auto tupleOfStride = generate_tuple([&](auto I) { return stride[I]; }, Number<Dim>{});
+        auto tupleOfShape  = generate_tuple([&](auto I) { return lengths[I]; }, Number<Dim>{});
+        auto tupleOfStride = generate_tuple([&](auto I) { return strides[I]; }, Number<Dim>{});
 
         // nd desc - [s0, s1, s2, ...]
         const auto desc = make_naive_tensor_descriptor(tupleOfShape, tupleOfStride);
@@ -81,37 +81,37 @@ struct DeviceBinaryElementwise : public BaseOperator
         Argument(const ADataType* p_a,
                  const BDataType* p_b,
                  CDataType* p_c,
-                 const std::vector<index_t>& shape,
-                 const std::vector<index_t>& stride_a,
-                 const std::vector<index_t>& stride_b,
-                 const std::vector<index_t>& stride_c,
+                 const std::vector<index_t>& lengths,
+                 const std::vector<index_t>& a_strides,
+                 const std::vector<index_t>& b_strides,
+                 const std::vector<index_t>& c_strides,
                  ElementwiseFunctor functor)
             : p_a_(p_a),
               p_b_(p_b),
               p_c_(p_c),
-              shape_(shape),
-              stride_a_(stride_a),
-              stride_b_(stride_b),
-              stride_c_(stride_c),
+              lengths_(lengths),
+              a_strides_(a_strides),
+              b_strides_(b_strides),
+              c_strides_(c_strides),
               functor_(functor),
               blockSize_(256),
               gridSize_(120) // FIXME - Calculate the grid size by number of CU in the future
         {
-            a_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_a, gridSize_, blockSize_);
-            b_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_b, gridSize_, blockSize_);
-            c_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_c, gridSize_, blockSize_);
+            a_grid_desc_m0_ = MakeDescriptor_M0(lengths, a_strides, gridSize_, blockSize_);
+            b_grid_desc_m0_ = MakeDescriptor_M0(lengths, b_strides, gridSize_, blockSize_);
+            c_grid_desc_m0_ = MakeDescriptor_M0(lengths, c_strides, gridSize_, blockSize_);
         }
 
         const ADataType* p_a_;
         const BDataType* p_b_;
         CDataType* p_c_;
-        std::vector<int> shape_;
+        std::vector<int> lengths_;
         GridDesc_M0 a_grid_desc_m0_;
         GridDesc_M0 b_grid_desc_m0_;
         GridDesc_M0 c_grid_desc_m0_;
-        std::vector<index_t> stride_a_;
-        std::vector<index_t> stride_b_;
-        std::vector<index_t> stride_c_;
+        std::vector<index_t> a_strides_;
+        std::vector<index_t> b_strides_;
+        std::vector<index_t> c_strides_;
         ElementwiseFunctor functor_;
         index_t blockSize_;
         index_t gridSize_;
@@ -170,19 +170,19 @@ struct DeviceBinaryElementwise : public BaseOperator
         if(pArg == nullptr)
             return false;
 
-        if(pArg->shape_.size() != Dim)
+        if(pArg->lengths_.size() != Dim)
             return false;
 
-        if(pArg->shape_.back() % M0PerThread != 0)
+        if(pArg->lengths_.back() % M0PerThread != 0)
             return false;
 
-        if(!IsScalarPerVectorValid(pArg->stride_a_.back() == 1, AScalarPerVector))
+        if(!IsScalarPerVectorValid(pArg->a_strides_.back() == 1, AScalarPerVector))
             return false;
 
-        if(!IsScalarPerVectorValid(pArg->stride_b_.back() == 1, BScalarPerVector))
+        if(!IsScalarPerVectorValid(pArg->b_strides_.back() == 1, BScalarPerVector))
             return false;
 
-        if(!IsScalarPerVectorValid(pArg->stride_c_.back() == 1, CScalarPerVector))
+        if(!IsScalarPerVectorValid(pArg->c_strides_.back() == 1, CScalarPerVector))
             return false;
 
         return true;
@@ -191,19 +191,19 @@ struct DeviceBinaryElementwise : public BaseOperator
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
                                                       const void* p_b,
                                                       void* p_c,
-                                                      std::vector<index_t> shape,
-                                                      std::vector<index_t> stride_a,
-                                                      std::vector<index_t> stride_b,
-                                                      std::vector<index_t> stride_c,
+                                                      std::vector<index_t> lengths,
+                                                      std::vector<index_t> a_strides,
+                                                      std::vector<index_t> b_strides,
+                                                      std::vector<index_t> c_strides,
                                                       ElementwiseFunctor functor)
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
                                           static_cast<CDataType*>(p_c),
-                                          shape,
-                                          stride_a,
-                                          stride_b,
-                                          stride_c,
+                                          lengths,
+                                          a_strides,
+                                          b_strides,
+                                          c_strides,
                                           functor);
     }
 
