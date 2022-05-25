@@ -64,12 +64,16 @@ struct DeviceBinaryElementwise : public BaseOperator
             return PadDescriptor_M0_1d(desc, gridSize, blockSize);
     }
 
-    using GridDesc_M0        = decltype(MakeDescriptor_M0({1, 1}, {1, 1}, 1, 1));
+    using AGridDesc_M0       = decltype(MakeDescriptor_M0({1, 1}, {1, 1}, 1, 1));
+    using BGridDesc_M0       = decltype(MakeDescriptor_M0({1, 1}, {1, 1}, 1, 1));
+    using CGridDesc_M0       = decltype(MakeDescriptor_M0({1, 1}, {1, 1}, 1, 1));
     using GridwiseBinEltwise = GridwiseBinaryElementwise_1D<ADataType,
                                                             BDataType,
                                                             CDataType,
                                                             ComputeDataType,
-                                                            GridDesc_M0,
+                                                            AGridDesc_M0,
+                                                            BGridDesc_M0,
+                                                            CGridDesc_M0,
                                                             ElementwiseFunctor,
                                                             M0PerThread,
                                                             AScalarPerVector,
@@ -106,9 +110,9 @@ struct DeviceBinaryElementwise : public BaseOperator
         const BDataType* p_b_;
         CDataType* p_c_;
         std::vector<int> lengths_;
-        GridDesc_M0 a_grid_desc_m0_;
-        GridDesc_M0 b_grid_desc_m0_;
-        GridDesc_M0 c_grid_desc_m0_;
+        AGridDesc_M0 a_grid_desc_m0_;
+        BGridDesc_M0 b_grid_desc_m0_;
+        CGridDesc_M0 c_grid_desc_m0_;
         std::vector<index_t> a_strides_;
         std::vector<index_t> b_strides_;
         std::vector<index_t> c_strides_;
@@ -125,7 +129,9 @@ struct DeviceBinaryElementwise : public BaseOperator
                                                              ADataType,
                                                              BDataType,
                                                              CDataType,
-                                                             GridDesc_M0,
+                                                             AGridDesc_M0,
+                                                             BGridDesc_M0,
+                                                             CGridDesc_M0,
                                                              ElementwiseFunctor>;
 
             float elapsed_time = launch_and_time_kernel(stream_config,

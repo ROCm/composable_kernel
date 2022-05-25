@@ -11,14 +11,16 @@ template <typename GridwiseBinEltwise,
           typename ADataType,
           typename BDataType,
           typename CDataType,
-          typename GridDesc_M0,
+          typename AGridDesc_M0,
+          typename BGridDesc_M0,
+          typename CGridDesc_M0,
           typename ElementwiseFunctor>
 __global__ void kernel_binary_elementwise_1d(const ADataType* __restrict__ p_a_global,
                                              const BDataType* __restrict__ p_b_global,
                                              CDataType* __restrict__ p_c_global,
-                                             const GridDesc_M0 a_grid_desc_m0,
-                                             const GridDesc_M0 b_grid_desc_m0,
-                                             const GridDesc_M0 c_grid_desc_m0,
+                                             const AGridDesc_M0 a_grid_desc_m0,
+                                             const BGridDesc_M0 b_grid_desc_m0,
+                                             const CGridDesc_M0 c_grid_desc_m0,
                                              const ElementwiseFunctor functor)
 {
     GridwiseBinEltwise::Run(p_a_global,
@@ -34,7 +36,9 @@ template <typename ADataType,
           typename BDataType,
           typename CDataType,
           typename ComputeDataType,
-          typename GridDesc_M0,
+          typename AGridDesc_M0,
+          typename BGridDesc_M0,
+          typename CGridDesc_M0,
           typename ElementwiseFunctor,
           index_t M0PerThread,
           index_t AScalarPerVector,
@@ -57,9 +61,9 @@ struct GridwiseBinaryElementwise_1D
     __device__ static void Run(const ADataType* __restrict__ p_a_global,
                                const BDataType* __restrict__ p_b_global,
                                CDataType* __restrict__ p_c_global,
-                               const GridDesc_M0 a_grid_desc_m0,
-                               const GridDesc_M0 b_grid_desc_m0,
-                               const GridDesc_M0 c_grid_desc_m0,
+                               const AGridDesc_M0 a_grid_desc_m0,
+                               const BGridDesc_M0 b_grid_desc_m0,
+                               const CGridDesc_M0 c_grid_desc_m0,
                                const ElementwiseFunctor functor)
     {
         const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -78,7 +82,7 @@ struct GridwiseBinaryElementwise_1D
         auto a_global_load =
             ThreadwiseTensorSliceTransfer_v2<ADataType,
                                              ComputeDataType,
-                                             GridDesc_M0,
+                                             AGridDesc_M0,
                                              decltype(thread_desc_m0),
                                              Sequence<M0PerThread>, // SliceLengths
                                              Sequence<0>,           // DimAccessOrder
@@ -90,7 +94,7 @@ struct GridwiseBinaryElementwise_1D
         auto b_global_load =
             ThreadwiseTensorSliceTransfer_v2<BDataType,
                                              ComputeDataType,
-                                             GridDesc_M0,
+                                             BGridDesc_M0,
                                              decltype(thread_desc_m0),
                                              Sequence<M0PerThread>, // SliceLengths
                                              Sequence<0>,           // DimAccessOrder
@@ -103,7 +107,7 @@ struct GridwiseBinaryElementwise_1D
             ThreadwiseTensorSliceTransfer_v1r3<ComputeDataType,
                                                CDataType,
                                                decltype(thread_desc_m0),
-                                               GridDesc_M0,
+                                               CGridDesc_M0,
                                                PassThrough,
                                                Sequence<M0PerThread>, // SliceLengths
                                                Sequence<0>,           // DimAccessOrder
