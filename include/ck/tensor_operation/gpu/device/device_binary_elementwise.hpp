@@ -151,18 +151,6 @@ struct DeviceBinaryElementwise : public BaseOperator
         }
     };
 
-    bool IsScalarPerVectorValid(bool isFastestAxisCoalesce, int scalarPerVector)
-    {
-        bool ret = true;
-
-        if(!isFastestAxisCoalesce)
-            ret = scalarPerVector == 1;
-        else
-            ret = M0PerThread % scalarPerVector == 0;
-
-        return ret;
-    }
-
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
@@ -175,6 +163,17 @@ struct DeviceBinaryElementwise : public BaseOperator
 
         if(pArg->lengths_.back() % M0PerThread != 0)
             return false;
+
+        auto IsScalarPerVectorValid = [](bool isFastestAxisCoalesce, int scalarPerVector) {
+            bool ret = true;
+
+            if(!isFastestAxisCoalesce)
+                ret = scalarPerVector == 1;
+            else
+                ret = M0PerThread % scalarPerVector == 0;
+
+            return ret;
+        };
 
         if(!IsScalarPerVectorValid(pArg->a_strides_.back() == 1, AScalarPerVector))
             return false;
