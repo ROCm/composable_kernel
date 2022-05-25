@@ -7,26 +7,57 @@
 #include "profile_convnd_fwd.hpp"
 
 int profile_gemm(int, char*[]);
-int profile_gemm_bias_2d(int, char*[]);
-int profile_gemm_bias_relu(int, char*[]);
-int profile_gemm_bias_relu_add(int, char*[]);
-int profile_gemm_reduce(int, char*[]);
-int profile_batched_gemm(int, char*[]);
-int profile_grouped_gemm(int, char*[]);
-int profile_conv_fwd_bias_relu(int, char*[]);
-int profile_conv_fwd_bias_relu_add(int, char*[]);
-int profile_conv_fwd_bias_relu_atomic_add(int, char*[]);
-int profile_convnd_bwd_data(int, char*[], int);
-int profile_reduce(int, char*[]);
-int profile_conv_bwd_weight(int, char*[]);
-int profile_batched_gemm_reduce(int, char*[]);
+// int profile_gemm_bias_2d(int, char*[]);
+// int profile_gemm_bias_relu(int, char*[]);
+// int profile_gemm_bias_relu_add(int, char*[]);
+// int profile_gemm_reduce(int, char*[]);
+// int profile_batched_gemm(int, char*[]);
+// int profile_grouped_gemm(int, char*[]);
+// int profile_conv_fwd_bias_relu(int, char*[]);
+// int profile_conv_fwd_bias_relu_add(int, char*[]);
+// int profile_conv_fwd_bias_relu_atomic_add(int, char*[]);
+// int profile_convnd_bwd_data(int, char*[], int);
+// int profile_reduce(int, char*[]);
+// int profile_conv_bwd_weight(int, char*[]);
+// int profile_batched_gemm_reduce(int, char*[]);
+int profile_gemm_gelu(int, char*[]);
+
+static void print_helper_message()
+{
+    // clang-format off
+        printf("arg1: tensor operation (gemm: GEMM\n"
+               "                        gemm_bias_2d: GEMM+Bias(2D)\n"
+               "                        gemm_bias_relu: GEMM+Bias+ReLU\n"
+               "                        gemm_bias_relu_add: GEMM+Bias+ReLU+Add\n"
+               "                        gemm_reduce: GEMM+Reduce\n"
+               "                        grouped_gemm: Grouped GEMM\n"
+               "                        conv_fwd: ForwardConvolution\n"
+               "                        conv_fwd_bias_relu: ForwardConvolution+Bias+ReLU\n"
+               "                        conv_fwd_bias_relu_add: ForwardConvolution+Bias+ReLU+Add\n"
+               "                        conv_fwd_bias_relu_atomic_add: ForwardConvolution+Bias+ReLU+AtomicAdd\n"
+               "                        conv1d_bwd_data: BackwardConvolution data 1 dim\n"
+               "                        conv2d_bwd_data: BackwardConvolution data 2 dim\n"
+               "                        conv3d_bwd_data: BackwardConvolution data 3 dim\n"
+               "                        reduce: Reduce\n"
+               "                        conv2d_bwd_weight: Backward Weight Convolution 2d\n"
+               "                        gemm_gelu: GEMM+GeLU\n");
+    // clang-format on
+}
 
 int main(int argc, char* argv[])
 {
+    if(argc == 1)
+    {
+        print_helper_message();
+
+        return 0;
+    }
+
     if(strcmp(argv[1], "gemm") == 0)
     {
         return profile_gemm(argc, argv);
     }
+#if 0
     else if(strcmp(argv[1], "gemm_bias_2d") == 0)
     {
         return profile_gemm_bias_2d(argc, argv);
@@ -91,25 +122,15 @@ int main(int argc, char* argv[])
     {
         return profile_conv_bwd_weight(argc, argv);
     }
+#endif
+    else if(strcmp(argv[1], "gemm_gelu") == 0)
+    {
+        return profile_gemm_gelu(argc, argv);
+    }
     else
     {
-        // clang-format off
-        printf("arg1: tensor operation (gemm: GEMM\n"
-               "                        gemm_bias_2d: GEMM+Bias(2D)\n"
-               "                        gemm_bias_relu: GEMM+Bias+ReLU\n"
-               "                        gemm_bias_relu_add: GEMM+Bias+ReLU+Add\n"
-               "                        gemm_reduce: GEMM+Reduce\n"
-               "                        grouped_gemm: Grouped GEMM\n"
-               "                        conv_fwd: ForwardConvolution\n"
-               "                        conv_fwd_bias_relu: ForwardConvolution+Bias+ReLU\n"
-               "                        conv_fwd_bias_relu_add: ForwardConvolution+Bias+ReLU+Add\n"
-               "                        conv_fwd_bias_relu_atomic_add: ForwardConvolution+Bias+ReLU+AtomicAdd\n"
-               "                        conv1d_bwd_data: BackwardConvolution data 1 dim\n"
-               "                        conv2d_bwd_data: BackwardConvolution data 2 dim\n"
-               "                        conv3d_bwd_data: BackwardConvolution data 3 dim\n"
-               "                        reduce: REDUCE\n"
-               "                        conv2d_bwd_weight: Backward Weight Convolution 2d\n");
-        // clang-format on
+        print_helper_message();
+
+        return 0;
     }
-    return 0;
 }

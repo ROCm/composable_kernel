@@ -69,7 +69,11 @@ int main(int argc, char* argv[])
     ck::index_t StrideB = 4096;
     ck::index_t StrideC = 4096;
 
-    if(argc == 4)
+    if(argc == 1)
+    {
+        // use default case
+    }
+    else if(argc == 4)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
