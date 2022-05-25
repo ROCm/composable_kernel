@@ -27,12 +27,12 @@ struct DeviceBinaryElementwise : public BaseOperator
     template <typename Desc_M>
     static auto PadDescriptor_M_1d(Desc_M desc_m, index_t gridSize, index_t blockSize)
     {
-        const auto m            = desc_m.GetLength(I0);
+        const auto M            = desc_m.GetLength(I0);
         const index_t loop_step = gridSize * blockSize * MPerThread;
-        const auto pad          = math::integer_least_multiple(m, loop_step) - m;
+        const auto pad          = math::integer_least_multiple(M, loop_step) - M;
         const auto desc_m_pad =
             transform_tensor_descriptor(desc_m,
-                                        make_tuple(make_right_pad_transform(m, pad)),
+                                        make_tuple(make_right_pad_transform(M, pad)),
                                         make_tuple(Sequence<0>{}),
                                         make_tuple(Sequence<0>{}));
         return desc_m_pad;
