@@ -19,8 +19,16 @@ using EltwiseComputeDataType = F32;
 
 using Add = ck::tensor_operation::binary_element_wise::Add;
 
-using DeviceElementwiseAddInstance = ck::tensor_operation::device::
-    DeviceBinaryElementwise<ABDataType, ABDataType, CDataType, EltwiseComputeDataType, Add, 2, 8, 8, 1>;
+using DeviceElementwiseAddInstance =
+    ck::tensor_operation::device::DeviceBinaryElementwise<ABDataType,
+                                                          ABDataType,
+                                                          CDataType,
+                                                          EltwiseComputeDataType,
+                                                          Add,
+                                                          2,
+                                                          8,
+                                                          1,
+                                                          8>;
 
 template <typename HostTensorA,
           typename HostTensorB,
@@ -37,17 +45,17 @@ void host_broadcast2D(
     {
         for(int n = 0; n < N; ++n)
         {
-            ComputeDataType Amn = static_cast<ComputeDataType>(A(m, n));
+            ComputeDataType Bmn = static_cast<ComputeDataType>(B(m, n));
             ComputeDataType Cmn = 0;
             if constexpr(broadcastDim == 0)
             {
-                ComputeDataType Bn = static_cast<ComputeDataType>(B(n));
-                functor(Cmn, Amn, Bn);
+                ComputeDataType An = static_cast<ComputeDataType>(A(n));
+                functor(Cmn, An, Bmn);
             }
             else
             {
-                ComputeDataType Bm = static_cast<ComputeDataType>(B(m));
-                functor(Cmn, Amn, Bm);
+                ComputeDataType Am = static_cast<ComputeDataType>(A(m));
+                functor(Cmn, Am, Bmn);
             }
             C(m, n) = static_cast<ctype>(Cmn);
         }
@@ -73,27 +81,27 @@ int main()
                                     std::vector<std::size_t>({stride, 1}));
     };
 
-    Tensor<ABDataType> a_m_n(f_host_tensor_descriptor2d(M, N, Stride));
-    Tensor<ABDataType> b_m(f_host_tensor_descriptor1d(M, 1));
+    Tensor<ABDataType> a_m(f_host_tensor_descriptor1d(M, 1));
+    Tensor<ABDataType> b_m_n(f_host_tensor_descriptor2d(M, N, Stride));
     Tensor<CDataType> c_m_n(f_host_tensor_descriptor2d(M, N, Stride));
 
-    a_m_n.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
-    b_m.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
+    a_m.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
+    b_m_n.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
 
-    DeviceMem a_m_n_device_buf(sizeof(ABDataType) * a_m_n.mDesc.GetElementSpace());
-    DeviceMem b_m_device_buf(sizeof(ABDataType) * b_m.mDesc.GetElementSpace());
+    DeviceMem a_m_device_buf(sizeof(ABDataType) * a_m.mDesc.GetElementSpace());
+    DeviceMem b_m_n_device_buf(sizeof(ABDataType) * b_m_n.mDesc.GetElementSpace());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n.mDesc.GetElementSpace());
 
-    a_m_n_device_buf.ToDevice(a_m_n.mData.data());
-    b_m_device_buf.ToDevice(b_m.mData.data());
+    a_m_device_buf.ToDevice(a_m.mData.data());
+    b_m_n_device_buf.ToDevice(b_m_n.mData.data());
 
     auto broadcastAdd = DeviceElementwiseAddInstance{};
-    auto argument     = broadcastAdd.MakeArgumentPointer(a_m_n_device_buf.GetDeviceBuffer(),
-                                                     b_m_device_buf.GetDeviceBuffer(),
+    auto argument     = broadcastAdd.MakeArgumentPointer(a_m_device_buf.GetDeviceBuffer(),
+                                                     b_m_n_device_buf.GetDeviceBuffer(),
                                                      c_m_n_device_buf.GetDeviceBuffer(),
                                                      {M, N},
-                                                     {Stride, 1},
-                                                     {1, 0}, // broadcast in first dimension
+                                                     {1, 0},
+                                                     {Stride, 1}, // broadcast in first dimension
                                                      {Stride, 1},
                                                      Add{});
 
@@ -120,7 +128,7 @@ int main()
                          Tensor<CDataType>,
                          EltwiseComputeDataType,
                          Add,
-                         1>(host_c_m_n, a_m_n, b_m, M, N, Add{});
+                         1>(host_c_m_n, a_m, b_m_n, M, N, Add{});
 
         pass &= ck::utils::check_err(
             c_m_n.mData, host_c_m_n.mData, "Error: Incorrect results c", 1e-3, 1e-3);
