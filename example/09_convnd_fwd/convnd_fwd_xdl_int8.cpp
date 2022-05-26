@@ -322,17 +322,17 @@ int main(int argc, char* argv[])
         {
         case 3: {
             auto ref_conv = ReferenceConvNDFwdInstance<3>();
-            verify_f(ref_conv);
+            return verify_f(ref_conv);
             break;
         }
         case 2: {
             auto ref_conv = ReferenceConvNDFwdInstance<2>();
-            verify_f(ref_conv);
+            return verify_f(ref_conv);
             break;
         }
         case 1: {
             auto ref_conv = ReferenceConvNDFwdInstance<1>();
-            verify_f(ref_conv);
+            return verify_f(ref_conv);
             break;
         }
         default: {
