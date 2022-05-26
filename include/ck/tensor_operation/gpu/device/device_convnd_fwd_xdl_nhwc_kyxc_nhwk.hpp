@@ -862,6 +862,27 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if(ck::get_device_name() == "gfx908")
+        {
+            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, float> ||
+                           is_same_v<AccDataType, int32_t>))
+            {
+                return false;
+            }
+        }
+        else if(ck::get_device_name() == "gfx90a")
+        {
+            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, float> ||
+                           is_same_v<AccDataType, int32_t> || is_same_v<AccDataType, double>))
+            {
+                return false;
+            }
+        }
+        else
+        {
+            return false;
+        }
+
         // Input tensors can't be bigger than 2GB each.
         constexpr ck::long_index_t GB2 = (ck::long_index_t{1} << 31);
 
