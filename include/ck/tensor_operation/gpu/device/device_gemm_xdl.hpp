@@ -408,7 +408,23 @@ struct DeviceGemmXdl
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a"))
+        if(ck::get_device_name() == "gfx908")
+        {
+            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, float> ||
+                           is_same_v<AccDataType, int32_t>))
+            {
+                return false;
+            }
+        }
+        else if(ck::get_device_name() == "gfx90a")
+        {
+            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, float> ||
+                           is_same_v<AccDataType, int32_t> || is_same_v<AccDataType, double>))
+            {
+                return false;
+            }
+        }
+        else
         {
             return false;
         }
