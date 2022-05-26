@@ -1,1 +1,0 @@
-add_example_executable(example_lnorm_use_reduce lnorm_use_reduce.cpp)
