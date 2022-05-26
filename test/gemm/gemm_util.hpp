@@ -111,6 +111,7 @@ template <typename DeviceGemmPtr_,
           typename ADataType,
           typename BDataType,
           typename CDataType,
+          typename AccDataType,
           typename ALayout,
           typename BLayout,
           typename CLayout,
@@ -186,6 +187,7 @@ struct TestGemm
             ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                       BDataType,
                                                       CDataType,
+                                                      AccDataType,
                                                       AElementwiseOperation,
                                                       BElementwiseOperation,
                                                       CElementwiseOperation>;
@@ -211,6 +213,11 @@ struct TestGemm
                 std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
             }
             else if(std::is_same<CDataType, int8_t>::value)
+            {
+                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
+            }
+            else if(std::is_same<CDataType, double>::value)
             {
                 res = ck::utils::check_err(c_device.mData, c_host.mData);
                 std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
@@ -311,6 +318,7 @@ struct TestGemmBF16
         // use fp32 host kernel to verify bf16 device kernel
         using ReferenceGemmInstance =
             ck::tensor_operation::host::ReferenceGemm<float,
+                                                      float,
                                                       float,
                                                       float,
                                                       AElementwiseOperation,

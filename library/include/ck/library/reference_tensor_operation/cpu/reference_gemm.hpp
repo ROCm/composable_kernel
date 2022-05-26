@@ -11,6 +11,7 @@ namespace host {
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
+          typename AccDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
@@ -53,20 +54,20 @@ struct ReferenceGemm : public device::BaseOperator
             auto f_mk_kn_mn = [&](auto m, auto n) {
                 const int K = arg.a_m_k_.mDesc.GetLengths()[1];
 
-                float v_acc = 0;
+                AccDataType v_acc = 0;
 
                 for(int k = 0; k < K; ++k)
                 {
-                    float v_a;
-                    float v_b;
+                    AccDataType v_a;
+                    AccDataType v_b;
 
-                    arg.a_element_op_(v_a, static_cast<const float>(arg.a_m_k_(m, k)));
-                    arg.b_element_op_(v_b, static_cast<const float>(arg.b_k_n_(k, n)));
+                    arg.a_element_op_(v_a, static_cast<const AccDataType>(arg.a_m_k_(m, k)));
+                    arg.b_element_op_(v_b, static_cast<const AccDataType>(arg.b_k_n_(k, n)));
 
                     v_acc += v_a * v_b;
                 }
 
-                float v_c;
+                AccDataType v_c;
 
                 arg.c_element_op_(v_c, v_acc);
 

@@ -11,6 +11,7 @@
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
 #include "device_tensor.hpp"
+#include "device_gemm_xdl.hpp"
 #include "device_gemm_xdl_cshuffle.hpp"
 #include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"
@@ -19,77 +20,72 @@
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+using F64 = double;
+using F32 = float;
+using F16 = ck::half_t;
 
-using ADataType        = int8_t;
-using BDataType        = int8_t;
-using CDataType        = int8_t;
-using AccDataType      = int32_t;
-using CShuffleDataType = int8_t;
+using ADataType   = double;
+using BDataType   = double;
+using CDataType   = double;
+using AccDataType = double;
+
+using Row = ck::tensor_layout::gemm::RowMajor;
+using Col = ck::tensor_layout::gemm::ColumnMajor;
+
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
 using CLayout = ck::tensor_layout::gemm::RowMajor;
 
+using AElementOp = ck::tensor_operation::element_wise::PassThrough;
+using BElementOp = ck::tensor_operation::element_wise::PassThrough;
+using CElementOp = ck::tensor_operation::element_wise::PassThrough;
+
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 // clang-format off
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle<
-     ALayout,                    // typename ALayout
-     BLayout,                    // typename BLayout
-     CLayout,                    // typename CLayout
-     ADataType,                  // typename ADataType
-     BDataType,                  // typename BDataType
-     CDataType,                  // typename CDataType
-     AccDataType,                // typename GemmAccDataType
-     CShuffleDataType,           // typename CShuffleDataType
-     PassThrough,                // typename AElementwiseOperation
-     PassThrough,                // typename BElementwiseOperation
-     PassThrough,                // typename CElementwiseOperation
-     GemmDefault,                // GemmSpecialization GemmSpec
-     1,                          // index_t NumGemmKPrefetchStage
-     256,                        // index_t BlockSize
-     256,                        // index_t MPerBlock
-     128,                        // index_t NPerBlock
-     64,                         // index_t KPerBlock
-     16,                         // index_t AK1
-     16,                         // index_t BK1
-     32,                         // index_t MPerXDL
-     32,                         // index_t NPerXDL
-     4,                          // index_t MXdlPerWave
-     2,                          // index_t NXdlPerWave
-     S<4, 64, 1>,                // typename ABlockTransferThreadClusterLengths_AK0_M_AK1
-     S<1, 0, 2>,                 // typename ABlockTransferThreadClusterArrangeOrder
-     S<1, 0, 2>,                 // typename ABlockTransferSrcAccessOrder
-     2,                          // index_t ABlockTransferSrcVectorDim
-     16,                         // index_t ABlockTransferSrcScalarPerVector
-     16,                         // index_t ABlockTransferDstScalarPerVector_AK1
-     1,                          // index_t ABlockLdsExtraM
-     S<4, 64, 1>,                // typename BBlockTransferThreadClusterLengths_BK0_N_BK1
-     S<1, 0, 2>,                 // typename BBlockTransferThreadClusterArrangeOrder
-     S<1, 0, 2>,                 // typename BBlockTransferSrcAccessOrder
-     2,                          // index_t BBlockTransferSrcVectorDim
-     8,                          // index_t BBlockTransferSrcScalarPerVector
-     8,                          // index_t BBlockTransferDstScalarPerVector_BK1
-     1,                          // index_t BBlockLdsExtraN
-     1,                          // index_t CShuffleMXdlPerWavePerShuffle
-     1,                          // index_t CShuffleNXdlPerWavePerShuffle
-     S<1, 64, 1, 4>,             // typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-     16>;                        // index_t CShuffleBlockTransferScalarPerVector_NPerBlock
-// clang-format on
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl
+//##########| AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C|          GEMM| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer|
+//##########|  Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|Spacialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| SrcDstVectorDim|       DstScalar|
+//##########|      |      |      |        |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |                |       PerVector|
+//##########|      |      |      |        |        |        |        |            |            |            |              |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |                |                |
+#if 0
+             <  F64,   F64,   F64,     F64,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   64,    32,    32,     4,  1,   16,   16,    2,    2,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              1,      true,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              1,      true,               7,               1>;
+#else
+             <  F64,   F64,   F64,     F64,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,  256,   128,   128,     4,  2,   16,   16,    4,    4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              2,              2,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              2,              2,      true,               7,               1>;
+#endif
+    // clang-format on
 
-using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
-                                                                        BDataType,
-                                                                        CDataType,
-                                                                        AccDataType,
-                                                                        PassThrough,
-                                                                        PassThrough,
-                                                                        PassThrough>;
+    using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                            BDataType,
+                                                                            CDataType,
+                                                                            AccDataType,
+                                                                            AElementOp,
+                                                                            BElementOp,
+                                                                            CElementOp>;
+
+template <typename DataType>
+std::ostream& show_2d_matrix(std::ostream& os, Tensor<DataType>& matrix)
+{
+    os << "[" << std::endl;
+    for(int x = 0; x < matrix.mDesc.GetLengths()[0]; x++)
+    {
+        os << "[";
+        for(int y = 0; y < matrix.mDesc.GetLengths()[1]; y++)
+        {
+            os << std::setw(4) << static_cast<float>(matrix(x, y));
+        }
+        os << "]" << std::endl;
+    }
+    os << "]";
+    return os;
+}
 
 int main(int argc, char* argv[])
 {
-    bool do_verification = true;
-    int init_method      = 1;
+    bool do_verification = 0;
+    int init_method      = 0;
     bool time_kernel     = false;
 
     // GEMM shape
@@ -125,7 +121,7 @@ int main(int argc, char* argv[])
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: time kernel (0=n0, 1=yes)\n");
+        printf("arg3: run kernel # of times (>1)\n");
         printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC\n");
         exit(0);
     }
@@ -149,6 +145,7 @@ int main(int argc, char* argv[])
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
+    std::cout << "data type: " << typeid(ADataType{}).name() << std::endl;
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
@@ -160,9 +157,13 @@ int main(int argc, char* argv[])
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
         break;
-    default:
+    case 2:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        break;
+    default:
+        a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
+        b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
     }
 
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
@@ -172,9 +173,9 @@ int main(int argc, char* argv[])
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
 
-    auto a_element_op = PassThrough{};
-    auto b_element_op = PassThrough{};
-    auto c_element_op = PassThrough{};
+    auto a_element_op = AElementOp{};
+    auto b_element_op = BElementOp{};
+    auto c_element_op = CElementOp{};
 
     // do GEMM
     auto gemm     = DeviceGemmInstance{};
@@ -224,7 +225,15 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
 
-        return ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData) ? 0 : 1;
+#if 0
+        {
+            show_2d_matrix(std::cout << "a : ", a_m_k) << std::endl;
+            show_2d_matrix(std::cout << "b: ", b_k_n) << std::endl;
+            show_2d_matrix(std::cout << "c_device: ", c_m_n_device_result) << std::endl;
+            show_2d_matrix(std::cout << "c_host  :", c_m_n_host_result) << std::endl;
+        }
+#endif
+        ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
     }
 
     return 0;
