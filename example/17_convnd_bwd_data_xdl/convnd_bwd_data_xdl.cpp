@@ -333,17 +333,14 @@ int main(int argc, char* argv[])
         case 3: {
             auto ref_conv = ReferenceConvBwdDataInstance<3>();
             return verify_f(ref_conv);
-            break;
         }
         case 2: {
             auto ref_conv = ReferenceConvBwdDataInstance<2>();
             return verify_f(ref_conv);
-            break;
         }
         case 1: {
             auto ref_conv = ReferenceConvBwdDataInstance<1>();
             return verify_f(ref_conv);
-            break;
         }
         default: {
             throw std::runtime_error("Unsupported number of spatial dimensions provided!");
