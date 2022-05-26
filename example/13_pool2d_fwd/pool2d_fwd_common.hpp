@@ -1,3 +1,5 @@
+#pragma once
+
 #include <iostream>
 
 #include "check_err.hpp"
