@@ -8,7 +8,6 @@
 #include "conv_util.hpp"
 #include "device.hpp"
 #include "device_tensor.hpp"
-#include "device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk.hpp"
 #include "device_convnd_fwd_xdl_nhwc_kyxc_nhwk.hpp"
 #include "element_wise_operation.hpp"
 #include "host_tensor.hpp"
