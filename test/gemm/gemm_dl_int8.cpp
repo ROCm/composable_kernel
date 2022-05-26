@@ -43,9 +43,10 @@ void add_device_gemm_dl_i8_i8_i8_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPt
 
 int main()
 {
-    using ADataType = int8_t;
-    using BDataType = int8_t;
-    using CDataType = int8_t;
+    using ADataType   = int8_t;
+    using BDataType   = int8_t;
+    using CDataType   = int8_t;
+    using AccDataType = int;
 
     using RowMajor    = ck::tensor_layout::gemm::RowMajor;
     using ColumnMajor = ck::tensor_layout::gemm::ColumnMajor;
@@ -61,6 +62,7 @@ int main()
                                        ADataType,
                                        BDataType,
                                        CDataType,
+                                       AccDataType,
                                        ColumnMajor,
                                        RowMajor,
                                        RowMajor,
@@ -79,6 +81,7 @@ int main()
                                        ADataType,
                                        BDataType,
                                        CDataType,
+                                       AccDataType,
                                        ColumnMajor,
                                        ColumnMajor,
                                        RowMajor,
@@ -97,6 +100,7 @@ int main()
                                        ADataType,
                                        BDataType,
                                        CDataType,
+                                       AccDataType,
                                        RowMajor,
                                        RowMajor,
                                        RowMajor,
@@ -115,6 +119,7 @@ int main()
                                        ADataType,
                                        BDataType,
                                        CDataType,
+                                       AccDataType,
                                        RowMajor,
                                        ColumnMajor,
                                        RowMajor,
