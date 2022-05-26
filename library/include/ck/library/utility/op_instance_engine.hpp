@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdlib>
+#include <iostream>
 #include <limits>
 #include <memory>
 #include <stdexcept>
@@ -110,6 +111,7 @@ class OpInstanceRunEngine
                 op_ptr.get(), in_device_buffers_, out_device_buffer_);
             if(op_ptr->IsSupportedArgument(argument.get()))
             {
+                std::cout << "Testing instance: " << op_ptr->GetTypeString() << std::endl;
                 invoker->Run(argument.get());
                 out_device_buffer_->FromDevice(out_tensor_->mData.data());
                 if(!ref_output_)
@@ -121,6 +123,11 @@ class OpInstanceRunEngine
                 // TODO: enable flexible use of custom check_error functions
                 res = res && check_err(out_tensor_->mData, ref_output_->mData);
                 out_device_buffer_->SetZero();
+            }
+            else
+            {
+                std::cout << "Given conv problem is not supported by instance: \n\t>>>>"
+                          << op_ptr->GetTypeString() << std::endl;
             }
         }
         return res;
