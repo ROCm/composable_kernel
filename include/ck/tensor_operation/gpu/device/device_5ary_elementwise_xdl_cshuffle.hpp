@@ -181,6 +181,9 @@ struct Device5AryElementwise_Xdl_CShuffle : public BaseOperator
                                                            AGridDesc_M,
                                                            BGridDesc_M,
                                                            CGridDesc_M,
+                                                           DGridDesc_M,
+                                                           EGridDesc_M,
+                                                           FGridDesc_M,
                                                            ElementwiseFunctor>;
 
             float elapsed_time = launch_and_time_kernel(stream_config,
@@ -253,7 +256,42 @@ struct Device5AryElementwise_Xdl_CShuffle : public BaseOperator
 
         if(!IsScalarPerVectorValid(pArg->f_strides_.back() == 1, FScalarPerVector))
             return false;
+
+        return true;
     };
+
+    std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
+                                                      const void* p_b,
+                                                      const void* p_c,
+                                                      const void* p_d,
+                                                      const void* p_e,
+                                                      void* p_f,
+                                                      std::vector<index_t> lengths,
+                                                      std::vector<index_t> a_strides,
+                                                      std::vector<index_t> b_strides,
+                                                      std::vector<index_t> c_strides,
+                                                      std::vector<index_t> d_strides,
+                                                      std::vector<index_t> e_strides,
+                                                      std::vector<index_t> f_strides,
+                                                      ElementwiseFunctor functor)
+    {
+        return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
+                                          static_cast<const BDataType*>(p_b),
+                                          static_cast<const CDataType*>(p_c),
+                                          static_cast<const DDataType*>(p_d),
+                                          static_cast<const EDataType*>(p_e),
+                                          static_cast<FDataType*>(p_f),
+                                          lengths,
+                                          a_strides,
+                                          b_strides,
+                                          c_strides,
+                                          d_strides,
+                                          e_strides,
+                                          f_strides,
+                                          functor);
+    }
+
+    std::unique_ptr<BaseInvoker> MakeInvokerPointer() { return std::make_unique<Invoker>(); }
 };
 
 } // namespace device
