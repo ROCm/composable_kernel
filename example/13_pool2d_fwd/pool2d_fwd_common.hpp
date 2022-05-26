@@ -1,8 +1,6 @@
+#pragma once
+
 #include <iostream>
-#include <numeric>
-#include <initializer_list>
-#include <cstdlib>
-#include <stdlib.h>
 
 #include "check_err.hpp"
 #include "config.hpp"
@@ -13,44 +11,13 @@
 #include "host_reduce_util.hpp"
 #include "device_tensor.hpp"
 #include "tensor_layout.hpp"
-#include "reduction_operator.hpp"
+#include "reduction_enums.hpp"
 #include "device_pool2d_fwd_nhwc_nhwc.hpp"
-
-using InDataType  = ck::half_t;
-using OutDataType = ck::half_t;
-using AccDataType = float;
-
-using IndexDataType = int32_t;
-
-using InLayout  = ck::tensor_layout::convolution::NHWC;
-using OutLayout = ck::tensor_layout::convolution::NHWC;
-
-#if 1
-static constexpr auto ReduceOpId = ck::ReduceTensorOp::MAX;
-#else
-static constexpr auto ReduceOpId = ck::ReduceTensorOp::AVG;
-#endif
-
-static constexpr bool OutputIndex  = false;
-static constexpr bool PropagateNan = false;
-
-using DevicePoolFwdInstance =
-    ck::tensor_operation::device::DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<
-        InDataType,  // InDataType
-        OutDataType, // OutDataType
-        AccDataType, // AccDataType
-        ReduceOpId,
-        OutputIndex,
-        64, // BlockSize
-        64, // ReduceMThreadClusterSize
-        1,  // ReduceKThreadClusterSize
-        4,  // ReduceMThreadSliceSize
-        1,  // ReduceKThreadSliceSize
-        4>; // InSrcOutDstVectorSize
 
 template <typename InDataType,
           typename OutDataType,
           typename AccDataType,
+          typename IndexDataType,
           ck::ReduceTensorOp ReduceOpId,
           bool PropagateNan,
           bool OutputIndex>
@@ -147,68 +114,46 @@ static void pool_host_verify(const Tensor<InDataType>& in,
     };
 }
 
-int main(int argc, char* argv[])
+template <typename InDataType,
+          typename OutDataType,
+          typename AccDataType,
+          typename IndexDataType,
+          typename InLayout,
+          typename OutLayout,
+          ck::ReduceTensorOp ReduceOpId,
+          bool PropagateNan,
+          bool OutputIndex>
+bool pool_test(bool do_verification,
+               int init_method,
+               bool time_kernel,
+               ck::index_t N,
+               ck::index_t C,
+               ck::index_t Y,
+               ck::index_t X,
+               ck::index_t Hi,
+               ck::index_t Wi,
+               ck::index_t window_stride_h,
+               ck::index_t window_stride_w,
+               ck::index_t in_left_pad_h,
+               ck::index_t in_left_pad_w,
+               ck::index_t in_right_pad_h,
+               ck::index_t in_right_pad_w)
 {
     using namespace ck::host_reduce;
 
-    bool do_verification;
-    int init_method;
-    bool time_kernel;
-
-    // Pool shape
-    ck::index_t N               = 128;
-    ck::index_t C               = 192;
-    ck::index_t Y               = 3;
-    ck::index_t X               = 3;
-    ck::index_t Hi              = 71;
-    ck::index_t Wi              = 71;
-    ck::index_t window_stride_h = 2;
-    ck::index_t window_stride_w = 2;
-    ck::index_t in_left_pad_h   = 1;
-    ck::index_t in_left_pad_w   = 1;
-    ck::index_t in_right_pad_h  = 1;
-    ck::index_t in_right_pad_w  = 1;
-
-    if(argc == 1)
-    {
-        do_verification = true;
-        init_method     = 1;
-        time_kernel     = true;
-    }
-    else if(argc == 4)
-    {
-        do_verification = std::stoi(argv[1]);
-        init_method     = std::stoi(argv[2]);
-        time_kernel     = static_cast<bool>(std::stoi(argv[3]));
-    }
-    else if(argc == 16)
-    {
-        do_verification = std::stoi(argv[1]);
-        init_method     = std::stoi(argv[2]);
-        time_kernel     = static_cast<bool>(std::stoi(argv[3]));
-
-        N               = std::stoi(argv[4]);
-        C               = std::stoi(argv[5]);
-        Y               = std::stoi(argv[6]);
-        X               = std::stoi(argv[7]);
-        Hi              = std::stoi(argv[8]);
-        Wi              = std::stoi(argv[9]);
-        window_stride_h = std::stoi(argv[10]);
-        window_stride_w = std::stoi(argv[11]);
-        in_left_pad_h   = std::stoi(argv[12]);
-        in_left_pad_w   = std::stoi(argv[13]);
-        in_right_pad_h  = std::stoi(argv[14]);
-        in_right_pad_w  = std::stoi(argv[15]);
-    }
-    else
-    {
-        printf("arg1: verification (0=no, 1=yes)\n");
-        printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 15: N, C, Y, X, Hi, Wi, Sy, Sx, LeftPy, LeftPx, RightPy, "
-               "RightPx\n");
-        exit(0);
-    }
+    using DevicePoolFwdInstance =
+        ck::tensor_operation::device::DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<
+            InDataType,  // InDataType
+            OutDataType, // OutDataType
+            AccDataType, // AccDataType
+            ReduceOpId,
+            OutputIndex,
+            64, // BlockSize
+            64, // ReduceMThreadClusterSize
+            1,  // ReduceKThreadClusterSize
+            4,  // ReduceMThreadSliceSize
+            1,  // ReduceKThreadSliceSize
+            4>; // InSrcOutDstVectorSize
 
     const ck::index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - Y) / window_stride_h + 1;
     const ck::index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - X) / window_stride_w + 1;
@@ -302,6 +247,7 @@ int main(int argc, char* argv[])
         pool_host_verify<InDataType,
                          OutDataType,
                          AccDataType,
+                         IndexDataType,
                          ReduceOpId,
                          PropagateNan,
                          OutputIndex>(in_n_c_hi_wi,
@@ -325,5 +271,5 @@ int main(int argc, char* argv[])
         };
     }
 
-    return (pass ? 0 : 1);
-}
+    return (pass);
+};
