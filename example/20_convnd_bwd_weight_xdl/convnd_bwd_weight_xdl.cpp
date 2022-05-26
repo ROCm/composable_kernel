@@ -18,9 +18,9 @@
 #include "device_convnd_backward_weight_xdl_c_shuffle_nhwc_kyxc_nhwk.hpp"
 #include "reference_conv_backward_weight.hpp"
 
-using InDataType  = ck::half_t;
-using WeiDataType = ck::half_t;
-using OutDataType = ck::half_t;
+using InDataType  = ck::bhalf_t;
+using WeiDataType = ck::bhalf_t;
+using OutDataType = ck::bhalf_t;
 using AccDataType = float;
 
 template <ck::index_t... Is>
