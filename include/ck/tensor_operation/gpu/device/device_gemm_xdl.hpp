@@ -1,5 +1,4 @@
-#ifndef DEVICE_GEMM_XDL_HPP
-#define DEVICE_GEMM_XDL_HPP
+#pragma once
 
 #include <iostream>
 #include <sstream>
@@ -12,6 +11,7 @@
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdlops_v2r3.hpp"
 #include "gemm_specialization.hpp"
+#include "device_prop.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -408,6 +408,11 @@ struct DeviceGemmXdl
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a"))
+        {
+            return false;
+        }
+
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                            arg.b_grid_desc_k0_n_k1_,
                                            arg.c_grid_desc_m_n_,
@@ -515,4 +520,3 @@ struct DeviceGemmXdl
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

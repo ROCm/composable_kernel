@@ -213,15 +213,29 @@ def runCKProfiler(Map conf=[:]){
                     cmake_build(conf)
 					dir("script"){
 						def perf_log = "perf_gemm_${gpu_arch}.log"
-						def artifact = "profile_gemm_${gpu_arch}.txt"
-						sh "./profile_gemm.sh gemm 0 0 0 1 0 5 | tee ${perf_log} ||true"
-						sh "./profile_gemm.sh gemm 0 1 0 1 0 5 | tee -a ${perf_log} ||true"
-						sh "./profile_gemm.sh gemm 0 2 0 1 0 5 | tee -a ${perf_log} ||true"
-						sh "./profile_gemm.sh gemm 0 3 0 1 0 5 | tee -a ${perf_log} || true"
+                        sh "rm -f ${perf_log}"
+						sh "echo Branch name: ${env.BRANCH_NAME} > ${perf_log}"
+						sh "./profile_gemm.sh gemm 0 0 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 1 0 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 2 0 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 3 0 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 0 1 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 1 1 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 2 1 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 3 1 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 0 2 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 1 2 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 2 2 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 3 2 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 0 3 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 1 3 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 2 3 0 1 0 5 | tee -a ${perf_log}"
+						sh "./profile_gemm.sh gemm 3 3 0 1 0 5 | tee -a ${perf_log}"
 						//results will be parsed, stored, and analyzed within the python script
 						//the script will return 0 if the performance criteria are met
 						//or return 1 if the criteria are not met
-						sh "python3 parse_perf_data.py ${perf_log} | tee ${artifact}"
+                        archiveArtifacts  "${perf_log}"
+						sh "python3 parse_perf_data.py ${perf_log} "
 					}
                 }
             }
@@ -245,7 +259,6 @@ def runPerfTest(Map conf=[:]){
         }
     }
 }
-
 
 pipeline {
     agent none
@@ -280,19 +293,19 @@ pipeline {
                 //        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
                 //    }
                 //}
-                stage('Build Profiler: Debug, gfx908')
-				{
-                    agent { label rocmnode("nogpu")}
-                    environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
-                    }
-                    steps{
-                        // until we stabilize debug build due to compiler crashes
-                        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                            buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Debug')
-                        }
-                    }
-                }
+                //stage('Build Profiler: Debug, gfx908')
+				//{
+                //    agent { label rocmnode("nogpu")}
+                //    environment{
+                //        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
+                //    }
+                //    steps{
+                //        // until we stabilize debug build due to compiler crashes
+                //        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                //            buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Debug')
+                //        }
+                //    }
+                //}
                 stage('Clang Format') {
                     agent{ label rocmnode("nogpu") }
                     environment{
@@ -312,7 +325,7 @@ pipeline {
                 }
             }
         }
-        stage("Tests")
+		stage("Tests")
         {
             parallel
             {
@@ -367,15 +380,20 @@ pipeline {
                     agent{ label rocmnode("gfx908")}
                     environment{
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
-                    }
+                        dbuser = "${dbuser}"
+                        dbpassword = "${dbpassword}"
+                        dbsship = "${dbsship}"
+                        dbsshport = "${dbsshport}"
+                        dbsshuser = "${dbsshuser}"
+                        dbsshpassword = "${dbsshpassword}"
+                   }
                     steps{
                         runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
                     }
-
                 }
-
             }
         }
+
         // enable after the cmake file supports packaging
         // stage("Packages") {
         //     when {

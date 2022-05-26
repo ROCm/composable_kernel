@@ -1,8 +1,6 @@
 #ifndef DEVICE_REDUCE_INSTANCE_THREADWISE_I8_I8_I8_HPP
 #define DEVICE_REDUCE_INSTANCE_THREADWISE_I8_I8_I8_HPP
 
-#include "reduction_enums.hpp"
-#include "reduction_operator_mapping.hpp"
 #include "device_reduce_instance_threadwise.hpp"
 
 namespace ck {
