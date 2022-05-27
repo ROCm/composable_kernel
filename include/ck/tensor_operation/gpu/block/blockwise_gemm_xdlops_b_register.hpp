@@ -12,8 +12,10 @@ template <index_t BlockSize,
           typename FloatAB,
           typename FloatAcc,
           typename AK0MK1BlockDesc,
-          typename BK0NK1BlockDesc,
           typename BK0K0BN0N1N2N3K1BlockDesc,
+          index_t MPerBlock,
+          index_t NPerBlock,
+          index_t K0PerBlock,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat,
@@ -28,21 +30,15 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
 
     static constexpr index_t WaveSize = 64;
 
-    static constexpr index_t MPerBlock = AK0MK1BlockDesc{}.GetLength(I1);
-    static constexpr index_t NPerBlock = BK0NK1BlockDesc{}.GetLength(I1);
-    static constexpr index_t KPerBlock =
-        BK0NK1BlockDesc{}.GetLength(I0) * BK0NK1BlockDesc{}.GetLength(I2);
+    static constexpr index_t KPerBlock = K0PerBlock * KPack;
 
     static constexpr index_t A_K0 = AK0MK1BlockDesc{}.GetLength(I0);
-    static constexpr index_t B_K0 = BK0NK1BlockDesc{}.GetLength(I0);
     static constexpr index_t A_K1 = AK0MK1BlockDesc{}.GetLength(I2);
-    static constexpr index_t B_K1 = BK0NK1BlockDesc{}.GetLength(I2);
 
     static constexpr auto xdlops_gemm = XdlopsGemm<FloatAB, MPerXDL, NPerXDL, KPack>{};
 
-    static constexpr index_t KPerThread = KPerBlock / xdlops_gemm.K0PerXdlops;
-    static constexpr index_t K0PerThread =
-        BK0NK1BlockDesc{}.GetLength(I0) / xdlops_gemm.K0PerXdlops;
+    static constexpr index_t KPerThread  = KPerBlock / xdlops_gemm.K0PerXdlops;
+    static constexpr index_t K0PerThread = K0PerBlock / xdlops_gemm.K0PerXdlops;
 
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
@@ -122,7 +118,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
     __host__ __device__ BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1()
     {
         static_assert(AK0MK1BlockDesc::IsKnownAtCompileTime() &&
-                          BK0NK1BlockDesc::IsKnownAtCompileTime(),
+                          BK0K0BN0N1N2N3K1BlockDesc::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
 
         static_assert(BlockSize == MWaves * NWaves * WaveSize,
@@ -235,6 +231,16 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
             make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
     }
 
+    __device__ void MoveABlockSliceWindow()
+    {
+        a_thread_copy_.MoveSrcSliceWindow(a_block_desc_m0_m1_m2_k,
+                                          make_multi_index(0, 0, 0, K0PerBlock * KPack));
+    }
+    __device__ void ResetABlockStartWindow()
+    {
+        a_thread_copy_.SetSrcCoord(CalculateAThreadOriginDataIndex());
+    }
+
     static constexpr auto a_block_desc_m0_m1_m2_k = MakeABlockDescriptor_M0_M1_M2_K();
 
     template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>
@@ -244,8 +250,6 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
     {
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
             a_thread_desc_.GetElementSpaceSize());
-        // auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
-        //    b_thread_desc_.GetElementSpaceSize());
 
         static_for<0, MRepeat, 1>{}([&](auto m0) {
             // read A
