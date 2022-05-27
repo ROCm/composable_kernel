@@ -291,7 +291,7 @@ int main(int argc, char* argv[])
 
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_btype / 1.E6 / ave_time;
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
+    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, " << conv->GetTypeString() 
               << std::endl;
 
     if(do_verification)
@@ -320,18 +320,15 @@ int main(int argc, char* argv[])
         {
         case 3: {
             auto ref_conv = ReferenceConvNDFwdInstance<3>();
-            verify_f(ref_conv);
-            break;
+            return verify_f(ref_conv);
         }
         case 2: {
             auto ref_conv = ReferenceConvNDFwdInstance<2>();
-            verify_f(ref_conv);
-            break;
+            return verify_f(ref_conv);
         }
         case 1: {
             auto ref_conv = ReferenceConvNDFwdInstance<1>();
-            verify_f(ref_conv);
-            break;
+            return verify_f(ref_conv);
         }
         default: {
             throw std::runtime_error("Unsupported number of spatial dimensions provided!");
