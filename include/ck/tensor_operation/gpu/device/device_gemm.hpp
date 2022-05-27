@@ -51,7 +51,6 @@ struct DeviceGroupedGemm : public BaseOperator
                                                               std::vector<const void*>& p_b,
                                                               std::vector<void*>& p_c,
                                                               std::vector<GemmShape>& gemm_shapes,
-                                                              void* gemm_descs_args_workspace,
                                                               AElementwiseOperation a_element_op,
                                                               BElementwiseOperation b_element_op,
                                                               CElementwiseOperation c_element_op,

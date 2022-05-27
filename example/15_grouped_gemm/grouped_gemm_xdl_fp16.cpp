@@ -192,17 +192,13 @@ int main(int argc, char* argv[])
     auto gemm    = DeviceGemmInstance{};
     auto invoker = gemm.MakeInvoker();
 
-    DeviceMem gemm_desc_workspace(gemm.GetWorkSpaceSize(gemm_shapes.size()));
-
     // do GEMM
-    auto argument = gemm.MakeArgument(p_a,
-                                      p_b,
-                                      p_c,
-                                      gemm_shapes,
-                                      gemm_desc_workspace.GetDeviceBuffer(),
-                                      a_element_op,
-                                      b_element_op,
-                                      c_element_op);
+    auto argument =
+        gemm.MakeArgument(p_a, p_b, p_c, gemm_shapes, a_element_op, b_element_op, c_element_op);
+
+    DeviceMem gemm_desc_workspace(gemm.GetWorkSpaceSize(&argument));
+
+    gemm.SetWorkSpacePointer(&argument, gemm_desc_workspace.GetDeviceBuffer());
 
     if(!gemm.IsSupportedArgument(argument))
     {

@@ -350,7 +350,6 @@ struct DeviceGroupedGemmXdl
                  std::vector<const void*>& p_b,
                  std::vector<void*>& p_c,
                  std::vector<GemmShape>& gemm_shapes,
-                 void* gemm_descs_args_workspace,
                  index_t M01,
                  index_t N01,
                  AElementwiseOperation a_element_op,
@@ -364,7 +363,7 @@ struct DeviceGroupedGemmXdl
         {
             grid_size_ = 0;
 
-            gemm_descs_args_workspace_ = gemm_descs_args_workspace;
+            gemm_descs_args_workspace_ = nullptr;
 
             group_count_ = ck::type_convert<ck::index_t>(gemm_shapes.size());
 
@@ -490,11 +489,6 @@ struct DeviceGroupedGemmXdl
                 }
             }
 
-            // void* gemm_descs_args_workspace;
-            // hipGetErrorString(hipMalloc(
-            //    &gemm_descs_args_workspace, arg.gemm_desc_kernel_arg_.size() *
-            //    sizeof(GemmDescKernelArg)));
-
             hipGetErrorString(
                 hipMemcpy(arg.gemm_descs_args_workspace_,
                           arg.gemm_desc_kernel_arg_.data(),
@@ -587,21 +581,11 @@ struct DeviceGroupedGemmXdl
                              std::vector<const void*>& p_b,
                              std::vector<void*>& p_c,
                              std::vector<GemmShape> gemm_shapes,
-                             void* gemm_descs_args_workspace,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
-        return Argument{p_a,
-                        p_b,
-                        p_c,
-                        gemm_shapes,
-                        gemm_descs_args_workspace,
-                        1,
-                        1,
-                        a_element_op,
-                        b_element_op,
-                        c_element_op};
+        return Argument{p_a, p_b, p_c, gemm_shapes, 1, 1, a_element_op, b_element_op, c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -611,22 +595,13 @@ struct DeviceGroupedGemmXdl
                                                       std::vector<const void*>& p_b,
                                                       std::vector<void*>& p_c,
                                                       std::vector<GemmShape>& gemm_shapes,
-                                                      void* gemm_descs_args_workspace,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op,
                                                       index_t /* KBatch */ = 1) override
     {
-        return std::make_unique<Argument>(p_a,
-                                          p_b,
-                                          p_c,
-                                          gemm_shapes,
-                                          gemm_descs_args_workspace,
-                                          1,
-                                          1,
-                                          a_element_op,
-                                          b_element_op,
-                                          c_element_op);
+        return std::make_unique<Argument>(
+            p_a, p_b, p_c, gemm_shapes, 1, 1, a_element_op, b_element_op, c_element_op);
     }
 
     // polymorphic
@@ -658,9 +633,14 @@ struct DeviceGroupedGemmXdl
         return str.str();
     }
 
-    static size_t GetWorkSpaceSize(const index_t group_count)
+    size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override
     {
-        return group_count * sizeof(GemmDescKernelArg);
+        return dynamic_cast<const Argument*>(p_arg)->group_count_ * sizeof(GemmDescKernelArg);
+    }
+
+    void SetWorkSpacePointer(BaseArgument* p_arg, void* workspace_ptr) const override
+    {
+        dynamic_cast<Argument*>(p_arg)->gemm_descs_args_workspace_ = workspace_ptr;
     }
 };
 
