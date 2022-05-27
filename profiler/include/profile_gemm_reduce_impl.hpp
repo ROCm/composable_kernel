@@ -136,13 +136,14 @@ bool profile_gemm_reduce_impl(int do_verification,
     using DxsInElementOps  = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
     using DxsOutElementOps = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
 
-    const auto a_element_op       = AElementOp{};
-    const auto b_element_op       = BElementOp{};
-    const auto c_element_op       = CElementOp{};
-    const auto dxs_in_element_op  = DxsInElementOps{};
-    const auto dxs_out_element_op = DxsOutElementOps{M, M};
-    const auto d0_reduce_op       = D0ReduceOp{};
-    const auto d1_reduce_op       = D1ReduceOp{};
+    const auto a_element_op = AElementOp{};
+    const auto b_element_op = BElementOp{};
+    const auto c_element_op = CElementOp{};
+    const auto d0_reduce_op = D0ReduceOp{};
+    const auto d1_reduce_op = D1ReduceOp{};
+
+    auto dxs_in_element_op  = DxsInElementOps{};
+    auto dxs_out_element_op = DxsOutElementOps{M, M};
 
     if(do_verification)
     {
@@ -169,10 +170,12 @@ bool profile_gemm_reduce_impl(int do_verification,
 
             for(int n = 0; n < N; ++n)
             {
-                float d0_val = ck::type_convert<float>(c_m_n_host_result(m, n));
-                float d1_val;
+                float c_val  = ck::type_convert<float>(c_m_n_host_result(m, n));
+                float d0_val = 0;
+                float d1_val = 0;
 
-                UnarySquareElementOp{}(d1_val, d0_val);
+                dxs_in_element_op(ck::Number<0>{})(d0_val, c_val);
+                dxs_in_element_op(ck::Number<1>{})(d1_val, c_val);
                 d0_reduce_op(d0_acc, d0_val);
                 d1_reduce_op(d1_acc, d1_val);
             }
