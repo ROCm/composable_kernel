@@ -28,9 +28,7 @@
 
 #include <limits>
 #include <cmath>
-#include <cassert>
-#include <stdexcept>
-#include <string>
+#include <functional>
 
 #include "reduction_enums.hpp"
 #include "data_type.hpp"
@@ -214,13 +212,13 @@ binop_with_nan_check(std::function<void(AccDataType&, AccDataType)> opReduce,
     };
 };
 
-template <typename AccDataType, bool PropagateNan>
+template <typename AccDataType, typename IndexDataType, bool PropagateNan>
 __host__ static inline void
-binop_with_nan_check2(std::function<void(AccDataType&, AccDataType, bool&)> opReduce,
-                      AccDataType& accuVal,
-                      AccDataType currVal,
-                      int& accuIndex,
-                      int currIndex)
+binop_with_index_and_nan_check(std::function<void(AccDataType&, AccDataType, bool&)> opReduce,
+                               AccDataType& accuVal,
+                               AccDataType currVal,
+                               IndexDataType& accuIndex,
+                               IndexDataType currIndex)
 {
     using ck::math::isnan;
 
@@ -253,16 +251,6 @@ binop_with_nan_check2(std::function<void(AccDataType&, AccDataType, bool&)> opRe
 };
 
 }; // namespace host_reduce
-
-static inline std::vector<int> to_int_vector(const std::vector<size_t>& inData)
-{
-    std::vector<int> outData;
-
-    for(auto elem : inData)
-        outData.push_back(static_cast<int>(elem));
-
-    return (outData);
-};
 
 }; // namespace ck
 

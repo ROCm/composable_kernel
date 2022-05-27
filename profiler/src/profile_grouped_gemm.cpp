@@ -81,6 +81,7 @@ int profile_grouped_gemm(int argc, char* argv[])
         ck::profiler::profile_grouped_gemm_impl<ck::half_t,
                                                 ck::half_t,
                                                 ck::half_t,
+                                                ck::half_t,
                                                 ck::tensor_layout::gemm::RowMajor,
                                                 ck::tensor_layout::gemm::RowMajor,
                                                 ck::tensor_layout::gemm::RowMajor>(do_verification,
@@ -97,6 +98,7 @@ int profile_grouped_gemm(int argc, char* argv[])
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
         ck::profiler::profile_grouped_gemm_impl<ck::half_t,
+                                                ck::half_t,
                                                 ck::half_t,
                                                 ck::half_t,
                                                 ck::tensor_layout::gemm::RowMajor,
@@ -117,6 +119,7 @@ int profile_grouped_gemm(int argc, char* argv[])
         ck::profiler::profile_grouped_gemm_impl<ck::half_t,
                                                 ck::half_t,
                                                 ck::half_t,
+                                                ck::half_t,
                                                 ck::tensor_layout::gemm::ColumnMajor,
                                                 ck::tensor_layout::gemm::RowMajor,
                                                 ck::tensor_layout::gemm::RowMajor>(do_verification,
@@ -133,6 +136,7 @@ int profile_grouped_gemm(int argc, char* argv[])
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_NK_MN)
     {
         ck::profiler::profile_grouped_gemm_impl<ck::half_t,
+                                                ck::half_t,
                                                 ck::half_t,
                                                 ck::half_t,
                                                 ck::tensor_layout::gemm::ColumnMajor,
@@ -153,5 +157,5 @@ int profile_grouped_gemm(int argc, char* argv[])
         throw std::runtime_error("wrong! this GEMM data_type & layout is not implemented");
     }
 
-    return 1;
+    return 0;
 }

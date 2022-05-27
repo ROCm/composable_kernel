@@ -1,8 +1,7 @@
 #ifndef DEVICE_REDUCE_INSTANCE_MULTIBLOCK_ATOMIC_ADD_F16_F32_F32_HPP
 #define DEVICE_REDUCE_INSTANCE_MULTIBLOCK_ATOMIC_ADD_F16_F32_F32_HPP
 
-#include "reduction_enums.hpp"
-#include "reduction_operator_mapping.hpp"
+#include "data_type.hpp"
 #include "device_reduce_instance_multiblock_atomic_add.hpp"
 
 namespace ck {

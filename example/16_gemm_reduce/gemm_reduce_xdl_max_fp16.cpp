@@ -32,6 +32,7 @@ using CDataType         = F16;
 using ReduceAccDataType = F32;
 using DDataType         = F64;
 using DPtrsGlobal       = ck::Tuple<DDataType*>;
+using AccDataType       = F32;
 
 using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
@@ -59,7 +60,7 @@ using DeviceGemmReduceInstance = ck::tensor_operation::device::DeviceGemmReduce_
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, CDataType, AElementOp, BElementOp, CElementOp>;
+    ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
 
 int main(int argc, char* argv[])
 {
