@@ -29,6 +29,7 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 using ADataType                = F16;
 using BDataType                = F16;
 using CDataType                = F16;
+using GemmAccDataType          = F32;
 using ReduceAccDataType        = F32;
 using DDataType                = F32;
 using DPtrsGlobal              = ck::Tuple<DDataType*, DDataType*>;
@@ -72,8 +73,13 @@ using DeviceGemmReduceInstance = ck::tensor_operation::device::DeviceGemmReduce_
         <     Row,     Col,     Row,  F16,   F16,   F16,      F32,      F32,       F32,   DPtrsGlobal,  AElementOp,  BElementOp,  CElementOp, DxsReduceOp, DxsInElementOp, DxsOutElementOp,  DGlobalMemOp, GemmSpecialization,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8,             S<64, 4>,                         4,                            1>;
 // clang-format on
 
-using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, CDataType, AElementOp, BElementOp, CElementOp>;
+using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                        BDataType,
+                                                                        CDataType,
+                                                                        GemmAccDataType,
+                                                                        AElementOp,
+                                                                        BElementOp,
+                                                                        CElementOp>;
 
 using NormalizeFunctor = ck::tensor_operation::element_wise::Normalize;
 
