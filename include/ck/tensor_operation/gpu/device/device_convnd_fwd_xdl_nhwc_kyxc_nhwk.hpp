@@ -1,5 +1,4 @@
-#ifndef DEVICE_CONVND_FWD_XDL_NHWC_KYXC_NHWK_HPP
-#define DEVICE_CONVND_FWD_XDL_NHWC_KYXC_NHWK_HPP
+#pragma once
 
 #include <functional>
 #include <iostream>
@@ -8,6 +7,7 @@
 #include <sstream>
 
 #include "device.hpp"
+#include "device_prop.hpp"
 #include "device_base.hpp"
 #include "device_conv_fwd.hpp"
 #include "convolution_forward_specialization.hpp"
@@ -1051,4 +1051,3 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

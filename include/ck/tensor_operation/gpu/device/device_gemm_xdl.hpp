@@ -3,6 +3,7 @@
 #include <iostream>
 #include <sstream>
 #include "device.hpp"
+#include "device_prop.hpp"
 #include "device_base.hpp"
 #include "device_gemm.hpp"
 #include "common_header.hpp"
@@ -11,7 +12,6 @@
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdlops_v2r3.hpp"
 #include "gemm_specialization.hpp"
-#include "device_prop.hpp"
 
 namespace ck {
 namespace tensor_operation {

@@ -4,6 +4,7 @@
 #include <sstream>
 
 #include "device.hpp"
+#include "device_prop.hpp"
 #include "device_base.hpp"
 #include "device_gemm.hpp"
 #include "common_header.hpp"
@@ -13,7 +14,6 @@
 #include "gemm_specialization.hpp"
 #include "element_wise_operation.hpp"
 #include "gridwise_gemm_dl_v1r3.hpp"
-#include "device_prop.hpp"
 
 namespace ck {
 namespace tensor_operation {
