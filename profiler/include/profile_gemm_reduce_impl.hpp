@@ -23,7 +23,7 @@ using Div            = ck::tensor_operation::element_wise::UnaryIdentic<F32, F32
 using Identity       = ck::tensor_operation::element_wise::UnaryIdentic<F32, F32, false>;
 using Square         = ck::tensor_operation::element_wise::UnarySquare<F32, F32, false>;
 using DInElementOps  = ck::Tuple<Identity, Square>;
-using DOutElementOps = ck::Tuple<Identity, Identity>;
+using DOutElementOps = ck::Tuple<Div, Div>;
 
 using DeviceGemmReduceNoOpPtr = ck::tensor_operation::device::DeviceGemmReducePtr<
     DPtrsGlobal,
@@ -134,13 +134,13 @@ bool profile_gemm_reduce_impl(int do_verification,
     using UnarySquareElementOp =
         ck::tensor_operation::element_wise::UnarySquare<float, float, false>;
     using DxsInElementOps  = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
-    using DxsOutElementOps = ck::Tuple<UnaryIdenticElementOp, UnaryIdenticElementOp>;
+    using DxsOutElementOps = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
 
     const auto a_element_op       = AElementOp{};
     const auto b_element_op       = BElementOp{};
     const auto c_element_op       = CElementOp{};
     const auto dxs_in_element_op  = DxsInElementOps{};
-    const auto dxs_out_element_op = DxsOutElementOp{M, M};
+    const auto dxs_out_element_op = DxsOutElementOps{M, M};
     const auto d0_reduce_op       = D0ReduceOp{};
     const auto d1_reduce_op       = D1ReduceOp{};
 
