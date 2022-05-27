@@ -44,9 +44,8 @@ using CLayout = ck::tensor_layout::gemm::RowMajor;
 using AElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp  = ck::tensor_operation::element_wise::PassThrough;
-using D0ReduceOp  = ck::reduce::Add<ReduceAccDataType>;
-using D1ReduceOp  = ck::reduce::Add<ReduceAccDataType>;
-using DxsReduceOp = ck::Tuple<D0ReduceOp, D1ReduceOp>;
+using ReduceSumOp = ck::reduce::Add<ReduceAccDataType>;
+using DxsReduceOp = ck::Tuple<ReduceSumOp, ReduceSumOp>;
 
 using UnaryIdenticElementOp =
     ck::tensor_operation::element_wise::UnaryIdentic<ReduceAccDataType, ReduceAccDataType, false>;
@@ -97,6 +96,93 @@ using DeviceNormalizeInstance = ck::tensor_operation::device::Device5AryElementw
     8,  // scalarPerVector: Beta
     8>; // scalarPerVector: LayerNorm_out
 
+auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
+    return HostTensorDescriptor(std::vector<std::size_t>({len}),
+                                std::vector<std::size_t>({stride}));
+};
+
+auto f_host_tensor_descriptor2d =
+    [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+        if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
+        {
+            return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
+                                        std::vector<std::size_t>({stride, 1}));
+        }
+        else
+        {
+            return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
+                                        std::vector<std::size_t>({1, stride}));
+        }
+    };
+
+template <typename CDataType,
+          typename DDataType,
+          typename A_functor,
+          typename B_functor,
+          typename C_functor>
+void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
+                         const Tensor<ADataType>& a_m_k,
+                         const Tensor<ADataType>& b_k_n,
+                         const Tensor<GammaDataType>& gamma_n,
+                         const Tensor<GammaDataType>& beta_n,
+                         A_functor a_element_op,
+                         B_functor b_element_op,
+                         C_functor c_element_op,
+                         int M,
+                         int N)
+{
+    using out_type = ck::remove_reference_t<decltype(out_m_n(0, 0))>;
+
+    int StrideC = N;
+    Tensor<CDataType> c_m_n(f_host_tensor_descriptor2d(M, N, StrideC, CLayout{}));
+    Tensor<DDataType> mean_m(f_host_tensor_descriptor1d(M, 1));
+    Tensor<DDataType> meanSquare_m(f_host_tensor_descriptor1d(M, 1));
+    auto averageOpInst = UnaryDivElementOp{M};
+
+    auto ref_gemm    = ReferenceGemmInstance{};
+    auto ref_invoker = ref_gemm.MakeInvoker();
+
+    auto ref_argument =
+        ref_gemm.MakeArgument(a_m_k, b_k_n, c_m_n, a_element_op, b_element_op, c_element_op);
+
+    ref_invoker.Run(ref_argument);
+
+    // reduce_mean and reduce_square_mean
+    auto reduceSumOpInst = ReduceSumOp{};
+    for(int m = 0; m < M; ++m)
+    {
+        float mean_acc        = reduceSumOpInst.GetReductionZeroVal();
+        float square_mean_acc = reduceSumOpInst.GetReductionZeroVal();
+
+        for(int n = 0; n < N; ++n)
+        {
+            ReduceAccDataType c_val        = ck::type_convert<float>(c_m_n(m, n));
+            ReduceAccDataType square_c_val = 0;
+            UnarySquareElementOp{}(square_c_val, c_val);
+
+            reduceSumOpInst(mean_acc, c_val);
+            reduceSumOpInst(square_mean_acc, square_c_val);
+        }
+
+        averageOpInst(mean_acc, mean_acc);
+        averageOpInst(square_mean_acc, square_mean_acc);
+        mean_m(m)       = ck::type_convert<DDataType>(mean_acc);
+        meanSquare_m(m) = ck::type_convert<DDataType>(square_mean_acc);
+    }
+
+    // LayerNorm
+    auto layerNormInst = NormalizeFunctor{};
+    for(int m = 0; m < M; ++m)
+    {
+        for(int n = 0; n < N; ++n)
+        {
+            float out_f32 = 0;
+            layerNormInst(out_f32, c_m_n(m, n), mean_m(m), meanSquare_m(m), gamma_n(n), beta_n(n));
+            out_m_n(m, n) = static_cast<out_type>(out_f32);
+        }
+    }
+}
+
 int main()
 {
     bool time_kernel = false;
@@ -110,25 +196,6 @@ int main()
     ck::index_t StrideB = 1024;
     ck::index_t StrideC = 1024;
 
-    auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
-        return HostTensorDescriptor(std::vector<std::size_t>({len}),
-                                    std::vector<std::size_t>({stride}));
-    };
-
-    auto f_host_tensor_descriptor2d =
-        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
-            {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
-            }
-            else
-            {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
-            }
-        };
-
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor2d(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor2d(K, N, StrideB, BLayout{}));
     Tensor<CDataType> c_m_n(f_host_tensor_descriptor2d(M, N, StrideC, CLayout{}));
@@ -139,10 +206,10 @@ int main()
     Tensor<LayerNormOutDataType> layerNorm_m_n(
         f_host_tensor_descriptor2d(M, N, StrideC, CLayout{}));
 
-    a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-5, 5});
-    b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-5, 5});
-    gamma_n.GenerateTensorValue(GeneratorTensor_3<GammaDataType>{-0.5, 0.5});
-    beta_n.GenerateTensorValue(GeneratorTensor_3<BetaDataType>{-0.5, 0.5});
+    a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-1, 1});
+    b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-1, 1});
+    gamma_n.GenerateTensorValue(GeneratorTensor_3<GammaDataType>{-1, 1});
+    beta_n.GenerateTensorValue(GeneratorTensor_3<BetaDataType>{-1, 1});
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
     DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
@@ -230,5 +297,29 @@ int main()
     layerNorm_invoker_ptr->Run(layerNorm_argument.get(), StreamConfig{nullptr, time_kernel});
 
     bool pass = true;
+    {
+        // verification
+        Tensor<LayerNormOutDataType> host_layerNorm_m_n(
+            f_host_tensor_descriptor2d(M, N, StrideC, CLayout{}));
+
+        host_gemm_layernorm<CDataType, DDataType>(host_layerNorm_m_n,
+                                                  a_m_k,
+                                                  b_k_n,
+                                                  gamma_n,
+                                                  beta_n,
+                                                  a_element_op,
+                                                  b_element_op,
+                                                  c_element_op,
+                                                  M,
+                                                  N);
+
+        layerNorm_device_buf.FromDevice(layerNorm_m_n.mData.data());
+        pass &= ck::utils::check_err(layerNorm_m_n.mData,
+                                     host_layerNorm_m_n.mData,
+                                     "Error: Incorrect results d1",
+                                     1e-3,
+                                     1e-3);
+    }
+
     return pass ? 0 : 1;
 }
