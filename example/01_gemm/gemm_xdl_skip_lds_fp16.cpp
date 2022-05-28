@@ -51,7 +51,7 @@ using BDataType   = ck::half_t;
 using CDataType   = ck::half_t;
 using AccDataType = float;
 #else  
-                   <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,     64,    16,   16,     4,  1,   16,   16,    1,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              1,      true,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              1,      true,               7,               1>;
+                   <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,     64,    16,   16,     4,  4,   16,   16,    1,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              4,              4,      true,               7,               1>;
 using ADataType   = float;
 using BDataType   = float;
 using CDataType   = float;
@@ -85,14 +85,14 @@ int main(int argc, char* argv[])
     int nrepeat          = 5;
 
     // GEMM shape
-#if 0
+#if 1
     ck::index_t M = 16;
-    ck::index_t N = 4096;
-    ck::index_t K = 64;
+    ck::index_t N = 1152;
+    ck::index_t K = 5120;
 
-    ck::index_t StrideA = 64;
+    ck::index_t StrideA = 5120;
     ck::index_t StrideB = 5120;
-    ck::index_t StrideC = 4096;
+    ck::index_t StrideC = 1152;
 #else
     ck::index_t M = 16;
     ck::index_t N = 16;
