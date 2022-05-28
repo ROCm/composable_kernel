@@ -330,7 +330,7 @@ struct DeviceGemmXdlSkipLds
 
             if(has_main_k0_block_loop)
             {
-                const auto kernel = kernel_gemm_xdlops_v2r3<
+                const auto kernel = kernel_gemm_xdlops_skip_lds_v2r3<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
@@ -363,7 +363,7 @@ struct DeviceGemmXdlSkipLds
             }
             else
             {
-                const auto kernel = kernel_gemm_xdlops_v2r3<
+                const auto kernel = kernel_gemm_xdlops_skip_lds_v2r3<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
