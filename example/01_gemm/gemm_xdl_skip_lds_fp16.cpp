@@ -86,20 +86,20 @@ int main(int argc, char* argv[])
 
     // GEMM shape
 #if 0
-    ck::index_t M = 256;
+    ck::index_t M = 16;
     ck::index_t N = 4096;
-    ck::index_t K = 32;
+    ck::index_t K = 64;
 
     ck::index_t StrideA = 64;
-    ck::index_t StrideB = 64;
+    ck::index_t StrideB = 5120;
     ck::index_t StrideC = 4096;
 #else
     ck::index_t M = 16;
     ck::index_t N = 16;
-    ck::index_t K = 8;
+    ck::index_t K = 24;
 
-    ck::index_t StrideA = 8;
-    ck::index_t StrideB = 8;
+    ck::index_t StrideA = 24;
+    ck::index_t StrideB = 24;
     ck::index_t StrideC = 16;
 #endif
 
@@ -231,7 +231,7 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
 
-#if 1
+#if 0
         {
             show_2d_matrix(std::cout << "a : ", a_m_k) << std::endl;
             show_2d_matrix(std::cout << "b: ", b_k_n) << std::endl;
