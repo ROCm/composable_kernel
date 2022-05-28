@@ -33,10 +33,10 @@
 
 #include "reduction_enums.hpp"
 #include "reduction_common.hpp"
-#include "host_reduce_util.hpp"
 #include "host_common_util.hpp"
 #include "host_tensor.hpp"
 #include "data_type.hpp"
+#include "reduction_functions_accumulate.hpp"
 
 template <int NDim>
 static void get_all_indexes(const std::array<size_t, NDim>& dimLengths,
@@ -106,11 +106,13 @@ static size_t get_offset_from_index(const std::vector<size_t>& strides,
 template <typename InDataType,
           typename AccDataType,
           typename OutDataType,
-          ck::ReduceTensorOp ReduceOpId,
+          typename ReduceOperation,
+          typename InElementwiseOperation,
+          typename AccElementwiseOperation,
           int Rank,
           int NumReduceDim,
           bool PropagateNan,
-          bool NeedIndices>
+          bool OutputIndex>
 struct ReductionHost
 {
     using IndexDataType = int32_t;
@@ -122,8 +124,6 @@ struct ReductionHost
     std::vector<int> reduceDims;
 
     IndexDataType divider;
-    std::function<void(AccDataType&)> preUnaryOp;
-    std::function<void(AccDataType&)> posUnaryOp;
     std::array<size_t, NumReduceDim> reduceLengths;
     std::array<size_t, NumReduceDim> reduceStrides;
     std::array<size_t, NumInvariantDim> invariantLengths;
@@ -137,9 +137,6 @@ struct ReductionHost
                   const std::vector<int>& invariantDims_,
                   const std::vector<int>& reduceDims_)
     {
-        using ck::host_reduce::PosUnaryOpFn;
-        using ck::host_reduce::PreUnaryOpFn;
-
         // this->outLengths = to_int_vector(outDesc.GetLengths());
         this->outStrides = outDesc.GetStrides();
 
@@ -171,9 +168,6 @@ struct ReductionHost
             invariant_dim_indexes.clear();
             get_all_indexes<NumInvariantDim>(invariantLengths, invariant_dim_indexes);
         };
-
-        preUnaryOp = PreUnaryOpFn<AccDataType, ReduceOpId>(divider);
-        posUnaryOp = PosUnaryOpFn<AccDataType, ReduceOpId>(divider);
     };
 
     void Run(float alpha,
@@ -182,7 +176,7 @@ struct ReductionHost
              OutDataType* out_data,
              IndexDataType* out_indices)
     {
-        if constexpr(NeedIndices)
+        if constexpr(OutputIndex)
         {
             RunImpl_with_index(alpha, in_data, beta, out_data, out_indices);
         }
@@ -201,15 +195,17 @@ struct ReductionHost
         using ck::float_equal_one;
         using ck::float_equal_zero;
         using ck::type_convert;
-        using ck::host_reduce::binop_with_index_and_nan_check;
-        using ck::host_reduce::ReduceOpFn2;
-        using ck::host_reduce::ReduceOpZeroVal;
 
-        auto opReduce2 = ReduceOpFn2<AccDataType, ReduceOpId>();
+        using Accumulation = ck::detail::AccumulateWithIndexAndNanCheck<PropagateNan,
+                                                                        ReduceOperation,
+                                                                        AccDataType,
+                                                                        IndexDataType>;
+        InElementwiseOperation in_elementwise_op(divider);
+        AccElementwiseOperation acc_elementwise_op(divider);
 
         if constexpr(NumInvariantDim == 0)
         {
-            AccDataType accuVal     = ReduceOpZeroVal<AccDataType, ReduceOpId>();
+            AccDataType accuVal     = ReduceOperation::GetReductionZeroVal();
             IndexDataType accuIndex = 0;
 
             for(std::size_t i = 0; i < reduce_dim_indexes.size(); i++)
@@ -219,15 +215,14 @@ struct ReductionHost
 
                 auto currVal = type_convert<AccDataType>(in_data[offset_reduce]);
 
-                preUnaryOp(currVal);
+                in_elementwise_op(currVal, currVal);
 
                 auto currIndex = static_cast<IndexDataType>(i);
 
-                binop_with_index_and_nan_check<AccDataType, IndexDataType, PropagateNan>(
-                    opReduce2, accuVal, currVal, accuIndex, currIndex);
+                Accumulation::Calculate(accuVal, currVal, accuIndex, currIndex);
             };
 
-            posUnaryOp(accuVal);
+            acc_elementwise_op(accuVal, accuVal);
 
             if(!float_equal_one{}(alpha))
                 accuVal *= type_convert<AccDataType>(alpha);
@@ -241,7 +236,7 @@ struct ReductionHost
         else
         {
             auto thread_reduce_func = [&](auto invariant_index) {
-                AccDataType accuVal     = ReduceOpZeroVal<AccDataType, ReduceOpId>();
+                AccDataType accuVal     = ReduceOperation::GetReductionZeroVal();
                 IndexDataType accuIndex = 0;
 
                 auto offset_invariant =
@@ -255,15 +250,14 @@ struct ReductionHost
                     auto currVal =
                         type_convert<AccDataType>(in_data[offset_invariant + offset_reduce]);
 
-                    preUnaryOp(currVal);
+                    in_elementwise_op(currVal, currVal);
 
                     auto currIndex = static_cast<IndexDataType>(i);
 
-                    binop_with_index_and_nan_check<AccDataType, IndexDataType, PropagateNan>(
-                        opReduce2, accuVal, currVal, accuIndex, currIndex);
+                    Accumulation::Calculate(accuVal, currVal, accuIndex, currIndex);
                 };
 
-                posUnaryOp(accuVal);
+                acc_elementwise_op(accuVal, accuVal);
 
                 if(!float_equal_one{}(alpha))
                     accuVal *= type_convert<AccDataType>(alpha);
@@ -308,15 +302,16 @@ struct ReductionHost
         using ck::float_equal_one;
         using ck::float_equal_zero;
         using ck::type_convert;
-        using ck::host_reduce::binop_with_nan_check;
-        using ck::host_reduce::ReduceOpFn;
-        using ck::host_reduce::ReduceOpZeroVal;
 
-        auto opReduce = ReduceOpFn<AccDataType, ReduceOpId>();
+        using Accumulation =
+            ck::detail::AccumulateWithNanCheck<PropagateNan, ReduceOperation, AccDataType>;
+
+        InElementwiseOperation in_elementwise_op(divider);
+        AccElementwiseOperation acc_elementwise_op(divider);
 
         if constexpr(NumInvariantDim == 0)
         {
-            AccDataType accuVal = ReduceOpZeroVal<AccDataType, ReduceOpId>();
+            AccDataType accuVal = ReduceOperation::GetReductionZeroVal();
 
             for(const auto& reduce_index : reduce_dim_indexes)
             {
@@ -325,12 +320,12 @@ struct ReductionHost
 
                 auto currVal = type_convert<AccDataType>(in_data[offset_reduce]);
 
-                preUnaryOp(currVal);
+                in_elementwise_op(currVal, currVal);
 
-                binop_with_nan_check<AccDataType, PropagateNan>(opReduce, accuVal, currVal);
+                Accumulation::Calculate(accuVal, currVal);
             };
 
-            posUnaryOp(accuVal);
+            acc_elementwise_op(accuVal, accuVal);
 
             if(!float_equal_one{}(alpha))
                 accuVal *= type_convert<AccDataType>(alpha);
@@ -343,7 +338,7 @@ struct ReductionHost
         else
         {
             auto thread_reduce_func = [&](auto invariant_index) {
-                AccDataType accuVal = ReduceOpZeroVal<AccDataType, ReduceOpId>();
+                AccDataType accuVal = ReduceOperation::GetReductionZeroVal();
 
                 auto offset_invariant =
                     get_offset_from_index<NumInvariantDim>(invariantStrides, invariant_index);
@@ -356,12 +351,12 @@ struct ReductionHost
                     auto currVal =
                         type_convert<AccDataType>(in_data[offset_invariant + offset_reduce]);
 
-                    preUnaryOp(currVal);
+                    in_elementwise_op(currVal, currVal);
 
-                    binop_with_nan_check<AccDataType, PropagateNan>(opReduce, accuVal, currVal);
+                    Accumulation::Calculate(accuVal, currVal);
                 };
 
-                posUnaryOp(accuVal);
+                acc_elementwise_op(accuVal, accuVal);
 
                 if(!float_equal_one{}(alpha))
                     accuVal *= type_convert<AccDataType>(alpha);
