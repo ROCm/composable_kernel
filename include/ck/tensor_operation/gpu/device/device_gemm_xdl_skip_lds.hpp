@@ -52,8 +52,7 @@ template <typename ADataType,
           ck::index_t BBlockTransferDstScalarPerVector_K1,
           bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
-          ck::index_t CThreadTransferDstScalarPerVector,
-          ck::index_t NumPrefetch = 1>
+          ck::index_t CThreadTransferDstScalarPerVector>
 struct DeviceGemmXdlSkipLds
     : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
@@ -219,8 +218,7 @@ struct DeviceGemmXdlSkipLds
         BBlockLdsAddExtraN,
         Sequence<0, 2, 4, 5, 6, 1, 3, 7>, // CThreadTransferSrcDstAccessOrder,
         CThreadTransferSrcDstVectorDim,
-        CThreadTransferDstScalarPerVector,
-        NumPrefetch>;
+        CThreadTransferDstScalarPerVector>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -353,7 +351,6 @@ struct DeviceGemmXdlSkipLds
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_n_k1_,
                                                   arg.b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
                                                   arg.a_element_op_,
@@ -386,7 +383,6 @@ struct DeviceGemmXdlSkipLds
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_n_k1_,
                                                   arg.b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
                                                   arg.a_element_op_,

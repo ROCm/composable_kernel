@@ -34,7 +34,6 @@ __global__ void
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
             const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
-            const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
             const BGridDesc_K0_K1_K2_N0_N1_N2_N3_K3 b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
             const CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
             const AElementwiseOperation a_element_op,
@@ -50,7 +49,6 @@ __global__ void
                                                    p_c_grid,
                                                    p_shared,
                                                    a_grid_desc_k0_m_k1,
-                                                   b_grid_desc_k0_n_k1,
                                                    b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                                    c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                                                    a_element_op,
@@ -109,8 +107,7 @@ template <index_t BlockSize,
           bool BBlockLdsExtraN,
           typename CThreadTransferSrcDstAccessOrder,
           index_t CThreadTransferSrcDstVectorDim,
-          index_t CThreadTransferDstScalarPerVector,
-          index_t NumPrefetch = 1>
+          index_t CThreadTransferDstScalarPerVector>
 struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
 {
     static constexpr auto I0 = Number<0>{};
@@ -219,21 +216,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
         if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K0 % K0PerBlock == 0))
             return false;
 
-        // check NumPrefetch
-        if constexpr(NumPrefetch == 1)
-        {
-            // 1-stage prefetch always supported
-        }
-        else if constexpr(NumPrefetch == 2)
-        {
-            // 2-stage prefetch currently only support even number of K0 loop
-            // TODO: add support for odd number of K0 loop
-            if(!((K0 / K0PerBlock) % 2 == 0))
-            {
-                return false;
-            }
-        }
-        else
+        // 2-stage prefetch currently only support even number of K0 loop
+        // TODO: add support for odd number of K0 loop
+        if(!((K0 / K0PerBlock) % 2 == 0))
         {
             return false;
         }
@@ -266,7 +251,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
     // TODO move this function into GEMM-pipeline class
     __host__ __device__ static constexpr bool CalculateHasMainK0BlockLoop(index_t K0)
     {
-        const bool has_main_k0_block_loop = (K0 / (MultiK0 * NumPrefetch * K0PerBlock)) > 1;
+        const bool has_main_k0_block_loop = (K0 / (MultiK0 * K0PerBlock)) > 1;
 
         return has_main_k0_block_loop;
     }
@@ -410,7 +395,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
         FloatC* __restrict__ p_c_grid,
         void* __restrict__ p_shared,
         const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
-        const BGridDesc_K0_N_K1& b_grid_desc_k0_n_k1,
         const BGridDesc_K0_K1_K2_N0_N1_N2_N3_K3 b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
         const CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2& c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
         const AElementwiseOperation& a_element_op,
@@ -421,7 +405,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_k0_m_k1.GetElementSpaceSize());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_grid, b_grid_desc_k0_n_k1.GetElementSpaceSize());
+            p_b_grid, b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3.GetElementSpaceSize());
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetElementSpaceSize());
 
@@ -464,13 +448,12 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
                                               1,
                                               AThreadTransferSrcResetCoordinateAfterRun,
                                               true,
-                                              NumPrefetch>(
-                a_grid_desc_k0_m_k1,
-                make_multi_index(0, m_block_data_idx_on_grid, 0),
-                a_element_op,
-                a_block_desc_k0_m_k1,
-                make_multi_index(0, 0, 0),
-                ck::tensor_operation::element_wise::PassThrough{});
+                                              1>(a_grid_desc_k0_m_k1,
+                                                 make_multi_index(0, m_block_data_idx_on_grid, 0),
+                                                 a_element_op,
+                                                 a_block_desc_k0_m_k1,
+                                                 make_multi_index(0, 0, 0),
+                                                 ck::tensor_operation::element_wise::PassThrough{});
 
         ignore = b_element_op;
         // B matrix blockwise copy
