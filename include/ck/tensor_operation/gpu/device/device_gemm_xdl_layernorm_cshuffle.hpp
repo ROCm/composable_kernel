@@ -423,9 +423,9 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle
         Argument(const ADataType* p_a_grid,
                  const BDataType* p_b_grid,
                  CDataType* p_c_grid,
-                 const CShuffleDataType* p_c0_bias,
-                 const CShuffleDataType* p_c0_gamma,
-                 const CShuffleDataType* p_c0_beta,
+                 const CDataType* p_c0_bias,
+                 const CDataType* p_c0_gamma,
+                 const CDataType* p_c0_beta,
                  index_t MRaw,
                  index_t NRaw,
                  index_t KRaw,
@@ -470,9 +470,9 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
-        const CShuffleDataType* p_c0_bias_;
-        const CShuffleDataType* p_c0_gamma_;
-        const CShuffleDataType* p_c0_beta_;
+        const CDataType* p_c0_bias_;
+        const CDataType* p_c0_gamma_;
+        const CDataType* p_c0_beta_;
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         CGridDesc_M_N c_grid_desc_m_n_;
@@ -530,7 +530,6 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    CShuffleDataType, // intermediate data type
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
@@ -568,7 +567,6 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    CShuffleDataType, // intermediate data type
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
@@ -632,9 +630,9 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle
     static auto MakeArgument(const ADataType* p_a,
                              const BDataType* p_b,
                              CDataType* p_c,
-                             const CShuffleDataType* p_c0_bias,
-                             const CShuffleDataType* p_c0_gamma,
-                             const CShuffleDataType* p_c0_beta,
+                             const CDataType* p_c0_bias,
+                             const CDataType* p_c0_gamma,
+                             const CDataType* p_c0_beta,
                              index_t MRaw,
                              index_t NRaw,
                              index_t KRaw,
@@ -684,9 +682,9 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
                                           static_cast<CDataType*>(p_c),
-                                          static_cast<const CShuffleDataType*>(p_c0_bias),
-                                          static_cast<const CShuffleDataType*>(p_c0_gamma),
-                                          static_cast<const CShuffleDataType*>(p_c0_beta),
+                                          static_cast<const CDataType*>(p_c0_bias),
+                                          static_cast<const CDataType*>(p_c0_gamma),
+                                          static_cast<const CDataType*>(p_c0_beta),
                                           MRaw,
                                           NRaw,
                                           KRaw,

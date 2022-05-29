@@ -51,9 +51,9 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmLayerNorm_Xdl
 // clang-format on
 
 // D = Layernorm(acc + broadcast(bias)) * broadcast(gamma) + broadcast(beta)
-template <typename InDataType, typename OutDataType>
+template <typename InDataType, typename OutDataType, typename ComputeDataType>
 void Layernorm(Tensor<OutDataType>& result,
-               const Tensor<InDataType>& acc,   // MxN
+               const Tensor<ComputeDataType>& acc,   // MxN
                const Tensor<InDataType>& bias,  // 1xN
                const Tensor<InDataType>& gamma, // 1xN
                const Tensor<InDataType>& beta,  // 1xN
@@ -66,9 +66,9 @@ void Layernorm(Tensor<OutDataType>& result,
     size_t M = acc.mDesc.GetLengths()[0];
     size_t N = acc.mDesc.GetLengths()[1];
 
-    Tensor<InDataType> avg_acc_sq(HostTensorDescriptor(std::vector<size_t>({M})));
-    Tensor<InDataType> avg_acc(HostTensorDescriptor(std::vector<size_t>({M})));
-    Tensor<InDataType> acc_layernorm(acc.mDesc);
+    Tensor<ComputeDataType> avg_acc_sq(HostTensorDescriptor(std::vector<size_t>({M})));
+    Tensor<ComputeDataType> avg_acc(HostTensorDescriptor(std::vector<size_t>({M})));
+    Tensor<ComputeDataType> acc_layernorm(acc.mDesc);
 
     // add bias
     acc_layernorm.ForEach([&](auto& self, auto idx) {
@@ -78,8 +78,8 @@ void Layernorm(Tensor<OutDataType>& result,
     // reduce N dim
     for(size_t i = 0; i < M; i++)
     {
-        InDataType sum_acc_sq = 0;
-        InDataType sum_acc    = 0;
+        ComputeDataType sum_acc_sq = 0;
+        ComputeDataType sum_acc    = 0;
         for(size_t j = 0; j < N; j++)
         {
             sum_acc_sq += acc_layernorm(i, j) * acc_layernorm(i, j);
@@ -177,9 +177,9 @@ int main(int argc, char* argv[])
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<AccDataType> acc_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-    Tensor<AccDataType> c0_n_bias(HostTensorDescriptor(std::vector<size_t>({size_t(N)})));
-    Tensor<AccDataType> c0_n_gamma(HostTensorDescriptor(std::vector<size_t>({size_t(N)})));
-    Tensor<AccDataType> c0_n_beta(HostTensorDescriptor(std::vector<size_t>({size_t(N)})));
+    Tensor<CDataType> c0_n_bias(HostTensorDescriptor(std::vector<size_t>({size_t(N)})));
+    Tensor<CDataType> c0_n_gamma(HostTensorDescriptor(std::vector<size_t>({size_t(N)})));
+    Tensor<CDataType> c0_n_beta(HostTensorDescriptor(std::vector<size_t>({size_t(N)})));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
@@ -205,18 +205,18 @@ int main(int argc, char* argv[])
     }
 
     // TODO ANT: test other init
+    c0_n_bias.GenerateTensorValue(GeneratorTensor_2<CDataType>{-5, 5});
+    c0_n_gamma.GenerateTensorValue(GeneratorTensor_2<CDataType>{0, 2});
+    c0_n_beta.GenerateTensorValue(GeneratorTensor_2<CDataType>{0, 5});
     c_m_n_host_result.GenerateTensorValue(GeneratorTensor_1<CDataType>{0});
     acc_m_n_host_result.GenerateTensorValue(GeneratorTensor_1<AccDataType>{0});
-    c0_n_bias.GenerateTensorValue(GeneratorTensor_Sequential<0>{});
-    c0_n_gamma.GenerateTensorValue(GeneratorTensor_1<AccDataType>{2});
-    c0_n_beta.GenerateTensorValue(GeneratorTensor_1<AccDataType>{2});
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
     DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
     DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpace());
-    DeviceMem c0_bias_buf(sizeof(AccDataType) * c0_n_bias.mDesc.GetElementSpace());
-    DeviceMem c0_gamma_buf(sizeof(AccDataType) * c0_n_gamma.mDesc.GetElementSpace());
-    DeviceMem c0_beta_buf(sizeof(AccDataType) * c0_n_beta.mDesc.GetElementSpace());
+    DeviceMem c0_bias_buf(sizeof(CDataType) * c0_n_bias.mDesc.GetElementSpace());
+    DeviceMem c0_gamma_buf(sizeof(CDataType) * c0_n_gamma.mDesc.GetElementSpace());
+    DeviceMem c0_beta_buf(sizeof(CDataType) * c0_n_beta.mDesc.GetElementSpace());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
@@ -234,9 +234,9 @@ int main(int argc, char* argv[])
     auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
                                       static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
                                       static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                      static_cast<AccDataType*>(c0_bias_buf.GetDeviceBuffer()),
-                                      static_cast<AccDataType*>(c0_gamma_buf.GetDeviceBuffer()),
-                                      static_cast<AccDataType*>(c0_beta_buf.GetDeviceBuffer()),
+                                      static_cast<CDataType*>(c0_bias_buf.GetDeviceBuffer()),
+                                      static_cast<CDataType*>(c0_gamma_buf.GetDeviceBuffer()),
+                                      static_cast<CDataType*>(c0_beta_buf.GetDeviceBuffer()),
                                       M,
                                       N,
                                       K,
