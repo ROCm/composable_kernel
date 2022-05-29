@@ -733,7 +733,7 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         true,
         true>;
 
-    using GridwiseGemmAtomicAddFloatForBf16 = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight<
+    using GridwiseGemmAtomicAddFloatBf16Splitk = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight<
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
@@ -984,9 +984,9 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                     else
                     {
                         const auto kernel = kernel_gemm_xdlops_bwd_weight<
-                            GridwiseGemmAtomicAddFloatForBf16,
+                            GridwiseGemmAtomicAddFloatBf16Splitk,
                             ADataType, // TODO: distiguish A/B datatype
-                            CDataType,
+                            AccDataType,
                             remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
                             remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
                             remove_reference_t<
@@ -1023,9 +1023,9 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                     else
                     {
                         const auto kernel = kernel_gemm_xdlops_bwd_weight<
-                            GridwiseGemmAtomicAddFloatForBf16,
+                            GridwiseGemmAtomicAddFloatBf16Splitk,
                             ADataType, // TODO: distiguish A/B datatype
-                            CDataType,
+                            AccDataType,
                             remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
                             remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
                             remove_reference_t<

@@ -329,6 +329,18 @@ struct UnarySqrt<double, double>
     __host__ __device__ void operator()(double& y, const double& x) const { y = sqrt(x); };
 };
 
+template <typename Y, typename X>
+struct UnaryTypeConvert;
+
+template <>
+struct UnaryTypeConvert<float, ck::bhalf_t>
+{
+    __host__ __device__ UnaryTypeConvert(const int32_t divider = 1) { (void)divider; };
+
+    __host__ __device__ void operator()(float& y, ck::bhalf_t& x) const { y = ck::type_convert<float, ck::bhalf_t>(x); };
+};
+
+
 } // namespace element_wise
 } // namespace tensor_operation
 } // namespace ck

@@ -18,9 +18,9 @@
 #include "device_convnd_backward_weight_xdl_c_shuffle_nhwc_kyxc_nhwk.hpp"
 #include "reference_conv_backward_weight.hpp"
 
-using InDataType  = ck::half_t;
-using WeiDataType = ck::half_t;
-using OutDataType = ck::half_t;
+using InDataType  = ck::bhalf_t;
+using WeiDataType = ck::bhalf_t;
+using OutDataType = ck::bhalf_t;
 using AccDataType = float;
 
 template <ck::index_t... Is>
@@ -38,10 +38,10 @@ using DeviceConvBwdWeightBasePtr =
 
 // clang-format off
 template <ck::index_t NumDimSpatial>
-using DeviceConvndBwdWeightInstance = ck::tensor_operation::device::
+using DeviceConvndBwdWeightInstance_bf16_splitk = ck::tensor_operation::device::
     DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
         InDataType,                       // InDataType
-        WeiDataType,                      // WeiDataType
+        AccDataType,                      // WeiDataType
         OutDataType,                      // OutDataType
         AccDataType,                      // AccDataType
         InElementOp,                      // InElementwiseOperation
@@ -75,7 +75,7 @@ using DeviceConvndBwdWeightInstance = ck::tensor_operation::device::
         1,                                // CShuffleMXdlPerWavePerShuffle
         1,                                // CShuffleNXdlPerWavePerShuffle
         S<1, 32, 1, 4>,                   // CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        8>;                               // CBlockTransferScalarPerVector_NWaveNPerXdl
+        4>;                               // CBlockTransferScalarPerVector_NWaveNPerXdl
 // clang-format on
 
 template <ck::index_t NumDimSpatial>
@@ -88,13 +88,27 @@ using ReferenceConvBwdWeightInstance =
                                                        OutElementOp,
                                                        NumDimSpatial>;
 
+template <typename HostTensorB, typename HostTensorA, typename Functor>
+void host_elementwise(HostTensorB& B,
+                      const HostTensorA& A,
+                      const std::vector<std::size_t>& shape,
+                      Functor functor)
+{
+    size_t tensor_size = std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<int>{});
+    std::cout << __LINE__ << ":" << tensor_size << ", "<< A.mData[0] << std::endl;
+    for(std::size_t n = 0; n < tensor_size; ++n)
+    {
+        B.mData[n] = functor(A.mData[n]);
+    }
+}
+
 void print_use_msg()
 {
     std::cout << "arg1: verification (0=no, 1=yes)\n"
               << "arg2: initialization (0=no init, 1=random value, 2= init to 1 )\n"
               << "arg3: time kernel (0=n0, 1=yes)\n"
               << "arg4: is show log (0=no, 1=yes)\n"
-              << "arg5: split-k \n"
+              << "arg5: split-k : in this example split-k must be larger than 1\n"
               << "arg6: N spatial dimensions (default 2)\n"
               << "Following arguments (depending on number of spatial dims):\n"
               << " N, K, C, \n"
@@ -157,13 +171,13 @@ DeviceConvBwdWeightBasePtr get_conv_instance(int num_dim_spatial)
     switch(num_dim_spatial)
     {
     case 3: {
-        return std::make_unique<DeviceConvndBwdWeightInstance<3>>();
+        return std::make_unique<DeviceConvndBwdWeightInstance_bf16_splitk<3>>();
     }
     case 2: {
-        return std::make_unique<DeviceConvndBwdWeightInstance<2>>();
+        return std::make_unique<DeviceConvndBwdWeightInstance_bf16_splitk<2>>();
     }
     case 1: {
-        return std::make_unique<DeviceConvndBwdWeightInstance<1>>();
+        return std::make_unique<DeviceConvndBwdWeightInstance_bf16_splitk<1>>();
     }
     default: {
         throw std::runtime_error("Unsupported number of spatial dimensions provided!");
@@ -178,7 +192,7 @@ int main(int argc, char* argv[])
     bool time_kernel     = false;
     int num_dim_spatial  = 2;
     int do_log           = 0;
-    int split_k          = 1;
+    int split_k          = 2;
 
     ck::utils::conv::ConvParams params;
     params.C_ = 128;
@@ -211,6 +225,12 @@ int main(int argc, char* argv[])
         params = parse_conv_params(num_dim_spatial, argv);
     }
     else if(argc != 1)
+    {
+        print_use_msg();
+        exit(1);
+    }
+
+    if(split_k <= 1)
     {
         print_use_msg();
         exit(1);
@@ -297,7 +317,30 @@ int main(int argc, char* argv[])
                                   split_k);
 
     // alloc work space
+    size_t bwd_weight_workspace_size = conv->GetWorkSpaceSize(argument.get());
     float ave_time                   = 0.f;
+
+    DeviceMem wei_work_space_device_buf(bwd_weight_workspace_size);
+    wei_work_space_device_buf.SetZero();
+    argument = conv->MakeArgumentPointer(
+        static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
+        static_cast<AccDataType*>(wei_work_space_device_buf.GetDeviceBuffer()),
+        static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
+        params.N_,
+        params.K_,
+        params.C_,
+        params.input_spatial_lengths_,
+        params.filter_spatial_lengths_,
+        output_spatial_lengths,
+        params.conv_filter_strides_,
+        params.conv_filter_dilations_,
+        params.input_left_pads_,
+        params.input_right_pads_,
+        InElementOp{},
+        WeiElementOp{},
+        OutElementOp{},
+        split_k);
+
     if(!conv->IsSupportedArgument(argument.get()))
     {
         std::cout << "wrong! device_conv with the specified compilation parameters does "
@@ -305,7 +348,18 @@ int main(int argc, char* argv[])
                   << std::endl;
         return 1;
     }
+
     ave_time = invoker->Run(argument.get(), StreamConfig{nullptr, time_kernel});
+
+    // host code to check if conv give me a right result
+    Tensor<AccDataType> wei_k_c_y_x_device_result_fp32(
+        ck::utils::conv::get_filters_host_tensor_descriptor(filter_dims, num_dim_spatial));
+    wei_work_space_device_buf.FromDevice(wei_k_c_y_x_device_result_fp32.mData.data());
+    const auto type_cvt_functor = [&](AccDataType a) {
+        return ck::type_convert<WeiDataType, AccDataType>(a);
+    };
+    host_elementwise<Tensor<WeiDataType>, Tensor<AccDataType>, decltype(type_cvt_functor)>(
+        wei_k_c_y_x_device_result, wei_k_c_y_x_device_result_fp32, filter_dims, type_cvt_functor);
 
     std::size_t flop = ck::utils::conv::get_flops(
         params.N_, params.C_, params.K_, params.filter_spatial_lengths_, output_spatial_lengths);
@@ -342,7 +396,7 @@ int main(int argc, char* argv[])
 
             ref_invoker.Run(ref_argument);
 
-            wei_device_buf.FromDevice(wei_k_c_y_x_device_result.mData.data());
+            //wei_device_buf.FromDevice(wei_k_c_y_x_device_result.mData.data());
 
             if(do_log)
             {
