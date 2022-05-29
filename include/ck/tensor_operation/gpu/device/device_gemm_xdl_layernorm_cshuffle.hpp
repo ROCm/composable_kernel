@@ -336,32 +336,6 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle
         }
     }
 
-    // assuming packed tensor
-    static auto MakeGridDescriptor_M(index_t MRaw)
-    {
-        const auto grid_desc_mraw = make_naive_tensor_descriptor_packed(make_tuple(MRaw));
-
-        const auto M    = math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
-        const auto MPad = M - MRaw;
-
-        if constexpr(GemmSpec == GemmSpecialization::MPadding ||
-                     GemmSpec == GemmSpecialization::MNPadding ||
-                     GemmSpec == GemmSpecialization::MKPadding ||
-                     GemmSpec == GemmSpecialization::MNKPadding)
-        {
-            // pad M
-            return transform_tensor_descriptor(grid_desc_mraw,
-                                               make_tuple(make_right_pad_transform(MRaw, MPad)),
-                                               make_tuple(Sequence<0>{}),
-                                               make_tuple(Sequence<0>{}));
-        }
-        else
-        {
-            // not pad M
-            return grid_desc_mraw;
-        }
-    }
-
     static auto MakeGridDescriptor_N(index_t NRaw)
     {
         const auto grid_desc_nraw = make_naive_tensor_descriptor_packed(make_tuple(NRaw));
@@ -604,7 +578,6 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle
                     typename GridwiseGemm::C0GridDescriptor_NBlock_NPerBlock,
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     false>;
-
                 ave_time =
                     launch_and_time_kernel(stream_config,
                                            kernel,
