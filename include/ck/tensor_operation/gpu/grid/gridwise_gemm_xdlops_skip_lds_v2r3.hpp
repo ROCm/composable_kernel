@@ -6,7 +6,7 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "blockwise_gemm_xdlops.hpp"
-#include "blockwise_gemm_xdlops_b_register.hpp"
+#include "blockwise_gemm_xdlops_skip_b_lds.hpp"
 #include "blockwise_tensor_slice_transfer_v4r1.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 #include "gridwise_gemm_pipeline_v1.hpp"
