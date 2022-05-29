@@ -212,6 +212,40 @@ struct Tensor
 
     Tensor(const HostTensorDescriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpace()) {}
 
+    template <typename OutT>
+    Tensor<OutT> CopyAsType()
+    {
+        Tensor<OutT> ret(mDesc);
+        for(size_t i = 0; i < mData.size(); i++)
+        {
+            ret.mData[i] = static_cast<OutT>(mData[i]);
+        }
+        return ret;
+    }
+
+    template <typename F>
+    void ForEach_impl(F&& f, std::vector<size_t>& idx, size_t rank)
+    {
+        if(rank == mDesc.GetNumOfDimension())
+        {
+            f(*this, idx);
+            return;
+        }
+        // else
+        for(size_t i = 0; i < mDesc.GetLengths()[rank]; i++)
+        {
+            idx[rank] = i;
+            ForEach_impl(std::forward<F>(f), idx, rank + 1);
+        }
+    }
+
+    template <typename F>
+    void ForEach(F&& f)
+    {
+        std::vector<size_t> idx(mDesc.GetNumOfDimension(), 0);
+        ForEach_impl(std::forward<F>(f), idx, size_t(0));
+    }
+
     template <typename G>
     void GenerateTensorValue(G g, std::size_t num_thread = 1)
     {
