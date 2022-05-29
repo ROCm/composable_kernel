@@ -60,7 +60,6 @@ __global__ void
     ignore = p_b_grid;
     ignore = p_c_grid;
     ignore = a_grid_desc_k0_m_k1;
-    ignore = b_grid_desc_k0_n_k1;
     ignore = b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3;
     ignore = c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2;
     ignore = a_element_op;
@@ -97,14 +96,8 @@ template <index_t BlockSize,
           index_t ABlockTransferDstScalarPerVector_K1,
           bool AThreadTransferSrcResetCoordinateAfterRun,
           bool ABlockLdsExtraM,
-          typename BBlockTransferThreadClusterLengths_K0_N_K1,
-          typename BBlockTransferThreadClusterArrangeOrder,
-          typename BBlockTransferSrcAccessOrder,
-          index_t BBlockTransferSrcVectorDim,
           index_t BBlockTransferSrcScalarPerVector,
-          index_t BBlockTransferDstScalarPerVector_K1,
           bool BThreadTransferSrcResetCoordinateAfterRun,
-          bool BBlockLdsExtraN,
           typename CThreadTransferSrcDstAccessOrder,
           index_t CThreadTransferSrcDstVectorDim,
           index_t CThreadTransferDstScalarPerVector>
@@ -152,28 +145,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
         }();
 
         return a_block_desc_k0_m_k1;
-    }
-
-    __host__ __device__ static constexpr auto GetBBlockDescriptor_K0PerBlock_NPerBlock_K1()
-    {
-        constexpr auto max_lds_align = K1;
-
-        // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_block_desc_k0_n_k1 = [&]() {
-            if constexpr(BBlockLdsExtraN)
-            {
-                return make_naive_tensor_descriptor(
-                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
-                    make_tuple(Number<NPerBlock + 1>{} * K1, K1, I1));
-            }
-            else
-            {
-                return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
-            }
-        }();
-
-        return b_block_desc_k0_n_k1;
     }
 
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
@@ -316,32 +287,31 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
             }
         }();
 
-        // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_block_desc_k0_n_k1 = [&]() {
-            if constexpr(BBlockLdsExtraN)
-            {
-                return make_naive_tensor_descriptor(
-                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
-                    make_tuple(Number<NPerBlock + 1>{} * K1, K1, I1));
-            }
-            else
-            {
-                return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
-            }
-        }();
+        // B matrix threadwise copy
+        constexpr auto b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3 =
+            make_naive_tensor_descriptor_packed(make_tuple(I1,
+                                                           I1,
+                                                           Number<K0PerThread>{}, // K0PerThread
+                                                           I1,                    // NBlockId
+                                                           Number<NXdlPerWave>{}, // repeat
+                                                           I1,                    // waves
+                                                           I1,                    // NPerXdlops
+                                                           Number<K1>{}));
 
-        using BlockwiseGemm =
-            BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
-                                                                FloatAB,
-                                                                FloatAcc,
-                                                                decltype(a_block_desc_k0_m_k1),
-                                                                decltype(b_block_desc_k0_n_k1),
-                                                                MPerXDL,
-                                                                NPerXDL,
-                                                                MXdlPerWave,
-                                                                NXdlPerWave,
-                                                                K1>;
+        using BlockwiseGemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1<
+            BlockSize,
+            FloatAB,
+            FloatAcc,
+            decltype(a_block_desc_k0_m_k1),
+            decltype(b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3),
+            MPerBlock,
+            NPerBlock,
+            K0PerBlock,
+            MPerXDL,
+            NPerXDL,
+            MXdlPerWave,
+            NXdlPerWave,
+            K1>;
 
         return BlockwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n);
     }
@@ -456,7 +426,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
                                                  ck::tensor_operation::element_wise::PassThrough{});
 
         ignore = b_element_op;
-        // B matrix blockwise copy
+        // B matrix threadwise copy
         constexpr auto b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3 =
             make_naive_tensor_descriptor_packed(make_tuple(I1,
                                                            I1,
@@ -509,7 +479,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
                                                       Number<K1>{}>,
                                              Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
                                              7,
-                                             ABlockTransferSrcScalarPerVector,
+                                             BBlockTransferSrcScalarPerVector,
                                              BThreadTransferSrcResetCoordinateAfterRun,
                                              true>(
                 b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
