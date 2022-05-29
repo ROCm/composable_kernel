@@ -51,6 +51,7 @@ struct ThreadwiseReduction
 
     static_assert(src_length_m == dst_length_m, "lengths of source and dst buffer must match!");
 
+    using Op = OpReduce;
     using Accumulation = detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>;
 
     template <typename SrcBufferType, typename DstBufferType>

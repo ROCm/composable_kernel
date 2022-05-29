@@ -72,6 +72,16 @@ struct Add
 };
 
 template <class T>
+struct SquaredAdd
+{
+    using dataType = T;
+
+    __host__ __device__ static constexpr T GetReductionZeroVal() { return static_cast<T>(0.0f); };
+
+    __host__ __device__ inline constexpr void operator()(T& a, T b) const { a = a + b * b; }
+};
+
+template <class T>
 struct Mul
 {
     using dataType = T;
