@@ -32,7 +32,7 @@ template <typename ALayout,
           typename CElementwiseOperation,
           typename DxsReduceOperation,
           typename DxsInElementwiseOperation,
-          typename DxsOutElementwiseOperation,
+          typename DxsAccElementwiseOperation,
           typename DGlobalMemoryDataOperation,
           GemmSpecialization GemmSpec,
           index_t NumGemmKPrefetchStage,
@@ -73,7 +73,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGlobal,
                                                                BElementwiseOperation,
                                                                CElementwiseOperation,
                                                                DxsInElementwiseOperation,
-                                                               DxsOutElementwiseOperation>
+                                                               DxsAccElementwiseOperation>
 {
     using DeviceOp = DeviceGemmReduce_Xdl_CShuffle;
 
@@ -389,7 +389,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGlobal,
         CElementwiseOperation,
         DxsReduceOperation,
         DxsInElementwiseOperation,
-        DxsOutElementwiseOperation,
+        DxsAccElementwiseOperation,
         InMemoryDataOperationEnum::Set,
         DGlobalMemoryDataOperation,
         AGridDesc_AK0_M_AK1,
@@ -449,7 +449,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGlobal,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op,
                  DxsInElementwiseOperation dxs_in_element_op,
-                 DxsOutElementwiseOperation dxs_out_element_op)
+                 DxsAccElementwiseOperation dxs_out_element_op)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
@@ -498,7 +498,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGlobal,
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
         DxsInElementwiseOperation dxs_in_element_op_;
-        DxsOutElementwiseOperation dxs_out_element_op_;
+        DxsAccElementwiseOperation dxs_out_element_op_;
     };
 
     // Invoker
@@ -554,7 +554,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGlobal,
                     BElementwiseOperation,
                     CElementwiseOperation,
                     DxsInElementwiseOperation,
-                    DxsOutElementwiseOperation,
+                    DxsAccElementwiseOperation,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
                     typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -594,7 +594,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGlobal,
                     BElementwiseOperation,
                     CElementwiseOperation,
                     DxsInElementwiseOperation,
-                    DxsOutElementwiseOperation,
+                    DxsAccElementwiseOperation,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
                     typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -669,7 +669,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGlobal,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op,
                              DxsInElementwiseOperation dxs_in_element_op,
-                             DxsOutElementwiseOperation dxs_out_element_op)
+                             DxsAccElementwiseOperation dxs_out_element_op)
     {
         return Argument{p_a,
                         p_b,
@@ -705,7 +705,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGlobal,
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op,
                                                       DxsInElementwiseOperation dxs_in_element_op,
-                                                      DxsOutElementwiseOperation dxs_out_element_op,
+                                                      DxsAccElementwiseOperation dxs_out_element_op,
                                                       index_t /* KBatch */ = 1) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
