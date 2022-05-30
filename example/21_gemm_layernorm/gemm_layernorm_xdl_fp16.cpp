@@ -356,7 +356,7 @@ int main()
 
     {
         // evaluate kernel perf
-        time_kernel = true;
+        bool time_kernel = true;
 
         float gemm_reduce_mean_reduce_square_mean_ave_time =
             gemmReduce_invoker.Run(gemmReduce_argument, StreamConfig{nullptr, time_kernel});
