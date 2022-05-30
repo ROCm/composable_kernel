@@ -26,18 +26,18 @@ using F32 = float;
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using ADataType = F16;
-using BDataType = F16;
-using CDataType = F16;
+using ADataType   = F16;
+using BDataType   = F16;
+using CDataType   = F16;
 using AccDataType = F32;
 
 using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
 using CLayout = ck::tensor_layout::gemm::RowMajor;
 
-using AElementOp  = ck::tensor_operation::element_wise::PassThrough;
-using BElementOp  = ck::tensor_operation::element_wise::PassThrough;
-using CElementOp  = ck::tensor_operation::element_wise::PassThrough;
+using AElementOp = ck::tensor_operation::element_wise::PassThrough;
+using BElementOp = ck::tensor_operation::element_wise::PassThrough;
+using CElementOp = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
@@ -50,8 +50,13 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmLayerNorm_Xdl
         <     Row,     Col,     Row,  F16,   F16,   F16, AccDataType, AccDataType, AccDataType,  AElementOp,  BElementOp,  CElementOp,        GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           2,               S<1, 32, 1, 8>,               8,             S<64, 4>,                         4,                            1>;
 // clang-format on
 
-using ReferenceInstance = ck::tensor_operation::host::
-    ReferenceGemmLayernorm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
+using ReferenceInstance = ck::tensor_operation::host::ReferenceGemmLayernorm<ADataType,
+                                                                             BDataType,
+                                                                             CDataType,
+                                                                             AccDataType,
+                                                                             AElementOp,
+                                                                             BElementOp,
+                                                                             CElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -167,9 +172,9 @@ int main(int argc, char* argv[])
     c0_gamma_buf.ToDevice(c0_n_gamma.mData.data());
     c0_beta_buf.ToDevice(c0_n_beta.mData.data());
 
-    auto a_element_op  = AElementOp{};
-    auto b_element_op  = BElementOp{};
-    auto c_element_op  = CElementOp{};
+    auto a_element_op = AElementOp{};
+    auto b_element_op = BElementOp{};
+    auto c_element_op = CElementOp{};
 
     // do GEMM
     auto gemm     = DeviceGemmInstance{};
@@ -199,9 +204,11 @@ int main(int argc, char* argv[])
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-    std::size_t flop = std::size_t(2) * M * N * K;
-    std::size_t num_btype =
-        sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
+    // extra 5MN flops due to: bias + gamma + beta + norm_sub + norm_div,
+    // excluding reduction steps
+    std::size_t flop      = std::size_t(2) * M * N * K + std::size_t(5) * M * N;
+    std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
+                            sizeof(CDataType) * M * N + sizeof(CDataType) * 3 * N;
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
@@ -218,8 +225,15 @@ int main(int argc, char* argv[])
         auto ref_gemm    = ReferenceInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
 
-        auto ref_argument = ref_gemm.MakeArgument(
-            a_m_k, b_k_n, c0_n_bias, c0_n_gamma, c0_n_beta, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
+        auto ref_argument = ref_gemm.MakeArgument(a_m_k,
+                                                  b_k_n,
+                                                  c0_n_bias,
+                                                  c0_n_gamma,
+                                                  c0_n_beta,
+                                                  c_m_n_host_result,
+                                                  a_element_op,
+                                                  b_element_op,
+                                                  c_element_op);
 
         ref_invoker.Run(ref_argument);
 
