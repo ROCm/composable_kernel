@@ -13,6 +13,7 @@ int profile_gemm_bias_relu_add(int, char*[]);
 int profile_gemm_reduce(int, char*[]);
 int profile_batched_gemm(int, char*[]);
 int profile_grouped_gemm(int, char*[]);
+int profile_conv_fwd(int, char*[]);
 int profile_conv_fwd_bias_relu(int, char*[]);
 int profile_conv_fwd_bias_relu_add(int, char*[]);
 int profile_conv_fwd_bias_relu_atomic_add(int, char*[]);
@@ -53,7 +54,7 @@ int main(int argc, char* argv[])
     }
     else if(strcmp(argv[1], "grouped_gemm") == 0)
     {
-        profile_grouped_gemm(argc, argv);
+        return profile_grouped_gemm(argc, argv);
     }
     else if(strcmp(argv[1], "conv_fwd") == 0)
     {
@@ -107,7 +108,7 @@ int main(int argc, char* argv[])
                "                        conv1d_bwd_data: BackwardConvolution data 1 dim\n"
                "                        conv2d_bwd_data: BackwardConvolution data 2 dim\n"
                "                        conv3d_bwd_data: BackwardConvolution data 3 dim\n"
-               "                        reduce: REDUCE\n"
+               "                        reduce: Reduce\n"
                "                        conv2d_bwd_weight: Backward Weight Convolution 2d\n");
         // clang-format on
     }

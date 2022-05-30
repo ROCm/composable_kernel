@@ -29,6 +29,12 @@ __device__ float atomic_add<float>(float* p_dst, const float& x)
 }
 
 template <>
+__device__ double atomic_add<double>(double* p_dst, const double& x)
+{
+    return atomicAdd(p_dst, x);
+}
+
+template <>
 __device__ float2_t atomic_add<float2_t>(float2_t* p_dst, const float2_t& x)
 {
     constexpr auto I0 = Number<0>{};
@@ -43,6 +49,23 @@ __device__ float2_t atomic_add<float2_t>(float2_t* p_dst, const float2_t& x)
         atomicAdd(c_style_pointer_cast<float*>(p_dst) + 1, vx.template AsType<float>()[I1]);
 
     return vy.template AsType<float2_t>()[I0];
+}
+
+template <>
+__device__ double2_t atomic_add<double2_t>(double2_t* p_dst, const double2_t& x)
+{
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+
+    const vector_type<double, 2> vx{x};
+    vector_type<double, 2> vy{0};
+
+    vy.template AsType<double>()(I0) =
+        atomicAdd(c_style_pointer_cast<double*>(p_dst), vx.template AsType<double>()[I0]);
+    vy.template AsType<double>()(I1) =
+        atomicAdd(c_style_pointer_cast<double*>(p_dst) + 1, vx.template AsType<double>()[I1]);
+
+    return vy.template AsType<double2_t>()[I0];
 }
 
 // Caution: DO NOT REMOVE
