@@ -215,6 +215,8 @@ struct Device5AryElementwise_Xdl_CShuffle : public BaseOperator
         }
     };
 
+    bool IsSupportedArgument(const BaseArgument& p_arg) { return IsSupportedArgument(&p_arg); }
+
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
@@ -260,6 +262,37 @@ struct Device5AryElementwise_Xdl_CShuffle : public BaseOperator
         return true;
     };
 
+    static auto MakeArgument(const ADataType* p_a,
+                             const BDataType* p_b,
+                             const CDataType* p_c,
+                             const DDataType* p_d,
+                             const EDataType* p_e,
+                             FDataType* p_f,
+                             std::vector<index_t> lengths,
+                             std::vector<index_t> a_strides,
+                             std::vector<index_t> b_strides,
+                             std::vector<index_t> c_strides,
+                             std::vector<index_t> d_strides,
+                             std::vector<index_t> e_strides,
+                             std::vector<index_t> f_strides,
+                             ElementwiseFunctor functor)
+    {
+        return Argument{p_a,
+                        p_b,
+                        p_c,
+                        p_d,
+                        p_e,
+                        p_f,
+                        lengths,
+                        a_strides,
+                        b_strides,
+                        c_strides,
+                        d_strides,
+                        e_strides,
+                        f_strides,
+                        functor};
+    }
+
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
                                                       const void* p_b,
                                                       const void* p_c,
@@ -291,8 +324,9 @@ struct Device5AryElementwise_Xdl_CShuffle : public BaseOperator
                                           functor);
     }
 
+    static auto MakeInvoker() { return Invoker{}; }
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() { return std::make_unique<Invoker>(); }
-};
+}; // namespace device
 
 } // namespace device
 } // namespace tensor_operation

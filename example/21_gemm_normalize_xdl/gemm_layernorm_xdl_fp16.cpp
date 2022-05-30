@@ -274,25 +274,25 @@ int main()
     reduceMeanSquare_device_buf.SetZero();
 
     // Prepare LayerNorm
-    auto normalize             = DeviceNormalizeInstance{};
-    auto normalize_invoker_ptr = normalize.MakeInvokerPointer();
-    auto normalize_argument =
-        normalize.MakeArgumentPointer(c_device_buf.GetDeviceBuffer(),
-                                      reduceMean_device_buf.GetDeviceBuffer(),
-                                      reduceMeanSquare_device_buf.GetDeviceBuffer(),
-                                      gamma_device_buf.GetDeviceBuffer(),
-                                      beta_device_buf.GetDeviceBuffer(),
-                                      layerNorm_device_buf.GetDeviceBuffer(),
-                                      {M, N},
-                                      {StrideC, 1},
-                                      {1, 0},
-                                      {1, 0},
-                                      {0, 1},
-                                      {0, 1},
-                                      {StrideC, 1},
-                                      NormalizeFunctor{});
+    auto normalize          = DeviceNormalizeInstance{};
+    auto normalize_invoker  = normalize.MakeInvoker();
+    auto normalize_argument = normalize.MakeArgument(
+        static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+        static_cast<DDataType*>(reduceMean_device_buf.GetDeviceBuffer()),
+        static_cast<DDataType*>(reduceMeanSquare_device_buf.GetDeviceBuffer()),
+        static_cast<GammaDataType*>(gamma_device_buf.GetDeviceBuffer()),
+        static_cast<BetaDataType*>(beta_device_buf.GetDeviceBuffer()),
+        static_cast<LayerNormOutDataType*>(layerNorm_device_buf.GetDeviceBuffer()),
+        {M, N},
+        {StrideC, 1},
+        {1, 0},
+        {1, 0},
+        {0, 1},
+        {0, 1},
+        {StrideC, 1},
+        NormalizeFunctor{});
 
-    if(!normalize.IsSupportedArgument(normalize_argument.get()))
+    if(!normalize.IsSupportedArgument(normalize_argument))
     {
         throw std::runtime_error("The runtime parameters seems not supported by the "
                                  "Device5AryElementwise_Xdl_CShuffle instance, exiting!");
@@ -300,7 +300,7 @@ int main()
 
     // run kernel
     gemmReduce_invoker.Run(gemmReduce_argument, StreamConfig{nullptr, time_kernel});
-    normalize_invoker_ptr->Run(normalize_argument.get(), StreamConfig{nullptr, time_kernel});
+    normalize_invoker.Run(normalize_argument, StreamConfig{nullptr, time_kernel});
 
     bool pass = true;
     {
