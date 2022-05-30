@@ -38,8 +38,8 @@ int profile_gemm(int argc, char* argv[])
         printf("                     3: A[k, m] * B[n, k] = C[m, n])\n");
         printf("arg4: verification (0: no; 1: yes)\n");
         printf("arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n");
-        printf("arg8: print tensor value (0: no; 1: yes)\n");
-        printf("arg7: run kernel # of times (>1)\n");
+        printf("arg6: print tensor value (0: no; 1: yes)\n");
+        printf("arg7: time kernel (0=n0, 1=yes)\n");
         printf("arg8 to 13: M, N, K, StrideA, StrideB, StrideC\n");
         printf("arg14: split k into  mulitiple batch\n");
         exit(1);
@@ -50,7 +50,7 @@ int profile_gemm(int argc, char* argv[])
     const bool do_verification = std::stoi(argv[4]);
     const int init_method      = std::stoi(argv[5]);
     const bool do_log          = std::stoi(argv[6]);
-    const int nrepeat          = std::stoi(argv[7]);
+    const bool time_kernel     = std::stoi(argv[7]);
 
     const int M = std::stoi(argv[8]);
     const int N = std::stoi(argv[9]);
@@ -68,13 +68,14 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<ck::half_t,
                                         ck::half_t,
                                         ck::half_t,
+                                        float,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            time_kernel,
             M,
             N,
             K,
@@ -88,13 +89,14 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<ck::half_t,
                                         ck::half_t,
                                         ck::half_t,
+                                        float,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            time_kernel,
             M,
             N,
             K,
@@ -108,13 +110,14 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<ck::half_t,
                                         ck::half_t,
                                         ck::half_t,
+                                        float,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            time_kernel,
             M,
             N,
             K,
@@ -128,13 +131,14 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<ck::half_t,
                                         ck::half_t,
                                         ck::half_t,
+                                        float,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            time_kernel,
             M,
             N,
             K,
@@ -148,13 +152,14 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<float,
                                         float,
                                         float,
+                                        float,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            time_kernel,
             M,
             N,
             K,
@@ -168,13 +173,14 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<float,
                                         float,
                                         float,
+                                        float,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            time_kernel,
             M,
             N,
             K,
@@ -188,13 +194,14 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<float,
                                         float,
                                         float,
+                                        float,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            time_kernel,
             M,
             N,
             K,
@@ -208,13 +215,14 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<float,
                                         float,
                                         float,
+                                        float,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            time_kernel,
             M,
             N,
             K,
@@ -228,13 +236,14 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<int8_t,
                                         int8_t,
                                         int8_t,
+                                        int32_t,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            time_kernel,
             M,
             N,
             K,
@@ -248,13 +257,14 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<int8_t,
                                         int8_t,
                                         int8_t,
+                                        int32_t,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            time_kernel,
             M,
             N,
             K,
@@ -268,13 +278,14 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<int8_t,
                                         int8_t,
                                         int8_t,
+                                        int32_t,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            time_kernel,
             M,
             N,
             K,
@@ -288,13 +299,14 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<int8_t,
                                         int8_t,
                                         int8_t,
+                                        int32_t,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            time_kernel,
             M,
             N,
             K,
@@ -308,13 +320,14 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<ck::bhalf_t,
                                         ck::bhalf_t,
                                         ck::bhalf_t,
+                                        float,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            time_kernel,
             M,
             N,
             K,
@@ -328,13 +341,14 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<ck::bhalf_t,
                                         ck::bhalf_t,
                                         ck::bhalf_t,
+                                        float,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            time_kernel,
             M,
             N,
             K,
@@ -348,13 +362,14 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<ck::bhalf_t,
                                         ck::bhalf_t,
                                         ck::bhalf_t,
+                                        float,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            time_kernel,
             M,
             N,
             K,
@@ -368,13 +383,14 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<ck::bhalf_t,
                                         ck::bhalf_t,
                                         ck::bhalf_t,
+                                        float,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
             do_log,
-            nrepeat,
+            time_kernel,
             M,
             N,
             K,
@@ -388,5 +404,5 @@ int profile_gemm(int argc, char* argv[])
         throw std::runtime_error("wrong! this GEMM data_type & layout is not implemented");
     }
 
-    return 1;
+    return 0;
 }

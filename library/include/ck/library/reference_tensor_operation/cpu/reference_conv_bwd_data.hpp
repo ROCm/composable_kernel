@@ -78,15 +78,18 @@ struct ReferenceConvBwdData : public device::BaseOperator
 
                     AccDataType v_acc = 0;
 
-                    for(int x = 0; x < X; ++x)
+                    for(std::size_t x = 0; x < X; ++x)
                     {
-                        int w_tmp = wi + arg.in_left_pads_[0] - x * arg.conv_dilations_[0];
+                        auto w_tmp = ck::type_convert<ck::long_index_t>(wi) +
+                                     ck::type_convert<ck::long_index_t>(arg.in_left_pads_[0]) -
+                                     ck::type_convert<ck::long_index_t>(x * arg.conv_dilations_[0]);
                         if(w_tmp % arg.conv_strides_[0] == 0)
                         {
-                            int wo = w_tmp / arg.conv_strides_[0];
-                            if(wo >= 0 && wo < Wo)
+                            auto wo = ck::type_convert<ck::long_index_t>(w_tmp) /
+                                      ck::type_convert<ck::long_index_t>(arg.conv_strides_[0]);
+                            if(wo >= 0 && ck::type_convert<std::size_t>(wo) < Wo)
                             {
-                                for(int k = 0; k < K; ++k)
+                                for(std::size_t k = 0; k < K; ++k)
                                 {
                                     AccDataType v_out = 0;
                                     AccDataType v_wei = 0;
@@ -128,24 +131,32 @@ struct ReferenceConvBwdData : public device::BaseOperator
 
                     AccDataType v_acc = 0;
 
-                    for(int y = 0; y < Y; ++y)
+                    for(std::size_t y = 0; y < Y; ++y)
                     {
-                        int h_tmp = hi + arg.in_left_pads_[0] - y * arg.conv_dilations_[0];
+                        auto h_tmp = ck::type_convert<ck::long_index_t>(hi) +
+                                     ck::type_convert<ck::long_index_t>(arg.in_left_pads_[0]) -
+                                     ck::type_convert<ck::long_index_t>(y * arg.conv_dilations_[0]);
                         if(h_tmp % arg.conv_strides_[0] == 0)
                         {
-                            int ho = h_tmp / arg.conv_strides_[0];
-                            if(ho >= 0 && ho < Ho)
+                            auto ho = ck::type_convert<ck::long_index_t>(h_tmp) /
+                                      ck::type_convert<ck::long_index_t>(arg.conv_strides_[0]);
+                            if(ho >= 0 && ck::type_convert<std::size_t>(ho) < Ho)
                             {
-                                for(int x = 0; x < X; ++x)
+                                for(std::size_t x = 0; x < X; ++x)
                                 {
-                                    int w_tmp =
-                                        wi + arg.in_left_pads_[1] - x * arg.conv_dilations_[1];
+                                    auto w_tmp =
+                                        ck::type_convert<ck::long_index_t>(wi) +
+                                        ck::type_convert<ck::long_index_t>(arg.in_left_pads_[1]) -
+                                        ck::type_convert<ck::long_index_t>(x *
+                                                                           arg.conv_dilations_[1]);
                                     if(w_tmp % arg.conv_strides_[1] == 0)
                                     {
-                                        int wo = w_tmp / arg.conv_strides_[1];
-                                        if(wo >= 0 && wo < Wo)
+                                        auto wo = ck::type_convert<ck::long_index_t>(w_tmp) /
+                                                  ck::type_convert<ck::long_index_t>(
+                                                      arg.conv_strides_[1]);
+                                        if(wo >= 0 && ck::type_convert<std::size_t>(wo) < Wo)
                                         {
-                                            for(int k = 0; k < K; ++k)
+                                            for(std::size_t k = 0; k < K; ++k)
                                             {
                                                 AccDataType v_out = 0;
                                                 AccDataType v_wei = 0;
@@ -194,33 +205,49 @@ struct ReferenceConvBwdData : public device::BaseOperator
 
                     AccDataType v_acc = 0;
 
-                    for(int z = 0; z < Z; ++z)
+                    for(std::size_t z = 0; z < Z; ++z)
                     {
-                        int d_tmp = di + arg.in_left_pads_[0] - z * arg.conv_dilations_[0];
+                        auto d_tmp = ck::type_convert<ck::long_index_t>(di) +
+                                     ck::type_convert<ck::long_index_t>(arg.in_left_pads_[0]) -
+                                     ck::type_convert<ck::long_index_t>(z * arg.conv_dilations_[0]);
                         if(d_tmp % arg.conv_strides_[0] == 0)
                         {
-                            int do_ = d_tmp / arg.conv_strides_[0];
-                            if(do_ >= 0 && do_ < Do)
+                            auto do_ = ck::type_convert<ck::long_index_t>(d_tmp) /
+                                       ck::type_convert<ck::long_index_t>(arg.conv_strides_[0]);
+                            if(do_ >= 0 && ck::type_convert<std::size_t>(do_) < Do)
                             {
-                                for(int y = 0; y < Y; ++y)
+                                for(std::size_t y = 0; y < Y; ++y)
                                 {
-                                    int h_tmp =
-                                        hi + arg.in_left_pads_[1] - y * arg.conv_dilations_[1];
+                                    auto h_tmp =
+                                        ck::type_convert<ck::long_index_t>(hi) +
+                                        ck::type_convert<ck::long_index_t>(arg.in_left_pads_[1]) -
+                                        ck::type_convert<ck::long_index_t>(y *
+                                                                           arg.conv_dilations_[1]);
                                     if(h_tmp % arg.conv_strides_[1] == 0)
                                     {
-                                        int ho = h_tmp / arg.conv_strides_[1];
-                                        if(ho >= 0 && ho < Ho)
+                                        auto ho = ck::type_convert<ck::long_index_t>(h_tmp) /
+                                                  ck::type_convert<ck::long_index_t>(
+                                                      arg.conv_strides_[1]);
+                                        if(ho >= 0 && ck::type_convert<std::size_t>(ho) < Ho)
                                         {
-                                            for(int x = 0; x < X; ++x)
+                                            for(std::size_t x = 0; x < X; ++x)
                                             {
-                                                int w_tmp = wi + arg.in_left_pads_[2] -
-                                                            x * arg.conv_dilations_[2];
+                                                auto w_tmp =
+                                                    ck::type_convert<ck::long_index_t>(wi) +
+                                                    ck::type_convert<ck::long_index_t>(
+                                                        arg.in_left_pads_[2]) -
+                                                    ck::type_convert<ck::long_index_t>(
+                                                        x * arg.conv_dilations_[2]);
                                                 if(w_tmp % arg.conv_strides_[2] == 0)
                                                 {
-                                                    int wo = w_tmp / arg.conv_strides_[2];
-                                                    if(wo >= 0 && wo < Wo)
+                                                    auto wo =
+                                                        ck::type_convert<ck::long_index_t>(w_tmp) /
+                                                        ck::type_convert<ck::long_index_t>(
+                                                            arg.conv_strides_[2]);
+                                                    if(wo >= 0 &&
+                                                       ck::type_convert<std::size_t>(wo) < Wo)
                                                     {
-                                                        for(int k = 0; k < K; ++k)
+                                                        for(std::size_t k = 0; k < K; ++k)
                                                         {
                                                             AccDataType v_out = 0;
                                                             AccDataType v_wei = 0;
@@ -264,7 +291,8 @@ struct ReferenceConvBwdData : public device::BaseOperator
             }
         }
 
-        float Run(const device::BaseArgument* p_arg, int) override
+        float Run(const device::BaseArgument* p_arg,
+                  const StreamConfig& /* stream_config */ = StreamConfig{}) override
         {
             return Run(*dynamic_cast<const Argument*>(p_arg));
         }

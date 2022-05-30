@@ -14,7 +14,7 @@ set(DEVICE_CONVND_BWD_DATA_INSTANCE_SOURCE
    device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_int8_instance.cpp;
 ) 
 
-add_library(device_convnd_bwd_data_instance SHARED ${DEVICE_CONVND_BWD_DATA_INSTANCE_SOURCE})
+add_library(device_convnd_bwd_data_instance OBJECT ${DEVICE_CONVND_BWD_DATA_INSTANCE_SOURCE})
 target_compile_features(device_convnd_bwd_data_instance PUBLIC)
 set_target_properties(device_convnd_bwd_data_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
 install(TARGETS device_convnd_bwd_data_instance LIBRARY DESTINATION lib) 

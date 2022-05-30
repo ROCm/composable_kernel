@@ -292,8 +292,7 @@ struct DeviceGemmXdlSplitKCShuffle
     using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
         decltype(GridwiseGemm::MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}));
 
-    using Block2CTileMap =
-        decltype(GridwiseGemm::MakeCBlockClusterAdaptor(CGridDesc_M_N{}, 1, 1, 1));
+    using Block2CTileMap = typename GridwiseGemm::CBlockClusterAdaptor;
 
     // Argument
     struct Argument : public BaseArgument
@@ -338,17 +337,16 @@ struct DeviceGemmXdlSplitKCShuffle
                     K, N, StrideB, k_batch_, KPad);
             c_grid_desc_m_n_ = DeviceGemmXdlSplitKCShuffle::MakeCGridDescriptor_M_N(M, N, StrideC);
 
+            block_2_ctile_map_ =
+                GridwiseGemm::MakeCBlockClusterAdaptor(c_grid_desc_m_n_, M01, N01, k_batch_);
+
             if(GridwiseGemm::CheckValidity(a_grid_desc_kbatch_k0_m_k1_,
                                            b_grid_desc_kbatch_k0_n_k1_,
                                            c_grid_desc_m_n_,
-                                           M01_,
-                                           N01_))
+                                           block_2_ctile_map_))
             {
                 c_grid_desc_mblock_mperblock_nblock_nperblock_ =
                     GridwiseGemm::MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n_);
-
-                block_2_ctile_map_ =
-                    GridwiseGemm::MakeCBlockClusterAdaptor(c_grid_desc_m_n_, M01, N01, k_batch_);
             }
         }
 
@@ -391,21 +389,24 @@ struct DeviceGemmXdlSplitKCShuffle
             std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
                       << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
         }
-        float Run(const Argument& arg, int nrepeat = 1)
+
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
+            ShowInfo(arg);
+
             const auto kbatch = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I0);
 
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_kbatch_k0_m_k1_,
                                             arg.b_grid_desc_kbatch_k0_n_k1_,
                                             arg.c_grid_desc_m_n_,
-                                            arg.M01_,
-                                            arg.N01_))
+                                            arg.block_2_ctile_map_))
             {
                 throw std::runtime_error(
                     "wrong! GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2 has invalid setting");
             }
 
-            const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_, kbatch);
+            const index_t grid_size =
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_);
 
             const auto K0 = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I1);
 
@@ -414,51 +415,29 @@ struct DeviceGemmXdlSplitKCShuffle
             float ave_time = 0;
 
             const auto Run = [&](const auto& kernel) {
-                if(nrepeat > 0)
-                {
-                    ShowInfo(arg);
-                    ave_time =
-                        launch_and_time_kernel(kernel,
-                                               nrepeat,
-                                               dim3(grid_size),
-                                               dim3(BlockSize),
-                                               0,
-                                               arg.p_a_grid_,
-                                               arg.p_b_grid_,
-                                               arg.p_c_grid_,
-                                               arg.a_grid_desc_kbatch_k0_m_k1_,
-                                               arg.b_grid_desc_kbatch_k0_n_k1_,
-                                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                               arg.a_element_op_,
-                                               arg.b_element_op_,
-                                               arg.c_element_op_,
-                                               arg.block_2_ctile_map_);
-                }
+                hipGetErrorString(hipMemset(
+                    arg.p_c_grid_,
+                    0,
+                    arg.c_grid_desc_mblock_mperblock_nblock_nperblock_.GetElementSpaceSize() *
+                        sizeof(CDataType)));
 
-                if(kbatch > 1 || nrepeat <= 0)
-                {
-                    hipGetErrorString(hipMemset(
-                        arg.p_c_grid_,
-                        0,
-                        arg.c_grid_desc_mblock_mperblock_nblock_nperblock_.GetElementSpaceSize() *
-                            sizeof(CDataType)));
-
-                    launch_kernel(kernel,
-                                  dim3(grid_size),
-                                  dim3(BlockSize),
-                                  0,
-                                  arg.p_a_grid_,
-                                  arg.p_b_grid_,
-                                  arg.p_c_grid_,
-                                  arg.a_grid_desc_kbatch_k0_m_k1_,
-                                  arg.b_grid_desc_kbatch_k0_n_k1_,
-                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                  arg.a_element_op_,
-                                  arg.b_element_op_,
-                                  arg.c_element_op_,
-                                  arg.block_2_ctile_map_);
-                }
+                launch_and_time_kernel(stream_config,
+                                       kernel,
+                                       dim3(grid_size),
+                                       dim3(BlockSize),
+                                       0,
+                                       arg.p_a_grid_,
+                                       arg.p_b_grid_,
+                                       arg.p_c_grid_,
+                                       arg.a_grid_desc_kbatch_k0_m_k1_,
+                                       arg.b_grid_desc_kbatch_k0_n_k1_,
+                                       arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                       arg.a_element_op_,
+                                       arg.b_element_op_,
+                                       arg.c_element_op_,
+                                       arg.block_2_ctile_map_);
             };
+
             if(has_main_k0_block_loop)
             {
                 if(kbatch == 1)
@@ -542,9 +521,10 @@ struct DeviceGemmXdlSplitKCShuffle
         }
 
         // polymorphic
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 
@@ -559,8 +539,7 @@ struct DeviceGemmXdlSplitKCShuffle
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_kbatch_k0_m_k1_,
                                            arg.b_grid_desc_kbatch_k0_n_k1_,
                                            arg.c_grid_desc_m_n_,
-                                           arg.M01_,
-                                           arg.N01_);
+                                           arg.block_2_ctile_map_);
     }
 
     // polymorphic

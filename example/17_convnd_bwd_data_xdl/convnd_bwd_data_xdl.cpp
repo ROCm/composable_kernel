@@ -6,7 +6,7 @@
 #include <half.hpp>
 
 #include "config.hpp"
-#include "conv_fwd_util.hpp"
+#include "conv_util.hpp"
 #include "print.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -87,7 +87,7 @@ void print_use_msg()
 {
     std::cout << "arg1: verification (0=no, 1=yes)\n"
               << "arg2: initialization (0=no init, 1=random value, 2= init to 1 )\n"
-              << "arg3: run kernel # of times (>1)\n"
+              << "arg3: time kernel (0=n0, 1=yes)\n"
               << "arg4: N spatial dimensions (default 2)\n"
               << "Following arguments (depending on number of spatial dims):\n"
               << " N, K, C, \n"
@@ -105,40 +105,40 @@ ck::utils::conv::ConvParams parse_conv_params(int num_dim_spatial, char* argv[])
     ck::utils::conv::ConvParams params;
     int arg_idx = 5;
 
-    params.num_dim_spatial = num_dim_spatial;
-    params.N               = std::stoi(argv[arg_idx++]);
-    params.K               = std::stoi(argv[arg_idx++]);
-    params.C               = std::stoi(argv[arg_idx++]);
+    params.num_dim_spatial_ = num_dim_spatial;
+    params.N_               = std::stoi(argv[arg_idx++]);
+    params.K_               = std::stoi(argv[arg_idx++]);
+    params.C_               = std::stoi(argv[arg_idx++]);
 
-    params.filter_spatial_lengths.resize(num_dim_spatial);
+    params.filter_spatial_lengths_.resize(num_dim_spatial);
     for(int i = 0; i < num_dim_spatial; ++i)
     {
-        params.filter_spatial_lengths[i] = std::stoi(argv[arg_idx++]);
+        params.filter_spatial_lengths_[i] = std::stoi(argv[arg_idx++]);
     }
-    params.input_spatial_lengths.resize(num_dim_spatial);
+    params.input_spatial_lengths_.resize(num_dim_spatial);
     for(int i = 0; i < num_dim_spatial; ++i)
     {
-        params.input_spatial_lengths[i] = std::stoi(argv[arg_idx++]);
+        params.input_spatial_lengths_[i] = std::stoi(argv[arg_idx++]);
     }
-    params.conv_filter_strides.resize(num_dim_spatial);
+    params.conv_filter_strides_.resize(num_dim_spatial);
     for(int i = 0; i < num_dim_spatial; ++i)
     {
-        params.conv_filter_strides[i] = std::stoi(argv[arg_idx++]);
+        params.conv_filter_strides_[i] = std::stoi(argv[arg_idx++]);
     }
-    params.conv_filter_dilations.resize(num_dim_spatial);
+    params.conv_filter_dilations_.resize(num_dim_spatial);
     for(int i = 0; i < num_dim_spatial; ++i)
     {
-        params.conv_filter_dilations[i] = std::stoi(argv[arg_idx++]);
+        params.conv_filter_dilations_[i] = std::stoi(argv[arg_idx++]);
     }
-    params.input_left_pads.resize(num_dim_spatial);
+    params.input_left_pads_.resize(num_dim_spatial);
     for(int i = 0; i < num_dim_spatial; ++i)
     {
-        params.input_left_pads[i] = std::stoi(argv[arg_idx++]);
+        params.input_left_pads_[i] = std::stoi(argv[arg_idx++]);
     }
-    params.input_right_pads.resize(num_dim_spatial);
+    params.input_right_pads_.resize(num_dim_spatial);
     for(int i = 0; i < num_dim_spatial; ++i)
     {
-        params.input_right_pads[i] = std::stoi(argv[arg_idx++]);
+        params.input_right_pads_[i] = std::stoi(argv[arg_idx++]);
     }
 
     return params;
@@ -165,25 +165,25 @@ DeviceConvBwdDataBasePtr get_conv_instance(int num_dim_spatial)
 
 int main(int argc, char* argv[])
 {
-    bool do_verification = 0;
-    int init_method      = 0;
-    int nrepeat          = 5;
+    bool do_verification = true;
+    int init_method      = 1;
+    bool time_kernel     = false;
     int num_dim_spatial  = 2;
 
     ck::utils::conv::ConvParams params;
-    params.C = 128;
+    params.C_ = 128;
 
     if(argc == 4)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
     }
     else if(argc > 4)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
         num_dim_spatial = std::stoi(argv[4]);
         // check args number
         int conv_args     = 3 + num_dim_spatial * 6;
@@ -202,21 +202,21 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
-    std::vector<std::size_t> input_dims{static_cast<std::size_t>(params.N),
-                                        static_cast<std::size_t>(params.C)};
+    std::vector<std::size_t> input_dims{static_cast<std::size_t>(params.N_),
+                                        static_cast<std::size_t>(params.C_)};
     input_dims.insert(std::end(input_dims),
-                      std::begin(params.input_spatial_lengths),
-                      std::end(params.input_spatial_lengths));
+                      std::begin(params.input_spatial_lengths_),
+                      std::end(params.input_spatial_lengths_));
 
-    std::vector<std::size_t> filter_dims{static_cast<std::size_t>(params.K),
-                                         static_cast<std::size_t>(params.C)};
+    std::vector<std::size_t> filter_dims{static_cast<std::size_t>(params.K_),
+                                         static_cast<std::size_t>(params.C_)};
     filter_dims.insert(std::end(filter_dims),
-                       std::begin(params.filter_spatial_lengths),
-                       std::end(params.filter_spatial_lengths));
+                       std::begin(params.filter_spatial_lengths_),
+                       std::end(params.filter_spatial_lengths_));
 
     const std::vector<ck::index_t>& output_spatial_lengths = params.GetOutputSpatialLengths();
-    std::vector<std::size_t> output_dims{static_cast<std::size_t>(params.N),
-                                         static_cast<std::size_t>(params.K)};
+    std::vector<std::size_t> output_dims{static_cast<std::size_t>(params.N_),
+                                         static_cast<std::size_t>(params.K_)};
     output_dims.insert(std::end(output_dims),
                        std::begin(output_spatial_lengths),
                        std::end(output_spatial_lengths));
@@ -263,16 +263,16 @@ int main(int argc, char* argv[])
         conv->MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
                                   static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
                                   static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-                                  params.N,
-                                  params.K,
-                                  params.C,
-                                  params.input_spatial_lengths,
-                                  params.filter_spatial_lengths,
+                                  params.N_,
+                                  params.K_,
+                                  params.C_,
+                                  params.input_spatial_lengths_,
+                                  params.filter_spatial_lengths_,
                                   output_spatial_lengths,
-                                  params.conv_filter_strides,
-                                  params.conv_filter_dilations,
-                                  params.input_left_pads,
-                                  params.input_right_pads,
+                                  params.conv_filter_strides_,
+                                  params.conv_filter_dilations_,
+                                  params.input_left_pads_,
+                                  params.input_right_pads_,
                                   InElementOp{},
                                   WeiElementOp{},
                                   OutElementOp{});
@@ -284,16 +284,16 @@ int main(int argc, char* argv[])
             "not support this Conv problem");
     }
 
-    float ave_time = invoker->Run(argument.get(), nrepeat);
+    float ave_time = invoker->Run(argument.get(), StreamConfig{nullptr, time_kernel});
 
     std::size_t flop = ck::utils::conv::get_flops(
-        params.N, params.C, params.K, params.filter_spatial_lengths, output_spatial_lengths);
+        params.N_, params.C_, params.K_, params.filter_spatial_lengths_, output_spatial_lengths);
     std::size_t num_btype = ck::utils::conv::get_btype<InDataType, WeiDataType, OutDataType>(
-        params.N,
-        params.C,
-        params.K,
-        params.input_spatial_lengths,
-        params.filter_spatial_lengths,
+        params.N_,
+        params.C_,
+        params.K_,
+        params.input_spatial_lengths_,
+        params.filter_spatial_lengths_,
         output_spatial_lengths);
 
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
@@ -310,10 +310,10 @@ int main(int argc, char* argv[])
             auto ref_argument = ref_conv.MakeArgument(in_n_c_hi_wi_host_result,
                                                       wei_k_c_y_x,
                                                       out_n_k_ho_wo,
-                                                      params.conv_filter_strides,
-                                                      params.conv_filter_dilations,
-                                                      params.input_left_pads,
-                                                      params.input_right_pads,
+                                                      params.conv_filter_strides_,
+                                                      params.conv_filter_dilations_,
+                                                      params.input_left_pads_,
+                                                      params.input_right_pads_,
                                                       InElementOp{},
                                                       WeiElementOp{},
                                                       OutElementOp{});
@@ -322,29 +322,30 @@ int main(int argc, char* argv[])
 
             in_device_buf.FromDevice(in_n_c_hi_wi_device_result.mData.data());
 
-            check_error(in_n_c_hi_wi_host_result, in_n_c_hi_wi_device_result);
+            return ck::utils::check_err(in_n_c_hi_wi_device_result.mData,
+                                        in_n_c_hi_wi_host_result.mData)
+                       ? 0
+                       : 1;
         };
 
         switch(num_dim_spatial)
         {
         case 3: {
             auto ref_conv = ReferenceConvBwdDataInstance<3>();
-            verify_f(ref_conv);
-            break;
+            return verify_f(ref_conv);
         }
         case 2: {
             auto ref_conv = ReferenceConvBwdDataInstance<2>();
-            verify_f(ref_conv);
-            break;
+            return verify_f(ref_conv);
         }
         case 1: {
             auto ref_conv = ReferenceConvBwdDataInstance<1>();
-            verify_f(ref_conv);
-            break;
+            return verify_f(ref_conv);
         }
         default: {
             throw std::runtime_error("Unsupported number of spatial dimensions provided!");
         }
         }
     }
+    return 0;
 }
