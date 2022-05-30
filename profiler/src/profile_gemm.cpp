@@ -68,6 +68,7 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<ck::half_t,
                                         ck::half_t,
                                         ck::half_t,
+                                        float,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
@@ -88,6 +89,7 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<ck::half_t,
                                         ck::half_t,
                                         ck::half_t,
+                                        float,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
@@ -108,6 +110,7 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<ck::half_t,
                                         ck::half_t,
                                         ck::half_t,
+                                        float,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
@@ -128,6 +131,7 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<ck::half_t,
                                         ck::half_t,
                                         ck::half_t,
+                                        float,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
@@ -146,6 +150,7 @@ int profile_gemm(int argc, char* argv[])
     else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         ck::profiler::profile_gemm_impl<float,
+                                        float,
                                         float,
                                         float,
                                         ck::tensor_layout::gemm::RowMajor,
@@ -168,6 +173,7 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<float,
                                         float,
                                         float,
+                                        float,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
@@ -186,6 +192,7 @@ int profile_gemm(int argc, char* argv[])
     else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::KM_KN_MN)
     {
         ck::profiler::profile_gemm_impl<float,
+                                        float,
                                         float,
                                         float,
                                         ck::tensor_layout::gemm::ColumnMajor,
@@ -208,6 +215,7 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<float,
                                         float,
                                         float,
+                                        float,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
@@ -228,6 +236,7 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<int8_t,
                                         int8_t,
                                         int8_t,
+                                        int32_t,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
@@ -248,6 +257,7 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<int8_t,
                                         int8_t,
                                         int8_t,
+                                        int32_t,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
@@ -268,6 +278,7 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<int8_t,
                                         int8_t,
                                         int8_t,
+                                        int32_t,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
@@ -288,6 +299,7 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<int8_t,
                                         int8_t,
                                         int8_t,
+                                        int32_t,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
@@ -308,6 +320,7 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<ck::bhalf_t,
                                         ck::bhalf_t,
                                         ck::bhalf_t,
+                                        float,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
@@ -328,6 +341,7 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<ck::bhalf_t,
                                         ck::bhalf_t,
                                         ck::bhalf_t,
+                                        float,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
@@ -348,6 +362,7 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<ck::bhalf_t,
                                         ck::bhalf_t,
                                         ck::bhalf_t,
+                                        float,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor,
                                         ck::tensor_layout::gemm::RowMajor>(
@@ -368,6 +383,7 @@ int profile_gemm(int argc, char* argv[])
         ck::profiler::profile_gemm_impl<ck::bhalf_t,
                                         ck::bhalf_t,
                                         ck::bhalf_t,
+                                        float,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::ColumnMajor,
                                         ck::tensor_layout::gemm::RowMajor>(

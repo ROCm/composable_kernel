@@ -1,4 +1,8 @@
 set(DEVICE_GEMM_INSTANCE_SOURCE
+   device_gemm_xdl_f64_f64_f64_mk_kn_mn_instance.cpp;
+   device_gemm_xdl_f64_f64_f64_mk_nk_mn_instance.cpp;
+   device_gemm_xdl_f64_f64_f64_km_kn_mn_instance.cpp;
+   device_gemm_xdl_f64_f64_f64_km_nk_mn_instance.cpp;
    device_gemm_xdl_f32_f32_f32_mk_kn_mn_instance.cpp;
    device_gemm_xdl_f32_f32_f32_mk_nk_mn_instance.cpp;
    device_gemm_xdl_f32_f32_f32_km_kn_mn_instance.cpp;

@@ -17,10 +17,10 @@
 
 namespace {
 
-using InDataType  = float;
-using WeiDataType = float;
-using OutDataType = float;
-using AccDataType = float;
+using InDataType  = double;
+using WeiDataType = double;
+using OutDataType = double;
+using AccDataType = double;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -39,37 +39,37 @@ template <ck::index_t NumDimSpatial>
 using DeviceConvNDFwdInstance = ck::tensor_operation::device::
     DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
         // clang-format off
-        InDataType,         //
+        InDataType,         // 
         WeiDataType,        //
         OutDataType,        //
-        AccDataType,        //
+        AccDataType,        // 
         InElementOp,        // Input Elementwise Operation
         WeiElementOp,       // Weights Elementwise Operation
         OutElementOp,       // Output Elementwise Operation
         ConvFwdDefault,     // ConvForwardSpecialization
         NumDimSpatial,      // NumDimSpatial
         256,                // BlockSize
-        256,                // MPerBlock
+        128,                // MPerBlock
         128,                // NPerBlock
         4,                  // K0PerBlock
-        4,                  // K1
-        32,                 // MPerXDL
-        32,                 // NPerXDL
+        2,                  // K1
+        16,                 // MPerXDL
+        16,                 // NPerXDL
         4,                  // MXdlPerWave
-        2,                  // NXdlPerWave
+        4,                  // NXdlPerWave
         S<4, 64, 1>,        // ABlockTransferThreadClusterLengths_K0_M_K1
         S<1, 0, 2>,         // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,         // ABlockTransferSrcAccessOrder
         2,                  // ABlockTransferSrcVectorDim
-        4,                  // ABlockTransferSrcScalarPerVector
-        4,                  // ABlockTransferDstScalarPerVector_K1
+        2,                  // ABlockTransferSrcScalarPerVector
+        2,                  // ABlockTransferDstScalarPerVector_K1
         true,               // ABlockLdsAddExtraM
         S<4, 64, 1>,        // BBlockTransferThreadClusterLengths_K0_N_K1
         S<1, 0, 2>,         // BBlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,         // BBlockTransferSrcAccessOrder
         2,                  // BBlockTransferSrcVectorDim
-        4,                  // BBlockTransferSrcScalarPerVector
-        4,                  // BBlockTransferDstScalarPerVector_K1
+        2,                  // BBlockTransferSrcScalarPerVector
+        2,                  // BBlockTransferDstScalarPerVector_K1
         true,               // BBlockTransferAddExtraN
         7,                  // CThreadTransferSrcDstVectorDim
         1>;                 // CThreadTransferDstScalarPerVector
@@ -107,7 +107,7 @@ void print_use_msg()
 {
     std::cout << "arg1: verification (0=no, 1=yes)\n"
               << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
-              << "arg3: time kernel (0=n0, 1=yes)\n"
+              << "arg3: run kernel # of times (>1)\n"
               << "arg4: N spatial dimensions (default 2)\n"
               << "Following arguments (depending on number of spatial dims):\n"
               << " N, K, C, \n"
@@ -179,8 +179,8 @@ int main(int argc, char* argv[])
 {
     using namespace ck::utils::conv;
 
-    bool do_verification = true;
-    int init_method      = 1;
+    bool do_verification = 0;
+    int init_method      = 0;
     bool time_kernel     = false;
     int num_dim_spatial  = 2;
 
@@ -236,9 +236,13 @@ int main(int argc, char* argv[])
         input.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
         weights.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
         break;
-    default:
+    case 2:
         input.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
         weights.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
+        break;
+    default:
+        input.GenerateTensorValue(GeneratorTensor_1<InDataType>{1});
+        weights.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpace());
@@ -311,33 +315,30 @@ int main(int argc, char* argv[])
 
             ref_invoker.Run(ref_argument);
             out_device_buf.FromDevice(device_output.mData.data());
-            return ck::utils::check_err(device_output.mData,
-                                        host_output.mData,
-                                        "Error: incorrect results!",
-                                        1e-5f,
-                                        1e-4f)
-                       ? 0
-                       : 1;
+            ck::utils::check_err(
+                host_output.mData, device_output.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
         };
 
         switch(num_dim_spatial)
         {
         case 3: {
             auto ref_conv = ReferenceConvNDFwdInstance<3>();
-            return verify_f(ref_conv);
+            verify_f(ref_conv);
+            break;
         }
         case 2: {
             auto ref_conv = ReferenceConvNDFwdInstance<2>();
-            return verify_f(ref_conv);
+            verify_f(ref_conv);
+            break;
         }
         case 1: {
             auto ref_conv = ReferenceConvNDFwdInstance<1>();
-            return verify_f(ref_conv);
+            verify_f(ref_conv);
+            break;
         }
         default: {
             throw std::runtime_error("Unsupported number of spatial dimensions provided!");
         }
         }
     }
-    return 0;
 }

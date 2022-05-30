@@ -403,18 +403,15 @@ int main(int argc, char* argv[])
         {
         case 3: {
             auto ref_conv = ReferenceConvBwdWeightInstance<3>();
-            verify_f(ref_conv);
-            break;
+            return verify_f(ref_conv);
         }
         case 2: {
             auto ref_conv = ReferenceConvBwdWeightInstance<2>();
-            verify_f(ref_conv);
-            break;
+            return verify_f(ref_conv);
         }
         case 1: {
             auto ref_conv = ReferenceConvBwdWeightInstance<1>();
-            verify_f(ref_conv);
-            break;
+            return verify_f(ref_conv);
         }
         default: {
             throw std::runtime_error("Unsupported number of spatial dimensions provided!");

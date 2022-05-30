@@ -144,8 +144,13 @@ bool profile_gemm_reduce_impl(int do_verification,
 
     if(do_verification)
     {
-        using ReferenceGemmInstance = ck::tensor_operation::host::
-            ReferenceGemm<ADataType, BDataType, CDataType, AElementOp, BElementOp, CElementOp>;
+        using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                                BDataType,
+                                                                                CDataType,
+                                                                                DDataType,
+                                                                                AElementOp,
+                                                                                BElementOp,
+                                                                                CElementOp>;
 
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
