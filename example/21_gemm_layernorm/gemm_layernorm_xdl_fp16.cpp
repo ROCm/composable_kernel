@@ -10,7 +10,7 @@
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
 #include "device_tensor.hpp"
-#include "device_5ary_elementwise_xdl_cshuffle.hpp"
+#include "device_5ary_elementwise.hpp"
 #include "device_gemm_reduce_xdl_cshuffle.hpp"
 #include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"
@@ -84,7 +84,7 @@ using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataTyp
 using NormalizeFunctor = ck::tensor_operation::element_wise::Normalize;
 
 // A:x, B:E[x], C:E[x^2], D:Gamma, E:Beta , F:y
-using DeviceNormalizeInstance = ck::tensor_operation::device::Device5AryElementwise_Xdl_CShuffle<
+using DeviceNormalizeInstance = ck::tensor_operation::device::Device5AryElementwise<
     CDataType,
     DDataType,
     DDataType,
@@ -295,7 +295,7 @@ int main()
     if(!normalize.IsSupportedArgument(normalize_argument))
     {
         throw std::runtime_error("The runtime parameters seems not supported by the "
-                                 "Device5AryElementwise_Xdl_CShuffle instance, exiting!");
+                                 "Device5AryElementwise instance, exiting!");
     }
 
     // run kernel

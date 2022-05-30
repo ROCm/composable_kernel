@@ -29,7 +29,7 @@ template <typename ADataType,
           index_t DScalarPerVector,
           index_t EScalarPerVector,
           index_t FScalarPerVector>
-struct Device5AryElementwise_Xdl_CShuffle : public BaseOperator
+struct Device5AryElementwise : public BaseOperator
 {
     static constexpr auto I0 = Number<0>{};
 
