@@ -33,12 +33,19 @@ namespace ck {
 namespace tensor_operation {
 namespace host {
 
-template <typename ADataType,
-          typename BDataType,
-          typename CDataType,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation>
+// FIXME: support arbitrary elementwise operation for A/B/C
+template <
+    typename ADataType,
+    typename BDataType,
+    typename CDataType,
+    typename AElementwiseOperation,
+    typename BElementwiseOperation,
+    typename CElementwiseOperation,
+    enable_if_t<
+        is_same_v<AElementwiseOperation, ck::tensor_operation::element_wise::PassThrough> &&
+            is_same_v<BElementwiseOperation, ck::tensor_operation::element_wise::PassThrough> &&
+            is_same_v<CElementwiseOperation, ck::tensor_operation::element_wise::PassThrough>,
+        bool> = false>
 struct ReferenceCGemm : public device::BaseOperator
 {
     // Argument
@@ -92,51 +99,33 @@ struct ReferenceCGemm : public device::BaseOperator
             }
 
             auto f_mk_kn_mn_real = [&](auto m, auto n) {
-                float v_acc = 0;
+                float v_c_real = 0;
 
                 for(std::size_t k = 0; k < K; ++k)
                 {
-                    float v_a_real;
-                    float v_b_real;
-                    float v_a_imag;
-                    float v_b_imag;
+                    float v_a_real = ck::type_convert<float>(arg.a_m_k_real_(m, k));
+                    float v_a_imag = ck::type_convert<float>(arg.a_m_k_imag_(m, k));
+                    float v_b_real = ck::type_convert<float>(arg.b_k_n_real_(k, n));
+                    float v_b_imag = ck::type_convert<float>(arg.b_k_n_imag_(k, n));
 
-                    arg.a_element_op_(v_a_real, ck::type_convert<float>(arg.a_m_k_real_(m, k)));
-                    arg.a_element_op_(v_a_imag, ck::type_convert<float>(arg.a_m_k_imag_(m, k)));
-                    arg.b_element_op_(v_b_real, ck::type_convert<float>(arg.b_k_n_real_(k, n)));
-                    arg.b_element_op_(v_b_imag, ck::type_convert<float>(arg.b_k_n_imag_(k, n)));
-
-                    v_acc += v_a_real * v_b_real - v_a_imag * v_b_imag;
+                    v_c_real += v_a_real * v_b_real - v_a_imag * v_b_imag;
                 }
-
-                float v_c_real;
-
-                arg.c_element_op_(v_c_real, v_acc);
 
                 arg.c_m_n_real_(m, n) = v_c_real;
             };
 
             auto f_mk_kn_mn_imag = [&](auto m, auto n) {
-                float v_acc = 0;
+                float v_c_imag = 0;
 
                 for(std::size_t k = 0; k < K; ++k)
                 {
-                    float v_a_real;
-                    float v_b_real;
-                    float v_a_imag;
-                    float v_b_imag;
+                    float v_a_real = ck::type_convert<float>(arg.a_m_k_real_(m, k));
+                    float v_a_imag = ck::type_convert<float>(arg.a_m_k_imag_(m, k));
+                    float v_b_real = ck::type_convert<float>(arg.b_k_n_real_(k, n));
+                    float v_b_imag = ck::type_convert<float>(arg.b_k_n_imag_(k, n));
 
-                    arg.a_element_op_(v_a_real, ck::type_convert<float>(arg.a_m_k_real_(m, k)));
-                    arg.a_element_op_(v_a_imag, ck::type_convert<float>(arg.a_m_k_imag_(m, k)));
-                    arg.b_element_op_(v_b_real, ck::type_convert<float>(arg.b_k_n_real_(k, n)));
-                    arg.b_element_op_(v_b_imag, ck::type_convert<float>(arg.b_k_n_imag_(k, n)));
-
-                    v_acc += v_a_real * v_b_imag + v_a_imag * v_b_real;
+                    v_c_imag += v_a_real * v_b_imag + v_a_imag * v_b_real;
                 }
-
-                float v_c_imag;
-
-                arg.c_element_op_(v_c_imag, v_acc);
 
                 arg.c_m_n_imag_(m, n) = v_c_imag;
             };
