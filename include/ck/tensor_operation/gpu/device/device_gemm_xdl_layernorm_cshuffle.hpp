@@ -67,8 +67,7 @@ template <typename ALayout,
           index_t CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
           index_t CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
-struct DeviceGemmLayerNorm_Xdl_CShuffle
-    : public BaseOperator
+struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
 {
     using DeviceOp = DeviceGemmLayerNorm_Xdl_CShuffle;
 
@@ -463,7 +462,8 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         c_grid_desc_m_n_);
 
-                c0_grid_desc_nblock_nperblock_ = GridwiseGemm::MakeC0GridDescriptor_NBlock_NPerBlock(c0_grid_desc_n_);
+                c0_grid_desc_nblock_nperblock_ =
+                    GridwiseGemm::MakeC0GridDescriptor_NBlock_NPerBlock(c0_grid_desc_n_);
 
                 // TODO ANT: adopt tensile style workgroup mapping
                 block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_);
@@ -483,8 +483,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle
         C0GridDesc_N c0_grid_desc_n_;
         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemm::C0GridDescriptor_NBlock_NPerBlock
-            c0_grid_desc_nblock_nperblock_;
+        typename GridwiseGemm::C0GridDescriptor_NBlock_NPerBlock c0_grid_desc_nblock_nperblock_;
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;

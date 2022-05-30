@@ -18,21 +18,26 @@ template <typename ADataType,
           typename CElementwiseOperation>
 struct ReferenceGemmLayernorm : public device::BaseOperator
 {
-    using ReferenceGemmInstance = ReferenceGemm<ADataType, BDataType, AccDataType, AccDataType,
-        AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>;
+    using ReferenceGemmInstance = ReferenceGemm<ADataType,
+                                                BDataType,
+                                                AccDataType,
+                                                AccDataType,
+                                                AElementwiseOperation,
+                                                BElementwiseOperation,
+                                                CElementwiseOperation>;
 
     // D = Layernorm(acc + broadcast(bias)) * broadcast(gamma) + broadcast(beta)
     template <typename InDataType, typename OutDataType, typename ComputeDataType>
     static void RunLayernorm(Tensor<OutDataType>& result,
-                const Tensor<ComputeDataType>& acc,   // MxN
-                const Tensor<InDataType>& bias,  // 1xN
-                const Tensor<InDataType>& gamma, // 1xN
-                const Tensor<InDataType>& beta,  // 1xN
-                const InDataType epsilon = 1e-5)
+                             const Tensor<ComputeDataType>& acc, // MxN
+                             const Tensor<InDataType>& bias,     // 1xN
+                             const Tensor<InDataType>& gamma,    // 1xN
+                             const Tensor<InDataType>& beta,     // 1xN
+                             const InDataType epsilon = 1e-5)
     {
         assert(acc.mDesc.GetLengths()[1] == bias.mDesc.GetLengths()[0] &&
-            acc.mDesc.GetLengths()[1] == gamma.mDesc.GetLengths()[0] &&
-            acc.mDesc.GetLengths()[1] == beta.mDesc.GetLengths()[0]);
+               acc.mDesc.GetLengths()[1] == gamma.mDesc.GetLengths()[0] &&
+               acc.mDesc.GetLengths()[1] == beta.mDesc.GetLengths()[0]);
 
         size_t M = acc.mDesc.GetLengths()[0];
         size_t N = acc.mDesc.GetLengths()[1];
@@ -127,10 +132,14 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
             Tensor<AccDataType> acc_m_n(arg.c_m_n_.mDesc);
             acc_m_n.GenerateTensorValue(GeneratorTensor_1<AccDataType>{0});
 
-            auto ref_gemm    = ReferenceGemmInstance{};
-            auto ref_invoker = ref_gemm.MakeInvoker();
-            auto ref_argument = ref_gemm.MakeArgument(
-                arg.a_m_k_, arg.b_k_n_, acc_m_n, arg.a_element_op_, arg.b_element_op_, arg.c_element_op_);
+            auto ref_gemm     = ReferenceGemmInstance{};
+            auto ref_invoker  = ref_gemm.MakeInvoker();
+            auto ref_argument = ref_gemm.MakeArgument(arg.a_m_k_,
+                                                      arg.b_k_n_,
+                                                      acc_m_n,
+                                                      arg.a_element_op_,
+                                                      arg.b_element_op_,
+                                                      arg.c_element_op_);
 
             ref_invoker.Run(ref_argument);
 
