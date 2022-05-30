@@ -421,9 +421,9 @@ class ConvFwdOpInstance : public ck::utils::OpInstance<OutDataType, InDataType, 
     ConvFwdOpInstance& operator=(const ConvFwdOpInstance&) = default;
 
     ConvFwdOpInstance(const ConvParams& params,
-                      bool do_init                         = true,
-                      const InputInitFun& input_init_f     = InputInitFun{},
-                      const WeightsInitFun& weights_init_f = WeightsInitFun{})
+                      bool do_init                  = true,
+                      InputInitFun input_init_f     = InputInitFun(),
+                      WeightsInitFun weights_init_f = WeightsInitFun())
         : BaseType(),
           params_{params},
           output_spatial_lengths_{params.GetOutputSpatialLengths()},
@@ -560,8 +560,8 @@ class ConvFwdOpInstance : public ck::utils::OpInstance<OutDataType, InDataType, 
     const ConvParams& params_;
     const std::vector<ck::index_t> output_spatial_lengths_;
     const bool do_init_;
-    const InputInitFun& input_init_f_;
-    const WeightsInitFun& weights_init_f_;
+    InputInitFun input_init_f_;
+    WeightsInitFun weights_init_f_;
 };
 
 } // namespace conv
