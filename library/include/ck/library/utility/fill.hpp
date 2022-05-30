@@ -12,13 +12,13 @@ namespace utils {
 template <typename T>
 struct FillUniform
 {
-    float a_{-5};
-    float b_{5};
+    float a_{-5.f};
+    float b_{5.f};
 
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
-        std::mt19937 gen{11939};
+        std::mt19937 gen(11939);
         std::uniform_real_distribution<> dis(a_, b_);
         std::generate(first, last, [&dis, &gen]() { return ck::type_convert<T>(dis(gen)); });
     }
@@ -27,13 +27,13 @@ struct FillUniform
 template <typename T>
 struct FillUniformIntegerValue
 {
-    float a_{-5};
-    float b_{5};
+    float a_{-5.f};
+    float b_{5.f};
 
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
-        std::mt19937 gen{11939};
+        std::mt19937 gen(11939);
         std::uniform_real_distribution<> dis(a_, b_);
         std::generate(
             first, last, [&dis, &gen]() { return ck::type_convert<T>(std::round(dis(gen))); });

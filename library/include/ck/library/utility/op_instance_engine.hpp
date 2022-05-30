@@ -121,7 +121,9 @@ class OpInstanceRunEngine
                         " You have to provide reference function.");
                 }
                 // TODO: enable flexible use of custom check_error functions
-                res = res && check_err(out_tensor_->mData, ref_output_->mData);
+                bool inst_res = check_err(out_tensor_->mData, ref_output_->mData);
+                std::cout << (inst_res ? "SUCCESS" : "FAILURE") << std::endl;
+                res = res && inst_res;
                 out_device_buffer_->SetZero();
             }
             else

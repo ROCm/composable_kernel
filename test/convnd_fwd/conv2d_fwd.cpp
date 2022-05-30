@@ -1,13 +1,13 @@
-#include <half.hpp>
-#include <iostream>
 #include <tuple>
 #include <vector>
 #include "gtest/gtest.h"
 
+#include "ck/library/utility/conv_util.hpp"
+// For F16
+#include "config.hpp"
+#include "conv_util.hpp"
 #include "data_type.hpp"
 #include "element_wise_operation.hpp"
-#include "ck/library/utility/conv_util.hpp"
-#include "conv_util.hpp"
 
 namespace {
 
@@ -69,6 +69,7 @@ TEST(Conv2DFwdNHWC, TestConv2D)
 {
     using namespace std::placeholders;
     using namespace ck::utils;
+    using T = ck::half_t;
 
     ck::utils::conv::ConvParams params;
     params.N_                     = 2;
@@ -79,11 +80,11 @@ TEST(Conv2DFwdNHWC, TestConv2D)
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
     test::conv::get_test_convolution_fwd_instance<2>(conv_ptrs);
-    conv::ConvFwdOpInstance<float, float, float> conv_instance(params);
+    conv::ConvFwdOpInstance<T, T, T> conv_instance(params);
 
-    auto reference_conv_fwd_fun = std::bind(
-        conv::run_reference_convolution_forward<2, float, float, float>, params, _1, _2, _3);
-    OpInstanceRunEngine<float, float, float> run_engine(conv_instance, reference_conv_fwd_fun);
+    auto reference_conv_fwd_fun =
+        std::bind(conv::run_reference_convolution_forward<2, T, T, T>, params, _1, _2, _3);
+    OpInstanceRunEngine<T, T, T> run_engine(conv_instance, reference_conv_fwd_fun);
     run_engine.SetAtol(1e-5);
     run_engine.SetRtol(1e-4);
     EXPECT_TRUE(run_engine.Test(conv_ptrs));
@@ -123,7 +124,18 @@ class Conv2dFwdNHWCInstancesF16 : public ::testing::Test
         using namespace std::placeholders;
         using namespace ck::utils;
 
-        conv::ConvFwdOpInstance<T, T, T> conv_instance(params);
+        conv::ConvFwdOpInstance<T,
+                                T,
+                                T,
+                                ck::tensor_layout::convolution::NHWC,
+                                ck::tensor_layout::convolution::KYXC,
+                                ck::tensor_layout::convolution::NHWK,
+                                ck::tensor_operation::element_wise::PassThrough,
+                                ck::tensor_operation::element_wise::PassThrough,
+                                ck::tensor_operation::element_wise::PassThrough,
+                                FillUniformIntegerValue<T>,
+                                FillUniformIntegerValue<T>>
+            conv_instance(params, true, FillUniformIntegerValue<T>{}, FillUniformIntegerValue<T>{});
         auto reference_conv_fwd_fun =
             std::bind(conv::run_reference_convolution_forward<2, T, T, T>, params, _1, _2, _3);
         OpInstanceRunEngine<T, T, T> run_engine(conv_instance, reference_conv_fwd_fun);
