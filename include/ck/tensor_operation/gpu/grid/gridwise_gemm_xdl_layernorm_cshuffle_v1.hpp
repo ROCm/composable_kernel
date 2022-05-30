@@ -87,6 +87,9 @@ __global__ void
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
+// The GEMM + Layernorm implementation is a specialized kernel which allows fusing both layers
+// together given the condition GEMM extents N of MNK is spanned by a single workgroup. For example,
+// a kernel configured with NPerBlock = 128 allows to operate on all GEMM sizes if N <= 128
 template <typename FloatAB,
           typename FloatGemmAcc,
           typename FloatCShuffle,
@@ -689,18 +692,6 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                 make_tuple(Sequence<>{}, Sequence<>{}, Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
 
-            const auto c0_grid_desc_mperblock_nperblock = transform_tensor_descriptor(
-                c0_grid_desc_mblock_mperblock_nblock_nperblock,
-                make_tuple(
-                    make_freeze_transform(I0),
-                    make_pass_through_transform(
-                        c0_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I1)),
-                    make_freeze_transform(I0),
-                    make_pass_through_transform(
-                        c0_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I3))),
-                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-                make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<>{}, Sequence<1>{}));
-
             // LDS c_reduce_block_desc_mperblock_nperblock
             constexpr auto c_reduce_block_desc_mperblock_nperblock = transform_tensor_descriptor(
                 c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
@@ -754,10 +745,6 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             // VGPR d_reduce_thread_desc_mperblock
             constexpr auto d_reduce_thread_desc_mperblock =
                 make_naive_tensor_descriptor_packed(make_tuple(Number<mreduce_per_thread>{}));
-
-            // VGPR d_reduce_thread_desc_mblock_mperblock
-            constexpr auto d_reduce_thread_desc_mblock_mperblock =
-                make_naive_tensor_descriptor_packed(make_tuple(I1, Number<mreduce_per_thread>{}));
 
             // TODO: this should be implemented as a blockwise reduction
             auto c_reduce_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatReduceAcc>(

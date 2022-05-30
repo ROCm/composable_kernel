@@ -14,6 +14,10 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+// The GEMM + Layernorm implementation is a specialized kernel which allows fusing both layers
+// together given the condition GEMM extents N of MNK is spanned by a single workgroup. For example,
+// a kernel configured with NPerBlock = 128 allows to operate on all GEMM sizes if N <= 128
+//
 // Note: inter-wave loop scheduler is rolled out to c-shuffle version first. Becuase non c-shuffle
 // version currently has compiler issues with register spill which further causes validation
 // failures.
