@@ -123,13 +123,18 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                  index_t gridSize,
                                  index_t blockSize)
     {
-        auto tupleOfShape  = generate_tuple([&](auto I) { return lengths[I]; }, Number<1>{});
-        auto tupleOfStride = generate_tuple([&](auto I) { return strides[I]; }, Number<1>{});
+        auto tupleOfShape  = generate_tuple([&](auto I) { return lengths[I]; }, Number<2>{});
+        auto tupleOfStride = generate_tuple([&](auto I) { return strides[I]; }, Number<2>{});
 
         // nd desc - [s0, s1, s2, ...]
-        const auto desc = make_naive_tensor_descriptor(tupleOfShape, tupleOfStride);
+        const auto desc   = make_naive_tensor_descriptor(tupleOfShape, tupleOfStride);
+        const auto desc_m = transform_tensor_descriptor(
+            desc,
+            make_tuple(make_merge_transform(tupleOfShape)),
+            make_tuple(generate_sequence_v2([&](auto I) { return I; }, Number<2>{})),
+            make_tuple(Sequence<0>{}));
 
-        return PadDescriptor_M_1d(desc, gridSize, blockSize);
+        return PadDescriptor_M_1d(desc_m, gridSize, blockSize);
     }
 
     static auto MakeAGridDescriptor_AK0_M_AK1(index_t MRaw, index_t KRaw, index_t StrideA)
