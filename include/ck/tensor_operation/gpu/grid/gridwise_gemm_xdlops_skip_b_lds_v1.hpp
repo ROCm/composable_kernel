@@ -1,5 +1,5 @@
-#ifndef CK_GRIDWISE_GEMM_XDLOPS_SKIP_B_LDS_V2R3_HPP
-#define CK_GRIDWISE_GEMM_XDLOPS_SKIP_B_LDS_V2R3_HPP
+#ifndef CK_GRIDWISE_GEMM_XDLOPS_SKIP_B_LDS_V1_HPP
+#define CK_GRIDWISE_GEMM_XDLOPS_SKIP_B_LDS_V1_HPP
 
 #include "common_header.hpp"
 #include "multi_index_transform_helper.hpp"
@@ -29,7 +29,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdlops_skip_lds_v2r3(
+        kernel_gemm_xdlops_skip_b_lds_v1(
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
@@ -101,7 +101,7 @@ template <index_t BlockSize,
           typename CThreadTransferSrcDstAccessOrder,
           index_t CThreadTransferSrcDstVectorDim,
           index_t CThreadTransferDstScalarPerVector>
-struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3
+struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};

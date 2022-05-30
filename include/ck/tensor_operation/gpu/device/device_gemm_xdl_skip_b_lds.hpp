@@ -1,5 +1,5 @@
-#ifndef DEVICE_GEMM_XDL_SKIP_LDS_HPP
-#define DEVICE_GEMM_XDL_SKIP_LDS_HPP
+#ifndef DEVICE_GEMM_XDL_SKIP_B_LDS_HPP
+#define DEVICE_GEMM_XDL_SKIP_B_LDS_HPP
 
 #include <iostream>
 #include <sstream>
@@ -10,7 +10,7 @@
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdlops_skip_lds_v2r3.hpp"
+#include "gridwise_gemm_xdlops_skip_b_lds_v1.hpp"
 #include "gemm_specialization.hpp"
 
 namespace ck {
@@ -47,7 +47,7 @@ template <typename ADataType,
           ck::index_t BBlockTransferSrcScalarPerVector,
           ck::index_t CThreadTransferSrcDstVectorDim,
           ck::index_t CThreadTransferDstScalarPerVector>
-struct DeviceGemmXdlSkipLds
+struct DeviceGemmXdlSkipBLds
     : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
@@ -174,7 +174,7 @@ struct DeviceGemmXdlSkipLds
     using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_lds_v2r3<
+    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1<
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
@@ -239,9 +239,11 @@ struct DeviceGemmXdlSkipLds
               b_element_op_{b_element_op},
               c_element_op_{c_element_op}
         {
-            a_grid_desc_k0_m_k1_ = DeviceGemmXdlSkipLds::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
-            b_grid_desc_k0_n_k1_ = DeviceGemmXdlSkipLds::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
-            c_grid_desc_m_n_     = DeviceGemmXdlSkipLds::MakeCGridDescriptor_M_N(M, N, StrideC);
+            a_grid_desc_k0_m_k1_ =
+                DeviceGemmXdlSkipBLds::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
+            b_grid_desc_k0_n_k1_ =
+                DeviceGemmXdlSkipBLds::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
+            c_grid_desc_m_n_ = DeviceGemmXdlSkipBLds::MakeCGridDescriptor_M_N(M, N, StrideC);
 
             if(GridwiseGemm::CheckValidity(
                    a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
@@ -279,7 +281,7 @@ struct DeviceGemmXdlSkipLds
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        using Argument = DeviceGemmXdlSkipLds::Argument;
+        using Argument = DeviceGemmXdlSkipBLds::Argument;
 
         float Run(const Argument& arg, int nrepeat = 1)
         {
@@ -316,12 +318,12 @@ struct DeviceGemmXdlSkipLds
 
             if(has_main_k0_block_loop)
             {
-                const auto kernel = kernel_gemm_xdlops_skip_lds_v2r3<
+                const auto kernel = kernel_gemm_xdlops_skip_b_lds_v1<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<DeviceGemmXdlSkipLds::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmXdlSkipLds::BGridDesc_K0_N_K1>,
+                    remove_reference_t<DeviceGemmXdlSkipBLds::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceGemmXdlSkipBLds::BGridDesc_K0_N_K1>,
                     remove_reference_t<typename GridwiseGemm::BGridDesc_K0_K1_K2_N0_N1_N2_N3_K3>,
                     remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                     AElementwiseOperation,
@@ -348,12 +350,12 @@ struct DeviceGemmXdlSkipLds
             }
             else
             {
-                const auto kernel = kernel_gemm_xdlops_skip_lds_v2r3<
+                const auto kernel = kernel_gemm_xdlops_skip_b_lds_v1<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<DeviceGemmXdlSkipLds::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmXdlSkipLds::BGridDesc_K0_N_K1>,
+                    remove_reference_t<DeviceGemmXdlSkipBLds::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceGemmXdlSkipBLds::BGridDesc_K0_N_K1>,
                     remove_reference_t<typename GridwiseGemm::BGridDesc_K0_K1_K2_N0_N1_N2_N3_K3>,
                     remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
                     AElementwiseOperation,
@@ -484,7 +486,7 @@ struct DeviceGemmXdlSkipLds
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGemmXdlSkipLds"
+        str << "DeviceGemmXdlSkipBLds"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

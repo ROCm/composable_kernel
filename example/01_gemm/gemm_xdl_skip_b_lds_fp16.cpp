@@ -11,7 +11,7 @@
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
 #include "device_tensor.hpp"
-#include "device_gemm_xdl_skip_lds.hpp"
+#include "device_gemm_xdl_skip_b_lds.hpp"
 #include "device_gemm_xdl.hpp"
 #include "device_gemm_xdl_c_shuffle.hpp"
 #include "device_gemm_xdl_cshuffle.hpp"
@@ -43,7 +43,7 @@ static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecializa
 
 // clang-format off
 #if USING_SKIP_LDS
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdlSkipLds
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdlSkipBLds
         //###########| AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C|          GEMM| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds| BThreadTransfer| CThreadTransfer| CThreadTransfer|
         //###########|  Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|Spacialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|       SrcScalar| SrcDstVectorDim|       DstScalar|
         //###########|      |      |      |        |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          |       PerVector|                |       PerVector|
@@ -55,7 +55,9 @@ using BDataType   = ck::half_t;
 using CDataType   = ck::half_t;
 using AccDataType = float;
 #else  
-                   <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,     64,    16,   16,     4,  4,   16,   16,    1,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,             4,                7,               1>;
+                   // <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,     256,    64,   16,     4,  4,   16,   16,    1,    1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,             4,                7,               1>;
+                   // <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,     256,    128,   32,     4,  4,   32,   32,    1,    1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,             4,                7,               1>;
+                     <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,     256,    64,   64,     4,  4,   32,   32,    1,    1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,             4,                7,               1>;
 using ADataType   = float;
 using BDataType   = float;
 using CDataType   = float;
@@ -68,7 +70,9 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl
         //###########|  Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|Spacialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| SrcDstVectorDim|       DstScalar|
         //###########|      |      |      |        |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |                |       PerVector|
         //###########|      |      |      |        |        |        |        |            |            |            |              |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |                |                |
-                   <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,     64,    16,   16,     4,  4,   16,   16,    1,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              4,              4,      true,               7,               1,     2>;
+                  // <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,     64,    16,   16,     4,  4,   16,   16,    1,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              4,              4,      true,               7,               1,     2>;
+                  //   <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,    128,   32,     4,  4,   32,   32,    1,    1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              4,              4,      true,               7,               1, 2>;
+                   <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,    64,   128,     4,  4,   32,   32,    2,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              4,              4,      true,               7,               1, 2>;
 using ADataType   = float;
 using BDataType   = float;
 using CDataType   = float;
@@ -104,20 +108,20 @@ int main(int argc, char* argv[])
 
     // GEMM shape
 #if 1
-    ck::index_t M = 16;
-    ck::index_t N = 1152;
-    ck::index_t K = 5120;
+    ck::index_t M = 64;
+    ck::index_t N = 4096;
+    ck::index_t K = 4096;
 
-    ck::index_t StrideA = 5120;
-    ck::index_t StrideB = 5120;
-    ck::index_t StrideC = 1152;
+    ck::index_t StrideA = 4096;
+    ck::index_t StrideB = 4096;
+    ck::index_t StrideC = 4096;
 #else
     ck::index_t M = 16;
     ck::index_t N = 16;
-    ck::index_t K = 24;
+    ck::index_t K = 8;
 
-    ck::index_t StrideA = 24;
-    ck::index_t StrideB = 24;
+    ck::index_t StrideA = 8;
+    ck::index_t StrideB = 8;
     ck::index_t StrideC = 16;
 #endif
 
