@@ -13,7 +13,6 @@
 #include "device_tensor.hpp"
 #include "device_gemm_xdl_skip_b_lds.hpp"
 #include "device_gemm_xdl.hpp"
-#include "device_gemm_xdl_c_shuffle.hpp"
 #include "device_gemm_xdl_cshuffle.hpp"
 #include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"
@@ -82,7 +81,7 @@ using AccDataType = float;
     // clang-format on
 
     using ReferenceGemmInstance = ck::tensor_operation::host::
-        ReferenceGemm<ADataType, BDataType, CDataType, AElementOp, BElementOp, CElementOp>;
+        ReferenceGemm<ADataType, BDataType, CDataType, float, AElementOp, BElementOp, CElementOp>;
 
 template <typename DataType>
 std::ostream& show_2d_matrix(std::ostream& os, Tensor<DataType>& matrix)
@@ -104,7 +103,7 @@ int main(int argc, char* argv[])
 {
     bool do_verification = 0;
     int init_method      = 0;
-    int nrepeat          = 5;
+    bool time_kernel     = false;
 
     // GEMM shape
 #if 1
@@ -129,13 +128,13 @@ int main(int argc, char* argv[])
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
     }
     else if(argc == 10)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
 
         M = std::stoi(argv[4]);
         N = std::stoi(argv[5]);
@@ -149,7 +148,7 @@ int main(int argc, char* argv[])
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: run kernel # of times (>1)\n");
+        printf("arg3: time kernel (0=n0, 1=yes)\n");
         printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC\n");
         exit(0);
     }
@@ -228,7 +227,7 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    float ave_time = invoker.Run(argument, nrepeat);
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_btype =

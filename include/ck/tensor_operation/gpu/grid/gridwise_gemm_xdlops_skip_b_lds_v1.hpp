@@ -7,7 +7,7 @@
 #include "tensor_descriptor_helper.hpp"
 #include "blockwise_gemm_xdlops.hpp"
 #include "blockwise_gemm_xdlops_skip_b_lds.hpp"
-#include "blockwise_tensor_slice_transfer_v4r1.hpp"
+#include "thread_group_tensor_slice_transfer_v4r1.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 #include "gridwise_gemm_pipeline_v1.hpp"
 
@@ -123,6 +123,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
 
     static constexpr auto xdlops_gemm    = XdlopsGemm<FloatAB, MPerXDL, NPerXDL, K1>{};
     static constexpr index_t K0PerThread = K0PerBlock / xdlops_gemm.K0PerXdlops;
+
+    using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_K0PerBlock_MPerBlock_K1()
     {
@@ -397,33 +399,34 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
 
         // A matrix blockwise copy
         auto a_blockwise_copy =
-            BlockwiseTensorSliceTransfer_v4r1<BlockSize,
-                                              AElementwiseOperation,
-                                              ck::tensor_operation::element_wise::PassThrough,
-                                              InMemoryDataOperationEnum::Set,
-                                              Sequence<K0PerBlock * MultiK0, MPerBlock, K1>,
-                                              ABlockTransferThreadClusterLengths_K0_M_K1,
-                                              ABlockTransferThreadClusterArrangeOrder,
-                                              FloatAB,
-                                              FloatAB,
-                                              decltype(a_grid_desc_k0_m_k1),
-                                              decltype(a_block_desc_k0_m_k1),
-                                              ABlockTransferSrcAccessOrder,
-                                              Sequence<1, 0, 2>,
-                                              ABlockTransferSrcVectorDim,
-                                              2,
-                                              ABlockTransferSrcScalarPerVector,
-                                              ABlockTransferDstScalarPerVector_K1,
-                                              1,
-                                              1,
-                                              AThreadTransferSrcResetCoordinateAfterRun,
-                                              true,
-                                              1>(a_grid_desc_k0_m_k1,
-                                                 make_multi_index(0, m_block_data_idx_on_grid, 0),
-                                                 a_element_op,
-                                                 a_block_desc_k0_m_k1,
-                                                 make_multi_index(0, 0, 0),
-                                                 ck::tensor_operation::element_wise::PassThrough{});
+            ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
+                                                AElementwiseOperation,
+                                                ck::tensor_operation::element_wise::PassThrough,
+                                                InMemoryDataOperationEnum::Set,
+                                                Sequence<K0PerBlock * MultiK0, MPerBlock, K1>,
+                                                ABlockTransferThreadClusterLengths_K0_M_K1,
+                                                ABlockTransferThreadClusterArrangeOrder,
+                                                FloatAB,
+                                                FloatAB,
+                                                decltype(a_grid_desc_k0_m_k1),
+                                                decltype(a_block_desc_k0_m_k1),
+                                                ABlockTransferSrcAccessOrder,
+                                                Sequence<1, 0, 2>,
+                                                ABlockTransferSrcVectorDim,
+                                                2,
+                                                ABlockTransferSrcScalarPerVector,
+                                                ABlockTransferDstScalarPerVector_K1,
+                                                1,
+                                                1,
+                                                AThreadTransferSrcResetCoordinateAfterRun,
+                                                true,
+                                                1>(
+                a_grid_desc_k0_m_k1,
+                make_multi_index(0, m_block_data_idx_on_grid, 0),
+                a_element_op,
+                a_block_desc_k0_m_k1,
+                make_multi_index(0, 0, 0),
+                ck::tensor_operation::element_wise::PassThrough{});
 
         ignore = b_element_op;
         // B matrix threadwise copy

@@ -283,7 +283,7 @@ struct DeviceGemmXdlSkipBLds
     {
         using Argument = DeviceGemmXdlSkipBLds::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             {
                 std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
@@ -332,8 +332,8 @@ struct DeviceGemmXdlSkipBLds
                     remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                     true>;
 
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
                                                   dim3(grid_size),
                                                   dim3(BlockSize),
                                                   0,
@@ -364,8 +364,8 @@ struct DeviceGemmXdlSkipBLds
                     remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                     false>;
 
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
                                                   dim3(grid_size),
                                                   dim3(BlockSize),
                                                   0,
@@ -385,9 +385,10 @@ struct DeviceGemmXdlSkipBLds
         }
 
         // polymorphic
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 
