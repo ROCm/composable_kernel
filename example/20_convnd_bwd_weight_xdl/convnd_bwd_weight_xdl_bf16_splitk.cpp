@@ -329,24 +329,7 @@ int main(int argc, char* argv[])
 
     DeviceMem wei_work_space_device_buf(bwd_weight_workspace_size);
     wei_work_space_device_buf.SetZero();
-    argument = conv->MakeArgumentPointer(
-        static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-        static_cast<AccDataType*>(wei_work_space_device_buf.GetDeviceBuffer()),
-        static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-        params.N_,
-        params.K_,
-        params.C_,
-        params.input_spatial_lengths_,
-        params.filter_spatial_lengths_,
-        output_spatial_lengths,
-        params.conv_filter_strides_,
-        params.conv_filter_dilations_,
-        params.input_left_pads_,
-        params.input_right_pads_,
-        InElementOp{},
-        WeiElementOp{},
-        OutElementOp{},
-        split_k);
+    conv->SetWorkSpacePointer(argument.get(), wei_work_space_device_buf.GetDeviceBuffer());
 
     if(!conv->IsSupportedArgument(argument.get()))
     {
@@ -358,6 +341,7 @@ int main(int argc, char* argv[])
 
     conv_ave_time = invoker->Run(argument.get(), StreamConfig{nullptr, time_kernel});
 
+#if 0
     // do type convert
     auto type_convert         = DeviceUnaryElementwiseTypeConvertInstance{};
     auto type_convert_invoker = type_convert.MakeInvokerPointer();
@@ -381,7 +365,7 @@ int main(int argc, char* argv[])
     type_convert_ave_time =
         type_convert_invoker->Run(type_convert_argument.get(), StreamConfig{nullptr, time_kernel});
     // type_convert_invoker->Run(type_convert_argument.get(), StreamConfig{nullptr, time_kernel});
-
+#endif
     // host code to check if conv give me a right result
     // Tensor<AccDataType> wei_k_c_y_x_device_result_fp32(
     //     ck::utils::conv::get_filters_host_tensor_descriptor(filter_dims, num_dim_spatial));

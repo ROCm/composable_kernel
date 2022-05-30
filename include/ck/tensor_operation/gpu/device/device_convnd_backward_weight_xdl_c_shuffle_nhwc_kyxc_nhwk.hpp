@@ -11,6 +11,7 @@
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdlops_bwd_weight.hpp"
+#include "gridwise_unary_elementwise_1d.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -628,6 +629,54 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                                                                   1);
     }
 
+    // type convert descs
+    template <typename Desc_M0>
+    static auto PadDescriptor_M0_1d(Desc_M0 desc_m0, index_t gridSize, index_t blockSize)
+    {
+        const auto m0           = desc_m0.GetLength(I0);
+        const index_t loop_step = gridSize * blockSize * 4;
+        const auto pad          = math::integer_least_multiple(m0, loop_step) - m0;
+        const auto desc_m0_pad =
+            transform_tensor_descriptor(desc_m0,
+                                        make_tuple(make_right_pad_transform(m0, pad)),
+                                        make_tuple(Sequence<0>{}),
+                                        make_tuple(Sequence<0>{}));
+        return desc_m0_pad;
+    }
+
+    template <index_t Dim>
+    static auto MakeDescriptor_M0(const std::vector<index_t>& shape,
+                                  const std::vector<index_t>& stride,
+                                  index_t gridSize,
+                                  index_t blockSize)
+    {
+        auto tupleOfShape  = generate_tuple([&](auto I) { return shape[I]; }, Number<Dim>{});
+        auto tupleOfStride = generate_tuple([&](auto I) { return stride[I]; }, Number<Dim>{});
+
+        // nd desc - [s0, s1, s2, ...]
+        const auto desc = make_naive_tensor_descriptor(tupleOfShape, tupleOfStride);
+
+        // merge nd to 1d desc - [s0 * s1 * ...]
+        if constexpr(Dim > 1)
+        {
+            const auto desc_m0 = transform_tensor_descriptor(
+                desc,
+                make_tuple(make_merge_transform(tupleOfShape)),
+                make_tuple(generate_sequence_v2([&](auto I) { return I; }, Number<Dim>{})),
+                make_tuple(Sequence<0>{}));
+
+            return PadDescriptor_M0_1d(desc_m0, gridSize, blockSize);
+        }
+        else
+            return PadDescriptor_M0_1d(desc, gridSize, blockSize);
+    }
+
+    using TypeConvertFunctor =
+        ck::tensor_operation::element_wise::UnaryTypeConvert<ck::bhalf_t, float>;
+    using GridDesc_M0 = decltype(MakeDescriptor_M0<1>({1}, {1}, 1, 1));
+    using GridwiseUEltwise =
+        GridwiseUnaryElementwise_1D<AccDataType, InDataType, GridDesc_M0, TypeConvertFunctor, 4>;
+
     using ABCGridDescs = decltype(GetABCGridDesc<NumDimSpatial>());
 
     using AGridDesc_K0_M_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I0])>;
@@ -851,6 +900,9 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             b_grid_desc_kbatch_k0_n_k1_ = descs[I1];
             c_grid_desc_m_n_            = descs[I2];
 
+            // init work space
+            p_c_workspace_grid_ = nullptr;
+
             block_2_ctile_map_ =
                 GridwiseGemm::MakeCBlockClusterAdaptor(c_grid_desc_m_n_, M01, N01, k_batch_);
 
@@ -887,6 +939,9 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         std::vector<index_t> input_left_pads_;
         std::vector<index_t> input_right_pads_;
         index_t k_batch_;
+
+        // external work space
+        void* p_c_workspace_grid_;
     };
 
     // Invoker
@@ -959,6 +1014,64 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                                            arg.block_2_ctile_map_);
             };
 
+            // run kernel for bf16 with splitk
+            const auto Run_bf16_splitk = [&](const auto& kernel) {
+                hipGetErrorString(hipMemset(
+                    arg.p_c_workspace_grid_,
+                    0,
+                    arg.c_grid_desc_mblock_mperblock_nblock_nperblock_.GetElementSpaceSize() *
+                        sizeof(AccDataType)));
+
+                ave_time =
+                    launch_and_time_kernel(stream_config,
+                                           kernel,
+                                           dim3(grid_size),
+                                           dim3(BlockSize),
+                                           0,
+                                           arg.p_a_grid_,
+                                           arg.p_b_grid_,
+                                           static_cast<AccDataType*>(arg.p_c_workspace_grid_),
+                                           arg.a_grid_desc_kbatch_k0_m_k1_,
+                                           arg.b_grid_desc_kbatch_k0_n_k1_,
+                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_,
+                                           arg.block_2_ctile_map_);
+            };
+
+            // kernel for type conversion
+            std::vector<std::size_t> filter_dims{static_cast<std::size_t>(arg.Conv_K_),
+                                                 static_cast<std::size_t>(arg.Conv_C_)};
+
+            filter_dims.insert(std::end(filter_dims),
+                               std::begin(arg.filter_spatial_lengths_),
+                               std::end(arg.filter_spatial_lengths_));
+
+            int tensor_size =
+                std::accumulate(filter_dims.begin(), filter_dims.end(), 1, std::multiplies<int>{});
+
+            GridDesc_M0 a_grid_desc_m0_ = MakeDescriptor_M0<1>({tensor_size}, {1}, 240, 256);
+            GridDesc_M0 b_grid_desc_m0_ = MakeDescriptor_M0<1>({tensor_size}, {1}, 240, 256);
+
+            // run kernel for type conversion
+            void* p_c_grid_tmp_            = static_cast<void*>(arg.p_c_grid_);
+            InDataType* p_c_grid_tmp_bf16_ = static_cast<InDataType*>(p_c_grid_tmp_);
+            const auto Run_type_convert    = [&](const auto& kernel) {
+                float elapsed_time =
+                    launch_and_time_kernel(stream_config,
+                                           kernel,
+                                           dim3(240),
+                                           dim3(256),
+                                           0,
+                                           static_cast<AccDataType*>(arg.p_c_workspace_grid_),
+                                           p_c_grid_tmp_bf16_,
+                                           a_grid_desc_m0_,
+                                           b_grid_desc_m0_,
+                                           TypeConvertFunctor{});
+                return elapsed_time;
+            };
+
             if constexpr(std::is_same<InDataType, ck::bhalf_t>::value)
             {
                 if(has_main_k0_block_loop)
@@ -983,7 +1096,14 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                     }
                     else
                     {
-                        const auto kernel = kernel_gemm_xdlops_bwd_weight<
+                        const auto kernel_type_convert =
+                            kernel_unary_elementwise_1d<GridwiseUEltwise,
+                                                        AccDataType,
+                                                        InDataType,
+                                                        GridDesc_M0,
+                                                        TypeConvertFunctor>;
+
+                        const auto kernel_conv = kernel_gemm_xdlops_bwd_weight<
                             GridwiseGemmAtomicAddFloatBf16Splitk,
                             ADataType, // TODO: distiguish A/B datatype
                             AccDataType,
@@ -997,7 +1117,8 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                             remove_reference_t<DeviceOp::Block2CTileMap>,
                             true>;
 
-                        Run(kernel);
+                        Run_bf16_splitk(kernel_conv);
+                        ave_time += Run_type_convert(kernel_type_convert);
                     }
                 }
                 else
@@ -1036,7 +1157,7 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                             remove_reference_t<DeviceOp::Block2CTileMap>,
                             false>;
 
-                        Run(kernel);
+                        Run_bf16_splitk(kernel);
                     }
                 }
             }
@@ -1318,6 +1439,11 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
     size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override final
     {
         return GetWorkSpaceSize<NumDimSpatial>(*dynamic_cast<const Argument*>(p_arg));
+    }
+
+    void SetWorkSpacePointer(BaseArgument* p_arg, void* workspace_ptr) const override
+    {
+        dynamic_cast<Argument*>(p_arg)->p_c_workspace_grid_ = workspace_ptr;
     }
 };
 
