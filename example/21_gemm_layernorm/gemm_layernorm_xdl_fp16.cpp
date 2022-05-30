@@ -214,7 +214,7 @@ void DumpGemmLayerNormPerf(float gemm_reduce_time, float normalize_time, int M, 
     std::cout << "gemm + reduce_mean + reduce_square_mean Perf: " << gemm_reduce_time << " ms, "
               << tflops << " TFlops, " << gemm_gb_per_sec << " GB/s, " << std::endl;
 
-    std::cout << "gemm + reduce_mean + reduce_square_mean Perf: " << normalize_time << " ms, "
+    std::cout << "5-ary elementwise Perf: " << normalize_time << " ms, "
               << normalize_gb_per_sec << " GB/s, " << std::endl;
 }
 

@@ -67,6 +67,20 @@ using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataTyp
                                                                         BElementOp,
                                                                         CElementOp>;
 
+template <typename ADataType, typename BDataType, typename CDataType, typename DDataType>
+void DumpGemmLayerNormPerf(float gemm_reduce_time, int M, int N, int K)
+{
+    std::size_t gemm_flop     = std::size_t(2) * M * N * K;
+    std::size_t gemm_num_byte = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
+                                sizeof(CDataType) * M * N + sizeof(DDataType) * M;
+
+    float tflops          = static_cast<float>(gemm_flop) / 1.E9 / gemm_reduce_time;
+    float gemm_gb_per_sec = gemm_num_byte / 1.E6 / gemm_reduce_time;
+
+    std::cout << "gemm + reduceMax Perf: " << gemm_reduce_time << " ms, " << tflops << " TFlops, "
+              << gemm_gb_per_sec << " GB/s, " << std::endl;
+}
+
 int main(int argc, char* argv[])
 {
     bool do_verification = true;
@@ -198,21 +212,10 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    // init D
+    // [CAUSION]: launch_and_time_kernel will not initialize D.
+    // If we evaluate kernel multiple time but without initialize D. Verification will fail
     d_device_buf.SetValue(ck::NumericLimits<DDataType>::Lowest());
-
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
-
-    std::size_t flop = std::size_t(2) * M * N * K;
-    std::size_t num_btype =
-        sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
-
-    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
-    float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << gemm.GetTypeString() << std::endl;
+    invoker.Run(argument, StreamConfig{nullptr, false});
 
     bool pass = true;
 
@@ -249,6 +252,14 @@ int main(int argc, char* argv[])
                                     "Error: Incorrect results d",
                                     1e-3,
                                     1e-3);
+    }
+
+    if(time_kernel)
+    {
+        float gemm_reduceMax_ave_time = invoker.Run(argument, StreamConfig{nullptr, true});
+
+        DumpGemmLayerNormPerf<ADataType, BDataType, CDataType, DDataType>(
+            gemm_reduceMax_ave_time, M, N, K);
     }
 
     return pass ? 0 : 1;
