@@ -335,11 +335,20 @@ struct UnaryTypeConvert;
 template <>
 struct UnaryTypeConvert<float, ck::bhalf_t>
 {
-    __host__ __device__ UnaryTypeConvert(const int32_t divider = 1) { (void)divider; };
-
-    __host__ __device__ void operator()(float& y, ck::bhalf_t& x) const { y = ck::type_convert<float, ck::bhalf_t>(x); };
+    __host__ __device__ void operator()(float& y, ck::bhalf_t& x) const
+    {
+        y = ck::type_convert<float, ck::bhalf_t>(x);
+    };
 };
 
+template <>
+struct UnaryTypeConvert<ck::bhalf_t, float>
+{
+    __host__ __device__ void operator()(ck::bhalf_t& y, float& x) const
+    {
+        y = ck::type_convert<ck::bhalf_t, float>(x);
+    };
+};
 
 } // namespace element_wise
 } // namespace tensor_operation

@@ -12,7 +12,6 @@ namespace device {
 
 template <typename ADataType,
           typename BDataType,
-          typename ComputeDataType,
           typename ElementwiseFunctor,
           index_t Dim,
           index_t ScalarPerVector>
@@ -62,11 +61,10 @@ struct DeviceUnaryElementwise : public BaseOperator
 
     using GridDesc_M0        = decltype(MakeDescriptor_M0({1, 1}, {1, 1}, 1, 1));
     using GridwiseBinEltwise = GridwiseUnaryElementwise_1D<ADataType,
-                                                            BDataType,
-                                                            ComputeDataType,
-                                                            GridDesc_M0,
-                                                            ElementwiseFunctor,
-                                                            ScalarPerVector>;
+                                                           BDataType,
+                                                           GridDesc_M0,
+                                                           ElementwiseFunctor,
+                                                           ScalarPerVector>;
 
     struct Argument : public BaseArgument
     {
@@ -81,7 +79,7 @@ struct DeviceUnaryElementwise : public BaseOperator
               shape_(shape),
               functor_(functor),
               blockSize_(256),
-              gridSize_(120) // FIXME - Calculate the grid size by number of CU in the future
+              gridSize_(240) // FIXME - Calculate the grid size by number of CU in the future
         {
             a_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_a, gridSize_, blockSize_);
             b_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_b, gridSize_, blockSize_);
@@ -102,10 +100,10 @@ struct DeviceUnaryElementwise : public BaseOperator
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             const auto kernel = kernel_unary_elementwise_1d<GridwiseBinEltwise,
-                                                             ADataType,
-                                                             BDataType,
-                                                             GridDesc_M0,
-                                                             ElementwiseFunctor>;
+                                                            ADataType,
+                                                            BDataType,
+                                                            GridDesc_M0,
+                                                            ElementwiseFunctor>;
 
             float elapsed_time = launch_and_time_kernel(stream_config,
                                                         kernel,

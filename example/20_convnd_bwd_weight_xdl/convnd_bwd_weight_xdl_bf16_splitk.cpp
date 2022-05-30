@@ -15,6 +15,7 @@
 #include "device_tensor.hpp"
 #include "tensor_layout.hpp"
 #include "element_wise_operation.hpp"
+#include "device_unary_elementwise.hpp"
 #include "device_convnd_backward_weight_xdl_c_shuffle_nhwc_kyxc_nhwk.hpp"
 #include "reference_conv_backward_weight.hpp"
 
@@ -29,6 +30,11 @@ using S = ck::Sequence<Is...>;
 using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
+
+using UnaryTypeConvert = ck::tensor_operation::element_wise::UnaryTypeConvert<ck::bhalf_t, float>;
+
+using DeviceUnaryElementwiseTypeConvertInstance = ck::tensor_operation::device::
+    DeviceUnaryElementwise<AccDataType, WeiDataType, UnaryTypeConvert, 1, 4>;
 
 static constexpr auto ConvBwdWeightDefault =
     ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization::Default;
@@ -95,7 +101,7 @@ void host_elementwise(HostTensorB& B,
                       Functor functor)
 {
     size_t tensor_size = std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<int>{});
-    std::cout << __LINE__ << ":" << tensor_size << ", "<< A.mData[0] << std::endl;
+    std::cout << __LINE__ << ":" << tensor_size << ", " << A.mData[0] << std::endl;
     for(std::size_t n = 0; n < tensor_size; ++n)
     {
         B.mData[n] = functor(A.mData[n]);
@@ -318,7 +324,8 @@ int main(int argc, char* argv[])
 
     // alloc work space
     size_t bwd_weight_workspace_size = conv->GetWorkSpaceSize(argument.get());
-    float ave_time                   = 0.f;
+    float conv_ave_time              = 0.f;
+    float type_convert_ave_time      = 0.f;
 
     DeviceMem wei_work_space_device_buf(bwd_weight_workspace_size);
     wei_work_space_device_buf.SetZero();
@@ -349,17 +356,42 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    ave_time = invoker->Run(argument.get(), StreamConfig{nullptr, time_kernel});
+    conv_ave_time = invoker->Run(argument.get(), StreamConfig{nullptr, time_kernel});
+
+    // do type convert
+    auto type_convert         = DeviceUnaryElementwiseTypeConvertInstance{};
+    auto type_convert_invoker = type_convert.MakeInvokerPointer();
+    int tensor_size =
+        std::accumulate(filter_dims.begin(), filter_dims.end(), 1, std::multiplies<int>{});
+    auto type_convert_argument =
+        type_convert.MakeArgumentPointer(wei_work_space_device_buf.GetDeviceBuffer(),
+                                         wei_device_buf.GetDeviceBuffer(),
+                                         {tensor_size},
+                                         {1},
+                                         {1},
+                                         UnaryTypeConvert{});
+
+    if(!type_convert.IsSupportedArgument(type_convert_argument.get()))
+    {
+        std::cout << "wrong! device_type_convert with the specified compilation parameters does "
+                     "not support this convert problem"
+                  << std::endl;
+        return 1;
+    }
+    type_convert_ave_time =
+        type_convert_invoker->Run(type_convert_argument.get(), StreamConfig{nullptr, time_kernel});
+    // type_convert_invoker->Run(type_convert_argument.get(), StreamConfig{nullptr, time_kernel});
 
     // host code to check if conv give me a right result
-    Tensor<AccDataType> wei_k_c_y_x_device_result_fp32(
-        ck::utils::conv::get_filters_host_tensor_descriptor(filter_dims, num_dim_spatial));
-    wei_work_space_device_buf.FromDevice(wei_k_c_y_x_device_result_fp32.mData.data());
-    const auto type_cvt_functor = [&](AccDataType a) {
-        return ck::type_convert<WeiDataType, AccDataType>(a);
-    };
-    host_elementwise<Tensor<WeiDataType>, Tensor<AccDataType>, decltype(type_cvt_functor)>(
-        wei_k_c_y_x_device_result, wei_k_c_y_x_device_result_fp32, filter_dims, type_cvt_functor);
+    // Tensor<AccDataType> wei_k_c_y_x_device_result_fp32(
+    //     ck::utils::conv::get_filters_host_tensor_descriptor(filter_dims, num_dim_spatial));
+    // wei_work_space_device_buf.FromDevice(wei_k_c_y_x_device_result_fp32.mData.data());
+    // const auto type_cvt_functor = [&](AccDataType a) {
+    //     return ck::type_convert<WeiDataType, AccDataType>(a);
+    // };
+    // host_elementwise<Tensor<WeiDataType>, Tensor<AccDataType>, decltype(type_cvt_functor)>(
+    //     wei_k_c_y_x_device_result, wei_k_c_y_x_device_result_fp32, filter_dims,
+    //     type_cvt_functor);
 
     std::size_t flop = ck::utils::conv::get_flops(
         params.N_, params.C_, params.K_, params.filter_spatial_lengths_, output_spatial_lengths);
@@ -371,12 +403,12 @@ int main(int argc, char* argv[])
         params.filter_spatial_lengths_,
         output_spatial_lengths);
 
-    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+    float tflops = static_cast<float>(flop) / 1.E9 / conv_ave_time;
 
-    float gb_per_sec = num_btype / 1.E6 / ave_time;
+    float gb_per_sec = num_btype / 1.E6 / conv_ave_time;
 
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
-              << std::endl;
+    std::cout << "Perf: conv: " << conv_ave_time << " ms, type_convert: " << type_convert_ave_time
+              << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s" << std::endl;
 
     if(do_verification)
     {
@@ -396,7 +428,7 @@ int main(int argc, char* argv[])
 
             ref_invoker.Run(ref_argument);
 
-            //wei_device_buf.FromDevice(wei_k_c_y_x_device_result.mData.data());
+            wei_device_buf.FromDevice(wei_k_c_y_x_device_result.mData.data());
 
             if(do_log)
             {

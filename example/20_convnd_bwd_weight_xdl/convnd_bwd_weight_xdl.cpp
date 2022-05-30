@@ -297,7 +297,7 @@ int main(int argc, char* argv[])
                                   split_k);
 
     // alloc work space
-    float ave_time                   = 0.f;
+    float ave_time = 0.f;
     if(!conv->IsSupportedArgument(argument.get()))
     {
         std::cout << "wrong! device_conv with the specified compilation parameters does "

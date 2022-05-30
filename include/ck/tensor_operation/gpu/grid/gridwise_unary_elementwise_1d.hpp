@@ -13,21 +13,16 @@ template <typename GridwiseUEltwise,
           typename GridDesc_M0,
           typename ElementwiseFunctor>
 __global__ void kernel_unary_elementwise_1d(const ADataType* __restrict__ p_a_global,
-                                             BDataType* __restrict__ p_b_global,
-                                             const GridDesc_M0 a_grid_desc_m0,
-                                             const GridDesc_M0 b_grid_desc_m0,
-                                             const ElementwiseFunctor functor)
+                                            BDataType* __restrict__ p_b_global,
+                                            const GridDesc_M0 a_grid_desc_m0,
+                                            const GridDesc_M0 b_grid_desc_m0,
+                                            const ElementwiseFunctor functor)
 {
-    GridwiseUEltwise::Run(p_a_global,
-                            p_b_global,
-                            a_grid_desc_m0,
-                            b_grid_desc_m0,
-                            functor);
+    GridwiseUEltwise::Run(p_a_global, p_b_global, a_grid_desc_m0, b_grid_desc_m0, functor);
 }
 
 template <typename ADataType,
           typename BDataType,
-          typename ComputeDataType,
           typename GridDesc_M0,
           typename ElementwiseFunctor,
           index_t ScalarPerVector>
@@ -46,11 +41,9 @@ struct GridwiseUnaryElementwise_1D
     }
 
     __device__ static void Run(const ADataType* __restrict__ p_a_global,
-                               const BDataType* __restrict__ p_b_global,
-                               CDataType* __restrict__ p_c_global,
+                               BDataType* __restrict__ p_b_global,
                                const GridDesc_M0 a_grid_desc_m0,
                                const GridDesc_M0 b_grid_desc_m0,
-                               const GridDesc_M0 c_grid_desc_m0,
                                const ElementwiseFunctor functor)
     {
         const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -58,14 +51,14 @@ struct GridwiseUnaryElementwise_1D
         auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_global, b_grid_desc_m0.GetElementSpaceSize());
 
-        StaticBuffer<AddressSpaceEnum::Vgpr, ComputeDataType, ScalarPerVector, true> a_thread_buf;
-        StaticBuffer<AddressSpaceEnum::Vgpr, ComputeDataType, ScalarPerVector, true> b_thread_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, ADataType, ScalarPerVector, true> a_thread_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, BDataType, ScalarPerVector, true> b_thread_buf;
 
         const auto thread_store_global_offset = CalculateElementwiseIndex();
 
         auto a_global_load =
             ThreadwiseTensorSliceTransfer_v2<ADataType,
-                                             ComputeDataType,
+                                             ADataType,
                                              GridDesc_M0,
                                              decltype(thread_desc_m0),
                                              Sequence<ScalarPerVector>, // SliceLengths
@@ -76,7 +69,7 @@ struct GridwiseUnaryElementwise_1D
                                              false>{a_grid_desc_m0, thread_store_global_offset};
 
         auto b_global_write =
-            ThreadwiseTensorSliceTransfer_v1r3<ComputeDataType,
+            ThreadwiseTensorSliceTransfer_v1r3<BDataType,
                                                BDataType,
                                                decltype(thread_desc_m0),
                                                GridDesc_M0,
@@ -92,7 +85,7 @@ struct GridwiseUnaryElementwise_1D
 
         const index_t blockSize    = get_block_size();
         const index_t blockPerGrid = get_grid_size();
-        const auto m0              = c_grid_desc_m0.GetLength(I0);
+        const auto m0              = b_grid_desc_m0.GetLength(I0);
         const index_t loop_step    = blockPerGrid * blockSize * ScalarPerVector;
         const auto loop_step_index = make_multi_index(loop_step);
 
@@ -105,8 +98,7 @@ struct GridwiseUnaryElementwise_1D
 
             static_for<0, ScalarPerVector, 1>{}([&](auto m) {
                 constexpr auto offset = thread_desc_m0.CalculateOffset(make_tuple(m));
-                functor(b_thread_buf(Number<offset>{}),
-                        a_thread_buf(Number<offset>{}));
+                functor(b_thread_buf(Number<offset>{}), a_thread_buf(Number<offset>{}));
             });
 
             b_global_write.Run(thread_desc_m0,

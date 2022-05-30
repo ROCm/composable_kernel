@@ -111,6 +111,15 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
     }
     else
     {
+
+        printf("%s: grid_dim {%d, %d, %d}, block_dim {%d, %d, %d} \n",
+               __func__,
+               grid_dim.x,
+               grid_dim.y,
+               grid_dim.z,
+               block_dim.x,
+               block_dim.y,
+               block_dim.z);
         kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
 
         return 0;
