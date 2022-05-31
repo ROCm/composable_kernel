@@ -42,6 +42,8 @@ struct BaseOperator
 
     virtual size_t GetWorkSpaceSize(const BaseArgument*) const { return 0; }
 
+    virtual void SetWorkSpacePointer(BaseArgument*, void*) const {}
+
     virtual ~BaseOperator() {}
 };
 
