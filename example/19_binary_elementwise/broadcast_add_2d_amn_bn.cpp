@@ -19,8 +19,17 @@ using EltwiseComputeDataType = F32;
 
 using Add = ck::tensor_operation::binary_element_wise::Add;
 
-using DeviceElementwiseAddInstance = ck::tensor_operation::device::
-    DeviceBinaryElementwise<ABDataType, ABDataType, CDataType, EltwiseComputeDataType, Add, 2, 8>;
+using DeviceElementwiseAddInstance =
+    ck::tensor_operation::device::DeviceBinaryElementwise<ABDataType,
+                                                          ABDataType,
+                                                          CDataType,
+                                                          EltwiseComputeDataType,
+                                                          Add,
+                                                          2,
+                                                          8,
+                                                          8,
+                                                          8,
+                                                          8>;
 
 template <typename HostTensorA,
           typename HostTensorB,
@@ -100,7 +109,7 @@ int main()
     if(!broadcastAdd.IsSupportedArgument(argument.get()))
     {
         throw std::runtime_error("The runtime parameters seems not supported by the "
-                                 "DeviceBinaryElementwise_2D instance, exiting!");
+                                 "DeviceBinaryElementwise instance, exiting!");
     };
 
     auto broadcastAdd_invoker_ptr = broadcastAdd.MakeInvokerPointer();
@@ -123,7 +132,7 @@ int main()
                          0>(host_c_m_n, a_m_n, b_n, M, N, Add{});
 
         pass &= ck::utils::check_err(
-            c_m_n.mData, host_c_m_n.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
+            c_m_n.mData, host_c_m_n.mData, "Error: Incorrect results c", 1e-3, 1e-3);
     }
 
     return pass ? 0 : 1;

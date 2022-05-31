@@ -1,1 +1,0 @@
-add_example_executable(example_gemm_gelu_xdl_fp16 gemm_gelu_xdl_fp16.cpp)
