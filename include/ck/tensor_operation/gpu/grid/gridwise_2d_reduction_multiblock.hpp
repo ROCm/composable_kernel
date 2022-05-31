@@ -171,7 +171,7 @@ struct GridwiseReduction_mk_to_m_multiblock
                                AccDataType beta,
                                OutDataType* const __restrict__ p_out_value_global)
     {
-        const auto zeroVal = ReduceOperation::GetReductionZeroVal();
+        const auto zeroVal = ReduceOperation::GetIdentityValue();
 
         // LDS
         __shared__ AccDataType p_reduce_work_buffer[BlockSize];
@@ -358,7 +358,7 @@ struct GridwiseReduction_mk_to_m_multiblock
         __shared__ AccDataType p_reduce_work_val_buffer[BlockSize];
         __shared__ IndexDataType p_reduce_work_idx_buffer[BlockSize];
 
-        const auto zeroVal = ReduceOperation::GetReductionZeroVal();
+        const auto zeroVal = ReduceOperation::GetIdentityValue();
 
         const auto in_global_val_buf =
             make_dynamic_buffer<AddressSpaceEnum::Global>(p_in_value_global,

@@ -48,7 +48,7 @@ static void pool_host_verify(const Tensor<InDataType>& in,
             ck::detail::AccumulateWithNanCheck<PropagateNan, ReduceOperation, AccDataType>;
 
         auto f_nchw = [&](auto n, auto c, auto ho, auto wo) {
-            auto accuVal = ReduceOperation::GetReductionZeroVal();
+            auto accuVal = ReduceOperation::GetIdentityValue();
 
             for(ck::index_t y = 0; y < window_spatial_lengths[0]; ++y)
             {
@@ -86,7 +86,7 @@ static void pool_host_verify(const Tensor<InDataType>& in,
                                                                         AccDataType,
                                                                         IndexDataType>;
         auto f_nchw        = [&](auto n, auto c, auto ho, auto wo) {
-            auto accuVal            = ReduceOperation::GetReductionZeroVal();
+            auto accuVal            = ReduceOperation::GetIdentityValue();
             IndexDataType accuIndex = 0;
 
             for(ck::index_t y = 0; y < window_spatial_lengths[0]; ++y)

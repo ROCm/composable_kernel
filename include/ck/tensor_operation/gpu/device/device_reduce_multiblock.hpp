@@ -349,7 +349,7 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
             if constexpr(use_multiblock)
             {
                 const auto zeroVal =
-                    ck::reduce::GetReductionZeroValueForInMemoryDataOperation<OutDataType>(
+                    ck::reduce::GetIdentityValueueForInMemoryDataOperation<OutDataType>(
                         OutMemoryDataOperation);
 
                 const auto kernel_pre =

@@ -135,7 +135,7 @@ struct GridwiseReduction_mk_to_m_threadwise
                                                      ReduceOperation,
                                                      PropagateNan>;
 
-        const auto zeroVal = ReduceOperation::GetReductionZeroVal();
+        const auto zeroVal = ReduceOperation::GetIdentityValue();
 
         const auto in_global_val_buf =
             make_dynamic_buffer<AddressSpaceEnum::Global>(p_in_value_global,
@@ -276,7 +276,7 @@ struct GridwiseReduction_mk_to_m_threadwise
 
         (void)acc_elementwise_op;
 
-        const auto zeroVal = ReduceOperation::GetReductionZeroVal();
+        const auto zeroVal = ReduceOperation::GetIdentityValue();
 
         const auto in_global_val_buf =
             make_dynamic_buffer<AddressSpaceEnum::Global>(p_in_value_global,
