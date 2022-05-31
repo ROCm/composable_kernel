@@ -60,8 +60,8 @@ template <
     index_t CThreadTransferDstScalarPerVector,
     enable_if_t<
         is_same_v<AElementwiseOperation, ck::tensor_operation::element_wise::PassThrough> &&
-            is_same_v<AElementwiseOperation, ck::tensor_operation::element_wise::PassThrough> &&
-            is_same_v<AElementwiseOperation, ck::tensor_operation::element_wise::PassThrough>,
+            is_same_v<BElementwiseOperation, ck::tensor_operation::element_wise::PassThrough> &&
+            is_same_v<CElementwiseOperation, ck::tensor_operation::element_wise::PassThrough>,
         bool> = false>
 struct DeviceGemmDl
     : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
