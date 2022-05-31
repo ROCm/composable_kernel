@@ -1,4 +1,5 @@
 #pragma once
+
 #include "common_header.hpp"
 #include "multi_index_transform_helper.hpp"
 #include "tensor_descriptor.hpp"
@@ -234,6 +235,7 @@ struct GridwiseGemmBiasActivation_k0mk1_k0nk1_mn_xdl_cshuffle
             p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
+
 
         // divide block work by [M, N]
         const auto block_work_idx =
