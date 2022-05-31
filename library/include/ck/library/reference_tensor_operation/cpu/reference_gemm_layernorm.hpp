@@ -12,6 +12,7 @@ namespace host {
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
+          typename C0DataType,
           typename AccDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
@@ -88,9 +89,9 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
     {
         Argument(const Tensor<ADataType>& a_m_k,
                  const Tensor<BDataType>& b_k_n,
-                 const Tensor<CDataType>& c0_n_bias,  // 1xN
-                 const Tensor<CDataType>& c0_n_gamma, // 1xN
-                 const Tensor<CDataType>& c0_n_beta,  // 1xN
+                 const Tensor<C0DataType>& c0_n_bias,  // 1xN
+                 const Tensor<C0DataType>& c0_n_gamma, // 1xN
+                 const Tensor<C0DataType>& c0_n_beta,  // 1xN
                  Tensor<CDataType>& c_m_n,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
@@ -111,9 +112,9 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
 
         const Tensor<ADataType>& a_m_k_;
         const Tensor<BDataType>& b_k_n_;
-        const Tensor<CDataType>& c0_n_bias_;
-        const Tensor<CDataType>& c0_n_gamma_;
-        const Tensor<CDataType>& c0_n_beta_;
+        const Tensor<C0DataType>& c0_n_bias_;
+        const Tensor<C0DataType>& c0_n_gamma_;
+        const Tensor<C0DataType>& c0_n_beta_;
         Tensor<CDataType>& c_m_n_;
 
         AElementwiseOperation a_element_op_;
@@ -164,9 +165,9 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
 
     static auto MakeArgument(const Tensor<ADataType>& a_m_k,
                              const Tensor<BDataType>& b_k_n,
-                             const Tensor<CDataType>& c0_n_bias,  // 1xN
-                             const Tensor<CDataType>& c0_n_gamma, // 1xN
-                             const Tensor<CDataType>& c0_n_beta,  // 1xN
+                             const Tensor<C0DataType>& c0_n_bias,  // 1xN
+                             const Tensor<C0DataType>& c0_n_gamma, // 1xN
+                             const Tensor<C0DataType>& c0_n_beta,  // 1xN
                              Tensor<CDataType>& c_m_n,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,

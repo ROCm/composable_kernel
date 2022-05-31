@@ -18,6 +18,7 @@ namespace ck {
 template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,
+          typename FloatC0,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
@@ -35,9 +36,9 @@ __global__ void
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,              // MxN
-            const FloatC* __restrict__ p_c0_bias_grid,  // 1xN
-            const FloatC* __restrict__ p_c0_gamma_grid, // 1xN
-            const FloatC* __restrict__ p_c0_beta_grid,  // 1xN
+            const FloatC0* __restrict__ p_c0_bias_grid,  // 1xN
+            const FloatC0* __restrict__ p_c0_gamma_grid, // 1xN
+            const FloatC0* __restrict__ p_c0_beta_grid,  // 1xN
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op,
@@ -94,6 +95,7 @@ template <typename FloatAB,
           typename FloatGemmAcc,
           typename FloatCShuffle,
           typename FloatC,
+          typename FloatC0,
           typename FloatReduceAcc, // Data type after shuffle
           typename AElementwiseOperation,
           typename BElementwiseOperation,
@@ -369,9 +371,9 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     Run(const FloatAB* __restrict__ p_a_grid,
         const FloatAB* __restrict__ p_b_grid,
         FloatC* __restrict__ p_c_grid,
-        const FloatC* __restrict__ p_c0_bias_grid,  // 1xN
-        const FloatC* __restrict__ p_c0_gamma_grid, // 1xN
-        const FloatC* __restrict__ p_c0_beta_grid,  // 1xN
+        const FloatC0* __restrict__ p_c0_bias_grid,  // 1xN
+        const FloatC0* __restrict__ p_c0_gamma_grid, // 1xN
+        const FloatC0* __restrict__ p_c0_beta_grid,  // 1xN
         void* __restrict__ p_shared,
         const AElementwiseOperation& a_element_op,
         const BElementwiseOperation& b_element_op,
@@ -751,7 +753,7 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             auto c_reduce_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatReduceAcc>(
                 c_reduce_thread_desc_mperblock_nperblock.GetElementSpaceSize());
 
-            auto c0_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatC>(
+            auto c0_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatC0>(
                 c_reduce_thread_desc_mperblock_nperblock.GetElementSpaceSize());
 
             // TODO ANT: incorporate in singly defined p_shared. calculate proper total size in
@@ -808,8 +810,8 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                       tensor_operation::element_wise::PassThrough{}};
 
             auto c0_thread_copy_global_to_vgpr = ThreadwiseTensorSliceTransfer_v2<
-                FloatC,
-                FloatC,
+                FloatC0,
+                FloatC0,
                 decltype(c0_grid_desc_mblock_mperblock_nblock_nperblock),
                 decltype(c_reduce_thread_desc_mblock_mperblock_nblock_nperblock),
                 Sequence<I1, mreduce_per_thread, I1, nreduce_per_thread>,

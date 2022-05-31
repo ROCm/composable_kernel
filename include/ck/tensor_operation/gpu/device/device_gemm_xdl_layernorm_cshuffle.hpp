@@ -27,6 +27,7 @@ template <typename ALayout,
           typename ADataType,
           typename BDataType,
           typename CDataType,
+          typename C0DataType,
           typename GemmAccDataType,
           typename CShuffleDataType,
           typename ReduceAccDataType,
@@ -375,6 +376,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
         GemmAccDataType,
         CShuffleDataType,
         CDataType,
+        C0DataType,
         ReduceAccDataType,
         AElementwiseOperation,
         BElementwiseOperation,
@@ -426,9 +428,9 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
         Argument(const ADataType* p_a_grid,
                  const BDataType* p_b_grid,
                  CDataType* p_c_grid,
-                 const CDataType* p_c0_bias,
-                 const CDataType* p_c0_gamma,
-                 const CDataType* p_c0_beta,
+                 const C0DataType* p_c0_bias,
+                 const C0DataType* p_c0_gamma,
+                 const C0DataType* p_c0_beta,
                  index_t MRaw,
                  index_t NRaw,
                  index_t KRaw,
@@ -474,9 +476,9 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
-        const CDataType* p_c0_bias_;
-        const CDataType* p_c0_gamma_;
-        const CDataType* p_c0_beta_;
+        const C0DataType* p_c0_bias_;
+        const C0DataType* p_c0_gamma_;
+        const C0DataType* p_c0_beta_;
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         CGridDesc_M_N c_grid_desc_m_n_;
@@ -533,6 +535,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
+                    C0DataType,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
@@ -570,6 +573,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
+                    C0DataType,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
@@ -685,9 +689,9 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
                                           static_cast<CDataType*>(p_c),
-                                          static_cast<const CDataType*>(p_c0_bias),
-                                          static_cast<const CDataType*>(p_c0_gamma),
-                                          static_cast<const CDataType*>(p_c0_beta),
+                                          static_cast<const C0DataType*>(p_c0_bias),
+                                          static_cast<const C0DataType*>(p_c0_gamma),
+                                          static_cast<const C0DataType*>(p_c0_beta),
                                           MRaw,
                                           NRaw,
                                           KRaw,
