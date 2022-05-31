@@ -21,8 +21,6 @@ template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
 using F64 = double;
-using F32 = float;
-using F16 = ck::half_t;
 
 using ADataType   = double;
 using BDataType   = double;
@@ -195,9 +193,9 @@ int main(int argc, char* argv[])
 
     if(!gemm.IsSupportedArgument(argument))
     {
-        throw std::runtime_error(
-            "wrong! device_gemm with the specified compilation parameters does "
-            "not support this GEMM problem");
+        std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
+
+        return 0;
     }
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
@@ -233,7 +231,7 @@ int main(int argc, char* argv[])
             show_2d_matrix(std::cout << "c_host  :", c_m_n_host_result) << std::endl;
         }
 #endif
-        ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
+        return ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData) ? 0 : 1;
     }
 
     return 0;
