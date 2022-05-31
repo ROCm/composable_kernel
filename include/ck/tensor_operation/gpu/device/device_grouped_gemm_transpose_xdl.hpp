@@ -29,7 +29,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_gemm_xdlops_v2r3(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+        kernel_grouped_gemm_transpose_xdlops_v2r3(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
                                         const index_t group_count,
                                         const AElementwiseOperation a_element_op,
                                         const BElementwiseOperation b_element_op,
@@ -63,7 +63,7 @@ __global__ void
         a_element_op,
         b_element_op,
         c_element_op,
-        gemm_desc_ptr[group_id].grouped_gemm_block_2_ctile_map_);
+        gemm_desc_ptr[group_id].grouped_gemm_transpose_block_2_ctile_map_);
 #else
     ignore = gemm_descs;
     ignore = group_count;
@@ -111,8 +111,8 @@ template <typename ADataType,
           ck::index_t CThreadTransferDstScalarPerVector,
           ck::index_t NumPrefetch   = 1,
           ck::index_t MaxGroupCount = 10>
-struct DeviceGroupedGemmXdl
-    : public DeviceGroupedGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
+struct DeviceGroupedGemmTransposeXdl
+    : public DeviceGroupedGemmTranspose<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -334,7 +334,7 @@ struct DeviceGroupedGemmXdl
         typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2
             c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
 
-        GroupedGemmBlock2CTileMap grouped_gemm_block_2_ctile_map_;
+        GroupedGemmBlock2CTileMap grouped_gemm_transpose_block_2_ctile_map_;
 
         const ADataType* a_ptr;
         const BDataType* b_ptr;
@@ -349,7 +349,7 @@ struct DeviceGroupedGemmXdl
         Argument(std::vector<const void*>& p_a,
                  std::vector<const void*>& p_b,
                  std::vector<void*>& p_c,
-                 std::vector<GemmDesc>& gemm_descs,
+                 std::vector<GemmTransposeDesc>& gemm_transpose_desc,
                  index_t M01,
                  index_t N01,
                  AElementwiseOperation a_element_op,
@@ -365,7 +365,7 @@ struct DeviceGroupedGemmXdl
 
             gemm_descs_args_workspace_ = nullptr;
 
-            group_count_ = ck::type_convert<ck::index_t>(gemm_descs.size());
+            group_count_ = ck::type_convert<ck::index_t>(gemm_transpose_desc.size());
 
             if(!(group_count_ == ck::type_convert<ck::index_t>(p_a.size()) &&
                  group_count_ == ck::type_convert<ck::index_t>(p_b.size()) &&
@@ -376,22 +376,22 @@ struct DeviceGroupedGemmXdl
 
             gemm_desc_kernel_arg_.reserve(group_count_);
 
-            for(std::size_t i = 0; i < gemm_descs.size(); i++)
+            for(std::size_t i = 0; i < gemm_transpose_desc.size(); i++)
             {
-                const index_t M = gemm_descs[i].M;
-                const index_t N = gemm_descs[i].N;
-                const index_t K = gemm_descs[i].K;
+                const index_t M = gemm_transpose_desc[i].M;
+                const index_t N = gemm_transpose_desc[i].N;
+                const index_t K = gemm_transpose_desc[i].K;
 
-                const index_t StrideA = gemm_descs[i].StrideA;
-                const index_t StrideB = gemm_descs[i].StrideB;
-                const index_t StrideC = gemm_descs[i].StrideC;
+                const index_t StrideA = gemm_transpose_desc[i].StrideA;
+                const index_t StrideB = gemm_transpose_desc[i].StrideB;
+                const index_t StrideC = gemm_transpose_desc[i].StrideC;
 
                 const auto a_grid_desc_k0_m_k1_ =
-                    DeviceGroupedGemmXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
+                    DeviceGroupedGemmTransposeXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
                 const auto b_grid_desc_k0_n_k1_ =
-                    DeviceGroupedGemmXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
+                    DeviceGroupedGemmTransposeXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
                 const auto c_grid_desc_m_n_ =
-                    DeviceGroupedGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC);
+                    DeviceGroupedGemmTransposeXdl::MakeCGridDescriptor_M_N(M, N, StrideC);
 
                 const index_t grid_size_grp =
                     typename GroupedGemmBlock2CTileMap::UnderlyingBlock2CTileMap(
@@ -403,13 +403,13 @@ struct DeviceGroupedGemmXdl
 
                 grid_size_ += grid_size_grp;
 
-                const auto grouped_gemm_block_2_ctile_map_ =
+                const auto grouped_gemm_transpose_block_2_ctile_map_ =
                     GroupedGemmBlock2CTileMap(c_grid_desc_m_n_, M01, N01, BlockStart);
 
                 if(GridwiseGemm::CheckValidity(a_grid_desc_k0_m_k1_,
                                                b_grid_desc_k0_n_k1_,
                                                c_grid_desc_m_n_,
-                                               grouped_gemm_block_2_ctile_map_))
+                                               grouped_gemm_transpose_block_2_ctile_map_))
                 {
                     const auto c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
                         GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
@@ -419,7 +419,7 @@ struct DeviceGroupedGemmXdl
                                           b_grid_desc_k0_n_k1_,
                                           c_grid_desc_m_n_,
                                           c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
-                                          grouped_gemm_block_2_ctile_map_,
+                                          grouped_gemm_transpose_block_2_ctile_map_,
                                           static_cast<const ADataType*>(p_a[i]),
                                           static_cast<const BDataType*>(p_b[i]),
                                           static_cast<CDataType*>(p_c[i]),
@@ -447,7 +447,7 @@ struct DeviceGroupedGemmXdl
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        using Argument = DeviceGroupedGemmXdl::Argument;
+        using Argument = DeviceGroupedGemmTransposeXdl::Argument;
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
@@ -474,7 +474,7 @@ struct DeviceGroupedGemmXdl
                        arg.gemm_desc_kernel_arg_[i].a_grid_desc_k0_m_k1_,
                        arg.gemm_desc_kernel_arg_[i].b_grid_desc_k0_n_k1_,
                        arg.gemm_desc_kernel_arg_[i].c_grid_desc_m_n_,
-                       arg.gemm_desc_kernel_arg_[i].grouped_gemm_block_2_ctile_map_))
+                       arg.gemm_desc_kernel_arg_[i].grouped_gemm_transpose_block_2_ctile_map_))
                 {
                     throw std::runtime_error(
                         "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
@@ -500,7 +500,7 @@ struct DeviceGroupedGemmXdl
             if(has_main_k_block_loop)
             {
                 const auto kernel =
-                    kernel_grouped_gemm_xdlops_v2r3<GridwiseGemm,
+                    kernel_grouped_gemm_transpose_xdlops_v2r3<GridwiseGemm,
                                                     ADataType, // TODO: distiguish A/B datatype
                                                     CDataType,
                                                     GemmDescKernelArg,
@@ -524,7 +524,7 @@ struct DeviceGroupedGemmXdl
             else
             {
                 const auto kernel =
-                    kernel_grouped_gemm_xdlops_v2r3<GridwiseGemm,
+                    kernel_grouped_gemm_transpose_xdlops_v2r3<GridwiseGemm,
                                                     ADataType, // TODO: distiguish A/B datatype
                                                     CDataType,
                                                     GemmDescKernelArg,
@@ -580,12 +580,12 @@ struct DeviceGroupedGemmXdl
     static auto MakeArgument(std::vector<const void*>& p_a,
                              std::vector<const void*>& p_b,
                              std::vector<void*>& p_c,
-                             std::vector<GemmDesc> gemm_descs,
+                             std::vector<GemmTransposeDesc> gemm_transpose_desc,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
-        return Argument{p_a, p_b, p_c, gemm_descs, 1, 1, a_element_op, b_element_op, c_element_op};
+        return Argument{p_a, p_b, p_c, gemm_transpose_desc, 1, 1, a_element_op, b_element_op, c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -594,14 +594,14 @@ struct DeviceGroupedGemmXdl
     std::unique_ptr<BaseArgument> MakeArgumentPointer(std::vector<const void*>& p_a,
                                                       std::vector<const void*>& p_b,
                                                       std::vector<void*>& p_c,
-                                                      std::vector<GemmDesc>& gemm_descs,
+                                                      std::vector<GemmTransposeDesc>& gemm_transpose_desc,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op,
                                                       index_t /* KBatch */ = 1) override
     {
         return std::make_unique<Argument>(
-            p_a, p_b, p_c, gemm_descs, 1, 1, a_element_op, b_element_op, c_element_op);
+            p_a, p_b, p_c, gemm_transpose_desc, 1, 1, a_element_op, b_element_op, c_element_op);
     }
 
     // polymorphic
@@ -616,7 +616,7 @@ struct DeviceGroupedGemmXdl
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGroupedGemmXdl"
+        str << "DeviceGroupedGemmTransposeXdl"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

@@ -13,7 +13,7 @@
 #include "host_tensor_generator.hpp"
 #include "host_gemm.hpp"
 #include "device_tensor.hpp"
-#include "device_grouped_gemm_xdl.hpp"
+#include "device_grouped_gemm_transpose_xdl.hpp"
 #include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"
 #include "gemm_specialization.hpp"
@@ -47,7 +47,7 @@ static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecializa
 // ck::tensor_operation::device::GemmSpecialization::MNPadding;
 
 // clang-format off
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemmXdl
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemmTransposeXdl
 //######| AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C|          GEMM| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer|      Num|
 //######|  Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|Spacialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| SrcDstVectorDim|       DstScalar| Prefetch|
 //######|      |      |      |        |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |                |       PerVector|         |
@@ -81,7 +81,7 @@ int main(int argc, char* argv[])
     int group_count = rand() % 16 + 1;
 
     // GEMM shape
-    std::vector<ck::tensor_operation::device::GemmDesc> gemm_descs;
+    std::vector<ck::tensor_operation::device::GemmTransposeDesc> gemm_descs;
     std::vector<const void*> p_a, p_b;
     std::vector<void*> p_c;
 
@@ -89,9 +89,9 @@ int main(int argc, char* argv[])
 
     for(int i = 0; i < group_count; i++)
     {
-        int M = 256 + 256 * i;
-        int N = 128 + 128 * i;
-        int K = 64 + 64 * i;
+        int M = 1024;
+        int N = 1024;
+        int K = 1024;
 
         gemm_descs.push_back({M, N, K, K, K, N});
     }
