@@ -16,11 +16,11 @@ struct GemmDesc
 
 struct GemmTransposeDesc
 {
-    ck::index_t M, N, K;;
-    ck::index_t StrideA, StrideB, StrideC;
+    ck::index_t M, N, K;
+    ck::index_t StrideA, StrideB;
 
-    ck::index_t B, S, NumHead, HeadDim;
-    std::vector<ck::index_t> transpose;
+    ck::index_t M0, M1, N0, N1;
+    ck::index_t StrideM0, StrideM1, StrideN0, StrideN1;
 };
 
 template <typename AElementwiseOperation,
@@ -51,14 +51,15 @@ template <typename AElementwiseOperation,
           typename CElementwiseOperation>
 struct DeviceGroupedGemmTranspose : public BaseOperator
 {
-    virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(std::vector<const void*>& p_a,
-                                                              std::vector<const void*>& p_b,
-                                                              std::vector<void*>& p_c,
-                                                              std::vector<GemmTransposeDesc>& gemm_transpose_desc,
-                                                              AElementwiseOperation a_element_op,
-                                                              BElementwiseOperation b_element_op,
-                                                              CElementwiseOperation c_element_op,
-                                                              ck::index_t KBatch = 1) = 0;
+    virtual std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(std::vector<const void*>& p_a,
+                        std::vector<const void*>& p_b,
+                        std::vector<void*>& p_c,
+                        std::vector<GemmTransposeDesc>& gemm_transpose_desc,
+                        AElementwiseOperation a_element_op,
+                        BElementwiseOperation b_element_op,
+                        CElementwiseOperation c_element_op,
+                        ck::index_t KBatch = 1) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
@@ -66,10 +67,10 @@ struct DeviceGroupedGemmTranspose : public BaseOperator
 template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
-using DeviceGroupedGemmTransposePtr = std::unique_ptr<
-    DeviceGroupedGemmTranspose<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>>;
-
-
+using DeviceGroupedGemmTransposePtr =
+    std::unique_ptr<DeviceGroupedGemmTranspose<AElementwiseOperation,
+                                               BElementwiseOperation,
+                                               CElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation

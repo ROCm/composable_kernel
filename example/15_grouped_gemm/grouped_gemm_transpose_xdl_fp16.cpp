@@ -78,7 +78,7 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
-    int group_count = rand() % 16 + 1;
+    int group_count = 4;
 
     // GEMM shape
     std::vector<ck::tensor_operation::device::GemmTransposeDesc> gemm_descs;
@@ -89,11 +89,13 @@ int main(int argc, char* argv[])
 
     for(int i = 0; i < group_count; i++)
     {
-        int M = 1024;
-        int N = 1024;
-        int K = 1024;
+        int B  = 16;
+        int S  = 64;
+        int nH = 16;
+        int hD = 64;
 
-        gemm_descs.push_back({M, N, K, K, K, N});
+        gemm_descs.push_back(
+            {B * S, nH * hD, nH * hD, nH * hD, nH * hD, B, S, nH, hD, S * nH * hD, S * hD, hD, 1});
     }
 
     auto f_host_tensor_descriptor =
@@ -109,6 +111,19 @@ int main(int argc, char* argv[])
                                             std::vector<std::size_t>({1, stride}));
             }
         };
+
+    auto f_host_c_tensor_descriptor = [](std::size_t M0,
+                                         std::size_t M1,
+                                         std::size_t N0,
+                                         std::size_t N1,
+                                         std::size_t StrideM0,
+                                         std::size_t StrideM1,
+                                         std::size_t StrideN0,
+                                         std::size_t StrideN1) {
+        return HostTensorDescriptor(
+            std::vector<std::size_t>({M0, M1, N0, N1}),
+            std::vector<std::size_t>({StrideM0, StrideM1, StrideN0, StrideN1}));
+    };
 
     std::vector<Tensor<ADataType>> a_tensors;
     std::vector<Tensor<BDataType>> b_tensors;
@@ -136,10 +151,24 @@ int main(int argc, char* argv[])
             gemm_descs[i].M, gemm_descs[i].K, gemm_descs[i].StrideA, ALayout{})));
         b_tensors.push_back(Tensor<BDataType>(f_host_tensor_descriptor(
             gemm_descs[i].K, gemm_descs[i].N, gemm_descs[i].StrideB, BLayout{})));
-        c_host_tensors.push_back(Tensor<CDataType>(f_host_tensor_descriptor(
-            gemm_descs[i].M, gemm_descs[i].N, gemm_descs[i].StrideC, CLayout{})));
-        c_device_tensors.push_back(Tensor<CDataType>(f_host_tensor_descriptor(
-            gemm_descs[i].M, gemm_descs[i].N, gemm_descs[i].StrideC, CLayout{})));
+        c_host_tensors.push_back(
+            Tensor<CDataType>(f_host_c_tensor_descriptor(gemm_descs[i].M0,
+                                                         gemm_descs[i].M1,
+                                                         gemm_descs[i].N0,
+                                                         gemm_descs[i].N1,
+                                                         gemm_descs[i].StrideM0,
+                                                         gemm_descs[i].StrideM1,
+                                                         gemm_descs[i].StrideN0,
+                                                         gemm_descs[i].StrideN1)));
+        c_device_tensors.push_back(
+            Tensor<CDataType>(f_host_c_tensor_descriptor(gemm_descs[i].M0,
+                                                         gemm_descs[i].M1,
+                                                         gemm_descs[i].N0,
+                                                         gemm_descs[i].N1,
+                                                         gemm_descs[i].StrideM0,
+                                                         gemm_descs[i].StrideM1,
+                                                         gemm_descs[i].StrideN0,
+                                                         gemm_descs[i].StrideN1)));
 
         std::cout << "gemm[" << i << "] a_m_k: " << a_tensors[i].mDesc
                   << " b_k_n: " << b_tensors[i].mDesc << " c_m_n: " << c_device_tensors[i].mDesc

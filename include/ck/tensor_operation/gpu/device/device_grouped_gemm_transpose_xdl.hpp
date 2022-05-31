@@ -29,11 +29,12 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_gemm_transpose_xdlops_v2r3(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
-                                        const index_t group_count,
-                                        const AElementwiseOperation a_element_op,
-                                        const BElementwiseOperation b_element_op,
-                                        const CElementwiseOperation c_element_op)
+        kernel_grouped_gemm_transpose_xdlops_v2r3(
+            const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+            const index_t group_count,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const CElementwiseOperation c_element_op)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -111,8 +112,9 @@ template <typename ADataType,
           ck::index_t CThreadTransferDstScalarPerVector,
           ck::index_t NumPrefetch   = 1,
           ck::index_t MaxGroupCount = 10>
-struct DeviceGroupedGemmTransposeXdl
-    : public DeviceGroupedGemmTranspose<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
+struct DeviceGroupedGemmTransposeXdl : public DeviceGroupedGemmTranspose<AElementwiseOperation,
+                                                                         BElementwiseOperation,
+                                                                         CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -198,18 +200,28 @@ struct DeviceGroupedGemmTransposeXdl
         }
     }
 
-    static auto MakeCGridDescriptor_M_N(index_t M, index_t N, index_t StrideC)
+    static auto MakeCGridDescriptor_M_N(index_t M0,
+                                        index_t M1,
+                                        index_t N0,
+                                        index_t N1,
+                                        index_t StrideM0,
+                                        index_t StrideM1,
+                                        index_t StrideN0,
+                                        index_t StrideN1)
     {
         const auto c_grid_desc_m_n = [&]() {
-            if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(StrideC, I1));
-            }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I1, StrideC));
-            }
+            const auto c_grid_desc_m0_m1_n0_n1 = make_naive_tensor_descriptor(
+                make_tuple(M0, M1, N0, N1), make_tuple(StrideM0, StrideM1, StrideN0, StrideN1));
+
+            return transform_tensor_descriptor(c_grid_desc_m0_m1_n0_n1,
+                                               make_tuple(make_merge_transform(make_tuple(M0, M1)),
+                                                          make_merge_transform(make_tuple(N0, N1))),
+                                               make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}),
+                                               make_tuple(Sequence<0>{}, Sequence<1>{}));
         }();
+
+        const index_t M = M0 * M1;
+        const index_t N = N0 * N1;
 
         if constexpr(GemmSpec == GemmSpecialization::MNPadding)
         {
@@ -235,7 +247,7 @@ struct DeviceGroupedGemmTransposeXdl
 
     using AGridDesc_K0_M_K1 = decltype(MakeAGridDescriptor_K0_M_K1(1, 1, 1));
     using BGridDesc_K0_N_K1 = decltype(MakeBGridDescriptor_K0_N_K1(1, 1, 1));
-    using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
+    using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1, 1, 1, 1, 1, 1));
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3<
@@ -384,14 +396,21 @@ struct DeviceGroupedGemmTransposeXdl
 
                 const index_t StrideA = gemm_transpose_desc[i].StrideA;
                 const index_t StrideB = gemm_transpose_desc[i].StrideB;
-                const index_t StrideC = gemm_transpose_desc[i].StrideC;
 
                 const auto a_grid_desc_k0_m_k1_ =
                     DeviceGroupedGemmTransposeXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
                 const auto b_grid_desc_k0_n_k1_ =
                     DeviceGroupedGemmTransposeXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
                 const auto c_grid_desc_m_n_ =
-                    DeviceGroupedGemmTransposeXdl::MakeCGridDescriptor_M_N(M, N, StrideC);
+                    DeviceGroupedGemmTransposeXdl::MakeCGridDescriptor_M_N(
+                        gemm_transpose_desc[i].M0,
+                        gemm_transpose_desc[i].M1,
+                        gemm_transpose_desc[i].N0,
+                        gemm_transpose_desc[i].N1,
+                        gemm_transpose_desc[i].StrideM0,
+                        gemm_transpose_desc[i].StrideM1,
+                        gemm_transpose_desc[i].StrideN0,
+                        gemm_transpose_desc[i].StrideN1);
 
                 const index_t grid_size_grp =
                     typename GroupedGemmBlock2CTileMap::UnderlyingBlock2CTileMap(
@@ -501,13 +520,14 @@ struct DeviceGroupedGemmTransposeXdl
             {
                 const auto kernel =
                     kernel_grouped_gemm_transpose_xdlops_v2r3<GridwiseGemm,
-                                                    ADataType, // TODO: distiguish A/B datatype
-                                                    CDataType,
-                                                    GemmDescKernelArg,
-                                                    AElementwiseOperation,
-                                                    BElementwiseOperation,
-                                                    CElementwiseOperation,
-                                                    true>;
+                                                              ADataType, // TODO: distiguish A/B
+                                                                         // datatype
+                                                              CDataType,
+                                                              GemmDescKernelArg,
+                                                              AElementwiseOperation,
+                                                              BElementwiseOperation,
+                                                              CElementwiseOperation,
+                                                              true>;
 
                 ave_time = launch_and_time_kernel(
                     stream_config,
@@ -525,13 +545,14 @@ struct DeviceGroupedGemmTransposeXdl
             {
                 const auto kernel =
                     kernel_grouped_gemm_transpose_xdlops_v2r3<GridwiseGemm,
-                                                    ADataType, // TODO: distiguish A/B datatype
-                                                    CDataType,
-                                                    GemmDescKernelArg,
-                                                    AElementwiseOperation,
-                                                    BElementwiseOperation,
-                                                    CElementwiseOperation,
-                                                    false>;
+                                                              ADataType, // TODO: distiguish A/B
+                                                                         // datatype
+                                                              CDataType,
+                                                              GemmDescKernelArg,
+                                                              AElementwiseOperation,
+                                                              BElementwiseOperation,
+                                                              CElementwiseOperation,
+                                                              false>;
 
                 ave_time = launch_and_time_kernel(
                     stream_config,
@@ -585,20 +606,22 @@ struct DeviceGroupedGemmTransposeXdl
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
-        return Argument{p_a, p_b, p_c, gemm_transpose_desc, 1, 1, a_element_op, b_element_op, c_element_op};
+        return Argument{
+            p_a, p_b, p_c, gemm_transpose_desc, 1, 1, a_element_op, b_element_op, c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
 
     // polymorphic
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(std::vector<const void*>& p_a,
-                                                      std::vector<const void*>& p_b,
-                                                      std::vector<void*>& p_c,
-                                                      std::vector<GemmTransposeDesc>& gemm_transpose_desc,
-                                                      AElementwiseOperation a_element_op,
-                                                      BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op,
-                                                      index_t /* KBatch */ = 1) override
+    std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(std::vector<const void*>& p_a,
+                        std::vector<const void*>& p_b,
+                        std::vector<void*>& p_c,
+                        std::vector<GemmTransposeDesc>& gemm_transpose_desc,
+                        AElementwiseOperation a_element_op,
+                        BElementwiseOperation b_element_op,
+                        CElementwiseOperation c_element_op,
+                        index_t /* KBatch */ = 1) override
     {
         return std::make_unique<Argument>(
             p_a, p_b, p_c, gemm_transpose_desc, 1, 1, a_element_op, b_element_op, c_element_op);
