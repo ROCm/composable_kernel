@@ -26,11 +26,11 @@ using F32 = float;
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using ADataType   = F16;
-using BDataType   = F16;
-using CDataType   = F16;
-using C0DataType  = F16;
-using AccDataType = F32;
+using ADataType        = F16;
+using BDataType        = F16;
+using CDataType        = F16;
+using C0DataType       = F16;
+using AccDataType      = F32;
 using CShuffleDataType = F16;
 
 using ALayout = ck::tensor_layout::gemm::RowMajor;
@@ -39,7 +39,7 @@ using CLayout = ck::tensor_layout::gemm::RowMajor;
 
 struct Relu
 {
-    template<typename OutT, typename InT>
+    template <typename OutT, typename InT>
     __host__ __device__ void operator()(OutT& y, const InT& x) const
     {
         y = x > 0 ? x : 0;
@@ -187,10 +187,10 @@ int main(int argc, char* argv[])
     c0_gamma_buf.ToDevice(c0_n_gamma.mData.data());
     c0_beta_buf.ToDevice(c0_n_beta.mData.data());
 
-    auto a_element_op = AElementOp{};
-    auto b_element_op = BElementOp{};
+    auto a_element_op   = AElementOp{};
+    auto b_element_op   = BElementOp{};
     auto acc_element_op = AccElementOp{};
-    auto c_element_op = CElementOp{};
+    auto c_element_op   = CElementOp{};
 
     // do GEMM
     auto gemm     = DeviceGemmInstance{};
@@ -262,8 +262,11 @@ int main(int argc, char* argv[])
         }
         else if constexpr(std::is_same<CShuffleDataType, F16>::value)
         {
-            pass &= ck::utils::check_err(
-                c_m_n_device_result.mData, c_m_n_host_result.mData, "Error: Incorrect results c", 1e-2, 1e-2);
+            pass &= ck::utils::check_err(c_m_n_device_result.mData,
+                                         c_m_n_host_result.mData,
+                                         "Error: Incorrect results c",
+                                         1e-2,
+                                         1e-2);
         }
     }
     return pass ? 0 : 1;

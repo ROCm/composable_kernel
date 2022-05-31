@@ -37,7 +37,7 @@ __global__ void
         kernel_gemm_layernorm_xdl_cshuffle_v1(
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
-            FloatC* __restrict__ p_c_grid,              // MxN
+            FloatC* __restrict__ p_c_grid,               // MxN
             const FloatC0* __restrict__ p_c0_bias_grid,  // 1xN
             const FloatC0* __restrict__ p_c0_gamma_grid, // 1xN
             const FloatC0* __restrict__ p_c0_beta_grid,  // 1xN
@@ -218,15 +218,20 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
 
         // Align 16 bytes (maximum LDS read/write width)
-        constexpr auto c_block_size_aligned = math::integer_least_multiple(
-            c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize() * sizeof(FloatCShuffle), 16) / sizeof(FloatCShuffle);
+        constexpr auto c_block_size_aligned =
+            math::integer_least_multiple(
+                c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize() *
+                    sizeof(FloatCShuffle),
+                16) /
+            sizeof(FloatCShuffle);
 
         // LDS allocation for reduction workspace
         constexpr index_t c_lds_workspace_size = BlockSize;
 
         return math::max((a_block_space_size_aligned + b_block_space_size_aligned) *
                              sizeof(FloatAB),
-                         c_block_size_aligned * sizeof(FloatCShuffle) + c_lds_workspace_size * sizeof(FloatReduceAcc));
+                         c_block_size_aligned * sizeof(FloatCShuffle) +
+                             c_lds_workspace_size * sizeof(FloatReduceAcc));
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
@@ -738,11 +743,17 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                 c_reduce_thread_desc_mperblock_nperblock.GetElementSpaceSize());
 
             // Align 16 bytes (maximum LDS read/write width)
-            constexpr auto c_block_size_aligned = math::integer_least_multiple(
-                c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize() * sizeof(FloatCShuffle), 16) / sizeof(FloatCShuffle);
+            constexpr auto c_block_size_aligned =
+                math::integer_least_multiple(
+                    c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize() *
+                        sizeof(FloatCShuffle),
+                    16) /
+                sizeof(FloatCShuffle);
 
             auto d_reduce_work_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-                reinterpret_cast<FloatReduceAcc*>(static_cast<FloatCShuffle*>(p_shared) + c_block_size_aligned), BlockSize);
+                reinterpret_cast<FloatReduceAcc*>(static_cast<FloatCShuffle*>(p_shared) +
+                                                  c_block_size_aligned),
+                BlockSize);
 
             // Sum thread workspace
             auto d0_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatReduceAcc>(

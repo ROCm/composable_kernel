@@ -149,7 +149,7 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
 
             RunLayernorm(arg.c_m_n_, acc_m_n, arg.c0_n_bias_, arg.c0_n_gamma_, arg.c0_n_beta_);
 
-            arg.c_m_n_.ForEach([&](auto& self, auto idx){
+            arg.c_m_n_.ForEach([&](auto& self, auto idx) {
                 arg.c_element_op_(self(idx[0], idx[1]), self(idx[0], idx[1]));
             });
 
