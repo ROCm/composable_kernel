@@ -16,6 +16,7 @@ template <typename ADataType,
           typename AccDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
+          typename AccElementwiseOperation,
           typename CElementwiseOperation>
 struct ReferenceGemmLayernorm : public device::BaseOperator
 {
@@ -25,7 +26,7 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
                                                 AccDataType,
                                                 AElementwiseOperation,
                                                 BElementwiseOperation,
-                                                CElementwiseOperation>;
+                                                AccElementwiseOperation>;
 
     // D = Layernorm(acc + broadcast(bias)) * broadcast(gamma) + broadcast(beta)
     template <typename InDataType, typename OutDataType, typename ComputeDataType>
@@ -95,6 +96,7 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
                  Tensor<CDataType>& c_m_n,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
+                 AccElementwiseOperation acc_element_op,
                  CElementwiseOperation c_element_op,
                  const CDataType epsilon = 1e-5)
             : a_m_k_{a_m_k},
@@ -105,6 +107,7 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
               c_m_n_{c_m_n},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
+              acc_element_op_{acc_element_op},
               c_element_op_{c_element_op},
               epsilon_{epsilon}
         {
@@ -119,7 +122,9 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
 
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
+        AccElementwiseOperation acc_element_op_;
         CElementwiseOperation c_element_op_;
+
         const CDataType epsilon_;
     };
 
@@ -140,11 +145,16 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
                                                       acc_m_n,
                                                       arg.a_element_op_,
                                                       arg.b_element_op_,
-                                                      arg.c_element_op_);
+                                                      arg.acc_element_op_);
 
             ref_invoker.Run(ref_argument);
 
             RunLayernorm(arg.c_m_n_, acc_m_n, arg.c0_n_bias_, arg.c0_n_gamma_, arg.c0_n_beta_);
+
+            arg.c_m_n_.ForEach([&](auto& self, auto idx){
+                arg.c_element_op_(self(idx[0], idx[1]), self(idx[0], idx[1]));
+            });
+
             return 0;
         }
 
@@ -171,6 +181,7 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
                              Tensor<CDataType>& c_m_n,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
+                             AccElementwiseOperation acc_element_op,
                              CElementwiseOperation c_element_op,
                              const CDataType epsilon = 1e-5)
     {
@@ -182,6 +193,7 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
                         c_m_n,
                         a_element_op,
                         b_element_op,
+                        acc_element_op,
                         c_element_op,
                         epsilon};
     }

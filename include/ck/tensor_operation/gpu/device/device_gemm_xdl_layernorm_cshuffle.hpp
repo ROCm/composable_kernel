@@ -33,6 +33,7 @@ template <typename ALayout,
           typename ReduceAccDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
+          typename AccElementwiseOperation,
           typename CElementwiseOperation,
           GemmSpecialization GemmSpec,
           index_t NumGemmKPrefetchStage,
@@ -380,6 +381,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
         ReduceAccDataType,
         AElementwiseOperation,
         BElementwiseOperation,
+        AccElementwiseOperation,
         CElementwiseOperation,
         InMemoryDataOperationEnum::Set,
         AGridDesc_AK0_M_AK1,
@@ -439,6 +441,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                  index_t StrideC,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
+                 AccElementwiseOperation acc_element_op,
                  CElementwiseOperation c_element_op)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
@@ -455,6 +458,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
               block_2_ctile_map_{},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
+              acc_element_op_{acc_element_op},
               c_element_op_{c_element_op}
         {
             if(GridwiseGemm::CheckValidity(
@@ -489,6 +493,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
+        AccElementwiseOperation acc_element_op_;
         CElementwiseOperation c_element_op_;
     };
 
@@ -538,6 +543,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                     C0DataType,
                     AElementwiseOperation,
                     BElementwiseOperation,
+                    AccElementwiseOperation,
                     CElementwiseOperation,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
@@ -560,6 +566,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                                            arg.p_c0_beta_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
+                                           arg.acc_element_op_,
                                            arg.c_element_op_,
                                            arg.a_grid_desc_ak0_m_ak1_,
                                            arg.b_grid_desc_bk0_n_bk1_,
@@ -576,6 +583,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                     C0DataType,
                     AElementwiseOperation,
                     BElementwiseOperation,
+                    AccElementwiseOperation,
                     CElementwiseOperation,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
@@ -597,6 +605,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                                            arg.p_c0_beta_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
+                                           arg.acc_element_op_,
                                            arg.c_element_op_,
                                            arg.a_grid_desc_ak0_m_ak1_,
                                            arg.b_grid_desc_bk0_n_bk1_,
@@ -648,6 +657,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                              index_t StrideC,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
+                             AccElementwiseOperation acc_element_op,
                              CElementwiseOperation c_element_op)
     {
         return Argument{p_a,
@@ -664,6 +674,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                         StrideC,
                         a_element_op,
                         b_element_op,
+                        acc_element_op,
                         c_element_op};
     }
 
@@ -683,6 +694,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                                                       index_t StrideC,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
+                                                      AccElementwiseOperation acc_element_op,
                                                       CElementwiseOperation c_element_op,
                                                       index_t /* KBatch */ = 1)
     {
@@ -700,6 +712,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                                           StrideC,
                                           a_element_op,
                                           b_element_op,
+                                          acc_element_op,
                                           c_element_op);
     }
 

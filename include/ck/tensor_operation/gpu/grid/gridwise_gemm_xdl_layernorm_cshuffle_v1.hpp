@@ -21,6 +21,7 @@ template <typename GridwiseGemm,
           typename FloatC0,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
+          typename AccElementwiseOperation,
           typename CElementwiseOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
@@ -41,6 +42,7 @@ __global__ void
             const FloatC0* __restrict__ p_c0_beta_grid,  // 1xN
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
+            const AccElementwiseOperation acc_element_op,
             const CElementwiseOperation c_element_op,
             const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
@@ -62,6 +64,7 @@ __global__ void
                                                   p_shared,
                                                   a_element_op,
                                                   b_element_op,
+                                                  acc_element_op,
                                                   c_element_op,
                                                   a_grid_desc_ak0_m_ak1,
                                                   b_grid_desc_bk0_n_bk1,
@@ -79,6 +82,7 @@ __global__ void
     ignore = p_c0_beta_grid;
     ignore = a_element_op;
     ignore = b_element_op;
+    ignore = acc_element_op;
     ignore = c_element_op;
     ignore = a_grid_desc_ak0_m_ak1;
     ignore = b_grid_desc_bk0_n_bk1;
@@ -99,6 +103,7 @@ template <typename FloatAB,
           typename FloatReduceAcc, // Data type after shuffle
           typename AElementwiseOperation,
           typename BElementwiseOperation,
+          typename AccElementwiseOperation,
           typename CElementwiseOperation,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename AGridDesc_AK0_M_AK1,
@@ -377,6 +382,7 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         void* __restrict__ p_shared,
         const AElementwiseOperation& a_element_op,
         const BElementwiseOperation& b_element_op,
+        const AccElementwiseOperation& acc_element_op,
         const CElementwiseOperation& c_element_op,
         const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
         const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
@@ -630,7 +636,7 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                                    FloatCShuffle,
                                                    decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                   ck::tensor_operation::element_wise::PassThrough,
+                                                   AccElementwiseOperation,
                                                    Sequence<CShuffleMXdlPerWavePerShuffle,
                                                             CShuffleNXdlPerWavePerShuffle,
                                                             I1,
@@ -654,7 +660,7 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                      m_thread_data_on_block_idx[I3],
                                      m_thread_data_on_block_idx[I4],
                                      n_thread_data_on_block_idx[I2]),
-                    ck::tensor_operation::element_wise::PassThrough{}};
+                    acc_element_op};
 
             // shuffle: blockwise copy C from LDS to global
             auto c_shuffle_block_copy_lds_to_global = ThreadGroupTensorSliceTransfer_v6r1<
