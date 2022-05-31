@@ -9,6 +9,7 @@
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdl_layernorm_cshuffle_v1.hpp"
 #include "tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "device_prop.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -424,6 +425,8 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
         CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock,
         LoopSched>;
 
+    using Block2CTileMap = typename GridwiseGemm::DefaultBlock2CTileMap;
+
     // Argument
     struct Argument : public BaseArgument
     {
@@ -455,14 +458,14 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
               c0_grid_desc_n_{MakeGridDescriptor_N(NRaw)},
               c_grid_desc_mblock_mperblock_nblock_nperblock_{},
               c0_grid_desc_nblock_nperblock_{},
-              block_2_ctile_map_{},
+              block_2_ctile_map_{Block2CTileMap(c_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               acc_element_op_{acc_element_op},
               c_element_op_{c_element_op}
         {
             if(GridwiseGemm::CheckValidity(
-                   a_grid_desc_ak0_m_ak1_, b_grid_desc_bk0_n_bk1_, c_grid_desc_m_n_))
+                   a_grid_desc_ak0_m_ak1_, b_grid_desc_bk0_n_bk1_, c_grid_desc_m_n_, block_2_ctile_map_))
             {
                 c_grid_desc_mblock_mperblock_nblock_nperblock_ =
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
@@ -470,9 +473,6 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
 
                 c0_grid_desc_nblock_nperblock_ =
                     GridwiseGemm::MakeC0GridDescriptor_NBlock_NPerBlock(c0_grid_desc_n_);
-
-                // TODO ANT: adopt tensile style workgroup mapping
-                block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_);
             }
         }
 
@@ -490,7 +490,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
         typename GridwiseGemm::C0GridDescriptor_NBlock_NPerBlock c0_grid_desc_nblock_nperblock_;
-        typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
+        Block2CTileMap block_2_ctile_map_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         AccElementwiseOperation acc_element_op_;
@@ -522,12 +522,13 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
 #endif
 
             if(!GridwiseGemm::CheckValidity(
-                   arg.a_grid_desc_ak0_m_ak1_, arg.b_grid_desc_bk0_n_bk1_, arg.c_grid_desc_m_n_))
+                   arg.a_grid_desc_ak0_m_ak1_, arg.b_grid_desc_bk0_n_bk1_, arg.c_grid_desc_m_n_, arg.block_2_ctile_map_))
             {
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
 
-            const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_);
+            const index_t grid_size =
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_);
 
             const auto K =
                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
@@ -549,7 +550,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                     DeviceOp::BGridDesc_BK0_N_BK1,
                     typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseGemm::C0GridDescriptor_NBlock_NPerBlock,
-                    typename GridwiseGemm::DefaultBlock2CTileMap,
+                    Block2CTileMap,
                     true>;
 
                 ave_time =
@@ -589,7 +590,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                     DeviceOp::BGridDesc_BK0_N_BK1,
                     typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseGemm::C0GridDescriptor_NBlock_NPerBlock,
-                    typename GridwiseGemm::DefaultBlock2CTileMap,
+                    Block2CTileMap,
                     false>;
                 ave_time =
                     launch_and_time_kernel(stream_config,
@@ -633,8 +634,15 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        return GridwiseGemm::CheckValidity(
-            arg.a_grid_desc_ak0_m_ak1_, arg.b_grid_desc_bk0_n_bk1_, arg.c_grid_desc_m_n_);
+        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a"))
+        {
+            return false;
+        }
+
+        return GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
+                                           arg.b_grid_desc_bk0_n_bk1_,
+                                           arg.c_grid_desc_m_n_,
+                                           arg.block_2_ctile_map_);
     }
 
     // polymorphic
