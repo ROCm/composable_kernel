@@ -65,8 +65,6 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
             }
             avg_acc_sq(i) = sum_acc_sq / N;
             avg_acc(i)    = sum_acc / N;
-            // std::cout << "avg_acc_(" << i << ") =" << avg_acc(i) << std::endl;
-            // std::cout << "avg_acc_sq_(" << i << ") =" << avg_acc_sq(i) << std::endl;
         }
 
         // normalize

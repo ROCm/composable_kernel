@@ -664,7 +664,6 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                  make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
                  c_element_op};
 
-            // add bias: load bias to vgpr buffer, add to LDS
             const auto NBlock = c0_grid_desc_nblock_nperblock.GetLength(I0);
 
             // for broadcasting bias, beta, gamma
