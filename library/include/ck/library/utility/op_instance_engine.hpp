@@ -121,7 +121,7 @@ class OpInstanceRunEngine
                         " You have to provide reference function.");
                 }
                 // TODO: enable flexible use of custom check_error functions
-                bool inst_res = check_err(out_tensor_->mData, ref_output_->mData);
+                bool inst_res = CheckErr(out_tensor_->mData, ref_output_->mData);
                 std::cout << (inst_res ? "SUCCESS" : "FAILURE") << std::endl;
                 res = res && inst_res;
                 out_device_buffer_->SetZero();
@@ -232,7 +232,7 @@ class OpInstanceRunEngine
     template <typename T>
     bool CheckErr(const std::vector<T>& dev_out, const std::vector<T>& ref_out) const
     {
-        return ck::utils::check_err(dev_out, ref_out, "Error: incorrect results!", atol_, rtol_);
+        return ck::utils::check_err(dev_out, ref_out, "Error: incorrect results!", rtol_, atol_);
     }
 };
 
