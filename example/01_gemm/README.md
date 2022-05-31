@@ -6,6 +6,8 @@
 #arg2: initialization (0=no init, 1=integer value, 2=decimal value)
 #arg3: run kernel # of times (>1)
 ./bin/example_gemm_xdl 0 1 5
+#arg10 : gemm_pipeline (0=default, 1=waveletmodel)
+
 ```
 
 Result (MI100 @ 1087Mhz, 133.5TFlops peak FP16)
