@@ -1,0 +1,1 @@
+add_example_executable(example_cgemm_xdl_fp16 cgemm_xdl_fp16.cpp)
