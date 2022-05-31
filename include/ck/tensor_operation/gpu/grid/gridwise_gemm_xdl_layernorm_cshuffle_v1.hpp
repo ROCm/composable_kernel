@@ -143,8 +143,7 @@ template <typename FloatAB,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           typename CReduceThreadClusterLengths_MPerBlock_NPerBlock,
-          index_t CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
-          index_t CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock,
+          index_t CReduceThreadCopySrcDstScalarPerVector_NPerBlock,
           LoopScheduler LoopSched>
 struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 {
@@ -768,7 +767,7 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                 decltype(c_reduce_thread_lengths_mperblock_nperblock),
                 Sequence<0, 1>,
                 1,
-                CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
+                CReduceThreadCopySrcDstScalarPerVector_NPerBlock,
                 1,
                 true>{c_reduce_block_desc_mperblock_nperblock, c_reduce_thread_data_idx_begin};
 
@@ -781,7 +780,7 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                 decltype(c_reduce_thread_lengths_mperblock_nperblock),
                 Sequence<0, 1>,
                 1,
-                CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
+                CReduceThreadCopySrcDstScalarPerVector_NPerBlock,
                 InMemoryDataOperationEnum::Set,
                 1,
                 true>{c_reduce_block_desc_mperblock_nperblock,
@@ -796,7 +795,7 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                 Sequence<I1, mreduce_per_thread, I1, nreduce_per_thread>,
                 Sequence<0, 1, 2, 3>,
                 3,
-                CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
+                CReduceThreadCopySrcDstScalarPerVector_NPerBlock,
                 1,
                 true>(
                 c0_grid_desc_mblock_mperblock_nblock_nperblock,
