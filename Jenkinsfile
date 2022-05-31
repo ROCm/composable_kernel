@@ -245,8 +245,12 @@ def runCKProfiler(Map conf=[:]){
                         sh "echo Branch name: ${env.BRANCH_NAME} > ${resnet_log}"
                         sh "echo Node name: ${NODE_NAME} >> ${resnet_log}"
                         sh "echo GPU_arch: ${gpu_arch}  >> ${resnet_log}"
+                        //first run tests with N=256
                         sh "./profile_conv.sh conv_fwd_bias_relu 1 1 1 1 0 2 0 1 256 | tee -a ${resnet_log}"
+                        //then run with N=4
+                        sh "./profile_conv.sh conv_fwd_bias_relu 1 1 1 1 0 2 0 1 4 | tee -a ${resnet_log}"
                         archiveArtifacts  "${resnet_log}"
+                        //the script will put the results from N=256 and N=4 runs into separate tables
                         sh "python3 parse_perf_data.py ${resnet_log} "
 					}
                 }

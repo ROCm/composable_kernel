@@ -48,10 +48,6 @@ def main():
 
     glue=""
     for filename in args.files:
-        if 'gemm' in filename:
-            print("gemm filename=",filename)
-        if 'resnet50' in filename:
-            print("resnet filename=",filename)
         for line in open(filename):
             if 'Branch name' in line:
                 lst=line.split()
@@ -188,47 +184,90 @@ def main():
             flops=pd.DataFrame(data=[ck_gemm_tflops],columns=['Branch_ID','Node_ID','GPU_arch','Datetime'])
             df_add=pd.DataFrame(data=[sorted_tflops],columns=testlist)
             flops=pd.concat([flops,df_add],axis=1)
-            print("new tflops results:",flops)
+            print("new tflops for gemm tests:",flops)
             flops.to_sql("ck_gemm_tflops",conn,if_exists='append',index=False)
 
         #save resnet50 performance tests:
         if 'resnet50' in filename:
             #read baseline results for the latest develop branch
-            query = '''SELECT * from ck_resnet50_tflops WHERE Datetime = (SELECT MAX(Datetime) FROM ck_resnet50_tflops where Branch_ID='develop' );'''
-            tflops_base = pd.read_sql_query(query, conn)
+            query = '''SELECT * from ck_resnet50_N256_tflops WHERE Datetime = (SELECT MAX(Datetime) FROM ck_resnet50_N256_tflops where Branch_ID='develop' );'''
+            tflops_base_N256 = pd.read_sql_query(query, conn)
+            query = '''SELECT * from ck_resnet50_N4_tflops WHERE Datetime = (SELECT MAX(Datetime) FROM ck_resnet50_N4_tflops where Branch_ID='develop' );'''
+            tflops_base_N4 = pd.read_sql_query(query, conn)
 
             #write new results to the db
             testlist=[]
-            for i in range(1,len(tflops)+1):
+            for i in range(1,50):
                 testlist.append("Layer%i"%i)
             ck_resnet_tflops=[str(branch_name),str(node_id),str(gpu_arch),str(datetime.datetime.now())]
-            flops=pd.DataFrame(data=[ck_resnet_tflops],columns=['Branch_ID','Node_ID','GPU_arch','Datetime'])
-            df_add=pd.DataFrame(data=[tflops],columns=testlist)
-            flops=pd.concat([flops,df_add],axis=1)
-            print("new tflops results:",flops)
-            flops.to_sql("ck_resnet50_tflops",conn,if_exists='append',index=False)
+            flops0=pd.DataFrame(data=[ck_resnet_tflops],columns=['Branch_ID','Node_ID','GPU_arch','Datetime'])
+            df_add=pd.DataFrame(data=[tflops[0:49]],columns=testlist)
+            flops=pd.concat([flops0,df_add],axis=1)
+            print("new tflops for N=256 resnet50 test:",flops)
+            flops.to_sql("ck_resnet50_N256_tflops",conn,if_exists='append',index=False)
+            df_add=pd.DataFrame(data=[tflops[49:98]],columns=testlist)
+            flops=pd.concat([flops0,df_add],axis=1)
+            print("new tflops for N=4 resnet50 test:",flops)
+            flops.to_sql("ck_resnet50_N4_tflops",conn,if_exists='append',index=False)
 
         conn.close()
 
     #compare the results to the baseline if baseline exists
     regression=0
-    if not tflops_base.empty:
-        base=tflops_base[testlist].to_numpy(dtype='float')
-        base_list=base[0]
-        ave_perf=0
-        for i in range(len(base_list)):
-            # success criterion:
-            if base_list[i]>1.01*float(sorted_tflops[i]):
-                print("test # ",i,"shows regression by {:.3f}%".format(
-                    (float(sorted_tflops[i])-base_list[i])/base_list[i]*100))
-                regression=1
-            ave_perf=ave_perf+float(sorted_tflops[i])/base_list[i]
-        if regression==0:
-            print("no regressions found")
-        ave_perf=ave_perf/len(base_list)
-        print("average performance relative to baseline:",ave_perf)
-    else:
-        print("could not find a baseline")
+    if 'gemm' in filename:
+        if not tflops_base.empty:
+            base=tflops_base[testlist].to_numpy(dtype='float')
+            base_list=base[0]
+            ave_perf=0
+            for i in range(len(base_list)):
+                # success criterion:
+                if base_list[i]>1.01*float(sorted_tflops[i]):
+                    print("test # ",i,"shows regression by {:.3f}%".format(
+                        (float(sorted_tflops[i])-base_list[i])/base_list[i]*100))
+                    regression=1
+                ave_perf=ave_perf+float(sorted_tflops[i])/base_list[i]
+            if regression==0:
+                print("no regressions found")
+            ave_perf=ave_perf/len(base_list)
+            print("average performance relative to baseline:",ave_perf)
+        else:
+            print("could not find a baseline")
+    if 'resnet50' in filename:
+        if not tflops_base_N256.empty:
+            base=tflops_base_N256[testlist].to_numpy(dtype='float')
+            base_list=base[0]
+            ave_perf=0
+            for i in range(len(base_list)):
+                # success criterion:
+                if base_list[i]>1.01*float(tflops[i]):
+                    print("layer # ",i,"shows regression by {:.3f}%".format(
+                        (float(tflops[i])-base_list[i])/base_list[i]*100))
+                    regression=1
+                ave_perf=ave_perf+float(tflops[i])/base_list[i]
+            if regression==0:
+                print("no regressions found")
+            ave_perf=ave_perf/len(base_list)
+            print("average performance relative to baseline:",ave_perf)
+        else:
+            print("could not find a baseline for N=256")
+        if not tflops_base_N4.empty:
+            base=tflops_base_N4[testlist].to_numpy(dtype='float')
+            base_list=base[0]
+            ave_perf=0
+            for i in range(len(base_list)):
+                # success criterion:
+                if base_list[i]>1.01*float(tflops[i+49]):
+                    print("layer # ",i,"shows regression by {:.3f}%".format(
+                        (float(tflops[i+49])-base_list[i])/base_list[i]*100))
+                    regression=1
+                ave_perf=ave_perf+float(tflops[i+49])/base_list[i]
+            if regression==0:
+                print("no regressions found")
+            ave_perf=ave_perf/len(base_list)
+            print("average performance relative to baseline:",ave_perf)
+        else:
+            print("could not find a baseline for N=4")
+
     #return 0 if performance criteria met, otherwise return 1
     return regression
 
