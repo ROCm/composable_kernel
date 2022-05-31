@@ -29,10 +29,10 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 using ADataType         = F16;
 using BDataType         = F16;
 using CDataType         = F16;
+using GemmAccDataType   = F32;
 using ReduceAccDataType = F32;
 using DDataType         = F32;
 using DPtrsGlobal       = ck::Tuple<DDataType*, DDataType*>;
-using AccDataType       = F32;
 
 using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
@@ -47,10 +47,12 @@ using DxsReduceOp = ck::Tuple<D0ReduceOp, D1ReduceOp>;
 
 using UnaryIdenticElementOp =
     ck::tensor_operation::element_wise::UnaryIdentic<ReduceAccDataType, ReduceAccDataType, false>;
+using UnaryDivElementOp =
+    ck::tensor_operation::element_wise::UnaryIdentic<ReduceAccDataType, ReduceAccDataType, true>;
 using UnarySquareElementOp =
     ck::tensor_operation::element_wise::UnarySquare<ReduceAccDataType, ReduceAccDataType, false>;
 using DxsInElementOp  = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
-using DxsOutElementOp = ck::Tuple<UnaryIdenticElementOp, UnaryIdenticElementOp>;
+using DxsOutElementOp = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
 
 using DGlobalMemOp =
     ck::InMemoryDataOperationEnumSequence<ck::InMemoryDataOperationEnum::AtomicAdd,
@@ -61,15 +63,35 @@ static constexpr auto GemmSpecialization =
 
 // clang-format off
 using DeviceGemmReduceInstance = ck::tensor_operation::device::DeviceGemmReduce_Xdl_CShuffle
-//######| ALayout| BLayout| CLayout|AData| BData| CData|  GemmAcc| CShuffle| ReduceAcc|         DData|           A|           B|           C|         Dxs|     DxsInEleOp|     DxsOutEleOp|             D|               GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|              CReduce| CReduceThreadLds2VGprCopy| CReduceThreadVgpr2GlobalCopy|
+//######| ALayout| BLayout| CLayout|AData| BData| CData|  GemmAcc| CShuffle| ReduceAcc|         DData|           A|           B|           C|         Dxs|     DxsInEleOp|     DxsAccEleOp|             D|               GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|              CReduce| CReduceThreadLds2VGprCopy| CReduceThreadVgpr2GlobalCopy|
 //######|        |        |        | Type|  Type|  Type| DataType| DataType|  DataType|    Type Tuple| Elementwise| Elementwise| Elementwise|      Reduce|               |                |    MemoryData|     Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN| MXdlPerWave| NXdlPerWave|            _MBlock_MPerBlock| ScalarPerVector| ThreadClusterLengths|     SrcDstScalarPerVector|        SrcDstScalarPerVector|
 //######|        |        |        |     |      |      |         |         |          |              |   Operation|   Operation|   Operation|   Operation|               |                |     Operation|                   |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|            _NBlock_NPerBlock|      _NPerBlock| _MPerBlock_NPerBlock|                _NPerBlock|                   _MPerBlock|
 //######|        |        |        |     |      |      |         |         |          |              |            |            |            |            |               |                |              |                   |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |                     |                          |                             |
         <     Row,     Col,     Row,  F16,   F16,   F16,      F32,      F32,       F32,   DPtrsGlobal,  AElementOp,  BElementOp,  CElementOp, DxsReduceOp, DxsInElementOp, DxsOutElementOp,  DGlobalMemOp, GemmSpecialization,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8,             S<64, 4>,                         4,                            1>;
 // clang-format on
 
-using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
+using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                        BDataType,
+                                                                        CDataType,
+                                                                        GemmAccDataType,
+                                                                        AElementOp,
+                                                                        BElementOp,
+                                                                        CElementOp>;
+
+template <typename ADataType, typename BDataType, typename CDataType, typename DDataType>
+void DumpGemmLayerNormPerf(float gemm_reduce_time, int M, int N, int K)
+{
+    std::size_t gemm_flop     = std::size_t(2) * M * N * K;
+    std::size_t gemm_num_byte = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
+                                sizeof(CDataType) * M * N + sizeof(DDataType) * M +
+                                sizeof(DDataType) * M;
+
+    float tflops          = static_cast<float>(gemm_flop) / 1.E9 / gemm_reduce_time;
+    float gemm_gb_per_sec = gemm_num_byte / 1.E6 / gemm_reduce_time;
+
+    std::cout << "gemm + reduce_mean + reduce_mean_square Perf: " << gemm_reduce_time << " ms, "
+              << tflops << " TFlops, " << gemm_gb_per_sec << " GB/s, " << std::endl;
+}
 
 int main(int argc, char* argv[])
 {
@@ -182,6 +204,9 @@ int main(int argc, char* argv[])
     auto dxs_global   = ck::make_tuple(static_cast<DDataType*>(d0_device_buf.GetDeviceBuffer()),
                                      static_cast<DDataType*>(d1_device_buf.GetDeviceBuffer()));
 
+    auto dxs_in_element_op  = DxsInElementOp{};
+    auto dxs_out_element_op = DxsOutElementOp{M, M};
+
     // do GEMM
     auto gemm     = DeviceGemmReduceInstance{};
     auto invoker  = gemm.MakeInvoker();
@@ -198,8 +223,8 @@ int main(int argc, char* argv[])
                                       a_element_op,
                                       b_element_op,
                                       c_element_op,
-                                      DxsInElementOp{},
-                                      DxsOutElementOp{});
+                                      dxs_in_element_op,
+                                      dxs_out_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -214,19 +239,7 @@ int main(int argc, char* argv[])
 
     // if time_kernel == true, kernel will run multiple times. This kernel use atomic-add so result
     // will not be correct. need to set time_kernel = false for correctness test
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
-
-    std::size_t flop = std::size_t(2) * M * N * K;
-    std::size_t num_btype =
-        sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
-
-    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
-    float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << gemm.GetTypeString() << std::endl;
-
+    invoker.Run(argument, StreamConfig{nullptr, false});
     bool pass = true;
 
     if(do_verification)
@@ -257,12 +270,14 @@ int main(int argc, char* argv[])
                 float d0_val = 0;
                 float d1_val = 0;
 
-                UnaryIdenticElementOp{}(d0_val, c_val);
-                UnarySquareElementOp{}(d1_val, c_val);
+                dxs_in_element_op(ck::Number<0>{})(d0_val, c_val);
+                dxs_in_element_op(ck::Number<1>{})(d1_val, c_val);
                 d0_reduce_op(d0_acc, d0_val);
                 d1_reduce_op(d1_acc, d1_val);
             }
 
+            dxs_out_element_op(ck::Number<0>{})(d0_acc, d0_acc);
+            dxs_out_element_op(ck::Number<1>{})(d1_acc, d1_acc);
             d0_m_host_result(m) = ck::type_convert<DDataType>(d0_acc);
             d1_m_host_result(m) = ck::type_convert<DDataType>(d1_acc);
         }
@@ -280,6 +295,13 @@ int main(int argc, char* argv[])
                                     "Error: Incorrect results d1",
                                     1e-3,
                                     1e-5);
+    }
+
+    if(time_kernel)
+    {
+        float ave_time = invoker.Run(argument, StreamConfig{nullptr, true});
+
+        DumpGemmLayerNormPerf<ADataType, BDataType, CDataType, DDataType>(ave_time, M, N, K);
     }
 
     return pass ? 0 : 1;

@@ -144,6 +144,24 @@ struct AddHardswishAdd
     }
 };
 
+struct Normalize
+{
+    Normalize(float epsilon = 1e-4) : epsilon_(epsilon) {}
+
+    __host__ __device__ constexpr void operator()(float& y,
+                                                  const float& x,
+                                                  const float& mean,
+                                                  const float& mean_square,
+                                                  const float& gamma,
+                                                  const float& beta) const
+    {
+        float variance = mean_square - (mean * mean);
+        y              = ((x - mean) / sqrtf(variance + epsilon_)) * gamma + beta;
+    }
+
+    float epsilon_;
+};
+
 // Unary operators are usually called element-wisely before/after the reduction is executed on the
 // elements. They are needed for easy implementation of reduction types of AVG, NRM1, NRM2
 

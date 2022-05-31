@@ -3,6 +3,7 @@
 #include <iostream>
 #include <sstream>
 #include "device.hpp"
+#include "device_prop.hpp"
 #include "device_base.hpp"
 #include "device_gemm.hpp"
 #include "common_header.hpp"
@@ -11,7 +12,6 @@
 #include "tensor_descriptor_helper.hpp"
 #include "gridwise_gemm_xdlops_v2r3.hpp"
 #include "gemm_specialization.hpp"
-#include "device_prop.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -408,7 +408,23 @@ struct DeviceGemmXdl
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a"))
+        if(ck::get_device_name() == "gfx908")
+        {
+            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, float> ||
+                           is_same_v<AccDataType, int32_t>))
+            {
+                return false;
+            }
+        }
+        else if(ck::get_device_name() == "gfx90a")
+        {
+            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, float> ||
+                           is_same_v<AccDataType, int32_t> || is_same_v<AccDataType, double>))
+            {
+                return false;
+            }
+        }
+        else
         {
             return false;
         }
