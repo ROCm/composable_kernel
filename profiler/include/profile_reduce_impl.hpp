@@ -270,7 +270,7 @@ bool profile_reduce_impl_impl(bool do_verification,
         using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
 
         using DeviceReduceInstPtr0 =
-            DeviceReducePtr<InElementwiseOperation_0, AccElementwiseOperation_0>;
+            DeviceReducePtr<InElementwiseOperation, AccElementwiseOperation>;
 
         std::vector<DeviceReduceInstPtr0> reduce0_ptrs;
 
