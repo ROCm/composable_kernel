@@ -10,6 +10,7 @@
 #include "gridwise_gemm_xdl_waveletmodel_cshuffle.hpp"
 #include "gemm_specialization.hpp"
 
+
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -674,7 +675,7 @@ struct DeviceGemm_Xdl_WaveletModel_CShuffle
         // clang-format off
         str << "DeviceGemm_Xdl_WaveletModel_CShuffle"
             << "<"
-            << TileLoadThreadGroupSize << ", "
+	    << TileLoadThreadGroupSize << ", "
             << TileMathThreadGroupSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "

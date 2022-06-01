@@ -7,7 +7,7 @@
 
 namespace ck {
 
-template <index_t BlockSize,
+template <typename ThreadGroup,
           typename FloatAB,
           typename FloatAcc,
           typename AK0MK1BlockDesc,
@@ -23,8 +23,6 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
-
-    using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     static constexpr index_t WaveSize = get_warp_size();
 
@@ -56,7 +54,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
     __device__ static auto GetWaveIdx()
     {
-        const index_t thread_id = ThisThreadBlock::GetThreadId();
+        const index_t thread_id = ThreadGroup::GetThreadId();
 
         constexpr auto threadid_to_wave_idx_adaptor = make_single_stage_tensor_adaptor(
             make_tuple(make_merge_transform(make_tuple(MWaves, NWaves, WaveSize))),
@@ -123,8 +121,8 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                           BK0NK1BlockDesc::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
 
-        static_assert(ThisThreadBlock::GetNumOfThread() == MWaves * NWaves * WaveSize,
-                      "ThisThreadBlock::GetNumOfThread() != MWaves * NWaves * WaveSize\n");
+        static_assert(ThreadGroup::GetNumOfThread() == MWaves * NWaves * WaveSize,
+                      "ThreadGroup::GetNumOfThread() != MWaves * NWaves * WaveSize\n");
 
         static_assert(MPerBlock % (MPerXDL * MRepeat) == 0 && NPerBlock % (NPerXDL * NRepeat) == 0,
                       "wrong!");

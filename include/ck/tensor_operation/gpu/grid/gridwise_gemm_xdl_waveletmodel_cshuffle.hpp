@@ -1,6 +1,5 @@
 #pragma once
 #include "common_header.hpp"
-#include "common_header.hpp"
 #include "multi_index_transform_helper.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
@@ -23,8 +22,8 @@ template <typename GridwiseGemm,
           typename Block2CTileMap,
           bool HasMainKBlockLoop>
 __global__ void
-#if CK_HAS_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_WAVELET_MAX_THREAD_PER_BLOCK, CK_WAVELET_MIN_BLOCK_PER_CU)
 #endif
           kernel_gemm_xdl_waveletmodel_cshuffle(
             const FloatAB* __restrict__ p_a_grid,
@@ -54,7 +53,7 @@ __global__ void
 						  c_grid_desc_mblock_mperblock_nblock_nperblock,
 						  block_2_ctile_map);
 #else
-    ignore = p_a_grid; 
+    ignore = p_a_grid;
     ignore = p_b_grid;
     ignore = p_c_grid;
     ignore = a_element_op;
@@ -134,11 +133,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
     {
         __device__ static constexpr index_t GetNumOfThread()
 	{
-	    return TileLoadThreadGroupSize;  	
+	    return TileLoadThreadGroupSize;
         }
 	__device__ static constexpr bool IsBelong()
         {
-            return (get_thread_local_1d_id() >= TileMathThreadGroupSize and get_thread_local_1d_id() < (TileLoadThreadGroupSize+TileMathThreadGroupSize));
+            return (get_thread_local_1d_id() < TileLoadThreadGroupSize);
         }
 
         __device__ static index_t GetThreadId() { return get_thread_local_1d_id(); }
@@ -149,18 +148,18 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
     {
         __device__ static constexpr index_t GetNumOfThread()
 	{
-	    return TileMathThreadGroupSize;  	
+	    return TileMathThreadGroupSize;
         }
 	__device__ static constexpr bool IsBelong()
         {
-	    return get_thread_local_1d_id() < TileMathThreadGroupSize;
+	    return get_thread_local_1d_id() >= TileLoadThreadGroupSize;
         }
 
-        __device__ static index_t GetThreadId() { return get_thread_local_1d_id(); }
+        __device__ static index_t GetThreadId() { return get_thread_local_1d_id() - TileMathThreadGroupSize; }
 
     };
     using CShuffleBlockTransferThreadGroup =
-	             ThisThreadBlock<TileLoadThreadGroupSize + TileMathThreadGroupSize>;
+	             ThisThreadBlock<TileMathThreadGroupSize>;
     //load and math+store Wave pipelines.
     //TODO: build pipelines blocks scheduling parallel tasks 
     using GridwiseGemmLoad = GridwiseGemmLoadWave<TileLoadThreadGroup,NumGemmKPrefetchStage>;
@@ -176,7 +175,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
 
     __host__ __device__ static constexpr auto GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1() 
     {
-	// A matrix in LDS memory, dst of blockwise copy
+	// B matrix in LDS memory, dst of blockwise copy
 	return make_naive_tensor_descriptor(
 	    make_tuple(BK0,Number<NPerBlock>{},BK1),
 	    make_tuple(Number<NPerBlock+BBlockLdsExtraN>{} * BK1, BK1, I1));
@@ -435,7 +434,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
 
         // B matrix blockwise copy
         auto b_blockwise_copy =
-            ThreadGroupTensorSliceTransfer_v4r1<TileMathThreadGroup,
+            ThreadGroupTensorSliceTransfer_v4r1<TileLoadThreadGroup,
                                                 BElementwiseOperation,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 InMemoryDataOperationEnum::Set,
@@ -487,7 +486,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
             math::lcm(AK1, BK1), MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm =
-            BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<TileMathThreadGroupSize,
+            BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<TileMathThreadGroup,
                                                                 FloatAB,
                                                                 FloatGemmAcc,
                                                                 decltype(a_block_desc_ak0_m_ak1),
@@ -698,10 +697,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
 
                 // each block copy its data from LDS to global
                 c_shuffle_block_copy_lds_to_global.Run(
-                    c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
-                    c_shuffle_block_buf,
-                    c_grid_desc_mblock_mperblock_nblock_nperblock,
-                    c_grid_buf);
+                        c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
+                        c_shuffle_block_buf,
+                        c_grid_desc_mblock_mperblock_nblock_nperblock,
+                        c_grid_buf);
 
                 if constexpr(access_id < num_access - 1)
                 {
