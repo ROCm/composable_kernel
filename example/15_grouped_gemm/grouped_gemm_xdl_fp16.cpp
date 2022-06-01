@@ -199,10 +199,6 @@ int main(int argc, char* argv[])
 
     gemm.SetWorkSpacePointer(&argument, gemm_desc_workspace.GetDeviceBuffer());
 
-    DeviceMem gemm_desc_workspace(gemm.GetWorkSpaceSize(&argument));
-
-    gemm.SetWorkSpacePointer(&argument, gemm_desc_workspace.GetDeviceBuffer());
-
     if(!gemm.IsSupportedArgument(argument))
     {
         throw std::runtime_error(
