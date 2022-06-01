@@ -939,14 +939,14 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                             FloatReduceAcc avg_sum         = d0_thread_buf(src_offset) / NRaw;
                             FloatReduceAcc avg_squared_sum = d1_thread_buf(src_offset) / NRaw;
 
-                            FloatReduceAcc denom   = c_reduce_thread_buf(dst_offset) - avg_sum;
+                            FloatReduceAcc numerator = c_reduce_thread_buf(dst_offset) - avg_sum;
                             FloatReduceAcc divisor = epsilon + avg_squared_sum - avg_sum * avg_sum;
                             FloatReduceAcc divisor_sqrt;
                             tensor_operation::element_wise::UnarySqrt<FloatReduceAcc,
                                                                       FloatReduceAcc>{}(
                                 divisor_sqrt, divisor);
 
-                            c_reduce_thread_buf(dst_offset) = denom / divisor_sqrt;
+                            c_reduce_thread_buf(dst_offset) = numerator / divisor_sqrt;
                         });
                     });
 
