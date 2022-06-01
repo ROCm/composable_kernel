@@ -51,7 +51,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, CDataType, AElementOp, BElementOp, CElementOp>;
+    ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -169,9 +169,7 @@ int main(int argc, char* argv[])
 
     if(!gemm.IsSupportedArgument(argument))
     {
-        std::cout << "wrong! device_gemm with the specified compilation parameters does "
-                     "not support this GEMM problem"
-                  << std::endl;
+        std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
 
         return 0;
     }

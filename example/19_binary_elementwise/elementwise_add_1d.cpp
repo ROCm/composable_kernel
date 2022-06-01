@@ -1,3 +1,28 @@
+/*******************************************************************************
+ *
+ * MIT License
+ *
+ * Copyright (c) 2022 Advanced Micro Devices, Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ *******************************************************************************/
 #include <iostream>
 #include <cstdlib>
 #include "check_err.hpp"
@@ -17,10 +42,20 @@ using ABDataType             = F16;
 using CDataType              = F16;
 using EltwiseComputeDataType = F32;
 
-using Add = ck::tensor_operation::binary_element_wise::Add;
+using Add = ck::tensor_operation::binary_element_wise::
+    Add<EltwiseComputeDataType, EltwiseComputeDataType, EltwiseComputeDataType>;
 
-using DeviceElementwiseAddInstance = ck::tensor_operation::device::
-    DeviceBinaryElementwise<ABDataType, ABDataType, CDataType, EltwiseComputeDataType, Add, 1, 8>;
+using DeviceElementwiseAddInstance =
+    ck::tensor_operation::device::DeviceBinaryElementwise<ABDataType,
+                                                          ABDataType,
+                                                          CDataType,
+                                                          EltwiseComputeDataType,
+                                                          Add,
+                                                          1,
+                                                          8,
+                                                          8,
+                                                          8,
+                                                          8>;
 
 template <typename HostTensorA,
           typename HostTensorB,
@@ -34,11 +69,11 @@ void host_elementwise1D(
 
     for(int m = 0; m < M; ++m)
     {
-        ComputeDataType Am = static_cast<ComputeDataType>(A(m));
-        ComputeDataType Bm = static_cast<ComputeDataType>(B(m));
+        ComputeDataType Am = ck::type_convert<ComputeDataType>(A(m));
+        ComputeDataType Bm = ck::type_convert<ComputeDataType>(B(m));
         ComputeDataType Cm = 0;
         functor(Cm, Am, Bm);
-        C(m) = static_cast<ctype>(Cm);
+        C(m) = ck::type_convert<ctype>(Cm);
     }
 }
 
@@ -81,7 +116,7 @@ int main()
     if(!broadcastAdd.IsSupportedArgument(argument.get()))
     {
         throw std::runtime_error("The runtime parameters seems not supported by the "
-                                 "DeviceBinaryElementwise_2D instance, exiting!");
+                                 "DeviceBinaryElementwise instance, exiting!");
     };
 
     auto broadcastAdd_invoker_ptr = broadcastAdd.MakeInvokerPointer();
@@ -103,7 +138,7 @@ int main()
                            Add>(host_c_m, a_m, b_m, M, Add{});
 
         pass &= ck::utils::check_err(
-            c_m.mData, host_c_m.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
+            c_m.mData, host_c_m.mData, "Error: Incorrect results c", 1e-3, 1e-3);
     }
 
     return pass ? 0 : 1;

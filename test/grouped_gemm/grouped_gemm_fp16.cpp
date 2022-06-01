@@ -150,14 +150,23 @@ bool TestGroupedGemm(DeviceGroupedGemmPtr_& groupedGemmPtr)
 
     groupedGemmPtr->SetWorkSpacePointer(argument_ptr.get(), gemm_desc_workspace.GetDeviceBuffer());
 
+    DeviceMem gemm_desc_workspace(groupedGemmPtr->GetWorkSpaceSize(argument_ptr.get()));
+
+    groupedGemmPtr->SetWorkSpacePointer(argument_ptr.get(), gemm_desc_workspace.GetDeviceBuffer());
+
     invoker_ptr->Run(argument_ptr.get());
 
     for(std::size_t i = 0; i < gemm_descs.size(); i++)
     {
         c_tensors_device[i]->FromDevice(c_device_tensors[i].mData.data());
 
-        using ReferenceGemmInstance = ck::tensor_operation::host::
-            ReferenceGemm<ADataType, BDataType, CDataType, PassThrough, PassThrough, PassThrough>;
+        using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                                BDataType,
+                                                                                CDataType,
+                                                                                AccDataType,
+                                                                                PassThrough,
+                                                                                PassThrough,
+                                                                                PassThrough>;
 
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();

@@ -4,6 +4,7 @@
 #include <sstream>
 
 #include "device.hpp"
+#include "device_prop.hpp"
 #include "device_base.hpp"
 #include "device_gemm.hpp"
 #include "common_header.hpp"
@@ -13,7 +14,6 @@
 #include "gemm_specialization.hpp"
 #include "element_wise_operation.hpp"
 #include "gridwise_gemm_dl_v1r3.hpp"
-#include "device_prop.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -60,8 +60,8 @@ template <
     index_t CThreadTransferDstScalarPerVector,
     enable_if_t<
         is_same_v<AElementwiseOperation, ck::tensor_operation::element_wise::PassThrough> &&
-            is_same_v<AElementwiseOperation, ck::tensor_operation::element_wise::PassThrough> &&
-            is_same_v<AElementwiseOperation, ck::tensor_operation::element_wise::PassThrough>,
+            is_same_v<BElementwiseOperation, ck::tensor_operation::element_wise::PassThrough> &&
+            is_same_v<CElementwiseOperation, ck::tensor_operation::element_wise::PassThrough>,
         bool> = false>
 struct DeviceGemmDl
     : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>

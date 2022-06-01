@@ -84,7 +84,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<float, float, float, PassThrough, PassThrough, PassThrough>;
+    ReferenceGemm<float, float, float, float, PassThrough, PassThrough, PassThrough>;
 
 int main(int argc, char* argv[])
 {
@@ -193,9 +193,9 @@ int main(int argc, char* argv[])
 
     if(!gemm.IsSupportedArgument(argument))
     {
-        throw std::runtime_error(
-            "wrong! device_gemm with the specified compilation parameters does "
-            "not support this GEMM problem");
+        std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
+
+        return 0;
     }
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});

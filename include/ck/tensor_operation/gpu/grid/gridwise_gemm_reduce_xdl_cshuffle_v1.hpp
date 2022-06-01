@@ -21,7 +21,7 @@ template <typename GridwiseGemm,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename DxsInElementwiseOperation,
-          typename DxsOutElementwiseOperation,
+          typename DxsAccElementwiseOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
           typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -41,7 +41,7 @@ __global__ void
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op,
             const DxsInElementwiseOperation dxs_in_element_op,
-            const DxsOutElementwiseOperation dxs_out_element_op,
+            const DxsAccElementwiseOperation dxs_out_element_op,
             const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
             const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
@@ -96,7 +96,7 @@ template <typename FloatAB,
           typename CElementwiseOperation,
           typename DxsReduceOperation,
           typename DxsInElementwiseOperation,
-          typename DxsOutElementwiseOperation,
+          typename DxsAccElementwiseOperation,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename DGlobalMemoryDataOperation,
           typename AGridDesc_AK0_M_AK1,
@@ -306,7 +306,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     __host__ __device__ static constexpr auto
     MakeDefaultBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n)
     {
-        return BlockToCTileMap_M00_N00_M01_N01<MPerBlock, NPerBlock, CGridDesc_M_N>(
+        return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc_M_N>(
             c_grid_desc_m_n);
     }
 
@@ -329,7 +329,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                const BElementwiseOperation& b_element_op,
                                const CElementwiseOperation& c_element_op,
                                const DxsInElementwiseOperation& dxs_in_element_op,
-                               const DxsOutElementwiseOperation& dxs_out_element_op,
+                               const DxsAccElementwiseOperation& dxs_out_element_op,
                                const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
                                const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
                                const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
