@@ -53,9 +53,9 @@ struct AccumulateWithNanCheck<true, ReduceOperation, AccDataType>
 {
     __host__ __device__ static inline void Calculate(AccDataType& accuVal, AccDataType currVal)
     {
-        using ck::math::ck_isnan;
+        using ck::math::isnan;
 
-        if(ck_isnan(currVal))
+        if(isnan(currVal))
         {
             accuVal = currVal;
         }
@@ -97,9 +97,9 @@ struct AccumulateWithIndexAndNanCheck<true, ReduceOperation, AccDataType, IndexD
                                                      IndexDataType& accuIndex,
                                                      IndexDataType currIndex)
     {
-        using ck::math::ck_isnan;
+        using ck::math::isnan;
 
-        if(ck_isnan(currVal))
+        if(isnan(currVal))
         {
             accuVal   = currVal;
             accuIndex = currIndex;
