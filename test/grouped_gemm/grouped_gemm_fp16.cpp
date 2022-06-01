@@ -150,10 +150,6 @@ bool TestGroupedGemm(DeviceGroupedGemmPtr_& groupedGemmPtr)
 
     groupedGemmPtr->SetWorkSpacePointer(argument_ptr.get(), gemm_desc_workspace.GetDeviceBuffer());
 
-    DeviceMem gemm_desc_workspace(groupedGemmPtr->GetWorkSpaceSize(argument_ptr.get()));
-
-    groupedGemmPtr->SetWorkSpacePointer(argument_ptr.get(), gemm_desc_workspace.GetDeviceBuffer());
-
     invoker_ptr->Run(argument_ptr.get());
 
     for(std::size_t i = 0; i < gemm_descs.size(); i++)
