@@ -348,7 +348,7 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
 
             if constexpr(use_multiblock)
             {
-                const auto zeroVal =
+                const auto identityVal =
                     ck::reduce::GetIdentityValueueForInMemoryDataOperation<OutDataType>(
                         OutMemoryDataOperation);
 
@@ -362,7 +362,7 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
                                                    0,
                                                    out_grid_desc_m_2,
                                                    arg.out_dev_,
-                                                   zeroVal);
+                                                   identityVal);
             };
 
             avg_time += launch_and_time_kernel(stream_config,
