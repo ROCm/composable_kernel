@@ -106,13 +106,50 @@ int main(int argc, char* argv[])
         int StrideA = K;
         int StrideB = K;
 
-        int StrideM0 = S * NumHead * HeadDim;
-        int StrideM1 = HeadDim;
-        int StrideN0 = S * HeadDim;
-        int StrideN1 = 1;
+        if(i % 2 == 0)
+        {
 
-        gemm_descs.push_back(
-            {M, N, K, StrideA, StrideB, M0, M1, N0, N1, StrideM0, StrideM1, StrideN0, StrideN1});
+            int StrideM0 = S * NumHead * HeadDim;
+            int StrideM1 = 1;
+            int StrideN0 = S * HeadDim;
+            int StrideN1 = S;
+
+            gemm_descs.push_back({M,
+                                  N,
+                                  K,
+                                  StrideA,
+                                  StrideB,
+                                  M0,
+                                  M1,
+                                  N0,
+                                  N1,
+                                  StrideM0,
+                                  StrideM1,
+                                  StrideN0,
+                                  StrideN1});
+        }
+        else
+        {
+
+            int StrideM0 = S * NumHead * HeadDim;
+            int StrideM1 = HeadDim;
+            int StrideN0 = S * HeadDim;
+            int StrideN1 = 1;
+
+            gemm_descs.push_back({M,
+                                  N,
+                                  K,
+                                  StrideA,
+                                  StrideB,
+                                  M0,
+                                  M1,
+                                  N0,
+                                  N1,
+                                  StrideM0,
+                                  StrideM1,
+                                  StrideN0,
+                                  StrideN1});
+        }
     }
 
     auto f_host_tensor_descriptor =
