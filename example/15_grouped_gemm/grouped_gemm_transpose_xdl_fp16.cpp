@@ -15,7 +15,7 @@
 #include "device_tensor.hpp"
 #include "device_grouped_gemm_transpose_xdl.hpp"
 #include "element_wise_operation.hpp"
-#include "reference_gemm.hpp"
+#include "reference_gemm_transpose.hpp"
 #include "gemm_specialization.hpp"
 
 template <ck::index_t... Is>
@@ -55,8 +55,8 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemmTransp
         <   F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,   256,   128,     4,  8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,               7,               1,        1>;
 // clang-format on
 
-using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, CDataType, AElementOp, BElementOp, CElementOp>;
+using ReferenceGemmTransposeInstance = ck::tensor_operation::host::
+    ReferenceGemmTranspose<ADataType, BDataType, CDataType, AElementOp, BElementOp, CElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -89,13 +89,30 @@ int main(int argc, char* argv[])
 
     for(int i = 0; i < group_count; i++)
     {
-        int B  = 16;
-        int S  = 64;
-        int nH = 16;
-        int hD = 64;
+        int B       = 16;
+        int S       = 64;
+        int NumHead = 16;
+        int HeadDim = 64;
+
+        int M0 = B;
+        int M1 = S;
+        int N0 = NumHead;
+        int N1 = HeadDim;
+
+        int M = M0 * N1;
+        int N = N0 * N1;
+        int K = NumHead * HeadDim;
+
+        int StrideA = K;
+        int StrideB = K;
+
+        int StrideM0 = S * NumHead * HeadDim;
+        int StrideM1 = HeadDim;
+        int StrideN0 = S * HeadDim;
+        int StrideN1 = 1;
 
         gemm_descs.push_back(
-            {B * S, nH * hD, nH * hD, nH * hD, nH * hD, B, S, nH, hD, S * nH * hD, S * hD, hD, 1});
+            {M, N, K, StrideA, StrideB, M0, M1, N0, N1, StrideM0, StrideM1, StrideN0, StrideN1});
     }
 
     auto f_host_tensor_descriptor =
@@ -250,7 +267,7 @@ int main(int argc, char* argv[])
         for(std::size_t i = 0; i < gemm_descs.size(); i++)
         {
             c_tensors_device[i]->FromDevice(c_device_tensors[i].mData.data());
-            auto ref_gemm    = ReferenceGemmInstance{};
+            auto ref_gemm    = ReferenceGemmTransposeInstance{};
             auto ref_invoker = ref_gemm.MakeInvoker();
 
             auto ref_argument = ref_gemm.MakeArgument(a_tensors[i],
