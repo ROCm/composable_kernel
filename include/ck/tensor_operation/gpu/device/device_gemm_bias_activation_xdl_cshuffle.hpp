@@ -76,9 +76,11 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-// Note: inter-wave loop scheduler is rolled out to c-shuffle version first. Becuase non c-shuffle
-// version currently has compiler issues with register spill which further causes validation
-// failures.
+// C = c_element_op(a_element_op(A) * b_element_op(B), D))
+// A: [M, K] or [K, M]
+// B: [N, K] or [K, N]
+// C: [M, N]
+// D: [N]
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
