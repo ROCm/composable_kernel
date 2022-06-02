@@ -73,8 +73,7 @@ using DeviceConvNDFwdInstanceBigBlockSize = ck::tensor_operation::device::
         InDataType,         // 
         WeiDataType,        //
         OutDataType,        //
-        // typename ck::AccumulatorDataType<InDataType>::type, // Accumulator data type.
-        float,
+        typename ck::AccumulatorDataType<InDataType>::type, // Accumulator data type.
         InElementOp,        // Input Elementwise Operation
         WeiElementOp,       // Weights Elementwise Operation
         OutElementOp,       // Output Elementwise Operation
