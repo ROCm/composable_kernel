@@ -1016,4 +1016,43 @@ struct NumericLimits<half_t>
     __host__ __device__ static constexpr half_t Lowest() { return bit_cast<half_t>(binary_lowest); }
 };
 
+template <typename T>
+struct AccumulatorDataType;
+
+template <>
+struct AccumulatorDataType<float>
+{
+    using type = float;
+};
+
+template <>
+struct AccumulatorDataType<half_t>
+{
+    using type = float;
+};
+
+template <>
+struct AccumulatorDataType<bhalf16_t>
+{
+    using type = float;
+};
+
+template <>
+struct AccumulatorDataType<double>
+{
+    using type = double;
+};
+
+template <>
+struct AccumulatorDataType<int32_t>
+{
+    using type = int32_t;
+};
+
+template <>
+struct AccumulatorDataType<int8_t>
+{
+    using type = int32_t;
+};
+
 } // namespace ck
