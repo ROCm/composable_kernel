@@ -141,9 +141,14 @@ bool TestGroupedGemm(DeviceGroupedGemmPtr_& groupedGemmPtr)
     auto c_element_op = PassThrough{};
 
     // do GEMM
-    auto invoker_ptr  = groupedGemmPtr->MakeInvokerPointer();
+    auto invoker_ptr = groupedGemmPtr->MakeInvokerPointer();
+
     auto argument_ptr = groupedGemmPtr->MakeArgumentPointer(
         p_a, p_b, p_c, gemm_shapes, a_element_op, b_element_op, c_element_op);
+
+    DeviceMem gemm_desc_workspace(groupedGemmPtr->GetWorkSpaceSize(argument_ptr.get()));
+
+    groupedGemmPtr->SetWorkSpacePointer(argument_ptr.get(), gemm_desc_workspace.GetDeviceBuffer());
 
     invoker_ptr->Run(argument_ptr.get());
 

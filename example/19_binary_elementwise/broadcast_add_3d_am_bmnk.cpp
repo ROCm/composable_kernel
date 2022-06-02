@@ -17,7 +17,8 @@ using ABDataType             = F16;
 using CDataType              = F16;
 using EltwiseComputeDataType = F32;
 
-using Add = ck::tensor_operation::binary_element_wise::Add;
+using Add = ck::tensor_operation::binary_element_wise::
+    Add<EltwiseComputeDataType, EltwiseComputeDataType, EltwiseComputeDataType>;
 
 using DeviceElementwiseAddInstance =
     ck::tensor_operation::device::DeviceBinaryElementwise<ABDataType,
@@ -48,11 +49,11 @@ void host_broadcast3D_am_bmnk(HostTensorC& C,
         for(std::size_t n = 0; n < shape[1]; ++n)
             for(std::size_t k = 0; k < shape[2]; ++k)
             {
-                ComputeDataType a_val = static_cast<ComputeDataType>(A(m));
-                ComputeDataType b_val = static_cast<ComputeDataType>(B(m, n, k));
+                ComputeDataType a_val = ck::type_convert<ComputeDataType>(A(m));
+                ComputeDataType b_val = ck::type_convert<ComputeDataType>(B(m, n, k));
                 ComputeDataType c_val = 0;
                 functor(c_val, a_val, b_val);
-                C(m, n, k) = static_cast<ctype>(c_val);
+                C(m, n, k) = ck::type_convert<ctype>(c_val);
             }
 }
 
