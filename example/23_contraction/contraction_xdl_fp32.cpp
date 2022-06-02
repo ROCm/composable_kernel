@@ -215,13 +215,13 @@ int main(int argc, char* argv[])
     }
 
     // A[M0, M1, K0, K1]
-    std::vector<ck::index_t> a_ms_ks_lengths{30, 128, 32, 128};
+    std::vector<ck::index_t> a_ms_ks_lengths{30, 128, 16, 128};
     std::vector<ck::index_t> a_ms_ks_strides{524288, 4096, 128, 1};
     // B[K0, K1, N0, N1]
-    std::vector<ck::index_t> b_ks_ns_lengths{32, 128, 32, 128};
+    std::vector<ck::index_t> b_ks_ns_lengths{16, 128, 16, 128};
     std::vector<ck::index_t> b_ks_ns_strides{128, 1, 524288, 4096};
     // C[M0, M1, N0, N1]
-    std::vector<ck::index_t> c_ms_ns_lengths{30, 128, 32, 128};
+    std::vector<ck::index_t> c_ms_ns_lengths{30, 128, 16, 128};
     std::vector<ck::index_t> c_ms_ns_strides{524288, 4096, 128, 1};
 
     Tensor<ADataType> a_ms_ks(
