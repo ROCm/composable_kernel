@@ -75,7 +75,7 @@ class Conv2dFwdNHWCInstances : public ::testing::Test
     }
 
     static inline ck::utils::conv::ConvParams params_default_{
-        2, 4, 256, 64, {3, 3}, {36, 36}, {1, 1}, {2, 2}, {2, 2}, {2, 2}};
+        2, 4, 256, 64, {3, 3}, {36, 36}, {2, 2}, {2, 2}, {2, 2}, {2, 2}};
     static inline ck::utils::conv::ConvParams params_filter1x1_stride1_pad0_{
         2, 4, 256, 64, {1, 1}, {28, 28}, {1, 1}, {1, 1}, {0, 0}, {0, 0}};
     static inline ck::utils::conv::ConvParams params_filter1x1_pad0_{
@@ -90,7 +90,7 @@ class Conv2dFwdNHWCInstances : public ::testing::Test
 
 } // anonymous namespace
 
-TEST(Conv2DFwdNHWC, TestConv2DIntegerValues)
+TEST(Conv2DFwdNHWC, IntegerValues)
 {
     using namespace std::placeholders;
     using namespace ck::utils;
@@ -131,7 +131,7 @@ TEST(Conv2DFwdNHWC, TestConv2DIntegerValues)
 // Device::callbackQueue aborting with error : HSA_STATUS_ERROR_MEMORY_FAULT: Agent attempted to access an inaccessible address. code: 0x2b
 // Aborted (core dumped)
 // clang-format on
-TEST(Conv2DFwdNHWC, DISABLED_TestConv2DFloatingPointValues)
+TEST(Conv2DFwdNHWC, DISABLED_FloatingPointValues)
 {
     using namespace std::placeholders;
     using namespace ck::utils;
