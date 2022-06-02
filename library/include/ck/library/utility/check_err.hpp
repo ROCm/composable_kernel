@@ -85,7 +85,7 @@ check_err(const std::vector<T>& out,
     {
         double o = type_convert<float>(out[i]);
         double r = type_convert<float>(ref[i]);
-        err = std::abs(o - r);
+        err      = std::abs(o - r);
         if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
         {
             max_err = err > max_err ? err : max_err;
