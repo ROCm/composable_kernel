@@ -624,7 +624,7 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                                    FloatCShuffle,
                                                    decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                   AccElementwiseOperation,
+                                                   tensor_operation::element_wise::PassThrough,
                                                    Sequence<CShuffleMXdlPerWavePerShuffle,
                                                             CShuffleNXdlPerWavePerShuffle,
                                                             I1,
@@ -648,7 +648,7 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                      m_thread_data_on_block_idx[I3],
                                      m_thread_data_on_block_idx[I4],
                                      n_thread_data_on_block_idx[I2]),
-                    acc_element_op};
+                    tensor_operation::element_wise::PassThrough{}};
 
             // shuffle: blockwise copy C from LDS to global
             auto c_shuffle_block_copy_lds_to_global = ThreadGroupTensorSliceTransfer_v6r1<
@@ -883,41 +883,43 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
                 block_sync_lds();
 
+                // load from LDS and global, add bias
+                c_reduce_thread_copy_lds_to_vgpr.Run(c_reduce_block_desc_mperblock_nperblock,
+                                                        c_shuffle_block_buf,
+                                                        c_reduce_thread_desc_mperblock_nperblock,
+                                                        make_tuple(I0, I0),
+                                                        c_reduce_thread_buf);
+
+                c0_thread_copy_global_to_vgpr.Run(
+                    c0_grid_desc_mblock_mperblock_nblock_nperblock,
+                    c0_bias_grid_buf,
+                    c_reduce_thread_desc_mblock_mperblock_nblock_nperblock,
+                    make_tuple(I0, I0, I0, I0),
+                    c0_thread_buf);
+
+                static_for<0, c_reduce_thread_desc_mperblock_nperblock.GetElementSize(), 1>{}(
+                    [&](auto i) {
+                        FloatReduceAcc out;
+                        acc_element_op(out, c_reduce_thread_buf(i) +
+                            static_cast<FloatReduceAcc>(c0_thread_buf(i)));
+                        c_reduce_thread_buf(i) = out; // acc_element_op(acc + bias)
+                    });
+
+                c0_add_thread_copy_global_to_vgpr.Run(
+                    c_grid_desc_mblock_mperblock_nblock_nperblock,
+                    c0_add_grid_buf,
+                    c_reduce_thread_desc_mblock_mperblock_nblock_nperblock,
+                    make_tuple(I0, I0, I0, I0),
+                    c0_thread_buf);
+
+                static_for<0, c_reduce_thread_desc_mperblock_nperblock.GetElementSize(), 1>{}(
+                    [&](auto i) {
+                        c_reduce_thread_buf(i) +=
+                            static_cast<FloatReduceAcc>(c0_thread_buf(i)); // add
+                    });
+
                 // layernorm
                 {
-                    // load from LDS and global, add bias
-                    c_reduce_thread_copy_lds_to_vgpr.Run(c_reduce_block_desc_mperblock_nperblock,
-                                                         c_shuffle_block_buf,
-                                                         c_reduce_thread_desc_mperblock_nperblock,
-                                                         make_tuple(I0, I0),
-                                                         c_reduce_thread_buf);
-
-                    c0_thread_copy_global_to_vgpr.Run(
-                        c0_grid_desc_mblock_mperblock_nblock_nperblock,
-                        c0_bias_grid_buf,
-                        c_reduce_thread_desc_mblock_mperblock_nblock_nperblock,
-                        make_tuple(I0, I0, I0, I0),
-                        c0_thread_buf);
-
-                    static_for<0, c_reduce_thread_desc_mperblock_nperblock.GetElementSize(), 1>{}(
-                        [&](auto i) {
-                            c_reduce_thread_buf(i) +=
-                                static_cast<FloatReduceAcc>(c0_thread_buf(i)); // bias
-                        });
-
-                    c0_add_thread_copy_global_to_vgpr.Run(
-                        c_grid_desc_mblock_mperblock_nblock_nperblock,
-                        c0_add_grid_buf,
-                        c_reduce_thread_desc_mblock_mperblock_nblock_nperblock,
-                        make_tuple(I0, I0, I0, I0),
-                        c0_thread_buf);
-
-                    static_for<0, c_reduce_thread_desc_mperblock_nperblock.GetElementSize(), 1>{}(
-                        [&](auto i) {
-                            c_reduce_thread_buf(i) +=
-                                static_cast<FloatReduceAcc>(c0_thread_buf(i)); // add
-                        });
-
                     using ThreadwiseReduceD0 =
                         ThreadwiseReduction<FloatReduceAcc,
                                             decltype(c_reduce_thread_desc_mperblock_nperblock),

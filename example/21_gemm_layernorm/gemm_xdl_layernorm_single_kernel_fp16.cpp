@@ -48,7 +48,8 @@ struct Relu
 
 using AElementOp = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp = ck::tensor_operation::element_wise::PassThrough;
-// Elementwise operation that operates on the output of matrix multiplication Acc = A * B
+// Elementwise operation that operates on the output of matrix multiplication
+// i.e., AccElementOp(A * B + bias)
 using AccElementOp = Relu;
 // Elementwise operation that operates on the output of layer normalization
 using CElementOp = Relu;
@@ -227,15 +228,16 @@ int main(int argc, char* argv[])
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-    // extra 5MN flops due to: bias + gamma + beta + norm_sub + norm_div,
+    // extra 6MN flops due to: bias + add + gamma + beta + norm_sub + norm_div,
     // excluding reduction steps
-    std::size_t flop      = std::size_t(2) * M * N * K + std::size_t(5) * M * N;
-    std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
-                            sizeof(CDataType) * M * N + sizeof(CDataType) * 3 * N;
+    std::size_t flop = std::size_t(2) * M * N * K + std::size_t(6) * M * N;
+    // extra MN and 3N due to c0_add (MxN), bias (1xN), gamma (1xN), beta (1xN)
+    std::size_t bytes = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
+                        sizeof(CDataType) * 2 * M * N + sizeof(C0DataType) * 3 * N;
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
-    float gb_per_sec = num_btype / 1.E6 / ave_time;
+    float gb_per_sec = bytes / 1.E6 / ave_time;
 
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;

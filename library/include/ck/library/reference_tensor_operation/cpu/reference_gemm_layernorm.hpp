@@ -26,20 +26,17 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
                                                 AccDataType,
                                                 AElementwiseOperation,
                                                 BElementwiseOperation,
-                                                AccElementwiseOperation>;
+                                                element_wise::PassThrough>;
 
     // D = Layernorm(acc + broadcast(bias)) * broadcast(gamma) + broadcast(beta)
     template <typename InDataType, typename OutDataType, typename ComputeDataType>
     static void RunLayernorm(Tensor<OutDataType>& result,
                              const Tensor<ComputeDataType>& acc, // MxN
-                             const Tensor<InDataType>& bias,     // 1xN
-                             const Tensor<InDataType>& add,      // MxN
                              const Tensor<InDataType>& gamma,    // 1xN
                              const Tensor<InDataType>& beta,     // 1xN
                              const InDataType epsilon = 1e-5)
     {
-        assert(acc.mDesc.GetLengths()[1] == bias.mDesc.GetLengths()[0] &&
-               acc.mDesc.GetLengths()[1] == gamma.mDesc.GetLengths()[0] &&
+        assert(acc.mDesc.GetLengths()[1] == gamma.mDesc.GetLengths()[0] &&
                acc.mDesc.GetLengths()[1] == beta.mDesc.GetLengths()[0]);
 
         size_t M = acc.mDesc.GetLengths()[0];
@@ -47,17 +44,7 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
 
         Tensor<ComputeDataType> avg_acc_sq(HostTensorDescriptor(std::vector<size_t>({M})));
         Tensor<ComputeDataType> avg_acc(HostTensorDescriptor(std::vector<size_t>({M})));
-        Tensor<ComputeDataType> acc_layernorm(acc.mDesc);
-
-        // add bias
-        acc_layernorm.ForEach([&](auto& self, auto idx) {
-            self(idx[0], idx[1]) = acc(idx[0], idx[1]) + bias(idx[1]);
-        });
-
-        // add from other layer
-        acc_layernorm.ForEach([&](auto& self, auto idx) {
-            self(idx[0], idx[1]) += add(idx[0], idx[1]);
-        });
+        Tensor<ComputeDataType> acc_layernorm(acc);
 
         // reduce N dim
         for(size_t i = 0; i < M; i++)
@@ -152,13 +139,25 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
                                                       acc_m_n,
                                                       arg.a_element_op_,
                                                       arg.b_element_op_,
-                                                      arg.acc_element_op_);
+                                                      element_wise::PassThrough{});
 
             // gemm
             ref_invoker.Run(ref_argument);
 
+            // activation(acc + bias)
+            acc_m_n.ForEach([&](auto& self, auto idx) {
+                AccDataType out;
+                arg.acc_element_op_(out, acc_m_n(idx[0], idx[1]) + arg.c0_n_bias_(idx[1]));
+                self(idx[0], idx[1]) = out;
+            });
+
+            // add from other layers
+            acc_m_n.ForEach([&](auto& self, auto idx) {
+                self(idx[0], idx[1]) += arg.c0_m_n_add_(idx[0], idx[1]);
+            });
+
             // layernorm
-            RunLayernorm(arg.c_m_n_, acc_m_n, arg.c0_n_bias_, arg.c0_m_n_add_, arg.c0_n_gamma_, arg.c0_n_beta_);
+            RunLayernorm(arg.c_m_n_, acc_m_n, arg.c0_n_gamma_, arg.c0_n_beta_);
 
             // elementwise op
             arg.c_m_n_.ForEach([&](auto& self, auto idx) {
