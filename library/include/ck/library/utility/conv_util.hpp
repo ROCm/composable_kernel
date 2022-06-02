@@ -402,8 +402,8 @@ template <typename InDataType,
           typename InElementwiseOp  = ck::tensor_operation::element_wise::PassThrough,
           typename WeiElementwiseOp = ck::tensor_operation::element_wise::PassThrough,
           typename OutElementwiseOp = ck::tensor_operation::element_wise::PassThrough,
-          typename InputInitFun     = FillUniform<InDataType>,
-          typename WeightsInitFun   = FillUniform<WeiDataType>>
+          typename InputInitFun     = FillUniformDistribution<InDataType>,
+          typename WeightsInitFun   = FillUniformDistribution<WeiDataType>>
 class ConvFwdOpInstance : public ck::utils::OpInstance<OutDataType, InDataType, WeiDataType>
 {
     using DeviceConvFwdOp = tensor_operation::device::
@@ -421,9 +421,9 @@ class ConvFwdOpInstance : public ck::utils::OpInstance<OutDataType, InDataType, 
     ConvFwdOpInstance& operator=(const ConvFwdOpInstance&) = default;
 
     ConvFwdOpInstance(const ConvParams& params,
-                      bool do_init                  = true,
-                      InputInitFun input_init_f     = InputInitFun(),
-                      WeightsInitFun weights_init_f = WeightsInitFun())
+                      bool do_init                         = true,
+                      const InputInitFun& input_init_f     = InputInitFun(),
+                      const WeightsInitFun& weights_init_f = WeightsInitFun())
         : BaseType(),
           params_{params},
           output_spatial_lengths_{params.GetOutputSpatialLengths()},
