@@ -76,7 +76,7 @@ struct SquaredAdd
 {
     using dataType = T;
 
-    __host__ __device__ static constexpr T GetReductionZeroVal() { return static_cast<T>(0.0f); };
+    __host__ __device__ static constexpr T GetIdentityValue() { return static_cast<T>(0.0f); };
 
     __host__ __device__ inline constexpr void operator()(T& a, T b) const { a = a + b * b; }
 };

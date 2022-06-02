@@ -819,12 +819,11 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                 3,
                 CReduceThreadCopySrcDstScalarPerVector_NPerBlock,
                 1,
-                true>(
-                c0_grid_desc_mblock_mperblock_nblock_nperblock,
-                make_multi_index(block_work_idx[I0],
-                                 c_reduce_thread_data_idx_begin[I0],
-                                 block_work_idx[I1],
-                                 c_reduce_thread_data_idx_begin[I1]));
+                true>(c0_grid_desc_mblock_mperblock_nblock_nperblock,
+                      make_multi_index(block_work_idx[I0],
+                                       c_reduce_thread_data_idx_begin[I0],
+                                       block_work_idx[I1],
+                                       c_reduce_thread_data_idx_begin[I1]));
 
             // Note: c0_add is of same layout as c so we don't declare new c0_add_desc here
             auto c0_add_thread_copy_global_to_vgpr = ThreadwiseTensorSliceTransfer_v2<
@@ -837,12 +836,11 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                 3,
                 CReduceThreadCopySrcDstScalarPerVector_NPerBlock,
                 1,
-                true>(
-                c_grid_desc_mblock_mperblock_nblock_nperblock,
-                make_multi_index(block_work_idx[I0],
-                                 c_reduce_thread_data_idx_begin[I0],
-                                 block_work_idx[I1],
-                                 c_reduce_thread_data_idx_begin[I1]));
+                true>(c_grid_desc_mblock_mperblock_nblock_nperblock,
+                      make_multi_index(block_work_idx[I0],
+                                       c_reduce_thread_data_idx_begin[I0],
+                                       block_work_idx[I1],
+                                       c_reduce_thread_data_idx_begin[I1]));
 
             // space filling curve for threadwise C in VGPR
             constexpr auto sfc_c_vgpr =
@@ -885,10 +883,10 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
                 // load from LDS and global, add bias
                 c_reduce_thread_copy_lds_to_vgpr.Run(c_reduce_block_desc_mperblock_nperblock,
-                                                        c_shuffle_block_buf,
-                                                        c_reduce_thread_desc_mperblock_nperblock,
-                                                        make_tuple(I0, I0),
-                                                        c_reduce_thread_buf);
+                                                     c_shuffle_block_buf,
+                                                     c_reduce_thread_desc_mperblock_nperblock,
+                                                     make_tuple(I0, I0),
+                                                     c_reduce_thread_buf);
 
                 c0_thread_copy_global_to_vgpr.Run(
                     c0_grid_desc_mblock_mperblock_nblock_nperblock,
@@ -900,8 +898,9 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                 static_for<0, c_reduce_thread_desc_mperblock_nperblock.GetElementSize(), 1>{}(
                     [&](auto i) {
                         FloatReduceAcc out;
-                        acc_element_op(out, c_reduce_thread_buf(i) +
-                            static_cast<FloatReduceAcc>(c0_thread_buf(i)));
+                        acc_element_op(out,
+                                       c_reduce_thread_buf(i) +
+                                           static_cast<FloatReduceAcc>(c0_thread_buf(i)));
                         c_reduce_thread_buf(i) = out; // acc_element_op(acc + bias)
                     });
 
@@ -933,8 +932,8 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                             reduce::SquaredAdd<FloatReduceAcc>,
                                             false>;
 
-                    const auto d0_zeroVal = ThreadwiseReduceD0::Op::GetReductionZeroVal();
-                    const auto d1_zeroVal = ThreadwiseReduceD1::Op::GetReductionZeroVal();
+                    const auto d0_zeroVal = ThreadwiseReduceD0::Op::GetIdentityValue();
+                    const auto d1_zeroVal = ThreadwiseReduceD1::Op::GetIdentityValue();
                     static_for<0, mreduce_per_thread, 1>{}(
                         [&](auto i) { d0_thread_buf(i) = d0_zeroVal; });
                     static_for<0, mreduce_per_thread, 1>{}(
