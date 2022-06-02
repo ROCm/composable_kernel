@@ -138,7 +138,6 @@ bool profile_reduce_impl_impl(bool do_verification,
 {
     using namespace ck::tensor_operation::device;
     using namespace ck::tensor_operation::device::device_reduce_instance;
-    using namespace ck::host_reduce;
     using ck::host_common::dumpBufferToFile;
 
     constexpr bool op_support_indices =
@@ -261,15 +260,17 @@ bool profile_reduce_impl_impl(bool do_verification,
         float best_avg_time   = 0;
         float best_gb_per_sec = 0;
 
-        using InElementwiseOperation_0 =
+        using InElementwiseOperation =
             typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::
                 InElementwiseOperation;
-        using AccElementwiseOperation_0 =
+        using AccElementwiseOperation =
             typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::
                 AccElementwiseOperation;
 
+        using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
+
         using DeviceReduceInstPtr0 =
-            DeviceReducePtr<InElementwiseOperation_0, AccElementwiseOperation_0>;
+            DeviceReducePtr<InElementwiseOperation, AccElementwiseOperation>;
 
         std::vector<DeviceReduceInstPtr0> reduce0_ptrs;
 
@@ -313,7 +314,9 @@ bool profile_reduce_impl_impl(bool do_verification,
             ReductionHost<InDataType,
                           AccDataType,
                           OutDataType,
-                          ReduceOpId,
+                          ReduceOperation,
+                          InElementwiseOperation,
+                          AccElementwiseOperation,
                           Rank,
                           NumReduceDim,
                           PropagateNan,
@@ -337,9 +340,8 @@ bool profile_reduce_impl_impl(bool do_verification,
         for(auto& reduce_ptr : reduce0_ptrs)
         {
 
-            InElementwiseOperation_0 in_elementwise_op_0(static_cast<int32_t>(reduce_total_length));
-            AccElementwiseOperation_0 acc_elementwise_op_0(
-                static_cast<int32_t>(reduce_total_length));
+            InElementwiseOperation in_elementwise_op(static_cast<int32_t>(reduce_total_length));
+            AccElementwiseOperation acc_elementwise_op(static_cast<int32_t>(reduce_total_length));
 
             auto argument_ptr = reduce_ptr->MakeArgumentPointer(i_inLengths,
                                                                 i_inStrides,
@@ -352,8 +354,8 @@ bool profile_reduce_impl_impl(bool do_verification,
                                                                 nullptr,
                                                                 out_dev.GetDeviceBuffer(),
                                                                 out_indices_dev.GetDeviceBuffer(),
-                                                                in_elementwise_op_0,
-                                                                acc_elementwise_op_0);
+                                                                in_elementwise_op,
+                                                                acc_elementwise_op);
 
             if(!reduce_ptr->IsSupportedArgument(argument_ptr.get()))
                 continue;

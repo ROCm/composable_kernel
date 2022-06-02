@@ -147,8 +147,6 @@ class SimpleAppArgs
 
 int main(int argc, char* argv[])
 {
-    using namespace ck::host_reduce;
-
     const std::vector<int> reduceDims{0, 1, 2};
     const std::vector<int> invariantDims{3};
 
@@ -254,7 +252,9 @@ int main(int argc, char* argv[])
         ReductionHost<InDataType,
                       AccDataType,
                       OutDataType,
-                      ReduceOpId,
+                      ReduceOperation,
+                      InElementwiseOperation,
+                      AccElementwiseOperation,
                       Rank,
                       NumReduceDim,
                       PropagateNan,

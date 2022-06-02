@@ -108,8 +108,6 @@ int main(int argc, char* argv[])
 
     const std::vector<size_t> outLengths = {64, 320, 80};
 
-    using namespace ck::host_reduce;
-
     if(argc == 1)
     {
         do_verify   = true;
@@ -191,7 +189,9 @@ int main(int argc, char* argv[])
         ReductionHost<InOutDataType,
                       AccDataType,
                       InOutDataType,
-                      ReduceOpId,
+                      ReduceOperation,
+                      InElementwiseOperation,
+                      AccElementwiseOperation,
                       5, // Rank
                       2, // NumReduceDim
                       PropagateNan,
