@@ -150,9 +150,12 @@ void profile_convnd_instances_impl(const ck::utils::conv::ConvParams& params,
                                     ck::tensor_operation::element_wise::PassThrough,
                                     ck::tensor_operation::element_wise::PassThrough,
                                     ck::tensor_operation::element_wise::PassThrough,
-                                    ck::utils::FillUniform<int>,
-                                    ck::utils::FillUniform<int>>>(
-            params, true, ck::utils::FillUniform<int>{}, ck::utils::FillUniform<int>{});
+                                    ck::utils::FillUniformDistributionIntegerValue<int>,
+                                    ck::utils::FillUniformDistributionIntegerValue<int>>>(
+            params,
+            true,
+            ck::utils::FillUniformDistributionIntegerValue<int>{},
+            ck::utils::FillUniformDistributionIntegerValue<int>{});
         break;
     case 2:
         conv_instance = std::make_unique<
@@ -165,12 +168,12 @@ void profile_convnd_instances_impl(const ck::utils::conv::ConvParams& params,
                                     ck::tensor_operation::element_wise::PassThrough,
                                     ck::tensor_operation::element_wise::PassThrough,
                                     ck::tensor_operation::element_wise::PassThrough,
-                                    ck::utils::FillUniform<InDataType>,
-                                    ck::utils::FillUniform<WeiDataType>>>(
+                                    ck::utils::FillUniformDistribution<InDataType>,
+                                    ck::utils::FillUniformDistribution<WeiDataType>>>(
             params,
             true,
-            ck::utils::FillUniform<InDataType>{},
-            ck::utils::FillUniform<WeiDataType>{});
+            ck::utils::FillUniformDistribution<InDataType>{},
+            ck::utils::FillUniformDistribution<WeiDataType>{});
         break;
     default: throw std::runtime_error("Unsupported init method!");
     }
