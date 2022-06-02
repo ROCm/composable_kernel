@@ -431,9 +431,10 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
         Argument(const ADataType* p_a_grid,
                  const BDataType* p_b_grid,
                  CDataType* p_c_grid,
-                 const C0DataType* p_c0_bias,
-                 const C0DataType* p_c0_gamma,
-                 const C0DataType* p_c0_beta,
+                 const C0DataType* p_c0_grid_add,
+                 const C0DataType* p_c0_grid_bias,
+                 const C0DataType* p_c0_grid_gamma,
+                 const C0DataType* p_c0_grid_beta,
                  index_t MRaw,
                  index_t NRaw,
                  index_t KRaw,
@@ -447,9 +448,10 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
-              p_c0_bias_{p_c0_bias},
-              p_c0_gamma_{p_c0_gamma},
-              p_c0_beta_{p_c0_beta},
+              p_c0_grid_bias_{p_c0_grid_bias},
+              p_c0_grid_add_{p_c0_grid_add},
+              p_c0_grid_gamma_{p_c0_grid_gamma},
+              p_c0_grid_beta_{p_c0_grid_beta},
               a_grid_desc_ak0_m_ak1_{DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, KRaw, StrideA)},
               b_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1(KRaw, NRaw, StrideB)},
               c_grid_desc_m_n_{DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC)},
@@ -480,9 +482,10 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
-        const C0DataType* p_c0_bias_;
-        const C0DataType* p_c0_gamma_;
-        const C0DataType* p_c0_beta_;
+        const C0DataType* p_c0_grid_bias_;
+        const C0DataType* p_c0_grid_add_;
+        const C0DataType* p_c0_grid_gamma_;
+        const C0DataType* p_c0_grid_beta_;
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         CGridDesc_M_N c_grid_desc_m_n_;
@@ -564,9 +567,10 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                                            arg.p_a_grid_,
                                            arg.p_b_grid_,
                                            arg.p_c_grid_,
-                                           arg.p_c0_bias_,
-                                           arg.p_c0_gamma_,
-                                           arg.p_c0_beta_,
+                                           arg.p_c0_grid_bias_,
+                                           arg.p_c0_grid_add_,
+                                           arg.p_c0_grid_gamma_,
+                                           arg.p_c0_grid_beta_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.acc_element_op_,
@@ -603,9 +607,10 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                                            arg.p_a_grid_,
                                            arg.p_b_grid_,
                                            arg.p_c_grid_,
-                                           arg.p_c0_bias_,
-                                           arg.p_c0_gamma_,
-                                           arg.p_c0_beta_,
+                                           arg.p_c0_grid_bias_,
+                                           arg.p_c0_grid_add_,
+                                           arg.p_c0_grid_gamma_,
+                                           arg.p_c0_grid_beta_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.acc_element_op_,
@@ -656,9 +661,10 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
     static auto MakeArgument(const ADataType* p_a,
                              const BDataType* p_b,
                              CDataType* p_c,
-                             const CDataType* p_c0_bias,
-                             const CDataType* p_c0_gamma,
-                             const CDataType* p_c0_beta,
+                             const C0DataType* p_c0_bias,
+                             const C0DataType* p_c0_add,
+                             const C0DataType* p_c0_gamma,
+                             const C0DataType* p_c0_beta,
                              index_t MRaw,
                              index_t NRaw,
                              index_t KRaw,
@@ -674,6 +680,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                         p_b,
                         p_c,
                         p_c0_bias,
+                        p_c0_add,
                         p_c0_gamma,
                         p_c0_beta,
                         MRaw,
@@ -694,6 +701,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                                                       const void* p_b,
                                                       void* p_c,
                                                       const void* p_c0_bias,
+                                                      const void* p_c0_add,
                                                       const void* p_c0_gamma,
                                                       const void* p_c0_beta,
                                                       index_t MRaw,
@@ -712,6 +720,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                                           static_cast<const BDataType*>(p_b),
                                           static_cast<CDataType*>(p_c),
                                           static_cast<const C0DataType*>(p_c0_bias),
+                                          static_cast<const C0DataType*>(p_c0_add),
                                           static_cast<const C0DataType*>(p_c0_gamma),
                                           static_cast<const C0DataType*>(p_c0_beta),
                                           MRaw,

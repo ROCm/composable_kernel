@@ -39,6 +39,7 @@ __global__ void
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,               // MxN
             const FloatC0* __restrict__ p_c0_bias_grid,  // 1xN
+            const FloatC0* __restrict__ p_c0_add_grid,   // MxN
             const FloatC0* __restrict__ p_c0_gamma_grid, // 1xN
             const FloatC0* __restrict__ p_c0_beta_grid,  // 1xN
             const AElementwiseOperation a_element_op,
@@ -60,6 +61,7 @@ __global__ void
                                                   p_b_grid,
                                                   p_c_grid,
                                                   p_c0_bias_grid,
+                                                  p_c0_add_grid,
                                                   p_c0_gamma_grid,
                                                   p_c0_beta_grid,
                                                   p_shared,
@@ -79,6 +81,7 @@ __global__ void
     ignore = p_b_grid;
     ignore = p_c_grid;
     ignore = p_c0_bias_grid;
+    ignore = p_c0_add_grid;
     ignore = p_c0_gamma_grid;
     ignore = p_c0_beta_grid;
     ignore = a_element_op;
@@ -350,6 +353,7 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         const FloatAB* __restrict__ p_b_grid,
         FloatC* __restrict__ p_c_grid,
         const FloatC0* __restrict__ p_c0_bias_grid,  // 1xN
+        const FloatC0* __restrict__ p_c0_add_grid,   // MxN
         const FloatC0* __restrict__ p_c0_gamma_grid, // 1xN
         const FloatC0* __restrict__ p_c0_beta_grid,  // 1xN
         void* __restrict__ p_shared,
@@ -372,6 +376,9 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
         auto c0_bias_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c0_bias_grid, c0_grid_desc_nblock_nperblock.GetElementSpaceSize());
+        // Note: c0_add is of same layout as c so we don't declare new c0_add_desc here
+        auto c0_add_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_c0_add_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
         auto c0_gamma_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c0_gamma_grid, c0_grid_desc_nblock_nperblock.GetElementSpaceSize());
         auto c0_beta_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -814,10 +821,28 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                 1,
                 true>(
                 c0_grid_desc_mblock_mperblock_nblock_nperblock,
-                make_multi_index(I0,
-                                 m_block_data_idx_on_grid + c_reduce_thread_data_idx_begin[I0],
-                                 I0,
-                                 n_block_data_idx_on_grid + c_reduce_thread_data_idx_begin[I1]));
+                make_multi_index(block_work_idx[I0],
+                                 c_reduce_thread_data_idx_begin[I0],
+                                 block_work_idx[I1],
+                                 c_reduce_thread_data_idx_begin[I1]));
+
+            // Note: c0_add is of same layout as c so we don't declare new c0_add_desc here
+            auto c0_add_thread_copy_global_to_vgpr = ThreadwiseTensorSliceTransfer_v2<
+                FloatC0,
+                FloatC0,
+                decltype(c_grid_desc_mblock_mperblock_nblock_nperblock),
+                decltype(c_reduce_thread_desc_mblock_mperblock_nblock_nperblock),
+                Sequence<I1, mreduce_per_thread, I1, nreduce_per_thread>,
+                Sequence<0, 1, 2, 3>,
+                3,
+                CReduceThreadCopySrcDstScalarPerVector_NPerBlock,
+                1,
+                true>(
+                c_grid_desc_mblock_mperblock_nblock_nperblock,
+                make_multi_index(block_work_idx[I0],
+                                 c_reduce_thread_data_idx_begin[I0],
+                                 block_work_idx[I1],
+                                 c_reduce_thread_data_idx_begin[I1]));
 
             // space filling curve for threadwise C in VGPR
             constexpr auto sfc_c_vgpr =
@@ -878,6 +903,19 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                         [&](auto i) {
                             c_reduce_thread_buf(i) +=
                                 static_cast<FloatReduceAcc>(c0_thread_buf(i)); // bias
+                        });
+
+                    c0_add_thread_copy_global_to_vgpr.Run(
+                        c_grid_desc_mblock_mperblock_nblock_nperblock,
+                        c0_add_grid_buf,
+                        c_reduce_thread_desc_mblock_mperblock_nblock_nperblock,
+                        make_tuple(I0, I0, I0, I0),
+                        c0_thread_buf);
+
+                    static_for<0, c_reduce_thread_desc_mperblock_nperblock.GetElementSize(), 1>{}(
+                        [&](auto i) {
+                            c_reduce_thread_buf(i) +=
+                                static_cast<FloatReduceAcc>(c0_thread_buf(i)); // add
                         });
 
                     using ThreadwiseReduceD0 =
@@ -1010,6 +1048,10 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                     // move on C0
                     c0_thread_copy_global_to_vgpr.MoveSrcSliceWindow(
                         c0_grid_desc_mblock_mperblock_nblock_nperblock, c_global_step);
+
+                    // move on C0_add
+                    c0_add_thread_copy_global_to_vgpr.MoveSrcSliceWindow(
+                        c_grid_desc_mblock_mperblock_nblock_nperblock, c_global_step);
                 }
             });
         }

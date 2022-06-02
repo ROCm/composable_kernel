@@ -33,6 +33,7 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
     static void RunLayernorm(Tensor<OutDataType>& result,
                              const Tensor<ComputeDataType>& acc, // MxN
                              const Tensor<InDataType>& bias,     // 1xN
+                             const Tensor<InDataType>& add,      // MxN
                              const Tensor<InDataType>& gamma,    // 1xN
                              const Tensor<InDataType>& beta,     // 1xN
                              const InDataType epsilon = 1e-5)
@@ -51,6 +52,11 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
         // add bias
         acc_layernorm.ForEach([&](auto& self, auto idx) {
             self(idx[0], idx[1]) = acc(idx[0], idx[1]) + bias(idx[1]);
+        });
+
+        // add from other layer
+        acc_layernorm.ForEach([&](auto& self, auto idx) {
+            self(idx[0], idx[1]) += add(idx[0], idx[1]);
         });
 
         // reduce N dim
@@ -88,10 +94,11 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
     {
         Argument(const Tensor<ADataType>& a_m_k,
                  const Tensor<BDataType>& b_k_n,
+                 Tensor<CDataType>& c_m_n,
                  const Tensor<C0DataType>& c0_n_bias,  // 1xN
+                 const Tensor<C0DataType>& c0_m_n_add, // MxN
                  const Tensor<C0DataType>& c0_n_gamma, // 1xN
                  const Tensor<C0DataType>& c0_n_beta,  // 1xN
-                 Tensor<CDataType>& c_m_n,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  AccElementwiseOperation acc_element_op,
@@ -99,10 +106,11 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
                  const CDataType epsilon = 1e-5)
             : a_m_k_{a_m_k},
               b_k_n_{b_k_n},
+              c_m_n_{c_m_n},
               c0_n_bias_{c0_n_bias},
+              c0_m_n_add_{c0_m_n_add},
               c0_n_gamma_{c0_n_gamma},
               c0_n_beta_{c0_n_beta},
-              c_m_n_{c_m_n},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               acc_element_op_{acc_element_op},
@@ -113,10 +121,11 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
 
         const Tensor<ADataType>& a_m_k_;
         const Tensor<BDataType>& b_k_n_;
+        Tensor<CDataType>& c_m_n_;
         const Tensor<C0DataType>& c0_n_bias_;
+        const Tensor<C0DataType>& c0_m_n_add_;
         const Tensor<C0DataType>& c0_n_gamma_;
         const Tensor<C0DataType>& c0_n_beta_;
-        Tensor<CDataType>& c_m_n_;
 
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
@@ -145,10 +154,13 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
                                                       arg.b_element_op_,
                                                       arg.acc_element_op_);
 
+            // gemm
             ref_invoker.Run(ref_argument);
 
-            RunLayernorm(arg.c_m_n_, acc_m_n, arg.c0_n_bias_, arg.c0_n_gamma_, arg.c0_n_beta_);
+            // layernorm
+            RunLayernorm(arg.c_m_n_, acc_m_n, arg.c0_n_bias_, arg.c0_m_n_add_, arg.c0_n_gamma_, arg.c0_n_beta_);
 
+            // elementwise op
             arg.c_m_n_.ForEach([&](auto& self, auto idx) {
                 arg.c_element_op_(self(idx[0], idx[1]), self(idx[0], idx[1]));
             });
@@ -173,10 +185,11 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
 
     static auto MakeArgument(const Tensor<ADataType>& a_m_k,
                              const Tensor<BDataType>& b_k_n,
+                             Tensor<CDataType>& c_m_n,
                              const Tensor<C0DataType>& c0_n_bias,  // 1xN
+                             const Tensor<C0DataType>& c0_m_n_add, // 1xN
                              const Tensor<C0DataType>& c0_n_gamma, // 1xN
                              const Tensor<C0DataType>& c0_n_beta,  // 1xN
-                             Tensor<CDataType>& c_m_n,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              AccElementwiseOperation acc_element_op,
@@ -185,10 +198,11 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
     {
         return Argument{a_m_k,
                         b_k_n,
+                        c_m_n,
                         c0_n_bias,
+                        c0_m_n_add,
                         c0_n_gamma,
                         c0_n_beta,
-                        c_m_n,
                         a_element_op,
                         b_element_op,
                         acc_element_op,
