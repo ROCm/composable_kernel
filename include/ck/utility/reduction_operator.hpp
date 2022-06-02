@@ -78,6 +78,13 @@ struct SquaredAdd
 
     __host__ __device__ static constexpr T GetIdentityValue() { return static_cast<T>(0.0f); };
 
+    __device__ static constexpr bool
+    IsCompatibleInMemoryDataOperation(InMemoryDataOperationEnum operation)
+    {
+        return operation == InMemoryDataOperationEnum::AtomicAdd ||
+               operation == InMemoryDataOperationEnum::Set;
+    };
+
     __host__ __device__ inline constexpr void operator()(T& a, T b) const { a = a + b * b; }
 };
 
