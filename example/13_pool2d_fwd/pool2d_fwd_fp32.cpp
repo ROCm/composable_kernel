@@ -27,8 +27,6 @@ static constexpr bool PropagateNan = false;
 
 int main(int argc, char* argv[])
 {
-    using namespace ck::host_reduce;
-
     bool do_verification;
     int init_method;
     bool time_kernel;

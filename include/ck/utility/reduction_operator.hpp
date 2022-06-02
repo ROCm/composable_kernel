@@ -36,7 +36,7 @@ namespace reduce {
 // Every binary operator used in reduction is represented by a templated functor class. Each functor
 // class must provide at least
 // three members:
-// 1) GetReductionZeroVal() -- the interface to return the "identity element" for the binary
+// 1) GetIdentityValue() -- the interface to return the "identity element" for the binary
 // operator, "identity element" is the unique
 //                    element in the algebraic space that doesn't affect the value of other elements
 //                    when operated against them, and the concept is similar to zero vector in
@@ -59,7 +59,7 @@ struct Add
 {
     using dataType = T;
 
-    __host__ __device__ static constexpr T GetReductionZeroVal() { return static_cast<T>(0.0f); };
+    __host__ __device__ static constexpr T GetIdentityValue() { return static_cast<T>(0.0f); };
 
     __device__ static constexpr bool
     IsCompatibleInMemoryDataOperation(InMemoryDataOperationEnum operation)
@@ -86,7 +86,7 @@ struct Mul
 {
     using dataType = T;
 
-    __host__ __device__ static constexpr T GetReductionZeroVal() { return static_cast<T>(1.0f); };
+    __host__ __device__ static constexpr T GetIdentityValue() { return static_cast<T>(1.0f); };
 
     __device__ static constexpr bool
     IsCompatibleInMemoryDataOperation(InMemoryDataOperationEnum operation)
@@ -102,7 +102,7 @@ struct Max
 {
     using dataType = T;
 
-    __host__ __device__ static constexpr T GetReductionZeroVal()
+    __host__ __device__ static constexpr T GetIdentityValue()
     {
         return NumericLimits<T>::Lowest();
     };
@@ -135,10 +135,7 @@ struct Min
 {
     using dataType = T;
 
-    __host__ __device__ static constexpr T GetReductionZeroVal()
-    {
-        return NumericLimits<T>::Max();
-    };
+    __host__ __device__ static constexpr T GetIdentityValue() { return NumericLimits<T>::Max(); };
 
     __device__ static constexpr bool
     IsCompatibleInMemoryDataOperation(InMemoryDataOperationEnum operation)
@@ -168,7 +165,7 @@ struct AMax
 {
     using dataType = T;
 
-    __host__ __device__ static constexpr T GetReductionZeroVal() { return static_cast<T>(0.0f); };
+    __host__ __device__ static constexpr T GetIdentityValue() { return static_cast<T>(0.0f); };
 
     __device__ static constexpr bool
     IsCompatibleInMemoryDataOperation(InMemoryDataOperationEnum operation)
@@ -194,7 +191,7 @@ struct AMax
 };
 
 template <typename T>
-T GetReductionZeroValueForInMemoryDataOperation(InMemoryDataOperationEnum operation)
+T GetIdentityValueueForInMemoryDataOperation(InMemoryDataOperationEnum operation)
 {
     T result = ck::type_convert<T>(0.0f);
 
