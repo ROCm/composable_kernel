@@ -236,7 +236,7 @@ int main(int argc, char* argv[])
 
         for(int m = 0; m < M; ++m)
         {
-            ReduceAccDataType d_acc = d_reduce_op.GetReductionZeroVal();
+            ReduceAccDataType d_acc = d_reduce_op.GetIdentityValue();
 
             for(int n = 0; n < N; ++n)
                 d_reduce_op(d_acc, c_m_n_host_result(m, n));
