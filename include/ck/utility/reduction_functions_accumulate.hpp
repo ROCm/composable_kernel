@@ -27,24 +27,13 @@
 #define CK_REDUCTION_FUNCTIONS_BINOP_HPP
 
 #include "data_type.hpp"
+#include "math_v2.hpp"
 
 #include "reduction_common.hpp"
 #include "reduction_operator.hpp"
 
 namespace ck {
 namespace detail {
-
-template <typename T>
-static inline __device__ bool is_nan(T x)
-{
-    return (isnan(x));
-};
-
-template <>
-inline __device__ bool is_nan<half_t>(half_t x)
-{
-    return (__hisnan(x));
-};
 
 template <bool PropagateNan, typename ReduceOperation, typename AccDataType>
 struct AccumulateWithNanCheck;
@@ -53,7 +42,7 @@ template <typename ReduceOperation, typename AccDataType>
 struct AccumulateWithNanCheck<false, ReduceOperation, AccDataType>
 {
     // cppcheck-suppress constParameter
-    __device__ static inline void Calculate(AccDataType& accuVal, AccDataType currVal)
+    __host__ __device__ static inline void Calculate(AccDataType& accuVal, AccDataType currVal)
     {
         ReduceOperation{}(accuVal, currVal);
     };
@@ -62,9 +51,11 @@ struct AccumulateWithNanCheck<false, ReduceOperation, AccDataType>
 template <typename ReduceOperation, typename AccDataType>
 struct AccumulateWithNanCheck<true, ReduceOperation, AccDataType>
 {
-    __device__ static inline void Calculate(AccDataType& accuVal, AccDataType currVal)
+    __host__ __device__ static inline void Calculate(AccDataType& accuVal, AccDataType currVal)
     {
-        if(is_nan(currVal))
+        using ck::math::isnan;
+
+        if(isnan(currVal))
         {
             accuVal = currVal;
         }
@@ -81,7 +72,7 @@ struct AccumulateWithIndexAndNanCheck;
 template <typename ReduceOperation, typename AccDataType, typename IndexDataType>
 struct AccumulateWithIndexAndNanCheck<false, ReduceOperation, AccDataType, IndexDataType>
 {
-    __device__ static inline void
+    __host__ __device__ static inline void
     // cppcheck-suppress constParameter
     Calculate(AccDataType& accuVal,
               AccDataType currVal,
@@ -101,12 +92,14 @@ template <typename ReduceOperation, typename AccDataType, typename IndexDataType
 struct AccumulateWithIndexAndNanCheck<true, ReduceOperation, AccDataType, IndexDataType>
 {
     // The method is called when the ReduceOperation is indexable and the user asked for indices
-    __device__ static inline void Calculate(AccDataType& accuVal,
-                                            AccDataType currVal,
-                                            IndexDataType& accuIndex,
-                                            IndexDataType currIndex)
+    __host__ __device__ static inline void Calculate(AccDataType& accuVal,
+                                                     AccDataType currVal,
+                                                     IndexDataType& accuIndex,
+                                                     IndexDataType currIndex)
     {
-        if(is_nan(currVal))
+        using ck::math::isnan;
+
+        if(isnan(currVal))
         {
             accuVal   = currVal;
             accuIndex = currIndex;
