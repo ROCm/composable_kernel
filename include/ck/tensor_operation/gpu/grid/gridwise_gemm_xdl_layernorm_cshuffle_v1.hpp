@@ -875,7 +875,10 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                         c0_thread_buf);
 
                     static_for<0, c_reduce_thread_desc_mperblock_nperblock.GetElementSize(), 1>{}(
-                        [&](auto i) { c_reduce_thread_buf(i) += c0_thread_buf(i); });
+                        [&](auto i) {
+                            c_reduce_thread_buf(i) +=
+                                static_cast<FloatReduceAcc>(c0_thread_buf(i)); // bias
+                        });
 
                     using ThreadwiseReduceD0 =
                         ThreadwiseReduction<FloatReduceAcc,
@@ -960,7 +963,8 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
                     static_for<0, c_reduce_thread_desc_mperblock_nperblock.GetElementSize(), 1>{}(
                         [&](auto i) {
-                            c_reduce_thread_buf(i) *= c0_thread_buf(i); // * gamma
+                            c_reduce_thread_buf(i) *=
+                                static_cast<FloatReduceAcc>(c0_thread_buf(i)); // * gamma
                         });
 
                     c0_thread_copy_global_to_vgpr.Run(
@@ -972,7 +976,8 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
                     static_for<0, c_reduce_thread_desc_mperblock_nperblock.GetElementSize(), 1>{}(
                         [&](auto i) {
-                            c_reduce_thread_buf(i) += c0_thread_buf(i); // + beta
+                            c_reduce_thread_buf(i) +=
+                                static_cast<FloatReduceAcc>(c0_thread_buf(i)); // + beta
                         });
 
                     block_sync_lds();
