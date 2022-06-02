@@ -1,5 +1,4 @@
-#ifndef TEST_CONV_UTIL_HPP
-#define TEST_CONV_UTIL_HPP
+#pragma once
 
 #include <tuple>
 
@@ -131,5 +130,3 @@ void get_test_convolution_fwd_instance(std::vector<DeviceConvFwdNoOpPtr>& instan
 
 } // namespace conv
 } // namespace test
-
-#endif

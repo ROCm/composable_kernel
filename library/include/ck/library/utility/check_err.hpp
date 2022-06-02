@@ -1,5 +1,4 @@
-#ifndef CHECK_ERR_HPP
-#define CHECK_ERR_HPP
+#pragma once
 
 #include <algorithm>
 #include <cmath>
@@ -86,7 +85,7 @@ check_err(const std::vector<T>& out,
     {
         double o = type_convert<float>(out[i]);
         double r = type_convert<float>(ref[i]);
-        err      = std::abs(o - r);
+        err = std::abs(o - r);
         if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
         {
             max_err = err > max_err ? err : max_err;
@@ -170,14 +169,14 @@ check_err(const std::vector<T>& out,
     }
 
     bool res{true};
-    int err_count = 0;
-    T err         = 0;
-    T max_err     = std::numeric_limits<T>::min();
+    int err_count   = 0;
+    int64_t err     = 0;
+    int64_t max_err = std::numeric_limits<int64_t>::min();
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
-        T o = out[i];
-        T r = ref[i];
-        err = std::abs(o - r);
+        int64_t o = out[i];
+        int64_t r = ref[i];
+        err       = std::abs(o - r);
 
         if(err > 0)
         {
@@ -185,8 +184,8 @@ check_err(const std::vector<T>& out,
             err_count++;
             if(err_count < 5)
             {
-                std::cout << "out[" << i << "] != ref[" << i << "]: " 
-                          << static_cast<int>(out[i]) << " != " << static_cast<int>(ref[i]) << std::endl
+                std::cout << "out[" << i << "] != ref[" << i << "]: " << static_cast<int>(out[i])
+                          << " != " << static_cast<int>(ref[i]) << std::endl
                           << msg << std::endl;
             }
             res = false;
@@ -208,5 +207,3 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
     std::copy(std::begin(v), std::end(v), std::ostream_iterator<T>(os, " "));
     return os;
 }
-
-#endif
