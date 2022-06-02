@@ -1,5 +1,4 @@
-#ifndef CK_TUPLE_HPP
-#define CK_TUPLE_HPP
+#pragma once
 
 #include "integral_constant.hpp"
 #include "sequence.hpp"
@@ -173,4 +172,3 @@ constexpr Tuple<Args&...> tie(Args&... args) noexcept
 }
 
 } // namespace ck
-#endif

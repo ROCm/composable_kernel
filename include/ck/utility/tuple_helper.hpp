@@ -1,5 +1,4 @@
-#ifndef CK_TUPLE_HELPER_HPP
-#define CK_TUPLE_HELPER_HPP
+#pragma once
 
 #include "functional4.hpp"
 #include "tuple.hpp"
@@ -66,4 +65,3 @@ __host__ __device__ constexpr auto transform_tuples(F f, const X& x, const Y& y,
 }
 
 } // namespace ck
-#endif
