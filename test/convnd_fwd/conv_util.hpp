@@ -9,6 +9,25 @@
 #include "host_tensor.hpp"
 #include "sequence.hpp"
 
+namespace ck {
+namespace tensor_operation {
+namespace device {
+
+using DeviceConvFwdNoOpPtr = DeviceConvFwdPtr<element_wise::PassThrough,
+                                              element_wise::PassThrough,
+                                              element_wise::PassThrough>;
+namespace device_conv2d_fwd_instance {
+
+void add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(std::vector<DeviceConvFwdNoOpPtr>&);
+void add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances(std::vector<DeviceConvFwdNoOpPtr>&);
+void add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances(std::vector<DeviceConvFwdNoOpPtr>&);
+void add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(std::vector<DeviceConvFwdNoOpPtr>&);
+
+} // namespace device_conv2d_fwd_instance
+} // namespace device
+} // namespace tensor_operation
+} // namespace ck
+
 namespace test {
 namespace conv {
 
@@ -112,20 +131,81 @@ template <ck::index_t NDim,
           typename OutDataType = float>
 void get_test_convolution_fwd_instance(std::vector<DeviceConvFwdNoOpPtr>& instances,
                                        bool small_block_size = true)
+// TODO (aosewski)
+// Temporary solution to get all DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
+// instances. When switched over to DeviceConvNDFwdXdl for 2D remove ConvolutionNDFwdInstances
+// structures.
+template <typename InDataType, typename WeiDataType, typename OutDataType>
+struct ConvolutionNDFwdInstances;
+
+template <>
+struct ConvolutionNDFwdInstances<float, float, float>
 {
     if(small_block_size)
+    static std::vector<DeviceConvFwdNoOpPtr> Get(std::size_t num_dim_spatial)
     {
         using ConvInstanceT =
             DeviceConvNDFwdInstanceSmallBlockSize<NDim, InDataType, WeiDataType, OutDataType>;
         instances.emplace_back(std::make_unique<ConvInstanceT>());
+        std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
+        if(num_dim_spatial == 2)
+        {
+            ck::tensor_operation::device::device_conv2d_fwd_instance::
+                add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances(conv_ptrs);
+        }
+        return conv_ptrs;
     }
     else
+};
+
+template <>
+struct ConvolutionNDFwdInstances<ck::half_t, ck::half_t, ck::half_t>
+{
+    static std::vector<DeviceConvFwdNoOpPtr> Get(std::size_t num_dim_spatial)
     {
         using ConvInstanceT =
             DeviceConvNDFwdInstanceBigBlockSize<NDim, InDataType, WeiDataType, OutDataType>;
         instances.emplace_back(std::make_unique<ConvInstanceT>());
+        std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
+        if(num_dim_spatial == 2)
+        {
+            ck::tensor_operation::device::device_conv2d_fwd_instance::
+                add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
+        }
+        return conv_ptrs;
     }
 }
+};
+
+template <>
+struct ConvolutionNDFwdInstances<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t>
+{
+    static std::vector<DeviceConvFwdNoOpPtr> Get(std::size_t num_dim_spatial)
+    {
+        std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
+        if(num_dim_spatial == 2)
+        {
+            ck::tensor_operation::device::device_conv2d_fwd_instance::
+                add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
+        }
+        return conv_ptrs;
+    }
+};
+
+template <>
+struct ConvolutionNDFwdInstances<int8_t, int8_t, int8_t>
+{
+    static std::vector<DeviceConvFwdNoOpPtr> Get(std::size_t num_dim_spatial)
+    {
+        std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
+        if(num_dim_spatial == 2)
+        {
+            ck::tensor_operation::device::device_conv2d_fwd_instance::
+                add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(conv_ptrs);
+        }
+        return conv_ptrs;
+    }
+};
 
 } // namespace conv
 } // namespace test
