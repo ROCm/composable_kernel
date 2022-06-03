@@ -103,31 +103,32 @@ def buildHipClangJob(Map conf=[:]){
 
         def retimage
         gitStatusWrapper(credentialsId: '7126e5fe-eb51-4576-b52b-9aaf1de8f0fd', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
-            /*
-            try {
-                retimage = docker.build("${image}", dockerArgs + '.')
-                withDockerContainer(image: image, args: dockerOpts) {
-                    timeout(time: 5, unit: 'MINUTES')
-                    {
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
-                    }
-                }
-            }
-            catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
-                echo "The job was cancelled or aborted"
-                throw e
-            }
-            catch(Exception ex) {
-                retimage = docker.build("${image}", dockerArgs + "--no-cache .")
-                withDockerContainer(image: image, args: dockerOpts) {
-                    timeout(time: 5, unit: 'MINUTES')
-                    {
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
-                    }
-                }
-            }
-            */
-            retimage = compute-artifactory.amd.com:5000/rocm-plus-docker/framework/compute-rocm-dkms-no-npi-hipclang:9110_ubuntu18.04_py3.6_pytorch_rocm5.0_internal_testing_7ff5b54
+            
+            //try {
+            //    retimage = docker.build("${image}", dockerArgs + '.')
+            //    withDockerContainer(image: image, args: dockerOpts) {
+            //        timeout(time: 5, unit: 'MINUTES')
+            //        {
+            //            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+            //        }
+            //    }
+            //}
+            //catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+            //    echo "The job was cancelled or aborted"
+            //    throw e
+            //}
+            //catch(Exception ex) {
+            //    retimage = docker.build("${image}", dockerArgs + "--no-cache .")
+            //    withDockerContainer(image: image, args: dockerOpts) {
+            //        timeout(time: 5, unit: 'MINUTES')
+            //        {
+            //            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+            //        }
+            //    }
+            //}
+            
+            retimage = docker.image(compute-artifactory.amd.com:5000/rocm-plus-docker/framework/compute-rocm-dkms-no-npi-hipclang:9110_ubuntu18.04_py3.6_pytorch_rocm5.0_internal_testing_7ff5b54).pull()
+            
 
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 5, unit: 'HOURS')
@@ -212,7 +213,7 @@ def runCKProfiler(Map conf=[:]){
                 }
             }
             */
-            retimage = compute-artifactory.amd.com:5000/rocm-plus-docker/framework/compute-rocm-dkms-no-npi-hipclang:9110_ubuntu18.04_py3.6_pytorch_rocm5.0_internal_testing_7ff5b54
+            retimage = docker.image(compute-artifactory.amd.com:5000/rocm-plus-docker/framework/compute-rocm-dkms-no-npi-hipclang:9110_ubuntu18.04_py3.6_pytorch_rocm5.0_internal_testing_7ff5b54).pull()
 
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 5, unit: 'HOURS')
