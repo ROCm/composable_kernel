@@ -70,7 +70,7 @@ class Conv3dFwdNDHWCInstances : public ::testing::Test
     }
 
     static inline ck::utils::conv::ConvParams params_default_{
-        3, 4, 256, 64, {3, 3, 3}, {36, 36, 36}, {2, 2, 2}, {2, 2, 2}, {2, 2, 2}, {2, 2, 2}};
+        3, 4, 256, 64, {3, 3, 3}, {28, 28, 28}, {2, 2, 2}, {2, 2, 2}, {2, 2, 2}, {2, 2, 2}};
     static inline ck::utils::conv::ConvParams params_filter1x1_stride1_pad0_{
         3, 4, 256, 64, {1, 1, 1}, {28, 28, 28}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}};
     static inline ck::utils::conv::ConvParams params_filter1x1_pad0_{
@@ -91,10 +91,10 @@ TEST(Conv3DFwdNDHWC, IntegerValues)
     using T       = float;
 
     ck::utils::conv::ConvParams params{
-        3, 4, 256, 64, {3, 3, 3}, {36, 36, 36}, {1, 1, 1}, {2, 2, 2}, {2, 2, 2}, {2, 2, 2}};
+        3, 4, 256, 64, {3, 3, 3}, {18, 18, 18}, {1, 1, 1}, {2, 2, 2}, {2, 2, 2}, {2, 2, 2}};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
-    test::conv::get_test_convolution_fwd_instance<3>(conv_ptrs, false);
+    test::conv::get_test_convolution_fwd_instance<3, T, T, T>(conv_ptrs);
     conv::ConvFwdOpInstance<T,
                             T,
                             T,
@@ -119,13 +119,7 @@ TEST(Conv3DFwdNDHWC, IntegerValues)
     EXPECT_TRUE(run_engine.Test(conv_ptrs));
 }
 
-// clang-format off
-// Testing instance: DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<256, 128, 256, 4, Default>
-// :0:rocdevice.cpp            :2594: 3091498270047 us: 46754: [tid:0x7fe7c43d9700] 
-// Device::callbackQueue aborting with error : HSA_STATUS_ERROR_MEMORY_FAULT: Agent attempted to access an inaccessible address. code: 0x2b
-// Aborted (core dumped)
-// clang-format on
-TEST(Conv3DFwdNDHWC, DISABLED_FloatingPointValues)
+TEST(Conv3DFwdNDHWC, FloatingPointValues)
 {
     using namespace std::placeholders;
     using namespace ck::utils;
@@ -133,10 +127,10 @@ TEST(Conv3DFwdNDHWC, DISABLED_FloatingPointValues)
     using T       = ck::half_t;
 
     ck::utils::conv::ConvParams params{
-        3, 4, 256, 64, {3, 3, 3}, {36, 36, 36}, {1, 1, 1}, {2, 2, 2}, {2, 2, 2}, {2, 2, 2}};
+        3, 4, 256, 64, {3, 3, 3}, {18, 18, 18}, {1, 1, 1}, {2, 2, 2}, {2, 2, 2}, {2, 2, 2}};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
-    test::conv::get_test_convolution_fwd_instance<3>(conv_ptrs, false);
+    test::conv::get_test_convolution_fwd_instance<3, T, T, T>(conv_ptrs);
     conv::ConvFwdOpInstance<T,
                             T,
                             T,
@@ -153,7 +147,7 @@ TEST(Conv3DFwdNDHWC, DISABLED_FloatingPointValues)
     auto reference_conv_fwd_fun =
         std::bind(conv::run_reference_convolution_forward<3, T, T, T>, params, _1, _2, _3);
     OpInstanceRunEngine<T, T, T> run_engine(conv_instance, reference_conv_fwd_fun);
-    run_engine.SetAtol(1e-5);
+    run_engine.SetAtol(1e-3);
     run_engine.SetRtol(1e-3);
     EXPECT_TRUE(run_engine.Test(conv_ptrs));
 }
@@ -162,6 +156,7 @@ TEST(Conv3DFwdNDHWC, InputOver2GB)
 {
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
     using namespace ck::utils;
+    using T = float;
 
     // >2GB Input
     conv::ConvParams params;
@@ -177,8 +172,7 @@ TEST(Conv3DFwdNDHWC, InputOver2GB)
     params.input_right_pads_       = std::vector<ck::index_t>{1, 1, 1};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
-    test::conv::get_test_convolution_fwd_instance<3>(conv_ptrs);
-
+    test::conv::get_test_convolution_fwd_instance<3, T, T, T>(conv_ptrs);
     auto arg = conv_ptrs.back()->MakeArgumentPointer(nullptr,
                                                      nullptr,
                                                      nullptr,
@@ -202,6 +196,7 @@ TEST(Conv3DFwdNDHWC, FiltersOver2GB)
 {
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
     using namespace ck::utils;
+    using T = float;
 
     // >2GB Filters
     conv::ConvParams params;
@@ -217,8 +212,7 @@ TEST(Conv3DFwdNDHWC, FiltersOver2GB)
     params.input_right_pads_       = std::vector<ck::index_t>{1, 1, 1};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
-    test::conv::get_test_convolution_fwd_instance<3>(conv_ptrs);
-
+    test::conv::get_test_convolution_fwd_instance<3, T, T, T>(conv_ptrs);
     auto arg = conv_ptrs.back()->MakeArgumentPointer(nullptr,
                                                      nullptr,
                                                      nullptr,
@@ -242,6 +236,7 @@ TEST(Conv3DFwdNDHWC, OutputOver2GB)
 {
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
     using namespace ck::utils;
+    using T = float;
 
     // >2GB Output
     conv::ConvParams params;
@@ -257,7 +252,7 @@ TEST(Conv3DFwdNDHWC, OutputOver2GB)
     params.input_right_pads_       = std::vector<ck::index_t>{2, 2, 2};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
-    test::conv::get_test_convolution_fwd_instance<3>(conv_ptrs);
+    test::conv::get_test_convolution_fwd_instance<3, T, T, T>(conv_ptrs);
     auto arg = conv_ptrs.back()->MakeArgumentPointer(nullptr,
                                                      nullptr,
                                                      nullptr,

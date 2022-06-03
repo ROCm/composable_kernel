@@ -91,7 +91,7 @@ TEST(Conv1DFwdNWC, IntegerValues)
     ck::utils::conv::ConvParams params{1, 4, 256, 64, {3}, {36}, {1}, {2}, {2}, {2}};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
-    test::conv::get_test_convolution_fwd_instance<1>(conv_ptrs, false);
+    test::conv::get_test_convolution_fwd_instance<1, T, T, T>(conv_ptrs);
     conv::ConvFwdOpInstance<T,
                             T,
                             T,
@@ -116,11 +116,7 @@ TEST(Conv1DFwdNWC, IntegerValues)
     EXPECT_TRUE(run_engine.Test(conv_ptrs));
 }
 
-// Error: incorrect results!
-//         out[3] != ref[3]: 12.01562 != -166.875
-// Error: incorrect results!
-//    max err: 65497.75
-TEST(Conv1DFwdNWC, DISABLED_FloatingPointValues)
+TEST(Conv1DFwdNWC, FloatingPointValues)
 {
     using namespace std::placeholders;
     using namespace ck::utils;
@@ -130,7 +126,7 @@ TEST(Conv1DFwdNWC, DISABLED_FloatingPointValues)
     ck::utils::conv::ConvParams params{1, 4, 256, 64, {3}, {36}, {1}, {2}, {2}, {2}};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
-    test::conv::get_test_convolution_fwd_instance<1>(conv_ptrs, false);
+    test::conv::get_test_convolution_fwd_instance<1, T, T, T>(conv_ptrs);
     conv::ConvFwdOpInstance<T,
                             T,
                             T,
@@ -147,8 +143,8 @@ TEST(Conv1DFwdNWC, DISABLED_FloatingPointValues)
     auto reference_conv_fwd_fun =
         std::bind(conv::run_reference_convolution_forward<1, T, T, T>, params, _1, _2, _3);
     OpInstanceRunEngine<T, T, T> run_engine(conv_instance, reference_conv_fwd_fun);
-    run_engine.SetAtol(1e-5);
-    run_engine.SetRtol(1e-4);
+    run_engine.SetAtol(0.1);
+    run_engine.SetRtol(1e-2);
     EXPECT_TRUE(run_engine.Test(conv_ptrs));
 }
 

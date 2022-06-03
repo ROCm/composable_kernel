@@ -45,26 +45,52 @@ class Conv2dFwdNHWCInstances : public ::testing::Test
     }
 
     template <typename T>
-    bool test_default()
+    bool test_default(bool use_convnd = false)
     {
-        return test_conv2d_nhwc_instances<T>(
-            ck::utils::conv::ConvolutionFwdInstances<T, T, T>::template Get<2>(), params_default_);
+        if(use_convnd)
+        {
+            return test_conv2d_nhwc_instances<T>(
+                test::conv::ConvolutionNDFwdInstances<T, T, T>::Get(2), params_default_);
+        }
+        else
+        {
+            return test_conv2d_nhwc_instances<T>(
+                ck::utils::conv::ConvolutionFwdInstances<T, T, T>::template Get<2>(),
+                params_default_);
+        }
     }
 
     template <typename T>
-    bool test_filter1x1_stride1_pad0()
+    bool test_filter1x1_stride1_pad0(bool use_convnd = false)
     {
-        return test_conv2d_nhwc_instances<T>(
-            ck::utils::conv::ConvolutionFwdInstances<T, T, T>::template Get<2>(),
-            params_filter1x1_stride1_pad0_);
+        if(use_convnd)
+        {
+            return test_conv2d_nhwc_instances<T>(
+                test::conv::ConvolutionNDFwdInstances<T, T, T>::Get(2),
+                params_filter1x1_stride1_pad0_);
+        }
+        else
+        {
+            return test_conv2d_nhwc_instances<T>(
+                ck::utils::conv::ConvolutionFwdInstances<T, T, T>::template Get<2>(),
+                params_filter1x1_stride1_pad0_);
+        }
     }
 
     template <typename T>
-    bool test_filter1x1_pad0()
+    bool test_filter1x1_pad0(bool use_convnd = false)
     {
-        return test_conv2d_nhwc_instances<T>(
-            ck::utils::conv::ConvolutionFwdInstances<T, T, T>::template Get<2>(),
-            params_filter1x1_pad0_);
+        if(use_convnd)
+        {
+            return test_conv2d_nhwc_instances<T>(
+                test::conv::ConvolutionNDFwdInstances<T, T, T>::Get(2), params_filter1x1_pad0_);
+        }
+        else
+        {
+            return test_conv2d_nhwc_instances<T>(
+                ck::utils::conv::ConvolutionFwdInstances<T, T, T>::template Get<2>(),
+                params_filter1x1_pad0_);
+        }
     }
 
     template <typename T>
@@ -100,7 +126,7 @@ TEST(Conv2DFwdNHWC, IntegerValues)
         2, 4, 256, 64, {3, 3}, {36, 36}, {1, 1}, {2, 2}, {2, 2}, {2, 2}};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
-    test::conv::get_test_convolution_fwd_instance<2>(conv_ptrs, false);
+    test::conv::get_test_convolution_fwd_instance<2, T, T, T>(conv_ptrs);
     conv::ConvFwdOpInstance<T,
                             T,
                             T,
@@ -125,23 +151,17 @@ TEST(Conv2DFwdNHWC, IntegerValues)
     EXPECT_TRUE(run_engine.Test(conv_ptrs));
 }
 
-// clang-format off
-// Testing instance: DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<256, 256, 128, 4, Default>
-// :0:rocdevice.cpp            :2594: 3018185712797 us: 39118: [tid:0x7f71475aa700] 
-// Device::callbackQueue aborting with error : HSA_STATUS_ERROR_MEMORY_FAULT: Agent attempted to access an inaccessible address. code: 0x2b
-// Aborted (core dumped)
-// clang-format on
-TEST(Conv2DFwdNHWC, DISABLED_FloatingPointValues)
+TEST(Conv2DFwdNHWC, FloatingPointValues)
 {
     using namespace std::placeholders;
     using namespace ck::utils;
     using T = ck::half_t;
 
     ck::utils::conv::ConvParams params{
-        2, 4, 256, 64, {3, 3}, {36, 36}, {1, 1}, {2, 2}, {2, 2}, {2, 2}};
+        2, 4, 256, 64, {3, 3}, {36, 36}, {2, 2}, {2, 2}, {2, 2}, {2, 2}};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
-    test::conv::get_test_convolution_fwd_instance<2>(conv_ptrs, false);
+    test::conv::get_test_convolution_fwd_instance<2, T, T, T>(conv_ptrs);
     conv::ConvFwdOpInstance<T,
                             T,
                             T,
@@ -158,7 +178,7 @@ TEST(Conv2DFwdNHWC, DISABLED_FloatingPointValues)
     auto reference_conv_fwd_fun =
         std::bind(conv::run_reference_convolution_forward<2, T, T, T>, params, _1, _2, _3);
     OpInstanceRunEngine<T, T, T> run_engine(conv_instance, reference_conv_fwd_fun);
-    run_engine.SetAtol(4e-4);
+    run_engine.SetAtol(2e-4);
     run_engine.SetRtol(1e-3);
     EXPECT_TRUE(run_engine.Test(conv_ptrs));
 }
@@ -199,4 +219,47 @@ TEST_F(Conv2dFwdNHWCInstances, I8_filter1x1_stride1_pad0)
 TEST_F(Conv2dFwdNHWCInstances, I8_filter1x1_pad0)
 {
     EXPECT_TRUE(this->test_filter1x1_pad0<int8_t>());
+}
+
+TEST_F(Conv2dFwdNHWCInstances, ND_BF16_default)
+{
+    EXPECT_TRUE(this->test_default<ck::bhalf_t>(true));
+}
+TEST_F(Conv2dFwdNHWCInstances, ND_BF16_filter1x1_stride1_pad0)
+{
+    EXPECT_TRUE(this->test_filter1x1_stride1_pad0<ck::bhalf_t>(true));
+}
+TEST_F(Conv2dFwdNHWCInstances, ND_BF16_filter1x1_pad0)
+{
+    EXPECT_TRUE(this->test_filter1x1_pad0<ck::bhalf_t>(true));
+}
+TEST_F(Conv2dFwdNHWCInstances, ND_F16_default)
+{
+    EXPECT_TRUE(this->test_default<ck::half_t>(true));
+}
+TEST_F(Conv2dFwdNHWCInstances, ND_F16_filter1x1_stride1_pad0)
+{
+    EXPECT_TRUE(this->test_filter1x1_stride1_pad0<ck::half_t>(true));
+}
+TEST_F(Conv2dFwdNHWCInstances, ND_F16_filter1x1_pad0)
+{
+    EXPECT_TRUE(this->test_filter1x1_pad0<ck::half_t>(true));
+}
+TEST_F(Conv2dFwdNHWCInstances, ND_F32_default) { EXPECT_TRUE(this->test_default<float>(true)); }
+TEST_F(Conv2dFwdNHWCInstances, ND_F32_filter1x1_stride1_pad0)
+{
+    EXPECT_TRUE(this->test_filter1x1_stride1_pad0<float>(true));
+}
+TEST_F(Conv2dFwdNHWCInstances, ND_F32_filter1x1_pad0)
+{
+    EXPECT_TRUE(this->test_filter1x1_pad0<float>(true));
+}
+TEST_F(Conv2dFwdNHWCInstances, ND_I8_default) { EXPECT_TRUE(this->test_default<int8_t>(true)); }
+TEST_F(Conv2dFwdNHWCInstances, ND_I8_filter1x1_stride1_pad0)
+{
+    EXPECT_TRUE(this->test_filter1x1_stride1_pad0<int8_t>(true));
+}
+TEST_F(Conv2dFwdNHWCInstances, ND_I8_filter1x1_pad0)
+{
+    EXPECT_TRUE(this->test_filter1x1_pad0<int8_t>(true));
 }
