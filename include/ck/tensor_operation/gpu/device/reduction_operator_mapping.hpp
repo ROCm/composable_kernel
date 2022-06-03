@@ -43,7 +43,7 @@ struct reduce_binary_operator;
 template <typename T>
 struct reduce_binary_operator<T, ReduceTensorOp::ADD>
 {
-    using opType   = reduce::Add<T>;
+    using opType   = reduce::Add;
     using dataType = T;
 
     static constexpr bool indexable = false;
@@ -52,7 +52,7 @@ struct reduce_binary_operator<T, ReduceTensorOp::ADD>
 template <typename T>
 struct reduce_binary_operator<T, ReduceTensorOp::MUL>
 {
-    using opType   = reduce::Mul<T>;
+    using opType   = reduce::Mul;
     using dataType = T;
 
     static constexpr bool indexable = false;
@@ -61,7 +61,7 @@ struct reduce_binary_operator<T, ReduceTensorOp::MUL>
 template <typename T>
 struct reduce_binary_operator<T, ReduceTensorOp::MIN>
 {
-    using opType   = reduce::Min<T>;
+    using opType   = reduce::Min;
     using dataType = T;
 
     static constexpr bool indexable = true;
@@ -70,7 +70,7 @@ struct reduce_binary_operator<T, ReduceTensorOp::MIN>
 template <typename T>
 struct reduce_binary_operator<T, ReduceTensorOp::MAX>
 {
-    using opType   = reduce::Max<T>;
+    using opType   = reduce::Max;
     using dataType = T;
 
     static constexpr bool indexable = true;
@@ -79,7 +79,7 @@ struct reduce_binary_operator<T, ReduceTensorOp::MAX>
 template <typename T>
 struct reduce_binary_operator<T, ReduceTensorOp::AMAX>
 {
-    using opType   = reduce::AMax<T>;
+    using opType   = reduce::AMax;
     using dataType = T;
 
     static constexpr bool indexable = true;
@@ -88,7 +88,7 @@ struct reduce_binary_operator<T, ReduceTensorOp::AMAX>
 template <typename T>
 struct reduce_binary_operator<T, ReduceTensorOp::AVG>
 {
-    using opType   = reduce::Add<T>;
+    using opType   = reduce::Add;
     using dataType = T;
 
     static constexpr bool indexable = false;
@@ -97,7 +97,7 @@ struct reduce_binary_operator<T, ReduceTensorOp::AVG>
 template <typename T>
 struct reduce_binary_operator<T, ReduceTensorOp::NORM1>
 {
-    using opType   = reduce::Add<T>;
+    using opType   = reduce::Add;
     using dataType = T;
 
     static constexpr bool indexable = false;
@@ -106,7 +106,7 @@ struct reduce_binary_operator<T, ReduceTensorOp::NORM1>
 template <typename T>
 struct reduce_binary_operator<T, ReduceTensorOp::NORM2>
 {
-    using opType   = reduce::Add<T>;
+    using opType   = reduce::Add;
     using dataType = T;
 
     static constexpr bool indexable = false;

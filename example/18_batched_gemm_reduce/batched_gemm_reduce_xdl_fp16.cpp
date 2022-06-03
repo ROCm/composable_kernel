@@ -39,8 +39,8 @@ using CLayout = ck::tensor_layout::gemm::RowMajor;
 using AElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp  = ck::tensor_operation::element_wise::PassThrough;
-using D0ReduceOp  = ck::reduce::Add<ReduceAccDataType>;
-using D1ReduceOp  = ck::reduce::Add<ReduceAccDataType>;
+using D0ReduceOp  = ck::reduce::Add;
+using D1ReduceOp  = ck::reduce::Add;
 using DxsReduceOp = ck::Tuple<D0ReduceOp, D1ReduceOp>;
 
 using UnaryIdenticElementOp =
@@ -259,8 +259,8 @@ int main(int argc, char* argv[])
         {
             for(int m = 0; m < M; ++m)
             {
-                float d0_acc = d0_reduce_op.GetIdentityValue();
-                float d1_acc = d1_reduce_op.GetIdentityValue();
+                float d0_acc = d0_reduce_op.GetIdentityValue<float>();
+                float d1_acc = d1_reduce_op.GetIdentityValue<float>();
 
                 for(int n = 0; n < N; ++n)
                 {

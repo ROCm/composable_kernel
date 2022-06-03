@@ -126,8 +126,8 @@ bool profile_gemm_reduce_impl(int do_verification,
     using AElementOp        = ck::tensor_operation::element_wise::PassThrough;
     using BElementOp        = ck::tensor_operation::element_wise::PassThrough;
     using CElementOp        = ck::tensor_operation::element_wise::PassThrough;
-    using D0ReduceOp        = ck::reduce::Add<float>;
-    using D1ReduceOp        = ck::reduce::Add<float>;
+    using D0ReduceOp        = ck::reduce::Add;
+    using D1ReduceOp        = ck::reduce::Add;
     using UnaryDivElementOp = ck::tensor_operation::element_wise::UnaryIdentic<float, float, true>;
     using UnaryIdenticElementOp =
         ck::tensor_operation::element_wise::UnaryIdentic<float, float, false>;
@@ -165,8 +165,8 @@ bool profile_gemm_reduce_impl(int do_verification,
 
         for(int m = 0; m < M; ++m)
         {
-            float d0_acc = d0_reduce_op.GetIdentityValue();
-            float d1_acc = d1_reduce_op.GetIdentityValue();
+            float d0_acc = d0_reduce_op.GetIdentityValue<float>();
+            float d1_acc = d1_reduce_op.GetIdentityValue<float>();
 
             for(int n = 0; n < N; ++n)
             {

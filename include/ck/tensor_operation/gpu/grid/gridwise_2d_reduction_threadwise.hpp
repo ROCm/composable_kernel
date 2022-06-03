@@ -135,12 +135,12 @@ struct GridwiseReduction_mk_to_m_threadwise
                                                      ReduceOperation,
                                                      PropagateNan>;
 
-        const auto identityVal = ReduceOperation::GetIdentityValue();
+        const auto identityVal = ReduceOperation::template GetIdentityValue<AccDataType>();
 
-        const auto in_global_val_buf =
-            make_dynamic_buffer<AddressSpaceEnum::Global>(p_in_value_global,
-                                                          in_grid_desc_m_k.GetElementSpaceSize(),
-                                                          type_convert<InDataType>(identityVal));
+        const auto in_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_in_value_global,
+            in_grid_desc_m_k.GetElementSpaceSize(),
+            ReduceOperation::template GetIdentityValue<InDataType>());
         auto dst_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_out_value_global, out_grid_desc_m.GetElementSpaceSize());
 
@@ -276,12 +276,12 @@ struct GridwiseReduction_mk_to_m_threadwise
 
         (void)acc_elementwise_op;
 
-        const auto identityVal = ReduceOperation::GetIdentityValue();
+        const auto identityVal = ReduceOperation::template GetIdentityValue<AccDataType>();
 
-        const auto in_global_val_buf =
-            make_dynamic_buffer<AddressSpaceEnum::Global>(p_in_value_global,
-                                                          in_grid_desc_m_k.GetElementSpaceSize(),
-                                                          type_convert<InDataType>(identityVal));
+        const auto in_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_in_value_global,
+            in_grid_desc_m_k.GetElementSpaceSize(),
+            ReduceOperation::template GetIdentityValue<InDataType>());
         const auto in_global_idx_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_in_index_global, in_grid_desc_m_k.GetElementSpaceSize());
 

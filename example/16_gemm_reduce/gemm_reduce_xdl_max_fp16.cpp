@@ -41,7 +41,7 @@ using CLayout = ck::tensor_layout::gemm::RowMajor;
 using AElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp  = ck::tensor_operation::element_wise::PassThrough;
-using DsReduceOp  = ck::Tuple<ck::reduce::Max<ReduceAccDataType>>;
+using DsReduceOp  = ck::Tuple<ck::reduce::Max>;
 using DsElementOp = ck::Tuple<
     ck::tensor_operation::element_wise::UnaryIdentic<ReduceAccDataType, ReduceAccDataType, false>>;
 using DGlobalMemOp =
@@ -236,10 +236,14 @@ int main(int argc, char* argv[])
 
         for(int m = 0; m < M; ++m)
         {
-            ReduceAccDataType d_acc = d_reduce_op.GetIdentityValue();
+            ReduceAccDataType d_acc = d_reduce_op.GetIdentityValue<ReduceAccDataType>();
 
             for(int n = 0; n < N; ++n)
-                d_reduce_op(d_acc, c_m_n_host_result(m, n));
+            {
+                ReduceAccDataType curr_val =
+                    ck::type_convert<ReduceAccDataType>(c_m_n_host_result(m, n));
+                d_reduce_op(d_acc, curr_val);
+            };
 
             d_m_host_result(m) = d_acc;
         }

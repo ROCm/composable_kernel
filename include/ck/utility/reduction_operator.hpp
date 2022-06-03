@@ -54,62 +54,72 @@ namespace reduce {
 //                  accumulated index also need be
 //                  changed.
 
-template <class T>
 struct Add
 {
-    using dataType = T;
+    template <typename T>
+    __host__ __device__ static constexpr T GetIdentityValue()
+    {
+        return type_convert<T>(0.0f);
+    };
 
-    __host__ __device__ static constexpr T GetIdentityValue() { return static_cast<T>(0.0f); };
-
-    __device__ static constexpr bool
+    __host__ __device__ static constexpr bool
     IsCompatibleInMemoryDataOperation(InMemoryDataOperationEnum operation)
     {
         return operation == InMemoryDataOperationEnum::AtomicAdd ||
                operation == InMemoryDataOperationEnum::Set;
     };
 
-    __host__ __device__ inline constexpr void operator()(T& a, T b) const { a = a + b; }
+    template <typename T>
+    __host__ __device__ inline constexpr void operator()(T& a, T b) const
+    {
+        a = a + b;
+    }
 };
 
-template <class T>
 struct Mul
 {
-    using dataType = T;
+    template <typename T>
+    __host__ __device__ static constexpr T GetIdentityValue()
+    {
+        return type_convert<T>(1.0f);
+    };
 
-    __host__ __device__ static constexpr T GetIdentityValue() { return static_cast<T>(1.0f); };
-
-    __device__ static constexpr bool
+    __host__ __device__ static constexpr bool
     IsCompatibleInMemoryDataOperation(InMemoryDataOperationEnum operation)
     {
         return operation == InMemoryDataOperationEnum::Set;
     };
 
-    __host__ __device__ inline constexpr void operator()(T& a, T b) const { a = a * b; }
+    template <typename T>
+    __host__ __device__ inline constexpr void operator()(T& a, T b) const
+    {
+        a = a * b;
+    }
 };
 
-template <class T>
 struct Max
 {
-    using dataType = T;
-
+    template <typename T>
     __host__ __device__ static constexpr T GetIdentityValue()
     {
         return NumericLimits<T>::Lowest();
     };
 
-    __device__ static constexpr bool
+    __host__ __device__ static constexpr bool
     IsCompatibleInMemoryDataOperation(InMemoryDataOperationEnum operation)
     {
         // ToChange: atomic_max to be added
         return operation == InMemoryDataOperationEnum::Set;
     };
 
+    template <typename T>
     __host__ __device__ inline constexpr void operator()(T& a, T b) const
     {
         if(a < b)
             a = b;
     }
 
+    template <typename T>
     __host__ __device__ inline constexpr void operator()(T& a, T b, bool& changed) const
     {
         if(a < b)
@@ -120,26 +130,29 @@ struct Max
     }
 };
 
-template <class T>
 struct Min
 {
-    using dataType = T;
+    template <typename T>
+    __host__ __device__ static constexpr T GetIdentityValue()
+    {
+        return NumericLimits<T>::Max();
+    };
 
-    __host__ __device__ static constexpr T GetIdentityValue() { return NumericLimits<T>::Max(); };
-
-    __device__ static constexpr bool
+    __host__ __device__ static constexpr bool
     IsCompatibleInMemoryDataOperation(InMemoryDataOperationEnum operation)
     {
         // ToChange: atomic_min to be added
         return operation == InMemoryDataOperationEnum::Set;
     };
 
+    template <typename T>
     __host__ __device__ inline constexpr void operator()(T& a, T b) const
     {
         if(a > b)
             a = b;
     }
 
+    template <typename T>
     __host__ __device__ inline constexpr void operator()(T& a, T b, bool& changed) const
     {
         if(a > b)
@@ -150,26 +163,30 @@ struct Min
     }
 };
 
-template <class T>
 struct AMax
 {
-    using dataType = T;
 
-    __host__ __device__ static constexpr T GetIdentityValue() { return static_cast<T>(0.0f); };
+    template <typename T>
+    __host__ __device__ static constexpr T GetIdentityValue()
+    {
+        return type_convert<T>(0.0f);
+    };
 
-    __device__ static constexpr bool
+    __host__ __device__ static constexpr bool
     IsCompatibleInMemoryDataOperation(InMemoryDataOperationEnum operation)
     {
         // ToChange: atomic_max to be added
         return operation == InMemoryDataOperationEnum::Set;
     };
 
+    template <typename T>
     __host__ __device__ inline constexpr void operator()(T& a, T b) const
     {
         if(a < b)
             a = b;
     }
 
+    template <typename T>
     __host__ __device__ inline constexpr void operator()(T& a, T b, bool& changed) const
     {
         if(a < b)
@@ -181,7 +198,7 @@ struct AMax
 };
 
 template <typename T>
-T GetIdentityValueueForInMemoryDataOperation(InMemoryDataOperationEnum operation)
+constexpr T GetIdentityValueForInMemoryDataOperation(InMemoryDataOperationEnum operation)
 {
     T result = ck::type_convert<T>(0.0f);
 

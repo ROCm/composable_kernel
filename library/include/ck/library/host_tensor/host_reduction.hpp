@@ -205,7 +205,7 @@ struct ReductionHost
 
         if constexpr(NumInvariantDim == 0)
         {
-            AccDataType accuVal     = ReduceOperation::GetIdentityValue();
+            AccDataType accuVal     = ReduceOperation::template GetIdentityValue<AccDataType>();
             IndexDataType accuIndex = 0;
 
             for(std::size_t i = 0; i < reduce_dim_indexes.size(); i++)
@@ -236,7 +236,7 @@ struct ReductionHost
         else
         {
             auto thread_reduce_func = [&](auto invariant_index) {
-                AccDataType accuVal     = ReduceOperation::GetIdentityValue();
+                AccDataType accuVal     = ReduceOperation::template GetIdentityValue<AccDataType>();
                 IndexDataType accuIndex = 0;
 
                 auto offset_invariant =
@@ -311,7 +311,7 @@ struct ReductionHost
 
         if constexpr(NumInvariantDim == 0)
         {
-            AccDataType accuVal = ReduceOperation::GetIdentityValue();
+            AccDataType accuVal = ReduceOperation::template GetIdentityValue<AccDataType>();
 
             for(const auto& reduce_index : reduce_dim_indexes)
             {
@@ -338,7 +338,7 @@ struct ReductionHost
         else
         {
             auto thread_reduce_func = [&](auto invariant_index) {
-                AccDataType accuVal = ReduceOperation::GetIdentityValue();
+                AccDataType accuVal = ReduceOperation::template GetIdentityValue<AccDataType>();
 
                 auto offset_invariant =
                     get_offset_from_index<NumInvariantDim>(invariantStrides, invariant_index);
