@@ -45,48 +45,7 @@ static constexpr auto ConvFwdDefault =
     ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
 
 template <ck::index_t SpatialDims, typename InDataType, typename WeiDataType, typename OutDataType>
-using DeviceConvNDFwdInstanceSmallBlockSize = ck::tensor_operation::device::
-    DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
-        // clang-format off
-        InDataType,         // 
-        WeiDataType,        //
-        OutDataType,        //
-        typename ck::AccumulatorDataType<InDataType>::type, // Accumulator data type.
-        InElementOp,        // Input Elementwise Operation
-        WeiElementOp,       // Weights Elementwise Operation
-        OutElementOp,       // Output Elementwise Operation
-        ConvFwdDefault,     // ConvForwardSpecialization
-        SpatialDims,        // SptialDims
-        64,                 // BlockSize
-        16,                 // MPerBlock
-        16,                 // NPerBlock
-        4,                  // K0PerBlock
-        1,                  // K1                                           
-        16,                 // MPerXDL
-        16,                 // NPerXDL
-        1,                  // MXdlPerWave
-        1,                  // NXdlPerWave
-        S<1, 16, 1>,        // ABlockTransferThreadClusterLengths_K0_M_K1
-        S<1, 0, 2>,         // ABlockTransferThreadClusterArrangeOrder
-        S<1, 0, 2>,         // ABlockTransferSrcAccessOrder
-        2,                  // ABlockTransferSrcVectorDim
-        1,                  // ABlockTransferSrcScalarPerVector
-        1,                  // ABlockTransferDstScalarPerVector_K1
-        true,               // ABlockLdsAddExtraM
-        S<1, 16, 1>,        // BBlockTransferThreadClusterLengths_K0_N_K1
-        S<1, 0, 2>,         // BBlockTransferThreadClusterArrangeOrder
-        S<1, 0, 2>,         // BBlockTransferSrcAccessOrder
-        2,                  // BBlockTransferSrcVectorDim
-        1,                  // BBlockTransferSrcScalarPerVector
-        1,                  // BBlockTransferDstScalarPerVector_K1
-        true,               // BBlockTransferAddExtraN
-        7,                  // CThreadTransferSrcDstVectorDim
-        1>;                 // CThreadTransferDstScalarPerVector
-// clang-format on
-
-// This works for fp16
-template <ck::index_t SpatialDims, typename InDataType, typename WeiDataType, typename OutDataType>
-using DeviceConvNDFwdInstanceBigBlockSize = ck::tensor_operation::device::
+using DeviceConvNDFwdInstance = ck::tensor_operation::device::
     DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
         // clang-format off
         InDataType,         // 
@@ -125,12 +84,13 @@ using DeviceConvNDFwdInstanceBigBlockSize = ck::tensor_operation::device::
         1>;                // CThreadTransferDstScalarPerVector
 // clang-format on
 
-template <ck::index_t NDim,
-          typename InDataType  = float,
-          typename WeiDataType = float,
-          typename OutDataType = float>
-void get_test_convolution_fwd_instance(std::vector<DeviceConvFwdNoOpPtr>& instances,
-                                       bool small_block_size = true)
+template <ck::index_t NDim, typename InDataType, typename WeiDataType, typename OutDataType>
+void get_test_convolution_fwd_instance(std::vector<DeviceConvFwdNoOpPtr>& instances)
+{
+    using ConvInstanceT = DeviceConvNDFwdInstance<NDim, InDataType, WeiDataType, OutDataType>;
+    instances.emplace_back(std::make_unique<ConvInstanceT>());
+}
+
 // TODO (aosewski)
 // Temporary solution to get all DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
 // instances. When switched over to DeviceConvNDFwdXdl for 2D remove ConvolutionNDFwdInstances
@@ -141,12 +101,8 @@ struct ConvolutionNDFwdInstances;
 template <>
 struct ConvolutionNDFwdInstances<float, float, float>
 {
-    if(small_block_size)
     static std::vector<DeviceConvFwdNoOpPtr> Get(std::size_t num_dim_spatial)
     {
-        using ConvInstanceT =
-            DeviceConvNDFwdInstanceSmallBlockSize<NDim, InDataType, WeiDataType, OutDataType>;
-        instances.emplace_back(std::make_unique<ConvInstanceT>());
         std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
         if(num_dim_spatial == 2)
         {
@@ -155,7 +111,6 @@ struct ConvolutionNDFwdInstances<float, float, float>
         }
         return conv_ptrs;
     }
-    else
 };
 
 template <>
@@ -163,9 +118,6 @@ struct ConvolutionNDFwdInstances<ck::half_t, ck::half_t, ck::half_t>
 {
     static std::vector<DeviceConvFwdNoOpPtr> Get(std::size_t num_dim_spatial)
     {
-        using ConvInstanceT =
-            DeviceConvNDFwdInstanceBigBlockSize<NDim, InDataType, WeiDataType, OutDataType>;
-        instances.emplace_back(std::make_unique<ConvInstanceT>());
         std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
         if(num_dim_spatial == 2)
         {
@@ -174,7 +126,6 @@ struct ConvolutionNDFwdInstances<ck::half_t, ck::half_t, ck::half_t>
         }
         return conv_ptrs;
     }
-}
 };
 
 template <>
