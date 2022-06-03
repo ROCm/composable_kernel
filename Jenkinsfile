@@ -103,6 +103,7 @@ def buildHipClangJob(Map conf=[:]){
 
         def retimage
         gitStatusWrapper(credentialsId: '7126e5fe-eb51-4576-b52b-9aaf1de8f0fd', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
+            /*
             try {
                 retimage = docker.build("${image}", dockerArgs + '.')
                 withDockerContainer(image: image, args: dockerOpts) {
@@ -125,10 +126,13 @@ def buildHipClangJob(Map conf=[:]){
                     }
                 }
             }
+            */
+            retimage = compute-artifactory.amd.com:5000/rocm-plus-docker/framework/compute-rocm-dkms-no-npi-hipclang:9110_ubuntu18.04_py3.6_pytorch_rocm5.0_internal_testing_7ff5b54
 
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 5, unit: 'HOURS')
                 {
+                    sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
                     cmake_build(conf)
                 }
             }
@@ -184,6 +188,7 @@ def runCKProfiler(Map conf=[:]){
 
         def retimage
         gitStatusWrapper(credentialsId: '7126e5fe-eb51-4576-b52b-9aaf1de8f0fd', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
+            /*
             try {
                 retimage = docker.build("${image}", dockerArgs + '.')
                 withDockerContainer(image: image, args: dockerOpts) {
@@ -206,6 +211,8 @@ def runCKProfiler(Map conf=[:]){
                     }
                 }
             }
+            */
+            retimage = compute-artifactory.amd.com:5000/rocm-plus-docker/framework/compute-rocm-dkms-no-npi-hipclang:9110_ubuntu18.04_py3.6_pytorch_rocm5.0_internal_testing_7ff5b54
 
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 5, unit: 'HOURS')
@@ -302,30 +309,6 @@ pipeline {
                 //         buildHipClangJobAndReboot(build_cmd: build_cmd, no_reboot:true, prefixpath: '/opt/rocm', build_type: 'debug')
                 //     }
                 // }
-				// we will build and run ckProfiler release version later, during the performance test stage
-                //stage('Build Profiler: Release, gfx908')
-                //{
-                //    agent { label rocmnode("nogpu")}
-                //    environment{
-                //        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
-                //    }
-                //    steps{
-                //        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
-                //    }
-                //}
-                //stage('Build Profiler: Debug, gfx908')
-				//{
-                //    agent { label rocmnode("nogpu")}
-                //    environment{
-                //        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
-                //    }
-                //    steps{
-                //        // until we stabilize debug build due to compiler crashes
-                //        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                //            buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Debug')
-                //        }
-                //    }
-                //}
                 stage('Clang Format') {
                     agent{ label rocmnode("nogpu") }
                     environment{
