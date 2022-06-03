@@ -66,7 +66,7 @@ __global__ void
         c_element_op,
         gemm_desc_ptr[group_id].grouped_gemm_transpose_block_2_ctile_map_);
 #else
-    ignore = gemm_descs;
+    ignore = gemm_descs_const;
     ignore = group_count;
     ignore = a_element_op;
     ignore = b_element_op;
