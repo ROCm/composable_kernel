@@ -28,6 +28,7 @@
 
 #include "config.hpp"
 #include "data_type.hpp"
+#include "type.hpp"
 
 namespace ck {
 
@@ -165,7 +166,6 @@ struct Min
 
 struct AMax
 {
-
     template <typename T>
     __host__ __device__ static constexpr T GetIdentityValue()
     {
@@ -206,6 +206,44 @@ constexpr T GetIdentityValueForInMemoryDataOperation(InMemoryDataOperationEnum o
         result = ck::NumericLimits<T>::Lowest();
 
     return (result);
+};
+
+template <InMemoryDataOperationEnum Operation, typename DataType>
+struct InMemoryDataOperatonSupportedOnDataType
+{
+    static constexpr bool value = false;
+};
+
+template <typename DataType>
+struct InMemoryDataOperatonSupportedOnDataType<InMemoryDataOperationEnum::AtomicAdd, DataType>
+{
+    static constexpr bool value =
+        is_same<DataType, float>::value || is_same<DataType, double>::value;
+};
+
+template <typename DataType>
+struct InMemoryDataOperatonSupportedOnDataType<InMemoryDataOperationEnum::AtomicMax, DataType>
+{
+    static constexpr bool value =
+        is_same<DataType, float>::value || is_same<DataType, double>::value;
+};
+
+template <typename DataType>
+struct InMemoryDataOperatonSupportedOnDataType<InMemoryDataOperationEnum::Set, DataType>
+{
+    static constexpr bool value =
+        is_same<DataType, float>::value || is_same<DataType, double>::value ||
+        is_same<DataType, half_t>::value || is_same<DataType, bhalf_t>::value ||
+        is_same<DataType, int8_t>::value || is_same<DataType, int32_t>::value;
+};
+
+template <typename DataType>
+struct InMemoryDataOperatonSupportedOnDataType<InMemoryDataOperationEnum::Add, DataType>
+{
+    static constexpr bool value =
+        is_same<DataType, float>::value || is_same<DataType, double>::value ||
+        is_same<DataType, half_t>::value || is_same<DataType, int8_t>::value ||
+        is_same<DataType, int32_t>::value;
 };
 
 }; // end of namespace reduce

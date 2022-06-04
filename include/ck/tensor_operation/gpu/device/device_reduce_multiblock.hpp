@@ -61,12 +61,9 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
     static constexpr bool use_multiblock =
         (OutMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd);
 
-    static constexpr bool out_type_compatible_with_atomic_op =
-        std::is_same<OutDataType, float>::value || std::is_same<OutDataType, double>::value;
-
-    static_assert(
-        !use_multiblock || (use_multiblock && out_type_compatible_with_atomic_op),
-        "The OutDataType must support the atomic operation for using MultiBlock reduction");
+    static_assert(ck::reduce::InMemoryDataOperatonSupportedOnDataType<OutMemoryDataOperation,
+                                                                      OutDataType>::value,
+                  "The OutDataType must support the specified OutMemoryDataOperation!");
 
     static_assert(!use_multiblock || (use_multiblock && !OutputIndex),
                   "MultiBlock reduction can only be used when outputing index is not required");
