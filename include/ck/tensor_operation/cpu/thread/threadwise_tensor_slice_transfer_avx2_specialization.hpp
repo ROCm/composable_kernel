@@ -519,7 +519,7 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
 
     template <typename SrcBuffer, typename DstBuffer, typename SliceLengths>
     void RunRead(const SrcDesc& src_desc,
-                 const SrcBuffer& src_buf,
+                 SrcBuffer& src_buf,
                  const DstDesc& dst_desc,
                  DstBuffer& dst_buf,
                  const SliceLengths& slice_length)
@@ -917,14 +917,15 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXC
 
     template <typename SrcBuffer, typename DstBuffer, typename SliceLengths>
     void RunRead(const SrcDesc&,
-                 const SrcBuffer& src_buf,
+                 SrcBuffer& src_buf,
                  const DstDesc& dst_desc,
                  DstBuffer& dst_buf,
                  const SliceLengths& slice_length)
     {
         if constexpr(BypassTransfer)
         {
-            // TODO: weight NHWC not support this
+            // KYXC weigh should not support this
+            dst_buf.p_data_ = reinterpret_cast<float*>(src_buf.p_data_) + src_offset;
         }
         else
         {
@@ -1132,12 +1133,15 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXCK8
 
     template <typename SrcBuffer, typename DstBuffer, typename SliceLengths>
     void RunRead(const SrcDesc&,
-                 const SrcBuffer& src_buf,
+                 SrcBuffer& src_buf,
                  const DstDesc& dst_desc,
                  DstBuffer& dst_buf,
                  const SliceLengths& slice_length)
     {
-        if constexpr(BypassTransfer) {}
+        if constexpr(BypassTransfer)
+        {
+            dst_buf.p_data_ = reinterpret_cast<float*>(src_buf.p_data_) + src_offset;
+        }
         else
         {
             const ck::index_t n0_per_block = slice_length[Number<0>{}];

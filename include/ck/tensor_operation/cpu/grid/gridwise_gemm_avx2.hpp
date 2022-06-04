@@ -80,46 +80,65 @@ struct GridwiseGemmAvx2_MxN
     // static constexpr auto Avx2RegisterVector = 8;   // 8 floats
     static constexpr index_t MemAlignmentByte = 32; // 256bit
 
-    static auto GetABlockDescriptor(const ck::index_t m_per_blk, const ck::index_t k_per_blk)
+    static auto GetABlockDescriptor(const ck::index_t m_per_blk,
+                                    const ck::index_t k_per_blk,
+                                    const AGridDesc& a_grid_desc)
     {
-        if constexpr(std::is_same<typename ThreadwiseGemm_Dispatch::MatrixALayout,
-                                  ck::tensor_layout::gemm::RowMajor>::value)
+        if constexpr(UseALocalBuffer)
         {
-            // A : M, K
-            auto a_block_desc_m_k =
-                make_naive_tensor_descriptor_packed(make_tuple(m_per_blk, k_per_blk));
-            return a_block_desc_m_k;
+            if constexpr(std::is_same<typename ThreadwiseGemm_Dispatch::MatrixALayout,
+                                      ck::tensor_layout::gemm::RowMajor>::value)
+            {
+                // A : M, K
+                auto a_block_desc_m_k =
+                    make_naive_tensor_descriptor_packed(make_tuple(m_per_blk, k_per_blk));
+                return a_block_desc_m_k;
+            }
+            else
+            {
+                // A : K, M
+                auto a_block_desc_k_m = make_naive_tensor_descriptor_packed(
+                    make_tuple(k_per_blk,
+                               math::integer_least_multiple(
+                                   m_per_blk, ThreadwiseGemm_Dispatch::MatrixAMinVectorSize)));
+                return a_block_desc_k_m;
+            }
         }
         else
         {
-            // A : K, M
-            auto a_block_desc_k_m = make_naive_tensor_descriptor_packed(
-                make_tuple(k_per_blk,
-                           math::integer_least_multiple(
-                               m_per_blk, ThreadwiseGemm_Dispatch::MatrixAMinVectorSize)));
-            return a_block_desc_k_m;
+            return a_grid_desc;
         }
     }
 
-    static auto GetBBlockDescriptor(const ck::index_t k_per_blk, const ck::index_t n_per_blk)
+    static auto GetBBlockDescriptor(const ck::index_t k_per_blk,
+                                    const ck::index_t n_per_blk,
+                                    const BGridDesc& b_grid_desc)
     {
-        // n_per_blk should be 8x
-        if constexpr(std::is_same<typename ThreadwiseGemm_Dispatch::MatrixBLayout,
-                                  ck::tensor_layout::gemm::RowMajor>::value)
+        if constexpr(UseBLocalBuffer)
         {
-            // B : K, N
-            auto b_block_desc_k_n =
-                make_naive_tensor_descriptor_packed(make_tuple(k_per_blk, n_per_blk));
-            return b_block_desc_k_n;
+            // n_per_blk should be 8x
+            if constexpr(std::is_same<typename ThreadwiseGemm_Dispatch::MatrixBLayout,
+                                      ck::tensor_layout::gemm::RowMajor>::value)
+            {
+                // B : K, N
+                auto b_block_desc_k_n =
+                    make_naive_tensor_descriptor_packed(make_tuple(k_per_blk, n_per_blk));
+                return b_block_desc_k_n;
+            }
+            else
+            {
+                // B : N/8, K, N8
+                auto b_block_desc_n0_k_n1 = make_naive_tensor_descriptor_packed(
+                    make_tuple(math::integer_divide_ceil(
+                                   n_per_blk, ThreadwiseGemm_Dispatch::MatrixBMinVectorSize),
+                               k_per_blk,
+                               ThreadwiseGemm_Dispatch::MatrixBMinVectorSize));
+                return b_block_desc_n0_k_n1;
+            }
         }
         else
         {
-            // B : N/8, K, N8
-            auto b_block_desc_n0_k_n1 = make_naive_tensor_descriptor_packed(make_tuple(
-                math::integer_divide_ceil(n_per_blk, ThreadwiseGemm_Dispatch::MatrixBMinVectorSize),
-                k_per_blk,
-                ThreadwiseGemm_Dispatch::MatrixBMinVectorSize));
-            return b_block_desc_n0_k_n1;
+            return b_grid_desc;
         }
     }
 
@@ -262,10 +281,10 @@ struct GridwiseGemmAvx2_MxN
         constexpr auto b_block_copy_dim = BGridDesc::GetNumOfDimension();
 
         auto a_grid_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
-            reinterpret_cast<const FloatA*>(p_a_grid), a_grid_desc.GetElementSpaceSize());
+            const_cast<FloatA*>(p_a_grid), a_grid_desc.GetElementSpaceSize());
 
         auto b_grid_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
-            reinterpret_cast<const FloatB*>(p_b_grid), b_grid_desc.GetElementSpaceSize());
+            const_cast<FloatB*>(p_b_grid), b_grid_desc.GetElementSpaceSize());
 
         auto c_grid_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
             reinterpret_cast<FloatC*>(p_c_grid), c_grid_desc.GetElementSpaceSize());
@@ -274,8 +293,8 @@ struct GridwiseGemmAvx2_MxN
             FloatA,                                                               // FloatA,
             FloatB,                                                               // FloatB,
             FloatC,                                                               // FloatC,
-            decltype(GetABlockDescriptor(m_per_block, k_per_block)),              // ABlockDesc,
-            decltype(GetBBlockDescriptor(k_per_block, n_per_block)),              // BBlockDesc,
+            decltype(GetABlockDescriptor(m_per_block, k_per_block, a_grid_desc)), // ABlockDesc,
+            decltype(GetBBlockDescriptor(k_per_block, n_per_block, b_grid_desc)), // BBlockDesc,
             decltype(GetCBlockDescriptor(m_per_block, n_per_block, c_grid_desc)), // CBlockDesc,
             KPerBlock,                                                            // KPerBlock,
             ThreadwiseGemm_Dispatch, // ThreadwiseGemm_Dispatch,
@@ -320,14 +339,14 @@ struct GridwiseGemmAvx2_MxN
                 auto a_threadwise_copy =
                     AThreadwiseCopy(a_grid_desc,
                                     ck::make_zero_multi_index<a_block_copy_dim>(),
-                                    GetABlockDescriptor(m_per_block, k_per_block),
+                                    GetABlockDescriptor(m_per_block, k_per_block, a_grid_desc),
                                     ck::make_zero_multi_index<a_block_copy_dim>(),
                                     AElementwiseOperation{});
 
                 auto b_threadwise_copy =
                     BThreadwiseCopy(b_grid_desc,
                                     ck::make_zero_multi_index<b_block_copy_dim>(),
-                                    GetBBlockDescriptor(k_per_block, n_per_block),
+                                    GetBBlockDescriptor(k_per_block, n_per_block, b_grid_desc),
                                     ck::make_zero_multi_index<b_block_copy_dim>(),
                                     BElementwiseOperation{});
 
@@ -338,21 +357,27 @@ struct GridwiseGemmAvx2_MxN
                                     ck::make_zero_multi_index<2>(),
                                     CElementwiseOperation{});
 
-                DeviceAlignedMemCPU a_block_mem(m_per_block * k_per_block * sizeof(FloatA),
-                                                MemAlignmentByte);
-                DeviceAlignedMemCPU b_block_mem(k_per_block * n_per_block * sizeof(FloatB),
-                                                MemAlignmentByte);
+                DeviceAlignedMemCPU a_block_mem(
+                    UseALocalBuffer ? m_per_block * k_per_block * sizeof(FloatA) : 0,
+                    MemAlignmentByte);
+                DeviceAlignedMemCPU b_block_mem(
+                    UseBLocalBuffer ? k_per_block * n_per_block * sizeof(FloatB) : 0,
+                    MemAlignmentByte);
                 DeviceAlignedMemCPU c_block_mem(
                     UseCLocalBuffer ? (m_per_block * n_per_block * sizeof(FloatC)) : 0,
                     MemAlignmentByte);
 
                 auto a_block_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
-                    reinterpret_cast<FloatA*>(a_block_mem.mpDeviceBuf),
-                    a_block_mem.mMemSize / sizeof(FloatA));
+                    UseALocalBuffer ? reinterpret_cast<FloatA*>(a_block_mem.mpDeviceBuf)
+                                    : const_cast<FloatA*>(p_a_grid),
+                    UseALocalBuffer ? a_block_mem.mMemSize / sizeof(FloatA)
+                                    : a_grid_desc.GetElementSpaceSize());
 
                 auto b_block_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
-                    reinterpret_cast<FloatB*>(b_block_mem.mpDeviceBuf),
-                    b_block_mem.mMemSize / sizeof(FloatB));
+                    UseBLocalBuffer ? reinterpret_cast<FloatB*>(b_block_mem.mpDeviceBuf)
+                                    : const_cast<FloatB*>(p_b_grid),
+                    UseBLocalBuffer ? b_block_mem.mMemSize / sizeof(FloatB)
+                                    : b_grid_desc.GetElementSpaceSize());
 
                 auto c_block_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
                     UseCLocalBuffer ? reinterpret_cast<FloatC*>(c_block_mem.mpDeviceBuf)
@@ -395,8 +420,8 @@ struct GridwiseGemmAvx2_MxN
                     {
                         ck::index_t kc_size = ck::math::min(GemmK - i_kc, k_per_block);
 
-                        auto a_block_desc = GetABlockDescriptor(mc_size, kc_size);
-                        auto b_block_desc = GetBBlockDescriptor(kc_size, nc_size);
+                        auto a_block_desc = GetABlockDescriptor(mc_size, kc_size, a_grid_desc);
+                        auto b_block_desc = GetBBlockDescriptor(kc_size, nc_size, b_grid_desc);
 
                         a_threadwise_copy.RunRead(a_grid_desc,
                                                   a_grid_buf,
@@ -412,12 +437,17 @@ struct GridwiseGemmAvx2_MxN
                         blockwise_gemm.Run(a_block_desc,
                                            a_block_buf,
                                            make_zero_multi_index<a_block_copy_dim>(),
+                                           GetASliceLength(mc_size, kc_size),
+
                                            b_block_desc,
                                            b_block_buf,
                                            make_zero_multi_index<b_block_copy_dim>(),
+                                           GetBSliceLength(kc_size, nc_size),
+
                                            c_block_desc,
                                            c_block_buf,
                                            make_zero_multi_index<2>(),
+                                           GetCSliceLength(mc_size, nc_size),
                                            i_kc != 0);
 
                         if((i_kc + k_per_block) < GemmK)
@@ -450,14 +480,14 @@ struct GridwiseGemmAvx2_MxN
                 auto a_threadwise_copy =
                     AThreadwiseCopy(a_grid_desc,
                                     ck::make_zero_multi_index<a_block_copy_dim>(),
-                                    GetABlockDescriptor(m_per_block, k_per_block),
+                                    GetABlockDescriptor(m_per_block, k_per_block, a_grid_desc),
                                     ck::make_zero_multi_index<a_block_copy_dim>(),
                                     AElementwiseOperation{});
 
                 auto b_threadwise_copy =
                     BThreadwiseCopy(b_grid_desc,
                                     ck::make_zero_multi_index<b_block_copy_dim>(),
-                                    GetBBlockDescriptor(k_per_block, n_per_block),
+                                    GetBBlockDescriptor(k_per_block, n_per_block, b_grid_desc),
                                     ck::make_zero_multi_index<b_block_copy_dim>(),
                                     BElementwiseOperation{});
 
@@ -468,21 +498,27 @@ struct GridwiseGemmAvx2_MxN
                                     ck::make_zero_multi_index<2>(),
                                     CElementwiseOperation{});
 
-                DeviceAlignedMemCPU a_block_mem(m_per_block * k_per_block * sizeof(FloatA),
-                                                MemAlignmentByte);
-                DeviceAlignedMemCPU b_block_mem(k_per_block * n_per_block * sizeof(FloatB),
-                                                MemAlignmentByte);
+                DeviceAlignedMemCPU a_block_mem(
+                    UseALocalBuffer ? m_per_block * k_per_block * sizeof(FloatA) : 0,
+                    MemAlignmentByte);
+                DeviceAlignedMemCPU b_block_mem(
+                    UseBLocalBuffer ? k_per_block * n_per_block * sizeof(FloatB) : 0,
+                    MemAlignmentByte);
                 DeviceAlignedMemCPU c_block_mem(
                     UseCLocalBuffer ? (m_per_block * n_per_block * sizeof(FloatC)) : 0,
                     MemAlignmentByte);
 
                 auto a_block_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
-                    reinterpret_cast<FloatA*>(a_block_mem.mpDeviceBuf),
-                    a_block_mem.mMemSize / sizeof(FloatA));
+                    UseALocalBuffer ? reinterpret_cast<FloatA*>(a_block_mem.mpDeviceBuf)
+                                    : const_cast<FloatA*>(p_a_grid),
+                    UseALocalBuffer ? a_block_mem.mMemSize / sizeof(FloatA)
+                                    : a_grid_desc.GetElementSpaceSize());
 
                 auto b_block_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
-                    reinterpret_cast<FloatB*>(b_block_mem.mpDeviceBuf),
-                    b_block_mem.mMemSize / sizeof(FloatB));
+                    UseBLocalBuffer ? reinterpret_cast<FloatB*>(b_block_mem.mpDeviceBuf)
+                                    : const_cast<FloatB*>(p_b_grid),
+                    UseBLocalBuffer ? b_block_mem.mMemSize / sizeof(FloatB)
+                                    : b_grid_desc.GetElementSpaceSize());
 
                 auto c_block_buf = ck::cpu::make_dynamic_buffer<ck::AddressSpaceEnum::Global>(
                     UseCLocalBuffer ? reinterpret_cast<FloatC*>(c_block_mem.mpDeviceBuf)
@@ -503,7 +539,7 @@ struct GridwiseGemmAvx2_MxN
                     {
                         ck::index_t kc_size = ck::math::min(GemmK - i_kc, k_per_block);
 
-                        auto a_block_desc = GetABlockDescriptor(mc_size, kc_size);
+                        auto a_block_desc = GetABlockDescriptor(mc_size, kc_size, a_grid_desc);
                         a_threadwise_copy.RunRead(a_grid_desc,
                                                   a_grid_buf,
                                                   a_block_desc,
@@ -519,7 +555,7 @@ struct GridwiseGemmAvx2_MxN
                                 ck::math::min(GemmN - i_nc, n_per_block); // TODO: nc need be 8x
                             nc_size = math::integer_least_multiple(
                                 nc_size, ThreadwiseGemm_Dispatch::MatrixBMinVectorSize);
-                            auto b_block_desc = GetBBlockDescriptor(kc_size, nc_size);
+                            auto b_block_desc = GetBBlockDescriptor(kc_size, nc_size, b_grid_desc);
 
                             b_threadwise_copy.RunRead(b_grid_desc,
                                                       b_grid_buf,
@@ -543,12 +579,18 @@ struct GridwiseGemmAvx2_MxN
                             blockwise_gemm.Run(a_block_desc,
                                                a_block_buf,
                                                make_zero_multi_index<a_block_copy_dim>(),
+                                               GetASliceLength(mc_size, kc_size),
+
                                                b_block_desc,
                                                b_block_buf,
                                                make_zero_multi_index<b_block_copy_dim>(),
+                                               GetBSliceLength(kc_size, nc_size),
+
                                                c_block_desc,
                                                c_block_buf,
                                                make_zero_multi_index<2>(),
+                                               GetCSliceLength(mc_size, nc_size),
+
                                                i_kc != 0);
 
                             if((i_nc + n_per_block) < GemmN)

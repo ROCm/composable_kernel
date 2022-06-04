@@ -41,6 +41,10 @@ struct BlockwiseGemmAvx2_MxN
     using IndexB                   = MultiIndex<nDimB>;
     using IndexC                   = MultiIndex<nDimC>;
 
+    using ASliceLengths = MultiIndex<nDimA>;
+    using BSliceLengths = MultiIndex<nDimB>;
+    using CSliceLengths = MultiIndex<nDimC>;
+
     using ACoord = decltype(make_tensor_coordinate(ABlockDesc{}, IndexA{}));
     using BCoord = decltype(make_tensor_coordinate(BBlockDesc{}, IndexB{}));
     using CCoord = decltype(make_tensor_coordinate(CDesc{}, IndexC{}));
@@ -89,6 +93,7 @@ struct BlockwiseGemmAvx2_MxN
         return c_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}];
     }
 
+#if 0
     static ck::index_t GetMPerBlock(const ABlockDesc& a_block_desc)
     {
         if constexpr(std::is_same<typename ThreadwiseGemm_Dispatch::MatrixALayout,
@@ -134,6 +139,7 @@ struct BlockwiseGemmAvx2_MxN
                    b_block_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<2>{}];
         }
     }
+#endif
 
     static ck::index_t
     GetABlockStartOffset(const ABlockDesc& a_block_desc, const index_t i_m, const index_t)
@@ -175,14 +181,17 @@ struct BlockwiseGemmAvx2_MxN
     static void Run(const ABlockDesc& a_block_desc,
                     const ABlockBuffer& a_block_buf,
                     const IndexA& /* a_origin */,
+                    const ASliceLengths& a_slice_length,
 
                     const BBlockDesc& b_block_desc,
                     const BBlockBuffer& b_block_buf,
                     const IndexB& /* b_origin */,
+                    const BSliceLengths& b_slice_length,
 
                     const CDesc& c_desc,
                     CBuffer& c_buf,
                     const IndexC& /* c_origin */,
+                    const CSliceLengths& c_slice_length,
 
                     bool is_accumulate_c = true)
     {
@@ -192,9 +201,9 @@ struct BlockwiseGemmAvx2_MxN
 
         // printf("lda:%d, ldb:%d, ldc:%d\n", lda, ldb, ldc);
 
-        const auto k_per_block  = GetKPerBlock(a_block_desc);
-        const auto m_per_block  = GetMPerBlock(a_block_desc);
-        const auto n_per_block  = GetNPerBlock(b_block_desc);
+        const auto k_per_block  = a_slice_length[Number<1>{}];
+        const auto m_per_block  = c_slice_length[Number<0>{}];
+        const auto n_per_block  = c_slice_length[Number<1>{}];
         const auto m_per_thread = ThreadwiseGemm_Dispatch::ThreadMaxMr;
         const auto n_per_thread = ThreadwiseGemm_Dispatch::ThreadMaxNr;
 
@@ -205,6 +214,9 @@ struct BlockwiseGemmAvx2_MxN
         param.ldc         = ldc;
         param.alpha       = 1.0f; // TODO
         param.accmulate_c = is_accumulate_c ? 1 : 0;
+
+        // printf("xxx lda:%u, ldb:%u, ldc:%u, mpb:%u, npb:%u, kpb:%u\n", lda, ldb, ldc,
+        // m_per_block, n_per_block, k_per_block);
 
         if constexpr(std::is_same<ThreadMNAccessOrder, ck::Sequence<0, 1>>::value)
         {

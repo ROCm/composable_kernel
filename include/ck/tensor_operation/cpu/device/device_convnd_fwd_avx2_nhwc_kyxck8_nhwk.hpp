@@ -106,24 +106,6 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_K8_Output_N_Ho_Wo_K
 
     using ThreadwiseGemm_Dispatch = decltype(GetThreadwiseGemm_Dispatch());
 
-    static constexpr auto GetInputBlockDescriptor()
-    {
-        return make_naive_tensor_descriptor_packed(make_tuple(MPerBlock, KPerBlock));
-    }
-
-    static constexpr auto GetWeightBlockDescriptor()
-    {
-        return make_naive_tensor_descriptor_packed(make_tuple(
-            math::integer_divide_ceil(NPerBlock, ThreadwiseGemm_Dispatch::MatrixBMinVectorSize),
-            KPerBlock,
-            ThreadwiseGemm_Dispatch::MatrixBMinVectorSize));
-    }
-
-    static constexpr auto GetOutputBlockDescriptor()
-    {
-        return make_naive_tensor_descriptor_packed(make_tuple(MPerBlock, NPerBlock));
-    }
-
     static auto GetWeightTensorDescriptor(ck::index_t gemm_k, ck::index_t gemm_n)
     {
         return make_naive_tensor_descriptor_packed(make_tuple(gemm_n / 8, gemm_k, 8));
@@ -532,6 +514,45 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_K8_Output_N_Ho_Wo_K
     using BGridDesc = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
     using CGridDesc = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
+    static constexpr auto GetInputBlockDescriptor()
+    {
+        if constexpr(UseALocalBuffer)
+        {
+            return make_naive_tensor_descriptor_packed(make_tuple(MPerBlock, KPerBlock));
+        }
+        else
+        {
+            return AGridDesc{};
+        }
+    }
+
+    static constexpr auto GetWeightBlockDescriptor()
+    {
+        if constexpr(UseBLocalBuffer)
+        {
+            return make_naive_tensor_descriptor_packed(make_tuple(
+                math::integer_divide_ceil(NPerBlock, ThreadwiseGemm_Dispatch::MatrixBMinVectorSize),
+                KPerBlock,
+                ThreadwiseGemm_Dispatch::MatrixBMinVectorSize));
+        }
+        else
+        {
+            return BGridDesc{};
+        }
+    }
+
+    static constexpr auto GetOutputBlockDescriptor()
+    {
+        if constexpr(UseCLocalBuffer)
+        {
+            return make_naive_tensor_descriptor_packed(make_tuple(MPerBlock, NPerBlock));
+        }
+        else
+        {
+            return CGridDesc{};
+        }
+    }
+
     // static constexpr bool UseCLocalBuffer = false;
 
     using AThreadwiseCopy =
@@ -541,7 +562,7 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_K8_Output_N_Ho_Wo_K
             AGridDesc,
             decltype(GetInputBlockDescriptor()),
             InElementwiseOperation,
-            false,
+            !UseALocalBuffer,
             ConvForwardSpecialization,
             GemmKSpecialization>;
 
@@ -552,7 +573,7 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_K8_Output_N_Ho_Wo_K
             BGridDesc,
             decltype(GetWeightBlockDescriptor()),
             WeiElementwiseOperation,
-            false,
+            !UseBLocalBuffer,
             ConvForwardSpecialization,
             GemmKSpecialization>;
 
@@ -763,7 +784,9 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_K8_Output_N_Ho_Wo_K
         }
 
         if constexpr(GemmKSpecialization ==
-                     ConvolutionForwardGemmKSpecialization_t::NHWC_GemmKLoopOverC)
+                         ConvolutionForwardGemmKSpecialization_t::NHWC_GemmKLoopOverC &&
+                     ConvForwardSpecialization !=
+                         ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
         {
             if(!(arg.Conv_C_ % KPerBlock == 0))
                 return false;
@@ -771,6 +794,15 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_K8_Output_N_Ho_Wo_K
 
         if(!(arg.Conv_K_ % 8 == 0))
             return false;
+
+        if constexpr(!UseALocalBuffer &&
+                     ConvForwardSpecialization !=
+                         ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
+        {
+            // TODO: We can support this in the future, as long as figure out how to express tensor
+            // transform
+            return false;
+        }
 
         // Gridwise GEMM size
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_, arg.b_grid_desc_, arg.c_grid_desc_);

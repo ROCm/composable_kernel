@@ -108,20 +108,41 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
 
     static constexpr auto GetInputBlockDescriptor()
     {
-        return make_naive_tensor_descriptor_packed(make_tuple(MPerBlock, KPerBlock));
+        if constexpr(UseALocalBuffer)
+        {
+            return make_naive_tensor_descriptor_packed(make_tuple(MPerBlock, KPerBlock));
+        }
+        else
+        {
+            return AGridDesc{};
+        }
     }
 
     static constexpr auto GetWeightBlockDescriptor()
     {
-        return make_naive_tensor_descriptor_packed(make_tuple(
-            math::integer_divide_ceil(NPerBlock, ThreadwiseGemm_Dispatch::MatrixBMinVectorSize),
-            KPerBlock,
-            ThreadwiseGemm_Dispatch::MatrixBMinVectorSize));
+        if constexpr(UseBLocalBuffer)
+        {
+            return make_naive_tensor_descriptor_packed(make_tuple(
+                math::integer_divide_ceil(NPerBlock, ThreadwiseGemm_Dispatch::MatrixBMinVectorSize),
+                KPerBlock,
+                ThreadwiseGemm_Dispatch::MatrixBMinVectorSize));
+        }
+        else
+        {
+            return BGridDesc{};
+        }
     }
 
     static constexpr auto GetOutputBlockDescriptor()
     {
-        return make_naive_tensor_descriptor_packed(make_tuple(MPerBlock, NPerBlock));
+        if constexpr(UseCLocalBuffer)
+        {
+            return make_naive_tensor_descriptor_packed(make_tuple(MPerBlock, NPerBlock));
+        }
+        else
+        {
+            return CGridDesc{};
+        }
     }
 
     static auto GetWeightTensorDescriptor(ck::index_t gemm_k, ck::index_t gemm_n)
@@ -564,7 +585,7 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             AGridDesc,
             decltype(GetInputBlockDescriptor()),
             InElementwiseOperation,
-            false,
+            !UseALocalBuffer,
             ConvForwardSpecialization,
             GemmKSpecialization>;
 
@@ -575,7 +596,7 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             BGridDesc,
             decltype(GetWeightBlockDescriptor()),
             WeiElementwiseOperation,
-            false,
+            !UseBLocalBuffer,
             ConvForwardSpecialization,
             GemmKSpecialization>;
 
@@ -786,10 +807,21 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         }
 
         if constexpr(GemmKSpecialization ==
-                     ConvolutionForwardGemmKSpecialization_t::NHWC_GemmKLoopOverC)
+                         ConvolutionForwardGemmKSpecialization_t::NHWC_GemmKLoopOverC &&
+                     ConvForwardSpecialization !=
+                         ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
         {
             if(!(arg.Conv_C_ % KPerBlock == 0))
                 return false;
+        }
+
+        if constexpr((!UseALocalBuffer || !UseBLocalBuffer) &&
+                     ConvForwardSpecialization !=
+                         ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
+        {
+            // TODO: We can support this in the future, as long as figure out how to express tensor
+            // transform
+            return false;
         }
 
         // Gridwise GEMM size
