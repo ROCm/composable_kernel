@@ -35,7 +35,7 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
 
     using IndexDataType = int32_t;
 
-    using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
+    using ReduceOperation = typename reduce_binary_operator<ReduceOpId>::opType;
 
     using InElementwiseOperation =
         typename reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation;

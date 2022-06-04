@@ -33,7 +33,7 @@ static void pool_host_verify(const Tensor<InDataType>& in,
 {
     const int32_t reduceLength = window_spatial_lengths[0] * window_spatial_lengths[1];
 
-    using ReduceOperation = typename ck::reduce_binary_operator<AccDataType, ReduceOpId>::opType;
+    using ReduceOperation = typename ck::reduce_binary_operator<ReduceOpId>::opType;
 
     auto elementwise_ops =
         ck::reduce_unary_operator<ReduceOpId, true, true>::GetElementwiseOperator(reduceLength);

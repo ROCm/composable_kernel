@@ -31,7 +31,7 @@ constexpr ReduceTensorOp ReduceOpId = ReduceTensorOp::NORM2;
 constexpr bool PropagateNan         = true;
 constexpr bool OutputIndex          = false;
 
-using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
+using ReduceOperation = typename reduce_binary_operator<ReduceOpId>::opType;
 using InElementwiseOperation =
     typename reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation;
 using AccElementwiseOperation =

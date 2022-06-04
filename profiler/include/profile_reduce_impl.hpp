@@ -265,7 +265,7 @@ bool profile_reduce_impl_impl(bool do_verification,
         using AccElementwiseOperation =
             typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation;
 
-        using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
+        using ReduceOperation = typename reduce_binary_operator<ReduceOpId>::opType;
 
         InElementwiseOperation in_elementwise_op;
         AccElementwiseOperation acc_elementwise_op;

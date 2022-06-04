@@ -38,77 +38,69 @@ namespace ck {
 // The boolean member "indexable" are also provided in reduce_binary_operactor for
 // easier checking by the upper-layer codes in the kernels.
 
-template <typename T, ReduceTensorOp Op>
+template <ReduceTensorOp Op>
 struct reduce_binary_operator;
 
-template <typename T>
-struct reduce_binary_operator<T, ReduceTensorOp::ADD>
+template <>
+struct reduce_binary_operator<ReduceTensorOp::ADD>
 {
-    using opType   = reduce::Add;
-    using dataType = T;
+    using opType = reduce::Add;
 
     static constexpr bool indexable = false;
 };
 
-template <typename T>
-struct reduce_binary_operator<T, ReduceTensorOp::MUL>
+template <>
+struct reduce_binary_operator<ReduceTensorOp::MUL>
 {
-    using opType   = reduce::Mul;
-    using dataType = T;
+    using opType = reduce::Mul;
 
     static constexpr bool indexable = false;
 };
 
-template <typename T>
-struct reduce_binary_operator<T, ReduceTensorOp::MIN>
+template <>
+struct reduce_binary_operator<ReduceTensorOp::MIN>
 {
-    using opType   = reduce::Min;
-    using dataType = T;
+    using opType = reduce::Min;
 
     static constexpr bool indexable = true;
 };
 
-template <typename T>
-struct reduce_binary_operator<T, ReduceTensorOp::MAX>
+template <>
+struct reduce_binary_operator<ReduceTensorOp::MAX>
 {
-    using opType   = reduce::Max;
-    using dataType = T;
+    using opType = reduce::Max;
 
     static constexpr bool indexable = true;
 };
 
-template <typename T>
-struct reduce_binary_operator<T, ReduceTensorOp::AMAX>
+template <>
+struct reduce_binary_operator<ReduceTensorOp::AMAX>
 {
-    using opType   = reduce::AMax;
-    using dataType = T;
+    using opType = reduce::AMax;
 
     static constexpr bool indexable = true;
 };
 
-template <typename T>
-struct reduce_binary_operator<T, ReduceTensorOp::AVG>
+template <>
+struct reduce_binary_operator<ReduceTensorOp::AVG>
 {
-    using opType   = reduce::Add;
-    using dataType = T;
+    using opType = reduce::Add;
 
     static constexpr bool indexable = false;
 };
 
-template <typename T>
-struct reduce_binary_operator<T, ReduceTensorOp::NORM1>
+template <>
+struct reduce_binary_operator<ReduceTensorOp::NORM1>
 {
-    using opType   = reduce::Add;
-    using dataType = T;
+    using opType = reduce::Add;
 
     static constexpr bool indexable = false;
 };
 
-template <typename T>
-struct reduce_binary_operator<T, ReduceTensorOp::NORM2>
+template <>
+struct reduce_binary_operator<ReduceTensorOp::NORM2>
 {
-    using opType   = reduce::Add;
-    using dataType = T;
+    using opType = reduce::Add;
 
     static constexpr bool indexable = false;
 };

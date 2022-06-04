@@ -77,7 +77,7 @@ template <typename InDataType,
 void add_device_reduce_instance_multiblock_atomic_add(
     std::vector<deviceReduceMultiBlockAtomicAddPtrType<ReduceOpId>>& device_op_instances)
 {
-    using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
+    using ReduceOperation = typename reduce_binary_operator<ReduceOpId>::opType;
     using InElementwiseOperation =
         typename reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation;
     using AccElementwiseOperation =
