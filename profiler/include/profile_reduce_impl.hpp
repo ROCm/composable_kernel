@@ -261,13 +261,18 @@ bool profile_reduce_impl_impl(bool do_verification,
         float best_gb_per_sec = 0;
 
         using InElementwiseOperation =
-            typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::
-                InElementwiseOperation;
+            typename reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation;
         using AccElementwiseOperation =
-            typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::
-                AccElementwiseOperation;
+            typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation;
 
         using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
+
+        InElementwiseOperation in_elementwise_op;
+        AccElementwiseOperation acc_elementwise_op;
+
+        std::tie(in_elementwise_op, acc_elementwise_op) =
+            reduce_unary_operator<ReduceOpId, true, true>::GetElementwiseOperator(
+                static_cast<int32_t>(reduce_total_length));
 
         using DeviceReduceInstPtr0 =
             DeviceReducePtr<InElementwiseOperation, AccElementwiseOperation>;
@@ -323,8 +328,13 @@ bool profile_reduce_impl_impl(bool do_verification,
                           OutputIndex>
                 hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
 
-            hostReduce.Run(
-                alpha, in.mData.data(), beta, out_ref.mData.data(), out_indices_ref.mData.data());
+            hostReduce.Run(alpha,
+                           in.mData.data(),
+                           beta,
+                           out_ref.mData.data(),
+                           out_indices_ref.mData.data(),
+                           in_elementwise_op,
+                           acc_elementwise_op);
         };
 
         std::vector<ck::index_t> i_inLengths;
@@ -339,10 +349,6 @@ bool profile_reduce_impl_impl(bool do_verification,
 
         for(auto& reduce_ptr : reduce0_ptrs)
         {
-
-            InElementwiseOperation in_elementwise_op(static_cast<int32_t>(reduce_total_length));
-            AccElementwiseOperation acc_elementwise_op(static_cast<int32_t>(reduce_total_length));
-
             auto argument_ptr = reduce_ptr->MakeArgumentPointer(i_inLengths,
                                                                 i_inStrides,
                                                                 i_outLengths,

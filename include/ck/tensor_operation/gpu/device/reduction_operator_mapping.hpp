@@ -29,6 +29,7 @@
 #include "reduction_operator.hpp"
 #include "reduction_enums.hpp"
 #include "element_wise_operation.hpp"
+#include <tuple>
 
 namespace ck {
 
@@ -115,53 +116,101 @@ struct reduce_binary_operator<T, ReduceTensorOp::NORM2>
 // The templated struct reduce_unary_operator maps the enum Ids of Reduce operators to two unary
 // functor classes.
 // The two unary functors are called before and afer the Reduction is executed respectively
-template <typename T, ReduceTensorOp Op, bool IsFirstReduce, bool IsLastReduce>
+template <ReduceTensorOp Op, bool IsFirstReduce, bool IsLastReduce>
 struct reduce_unary_operator
 {
-    using InElementwiseOperation  = tensor_operation::element_wise::UnaryIdentic<T, T>;
-    using AccElementwiseOperation = tensor_operation::element_wise::UnaryIdentic<T, T>;
+    using InElementwiseOperation  = tensor_operation::element_wise::PassThrough;
+    using AccElementwiseOperation = tensor_operation::element_wise::PassThrough;
+
+    static std::tuple<InElementwiseOperation, AccElementwiseOperation>
+    GetElementwiseOperator(int32_t reduceLength)
+    {
+        (void)reduceLength;
+        return std::make_tuple(InElementwiseOperation{}, AccElementwiseOperation{});
+    };
 };
 
-template <typename T, bool IsFirstReduce>
-struct reduce_unary_operator<T, ReduceTensorOp::AVG, IsFirstReduce, true>
+template <bool IsFirstReduce>
+struct reduce_unary_operator<ReduceTensorOp::AVG, IsFirstReduce, true>
 {
-    using InElementwiseOperation  = tensor_operation::element_wise::UnaryIdentic<T, T>;
-    using AccElementwiseOperation = tensor_operation::element_wise::UnaryIdentic<T, T, true>;
+    using InElementwiseOperation  = tensor_operation::element_wise::PassThrough;
+    using AccElementwiseOperation = tensor_operation::element_wise::UnaryDivide;
+
+    static std::tuple<InElementwiseOperation, AccElementwiseOperation>
+    GetElementwiseOperator(int32_t reduceLength)
+    {
+        return std::make_tuple(InElementwiseOperation{}, AccElementwiseOperation{reduceLength});
+    };
 };
 
-template <typename T, bool IsLastReduce>
-struct reduce_unary_operator<T, ReduceTensorOp::NORM1, true, IsLastReduce>
+template <bool IsLastReduce>
+struct reduce_unary_operator<ReduceTensorOp::NORM1, true, IsLastReduce>
 {
-    using InElementwiseOperation  = tensor_operation::element_wise::UnaryAbs<T, T>;
-    using AccElementwiseOperation = tensor_operation::element_wise::UnaryIdentic<T, T>;
+    using InElementwiseOperation  = tensor_operation::element_wise::UnaryAbs;
+    using AccElementwiseOperation = tensor_operation::element_wise::PassThrough;
+
+    static std::tuple<InElementwiseOperation, AccElementwiseOperation>
+    GetElementwiseOperator(int32_t reduceLength)
+    {
+        (void)reduceLength;
+        return std::make_tuple(InElementwiseOperation{}, AccElementwiseOperation{});
+    };
 };
 
-template <typename T, bool IsLastReduce>
-struct reduce_unary_operator<T, ReduceTensorOp::AMAX, true, IsLastReduce>
+template <bool IsLastReduce>
+struct reduce_unary_operator<ReduceTensorOp::AMAX, true, IsLastReduce>
 {
-    using InElementwiseOperation  = tensor_operation::element_wise::UnaryAbs<T, T>;
-    using AccElementwiseOperation = tensor_operation::element_wise::UnaryIdentic<T, T>;
+    using InElementwiseOperation  = tensor_operation::element_wise::UnaryAbs;
+    using AccElementwiseOperation = tensor_operation::element_wise::PassThrough;
+
+    static std::tuple<InElementwiseOperation, AccElementwiseOperation>
+    GetElementwiseOperator(int32_t reduceLength)
+    {
+        (void)reduceLength;
+        return std::make_tuple(InElementwiseOperation{}, AccElementwiseOperation{});
+    };
 };
 
-template <typename T>
-struct reduce_unary_operator<T, ReduceTensorOp::NORM2, true, false>
+template <>
+struct reduce_unary_operator<ReduceTensorOp::NORM2, true, false>
 {
-    using InElementwiseOperation  = tensor_operation::element_wise::UnarySquare<T, T>;
-    using AccElementwiseOperation = tensor_operation::element_wise::UnaryIdentic<T, T>;
+    using InElementwiseOperation  = tensor_operation::element_wise::UnarySquare;
+    using AccElementwiseOperation = tensor_operation::element_wise::PassThrough;
+
+    static std::tuple<InElementwiseOperation, AccElementwiseOperation>
+    GetElementwiseOperator(int32_t reduceLength)
+    {
+        (void)reduceLength;
+        return std::make_tuple(InElementwiseOperation{}, AccElementwiseOperation{});
+    };
 };
 
-template <typename T>
-struct reduce_unary_operator<T, ReduceTensorOp::NORM2, true, true>
+template <>
+struct reduce_unary_operator<ReduceTensorOp::NORM2, true, true>
 {
-    using InElementwiseOperation  = tensor_operation::element_wise::UnarySquare<T, T>;
-    using AccElementwiseOperation = tensor_operation::element_wise::UnarySqrt<T, T>;
+    using InElementwiseOperation  = tensor_operation::element_wise::UnarySquare;
+    using AccElementwiseOperation = tensor_operation::element_wise::UnarySqrt;
+
+    static std::tuple<InElementwiseOperation, AccElementwiseOperation>
+    GetElementwiseOperator(int32_t reduceLength)
+    {
+        (void)reduceLength;
+        return std::make_tuple(InElementwiseOperation{}, AccElementwiseOperation{});
+    };
 };
 
-template <typename T>
-struct reduce_unary_operator<T, ReduceTensorOp::NORM2, false, true>
+template <>
+struct reduce_unary_operator<ReduceTensorOp::NORM2, false, true>
 {
-    using InElementwiseOperation  = tensor_operation::element_wise::UnaryIdentic<T, T>;
-    using AccElementwiseOperation = tensor_operation::element_wise::UnarySqrt<T, T>;
+    using InElementwiseOperation  = tensor_operation::element_wise::PassThrough;
+    using AccElementwiseOperation = tensor_operation::element_wise::UnarySqrt;
+
+    static std::tuple<InElementwiseOperation, AccElementwiseOperation>
+    GetElementwiseOperator(int32_t reduceLength)
+    {
+        (void)reduceLength;
+        return std::make_tuple(InElementwiseOperation{}, AccElementwiseOperation{});
+    };
 };
 
 } // end of namespace ck

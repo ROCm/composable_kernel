@@ -174,15 +174,18 @@ struct ReductionHost
              const InDataType* in_data,
              float beta,
              OutDataType* out_data,
-             IndexDataType* out_indices)
+             IndexDataType* out_indices,
+             InElementwiseOperation in_elementwise_op,
+             AccElementwiseOperation acc_elementwise_op)
     {
         if constexpr(OutputIndex)
         {
-            RunImpl_with_index(alpha, in_data, beta, out_data, out_indices);
+            RunImpl_with_index(
+                alpha, in_data, beta, out_data, out_indices, in_elementwise_op, acc_elementwise_op);
         }
         else
         {
-            RunImpl_no_index(alpha, in_data, beta, out_data);
+            RunImpl_no_index(alpha, in_data, beta, out_data, in_elementwise_op, acc_elementwise_op);
         };
     };
 
@@ -190,7 +193,9 @@ struct ReductionHost
                             const InDataType* in_data,
                             float beta,
                             OutDataType* out_data,
-                            IndexDataType* out_indices)
+                            IndexDataType* out_indices,
+                            InElementwiseOperation in_elementwise_op,
+                            AccElementwiseOperation acc_elementwise_op)
     {
         using ck::float_equal_one;
         using ck::float_equal_zero;
@@ -200,8 +205,6 @@ struct ReductionHost
                                                                         ReduceOperation,
                                                                         AccDataType,
                                                                         IndexDataType>;
-        InElementwiseOperation in_elementwise_op(divider);
-        AccElementwiseOperation acc_elementwise_op(divider);
 
         if constexpr(NumInvariantDim == 0)
         {
@@ -297,7 +300,12 @@ struct ReductionHost
         };
     };
 
-    void RunImpl_no_index(float alpha, const InDataType* in_data, float beta, OutDataType* out_data)
+    void RunImpl_no_index(float alpha,
+                          const InDataType* in_data,
+                          float beta,
+                          OutDataType* out_data,
+                          InElementwiseOperation in_elementwise_op,
+                          AccElementwiseOperation acc_elementwise_op)
     {
         using ck::float_equal_one;
         using ck::float_equal_zero;
@@ -305,9 +313,6 @@ struct ReductionHost
 
         using Accumulation =
             ck::detail::AccumulateWithNanCheck<PropagateNan, ReduceOperation, AccDataType>;
-
-        InElementwiseOperation in_elementwise_op(divider);
-        AccElementwiseOperation acc_elementwise_op(divider);
 
         if constexpr(NumInvariantDim == 0)
         {

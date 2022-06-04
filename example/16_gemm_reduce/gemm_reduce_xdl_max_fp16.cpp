@@ -42,8 +42,7 @@ using AElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using DsReduceOp  = ck::Tuple<ck::reduce::Max>;
-using DsElementOp = ck::Tuple<
-    ck::tensor_operation::element_wise::UnaryIdentic<ReduceAccDataType, ReduceAccDataType, false>>;
+using DsElementOp = ck::Tuple<ck::tensor_operation::element_wise::PassThrough>;
 using DGlobalMemOp =
     ck::InMemoryDataOperationEnumSequence<ck::InMemoryDataOperationEnum::AtomicMax>;
 

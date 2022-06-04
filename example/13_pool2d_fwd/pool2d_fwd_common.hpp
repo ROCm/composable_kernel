@@ -31,16 +31,15 @@ static void pool_host_verify(const Tensor<InDataType>& in,
                              const std::array<ck::index_t, 2>& in_left_pads,
                              const std::array<ck::index_t, 2>& /*in_right_pads*/)
 {
-    const int32_t divider = window_spatial_lengths[0] * window_spatial_lengths[1];
+    const int32_t reduceLength = window_spatial_lengths[0] * window_spatial_lengths[1];
 
     using ReduceOperation = typename ck::reduce_binary_operator<AccDataType, ReduceOpId>::opType;
-    using InElementwiseOperation = typename ck::
-        reduce_unary_operator<AccDataType, ReduceOpId, true, true>::InElementwiseOperation;
-    using AccElementwiseOperation = typename ck::
-        reduce_unary_operator<AccDataType, ReduceOpId, true, true>::AccElementwiseOperation;
 
-    const InElementwiseOperation in_elementwise_op(divider);
-    const AccElementwiseOperation acc_elementwise_op(divider);
+    auto elementwise_ops =
+        ck::reduce_unary_operator<ReduceOpId, true, true>::GetElementwiseOperator(reduceLength);
+
+    auto in_elementwise_op  = std::get<0>(elementwise_ops);
+    auto acc_elementwise_op = std::get<1>(elementwise_ops);
 
     if constexpr(!OutputIndex)
     {

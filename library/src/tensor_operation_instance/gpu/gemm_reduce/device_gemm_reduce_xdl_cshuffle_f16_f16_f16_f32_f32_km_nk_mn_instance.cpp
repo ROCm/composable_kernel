@@ -24,9 +24,9 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using ReduceSum   = ck::reduce::Add;
 using ReduceOps   = ck::Tuple<ReduceSum, ReduceSum>;
 
-using Div            = ck::tensor_operation::element_wise::UnaryIdentic<F32, F32, true>;
-using Identity       = ck::tensor_operation::element_wise::UnaryIdentic<F32, F32, false>;
-using Square         = ck::tensor_operation::element_wise::UnarySquare<F32, F32, false>;
+using Div            = ck::tensor_operation::element_wise::UnaryDivide;
+using Identity       = ck::tensor_operation::element_wise::PassThrough;
+using Square         = ck::tensor_operation::element_wise::UnarySquare;
 using DInElementOps  = ck::Tuple<Identity, Square>;
 using DOutElementOps = ck::Tuple<Div, Div>;
 

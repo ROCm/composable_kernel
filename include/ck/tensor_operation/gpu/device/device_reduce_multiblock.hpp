@@ -492,7 +492,7 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceReduceMultiBlockAtomicAdd<" << BlockSize << ",";
+        str << (OutMemoryDataOperation == InMemoryDataOperationEnum::Set? "DeviceReduceBlockWise<" : "DeviceReduceMultiBlock<") << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
         str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
         str << "InSrcVectorDim_" << InSrcVectorDim << "_InSrcVectorSize_" << InSrcVectorSize << "_OutDstVectorSize_" << OutDstVectorSize << ">";

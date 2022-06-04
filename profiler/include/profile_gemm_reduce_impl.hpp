@@ -19,9 +19,9 @@ namespace device_gemm_instance {
 using F32            = float;
 using F16            = ck::half_t;
 using DPtrsGlobal    = ck::Tuple<F32*, F32*>;
-using Div            = ck::tensor_operation::element_wise::UnaryIdentic<F32, F32, true>;
-using Identity       = ck::tensor_operation::element_wise::UnaryIdentic<F32, F32, false>;
-using Square         = ck::tensor_operation::element_wise::UnarySquare<F32, F32, false>;
+using Div            = ck::tensor_operation::element_wise::UnaryDivide;
+using Identity       = ck::tensor_operation::element_wise::PassThrough;
+using Square         = ck::tensor_operation::element_wise::UnarySquare;
 using DInElementOps  = ck::Tuple<Identity, Square>;
 using DOutElementOps = ck::Tuple<Div, Div>;
 
@@ -123,18 +123,16 @@ bool profile_gemm_reduce_impl(int do_verification,
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
     }
 
-    using AElementOp        = ck::tensor_operation::element_wise::PassThrough;
-    using BElementOp        = ck::tensor_operation::element_wise::PassThrough;
-    using CElementOp        = ck::tensor_operation::element_wise::PassThrough;
-    using D0ReduceOp        = ck::reduce::Add;
-    using D1ReduceOp        = ck::reduce::Add;
-    using UnaryDivElementOp = ck::tensor_operation::element_wise::UnaryIdentic<float, float, true>;
-    using UnaryIdenticElementOp =
-        ck::tensor_operation::element_wise::UnaryIdentic<float, float, false>;
-    using UnarySquareElementOp =
-        ck::tensor_operation::element_wise::UnarySquare<float, float, false>;
-    using DxsInElementOps  = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
-    using DxsOutElementOps = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
+    using AElementOp            = ck::tensor_operation::element_wise::PassThrough;
+    using BElementOp            = ck::tensor_operation::element_wise::PassThrough;
+    using CElementOp            = ck::tensor_operation::element_wise::PassThrough;
+    using D0ReduceOp            = ck::reduce::Add;
+    using D1ReduceOp            = ck::reduce::Add;
+    using UnaryDivElementOp     = ck::tensor_operation::element_wise::UnaryDivide;
+    using UnaryIdenticElementOp = ck::tensor_operation::element_wise::PassThrough;
+    using UnarySquareElementOp  = ck::tensor_operation::element_wise::UnarySquare;
+    using DxsInElementOps       = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
+    using DxsOutElementOps      = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
 
     const auto a_element_op = AElementOp{};
     const auto b_element_op = BElementOp{};

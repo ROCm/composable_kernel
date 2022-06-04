@@ -38,11 +38,10 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
     using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
 
     using InElementwiseOperation =
-        typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::InElementwiseOperation;
+        typename reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation;
 
     using AccElementwiseOperation =
-        typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::
-            AccElementwiseOperation;
+        typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation;
 
     static constexpr index_t InSrcOutDstVectorDim =
         0; // for NHWC, the dim C is the vector Dim for both input and output in memory, which is
@@ -178,13 +177,10 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
             invariant_lowest_length_ = C;
             reduce_lowest_length_    = window_spatial_lengths[1];
 
-            // TODO: is this correct?
-            if constexpr(ReduceOpId == ck::ReduceTensorOp::AVG)
-            {
-                ck::index_t divider = window_spatial_lengths[0] * window_spatial_lengths[1];
-                in_element_op_      = InElementwiseOperation{divider};
-                acc_element_op_     = AccElementwiseOperation{divider};
-            }
+            int32_t reduceLength = window_spatial_lengths[0] * window_spatial_lengths[1];
+
+            std::tie(in_element_op_, acc_element_op_) =
+                reduce_unary_operator<ReduceOpId, true, true>::GetElementwiseOperator(reduceLength);
         }
 
         const InDataType* p_in_dev_;

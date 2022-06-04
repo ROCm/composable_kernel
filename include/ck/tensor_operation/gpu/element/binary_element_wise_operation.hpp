@@ -123,5 +123,140 @@ struct Substract<bhalf_t, bhalf_t, bhalf_t>
 };
 
 } // namespace binary_element_wise
+
+namespace element_wise {
+
+struct Add
+{
+    template <typename T>
+    __host__ __device__ constexpr void operator()(T& y, const T& x0, const T& x1) const
+    {
+        impl_add(y, x0, x1);
+    };
+
+    private:
+    __host__ __device__ constexpr void impl_add(float& y, const float& x0, const float& x1) const
+    {
+        y = x0 + x1;
+    };
+
+    __host__ __device__ constexpr void impl_add(double& y, const double& x0, const double& x1) const
+    {
+        y = x0 + x1;
+    };
+
+    // Question: should half_t be supported ?
+    __host__ __device__ constexpr void impl_add(half_t& y, const half_t& x0, const half_t& x1) const
+    {
+        y = x0 + x1;
+    };
+};
+
+struct AlphaBetaAdd
+{
+    AlphaBetaAdd(float alpha, float beta) : alpha_(alpha), beta_(beta){};
+
+    template <typename T>
+    __host__ __device__ constexpr void operator()(T& y, const T& x0, const T& x1) const
+    {
+        impl_alpha_beta_add(y, x0, x1);
+    };
+
+    private:
+    __host__ __device__ constexpr void
+    impl_alpha_beta_add(float& y, const float& x0, const float& x1) const
+    {
+        y = alpha_ * x0 + beta_ * x1;
+    };
+
+    __host__ __device__ constexpr void
+    impl_alpha_beta_add(double& y, const double& x0, const double& x1) const
+    {
+        y = static_cast<double>(alpha_) * x0 + static_cast<double>(beta_) * x1;
+    };
+
+    // Question: should half_t be supported ?
+    __host__ __device__ constexpr void
+    impl_alpha_beta_add(half_t& y, const half_t& x0, const half_t& x1) const
+    {
+        y = static_cast<half_t>(alpha_ * static_cast<float>(x0) + beta_ * static_cast<float>(x1));
+    };
+
+    float alpha_;
+    float beta_;
+};
+
+struct AddRelu
+{
+    template <typename T>
+    __host__ __device__ constexpr void operator()(T& y, const T& x0, const T& x1) const
+    {
+        impl_add_relu(y, x0, x1);
+    };
+
+    private:
+    __host__ __device__ constexpr void
+    impl_add_relu(float& y, const float& x0, const float& x1) const
+    {
+        const float a = x0 + x1;
+        y             = a > 0.0f ? a : 0.0f;
+    };
+
+    __host__ __device__ constexpr void
+    impl_add_relu(double& y, const double& x0, const double& x1) const
+    {
+        const double a = x0 + x1;
+        y              = a > 0.0 ? a : 0.0;
+    };
+
+    // Question: should half_t be supported ?
+    __host__ __device__ constexpr void
+    impl_add_relu(half_t& y, const half_t& x0, const half_t& x1) const
+    {
+        const half_t a = x0 + x1;
+        y              = a > static_cast<half_t>(0.0f) ? a : static_cast<half_t>(0.0f);
+    };
+};
+
+struct AddHardswish
+{
+    template <typename T>
+    __host__ __device__ constexpr void operator()(float& y, const float& x0, const float& x1) const
+    {
+        impl_add_hardswish(y, x0, x1);
+    };
+
+    private:
+    __host__ __device__ constexpr void
+    impl_add_hardswish(float& y, const float& x0, const float& x1) const
+    {
+        float a = x0 + x1;
+        float b = a + float{3};
+        float c = (b > 0) * (b > 6.0f ? 6.0f : b) * a * 0.166667f;
+        y       = c;
+    };
+
+    __host__ __device__ constexpr void
+    impl_add_hardswish(double& y, const double& x0, const double& x1) const
+    {
+        double a = x0 + x1;
+        double b = a + 3.0;
+        double c = (b > 0) * (b > 6.0 ? 6.0 : b) * a * 0.166667;
+        y        = c;
+    };
+
+    // Question: should half_t be supported ?
+    __host__ __device__ constexpr void
+    impl_add_hardswish(half_t& y, const half_t& x0, const half_t& x1) const
+    {
+        float a = x0 + x1;
+        float b = a + 3.0f;
+        float c = (b > 0) * (b > 6.0f ? 6.0f : b) * a * 0.166667f;
+        y       = c;
+    };
+};
+
+} // namespace element_wise
+
 } // namespace tensor_operation
 } // namespace ck
