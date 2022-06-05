@@ -128,7 +128,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-#if 1
+#if 0
     using GridwiseGemmPipe = GridwiseGemmPipeline_v1<NumGemmKPrefetchStage>;
 #else
     using GridwiseGemmPipe = GridwiseGemmPipeline_v2;
