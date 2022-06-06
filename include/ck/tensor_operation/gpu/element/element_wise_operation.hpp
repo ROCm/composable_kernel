@@ -20,22 +20,10 @@ struct PassThrough
     __host__ __device__ void operator()(double& y, const double& x) const { y = x; }
 };
 
-struct Gelu
-{
-    __host__ __device__ void operator()(float& y, const float& x) const
-    {
-        // Y=0.5*X*(1+tanh(0.797885*X+0.035677*X*X*X))
-        const float a = float(0.035677) * x * x;
-        const float b = float(0.797885) + a;
-        const float c = b * x;
-        const float d = tanh(c);
-        const float e = float(1.0) + d;
-        y             = float(0.5) * x * e;
-    }
-};
-
 struct FastGelu
 {
+    // https://paperswithcode.com/method/gelu
+    // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
     __host__ __device__ void operator()(float& y, const float& x) const
     {
         const float u   = float(2) * x * (float(0.035677) * x * x + float(0.797885));

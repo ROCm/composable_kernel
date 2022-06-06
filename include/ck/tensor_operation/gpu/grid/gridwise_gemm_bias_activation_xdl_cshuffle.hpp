@@ -236,7 +236,6 @@ struct GridwiseGemmBiasActivation_k0mk1_k0nk1_mn_xdl_cshuffle
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
-
         // divide block work by [M, N]
         const auto block_work_idx =
             block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
