@@ -917,7 +917,7 @@ struct GridwiseGemmBiasAddReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                                 false>;
 
                         // Global write Gemm shuffle + reduction
-                        const auto d_zeroVal = DReduceOperation::GetReductionZeroVal();
+                        const auto d_zeroVal = DReduceOperation::GetIdentityValue();
 
                         static_for<0, mreduce_per_thread, 1>{}(
                             [&](auto I) { d_thread_buf(I) = d_zeroVal; });

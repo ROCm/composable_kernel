@@ -175,8 +175,8 @@ void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
     auto reduceSumOpInst = ReduceSumOp{};
     for(int m = 0; m < M; ++m)
     {
-        float mean_acc        = reduceSumOpInst.GetReductionZeroVal();
-        float square_mean_acc = reduceSumOpInst.GetReductionZeroVal();
+        float mean_acc        = reduceSumOpInst.GetIdentityValue();
+        float square_mean_acc = reduceSumOpInst.GetIdentityValue();
 
         for(int n = 0; n < N; ++n)
         {
