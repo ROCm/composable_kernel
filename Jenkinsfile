@@ -89,6 +89,7 @@ def buildHipClangJob(Map conf=[:]){
         def image = "composable_kernels"
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
         def gpu_arch = conf.get("gpu_arch", "gfx908")
+        def use_dockerfile = false
 
         // Jenkins is complaining about the render group 
         // def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
@@ -103,35 +104,37 @@ def buildHipClangJob(Map conf=[:]){
 
         def retimage
         gitStatusWrapper(credentialsId: '7126e5fe-eb51-4576-b52b-9aaf1de8f0fd', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
-            
-            //try {
-            //    retimage = docker.build("${image}", dockerArgs + '.')
-            //    withDockerContainer(image: image, args: dockerOpts) {
-            //        timeout(time: 5, unit: 'MINUTES')
-            //        {
-            //            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
-            //        }
-            //    }
-            //}
-            //catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
-            //    echo "The job was cancelled or aborted"
-            //    throw e
-            //}
-            //catch(Exception ex) {
-            //    retimage = docker.build("${image}", dockerArgs + "--no-cache .")
-            //    withDockerContainer(image: image, args: dockerOpts) {
-            //        timeout(time: 5, unit: 'MINUTES')
-            //        {
-            //            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
-            //        }
-            //    }
-            //}
-            
-            timeout(time: 3, unit: 'HOURS'){
-                retimage = docker.image('compute-artifactory.amd.com:5000/rocm-plus-docker/framework/compute-rocm-dkms-no-npi-hipclang:9110_ubuntu18.04_py3.6_pytorch_rocm5.0_internal_testing_7ff5b54').pull()
+            if (use_dockerfile){
+                try {
+                    retimage = docker.build("${image}", dockerArgs + '.')
+                    withDockerContainer(image: image, args: dockerOpts) {
+                        timeout(time: 5, unit: 'MINUTES')
+                        {
+                            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                        }
+                    }
+                }
+                catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                    echo "The job was cancelled or aborted"
+                    throw e
+                }
+                catch(Exception ex) {
+                    retimage = docker.build("${image}", dockerArgs + "--no-cache .")
+                    withDockerContainer(image: image, args: dockerOpts) {
+                        timeout(time: 5, unit: 'MINUTES')
+                        {
+                            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                        }
+                    }
+                }
+            }
+            else{
+                timeout(time: 3, unit: 'HOURS'){
+                    retimage = docker.image('compute-artifactory.amd.com:5000/rocm-plus-docker/framework/compute-rocm-dkms-no-npi-hipclang:9110_ubuntu18.04_py3.6_pytorch_rocm5.0_internal_testing_7ff5b54').pull()
+                }
             }
 
-            withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
+            withDockerContainer(image: retimage, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 5, unit: 'HOURS')
                 {
                     sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
@@ -176,6 +179,7 @@ def runCKProfiler(Map conf=[:]){
         def image = "composable_kernels"
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
         def gpu_arch = conf.get("gpu_arch", "gfx908")
+        def use_dockerfile = false
 
         // Jenkins is complaining about the render group 
         // def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
@@ -190,35 +194,37 @@ def runCKProfiler(Map conf=[:]){
 
         def retimage
         gitStatusWrapper(credentialsId: '7126e5fe-eb51-4576-b52b-9aaf1de8f0fd', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
-            /*
-            try {
-                retimage = docker.build("${image}", dockerArgs + '.')
-                withDockerContainer(image: image, args: dockerOpts) {
-                    timeout(time: 5, unit: 'MINUTES')
-                    {
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+            if (use_dockerfile){
+                try {
+                    retimage = docker.build("${image}", dockerArgs + '.')
+                    withDockerContainer(image: image, args: dockerOpts) {
+                        timeout(time: 5, unit: 'MINUTES')
+                        {
+                            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                        }
+                    }
+                }
+                catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                    echo "The job was cancelled or aborted"
+                    throw e
+                }
+                catch(Exception ex) {
+                    retimage = docker.build("${image}", dockerArgs + "--no-cache .")
+                    withDockerContainer(image: image, args: dockerOpts) {
+                        timeout(time: 5, unit: 'MINUTES')
+                        {
+                            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                        }
                     }
                 }
             }
-            catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
-                echo "The job was cancelled or aborted"
-                throw e
-            }
-            catch(Exception ex) {
-                retimage = docker.build("${image}", dockerArgs + "--no-cache .")
-                withDockerContainer(image: image, args: dockerOpts) {
-                    timeout(time: 5, unit: 'MINUTES')
-                    {
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
-                    }
+            else{
+                timeout(time: 3, unit: 'HOURS'){
+                    retimage = docker.image('compute-artifactory.amd.com:5000/rocm-plus-docker/framework/compute-rocm-dkms-no-npi-hipclang:9110_ubuntu18.04_py3.6_pytorch_rocm5.0_internal_testing_7ff5b54').pull()
                 }
-            }
-            */
-            timeout(time: 3, unit: 'HOURS'){
-                retimage = docker.image('compute-artifactory.amd.com:5000/rocm-plus-docker/framework/compute-rocm-dkms-no-npi-hipclang:9110_ubuntu18.04_py3.6_pytorch_rocm5.0_internal_testing_7ff5b54').pull()
             }
 
-            withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
+            withDockerContainer(image: retimage, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 5, unit: 'HOURS')
                 {
                     cmake_build(conf)
@@ -332,6 +338,28 @@ pipeline {
                 }
             }
         }
+        stage("Performance Tests")
+        {
+            parallel
+            {
+                stage("Run ckProfiler: gfx908")
+                {
+                    agent{ label rocmnode("gfx908")}
+                    environment{
+                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
+                        dbuser = "${dbuser}"
+                        dbpassword = "${dbpassword}"
+                        dbsship = "${dbsship}"
+                        dbsshport = "${dbsshport}"
+                        dbsshuser = "${dbsshuser}"
+                        dbsshpassword = "${dbsshpassword}"
+                   }
+                    steps{
+                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
+                    }
+                }
+            }
+        }
 		stage("Tests")
         {
             parallel
@@ -374,28 +402,6 @@ pipeline {
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
-                    }
-                }
-            }
-        }
-        stage("Performance Tests")
-        {
-            parallel
-            {
-                stage("Run ckProfiler: gfx908")
-                {
-                    agent{ label rocmnode("gfx908")}
-                    environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
-                        dbuser = "${dbuser}"
-                        dbpassword = "${dbpassword}"
-                        dbsship = "${dbsship}"
-                        dbsshport = "${dbsshport}"
-                        dbsshuser = "${dbsshuser}"
-                        dbsshpassword = "${dbsshpassword}"
-                   }
-                    steps{
-                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
                     }
                 }
             }
