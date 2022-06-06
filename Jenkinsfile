@@ -131,10 +131,11 @@ def buildHipClangJob(Map conf=[:]){
             else{
                 timeout(time: 3, unit: 'HOURS'){
                     retimage = docker.image('compute-artifactory.amd.com:5000/rocm-plus-docker/framework/compute-rocm-dkms-no-npi-hipclang:9110_ubuntu18.04_py3.6_pytorch_rocm5.0_internal_testing_7ff5b54').pull()
+                    image="9110_ubuntu18.04_py3.6_pytorch_rocm5.0_internal_testing_7ff5b54"
                 }
             }
 
-            withDockerContainer(image: retimage, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
+            withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 5, unit: 'HOURS')
                 {
                     sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
@@ -221,10 +222,11 @@ def runCKProfiler(Map conf=[:]){
             else{
                 timeout(time: 3, unit: 'HOURS'){
                     retimage = docker.image('compute-artifactory.amd.com:5000/rocm-plus-docker/framework/compute-rocm-dkms-no-npi-hipclang:9110_ubuntu18.04_py3.6_pytorch_rocm5.0_internal_testing_7ff5b54').pull()
+                    image="9110_ubuntu18.04_py3.6_pytorch_rocm5.0_internal_testing_7ff5b54"
                 }
             }
 
-            withDockerContainer(image: retimage, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
+            withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 5, unit: 'HOURS')
                 {
                     cmake_build(conf)
