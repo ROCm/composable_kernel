@@ -167,9 +167,7 @@ int main(int argc, char* argv[])
 
     if(!gemm.IsSupportedArgument(argument))
     {
-        std::cout << "wrong! device_gemm with the specified compilation parameters does "
-                     "not support this GEMM problem"
-                  << std::endl;
+        std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
 
         return 0;
     }

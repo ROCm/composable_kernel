@@ -19,10 +19,11 @@ namespace device_gemm_instance {
 using F32            = float;
 using F16            = ck::half_t;
 using DPtrsGlobal    = ck::Tuple<F32*, F32*>;
+using Div            = ck::tensor_operation::element_wise::UnaryIdentic<F32, F32, true>;
 using Identity       = ck::tensor_operation::element_wise::UnaryIdentic<F32, F32, false>;
 using Square         = ck::tensor_operation::element_wise::UnarySquare<F32, F32, false>;
 using DInElementOps  = ck::Tuple<Identity, Square>;
-using DOutElementOps = ck::Tuple<Identity, Identity>;
+using DOutElementOps = ck::Tuple<Div, Div>;
 
 using DeviceGemmReduceNoOpPtr = ck::tensor_operation::device::DeviceGemmReducePtr<
     DPtrsGlobal,
@@ -122,25 +123,27 @@ bool profile_gemm_reduce_impl(int do_verification,
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
     }
 
-    using AElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using BElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using CElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using D0ReduceOp = ck::reduce::Add<float>;
-    using D1ReduceOp = ck::reduce::Add<float>;
+    using AElementOp        = ck::tensor_operation::element_wise::PassThrough;
+    using BElementOp        = ck::tensor_operation::element_wise::PassThrough;
+    using CElementOp        = ck::tensor_operation::element_wise::PassThrough;
+    using D0ReduceOp        = ck::reduce::Add<float>;
+    using D1ReduceOp        = ck::reduce::Add<float>;
+    using UnaryDivElementOp = ck::tensor_operation::element_wise::UnaryIdentic<float, float, true>;
     using UnaryIdenticElementOp =
         ck::tensor_operation::element_wise::UnaryIdentic<float, float, false>;
     using UnarySquareElementOp =
         ck::tensor_operation::element_wise::UnarySquare<float, float, false>;
     using DxsInElementOps  = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
-    using DxsOutElementOps = ck::Tuple<UnaryIdenticElementOp, UnaryIdenticElementOp>;
+    using DxsOutElementOps = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
 
-    const auto a_element_op       = AElementOp{};
-    const auto b_element_op       = BElementOp{};
-    const auto c_element_op       = CElementOp{};
-    const auto dxs_in_element_op  = DxsInElementOps{};
-    const auto dxs_out_element_op = DxsOutElementOps{};
-    const auto d0_reduce_op       = D0ReduceOp{};
-    const auto d1_reduce_op       = D1ReduceOp{};
+    const auto a_element_op = AElementOp{};
+    const auto b_element_op = BElementOp{};
+    const auto c_element_op = CElementOp{};
+    const auto d0_reduce_op = D0ReduceOp{};
+    const auto d1_reduce_op = D1ReduceOp{};
+
+    auto dxs_in_element_op  = DxsInElementOps{};
+    auto dxs_out_element_op = DxsOutElementOps{M, M};
 
     if(do_verification)
     {
@@ -162,19 +165,23 @@ bool profile_gemm_reduce_impl(int do_verification,
 
         for(int m = 0; m < M; ++m)
         {
-            float d0_acc = d0_reduce_op.GetReductionZeroVal();
-            float d1_acc = d1_reduce_op.GetReductionZeroVal();
+            float d0_acc = d0_reduce_op.GetIdentityValue();
+            float d1_acc = d1_reduce_op.GetIdentityValue();
 
             for(int n = 0; n < N; ++n)
             {
-                float d0_val = ck::type_convert<float>(c_m_n_host_result(m, n));
-                float d1_val;
+                float c_val  = ck::type_convert<float>(c_m_n_host_result(m, n));
+                float d0_val = 0;
+                float d1_val = 0;
 
-                UnarySquareElementOp{}(d1_val, d0_val);
+                dxs_in_element_op(ck::Number<0>{})(d0_val, c_val);
+                dxs_in_element_op(ck::Number<1>{})(d1_val, c_val);
                 d0_reduce_op(d0_acc, d0_val);
                 d1_reduce_op(d1_acc, d1_val);
             }
 
+            dxs_out_element_op(ck::Number<0>{})(d0_acc, d0_acc);
+            dxs_out_element_op(ck::Number<1>{})(d1_acc, d1_acc);
             d0_m_host_result(m) = ck::type_convert<DDataType>(d0_acc);
             d1_m_host_result(m) = ck::type_convert<DDataType>(d1_acc);
         }
