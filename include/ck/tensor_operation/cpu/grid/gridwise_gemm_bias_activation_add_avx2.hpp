@@ -9,6 +9,7 @@
 #include "threadwise_tensor_slice_transfer_avx2.hpp"
 #include "threadwise_tensor_slice_transfer_avx2_specialization.hpp"
 #include "dynamic_buffer_cpu.hpp"
+#include "envvar.hpp"
 #include <utility>
 #include <unistd.h>
 #include <omp.h>
@@ -329,8 +330,8 @@ struct GridwiseGemmBiasActivationAddAvx2_MxN
 
         int total_threads = omp_get_max_threads();
 
-#if 0
-        if(total_threads > 1){
+        if(total_threads > 1 && ck::getenv_int("CK_CPU_BIND_CORE", 1) != 0)
+        {
 #pragma omp parallel
             {
                 int tid = omp_get_thread_num();
@@ -339,12 +340,12 @@ struct GridwiseGemmBiasActivationAddAvx2_MxN
 
                 CPU_SET(tid, &set);
 
-                if (sched_setaffinity(0, sizeof(set), &set) == -1) {
+                if(sched_setaffinity(0, sizeof(set), &set) == -1)
+                {
                     throw std::runtime_error("wrong! fail to set thread affinity");
                 }
             }
         }
-#endif
 
         // TODO: openmp aware ordering
         //
