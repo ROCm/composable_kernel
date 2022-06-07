@@ -89,7 +89,6 @@ def buildHipClangJob(Map conf=[:]){
         def image = "composable_kernels"
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
         def gpu_arch = conf.get("gpu_arch", "gfx908")
-        def use_dockerfile = true
 
         // Jenkins is complaining about the render group 
         // def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
@@ -104,7 +103,7 @@ def buildHipClangJob(Map conf=[:]){
 
         def retimage
         gitStatusWrapper(credentialsId: '7126e5fe-eb51-4576-b52b-9aaf1de8f0fd', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
-            if (use_dockerfile){
+            if (params.USE_DOCKERFILE){
                 try {
                     retimage = docker.build("${image}", dockerArgs + '.')
                     withDockerContainer(image: image, args: dockerOpts) {
@@ -181,7 +180,6 @@ def runCKProfiler(Map conf=[:]){
         def image = "composable_kernels"
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
         def gpu_arch = conf.get("gpu_arch", "gfx908")
-        def use_dockerfile = true
 
         // Jenkins is complaining about the render group 
         // def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
@@ -196,7 +194,7 @@ def runCKProfiler(Map conf=[:]){
 
         def retimage
         gitStatusWrapper(credentialsId: '7126e5fe-eb51-4576-b52b-9aaf1de8f0fd', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
-            if (use_dockerfile){
+            if (params.USE_DOCKERFILE){
                 try {
                     retimage = docker.build("${image}", dockerArgs + '.')
                     withDockerContainer(image: image, args: dockerOpts) {
@@ -306,6 +304,13 @@ pipeline {
     options {
         parallelsAlwaysFailFast()
     }
+    parameters {
+        booleanParam(
+            name: "USE_DOCKERFILE",
+            defaultValue: true,
+            description: "")
+    }
+
     // environment{
 	//  variable = value
     // }
@@ -359,7 +364,7 @@ pipeline {
                         dbsshpassword = "${dbsshpassword}"
                    }
                     steps{
-                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
+                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
                     }
                 }
                 stage("Run ckProfiler: gfx90a")
@@ -375,7 +380,7 @@ pipeline {
                         dbsshpassword = "${dbsshpassword}"
                    }
                     steps{
-                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
+                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
                     }
                 }
             }
@@ -393,7 +398,7 @@ pipeline {
                         setup_args = """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release')
+                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
                     }
                 }
                 stage("Run Tests: gfx90a")
@@ -403,7 +408,7 @@ pipeline {
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release')
+                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
                     }
                 }
             }
