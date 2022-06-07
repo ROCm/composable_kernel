@@ -2,6 +2,7 @@
 set(DEVICE_CONV2D_FWD_CPU_INSTANCE_SOURCE
    device_conv2d_fwd_avx2_nhwc_kyxc_nhwk_instance.cpp
    device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_instance.cpp
+   device_conv2d_fwd_avx2_nhwc_yxck_nhwk_instance.cpp
 )
 add_library(device_conv2d_fwd_cpu_instance SHARED ${DEVICE_CONV2D_FWD_CPU_INSTANCE_SOURCE}) 
 target_compile_features(device_conv2d_fwd_cpu_instance PUBLIC)

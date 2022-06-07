@@ -1285,6 +1285,138 @@ template <typename SrcData,
           bool BypassTransfer,
           ConvolutionForwardSpecialization_t ConvForwardSpecialization,
           ConvolutionForwardGemmKSpecialization_t GemmKSpecialization>
+struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_YXCK
+{
+    static constexpr ck::index_t nDim = SrcDesc::GetNumOfDimension();
+    using Index                       = MultiIndex<nDim>;
+
+    constexpr ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_YXCK(
+        const SrcDesc& src_desc,
+        const Index&,
+        const DstDesc&,
+        const Index&,
+        const ElementwiseOperation& element_op)
+        : element_op_(element_op)
+    {
+        GemmK = src_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<0>{}];
+        GemmN = src_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}];
+    }
+
+    void SetSrcSliceOrigin(const SrcDesc&, const Index& src_slice_origin_idx)
+    {
+        ck::index_t idx_k = src_slice_origin_idx[Number<0>{}];
+        ck::index_t idx_n = src_slice_origin_idx[Number<1>{}];
+
+        src_offset = idx_k * GemmN + idx_n;
+    }
+
+    void SetDstSliceOrigin(const DstDesc&, const Index&) {}
+
+    template <typename SrcBuffer, typename DstBuffer, typename SliceLengths>
+    void RunRead(const SrcDesc&,
+                 SrcBuffer& src_buf,
+                 const DstDesc& dst_desc,
+                 DstBuffer& dst_buf,
+                 const SliceLengths& slice_length)
+    {
+        if constexpr(BypassTransfer)
+        {
+            dst_buf.p_data_ = reinterpret_cast<float*>(src_buf.p_data_) + src_offset;
+        }
+        else
+        {
+            const ck::index_t k_per_block = slice_length[Number<0>{}];
+            const ck::index_t n_per_block = slice_length[Number<1>{}];
+
+            const float* p_src = reinterpret_cast<const float*>(src_buf.p_data_) + src_offset;
+            float* p_dst       = reinterpret_cast<float*>(dst_buf.p_data_);
+
+            // k * n
+            index_t i_k_itr = k_per_block;
+            while(i_k_itr >= 8)
+            {
+                avx2_util::memcpy32_avx2(
+                    p_dst + 0 * n_per_block, p_src + 0 * GemmN, n_per_block, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 1 * n_per_block, p_src + 1 * GemmN, n_per_block, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 2 * n_per_block, p_src + 2 * GemmN, n_per_block, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 3 * n_per_block, p_src + 3 * GemmN, n_per_block, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 4 * n_per_block, p_src + 4 * GemmN, n_per_block, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 5 * n_per_block, p_src + 5 * GemmN, n_per_block, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 6 * n_per_block, p_src + 6 * GemmN, n_per_block, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 7 * n_per_block, p_src + 7 * GemmN, n_per_block, element_op_);
+
+                i_k_itr -= 8;
+                p_dst += 8 * n_per_block;
+                p_src += 8 * GemmN;
+            }
+            if(i_k_itr & 4)
+            {
+                avx2_util::memcpy32_avx2(
+                    p_dst + 0 * n_per_block, p_src + 0 * GemmN, n_per_block, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 1 * n_per_block, p_src + 1 * GemmN, n_per_block, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 2 * n_per_block, p_src + 2 * GemmN, n_per_block, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 3 * n_per_block, p_src + 3 * GemmN, n_per_block, element_op_);
+
+                p_dst += 4 * n_per_block;
+                p_src += 4 * GemmN;
+            }
+            if(i_k_itr & 2)
+            {
+                avx2_util::memcpy32_avx2(
+                    p_dst + 0 * n_per_block, p_src + 0 * GemmN, n_per_block, element_op_);
+                avx2_util::memcpy32_avx2(
+                    p_dst + 1 * n_per_block, p_src + 1 * GemmN, n_per_block, element_op_);
+
+                p_dst += 2 * n_per_block;
+                p_src += 2 * GemmN;
+            }
+            if(i_k_itr & 1)
+            {
+                avx2_util::memcpy32_avx2(
+                    p_dst + 0 * n_per_block, p_src + 0 * GemmN, n_per_block, element_op_);
+            }
+        }
+    }
+
+    // src_slice_origin_step_idx need to be known at compile-time, for performance reason
+    void MoveSrcSliceWindow(const SrcDesc& src_desc, const Index& src_slice_origin_step_idx)
+    {
+        ck::index_t move_k = src_slice_origin_step_idx[Number<0>{}];
+        ck::index_t move_n = src_slice_origin_step_idx[Number<1>{}];
+
+        src_offset += move_k * GemmN + move_n;
+    }
+
+    // dst_slice_origin_step_idx need to be known at compile-time, for performance reason
+    void MoveDstSliceWindow(const DstDesc&, const Index&) {}
+
+    private:
+    const ElementwiseOperation element_op_;
+
+    ck::index_t GemmN;
+    ck::index_t GemmK;
+
+    intptr_t src_offset;
+};
+
+template <typename SrcData,
+          typename DstData,
+          typename SrcDesc,
+          typename DstDesc,
+          typename ElementwiseOperation,
+          bool BypassTransfer,
+          ConvolutionForwardSpecialization_t ConvForwardSpecialization,
+          ConvolutionForwardGemmKSpecialization_t GemmKSpecialization>
 struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_MxN
 {
     static constexpr ck::index_t nDim = SrcDesc::GetNumOfDimension();

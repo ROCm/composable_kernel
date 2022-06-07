@@ -81,12 +81,8 @@ struct ThreadwiseGemmAvx2_MxN_6x16
             "movq     (%[m_param]),     %%rax\n"    // p_a
             "movq    8(%[m_param]),     %%rbx\n"    // p_b
             "movq   24(%[m_param]),     %%rsi\n"    // Kr
-            ".if m_TransA != 0\n"
             "movq   32(%[m_param]),     %%rcx\n"    // lda
-            ".endif\n"
-            ".if m_TransB == 0\n"
             "movq   40(%[m_param]),     %%rdx\n"    // ldb
-            ".endif\n"
 
             ".macro vbroadcastss_%= r_base, r_stride, i_scale, i_offset, ymm\n"
             ".if \\i_scale != 0\n"
@@ -120,10 +116,14 @@ struct ThreadwiseGemmAvx2_MxN_6x16
             ".endif\n"
             ".endm\n"
 
-            ".macro vbroadcast_a%= i_k, i_m, ymm\n" // A in rax(r8, r9), lda in rcx
+            ".macro vbroadcast_a%= i_k, i_m, ymm\n" // A in rax(r8), lda in rcx
             ".if m_ABytes == 4\n"
                 ".if m_TransA == 0\n"
-                    "vbroadcastss_%= %%rax, 0, 0, ((\\i_m + \\i_k * m_Mr) * m_ABytes), \\ymm\n"
+                    ".if (\\i_k == 0) || (\\i_k == 1) || (\\i_k == 2)\n"
+                        "vbroadcastss_%= %%rax, %%rcx, \\i_k, (\\i_m * m_ABytes), \\ymm\n"
+                    ".else\n"
+                        "vbroadcastss_%= %%r8, %%rcx, (\\i_k-3), (\\i_m * m_ABytes), \\ymm\n"
+                    ".endif\n"
                 ".else\n"
                     ".if (\\i_m == 0) || (\\i_m == 1) || (\\i_m == 2)\n"
                         "vbroadcastss_%= %%rax, %%rcx, \\i_m, (\\i_k * m_ABytes), \\ymm\n"
@@ -133,7 +133,11 @@ struct ThreadwiseGemmAvx2_MxN_6x16
                 ".endif\n"
             ".else\n"
                 ".if m_TransA == 0\n"
-                    "vpbroadcastw_%= %%rax, 0, 0, ((\\i_m + \\i_k * m_Mr) * m_ABytes), %%xmm15\n"
+                    ".if (\\i_k == 0) || (\\i_k == 1) || (\\i_k == 2)\n"
+                        "vpbroadcastw_%= %%rax, %%rcx, \\i_k, (\\i_m * m_ABytes), %%xmm15\n"
+                    ".else\n"
+                        "vpbroadcastw_%= %%rax, %%rcx, (\\i_k-3), (\\i_m * m_ABytes), %%xmm15\n"
+                    ".endif\n"
                 ".else\n"
                     ".if (\\i_m == 0) || (\\i_m == 1) || (\\i_m == 2)\n"
                         "vpbroadcastw_%= %%rax, %%rcx, \\i_m, (\\i_k * m_ABytes), %%xmm15\n"
@@ -145,18 +149,26 @@ struct ThreadwiseGemmAvx2_MxN_6x16
             ".endif\n"
             ".endm\n"
 
-            ".macro vload_b%= i_k, i_n, ymm\n" // B in rbx, lda in rdx, i_n should be 0, 1
+            ".macro vload_b%= i_k, i_n, ymm\n" // B in rbx(r9), lda in rdx, i_n should be 0, 1
             ".if m_BBytes == 4\n"
                 ".if m_TransB == 0\n"
                     "vmovups_%= %%rbx, %%rdx, \\i_n, (\\i_k*m_BBytes*8), \\ymm\n"
                 ".else\n"
-                    "vmovups_%= %%rbx, 0, 0, ((\\i_k*m_Nr + \\i_n*8)*m_BBytes), \\ymm\n"
+                    ".if (\\i_k == 0) || (\\i_k == 1) || (\\i_k == 2)\n"
+                        "vmovups_%= %%rbx, %%rdx, \\i_k, (\\i_n*m_BBytes*8), \\ymm\n"
+                    ".else\n"
+                        "vmovups_%= %%r9, %%rdx, (\\i_k-3), (\\i_n*m_BBytes*8), \\ymm\n"
+                    ".endif\n"
                 ".endif\n"
             ".else\n"
                 ".if m_TransB == 0\n"
                     "vcvtph2ps_%= %%rbx, %%rdx, \\i_n, (\\i_k*m_BBytes*8), \\ymm\n"
                 ".else\n"
-                    "vcvtph2ps_%= %%rbx, 0, 0, ((\\i_k*m_Nr + \\i_n*8)*m_BBytes), \\ymm\n"
+                    ".if (\\i_k == 0) || (\\i_k == 1) || (\\i_k == 2)\n"
+                        "vcvtph2ps_%= %%rbx, %%rdx, \\i_k, (\\i_n*m_BBytes*8), \\ymm\n"
+                    ".else\n"
+                        "vcvtph2ps_%= %%r9, %%rdx, (\\i_k-3), (\\i_n*m_BBytes*8), \\ymm\n"
+                    ".endif\n"
                 ".endif\n"
             ".endif\n"
             ".endm\n"
@@ -179,6 +191,13 @@ struct ThreadwiseGemmAvx2_MxN_6x16
             "lea    (%%rcx, %%rcx, 2),  %%r9\n"
             "lea    (%%rax, %%r9),  %%r8\n"
             ".endif\n"
+            ".else\n"
+            "lea    (%%rcx, %%rcx, 2),  %%r9\n"
+            "lea    (%%rax, %%r9),  %%r8\n"
+            ".endif\n"
+            ".if m_TransB != 0\n"
+            "lea    (%%rdx, %%rdx, 2),  %%rdi\n"
+            "lea    (%%rbx, %%rdi), %%r9\n"
             ".endif\n"
 
             "cmp $4, %%rsi\n"
@@ -214,10 +233,12 @@ struct ThreadwiseGemmAvx2_MxN_6x16
             "               lea     4*m_ABytes(%%rax), %%rax\n"
             ".if m_Mr > 3\n lea     4*m_ABytes(%%r8),  %%r8\n  .endif\n"
             ".else\n"
-            "               lea     m_Mr * 4 * m_ABytes(%%rax),  %%rax\n"
+            "               lea     (%%rax, %%rcx, 4),  %%rax\n"
+            "               lea     (%%r8, %%rcx, 4),  %%r8\n"
             ".endif\n"
             ".if m_TransB != 0\n"
-            "               lea   m_Nr * 4 * m_BBytes(%%rbx), %%rbx\n"
+            "               lea   (%%rbx, %%rdx, 4), %%rbx\n"
+            "               lea   (%%r9, %%rdx, 4), %%r9\n"
             ".else\n"
             "               lea   8 * 4 * m_BBytes(%%rbx), %%rbx\n"
             ".endif\n"
@@ -256,10 +277,12 @@ struct ThreadwiseGemmAvx2_MxN_6x16
             "               lea    m_ABytes(%%rax),    %%rax\n"
             ".if m_Mr > 3\n lea    m_ABytes(%%r8),     %%r8\n    .endif\n"
             ".else\n"
-            "               lea    m_Mr * m_ABytes(%%rax), %%rax\n"
+            "               lea     (%%rax, %%rcx, 1),  %%rax\n"
+            "               lea     (%%r8, %%rcx, 1),  %%r8\n"
             ".endif\n"
             ".if m_TransB != 0\n"
-            "               lea    m_Nr * m_BBytes(%%rbx), %%rbx\n"
+            "               lea   (%%rbx, %%rdx, 1), %%rbx\n"
+            "               lea   (%%r9, %%rdx, 1), %%r9\n"
             ".else\n"
             "               lea    8*m_BBytes(%%rbx), %%rbx\n"
             ".endif\n"
@@ -381,7 +404,7 @@ struct ThreadwiseGemmAvx2_MxN_6x16
                 }
                 else
                 {
-                    ymm = _mm256_broadcast_ss(p_a + i_k * Mr + i_m);
+                    ymm = _mm256_broadcast_ss(p_a + i_k * lda + i_m);
                 }
             }
             else
@@ -396,7 +419,7 @@ struct ThreadwiseGemmAvx2_MxN_6x16
                 }
                 else
                 {
-                    ymm = _mm256_cvtph_ps(_mm_set1_epi16(*(p_a + i_k * Mr + i_m)));
+                    ymm = _mm256_cvtph_ps(_mm_set1_epi16(*(p_a + i_k * lda + i_m)));
                 }
             }
         };
@@ -406,7 +429,7 @@ struct ThreadwiseGemmAvx2_MxN_6x16
             {
                 if constexpr(std::is_same<ck::tensor_layout::gemm::RowMajor, BLayout>::value)
                 {
-                    ymm = _mm256_loadu_ps(p_b + i_k * Nr + i_n * 8);
+                    ymm = _mm256_loadu_ps(p_b + i_k * ldb + i_n * 8);
                 }
                 else
                 {
@@ -418,7 +441,7 @@ struct ThreadwiseGemmAvx2_MxN_6x16
                 if constexpr(std::is_same<ck::tensor_layout::gemm::RowMajor, BLayout>::value)
                 {
                     ymm = _mm256_cvtph_ps(_mm_loadu_si128(
-                        reinterpret_cast<__m128i const*>(p_b + i_k * Nr + i_n * 8)));
+                        reinterpret_cast<__m128i const*>(p_b + i_k * ldb + i_n * 8)));
                 }
                 else
                 {
@@ -488,10 +511,10 @@ struct ThreadwiseGemmAvx2_MxN_6x16
             if constexpr(std::is_same<ck::tensor_layout::gemm::RowMajor, ALayout>::value){
                 p_a += 4;
             } else{
-                p_a += Mr * 4;
+                p_a += lda * 4;
             }
             if constexpr(std::is_same<ck::tensor_layout::gemm::RowMajor, BLayout>::value){
-                p_b += Nr * 4;
+                p_b += ldb * 4;
             }else{
                 p_b += 4 * 8;
             }
@@ -525,10 +548,10 @@ struct ThreadwiseGemmAvx2_MxN_6x16
             if constexpr(std::is_same<ck::tensor_layout::gemm::RowMajor, ALayout>::value){
                 p_a += 1;
             } else{
-                p_a += Mr * 1;
+                p_a += lda * 1;
             }
             if constexpr(std::is_same<ck::tensor_layout::gemm::RowMajor, BLayout>::value){
-                p_b += Nr * 1;
+                p_b += ldb * 1;
             }else{
                 p_b += 1 * 8;
             }
@@ -641,12 +664,8 @@ struct ThreadwiseGemmAvx2_MxN_4x24
             "movq     (%[m_param]),     %%rax\n"    // p_a
             "movq    8(%[m_param]),     %%rbx\n"    // p_b
             "movq   24(%[m_param]),     %%rsi\n"    // Kr
-            ".if m_TransA != 0\n"
             "movq   32(%[m_param]),     %%rcx\n"    // lda
-            ".endif\n"
-            ".if m_TransB == 0\n"
             "movq   40(%[m_param]),     %%rdx\n"    // ldb
-            ".endif\n"
 
             ".macro vbroadcastss_%= r_base, r_stride, i_scale, i_offset, ymm\n"
             ".if \\i_scale != 0\n"
@@ -683,7 +702,11 @@ struct ThreadwiseGemmAvx2_MxN_4x24
             ".macro vbroadcast_a%= i_k, i_m, ymm\n" // A in rax(r8), lda in rcx
             ".if m_ABytes == 4\n"
                 ".if m_TransA == 0\n"
-                    "vbroadcastss_%= %%rax, 0, 0, ((\\i_m + \\i_k * m_Mr) * m_ABytes), \\ymm\n"
+                    ".if (\\i_k == 0) || (\\i_k == 1)\n"
+                        "vbroadcastss_%= %%rax, %%rcx, \\i_k, (\\i_m * m_ABytes), \\ymm\n"
+                    ".else\n"
+                        "vbroadcastss_%= %%r8, %%rcx, (\\i_k-2), (\\i_m * m_ABytes), \\ymm\n"
+                    ".endif\n"
                 ".else\n"
                     ".if (\\i_m == 0) || (\\i_m == 1)\n"
                         "vbroadcastss_%= %%rax, %%rcx, \\i_m, (\\i_k * m_ABytes), \\ymm\n"
@@ -693,7 +716,11 @@ struct ThreadwiseGemmAvx2_MxN_4x24
                 ".endif\n"
             ".else\n"
                 ".if m_TransA == 0\n"
-                    "vpbroadcastw_%= %%rax, 0, 0, ((\\i_m + \\i_k * m_Mr) * m_ABytes), %%xmm15\n"
+                    ".if (\\i_k == 0) || (\\i_k == 1)\n"
+                        "vpbroadcastw_%= %%rax, %%rcx, \\i_k, (\\i_m * m_ABytes), %%xmm15\n"
+                    ".else\n"
+                        "vpbroadcastw_%= %%r8, %%rcx, (\\i_k-2), (\\i_m * m_ABytes), %%xmm15\n"
+                    ".endif\n"
                 ".else\n"
                     ".if (\\i_m == 0) || (\\i_m == 1)\n"
                         "vpbroadcastw_%= %%rax, %%rcx, \\i_m, (\\i_k * m_ABytes), %%xmm15\n"
@@ -710,13 +737,21 @@ struct ThreadwiseGemmAvx2_MxN_4x24
                 ".if m_TransB == 0\n"
                     "vmovups_%= %%rbx, %%rdx, \\i_n, (\\i_k*m_BBytes*8), \\ymm\n"
                 ".else\n"
-                    "vmovups_%= %%rbx, 0, 0, ((\\i_k*m_Nr + \\i_n*8)*m_BBytes), \\ymm\n"
+                    ".if (\\i_k == 0) || (\\i_k == 1)\n"
+                        "vmovups_%= %%rbx, %%rdx, \\i_k, (\\i_n*8*m_BBytes), \\ymm\n"
+                    ".else\n"
+                        "vmovups_%= %%rdi, %%rdx, (\\i_k-2), (\\i_n*8*m_BBytes), \\ymm\n"
+                    ".endif\n"
                 ".endif\n"
             ".else\n"
                 ".if m_TransB == 0\n"
                     "vcvtph2ps_%= %%rbx, %%rdx, \\i_n, (\\i_k*m_BBytes*8), \\ymm\n"
                 ".else\n"
-                    "vcvtph2ps_%= %%rbx, 0, 0, ((\\i_k*m_Nr + \\i_n*8)*m_BBytes), \\ymm\n"
+                    ".if (\\i_k == 0) || (\\i_k == 1)\n"
+                        "vcvtph2ps_%= %%rbx, %%rdx, \\i_k, (\\i_n*8*m_BBytes), \\ymm\n"
+                    ".else\n"
+                        "vcvtph2ps_%= %%rdi, %%rdx, (\\i_k-2), (\\i_n*8*m_BBytes), \\ymm\n"
+                    ".endif\n"
                 ".endif\n"
             ".endif\n"
             ".endm\n"
@@ -738,6 +773,11 @@ struct ThreadwiseGemmAvx2_MxN_4x24
             ".if m_Mr > 2\n"
             "lea    (%%rax, %%rcx, 2),  %%r8\n"
             ".endif\n"
+            ".else\n"
+            "lea    (%%rax, %%rcx, 2),  %%r8\n"
+            ".endif\n"
+            ".if m_TransB != 0\n"
+            "lea    (%%rbx, %%rdx, 2),  %%rdi\n"
             ".endif\n"
 
             "cmp $4, %%rsi\n"
@@ -773,10 +813,12 @@ struct ThreadwiseGemmAvx2_MxN_4x24
             "               lea     4*m_ABytes(%%rax), %%rax\n"
             ".if m_Mr > 2\n lea     4*m_ABytes(%%r8),  %%r8\n  .endif\n"
             ".else\n"
-            "               lea     m_Mr * 4 * m_ABytes(%%rax),  %%rax\n"
+            "               lea     (%%rax, %%rcx, 4),  %%rax\n"
+            "               lea     (%%r8, %%rcx, 4),  %%r8\n"
             ".endif\n"
             ".if m_TransB != 0\n"
-            "               lea   m_Nr * 4 * m_BBytes(%%rbx), %%rbx\n"
+            "               lea   (%%rbx, %%rdx, 4), %%rbx\n"
+            "               lea   (%%rdi, %%rdx, 4), %%rdi\n"
             ".else\n"
             "               lea   8 * 4 * m_BBytes(%%rbx), %%rbx\n"
             ".endif\n"
@@ -815,10 +857,12 @@ struct ThreadwiseGemmAvx2_MxN_4x24
             "               lea    m_ABytes(%%rax),    %%rax\n"
             ".if m_Mr > 3\n lea    m_ABytes(%%r8),     %%r8\n    .endif\n"
             ".else\n"
-            "               lea    m_Mr * m_ABytes(%%rax), %%rax\n"
+            "               lea     (%%rax, %%rcx, 1),  %%rax\n"
+            "               lea     (%%r8, %%rcx, 1),  %%r8\n"
             ".endif\n"
             ".if m_TransB != 0\n"
-            "               lea    m_Nr * m_BBytes(%%rbx), %%rbx\n"
+            "               lea   (%%rbx, %%rdx, 1), %%rbx\n"
+            "               lea   (%%rdi, %%rdx, 1), %%rdi\n"
             ".else\n"
             "               lea    8*m_BBytes(%%rbx), %%rbx\n"
             ".endif\n"
@@ -937,7 +981,7 @@ struct ThreadwiseGemmAvx2_MxN_4x24
                 }
                 else
                 {
-                    ymm = _mm256_broadcast_ss(p_a + i_k * Mr + i_m);
+                    ymm = _mm256_broadcast_ss(p_a + i_k * lda + i_m);
                 }
             }
             else
@@ -952,7 +996,7 @@ struct ThreadwiseGemmAvx2_MxN_4x24
                 }
                 else
                 {
-                    ymm = _mm256_cvtph_ps(_mm_set1_epi16(*(p_a + i_k * Mr + i_m)));
+                    ymm = _mm256_cvtph_ps(_mm_set1_epi16(*(p_a + i_k * lda + i_m)));
                 }
             }
         };
@@ -962,7 +1006,7 @@ struct ThreadwiseGemmAvx2_MxN_4x24
             {
                 if constexpr(std::is_same<ck::tensor_layout::gemm::RowMajor, BLayout>::value)
                 {
-                    ymm = _mm256_loadu_ps(p_b + i_k * Nr + i_n * 8);
+                    ymm = _mm256_loadu_ps(p_b + i_k * ldb + i_n * 8);
                 }
                 else
                 {
@@ -974,7 +1018,7 @@ struct ThreadwiseGemmAvx2_MxN_4x24
                 if constexpr(std::is_same<ck::tensor_layout::gemm::RowMajor, BLayout>::value)
                 {
                     ymm = _mm256_cvtph_ps(_mm_loadu_si128(
-                        reinterpret_cast<__m128i const*>(p_b + i_k * Nr + i_n * 8)));
+                        reinterpret_cast<__m128i const*>(p_b + i_k * ldb + i_n * 8)));
                 }
                 else
                 {
@@ -1044,10 +1088,10 @@ struct ThreadwiseGemmAvx2_MxN_4x24
             if constexpr(std::is_same<ck::tensor_layout::gemm::RowMajor, ALayout>::value){
                 p_a += 4;
             } else{
-                p_a += Mr * 4;
+                p_a += lda * 4;
             }
             if constexpr(std::is_same<ck::tensor_layout::gemm::RowMajor, BLayout>::value){
-                p_b += Nr * 4;
+                p_b += ldb * 4;
             }else{
                 p_b += 4 * 8;
             }
@@ -1081,10 +1125,10 @@ struct ThreadwiseGemmAvx2_MxN_4x24
             if constexpr(std::is_same<ck::tensor_layout::gemm::RowMajor, ALayout>::value){
                 p_a += 1;
             } else{
-                p_a += Mr * 1;
+                p_a += lda * 1;
             }
             if constexpr(std::is_same<ck::tensor_layout::gemm::RowMajor, BLayout>::value){
-                p_b += Nr * 1;
+                p_b += ldb * 1;
             }else{
                 p_b += 1 * 8;
             }

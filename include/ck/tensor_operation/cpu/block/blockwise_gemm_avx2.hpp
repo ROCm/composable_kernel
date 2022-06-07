@@ -199,8 +199,6 @@ struct BlockwiseGemmAvx2_MxN
         auto ldb = GetBLeadingElement(b_block_desc) * sizeof(FloatB);
         auto ldc = GetCLeadingElement(c_desc) * sizeof(FloatC);
 
-        // printf("lda:%d, ldb:%d, ldc:%d\n", lda, ldb, ldc);
-
         const auto k_per_block  = a_slice_length[Number<1>{}];
         const auto m_per_block  = c_slice_length[Number<0>{}];
         const auto n_per_block  = c_slice_length[Number<1>{}];
@@ -215,8 +213,16 @@ struct BlockwiseGemmAvx2_MxN
         param.alpha       = 1.0f; // TODO
         param.accmulate_c = is_accumulate_c ? 1 : 0;
 
-        // printf("xxx lda:%u, ldb:%u, ldc:%u, mpb:%u, npb:%u, kpb:%u\n", lda, ldb, ldc,
-        // m_per_block, n_per_block, k_per_block);
+        // printf("xxx lda:%u, ldb:%u, ldc:%u, mpb:%u, npb:%u, kpb:%u, mpt:%u, npt:%u\n",
+        //        lda,
+        //        ldb,
+        //        ldc,
+        //        m_per_block,
+        //        n_per_block,
+        //        k_per_block,
+        //        m_per_thread,
+        //        n_per_thread);
+        // fflush(stdout);
 
         if constexpr(std::is_same<ThreadMNAccessOrder, ck::Sequence<0, 1>>::value)
         {

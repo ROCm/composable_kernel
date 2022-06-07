@@ -16,7 +16,8 @@
 
 #define TEST_LAYOUT_NHWC_KYXC_NHWK 0
 #define TEST_LAYOUT_NHWC_KYXCK8_NHWK 1
-#define TEST_LAYOUT TEST_LAYOUT_NHWC_KYXCK8_NHWK
+#define TEST_LAYOUT_NHWC_YXCK_NHWK 1
+#define TEST_LAYOUT TEST_LAYOUT_NHWC_KYXC_NHWK
 
 using F32 = float;
 using F16 = ck::half_t;
@@ -30,6 +31,7 @@ namespace device_conv2d_fwd_bias_activation_add_avx2_instance {
 using PassThrough = ck::tensor_operation::cpu::element_wise::PassThrough;
 using AddReluAdd  = ck::tensor_operation::cpu::element_wise::AddReluAdd;
 
+// ------------------ nhwc-kyxc-nhwk
 void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxc_nhwk(
     std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
         instances);
@@ -42,6 +44,7 @@ void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxc_nhwk_mt(
     std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
         instances);
 
+// ------------------ nhwc-kcyxk8-nhwk
 void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxck8_nhwk(
     std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
         instances);
@@ -51,6 +54,19 @@ void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxck8_nhwk_local_c(
         instances);
 
 void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxck8_nhwk_mt(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
+        instances);
+
+// ------------------ nhwc-yxck-nhwk
+void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_yxck_nhwk(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
+        instances);
+
+void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_yxck_nhwk_local_c(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
+        instances);
+
+void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_yxck_nhwk_mt(
     std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
         instances);
 
@@ -126,6 +142,31 @@ void transpose_kyxc_2_kyxc8k(Tensor<T>& dst,
 {
     ck::index_t batch = K / 8;
     ck::index_t row   = 8;
+    ck::index_t col   = C * Y * X;
+    for(auto i_b = 0; i_b < batch; i_b++)
+    {
+        for(auto i_r = 0; i_r < row; i_r++)
+        {
+            for(auto i_c = 0; i_c < col; i_c++)
+            {
+                ck::index_t src_idx = i_b * row * col + i_r * col + i_c;
+                ck::index_t dst_idx = i_b * col * row + i_c * row + i_r;
+                dst.mData[dst_idx]  = src.mData[src_idx];
+            }
+        }
+    }
+}
+
+template <typename T>
+void transpose_kyxc_2_yxck(Tensor<T>& dst,
+                           const Tensor<T>& src,
+                           ck::index_t K,
+                           ck::index_t Y,
+                           ck::index_t X,
+                           ck::index_t C)
+{
+    ck::index_t batch = 1;
+    ck::index_t row   = K;
     ck::index_t col   = C * Y * X;
     for(auto i_b = 0; i_b < batch; i_b++)
     {
@@ -244,6 +285,10 @@ int main(int argc, char* argv[])
         Tensor<WeiDataType> wei_k_c_y_x_k8(
             f_host_tensor_descriptor(K, C, Y, X)); // TODO: This is only to hold data
 #endif
+#if TEST_LAYOUT == TEST_LAYOUT_NHWC_YXCK_NHWK
+        Tensor<WeiDataType> wei_y_x_c_k(
+            f_host_tensor_descriptor(K, C, Y, X)); // TODO: This is only to hold data
+#endif
         Tensor<OutDataType> out_n_k_ho_wo_host_result(f_host_tensor_descriptor(N, K, Ho, Wo));
         Tensor<OutDataType> out_n_k_ho_wo_device_result(f_host_tensor_descriptor(N, K, Ho, Wo));
 
@@ -319,6 +364,10 @@ int main(int argc, char* argv[])
 #if TEST_LAYOUT == TEST_LAYOUT_NHWC_KYXCK8_NHWK
         transpose_kyxc_2_kyxc8k(wei_k_c_y_x_k8, wei_k_c_y_x, K, Y, X, C);
         wei_device_buf.ToDevice(wei_k_c_y_x_k8.mData.data());
+#endif
+#if TEST_LAYOUT == TEST_LAYOUT_NHWC_YXCK_NHWK
+        transpose_kyxc_2_yxck(wei_y_x_c_k, wei_k_c_y_x, K, Y, X, C);
+        wei_device_buf.ToDevice(wei_y_x_c_k.mData.data());
 #endif
         bias_device_buf.ToDevice(bias.mData.data());
         resi_device_buf.ToDevice(residual.mData.data());
@@ -402,6 +451,30 @@ int main(int argc, char* argv[])
                     ck::tensor_operation::cpu::device::
                         device_conv2d_fwd_bias_activation_add_avx2_instance::
                             add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxck8_nhwk_local_c(
+                                conv_ptrs);
+            }
+#endif
+#if TEST_LAYOUT == TEST_LAYOUT_NHWC_YXCK_NHWK
+            if(omp_get_max_threads() > 1)
+            {
+                ck::tensor_operation::cpu::device::
+                    device_conv2d_fwd_bias_activation_add_avx2_instance::
+                        add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_yxck_nhwk_mt(conv_ptrs);
+                ck::tensor_operation::cpu::device::
+                    device_conv2d_fwd_bias_activation_add_avx2_instance::
+                        add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_yxck_nhwk(conv_ptrs);
+            }
+            else
+            {
+                if(K % 8 == 0)
+                    ck::tensor_operation::cpu::device::
+                        device_conv2d_fwd_bias_activation_add_avx2_instance::
+                            add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_yxck_nhwk(
+                                conv_ptrs);
+                else
+                    ck::tensor_operation::cpu::device::
+                        device_conv2d_fwd_bias_activation_add_avx2_instance::
+                            add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_yxck_nhwk_local_c(
                                 conv_ptrs);
             }
 #endif

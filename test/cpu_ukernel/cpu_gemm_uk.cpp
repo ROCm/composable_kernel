@@ -233,68 +233,30 @@ void test_ukernel(ukenrel_t uk,
     int max_threads = omp_get_max_threads();
 
     auto invoke_uk = [&](ck::cpu::ThreadwiseGemmParam& param, float* current_mat_c) {
-        if constexpr(std::is_same<Row, ALayout>::value && std::is_same<Row, BLayout>::value)
+        assert(m % uk.ThreadMr == 0 && n % uk.ThreadNr == 0);
+
+        for(uint32_t i_m = 0; i_m < m; i_m += uk.ThreadMr)
         {
-            assert(m % uk.ThreadMr == 0 && n == uk.ThreadNr);
-            FloatA* p_a = mat_a;
-            float* p_c  = current_mat_c;
-            param.p_a   = p_a;
-            param.p_c   = p_c;
-            for(uint32_t i_m = 0; i_m < m; i_m += uk.ThreadMr)
+            if constexpr(std::is_same<Row, ALayout>::value)
             {
-                uk.Run(&param);
-                p_a += uk.ThreadMr * k;
-                p_c += uk.ThreadMr * n;
-                param.p_a = p_a;
-                param.p_c = p_c;
+                param.p_a = mat_a + i_m * k;
             }
-        }
-        else if constexpr(std::is_same<Row, ALayout>::value && std::is_same<Col, BLayout>::value)
-        {
-            assert(m % uk.ThreadMr == 0 && n % uk.ThreadNr == 0);
-            FloatA* p_a = mat_a;
-            float* p_c  = current_mat_c;
-            param.p_a   = p_a;
-            param.p_b   = mat_b;
-            param.p_c   = p_c;
-            for(uint32_t i_m = 0; i_m < m; i_m += uk.ThreadMr)
+            else
             {
-                float* p_c_n  = p_c;
-                FloatB* p_b_n = mat_b;
-                for(uint32_t i_n = 0; i_n < n; i_n += uk.ThreadNr)
-                {
-                    uk.Run(&param);
-                    p_b_n += uk.ThreadNr * k; // ThreadNr/8*k*8
-                    p_c_n += uk.ThreadNr;
-                    param.p_b = p_b_n;
-                    param.p_c = p_c_n;
-                }
-                p_a += uk.ThreadMr * k;
-                p_c += uk.ThreadMr * n;
-                param.p_a = p_a;
-                param.p_b = mat_b;
-                param.p_c = p_c;
+                param.p_a = mat_a + i_m;
             }
-        }
-        else if constexpr(std::is_same<Col, ALayout>::value && std::is_same<Row, BLayout>::value)
-        {
-            assert(m == uk.ThreadMr && n == uk.ThreadNr);
-            uk.Run(&param);
-        }
-        else
-        {
-            assert(m % uk.ThreadMr == 0 && n % uk.ThreadNr == 0);
-            FloatB* p_b = mat_b;
-            float* p_c  = current_mat_c;
-            param.p_b   = p_b;
-            param.p_c   = p_c;
             for(uint32_t i_n = 0; i_n < n; i_n += uk.ThreadNr)
             {
+                if constexpr(std::is_same<Row, BLayout>::value)
+                {
+                    param.p_b = mat_b + i_n;
+                }
+                else
+                {
+                    param.p_b = mat_b + i_n * k;
+                }
+                param.p_c = current_mat_c + i_m * n + i_n;
                 uk.Run(&param);
-                p_b += uk.ThreadNr * k; // ThreadNr/8*k*8
-                p_c += uk.ThreadNr;
-                param.p_b = p_b;
-                param.p_c = p_c;
             }
         }
     };
@@ -358,7 +320,11 @@ void test_ukernel(ukenrel_t uk,
 }
 
 // implement small ukernel on L1
-template <typename FloatA, typename FloatB, typename ALayout, typename BLayout>
+template <typename FloatA,
+          typename FloatB,
+          typename ALayout,
+          typename BLayout,
+          typename thread_gemm_instance>
 void test_cpu_ukernel(float alpha, uint32_t m, uint32_t n, uint32_t k)
 {
     int max_threads = omp_get_max_threads();
@@ -382,17 +348,18 @@ void test_cpu_ukernel(float alpha, uint32_t m, uint32_t n, uint32_t k)
         k);
 
     // using thread_gemm_instance = thread_gemm_avx2_mxn_6x16_instances<ALayout, BLayout>;
-    using thread_gemm_instance = thread_gemm_avx2_mxn_4x24_instances<ALayout, BLayout>;
-    bool found                 = false;
+    // using thread_gemm_instance = thread_gemm_avx2_mxn_4x24_instances<ALayout, BLayout>;
+    bool found = false;
 
     ck::static_for<0, std::tuple_size_v<thread_gemm_instance>, 1>{}([&](auto i) {
         using uk_type = std::tuple_element_t<i, thread_gemm_instance>;
         if(m % uk_type::ThreadMr != 0 || n % uk_type::ThreadNr != 0)
             return;
-        if((m != uk_type::ThreadMr && std::is_same<typename uk_type::MatrixALayout, Col>::value) ||
-           (n != uk_type::ThreadNr && std::is_same<typename uk_type::MatrixBLayout, Row>::value))
-            // only k is the fast changing dim of A/B can we do muldiplt m, n
-            return;
+        // if((m != uk_type::ThreadMr && std::is_same<typename uk_type::MatrixALayout, Col>::value)
+        // ||
+        //    (n != uk_type::ThreadNr && std::is_same<typename uk_type::MatrixBLayout, Row>::value))
+        //     // only k is the fast changing dim of A/B can we do muldiplt m, n
+        //     return;
 
         if(found)
             return;
@@ -435,8 +402,21 @@ int main(int argc, char** argv)
         omp_set_num_threads(1);
     printf("max threads:%d\n", omp_get_max_threads());
 
-    test_cpu_ukernel<AType, BType, Row, Row>(alpha, m, n, k);
-    test_cpu_ukernel<AType, BType, Row, Col>(alpha, m, n, k);
-    test_cpu_ukernel<AType, BType, Col, Row>(alpha, m, n, k);
-    test_cpu_ukernel<AType, BType, Col, Col>(alpha, m, n, k);
+    test_cpu_ukernel<AType, BType, Row, Row, thread_gemm_avx2_mxn_4x24_instances<Row, Row>>(
+        alpha, m, n, k);
+    test_cpu_ukernel<AType, BType, Row, Col, thread_gemm_avx2_mxn_4x24_instances<Row, Col>>(
+        alpha, m, n, k);
+    test_cpu_ukernel<AType, BType, Col, Row, thread_gemm_avx2_mxn_4x24_instances<Col, Row>>(
+        alpha, m, n, k);
+    test_cpu_ukernel<AType, BType, Col, Col, thread_gemm_avx2_mxn_4x24_instances<Col, Col>>(
+        alpha, m, n, k);
+
+    test_cpu_ukernel<AType, BType, Row, Row, thread_gemm_avx2_mxn_6x16_instances<Row, Row>>(
+        alpha, m, n, k);
+    test_cpu_ukernel<AType, BType, Row, Col, thread_gemm_avx2_mxn_6x16_instances<Row, Col>>(
+        alpha, m, n, k);
+    test_cpu_ukernel<AType, BType, Col, Row, thread_gemm_avx2_mxn_6x16_instances<Col, Row>>(
+        alpha, m, n, k);
+    test_cpu_ukernel<AType, BType, Col, Col, thread_gemm_avx2_mxn_6x16_instances<Col, Col>>(
+        alpha, m, n, k);
 }
