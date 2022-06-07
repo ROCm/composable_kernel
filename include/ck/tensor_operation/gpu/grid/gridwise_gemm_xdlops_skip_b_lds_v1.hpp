@@ -112,7 +112,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
     static constexpr auto I6 = Number<6>{};
     static constexpr auto I7 = Number<7>{};
 
-    static constexpr auto MultiK0 = 2 * 1;
+    static constexpr auto MultiK0 = 2 * 2;
 
     // K1 should be Number<...>
     static constexpr auto K1 = Number<K1Value>{};
