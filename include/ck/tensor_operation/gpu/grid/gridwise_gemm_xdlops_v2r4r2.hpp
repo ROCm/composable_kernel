@@ -10,6 +10,7 @@
 #include "thread_group_tensor_slice_transfer_v6r1.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 #include "gridwise_gemm_pipeline_v1.hpp"
+#include "gridwise_gemm_pipeline_v2.hpp"
 
 namespace ck {
 
@@ -126,7 +127,12 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     static constexpr auto K1 = Number<K1Value>{};
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
+
+#if 0
     using GridwiseGemmPipe = GridwiseGemmPipeline_v1<NumGemmKPrefetchStage>;
+#else
+    using GridwiseGemmPipe = GridwiseGemmPipeline_v2;
+#endif
 
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
