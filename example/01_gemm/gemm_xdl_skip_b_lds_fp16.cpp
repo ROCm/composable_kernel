@@ -87,10 +87,10 @@ template <typename DataType>
 std::ostream& show_2d_matrix(std::ostream& os, Tensor<DataType>& matrix)
 {
     os << "[" << std::endl;
-    for(int x = 0; x < matrix.mDesc.GetLengths()[0]; x++)
+    for(size_t x = 0; x < matrix.mDesc.GetLengths()[0]; x++)
     {
         os << "[";
-        for(int y = 0; y < matrix.mDesc.GetLengths()[1]; y++)
+        for(size_t y = 0; y < matrix.mDesc.GetLengths()[1]; y++)
         {
             os << std::setw(5) << static_cast<float>(matrix(x, y));
         }

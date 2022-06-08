@@ -191,7 +191,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
 
         // 2-stage prefetch currently only support even number of K0 loop
         // TODO: add support for odd number of K0 loop
-        if(!((K0 / K0PerBlock) % 2 == 0))
+        if(!((K0 / K0PerBlock) % MultiK0 == 0))
         {
             return false;
         }
