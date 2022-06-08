@@ -12,6 +12,7 @@
 #include "host_tensor_generator.hpp"
 #include "device_tensor.hpp"
 #include "device_gemm_xdl_skip_b_lds.hpp"
+#include "device_gemm_xdl_skip_all_lds.hpp"
 #include "device_gemm_xdl.hpp"
 #include "device_gemm_xdl_cshuffle.hpp"
 #include "element_wise_operation.hpp"
@@ -38,47 +39,22 @@ using BElementOp = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
-#define USING_SKIP_LDS 1
+
 
 // clang-format off
-#if USING_SKIP_LDS
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdlSkipBLds
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdlSkipAllLds
         //###########| AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C|          GEMM| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds| BThreadTransfer| CThreadTransfer| CThreadTransfer|
         //###########|  Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|Spacialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|       SrcScalar| SrcDstVectorDim|       DstScalar|
         //###########|      |      |      |        |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          |       PerVector|                |       PerVector|
         //###########|      |      |      |        |        |        |        |            |            |            |              |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |                |                |
-#if 1       
+    
                     //<   F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   64,    16,   64,     4,  8,   16,   16,    1,    4,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,            8,               7,               1>;
                     <   F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   64,    16,   16,     4,  8,   16,   16,    1,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,            8,               7,               1>;
 using ADataType   = ck::half_t;
 using BDataType   = ck::half_t;
 using CDataType   = ck::half_t;
 using AccDataType = float;
-#else  
-                    <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,     64,    16,   16,     4,  4,   16,   16,    1,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,             4,                7,               1>;
-                   // <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,     256,    128,   32,     4,  4,   32,   32,    1,    1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,             4,                7,               1>;
-                   //  <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,     256,    128,   64,     4,  4,   32,   32,    2,    1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,             4,                7,               1>;
-using ADataType   = float;
-using BDataType   = float;
-using CDataType   = float;
-using AccDataType = float;
-#endif
 
-#else
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl
-        //###########| AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C|          GEMM| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer|
-        //###########|  Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|Spacialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| SrcDstVectorDim|       DstScalar|
-        //###########|      |      |      |        |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |                |       PerVector|
-        //###########|      |      |      |        |        |        |        |            |            |            |              |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |                |                |
-                  // <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,    64,   16,     4,  4,   16,   16,    1,    1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              4,              4,      true,               7,              1,      2>;
-                  // <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,    128,   32,     4,  4,   32,   32,    1,    1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              4,              4,      true,               7,             1,      2>;
-                     <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,    128,   64,     4,  4,   32,   32,    1,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              4,              4,      true,               7,             1,      2>;
-using ADataType   = float;
-using BDataType   = float;
-using CDataType   = float;
-using AccDataType = float;
-
-#endif
     // clang-format on
 
     using ReferenceGemmInstance = ck::tensor_operation::host::
@@ -88,10 +64,10 @@ template <typename DataType>
 std::ostream& show_2d_matrix(std::ostream& os, Tensor<DataType>& matrix)
 {
     os << "[" << std::endl;
-    for(int x = 0; x < matrix.mDesc.GetLengths()[0]; x++)
+    for(size_t x = 0; x < matrix.mDesc.GetLengths()[0]; x++)
     {
         os << "[";
-        for(int y = 0; y < matrix.mDesc.GetLengths()[1]; y++)
+        for(size_t y = 0; y < matrix.mDesc.GetLengths()[1]; y++)
         {
             os << std::setw(5) << static_cast<float>(matrix(x, y));
         }
@@ -181,8 +157,11 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        //a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
+        //a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<BDataType>{0, 2});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{0, 2});
+        //b_k_n.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
         break;
     case 2:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
