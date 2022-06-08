@@ -100,7 +100,6 @@ def buildHipClangJob(Map conf=[:]){
 
         def variant = env.STAGE_NAME
 
-
         def retimage
         gitStatusWrapper(credentialsId: '7126e5fe-eb51-4576-b52b-9aaf1de8f0fd', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
             if (params.USE_DOCKERFILE){
@@ -190,7 +189,6 @@ def runCKProfiler(Map conf=[:]){
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' "
 
         def variant = env.STAGE_NAME
-
 
         def retimage
         gitStatusWrapper(credentialsId: '7126e5fe-eb51-4576-b52b-9aaf1de8f0fd', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
@@ -310,10 +308,14 @@ pipeline {
             defaultValue: true,
             description: "")
     }
-
-    // environment{
-	//  variable = value
-    // }
+    environment{
+        dbuser = "${dbuser}"
+        dbpassword = "${dbpassword}"
+        dbsship = "${dbsship}"
+        dbsshport = "${dbsshport}"
+        dbsshuser = "${dbsshuser}"
+        dbsshpassword = "${dbsshpassword}"
+    }
     stages{
         stage("Static checks") {
             parallel{
@@ -356,12 +358,6 @@ pipeline {
                     agent{ label rocmnode("gfx908")}
                     environment{
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
-                        dbuser = "${dbuser}"
-                        dbpassword = "${dbpassword}"
-                        dbsship = "${dbsship}"
-                        dbsshport = "${dbsshport}"
-                        dbsshuser = "${dbsshuser}"
-                        dbsshpassword = "${dbsshpassword}"
                    }
                     steps{
                         runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
@@ -372,12 +368,6 @@ pipeline {
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
-                        dbuser = "${dbuser}"
-                        dbpassword = "${dbpassword}"
-                        dbsship = "${dbsship}"
-                        dbsshport = "${dbsshport}"
-                        dbsshuser = "${dbsshuser}"
-                        dbsshpassword = "${dbsshpassword}"
                    }
                     steps{
                         runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
@@ -394,7 +384,6 @@ pipeline {
                 {
                     agent{ label rocmnode("gfx908")}
                     environment{
-                        //setup_args = """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx900 --offload-arch=gfx906  --offload-arch=gfx908 --offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
                         setup_args = """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
                     }
                     steps{
