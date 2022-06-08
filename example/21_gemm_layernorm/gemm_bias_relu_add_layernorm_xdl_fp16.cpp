@@ -48,6 +48,7 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using AElementOp  = PassThrough;
 using BElementOp  = PassThrough;
 using CElementOp  = ck::tensor_operation::element_wise::Relu;
+using C1ElementOp = PassThrough;
 using ReduceSumOp = ck::reduce::Add<ReduceAccDataType>;
 using DxsReduceOp = ck::Tuple<ReduceSumOp, ReduceSumOp>;
 
@@ -69,11 +70,11 @@ static constexpr auto GemmSpecialization =
 
 // clang-format off
 using DeviceGemmBiasAddReduceInstance = ck::tensor_operation::device::DeviceGemmBiasAddReduce_Xdl_CShuffle
-//######| ALayout| BLayout| CLayout|AData| BData| CData|C0Data|C1Data|  GemmAcc| CShuffle| ReduceAcc|         DData|           A|           B|           C|         Dxs|     DxsInEleOp|     DxsAccEleOp|               D|               GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|              CReduce| CReduceThreadLds2VGprCopy| CReduceThreadVgpr2GlobalCopy|
-//######|        |        |        | Type|  Type|  Type|  Type|  Type| DataType| DataType|  DataType|    Type Tuple| Elementwise| Elementwise| Elementwise|      Reduce|               |                |      MemoryData|     Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN| MXdlPerWave| NXdlPerWave|            _MBlock_MPerBlock| ScalarPerVector| ThreadClusterLengths|     SrcDstScalarPerVector|        SrcDstScalarPerVector|
-//######|        |        |        |     |      |      |      |      |         |         |          |              |   Operation|   Operation|   Operation|   Operation|               |                |       Operation|                   |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|            _NBlock_NPerBlock|      _NPerBlock| _MPerBlock_NPerBlock|                _NPerBlock|                   _MPerBlock|
-//######|        |        |        |     |      |      |      |      |         |         |          |              |            |            |            |            |               |                |                |                   |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |                     |                          |                             |
-        <     Row,     Col,     Row,  F16,   F16,   F16,   F32,   F32,      F32,      F32,       F32,   DPtrsGlobal,  AElementOp,  BElementOp,  CElementOp, DxsReduceOp, DxsInElementOp, DxsOutElementOp,  DxsGlobalMemOp, GemmSpecialization,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8,             S<64, 4>,                         4,                            1>;
+//######| ALayout| BLayout| CLayout|AData| BData| CData|C0Data|C1Data|  GemmAcc| CShuffle| ReduceAcc|         DData|           A|           B|           C|          C1|         Dxs|     DxsInEleOp|     DxsAccEleOp|               D|               GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|              CReduce| CReduceThreadLds2VGprCopy| CReduceThreadVgpr2GlobalCopy|
+//######|        |        |        | Type|  Type|  Type|  Type|  Type| DataType| DataType|  DataType|    Type Tuple| Elementwise| Elementwise| Elementwise| Elementwise|      Reduce|               |                |      MemoryData|     Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN| MXdlPerWave| NXdlPerWave|            _MBlock_MPerBlock| ScalarPerVector| ThreadClusterLengths|     SrcDstScalarPerVector|        SrcDstScalarPerVector|
+//######|        |        |        |     |      |      |      |      |         |         |          |              |   Operation|   Operation|   Operation|   Operation|   Operation|               |                |       Operation|                   |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|            _NBlock_NPerBlock|      _NPerBlock| _MPerBlock_NPerBlock|                _NPerBlock|                   _MPerBlock|
+//######|        |        |        |     |      |      |      |      |         |         |          |              |            |            |            |            |            |               |                |                |                   |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |                     |                          |                             |
+        <     Row,     Col,     Row,  F16,   F16,   F16,   F32,   F32,      F32,      F32,       F32,   DPtrsGlobal,  AElementOp,  BElementOp,  CElementOp, C1ElementOp, DxsReduceOp, DxsInElementOp, DxsOutElementOp,  DxsGlobalMemOp, GemmSpecialization,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8,             S<64, 4>,                         4,                            1>;
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
@@ -131,7 +132,8 @@ template <typename CDataType,
           typename C1DataType,
           typename A_functor,
           typename B_functor,
-          typename C_functor>
+          typename C_functor,
+          typename C1_functor>
 void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
                          const Tensor<ADataType>& a_m_k,
                          const Tensor<ADataType>& b_k_n,
@@ -142,6 +144,7 @@ void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
                          A_functor a_element_op,
                          B_functor b_element_op,
                          C_functor c_element_op,
+                         C1_functor c1_element_op,
                          int M,
                          int N)
 {
@@ -160,14 +163,18 @@ void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
 
     ref_invoker.Run(ref_argument);
 
+    // c = activation(c + bias) + c1_functor(c1)
     for(int m = 0; m < M; ++m)
         for(int n = 0; n < N; ++n)
         {
             AccDataType acc =
                 static_cast<AccDataType>(c_m_n(m, n)) + static_cast<AccDataType>(bias_n(n));
 
+            AccDataType c1 = c1_m_n(m, n);
+
             c_element_op(acc, acc);
-            acc += static_cast<AccDataType>(c1_m_n(m, n));
+            c1_element_op(c1, c1);
+            acc += static_cast<AccDataType>(c1);
             c_m_n(m, n) = static_cast<CDataType>(acc);
         }
 
@@ -290,9 +297,10 @@ int main()
     gamma_device_buf.ToDevice(gamma_n.mData.data());
     beta_device_buf.ToDevice(beta_n.mData.data());
 
-    auto a_element_op = AElementOp{};
-    auto b_element_op = BElementOp{};
-    auto c_element_op = CElementOp{};
+    auto a_element_op  = AElementOp{};
+    auto b_element_op  = BElementOp{};
+    auto c_element_op  = CElementOp{};
+    auto c1_element_op = C1ElementOp{};
     auto dxs_global =
         ck::make_tuple(static_cast<DDataType*>(reduceMean_device_buf.GetDeviceBuffer()),
                        static_cast<DDataType*>(reduceMeanSquare_device_buf.GetDeviceBuffer()));
@@ -320,6 +328,7 @@ int main()
                                 a_element_op,
                                 b_element_op,
                                 c_element_op,
+                                c1_element_op,
                                 dxs_in_element_op,
                                 dxs_out_element_op);
 
@@ -378,6 +387,7 @@ int main()
                                                                      a_element_op,
                                                                      b_element_op,
                                                                      c_element_op,
+                                                                     c1_element_op,
                                                                      M,
                                                                      N);
 

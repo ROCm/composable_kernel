@@ -52,6 +52,7 @@ template <typename DPtrsGlobal,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
+          typename C1ElementwiseOperation,
           typename DxsInElementwiseOperation,
           typename DxsAccElementwiseOperation>
 struct DeviceGemmBiasAddReduce : public BaseOperator
@@ -73,6 +74,7 @@ struct DeviceGemmBiasAddReduce : public BaseOperator
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
                         CElementwiseOperation c_element_op,
+                        C1ElementwiseOperation c1_element_op,
                         DxsInElementwiseOperation dxs_in_element_op,
                         DxsAccElementwiseOperation dxs_out_element_op,
                         ck::index_t BatchCount = 1) = 0;
@@ -84,6 +86,7 @@ template <typename DPtrsGlobal,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
+          typename C1ElementwiseOperation,
           typename DxsInElementwiseOperation,
           typename DxsAccElementwiseOperation>
 using DeviceGemmBiasAddReducePtr =
@@ -91,6 +94,7 @@ using DeviceGemmBiasAddReducePtr =
                                             AElementwiseOperation,
                                             BElementwiseOperation,
                                             CElementwiseOperation,
+                                            C1ElementwiseOperation,
                                             DxsInElementwiseOperation,
                                             DxsAccElementwiseOperation>>;
 

@@ -30,6 +30,7 @@ using DeviceGemmBiasAddReduceNoOpPtr = ck::tensor_operation::device::DeviceGemmB
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
+    ck::tensor_operation::element_wise::PassThrough,
     DInElementOps,
     DOutElementOps>;
 
@@ -141,6 +142,7 @@ bool profile_gemm_bias_add_reduce_impl(int do_verification,
     using AElementOp        = PassThrough;
     using BElementOp        = PassThrough;
     using CElementOp        = PassThrough;
+    using C1ElementOp       = PassThrough;
     using D0ReduceOp        = ck::reduce::Add<float>;
     using D1ReduceOp        = ck::reduce::Add<float>;
     using UnaryDivElementOp = ck::tensor_operation::element_wise::UnaryIdentic<float, float, true>;
@@ -151,11 +153,12 @@ bool profile_gemm_bias_add_reduce_impl(int do_verification,
     using DxsInElementOps  = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
     using DxsOutElementOps = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
 
-    const auto a_element_op = AElementOp{};
-    const auto b_element_op = BElementOp{};
-    const auto c_element_op = CElementOp{};
-    const auto d0_reduce_op = D0ReduceOp{};
-    const auto d1_reduce_op = D1ReduceOp{};
+    const auto a_element_op  = AElementOp{};
+    const auto b_element_op  = BElementOp{};
+    const auto c_element_op  = CElementOp{};
+    const auto c1_element_op = C1ElementOp{};
+    const auto d0_reduce_op  = D0ReduceOp{};
+    const auto d1_reduce_op  = D1ReduceOp{};
 
     auto dxs_in_element_op  = DxsInElementOps{};
     auto dxs_out_element_op = DxsOutElementOps{M, M};
@@ -183,8 +186,11 @@ bool profile_gemm_bias_add_reduce_impl(int do_verification,
             {
                 float acc =
                     static_cast<float>(c_m_n_host_result(m, n)) + static_cast<float>(bias_n(n));
+
+                float c1 = c1_m_n(m, n);
                 c_element_op(acc, acc);
-                acc += static_cast<float>(c1_m_n(m, n));
+                c1_element_op(c1, c1);
+                acc += static_cast<float>(c1);
                 c_m_n_host_result(m, n) = static_cast<CDataType>(acc);
             }
 
@@ -299,6 +305,7 @@ bool profile_gemm_bias_add_reduce_impl(int do_verification,
             a_element_op,
             b_element_op,
             c_element_op,
+            c1_element_op,
             dxs_in_element_op,
             dxs_out_element_op);
 

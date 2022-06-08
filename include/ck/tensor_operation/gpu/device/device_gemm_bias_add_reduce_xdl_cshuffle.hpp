@@ -32,6 +32,7 @@ template <typename ALayout,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
+          typename C1ElementwiseOperation,
           typename DxsReduceOperation,
           typename DxsInElementwiseOperation,
           typename DxsAccElementwiseOperation,
@@ -75,6 +76,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                                      AElementwiseOperation,
                                      BElementwiseOperation,
                                      CElementwiseOperation,
+                                     C1ElementwiseOperation,
                                      DxsInElementwiseOperation,
                                      DxsAccElementwiseOperation>
 {
@@ -394,6 +396,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
+        C1ElementwiseOperation,
         DxsReduceOperation,
         DxsInElementwiseOperation,
         DxsAccElementwiseOperation,
@@ -460,6 +463,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op,
+                 C1ElementwiseOperation c1_element_op,
                  DxsInElementwiseOperation dxs_in_element_op,
                  DxsAccElementwiseOperation dxs_out_element_op)
             : p_a_grid_{p_a_grid},
@@ -482,6 +486,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op},
+              c1_element_op_{c1_element_op},
               dxs_in_element_op_{dxs_in_element_op},
               dxs_out_element_op_{dxs_out_element_op}
         {
@@ -531,6 +536,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
+        C1ElementwiseOperation c1_element_op_;
         DxsInElementwiseOperation dxs_in_element_op_;
         DxsAccElementwiseOperation dxs_out_element_op_;
     };
@@ -569,6 +575,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
+                    C1ElementwiseOperation,
                     DxsInElementwiseOperation,
                     DxsAccElementwiseOperation,
                     DeviceOp::AGridDesc_AK0_M_AK1,
@@ -595,6 +602,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
+                                           arg.c1_element_op_,
                                            arg.dxs_in_element_op_,
                                            arg.dxs_out_element_op_,
                                            arg.a_grid_desc_ak0_m_ak1_,
@@ -617,6 +625,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
+                    C1ElementwiseOperation,
                     DxsInElementwiseOperation,
                     DxsAccElementwiseOperation,
                     DeviceOp::AGridDesc_AK0_M_AK1,
@@ -643,6 +652,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
+                                           arg.c1_element_op_,
                                            arg.dxs_in_element_op_,
                                            arg.dxs_out_element_op_,
                                            arg.a_grid_desc_ak0_m_ak1_,
@@ -701,6 +711,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op,
+                             C1ElementwiseOperation c1_element_op,
                              DxsInElementwiseOperation dxs_in_element_op,
                              DxsAccElementwiseOperation dxs_out_element_op)
     {
@@ -720,6 +731,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                         a_element_op,
                         b_element_op,
                         c_element_op,
+                        c1_element_op,
                         dxs_in_element_op,
                         dxs_out_element_op};
     }
@@ -743,6 +755,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op,
+                                                      C1ElementwiseOperation c1_element_op,
                                                       DxsInElementwiseOperation dxs_in_element_op,
                                                       DxsAccElementwiseOperation dxs_out_element_op,
                                                       index_t /* KBatch */ = 1) override
@@ -763,6 +776,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                                           a_element_op,
                                           b_element_op,
                                           c_element_op,
+                                          c1_element_op,
                                           dxs_in_element_op,
                                           dxs_out_element_op);
     }

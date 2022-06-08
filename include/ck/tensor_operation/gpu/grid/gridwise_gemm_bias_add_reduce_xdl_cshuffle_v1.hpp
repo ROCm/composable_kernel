@@ -22,6 +22,7 @@ template <typename GridwiseGemm,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
+          typename C1ElementwiseOperation,
           typename DxsInElementwiseOperation,
           typename DxsAccElementwiseOperation,
           typename AGridDesc_AK0_M_AK1,
@@ -46,6 +47,7 @@ __global__ void
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op,
+            const C1ElementwiseOperation c1_element_op,
             const DxsInElementwiseOperation dxs_in_element_op,
             const DxsAccElementwiseOperation dxs_out_element_op,
             const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
@@ -72,6 +74,7 @@ __global__ void
                                                   a_element_op,
                                                   b_element_op,
                                                   c_element_op,
+                                                  c1_element_op,
                                                   dxs_in_element_op,
                                                   dxs_out_element_op,
                                                   a_grid_desc_ak0_m_ak1,
@@ -91,6 +94,7 @@ __global__ void
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = c_element_op;
+    ignore = c1_element_op;
     ignore = dxs_in_element_op;
     ignore = dxs_out_element_op;
     ignore = a_grid_desc_ak0_m_ak1;
@@ -114,6 +118,7 @@ template <typename FloatAB,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
+          typename C1ElementwiseOperation,
           typename DxsReduceOperation,
           typename DxsInElementwiseOperation,
           typename DxsAccElementwiseOperation,
@@ -359,6 +364,7 @@ struct GridwiseGemmBiasAddReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                const AElementwiseOperation& a_element_op,
                                const BElementwiseOperation& b_element_op,
                                const CElementwiseOperation& c_element_op,
+                               const C1ElementwiseOperation& c1_element_op,
                                const DxsInElementwiseOperation& dxs_in_element_op,
                                const DxsAccElementwiseOperation& dxs_out_element_op,
                                const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
@@ -869,6 +875,7 @@ struct GridwiseGemmBiasAddReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                         make_tuple(I0, I0, I0, I0),
                         c01_thread_buf);
 
+                    // c = activation(c + bias)
                     static_for<0, c_reduce_thread_desc_mperblock_nperblock.GetElementSize(), 1>{}(
                         [&](auto i) {
                             FloatReduceAcc out;
@@ -883,8 +890,12 @@ struct GridwiseGemmBiasAddReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                         make_tuple(I0, I0, I0, I0),
                         c01_thread_buf);
 
+                    // c = c + c1_functior(c1)
                     static_for<0, c_reduce_thread_desc_mperblock_nperblock.GetElementSize(), 1>{}(
-                        [&](auto i) { c_reduce_thread_buf(i) += c01_thread_buf(i); });
+                        [&](auto i) {
+                            c1_element_op(c01_thread_buf(i), c01_thread_buf(i));
+                            c_reduce_thread_buf(i) += c01_thread_buf(i);
+                        });
 
                     c_reduce_thread_copy_vgpr_to_global.Run(
                         c_reduce_thread_desc_mblock_mperblock_nblock_nperblock,
