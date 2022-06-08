@@ -54,7 +54,8 @@ using BDataType   = ck::half_t;
 using CDataType   = ck::half_t;
 using AccDataType = float;
 #else  
-                    <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,     256,    16,   64,     4,  4,   16,   16,    1,    1,     S<16, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,             4,                7,               1>;
+                    <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,     64,    16,   16,     4,  1,   16,   16,    1,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              1,      true,             1,                7,               1>;
+                   // <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,     256,    16,   64,     4,  4,   16,   16,    1,    1,     S<16, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,             4,                7,               1>;
                    // <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,     256,    128,   32,     4,  4,   32,   32,    1,    1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,             4,                7,               1>;
                    //  <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,     256,    128,   64,     4,  4,   32,   32,    2,    1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,             4,                7,               1>;
 using ADataType   = float;
@@ -87,10 +88,10 @@ template <typename DataType>
 std::ostream& show_2d_matrix(std::ostream& os, Tensor<DataType>& matrix)
 {
     os << "[" << std::endl;
-    for(int x = 0; x < matrix.mDesc.GetLengths()[0]; x++)
+    for(size_t x = 0; x < matrix.mDesc.GetLengths()[0]; x++)
     {
         os << "[";
-        for(int y = 0; y < matrix.mDesc.GetLengths()[1]; y++)
+        for(size_t y = 0; y < matrix.mDesc.GetLengths()[1]; y++)
         {
             os << std::setw(5) << static_cast<float>(matrix(x, y));
         }
@@ -117,7 +118,7 @@ int main(int argc, char* argv[])
 #else
     ck::index_t M = 16;
     ck::index_t N = 16;
-    ck::index_t K = 8;
+    ck::index_t K = 32;
 
     ck::index_t StrideA = 8;
     ck::index_t StrideB = 8;
