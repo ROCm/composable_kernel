@@ -421,7 +421,7 @@ struct DeviceGemmXdlSplitKCShuffle
                     arg.c_grid_desc_mblock_mperblock_nblock_nperblock_.GetElementSpaceSize() *
                         sizeof(CDataType)));
 
-                launch_and_time_kernel(stream_config,
+                ave_time = launch_and_time_kernel(stream_config,
                                        kernel,
                                        dim3(grid_size),
                                        dim3(BlockSize),
