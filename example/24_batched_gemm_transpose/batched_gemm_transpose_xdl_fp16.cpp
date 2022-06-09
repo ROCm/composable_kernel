@@ -133,7 +133,8 @@ int main(int argc, char* argv[])
                                          std::size_t StrideN1_) {
         return HostTensorDescriptor(
             std::vector<std::size_t>({batch_count_, M0_, M1_, N0_, N1_}),
-            std::vector<std::size_t>({M0_ * M1_ * N0_ * N1_, StrideM0_, StrideM1_, StrideN0_, StrideN1_}));
+            std::vector<std::size_t>(
+                {M0_ * M1_ * N0_ * N1_, StrideM0_, StrideM1_, StrideN0_, StrideN1_}));
     };
 
     Tensor<CDataType> c_g_m_n_host_result(f_host_c_tensor_descriptor(
@@ -174,11 +175,14 @@ int main(int argc, char* argv[])
     auto invoker = gemm.MakeInvoker();
 
     // do GEMM
-    auto argument = gemm.MakeArgument(
-        static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-            static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-            static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-            gemm_transpose_desc, a_element_op, b_element_op, c_element_op, batch_count);
+    auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+                                      static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
+                                      static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+                                      gemm_transpose_desc,
+                                      a_element_op,
+                                      b_element_op,
+                                      c_element_op,
+                                      batch_count);
 
     if(!gemm.IsSupportedArgument(argument))
     {

@@ -28,8 +28,10 @@ struct DeviceBatchedGemmTranspose : public BaseOperator
 template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
-using DeviceBatchedGemmTransposePtr = std::unique_ptr<
-    DeviceBatchedGemmTranspose<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>>;
+using DeviceBatchedGemmTransposePtr =
+    std::unique_ptr<DeviceBatchedGemmTranspose<AElementwiseOperation,
+                                               BElementwiseOperation,
+                                               CElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation

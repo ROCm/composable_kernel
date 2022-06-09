@@ -147,8 +147,9 @@ template <typename ADataType,
           bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
           ck::index_t CThreadTransferDstScalarPerVector>
-struct DeviceBatchedGemmTransposeXdl
-    : public DeviceBatchedGemmTranspose<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
+struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElementwiseOperation,
+                                                                         BElementwiseOperation,
+                                                                         CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -214,7 +215,6 @@ struct DeviceBatchedGemmTransposeXdl
         return b_grid_desc_k0_np_k1;
     }
 
-    
     static auto MakeCGridDescriptor_M_N(index_t M0,
                                         index_t M1,
                                         index_t N0,
@@ -346,11 +346,19 @@ struct DeviceBatchedGemmTransposeXdl
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
               BatchCount_(BatchCount),
-              a_grid_desc_k0_m_k1_{
-                  DeviceBatchedGemmTransposeXdl::MakeAGridDescriptor_K0_M_K1(gemm_transpose_desc.M_, gemm_transpose_desc.K_, gemm_transpose_desc.stride_A_)},
-              b_grid_desc_k0_n_k1_{
-                  DeviceBatchedGemmTransposeXdl::MakeBGridDescriptor_K0_N_K1(gemm_transpose_desc.K_, gemm_transpose_desc.N_, gemm_transpose_desc.stride_B_)},
-              c_grid_desc_m_n_{DeviceBatchedGemmTransposeXdl::MakeCGridDescriptor_M_N(gemm_transpose_desc.M0_, gemm_transpose_desc.M1_, gemm_transpose_desc.N0_, gemm_transpose_desc.N1_, gemm_transpose_desc.stride_M0_, gemm_transpose_desc.stride_M1_, gemm_transpose_desc.stride_N0_, gemm_transpose_desc.stride_N1_)},
+              a_grid_desc_k0_m_k1_{DeviceBatchedGemmTransposeXdl::MakeAGridDescriptor_K0_M_K1(
+                  gemm_transpose_desc.M_, gemm_transpose_desc.K_, gemm_transpose_desc.stride_A_)},
+              b_grid_desc_k0_n_k1_{DeviceBatchedGemmTransposeXdl::MakeBGridDescriptor_K0_N_K1(
+                  gemm_transpose_desc.K_, gemm_transpose_desc.N_, gemm_transpose_desc.stride_B_)},
+              c_grid_desc_m_n_{DeviceBatchedGemmTransposeXdl::MakeCGridDescriptor_M_N(
+                  gemm_transpose_desc.M0_,
+                  gemm_transpose_desc.M1_,
+                  gemm_transpose_desc.N0_,
+                  gemm_transpose_desc.N1_,
+                  gemm_transpose_desc.stride_M0_,
+                  gemm_transpose_desc.stride_M1_,
+                  gemm_transpose_desc.stride_N0_,
+                  gemm_transpose_desc.stride_N1_)},
               c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
               compute_ptr_offset_of_batch_{
                   type_convert<index_t>(a_grid_desc_k0_m_k1_.GetElementSpaceSize()),
@@ -418,7 +426,8 @@ struct DeviceBatchedGemmTransposeXdl
                                             arg.block_2_ctile_map_))
             {
                 throw std::runtime_error(
-                    "wrong! GridwiseBatchedGemmTranspose_km_kn_m0m1n0n1_xdlops_v2r3 has invalid setting");
+                    "wrong! GridwiseBatchedGemmTranspose_km_kn_m0m1n0n1_xdlops_v2r3 has invalid "
+                    "setting");
             }
 
             const index_t grid_size =
