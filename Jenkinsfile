@@ -234,7 +234,8 @@ def runCKProfiler(Map conf=[:]){
                         sh "rm -f ${gemm_log}"
                         sh "echo Branch name: ${env.BRANCH_NAME} > ${gemm_log}"
                         sh "echo Node name: ${NODE_NAME} >> ${gemm_log}"
-                        sh "echo GPU_arch: ${gpu_arch}  >> ${gemm_log}"
+                        sh "echo GPU_arch name: ${gpu_arch}  >> ${gemm_log}"
+                        sh "rocminfo | grep 'Compute Unit:' >> ${gemm_log} "
                         sh "hipcc --version | grep -e 'HIP version'  >> ${gemm_log}"
                         sh "/opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> ${gemm_log}"
                         sh "./profile_gemm.sh gemm 0 0 0 1 0 5 | tee -a ${gemm_log}"
@@ -263,7 +264,8 @@ def runCKProfiler(Map conf=[:]){
                         sh "rm -f ${resnet_log}"
                         sh "echo Branch name: ${env.BRANCH_NAME} > ${resnet_log}"
                         sh "echo Node name: ${NODE_NAME} >> ${resnet_log}"
-                        sh "echo GPU_arch: ${gpu_arch}  >> ${resnet_log}"
+                        sh "echo GPU_arch name: ${gpu_arch}  >> ${resnet_log}"
+                        sh "rocminfo | grep 'Compute Unit:' >> ${resnet_log} "
                         sh "hipcc --version | grep -e 'HIP version'  >> ${resnet_log}"
                         sh "/opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> ${resnet_log}"
                         //first run tests with N=256
@@ -349,33 +351,6 @@ pipeline {
                 }
             }
         }
-        stage("Performance Tests")
-        {
-            parallel
-            {
-                stage("Run ckProfiler: gfx908")
-                {
-                    agent{ label rocmnode("gfx908")}
-                    environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
-                   }
-                    steps{
-                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
-                    }
-                }
-                stage("Run ckProfiler: gfx90a")
-                {
-                    agent{ label rocmnode("gfx90a")}
-                    environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
-                   }
-                    steps{
-                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
-                    }
-                }
-            }
-
-        }
 		stage("Tests")
         {
             parallel
@@ -419,20 +394,46 @@ pipeline {
                 }
             }
         }
-
-        // enable after the cmake file supports packaging
-        // stage("Packages") {
-        //     when {
-        //         expression { params.BUILD_PACKAGES && params.TARGET_NOGPU && params.DATATYPE_NA }
-        //     }
-        //     parallel {
-        //         stage("Package /opt/rocm") {
-        //             agent{ label rocmnode("nogpu") }
-        //             steps{
-        //             buildHipClangJobAndReboot( package_build: "true", prefixpath: '/opt/rocm', gpu_arch: "gfx906;gfx908;gfx90a")
-        //             }
-        //         }
-        //     }
-        // }
+        stage("Performance Tests")
+        {
+            parallel
+            {
+                stage("Run ckProfiler: gfx908")
+                {
+                    agent{ label rocmnode("gfx908")}
+                    environment{
+                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
+                   }
+                    steps{
+                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
+                    }
+                }
+                stage("Run ckProfiler: gfx90a")
+                {
+                    agent{ label rocmnode("gfx90a")}
+                    environment{
+                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
+                   }
+                    steps{
+                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
+                    }
+                }
+            }
+        }
+        /* enable after the cmake file supports packaging
+        stage("Packages") {
+            when {
+                expression { params.BUILD_PACKAGES && params.TARGET_NOGPU && params.DATATYPE_NA }
+            }
+            parallel {
+                stage("Package /opt/rocm") {
+                    agent{ label rocmnode("nogpu") }
+                    steps{
+                        buildHipClangJobAndReboot( package_build: "true", prefixpath: '/opt/rocm', gpu_arch: "gfx906;gfx908;gfx90a")
+                    }
+                }
+            }
+        }
+        */
     }
 }
