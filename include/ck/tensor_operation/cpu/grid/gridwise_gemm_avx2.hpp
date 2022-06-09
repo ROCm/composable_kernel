@@ -304,7 +304,7 @@ struct GridwiseGemmAvx2_MxN
 
         int total_threads = omp_get_max_threads();
 
-        if(total_threads > 1 && ck::getenv_int("CK_CPU_BIND_CORE", 1) != 0)
+        if(total_threads > 1 && ck::getenv_int("CK_CPU_BIND_CORE", 0) != 0)
         {
 #pragma omp parallel
             {
