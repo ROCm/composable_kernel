@@ -441,11 +441,15 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
                                                            I1,                    // NPerXdlops
                                                            Number<K1>{}));
 
-        StaticBuffer<AddressSpaceEnum::Vgpr,
-                     FloatAB,
-                     b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3.GetElementSpaceSize(),
-                     true>
-            b_thread_1st_buf, b_thread_2nd_buf, b_thread_3rd_buf, b_thread_4th_buf;
+        auto b_thread_buf = generate_tuple(
+            [&](auto i) {
+                ignore = i;
+                return StaticBuffer<AddressSpaceEnum::Vgpr,
+                                    FloatAB,
+                                    b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3.GetElementSpaceSize(),
+                                    true>{};
+            },
+            Number<4>{});
 
         const auto wave_id     = GetWaveIdx();
         const auto wave_k_n_id = GetWaveKNIdx(wave_id[I2]);
@@ -529,7 +533,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
                                   b_grid_buf,
                                   b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                   make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                  b_thread_1st_buf);
+                                  b_thread_buf(Number<0>{}));
 
             // Move
             a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1, a_block_slice_copy_step);
@@ -546,7 +550,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
                                   b_grid_buf,
                                   b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                   make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                  b_thread_2nd_buf);
+                                  b_thread_buf(Number<1>{}));
 
             b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                                  b_thread_slice_copy_step);
@@ -568,23 +572,23 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
                                               b_grid_buf,
                                               b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                               make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                              b_thread_3rd_buf);
+                                              b_thread_buf(Number<2>{}));
                         b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                                              b_thread_slice_copy_step);
                         b_threadwise_copy.Run(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                               b_grid_buf,
                                               b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                               make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                              b_thread_4th_buf);
+                                              b_thread_buf(Number<3>{}));
                         b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                                              b_thread_slice_copy_step);
                         s_nop();
-                        blockwise_gemm.Run(a_block_buf, b_thread_1st_buf, c_thread_buf);
+                        blockwise_gemm.Run(a_block_buf, b_thread_buf(Number<0>{}), c_thread_buf);
                         blockwise_gemm.MoveABlockSliceWindow();
 
                         // 2nd
 
-                        blockwise_gemm.Run(a_block_buf, b_thread_2nd_buf, c_thread_buf);
+                        blockwise_gemm.Run(a_block_buf, b_thread_buf(Number<1>{}), c_thread_buf);
                         blockwise_gemm.MoveABlockSliceWindow();
 
                         // 3rd
@@ -592,23 +596,23 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
                                               b_grid_buf,
                                               b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                               make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                              b_thread_1st_buf);
+                                              b_thread_buf(Number<0>{}));
                         b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                                              b_thread_slice_copy_step);
                         b_threadwise_copy.Run(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                               b_grid_buf,
                                               b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                               make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                              b_thread_2nd_buf);
+                                              b_thread_buf(Number<1>{}));
                         b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                                              b_thread_slice_copy_step);
                         s_nop();
-                        blockwise_gemm.Run(a_block_buf, b_thread_3rd_buf, c_thread_buf);
+                        blockwise_gemm.Run(a_block_buf, b_thread_buf(Number<2>{}), c_thread_buf);
                         blockwise_gemm.MoveABlockSliceWindow();
 
                         // 4th
 
-                        blockwise_gemm.Run(a_block_buf, b_thread_4th_buf, c_thread_buf);
+                        blockwise_gemm.Run(a_block_buf, b_thread_buf(Number<3>{}), c_thread_buf);
                         blockwise_gemm.MoveABlockSliceWindow();
                     });
 
@@ -633,11 +637,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
                                           b_grid_buf,
                                           b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                           make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                          b_thread_3rd_buf);
+                                          b_thread_buf(Number<2>{}));
                     b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                                          b_thread_slice_copy_step);
 
-                    blockwise_gemm.Run(a_block_buf, b_thread_1st_buf, c_thread_buf);
+                    blockwise_gemm.Run(a_block_buf, b_thread_buf(Number<0>{}), c_thread_buf);
                     blockwise_gemm.MoveABlockSliceWindow();
 
                     // 2nd
@@ -645,11 +649,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
                                           b_grid_buf,
                                           b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                           make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                          b_thread_4th_buf);
+                                          b_thread_buf(Number<3>{}));
                     b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                                          b_thread_slice_copy_step);
 
-                    blockwise_gemm.Run(a_block_buf, b_thread_2nd_buf, c_thread_buf);
+                    blockwise_gemm.Run(a_block_buf, b_thread_buf(Number<1>{}), c_thread_buf);
                     blockwise_gemm.MoveABlockSliceWindow();
 
                     // 3rd
@@ -660,12 +664,12 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
                                               b_grid_buf,
                                               b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                               make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                              b_thread_1st_buf);
+                                              b_thread_buf(Number<0>{}));
                         b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                                              b_thread_slice_copy_step);
                     }
 
-                    blockwise_gemm.Run(a_block_buf, b_thread_3rd_buf, c_thread_buf);
+                    blockwise_gemm.Run(a_block_buf, b_thread_buf(Number<2>{}), c_thread_buf);
                     blockwise_gemm.MoveABlockSliceWindow();
 
                     // 4th
@@ -675,12 +679,12 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
                                               b_grid_buf,
                                               b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                               make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                              b_thread_2nd_buf);
+                                              b_thread_buf(Number<1>{}));
                         b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                                              b_thread_slice_copy_step);
                     }
 
-                    blockwise_gemm.Run(a_block_buf, b_thread_4th_buf, c_thread_buf);
+                    blockwise_gemm.Run(a_block_buf, b_thread_buf(Number<3>{}), c_thread_buf);
                     blockwise_gemm.MoveABlockSliceWindow();
                 });
             }
