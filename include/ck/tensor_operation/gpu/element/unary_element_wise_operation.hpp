@@ -8,17 +8,44 @@ namespace element_wise {
 
 struct PassThrough
 {
-    __host__ __device__ void operator()(float& y, const float& x) const { y = x; }
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const;
 
-    __host__ __device__ void operator()(half_t& y, const half_t& x) const { y = x; }
+    template <>
+    __host__ __device__ void operator()<float>(float& y, const float& x) const
+    {
+        y = x;
+    }
 
-    __host__ __device__ void operator()(bhalf_t& y, const bhalf_t& x) const { y = x; }
+    template <>
+    __host__ __device__ void operator()<half_t>(half_t& y, const half_t& x) const
+    {
+        y = x;
+    }
 
-    __host__ __device__ void operator()(int32_t& y, const int32_t& x) const { y = x; }
+    template <>
+    __host__ __device__ void operator()<bhalf_t>(bhalf_t& y, const bhalf_t& x) const
+    {
+        y = x;
+    }
 
-    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const { y = x; }
+    template <>
+    __host__ __device__ void operator()<int32_t>(int32_t& y, const int32_t& x) const
+    {
+        y = x;
+    }
 
-    __host__ __device__ void operator()(double& y, const double& x) const { y = x; }
+    template <>
+    __host__ __device__ void operator()<int8_t>(int8_t& y, const int8_t& x) const
+    {
+        y = x;
+    }
+
+    template <>
+    __host__ __device__ void operator()<double>(double& y, const double& x) const
+    {
+        y = x;
+    }
 };
 
 struct UnaryDivide

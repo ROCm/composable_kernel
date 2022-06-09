@@ -28,101 +28,6 @@
 
 namespace ck {
 namespace tensor_operation {
-namespace binary_element_wise {
-
-template <typename Y, typename X1, typename X2>
-struct Add;
-
-template <>
-struct Add<double, double, double>
-{
-    __host__ __device__ constexpr void
-    operator()(double& dst, const double& src1, const double& src2) const
-    {
-        dst = src1 + src2;
-    }
-};
-
-template <>
-struct Add<float, float, float>
-{
-    __host__ __device__ constexpr void
-    operator()(float& dst, const float& src1, const float& src2) const
-    {
-        dst = src1 + src2;
-    }
-};
-
-template <>
-struct Add<half_t, half_t, half_t>
-{
-    __host__ __device__ constexpr void
-    operator()(half_t& dst, const half_t& src1, const half_t& src2) const
-    {
-        dst = src1 + src2;
-    }
-};
-
-template <>
-struct Add<bhalf_t, bhalf_t, bhalf_t>
-{
-    __host__ __device__ constexpr void
-    operator()(bhalf_t& dst, const bhalf_t& src1, const bhalf_t& src2) const
-    {
-        const float x1 = ck::type_convert<float>(src1);
-        const float x2 = ck::type_convert<float>(src2);
-        const float y  = x1 + x2;
-        dst            = ck::type_convert<bhalf_t>(y);
-    }
-};
-
-template <typename Y, typename X1, typename X2>
-struct Substract;
-
-template <>
-struct Substract<double, double, double>
-{
-    __host__ __device__ constexpr void
-    operator()(double& dst, const double& src1, const double& src2) const
-    {
-        dst = src1 - src2;
-    }
-};
-
-template <>
-struct Substract<float, float, float>
-{
-    __host__ __device__ constexpr void
-    operator()(float& dst, const float& src1, const float& src2) const
-    {
-        dst = src1 - src2;
-    }
-};
-
-template <>
-struct Substract<half_t, half_t, half_t>
-{
-    __host__ __device__ constexpr void
-    operator()(half_t& dst, const half_t& src1, const half_t& src2) const
-    {
-        dst = src1 - src2;
-    }
-};
-
-template <>
-struct Substract<bhalf_t, bhalf_t, bhalf_t>
-{
-    __host__ __device__ constexpr void
-    operator()(bhalf_t& dst, const bhalf_t& src1, const bhalf_t& src2) const
-    {
-        const float x1 = ck::type_convert<float>(src1);
-        const float x2 = ck::type_convert<float>(src2);
-        const float y  = x1 - x2;
-        dst            = ck::type_convert<bhalf_t>(y);
-    }
-};
-
-} // namespace binary_element_wise
 
 namespace element_wise {
 
@@ -152,6 +57,56 @@ struct Add
     {
         y = x0 + x1;
     };
+
+    // Question: should bhalf_t be supported ?
+    template <>
+    __host__ __device__ constexpr void
+    operator()<bhalf_t>(bhalf_t& y, const bhalf_t& x0, const bhalf_t& x1) const
+    {
+        const float x1_tmp = ck::type_convert<float>(x0);
+        const float x2_tmp = ck::type_convert<float>(x1);
+        const float y_tmp  = x1_tmp + x2_tmp;
+        y                  = ck::type_convert<bhalf_t>(y_tmp);
+    }
+};
+
+struct Subtract
+{
+    template <typename T>
+    __host__ __device__ constexpr void operator()(T& y, const T& x0, const T& x1) const;
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<float>(float& y, const float& x0, const float& x1) const
+    {
+        y = x0 - x1;
+    };
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<double>(double& y, const double& x0, const double& x1) const
+    {
+        y = x0 - x1;
+    };
+
+    // Question: should half_t be supported ?
+    template <>
+    __host__ __device__ constexpr void
+    operator()<half_t>(half_t& y, const half_t& x0, const half_t& x1) const
+    {
+        y = x0 - x1;
+    };
+
+    // Question: should bhalf_t be supported ?
+    template <>
+    __host__ __device__ constexpr void
+    operator()<bhalf_t>(bhalf_t& y, const bhalf_t& x0, const bhalf_t& x1) const
+    {
+        const float x1_tmp = ck::type_convert<float>(x0);
+        const float x2_tmp = ck::type_convert<float>(x1);
+        const float y_tmp  = x1_tmp - x2_tmp;
+        y                  = ck::type_convert<bhalf_t>(y_tmp);
+    }
 };
 
 struct AlphaBetaAdd

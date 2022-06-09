@@ -61,20 +61,36 @@ struct AddHardswishAdd
 
 struct Normalize
 {
-    Normalize(float epsilon = 1e-4) : epsilon_(epsilon) {}
+    Normalize(double epsilon = 1e-4) : epsilon_(epsilon) {}
 
-    __host__ __device__ constexpr void operator()(float& y,
-                                                  const float& x,
-                                                  const float& mean,
-                                                  const float& mean_square,
-                                                  const float& gamma,
-                                                  const float& beta) const
+    template <typename T>
+    __host__ __device__ constexpr void operator()(
+        T& y, const T& x, const T& mean, const T& mean_square, const T& gamma, const T& beta) const;
+    template <>
+    __host__ __device__ constexpr void operator()<float>(float& y,
+                                                         const float& x,
+                                                         const float& mean,
+                                                         const float& mean_square,
+                                                         const float& gamma,
+                                                         const float& beta) const
     {
         float variance = mean_square - (mean * mean);
         y              = ((x - mean) / sqrtf(variance + epsilon_)) * gamma + beta;
-    }
+    };
 
-    float epsilon_;
+    template <>
+    __host__ __device__ constexpr void operator()<double>(double& y,
+                                                          const double& x,
+                                                          const double& mean,
+                                                          const double& mean_square,
+                                                          const double& gamma,
+                                                          const double& beta) const
+    {
+        double variance = mean_square - (mean * mean);
+        y               = ((x - mean) / sqrtf(variance + epsilon_)) * gamma + beta;
+    };
+
+    double epsilon_;
 };
 
 } // namespace element_wise

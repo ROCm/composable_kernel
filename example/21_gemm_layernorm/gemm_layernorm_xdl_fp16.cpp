@@ -180,7 +180,12 @@ void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
         for(int n = 0; n < N; ++n)
         {
             float out_f32 = 0;
-            layerNormInst(out_f32, c_m_n(m, n), mean_m(m), meanSquare_m(m), gamma_n(n), beta_n(n));
+            layerNormInst(out_f32,
+                          static_cast<float>(c_m_n(m, n)),
+                          static_cast<float>(mean_m(m)),
+                          static_cast<float>(meanSquare_m(m)),
+                          static_cast<float>(gamma_n(n)),
+                          static_cast<float>(beta_n(n)));
             out_m_n(m, n) = static_cast<out_type>(out_f32);
         }
     }
