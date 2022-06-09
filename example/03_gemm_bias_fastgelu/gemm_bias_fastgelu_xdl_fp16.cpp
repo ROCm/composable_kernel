@@ -27,34 +27,59 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using FastGelu    = ck::tensor_operation::element_wise::FastGelu;
 
+struct AddAddFastGelu
+{
+    // https://paperswithcode.com/method/gelu
+    // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
+    __host__ __device__ void
+    operator()(ck::half_t& y, const float& x0, const ck::half_t& x1, const ck::half_t& x2) const
+    {
+#if 0
+        const float x   = x0 + x1 + x2;
+        const float u   = float(2) * x * (float(0.035677) * x * x + float(0.797885));
+        const float emu = exp(-u);
+        const float cdf = float(0.5) + float(0.5) * (float(2) / (float(1) + emu) - float(1));
+
+        y = x * cdf;
+#else
+        const float x = x0 + x2;
+
+        y = x;
+#endif
+    }
+};
+
 using ADataType   = F16;
 using BDataType   = F16;
-using AcEDataType = F32;
-using DsDataType  = ck::Tuple<>;
+using AccDataType = F32;
+using D0DataType  = F16;
+using D1DataType  = F16;
+using DsDataType  = ck::Tuple<D0DataType, D1DataType>;
 using EDataType   = F16;
 
 using ALayout     = Row;
 using BLayout     = Col;
-using CLayout     = Row;
-using AcEDataType = F32;
+using ELayout     = Row;
+using AccDataType = F32;
 
 using AElementOp = PassThrough;
 using BElementOp = PassThrough;
-using CElementOp = FastGelu;
+#if 0
+using CDEElementOp = FastGelu;
+#else
+using CDEElementOp = AddAddFastGelu;
+#endif
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 // clang-format off
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmMultipleD_Xdl_CShuffle
-//######| ALayout| BLayout| CLayout| AData| BData| AccData| CShuffle| NumDTensor|      DsData| EData|           A|           B|           C|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
-//######|        |        |        |  Type|  Type|    Type| DataType|           |        Type|  Type| Elementwise| Elementwise| Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
-//######|        |        |        |      |      |        |         |           |            |      |   Operation|   Operation|   Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-//######|        |        |        |      |      |        |         |           |            |      |            |            |            |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
-        <     Row,     Col,     Row,   F16,   F16,     F32,     F32,           0, ck::Tuple<>,   F16, AElementOp,  BElementOp,  CElementOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8>;
+//######| ALayout| BLayout| ELayout| AData| BData| AccData| CShuffle|     DsData| EData|           A|           B|           C|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
+//######|        |        |        |  Type|  Type|    Type| DataType|       Type|  Type| Elementwise| Elementwise| Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
+//######|        |        |        |      |      |        |         |           |      |   Operation|   Operation|   Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
+//######|        |        |        |      |      |        |         |           |      |            |            |            |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
+        <     Row,     Col,     Row,   F16,   F16,     F32,     F32,  DsDataType,   F16,  AElementOp,  BElementOp,  CDEElementOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8>;
 // clang-format on
-
-using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, EDataType, AcEDataType, AElementOp, BElementOp, CElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -69,7 +94,7 @@ int main(int argc, char* argv[])
 
     ck::index_t StrideA = 4096;
     ck::index_t StrideB = 4096;
-    ck::index_t StrideC = 4096;
+    ck::index_t StrideE = 4096;
 
     if(argc == 1)
     {
@@ -93,14 +118,14 @@ int main(int argc, char* argv[])
 
         StrideA = std::stoi(argv[7]);
         StrideB = std::stoi(argv[8]);
-        StrideC = std::stoi(argv[9]);
+        StrideE = std::stoi(argv[9]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=n0, 1=yes)\n");
-        printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC\n");
+        printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideE\n");
         exit(0);
     }
 
@@ -120,57 +145,87 @@ int main(int argc, char* argv[])
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-    Tensor<EDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-    Tensor<EDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<EDataType> d0_m_n(f_host_tensor_descriptor(M, N, 0, ELayout{}));
+    Tensor<EDataType> d1_m_n(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
+    Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
+    Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
-    std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
+    std::cout << "d0_m_n: " << d0_m_n.mDesc << std::endl;
+    std::cout << "d1_m_n: " << d1_m_n.mDesc << std::endl;
+    std::cout << "e_m_n: " << e_m_n_host_result.mDesc << std::endl;
 
     switch(init_method)
     {
     case 0: break;
     case 1:
+#if 0
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
-        break;
-    case 2:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        d0_m_n.GenerateTensorValue(GeneratorTensor_2<EDataType>{-5, 5});
+        d1_m_n.GenerateTensorValue(GeneratorTensor_2<EDataType>{-5, 5});
+#else
+        a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
+        b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
+        d0_m_n.GenerateTensorValue(GeneratorTensor_1<EDataType>{1});
+        d1_m_n.GenerateTensorValue(GeneratorTensor_1<EDataType>{1});
+#endif
         break;
     default:
-        a_m_k.GenerateTensorValue(GeneratorTensor_Sequential<0>{});
-        b_k_n.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+#if 0
+        d0_m_n.GenerateTensorValue(GeneratorTensor_3<EDataType>{0.0, 1.0});
+        d1_m_n.GenerateTensorValue(GeneratorTensor_3<EDataType>{0.0, 1.0});
+#else
+        d0_m_n.GenerateTensorValue(GeneratorTensor_1<EDataType>{1});
+        d1_m_n.GenerateTensorValue(GeneratorTensor_1<EDataType>{1});
+#endif
     }
+
+    std::cout << "a: " << a_m_k.mDesc.GetElementSpace() << std::endl;
+    std::cout << "b: " << b_k_n.mDesc.GetElementSpace() << std::endl;
+    std::cout << "d0: " << d0_m_n.mDesc.GetElementSpace() << std::endl;
+    std::cout << "d1: " << d1_m_n.mDesc.GetElementSpace() << std::endl;
+    std::cout << "e: " << e_m_n_device_result.mDesc.GetElementSpace() << std::endl;
 
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
-    DeviceMem c_m_n_device_buf(sizeof(EDataType) * c_m_n_device_result.mDesc.GetElementSpace());
+#if 1
+    DeviceMem d0_m_n_device_buf(sizeof(EDataType) * d0_m_n.mDesc.GetElementSpace());
+#else
+    DeviceMem d0_m_n_device_buf(sizeof(EDataType) * d1_m_n.mDesc.GetElementSpace());
+#endif
+    DeviceMem d1_m_n_device_buf(sizeof(EDataType) * d1_m_n.mDesc.GetElementSpace());
+    DeviceMem e_m_n_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpace());
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
 
-    auto a_element_op = AElementOp{};
-    auto b_element_op = BElementOp{};
-    auto c_element_op = CElementOp{};
+    auto a_element_op   = AElementOp{};
+    auto b_element_op   = BElementOp{};
+    auto cde_element_op = CDEElementOp{};
 
     // do GEMM
-    auto gemm     = DeviceGemmInstance{};
-    auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(a_m_k_device_buf.GetDeviceBuffer(),
-                                      b_k_n_device_buf.GetDeviceBuffer(),
-                                      std::array<const void*, 0>(),
-                                      c_m_n_device_buf.GetDeviceBuffer(),
-                                      M,
-                                      N,
-                                      K,
-                                      StrideA,
-                                      StrideB,
-                                      std::array<ck::index_t, 0>{},
-                                      StrideC,
-                                      a_element_op,
-                                      b_element_op,
-                                      c_element_op);
+    auto gemm    = DeviceGemmInstance{};
+    auto invoker = gemm.MakeInvoker();
+    auto argument =
+        gemm.MakeArgument(a_m_k_device_buf.GetDeviceBuffer(),
+                          b_k_n_device_buf.GetDeviceBuffer(),
+                          std::array<const void*, 2>{{d0_m_n_device_buf.GetDeviceBuffer(),
+                                                      d1_m_n_device_buf.GetDeviceBuffer()}},
+                          e_m_n_device_buf.GetDeviceBuffer(),
+                          M,
+                          N,
+                          K,
+                          StrideA,
+                          StrideB,
+                          std::array<ck::index_t, 2>{{0, StrideE}},
+                          StrideE,
+                          a_element_op,
+                          b_element_op,
+                          cde_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -192,19 +247,54 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
-    c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
+    e_m_n_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
     if(do_verification)
     {
-        auto ref_gemm    = ReferenceGemmInstance{};
-        auto ref_invoker = ref_gemm.MakeInvoker();
+#if 1
+        Tensor<AccDataType> c_m_n(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
 
-        auto ref_argument = ref_gemm.MakeArgument(
-            a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
+        using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                                BDataType,
+                                                                                AccDataType,
+                                                                                AccDataType,
+                                                                                AElementOp,
+                                                                                BElementOp,
+                                                                                PassThrough>;
+        auto ref_gemm               = ReferenceGemmInstance{};
+        auto ref_invoker            = ref_gemm.MakeInvoker();
+
+        auto ref_argument =
+            ref_gemm.MakeArgument(a_m_k, b_k_n, c_m_n, a_element_op, b_element_op, PassThrough{});
 
         ref_invoker.Run(ref_argument);
 
-        return ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData) ? 0 : 1;
+        for(int m = 0; m < M; ++m)
+        {
+            for(int n = 0; n < N; ++n)
+            {
+                cde_element_op(e_m_n_host_result(m, n), c_m_n(m, n), d0_m_n(m, n), d1_m_n(m, n));
+            }
+        }
+#else
+        using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                                BDataType,
+                                                                                EDataType,
+                                                                                AccDataType,
+                                                                                AElementOp,
+                                                                                BElementOp,
+                                                                                CDEElementOp>;
+        auto ref_gemm = ReferenceGemmInstance{};
+        auto ref_invoker = ref_gemm.MakeInvoker();
+
+        auto ref_argument = ref_gemm.MakeArgument(
+            a_m_k, b_k_n, e_m_n_host_result, a_element_op, b_element_op, CDEElementOp{});
+
+        ref_invoker.Run(ref_argument);
+
+#endif
+
+        return ck::utils::check_err(e_m_n_device_result.mData, e_m_n_host_result.mData) ? 0 : 1;
     }
 
     return 0;

@@ -98,7 +98,6 @@ template <typename ALayout,
           typename BDataType,
           typename GemmAccDataType,
           typename CShuffleDataType,
-          index_t NumDTensor,
           typename DsDataType,
           typename EDataType,
           typename AElementwiseOperation,
@@ -135,12 +134,14 @@ template <typename ALayout,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
-struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<NumDTensor,
+struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<DsDataType::Size(),
                                                                      AElementwiseOperation,
                                                                      BElementwiseOperation,
                                                                      CDEElementwiseOperation>
 {
     using DeviceOp = DeviceGemmMultipleD_Xdl_CShuffle;
+
+    static constexpr index_t NumDTensor = DsDataType::Size();
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -419,6 +420,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<NumDTensor,
         ADataType, // TODO: distinguish A/B datatype
         GemmAccDataType,
         CShuffleDataType,
+        DsDataType,
         EDataType,
         AElementwiseOperation,
         BElementwiseOperation,
@@ -501,7 +503,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<NumDTensor,
                         e_grid_desc_m_n_);
 
                 static_for<0, NumDTensor, 1>{}([&](auto i) {
-                    using DDataType = remove_cv_t<decltype(DsDataType{}.At(i))>;
+                    using DDataType = remove_cvref_t<decltype(DsDataType{}.At(i))>;
 
                     p_ds_grid_(i) = static_cast<const DDataType*>(p_ds_grid[i]);
 
@@ -527,16 +529,14 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<NumDTensor,
                 Number<NumDTensor>{});
         }
 
-        using DsGridPointer = decltype(MakeDsGridPointer());
-
         //  private:
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
-        DsGridPointer p_ds_grid_;
+        typename GridwiseGemm::DsGridPointer p_ds_grid_;
         EDataType* p_e_grid_;
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
-        ck::StaticallyIndexedArray<
+        StaticallyIndexedArray<
             typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
             NumDTensor>
             ds_grid_desc_mblock_mperblock_nblock_nperblock_;
@@ -556,6 +556,38 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<NumDTensor,
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
+#if 1
+            {
+                std::cout << "arg.a_grid_desc_ak0_m_ak1_{"
+                          << arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) << ", "
+                          << arg.a_grid_desc_ak0_m_ak1_.GetLength(I1) << ", "
+                          << arg.a_grid_desc_ak0_m_ak1_.GetLength(I2) << "}" << std::endl;
+
+                std::cout << "arg.b_grid_desc_bk0_n_bk1_{"
+                          << arg.b_grid_desc_bk0_n_bk1_.GetLength(I0) << ", "
+                          << arg.b_grid_desc_bk0_n_bk1_.GetLength(I1) << ", "
+                          << arg.b_grid_desc_bk0_n_bk1_.GetLength(I2) << "}" << std::endl;
+
+                std::cout << "arg.e_grid_desc_m_n_{ " << arg.e_grid_desc_m_n_.GetLength(I0) << ", "
+                          << arg.e_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
+
+                std::cout << "arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_{ "
+                          << arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[I0].GetLength(I0)
+                          << ", "
+                          << arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[I0].GetLength(I1)
+                          << "}" << std::endl;
+
+                std::cout << "arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_{ "
+                          << arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[I1].GetLength(I0)
+                          << ", "
+                          << arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[I1].GetLength(I1)
+                          << "}" << std::endl;
+
+                std::cout << "p_ds_grid{ " << arg.p_ds_grid_[I0] << ", " << arg.p_ds_grid_[I1]
+                          << "}" << std::endl;
+            }
+#endif
+
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
                                             arg.b_grid_desc_bk0_n_bk1_,
                                             arg.e_grid_desc_m_n_,
@@ -576,7 +608,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<NumDTensor,
                 const auto kernel = kernel_gemm_multiple_d_xdl_cshuffle<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
-                    typename Argument::DsGridPointer,
+                    typename GridwiseGemm::DsGridPointer,
                     EDataType,
                     AElementwiseOperation,
                     BElementwiseOperation,
