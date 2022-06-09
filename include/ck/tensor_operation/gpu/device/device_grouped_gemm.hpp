@@ -8,21 +8,6 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-struct GemmDesc
-{
-    ck::index_t M_, N_, K_;
-    ck::index_t stride_A_, stride_B_, stride_C_;
-};
-
-struct GemmTransposeDesc
-{
-    ck::index_t M_, N_, K_;
-    ck::index_t stride_A_, stride_B_;
-
-    ck::index_t M0_, M1_, N0_, N1_;
-    ck::index_t stride_M0_, stride_M1_, stride_N0_, stride_N1_;
-};
-
 template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
