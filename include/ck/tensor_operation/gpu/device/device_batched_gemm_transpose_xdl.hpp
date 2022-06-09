@@ -372,6 +372,13 @@ struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElemen
               b_element_op_{b_element_op},
               c_element_op_{c_element_op}
         {
+
+            if(!(gemm_transpose_desc.M_ == gemm_transpose_desc.M0_ * gemm_transpose_desc.M1_ &&
+                 gemm_transpose_desc.N_ == gemm_transpose_desc.N0_ * gemm_transpose_desc.N1_))
+            {
+                throw std::runtime_error("wrong! M != M0 * M1 or N != N0 * N1");
+            }
+
             if(GridwiseGemm::CheckValidity(a_grid_desc_k0_m_k1_,
                                            b_grid_desc_k0_n_k1_,
                                            c_grid_desc_m_n_,

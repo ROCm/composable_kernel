@@ -15,7 +15,7 @@
 #include "device_tensor.hpp"
 #include "device_batched_gemm_transpose_xdl.hpp"
 #include "element_wise_operation.hpp"
-#include "reference_gemm_transpose.hpp"
+#include "reference_batched_gemm_transpose.hpp"
 #include "gemm_specialization.hpp"
 
 template <ck::index_t... Is>
@@ -42,10 +42,6 @@ using AElementOp = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp = ck::tensor_operation::element_wise::PassThrough;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
-// static constexpr auto GemmMNPadding =
-// ck::tensor_operation::device::GemmSpecialization::MNPadding;
-
 // clang-format off
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmTransposeXdl
 //######| AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer|
@@ -55,8 +51,13 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmTransp
         <   F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   256,   256,   128,     4,  8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,               7,               1>;
 // clang-format on
 
-using ReferenceGemmTransposeInstance = ck::tensor_operation::host::
-    ReferenceGemmTranspose<ADataType, BDataType, CDataType, AElementOp, BElementOp, CElementOp>;
+using ReferenceBatchedGemmTransposeInstance =
+    ck::tensor_operation::host::ReferenceBatchedGemmTranspose<ADataType,
+                                                              BDataType,
+                                                              CDataType,
+                                                              AElementOp,
+                                                              BElementOp,
+                                                              CElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -100,7 +101,8 @@ int main(int argc, char* argv[])
     }
 
     // GEMM shape
-    ck::tensor_operation::device::GemmTransposeDesc gemm_transpose_desc;
+    ck::tensor_operation::device::GemmTransposeDesc gemm_transpose_desc{
+        M, N, K, stride_A, stride_B, M0, M1, N0, N1, stride_M0, stride_M1, stride_N0, stride_N1};
 
     auto f_host_tensor_descriptor = [](std::size_t batch_count_,
                                        std::size_t row,
@@ -137,15 +139,15 @@ int main(int argc, char* argv[])
                 {M0_ * M1_ * N0_ * N1_, StrideM0_, StrideM1_, StrideN0_, StrideN1_}));
     };
 
-    Tensor<CDataType> c_g_m_n_host_result(f_host_c_tensor_descriptor(
+    Tensor<CDataType> c_g_m0_m1_n0_n1_host_result(f_host_c_tensor_descriptor(
         batch_count, M0, M1, N0, N1, stride_M0, stride_M1, stride_N0, stride_N1));
 
-    Tensor<CDataType> c_g_m_n_device_result(f_host_c_tensor_descriptor(
+    Tensor<CDataType> c_g_m0_m1_n0_n1_device_result(f_host_c_tensor_descriptor(
         batch_count, M0, M1, N0, N1, stride_M0, stride_M1, stride_N0, stride_N1));
 
     std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
     std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;
-    std::cout << "c_g_m_n: " << c_g_m_n_host_result.mDesc << std::endl;
+    std::cout << "c_g_m_n: " << c_g_m0_m1_n0_n1_host_result.mDesc << std::endl;
 
     switch(init_method)
     {
@@ -162,7 +164,8 @@ int main(int argc, char* argv[])
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpace());
     DeviceMem b_device_buf(sizeof(BDataType) * b_g_k_n.mDesc.GetElementSpace());
-    DeviceMem c_device_buf(sizeof(CDataType) * c_g_m_n_device_result.mDesc.GetElementSpace());
+    DeviceMem c_device_buf(sizeof(CDataType) *
+                           c_g_m0_m1_n0_n1_device_result.mDesc.GetElementSpace());
 
     a_device_buf.ToDevice(a_g_m_k.mData.data());
     b_device_buf.ToDevice(b_g_k_n.mData.data());
@@ -206,25 +209,27 @@ int main(int argc, char* argv[])
               << gemm.GetTypeString() << std::endl;
 
     bool pass = true;
-    // if(do_verification)
-    //{
-    // for(std::size_t i = 0; i < gemm_descs.size(); i++)
-    //{
-    // c_tensors_device[i]->FromDevice(c_device_tensors[i].mData.data());
-    // auto ref_gemm    = ReferenceGemmTransposeInstance{};
-    // auto ref_invoker = ref_gemm.MakeInvoker();
 
-    // auto ref_argument = ref_gemm.MakeArgument(a_tensors[i],
-    // b_tensors[i],
-    // c_host_tensors[i],
-    // a_element_op,
-    // b_element_op,
-    // c_element_op);
+    if(do_verification)
+    {
+        c_device_buf.FromDevice(c_g_m0_m1_n0_n1_device_result.mData.data());
 
-    // ref_invoker.Run(ref_argument);
-    // pass &= ck::utils::check_err(c_device_tensors[i].mData, c_host_tensors[i].mData);
-    //}
-    //}
+        auto ref_batched_gemm = ReferenceBatchedGemmTransposeInstance{};
+        auto ref_invoker      = ref_batched_gemm.MakeInvoker();
+
+        auto ref_argument = ref_batched_gemm.MakeArgument(a_g_m_k,
+                                                          b_g_k_n,
+                                                          c_g_m0_m1_n0_n1_host_result,
+                                                          a_element_op,
+                                                          b_element_op,
+                                                          c_element_op);
+
+        ref_invoker.Run(ref_argument);
+
+        pass = ck::utils::check_err(c_g_m0_m1_n0_n1_host_result.mData,
+                                    c_g_m0_m1_n0_n1_device_result.mData,
+                                    "Error: Incorrect results c");
+    }
 
     return pass ? 0 : 1;
 }
