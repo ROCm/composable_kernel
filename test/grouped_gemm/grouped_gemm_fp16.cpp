@@ -107,13 +107,13 @@ bool TestGroupedGemm(DeviceGroupedGemmPtr_& groupedGemmPtr)
     for(std::size_t i = 0; i < gemm_descs.size(); i++)
     {
         a_tensors.emplace_back(Tensor<ADataType>(f_host_tensor_descriptor(
-            gemm_descs[i].M, gemm_descs[i].K, gemm_descs[i].StrideA, ALayout{})));
+            gemm_descs[i].M_, gemm_descs[i].K_, gemm_descs[i].stride_A_, ALayout{})));
         b_tensors.emplace_back(Tensor<BDataType>(f_host_tensor_descriptor(
-            gemm_descs[i].K, gemm_descs[i].N, gemm_descs[i].StrideB, BLayout{})));
+            gemm_descs[i].K_, gemm_descs[i].N_, gemm_descs[i].stride_B_, BLayout{})));
         c_host_tensors.emplace_back(Tensor<CDataType>(f_host_tensor_descriptor(
-            gemm_descs[i].M, gemm_descs[i].N, gemm_descs[i].StrideC, CLayout{})));
+            gemm_descs[i].M_, gemm_descs[i].N_, gemm_descs[i].stride_C_, CLayout{})));
         c_device_tensors.emplace_back(Tensor<CDataType>(f_host_tensor_descriptor(
-            gemm_descs[i].M, gemm_descs[i].N, gemm_descs[i].StrideC, CLayout{})));
+            gemm_descs[i].M_, gemm_descs[i].N_, gemm_descs[i].stride_C_, CLayout{})));
 
         a_tensors[i].GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
         b_tensors[i].GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});

@@ -1,5 +1,5 @@
-#ifndef DEVICE_GROUPED_GEMM_XDL_HPP
-#define DEVICE_GROUPED_GEMM_XDL_HPP
+#ifndef DEVICE_GROUPED_GEMM_TRANSPOSE_XDL_HPP
+#define DEVICE_GROUPED_GEMM_TRANSPOSE_XDL_HPP
 
 #include <iostream>
 #include <sstream>
@@ -389,12 +389,18 @@ struct DeviceGroupedGemmTransposeXdl : public DeviceGroupedGemmTranspose<AElemen
 
             for(std::size_t i = 0; i < gemm_transpose_desc.size(); i++)
             {
-                const index_t M = gemm_transpose_desc[i].M;
-                const index_t N = gemm_transpose_desc[i].N;
-                const index_t K = gemm_transpose_desc[i].K;
+                const index_t M = gemm_transpose_desc[i].M_;
+                const index_t N = gemm_transpose_desc[i].N_;
+                const index_t K = gemm_transpose_desc[i].K_;
 
-                const index_t StrideA = gemm_transpose_desc[i].StrideA;
-                const index_t StrideB = gemm_transpose_desc[i].StrideB;
+                const index_t StrideA = gemm_transpose_desc[i].stride_A_;
+                const index_t StrideB = gemm_transpose_desc[i].stride_B_;
+
+                if(!(M == gemm_transpose_desc[i].M0_ * gemm_transpose_desc[i].M1_ &&
+                     N == gemm_transpose_desc[i].N0_ * gemm_transpose_desc[i].N1_))
+                {
+                    throw std::runtime_error("wrong! M != M0 * M1 or N != N0 * N1");
+                }
 
                 const auto a_grid_desc_k0_m_k1_ =
                     DeviceGroupedGemmTransposeXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
@@ -402,14 +408,14 @@ struct DeviceGroupedGemmTransposeXdl : public DeviceGroupedGemmTranspose<AElemen
                     DeviceGroupedGemmTransposeXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
                 const auto c_grid_desc_m_n_ =
                     DeviceGroupedGemmTransposeXdl::MakeCGridDescriptor_M_N(
-                        gemm_transpose_desc[i].M0,
-                        gemm_transpose_desc[i].M1,
-                        gemm_transpose_desc[i].N0,
-                        gemm_transpose_desc[i].N1,
-                        gemm_transpose_desc[i].StrideM0,
-                        gemm_transpose_desc[i].StrideM1,
-                        gemm_transpose_desc[i].StrideN0,
-                        gemm_transpose_desc[i].StrideN1);
+                        gemm_transpose_desc[i].M0_,
+                        gemm_transpose_desc[i].M1_,
+                        gemm_transpose_desc[i].N0_,
+                        gemm_transpose_desc[i].N1_,
+                        gemm_transpose_desc[i].stride_M0_,
+                        gemm_transpose_desc[i].stride_M1_,
+                        gemm_transpose_desc[i].stride_N0_,
+                        gemm_transpose_desc[i].stride_N1_);
 
                 const index_t grid_size_grp =
                     GroupedGemmBlock2CTileMap(c_grid_desc_m_n_, M01, N01, 0)

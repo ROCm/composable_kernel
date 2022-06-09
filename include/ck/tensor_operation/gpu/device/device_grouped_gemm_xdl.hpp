@@ -377,13 +377,13 @@ struct DeviceGroupedGemmXdl
 
             for(std::size_t i = 0; i < gemm_descs.size(); i++)
             {
-                const index_t M = gemm_descs[i].M;
-                const index_t N = gemm_descs[i].N;
-                const index_t K = gemm_descs[i].K;
+                const index_t M = gemm_descs[i].M_;
+                const index_t N = gemm_descs[i].N_;
+                const index_t K = gemm_descs[i].K_;
 
-                const index_t StrideA = gemm_descs[i].StrideA;
-                const index_t StrideB = gemm_descs[i].StrideB;
-                const index_t StrideC = gemm_descs[i].StrideC;
+                const index_t StrideA = gemm_descs[i].stride_A_;
+                const index_t StrideB = gemm_descs[i].stride_B_;
+                const index_t StrideC = gemm_descs[i].stride_C_;
 
                 const auto a_grid_desc_k0_m_k1_ =
                     DeviceGroupedGemmXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);

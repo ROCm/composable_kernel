@@ -133,19 +133,19 @@ int main(int argc, char* argv[])
     for(std::size_t i = 0; i < gemm_descs.size(); i++)
     {
         a_tensors.push_back(Tensor<ADataType>(f_host_tensor_descriptor(
-            gemm_descs[i].M, gemm_descs[i].K, gemm_descs[i].StrideA, ALayout{})));
+            gemm_descs[i].M_, gemm_descs[i].K_, gemm_descs[i].stride_A_, ALayout{})));
         b_tensors.push_back(Tensor<BDataType>(f_host_tensor_descriptor(
-            gemm_descs[i].K, gemm_descs[i].N, gemm_descs[i].StrideB, BLayout{})));
+            gemm_descs[i].K_, gemm_descs[i].N_, gemm_descs[i].stride_B_, BLayout{})));
         c_host_tensors.push_back(Tensor<CDataType>(f_host_tensor_descriptor(
-            gemm_descs[i].M, gemm_descs[i].N, gemm_descs[i].StrideC, CLayout{})));
+            gemm_descs[i].M_, gemm_descs[i].N_, gemm_descs[i].stride_C_, CLayout{})));
         c_device_tensors.push_back(Tensor<CDataType>(f_host_tensor_descriptor(
-            gemm_descs[i].M, gemm_descs[i].N, gemm_descs[i].StrideC, CLayout{})));
+            gemm_descs[i].M_, gemm_descs[i].N_, gemm_descs[i].stride_C_, CLayout{})));
 
         std::cout << "gemm[" << i << "] a_m_k: " << a_tensors[i].mDesc
                   << " b_k_n: " << b_tensors[i].mDesc << " c_m_n: " << c_device_tensors[i].mDesc
                   << std::endl;
 
-        flop += std::size_t(2) * gemm_descs[i].M * gemm_descs[i].K * gemm_descs[i].N;
+        flop += std::size_t(2) * gemm_descs[i].M_ * gemm_descs[i].K_ * gemm_descs[i].N_;
         num_btype += sizeof(ADataType) * a_tensors[i].mDesc.GetElementSize() +
                      sizeof(BDataType) * b_tensors[i].mDesc.GetElementSize() +
                      sizeof(CDataType) * c_device_tensors[i].mDesc.GetElementSize();
