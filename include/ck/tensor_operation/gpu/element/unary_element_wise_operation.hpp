@@ -26,23 +26,22 @@ struct UnaryDivide
     __host__ __device__ UnaryDivide(const int32_t divider = 1) : divider_(divider){};
 
     template <typename T>
-    __host__ __device__ void operator()(T& y, const T& x) const
-    {
-        impl_divide(y, x);
-    };
+    __host__ __device__ void operator()(T& y, const T& x) const;
 
-    private:
-    __host__ __device__ void impl_divide(float& y, const float& x) const
+    template <>
+    __host__ __device__ void operator()<float>(float& y, const float& x) const
     {
         y = x / type_convert<float>(divider_);
     };
 
-    __host__ __device__ void impl_divide(double& y, const double& x) const
+    template <>
+    __host__ __device__ void operator()<double>(double& y, const double& x) const
     {
         y = x / type_convert<double>(divider_);
     };
 
-    __host__ __device__ void impl_divide(int32_t& y, const int32_t& x) const
+    template <>
+    __host__ __device__ void operator()<int32_t>(int32_t& y, const int32_t& x) const
     {
         y = x / type_convert<int32_t>(divider_);
     };
@@ -53,15 +52,19 @@ struct UnaryDivide
 struct UnarySquare
 {
     template <typename T>
-    __host__ __device__ void operator()(T& y, const T& x) const
+    __host__ __device__ void operator()(T& y, const T& x) const;
+
+    template <>
+    __host__ __device__ void operator()<float>(float& y, const float& x) const
     {
-        impl_square(y, x);
+        y = x * x;
     };
 
-    private:
-    __host__ __device__ void impl_square(float& y, const float& x) const { y = x * x; };
-
-    __host__ __device__ void impl_square(double& y, const double& x) const { y = x * x; };
+    template <>
+    __host__ __device__ void operator()<double>(double& y, const double& x) const
+    {
+        y = x * x;
+    };
 };
 
 struct UnaryAbs
