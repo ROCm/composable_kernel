@@ -17,5 +17,11 @@ __device__ void block_sync_lds()
 #endif
 }
 
+__device__ void s_nop(){
+    asm volatile("\
+    s_nop 0 \n \
+    " ::);
+}
+
 } // namespace ck
 #endif
