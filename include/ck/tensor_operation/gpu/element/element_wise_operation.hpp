@@ -1,5 +1,6 @@
 #pragma once
 #include "data_type.hpp"
+#include "math_v2.hpp"
 #include "unary_element_wise_operation.hpp"
 #include "binary_element_wise_operation.hpp"
 
@@ -66,6 +67,7 @@ struct Normalize
     template <typename T>
     __host__ __device__ constexpr void operator()(
         T& y, const T& x, const T& mean, const T& mean_square, const T& gamma, const T& beta) const;
+
     template <>
     __host__ __device__ constexpr void operator()<float>(float& y,
                                                          const float& x,
@@ -74,8 +76,10 @@ struct Normalize
                                                          const float& gamma,
                                                          const float& beta) const
     {
+        using ck::math::sqrt;
+
         float variance = mean_square - (mean * mean);
-        y              = ((x - mean) / sqrtf(variance + epsilon_)) * gamma + beta;
+        y = ((x - mean) / sqrt(variance + static_cast<float>(epsilon_))) * gamma + beta;
     };
 
     template <>
@@ -86,8 +90,10 @@ struct Normalize
                                                           const double& gamma,
                                                           const double& beta) const
     {
+        using ck::math::sqrt;
+
         double variance = mean_square - (mean * mean);
-        y               = ((x - mean) / sqrtf(variance + epsilon_)) * gamma + beta;
+        y               = ((x - mean) / sqrt(variance + epsilon_)) * gamma + beta;
     };
 
     double epsilon_;
