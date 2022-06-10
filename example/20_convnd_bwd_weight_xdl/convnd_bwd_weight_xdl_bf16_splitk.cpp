@@ -330,7 +330,7 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
-    float conv_ave_time              = 0.f;
+    float conv_ave_time = 0.f;
 
     DeviceMem wei_work_space_device_buf(bwd_weight_workspace_size);
     wei_work_space_device_buf.SetZero();
