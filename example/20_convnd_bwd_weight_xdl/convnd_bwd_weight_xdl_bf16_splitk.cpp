@@ -324,6 +324,12 @@ int main(int argc, char* argv[])
 
     // alloc work space
     size_t bwd_weight_workspace_size = conv->GetWorkSpaceSize(argument.get());
+    if(bwd_weight_workspace_size <= 0)
+    {
+        print_use_msg();
+        exit(1);
+    }
+
     float conv_ave_time              = 0.f;
 
     DeviceMem wei_work_space_device_buf(bwd_weight_workspace_size);
