@@ -131,7 +131,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 #if 0
     using GridwiseGemmPipe = GridwiseGemmPipeline_v1<NumGemmKPrefetchStage>;
 #else
-    using GridwiseGemmPipe = GridwiseGemmPipeline_v2;
+    using GridwiseGemmPipe = GridwiseGemmPipeline_v2<NumGemmKPrefetchStage>;
 #endif
 
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()

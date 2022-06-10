@@ -35,6 +35,7 @@ using AccDataType = float;
 
 using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::RowMajor;
+//using BLayout = Col;
 using CLayout = ck::tensor_layout::gemm::RowMajor;
 
 using AElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -134,8 +135,8 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
         break;
     case 2:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});

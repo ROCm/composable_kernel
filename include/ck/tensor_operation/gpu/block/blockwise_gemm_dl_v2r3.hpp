@@ -173,8 +173,8 @@ struct BlockwiseGemmDl_A_BK0_BM_BK1_B_BK0_BN_BK1_C_BM0_BM1_BN0_BN1_pipeline_BM0_
                       "wrong!");
 
         // TODO: remove this restriction
-        static_assert(BM0 == 2, "wrong");
-        static_assert(BM0 == 2 && BN0 == 2, "wrong");
+        //static_assert(BM0 == 2, "wrong");
+        //static_assert(BM0 == 2 && BN0 == 2, "wrong");
     }
 
     __device__ static CIndex CalculateCThreadOriginOnBlock_BM0_BM1_BN0_BN1(index_t thread_id)
@@ -214,10 +214,10 @@ struct BlockwiseGemmDl_A_BK0_BM_BK1_B_BK0_BN_BK1_C_BM0_BM1_BN0_BN1_pipeline_BM0_
                       "wrong! Desc should be known at compile-time");
 
         // TODO: remove this restriction
-        static_assert(BM0 == 2 && BN0 == 2 &&
-                          CThreadDesc_BM0_BM11_BN0_BN11{}.GetLength(I0) == BM0 &&
-                          CThreadDesc_BM0_BM11_BN0_BN11{}.GetLength(I2) == BN0,
-                      "wrong");
+        //static_assert(BM0 == 2 && BN0 == 2 &&
+        //                  CThreadDesc_BM0_BM11_BN0_BN11{}.GetLength(I0) == BM0 &&
+        //                  CThreadDesc_BM0_BM11_BN0_BN11{}.GetLength(I2) == BN0,
+        //              "wrong");
 
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatA>(
             a_thread_desc_bk0_bm0_bm1_bk1_.GetElementSpaceSize());
