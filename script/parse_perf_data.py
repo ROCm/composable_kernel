@@ -52,21 +52,28 @@ def main():
             if 'Branch name' in line:
                 lst=line.split()
                 branch_name=lst[2]
+            if 'On branch' in line:
+                lst=line.split()
+                branch_name=lst[2]
             if 'Node name' in line:
                 lst=line.split()
                 node_id=lst[2]
             if 'GPU_arch' in line:
                 lst=line.split()
-                gpu_arch=lst[1]
+                gpu_arch=lst[2]
             if 'HIP version' in line:
                 lst=line.split()
                 hip_vers=lst[2]
+            if 'Compute Unit' in line:
+                lst=line.split()
+                compute_units=lst[2]
             if 'InstalledDir' in line:
                 lst=line.split()
                 rocm_vers=lst[1][lst[1].find('/opt/rocm-')+len('/opt/rocm-'):lst[1].rfind('/llvm/bin')]
     print("Branch name:",branch_name)
     print("Node name:",node_id)
     print("GPU_arch:",gpu_arch)
+    print("Compute units:",compute_units)
     print("ROCM_version:",rocm_vers)
     print("HIP_version:",hip_vers)
 
@@ -188,8 +195,8 @@ def main():
             testlist=[]
             for i in range(1,len(tests)+1):
                 testlist.append("Test%i"%i)
-            ck_gemm_tflops=[str(branch_name),str(node_id),str(gpu_arch),str(rocm_vers),str(hip_vers),str(datetime.datetime.now())]
-            flops=pd.DataFrame(data=[ck_gemm_tflops],columns=['Branch_ID','Node_ID','GPU_arch','ROCM_version','HIP_version','Datetime'])
+            ck_gemm_tflops=[str(branch_name),str(node_id),str(gpu_arch),compute_units,str(rocm_vers),str(hip_vers),str(datetime.datetime.now())]
+            flops=pd.DataFrame(data=[ck_gemm_tflops],columns=['Branch_ID','Node_ID','GPU_arch','Compute Units','ROCM_version','HIP_version','Datetime'])
             df_add=pd.DataFrame(data=[sorted_tflops],columns=testlist)
             flops=pd.concat([flops,df_add],axis=1)
             print("new tflops for gemm tests:",flops)
@@ -207,8 +214,8 @@ def main():
             testlist=[]
             for i in range(1,50):
                 testlist.append("Layer%i"%i)
-            ck_resnet_tflops=[str(branch_name),str(node_id),str(gpu_arch),str(rocm_vers),str(hip_vers),str(datetime.datetime.now())]
-            flops0=pd.DataFrame(data=[ck_resnet_tflops],columns=['Branch_ID','Node_ID','GPU_arch','ROCM_version','HIP_version','Datetime'])
+            ck_resnet_tflops=[str(branch_name),str(node_id),str(gpu_arch),compute_units,str(rocm_vers),str(hip_vers),str(datetime.datetime.now())]
+            flops0=pd.DataFrame(data=[ck_resnet_tflops],columns=['Branch_ID','Node_ID','GPU_arch','Compute Units','ROCM_version','HIP_version','Datetime'])
             df_add=pd.DataFrame(data=[tflops[0:49]],columns=testlist)
             flops=pd.concat([flops0,df_add],axis=1)
             print("new tflops for N=256 resnet50 test:",flops)
