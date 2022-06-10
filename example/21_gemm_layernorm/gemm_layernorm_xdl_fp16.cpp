@@ -154,13 +154,14 @@ void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
     auto reduceSumOpInst = ReduceSumOp{};
     for(int m = 0; m < M; ++m)
     {
-        float mean_acc        = reduceSumOpInst.GetIdentityValue<float>();
-        float square_mean_acc = reduceSumOpInst.GetIdentityValue<float>();
+        auto mean_acc        = reduceSumOpInst.GetIdentityValue<ReduceAccDataType>();
+        auto square_mean_acc = reduceSumOpInst.GetIdentityValue<ReduceAccDataType>();
 
         for(int n = 0; n < N; ++n)
         {
-            ReduceAccDataType c_val        = ck::type_convert<float>(c_m_n(m, n));
-            ReduceAccDataType square_c_val = 0;
+            auto c_val        = ck::type_convert<ReduceAccDataType>(c_m_n(m, n));
+            auto square_c_val = reduceSumOpInst.GetIdentityValue<ReduceAccDataType>();
+
             UnarySquareElementOp{}(square_c_val, c_val);
 
             reduceSumOpInst(mean_acc, c_val);
