@@ -40,6 +40,19 @@ struct GridwiseUnaryElementwise_1D
         return make_multi_index(global_thread_id * ScalarPerVector);
     }
 
+    __host__ __device__ static constexpr bool CheckValidity(const GridDesc_M0 a_grid_desc_m0,
+                                                            const GridDesc_M0 b_grid_desc_m0)
+    {
+        return a_grid_desc_m0.GetLength(I0) == b_grid_desc_m0.GetLength(I0);
+    }
+
+    __host__ __device__ static constexpr index_t CalculateGridSize(const index_t tensor_size)
+    {
+        const index_t grid_size = math::integer_divide_ceil(tensor_size, 256 * ScalarPerVector);
+
+        return grid_size;
+    }
+
     __device__ static void Run(const ADataType* __restrict__ p_a_global,
                                BDataType* __restrict__ p_b_global,
                                const GridDesc_M0 a_grid_desc_m0,

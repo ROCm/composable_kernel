@@ -1051,8 +1051,16 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             int tensor_size =
                 std::accumulate(filter_dims.begin(), filter_dims.end(), 1, std::multiplies<int>{});
 
-            GridDesc_M0 a_grid_desc_m0_ = MakeDescriptor_M0<1>({tensor_size}, {1}, 240, 256);
-            GridDesc_M0 b_grid_desc_m0_ = MakeDescriptor_M0<1>({tensor_size}, {1}, 240, 256);
+            const index_t type_convert_grid_size = GridwiseUEltwise::CalculateGridSize(tensor_size);
+            GridDesc_M0 a_grid_desc_m0_ =
+                MakeDescriptor_M0<1>({tensor_size}, {1}, type_convert_grid_size, 256);
+            GridDesc_M0 b_grid_desc_m0_ =
+                MakeDescriptor_M0<1>({tensor_size}, {1}, type_convert_grid_size, 256);
+
+            if(!GridwiseUEltwise::CheckValidity(a_grid_desc_m0_, b_grid_desc_m0_))
+            {
+                throw std::runtime_error("wrong! GridwiseUnaryElementwise_1D has invalid setting");
+            }
 
             // run kernel for type conversion
             void* p_c_grid_tmp_            = static_cast<void*>(arg.p_c_grid_);
@@ -1061,7 +1069,7 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                 float elapsed_time =
                     launch_and_time_kernel(stream_config,
                                            kernel,
-                                           dim3(240),
+                                           dim3(type_convert_grid_size),
                                            dim3(256),
                                            0,
                                            static_cast<AccDataType*>(arg.p_c_workspace_grid_),

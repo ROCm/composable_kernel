@@ -325,7 +325,6 @@ int main(int argc, char* argv[])
     // alloc work space
     size_t bwd_weight_workspace_size = conv->GetWorkSpaceSize(argument.get());
     float conv_ave_time              = 0.f;
-    float type_convert_ave_time      = 0.f;
 
     DeviceMem wei_work_space_device_buf(bwd_weight_workspace_size);
     wei_work_space_device_buf.SetZero();
@@ -341,42 +340,6 @@ int main(int argc, char* argv[])
 
     conv_ave_time = invoker->Run(argument.get(), StreamConfig{nullptr, time_kernel});
 
-#if 0
-    // do type convert
-    auto type_convert         = DeviceUnaryElementwiseTypeConvertInstance{};
-    auto type_convert_invoker = type_convert.MakeInvokerPointer();
-    int tensor_size =
-        std::accumulate(filter_dims.begin(), filter_dims.end(), 1, std::multiplies<int>{});
-    auto type_convert_argument =
-        type_convert.MakeArgumentPointer(wei_work_space_device_buf.GetDeviceBuffer(),
-                                         wei_device_buf.GetDeviceBuffer(),
-                                         {tensor_size},
-                                         {1},
-                                         {1},
-                                         UnaryTypeConvert{});
-
-    if(!type_convert.IsSupportedArgument(type_convert_argument.get()))
-    {
-        std::cout << "wrong! device_type_convert with the specified compilation parameters does "
-                     "not support this convert problem"
-                  << std::endl;
-        return 1;
-    }
-    type_convert_ave_time =
-        type_convert_invoker->Run(type_convert_argument.get(), StreamConfig{nullptr, time_kernel});
-    // type_convert_invoker->Run(type_convert_argument.get(), StreamConfig{nullptr, time_kernel});
-#endif
-    // host code to check if conv give me a right result
-    // Tensor<AccDataType> wei_k_c_y_x_device_result_fp32(
-    //     ck::utils::conv::get_filters_host_tensor_descriptor(filter_dims, num_dim_spatial));
-    // wei_work_space_device_buf.FromDevice(wei_k_c_y_x_device_result_fp32.mData.data());
-    // const auto type_cvt_functor = [&](AccDataType a) {
-    //     return ck::type_convert<WeiDataType, AccDataType>(a);
-    // };
-    // host_elementwise<Tensor<WeiDataType>, Tensor<AccDataType>, decltype(type_cvt_functor)>(
-    //     wei_k_c_y_x_device_result, wei_k_c_y_x_device_result_fp32, filter_dims,
-    //     type_cvt_functor);
-
     std::size_t flop = ck::utils::conv::get_flops(
         params.N_, params.C_, params.K_, params.filter_spatial_lengths_, output_spatial_lengths);
     std::size_t num_btype = ck::utils::conv::get_btype<InDataType, WeiDataType, OutDataType>(
@@ -391,8 +354,8 @@ int main(int argc, char* argv[])
 
     float gb_per_sec = num_btype / 1.E6 / conv_ave_time;
 
-    std::cout << "Perf: conv: " << conv_ave_time << " ms, type_convert: " << type_convert_ave_time
-              << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s" << std::endl;
+    std::cout << "Perf: conv: " << conv_ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+              << " GB/s" << std::endl;
 
     if(do_verification)
     {

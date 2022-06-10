@@ -59,12 +59,12 @@ struct DeviceUnaryElementwise : public BaseOperator
             return PadDescriptor_M0_1d(desc, gridSize, blockSize);
     }
 
-    using GridDesc_M0        = decltype(MakeDescriptor_M0({1, 1}, {1, 1}, 1, 1));
-    using GridwiseBinEltwise = GridwiseUnaryElementwise_1D<ADataType,
-                                                           BDataType,
-                                                           GridDesc_M0,
-                                                           ElementwiseFunctor,
-                                                           ScalarPerVector>;
+    using GridDesc_M0      = decltype(MakeDescriptor_M0({1, 1}, {1, 1}, 1, 1));
+    using GridwiseUEltwise = GridwiseUnaryElementwise_1D<ADataType,
+                                                         BDataType,
+                                                         GridDesc_M0,
+                                                         ElementwiseFunctor,
+                                                         ScalarPerVector>;
 
     struct Argument : public BaseArgument
     {
@@ -78,9 +78,11 @@ struct DeviceUnaryElementwise : public BaseOperator
               p_b_(p_b),
               shape_(shape),
               functor_(functor),
-              blockSize_(256),
-              gridSize_(240) // FIXME - Calculate the grid size by number of CU in the future
+              blockSize_(256) // FIXME - Calculate the grid size by number of CU in the future
         {
+            index_t tensor_size =
+                std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<int>{});
+            gridSize_       = GridwiseUEltwise::CalculateGridSize(tensor_size);
             a_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_a, gridSize_, blockSize_);
             b_grid_desc_m0_ = MakeDescriptor_M0(shape, stride_b, gridSize_, blockSize_);
         }
@@ -99,7 +101,7 @@ struct DeviceUnaryElementwise : public BaseOperator
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            const auto kernel = kernel_unary_elementwise_1d<GridwiseBinEltwise,
+            const auto kernel = kernel_unary_elementwise_1d<GridwiseUEltwise,
                                                             ADataType,
                                                             BDataType,
                                                             GridDesc_M0,
