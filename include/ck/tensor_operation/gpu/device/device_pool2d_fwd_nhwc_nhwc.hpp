@@ -17,7 +17,7 @@ template <typename InDataType,
           typename OutDataType,
           typename AccDataType,
           ck::ReduceTensorOp ReduceOpId,
-          bool NeedIndices,
+          bool OuputIndex,
           ck::index_t BlockSize,
           ck::index_t ReduceMThreadClusterSize,
           ck::index_t ReduceKThreadClusterSize,
@@ -43,8 +43,6 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
     using AccElementwiseOperation =
         typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::
             AccElementwiseOperation;
-
-    static constexpr bool BetaIsZero = true;
 
     static constexpr index_t InSrcOutDstVectorDim =
         0; // for NHWC, the dim C is the vector Dim for both input and output in memory, which is
@@ -204,30 +202,30 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
 
     struct Invoker : public BaseInvoker
     {
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            using gridwise_reduce = GridwiseReduction_mk_to_m_threadwise<InDataType,
-                                                                         OutDataType,
-                                                                         AccDataType,
-                                                                         IndexDataType,
-                                                                         AGridDesc_M_K,
-                                                                         BGridDesc_M,
-                                                                         ReduceOperation,
-                                                                         InElementwiseOperation,
-                                                                         AccElementwiseOperation,
-                                                                         false, // propagate_nan
-                                                                         BetaIsZero,
-                                                                         BlockSize,
-                                                                         ReduceMThreadClusterSize,
-                                                                         ReduceKThreadClusterSize,
-                                                                         ReduceMThreadSliceSize,
-                                                                         ReduceKThreadSliceSize,
-                                                                         InSrcOutDstVectorDim,
-                                                                         InSrcOutDstVectorSize,
-                                                                         InSrcOutDstVectorSize>;
+            using gridwise_reduce =
+                GridwiseReduction_mk_to_m_threadwise<InDataType,
+                                                     OutDataType,
+                                                     AccDataType,
+                                                     IndexDataType,
+                                                     AGridDesc_M_K,
+                                                     BGridDesc_M,
+                                                     ReduceOperation,
+                                                     InElementwiseOperation,
+                                                     AccElementwiseOperation,
+                                                     InMemoryDataOperationEnum::Set,
+                                                     false, // propagate_nan
+                                                     BlockSize,
+                                                     ReduceMThreadSliceSize,
+                                                     ReduceKThreadSliceSize,
+                                                     InSrcOutDstVectorDim,
+                                                     InSrcOutDstVectorSize,
+                                                     InSrcOutDstVectorSize>;
 
             const auto kernel = kernel_reduce_threadwise<gridwise_reduce,
-                                                         NeedIndices,
+                                                         OuputIndex,
+                                                         false, // don't have index input
                                                          InDataType,
                                                          OutDataType,
                                                          AccDataType,
@@ -241,8 +239,8 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
 
             const index_t grid_size = (ReduceM / ReduceM_BlockTileSize);
 
-            return launch_and_time_kernel(kernel,
-                                          nrepeat,
+            return launch_and_time_kernel(stream_config,
+                                          kernel,
                                           dim3(grid_size),
                                           dim3(BlockSize),
                                           0,
@@ -252,14 +250,16 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
                                           arg.acc_element_op_,
                                           float(1),
                                           arg.p_in_dev_,
+                                          nullptr,
                                           float(0),
                                           arg.p_out_dev_,
                                           arg.p_out_indices_dev_);
         }
 
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 

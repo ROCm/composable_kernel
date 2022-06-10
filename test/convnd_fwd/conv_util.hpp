@@ -4,7 +4,6 @@
 #include <tuple>
 
 #include "config.hpp"
-#include "conv_fwd_util.hpp"
 #include "device_convnd_fwd_xdl_nhwc_kyxc_nhwk.hpp"
 #include "element_wise_operation.hpp"
 #include "host_tensor.hpp"

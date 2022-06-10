@@ -43,13 +43,14 @@ namespace profiler {
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
+          typename AccDataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
 void profile_grouped_gemm_impl(int do_verification,
                                int init_method,
                                bool do_log,
-                               int nrepeat,
+                               bool time_kernel,
                                const std::vector<int>& Ms,
                                const std::vector<int>& Ns,
                                const std::vector<int>& Ks,
@@ -231,7 +232,8 @@ void profile_grouped_gemm_impl(int do_verification,
         {
             std::string gemm_name = gemm_ptr->GetTypeString();
 
-            float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
+            float ave_time =
+                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
             std::size_t flop = 0, num_btype = 0;
             for(std::size_t i = 0; i < gemm_shapes.size(); i++)
@@ -270,6 +272,7 @@ void profile_grouped_gemm_impl(int do_verification,
                         ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                   BDataType,
                                                                   CDataType,
+                                                                  AccDataType,
                                                                   AElementOp,
                                                                   BElementOp,
                                                                   CElementOp>;
