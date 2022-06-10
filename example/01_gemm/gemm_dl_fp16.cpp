@@ -61,7 +61,7 @@ int main(int argc, char* argv[])
     bool time_kernel     = false;
 
     // GEMM shape
-    ck::index_t M = 3840;
+    ck::index_t M = 4096;
     ck::index_t N = 4096;
     ck::index_t K = 4096;
 
