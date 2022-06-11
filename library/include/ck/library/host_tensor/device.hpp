@@ -88,7 +88,7 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
                block_dim.y,
                block_dim.z);
 
-        const int nrepeat = 10;
+        const int nrepeat = 1;
 
         printf("Warm up 1 time\n");
 
