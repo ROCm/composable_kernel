@@ -33,7 +33,7 @@ struct DeviceGemmMultipleD : public BaseOperator
                         ck::index_t StrideE,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
-                        CDEElementwiseOperation cde_element_op);
+                        CDEElementwiseOperation cde_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
