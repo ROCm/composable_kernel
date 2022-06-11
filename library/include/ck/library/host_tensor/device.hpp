@@ -94,6 +94,7 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
 
         // warm up
         kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+        kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
 
         printf("Start running %d times...\n", nrepeat);
 
