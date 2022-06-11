@@ -660,14 +660,13 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
                 if constexpr(access_id < num_access - 1)
                 {
                     constexpr auto c_global_step = sfc_c_global.GetForwardStep(access_id);
-#if 1
+
                     // move on Ds
                     c_shuffle_block_copy_lds_to_global.MoveSrc1SliceWindow(
                         ds_grid_desc_mblock_mperblock_nblock_nperblock[I0], c_global_step);
 
                     c_shuffle_block_copy_lds_to_global.MoveSrc2SliceWindow(
                         ds_grid_desc_mblock_mperblock_nblock_nperblock[I1], c_global_step);
-#endif
 
                     // move on C
                     c_shuffle_block_copy_lds_to_global.MoveDstSliceWindow(

@@ -146,6 +146,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<DsDataType:
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
+    static constexpr auto I3 = Number<3>{};
 
     static auto MakeAGridDescriptor_AK0_M_AK1(index_t MRaw, index_t KRaw, index_t StrideA)
     {
@@ -575,12 +576,20 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<DsDataType:
                           << arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[I0].GetLength(I0)
                           << ", "
                           << arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[I0].GetLength(I1)
+                          << ", "
+                          << arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[I0].GetLength(I2)
+                          << ", "
+                          << arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[I0].GetLength(I3)
                           << "}" << std::endl;
 
                 std::cout << "arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_{ "
                           << arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[I1].GetLength(I0)
                           << ", "
                           << arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[I1].GetLength(I1)
+                          << ", "
+                          << arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[I1].GetLength(I2)
+                          << ", "
+                          << arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[I1].GetLength(I3)
                           << "}" << std::endl;
 
                 std::cout << "p_ds_grid{ " << arg.p_ds_grid_[I0] << ", " << arg.p_ds_grid_[I1]
