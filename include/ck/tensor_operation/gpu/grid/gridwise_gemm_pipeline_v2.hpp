@@ -3,6 +3,7 @@
 
 namespace ck {
 
+// N-stage prefetch
 template <index_t NumPrefetch>
 struct GridwiseGemmPipeline_v2;
 
