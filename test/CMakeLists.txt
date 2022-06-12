@@ -2,6 +2,7 @@ include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/
     ${PROJECT_SOURCE_DIR}/include/ck
     ${PROJECT_SOURCE_DIR}/include/ck/utility
+    ${PROJECT_SOURCE_DIR}/include/ck/host_utility
     ${PROJECT_SOURCE_DIR}/include/ck/tensor_description
     ${PROJECT_SOURCE_DIR}/include/ck/tensor
     ${PROJECT_SOURCE_DIR}/include/ck/problem_transform
@@ -68,5 +69,6 @@ add_subdirectory(convnd_fwd)
 add_subdirectory(reduce)
 add_subdirectory(conv2d_bwd_weight)
 add_subdirectory(convnd_bwd_data)
+add_subdirectory(block_to_ctile_map)
 add_subdirectory(cpu_ukernel)
 # DONOT add client_app, that is tested via CI independently

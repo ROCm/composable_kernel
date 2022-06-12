@@ -60,7 +60,7 @@ template <typename DeviceGemmPtr_,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
-void RunDeviceGEMM(DeviceGemmPtr_& gemmPtr,
+bool RunDeviceGEMM(DeviceGemmPtr_& gemmPtr,
                    const ck::gemm_util::GemmParams& params,
                    const Tensor<ADataType>& A,
                    const Tensor<BDataType>& B,
@@ -72,9 +72,6 @@ void RunDeviceGEMM(DeviceGemmPtr_& gemmPtr,
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * A.mDesc.GetElementSpace());
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * B.mDesc.GetElementSpace());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * C.mDesc.GetElementSpace());
-
-    a_m_k_device_buf.ToDevice(A.mData.data());
-    b_k_n_device_buf.ToDevice(B.mData.data());
 
     auto invoker_ptr = gemmPtr->MakeInvokerPointer();
     auto argument_ptr =
@@ -91,21 +88,30 @@ void RunDeviceGEMM(DeviceGemmPtr_& gemmPtr,
                                      b_element_op,
                                      c_element_op);
 
-    if(!gemmPtr->IsSupportedArgument(argument_ptr.get()))
+    if(gemmPtr->IsSupportedArgument(argument_ptr.get()))
     {
-        throw std::runtime_error(
-            "wrong! device_gemm with the specified compilation parameters does "
-            "not support this GEMM problem");
-    }
+        a_m_k_device_buf.ToDevice(A.mData.data());
+        b_k_n_device_buf.ToDevice(B.mData.data());
+        invoker_ptr->Run(argument_ptr.get());
+        c_m_n_device_buf.FromDevice(C.mData.data());
 
-    invoker_ptr->Run(argument_ptr.get());
-    c_m_n_device_buf.FromDevice(C.mData.data());
+        return true;
+    }
+    else
+    {
+        std::cout << "device_gemm with the specified compilation parameters does "
+                     "not support this GEMM problem"
+                  << std::endl;
+
+        return false;
+    }
 }
 
 template <typename DeviceGemmPtr_,
           typename ADataType,
           typename BDataType,
           typename CDataType,
+          typename AccDataType,
           typename ALayout,
           typename BLayout,
           typename CLayout,
@@ -181,6 +187,7 @@ struct TestGemm
             ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                       BDataType,
                                                       CDataType,
+                                                      AccDataType,
                                                       AElementwiseOperation,
                                                       BElementwiseOperation,
                                                       CElementwiseOperation>;
@@ -188,28 +195,40 @@ struct TestGemm
             a, b, c_host, a_element_op, b_element_op, c_element_op);
 
         // Act
-        ck::gemm_util::RunDeviceGEMM(
+        bool is_supported = ck::gemm_util::RunDeviceGEMM(
             gemmPtr, params, a, b, c_device, a_element_op, b_element_op, c_element_op);
 
-        // Assert
-        bool res = false;
-        if(std::is_same<CDataType, float>::value)
+        if(is_supported)
         {
-            res = ck::utils::check_err(c_device.mData, c_host.mData);
-            std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
-        }
-        else if(std::is_same<CDataType, ck::half_t>::value)
-        {
-            res = ck::utils::check_err(c_device.mData, c_host.mData);
-            std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
-        }
-        else if(std::is_same<CDataType, int8_t>::value)
-        {
-            res = ck::utils::check_err(c_device.mData, c_host.mData);
-            std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
-        }
+            // Assert
+            bool res = false;
+            if(std::is_same<CDataType, float>::value)
+            {
+                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
+            }
+            else if(std::is_same<CDataType, ck::half_t>::value)
+            {
+                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
+            }
+            else if(std::is_same<CDataType, int8_t>::value)
+            {
+                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
+            }
+            else if(std::is_same<CDataType, double>::value)
+            {
+                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
+            }
 
-        return res;
+            return res;
+        }
+        else
+        {
+            return true;
+        }
     }
 };
 
@@ -299,6 +318,7 @@ struct TestGemmBF16
         // use fp32 host kernel to verify bf16 device kernel
         using ReferenceGemmInstance =
             ck::tensor_operation::host::ReferenceGemm<float,
+                                                      float,
                                                       float,
                                                       float,
                                                       AElementwiseOperation,
