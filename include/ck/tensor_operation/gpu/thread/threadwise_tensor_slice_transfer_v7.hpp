@@ -7,6 +7,10 @@
 
 namespace ck {
 
+// Assume:
+//   1. src_descs and dst_descs are not known at compile-time
+//   2. SrcBuffers and DstBuffers are DynamicBuffer
+//   3. src_slice_origins and dst_slice_origins are not known at compile-time,
 // Do following things to avoid "alloca" in LLVM-IR, which would cause scratch memory
 // and sometimes useless instructions:
 //   1. Don't save a reference to tensor descriptor in class, pass in tensor descriptor as argument
@@ -14,11 +18,6 @@ namespace ck {
 //   2. Don't construct a new tensor coordinate everytime when using it, update and reuse the same
 //   tensor coordinate instead
 //   3. Don't use a pointer to VGPR buffer, use vector instead
-
-// Assume:
-//   1. src_desc and dst_desc are not known at compile-time
-//   2. SrcBuffer and DstBuffer are DynamicBuffer
-//   3. src_slice_origin and dst_slice_origin are not known at compile-time,
 template <typename SrcDatas,
           typename DstDatas,
           typename SrcDescs,
@@ -34,8 +33,6 @@ template <typename SrcDatas,
 struct ThreadwiseTensorSliceTransfer_v7
 {
     static constexpr auto I0 = Number<0>{};
-    static constexpr auto I1 = Number<1>{};
-    static constexpr auto I2 = Number<2>{};
 
     static constexpr index_t nDim = SliceLengths::Size();
 
