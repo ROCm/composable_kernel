@@ -567,8 +567,8 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
                 Sequence<0, 1, 2, 3>, // typename DimAccessOrder,
                 3,                    // index_t VectorDim,
                 CDEShuffleBlockTransferScalarPerVector_NPerBlock, // index_t ScalarPerVector,
-                Sequence<true, false, false>, // bool ThreadTransferSrcResetCoordinateAfterRunFlags
-                Sequence<false>>              // bool ThreadTransferDstResetCoordinateAfterRunFlags
+                Sequence<true, false, false>, // ThreadTransferSrcResetCoordinateAfterRunFlags
+                Sequence<false>>              // ThreadTransferDstResetCoordinateAfterRunFlags
                 {c_ds_descs,
                  make_tuple(make_multi_index(0, 0, 0, 0),
                             make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
@@ -626,17 +626,20 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
 
                 if constexpr(access_id < num_access - 1)
                 {
-                    constexpr auto e_global_step = sfc_cde_block.GetForwardStep(access_id);
+                    constexpr auto cde_lds_and_global_step =
+                        sfc_cde_block.GetForwardStep(access_id);
 
                     // move on Ds
                     static_for<0, DsDataType::Size(), 1>{}([&](auto i) {
                         cde_block_copy_lds_and_global.MoveSrcSliceWindow(
-                            c_ds_descs, i + I1, e_global_step);
+                            c_ds_descs, i + I1, cde_lds_and_global_step);
                     });
 
                     // move on E
                     cde_block_copy_lds_and_global.MoveDstSliceWindow(
-                        tie(e_grid_desc_mblock_mperblock_nblock_nperblock), I0, e_global_step);
+                        tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                        I0,
+                        cde_lds_and_global_step);
                 }
             });
         }
