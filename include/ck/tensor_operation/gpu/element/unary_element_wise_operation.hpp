@@ -25,24 +25,13 @@ struct UnaryDivide
     __host__ __device__ UnaryDivide(const int32_t divider = 1) : divider_(divider){};
 
     template <typename T>
-    __host__ __device__ void operator()(T& y, const T& x) const;
-
-    template <>
-    __host__ __device__ void operator()<float>(float& y, const float& x) const
+    __host__ __device__ void operator()(T& y, const T& x) const
     {
-        y = x / type_convert<float>(divider_);
-    };
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, int32_t>::value,
+                      "Data type is not supported by this operation!");
 
-    template <>
-    __host__ __device__ void operator()<double>(double& y, const double& x) const
-    {
-        y = x / type_convert<double>(divider_);
-    };
-
-    template <>
-    __host__ __device__ void operator()<int32_t>(int32_t& y, const int32_t& x) const
-    {
-        y = x / type_convert<int32_t>(divider_);
+        y = x / type_convert<T>(divider_);
     };
 
     int32_t divider_ = 1;
