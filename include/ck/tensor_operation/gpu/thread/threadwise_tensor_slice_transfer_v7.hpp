@@ -138,23 +138,42 @@ struct ThreadwiseTensorSliceTransfer_v7
                     coordinate_has_valid_offset_assuming_visible_index_is_valid(src_descs[i],
                                                                                 src_coords_[i]);
 
-                src_vectors(i) = src_bufs[i].template Get<src_vector_t>(src_coords_[i].GetOffset(),
-                                                                        is_src_valid);
+                src_vectors(i).template AsType<src_vector_t>()(I0) =
+                    src_bufs[i].template Get<src_vector_t>(src_coords_[i].GetOffset(),
+                                                           is_src_valid);
             });
 
             // apply pointwise function
-            // FIXME: support tuple of arbitary size
             static_for<0, ScalarPerVector, 1>{}([&](auto i) {
-                using SrcData0 = remove_cvref_t<decltype(SrcDatas{}[I0])>;
-                using SrcData1 = remove_cvref_t<decltype(SrcDatas{}[I1])>;
-                using SrcData2 = remove_cvref_t<decltype(SrcDatas{}[I2])>;
+                // get reference to src data
+                const auto src_data_refs = generate_tie(
+                    // return type should be lvalue
+                    [&](auto iSrc) -> const auto& {
+                        using SrcData = remove_cvref_t<tuple_element_t<iSrc.value, SrcDatas>>;
 
-                using DstData0 = remove_cvref_t<decltype(DstDatas{}[I0])>;
+                        return src_vectors[iSrc].template AsType<SrcData>()[i];
+                    },
+                    Number<nSrc>{});
 
-                element_op_(dst_vectors(I0).template AsType<DstData0>()(i),
-                            src_vectors[I0].template AsType<SrcData0>()[i],
-                            src_vectors[I1].template AsType<SrcData1>()[i],
-                            src_vectors[I2].template AsType<SrcData2>()[i]);
+                // get reference to dst data
+                auto dst_data_refs = generate_tie(
+                    // return type should be lvalue
+                    [&](auto iDst) -> auto& {
+                        using DstData = remove_cvref_t<tuple_element_t<iDst.value, DstDatas>>;
+
+                        return dst_vectors(iDst).template AsType<DstData>()(i);
+                    },
+                    Number<nDst>{});
+
+                // apply pointwise function
+                // pointwise function signature:
+                // element_op_(dst_data_refs[I0],
+                //             dst_data_refs[I1],
+                //             ...,
+                //             src_data_refs[I0],
+                //             src_data_refs[I1],
+                //             ...)
+                unpack2(element_op_, dst_data_refs, src_data_refs);
             });
 
             // copy data from buf_vectors into dst_bufs
