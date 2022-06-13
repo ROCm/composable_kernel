@@ -1,5 +1,4 @@
-#ifndef CK_TUPLE_HPP
-#define CK_TUPLE_HPP
+#pragma once
 
 #include "integral_constant.hpp"
 #include "sequence.hpp"
@@ -25,9 +24,9 @@ struct TupleElementKeyData
     __host__ __device__ constexpr TupleElementKeyData() : mData{} {}
 #endif
 
-    template <
-        typename T,
-        typename enable_if<!is_same<remove_cvref_t<T>, TupleElementKeyData>::value, bool>::type = false>
+    template <typename T,
+              typename enable_if<!is_same<remove_cvref_t<T>, TupleElementKeyData>::value,
+                                 bool>::type = false>
     __host__ __device__ constexpr TupleElementKeyData(T&& v) : mData(std::forward<T>(v))
     {
     }
@@ -36,7 +35,8 @@ struct TupleElementKeyData
 };
 
 template <typename Key, typename Data>
-__host__ __device__ constexpr const Data& get_tuple_element_data(const TupleElementKeyData<Key, Data>& x)
+__host__ __device__ constexpr const Data&
+get_tuple_element_data(const TupleElementKeyData<Key, Data>& x)
 {
     return static_cast<const Data&>(x.mData);
 }
@@ -179,13 +179,13 @@ struct Tuple<>
     __host__ __device__ static constexpr bool IsStaticBuffer() { return true; }
 };
 
-template<index_t I, typename TTuple>
+template <index_t I, typename TTuple>
 struct tuple_element
 {
     using type = decltype(TTuple{}.At(Number<I>{}));
 };
 
-template<index_t I, typename TTuple>
+template <index_t I, typename TTuple>
 using tuple_element_t = typename tuple_element<I, TTuple>::type;
 
 template <typename... Xs>
@@ -202,4 +202,3 @@ constexpr Tuple<Args&...> tie(Args&... args) noexcept
 }
 
 } // namespace ck
-#endif

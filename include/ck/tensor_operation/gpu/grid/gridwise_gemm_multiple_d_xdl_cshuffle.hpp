@@ -7,7 +7,6 @@
 #include "tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "blockwise_gemm_xdlops.hpp"
 #include "thread_group_tensor_slice_transfer_v4r1.hpp"
-#include "thread_group_tensor_slice_transfer_v6r3.hpp"
 #include "thread_group_tensor_slice_transfer_v7.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 #include "gridwise_gemm_pipeline_v1.hpp"
@@ -124,7 +123,7 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
     {
         return generate_tuple(
             [&](auto i) {
-                using DDataType = remove_cvref_t<decltype(DsDataType{}.At(i))>;
+                using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
 
                 return static_cast<const DDataType*>(nullptr);
             },
@@ -543,8 +542,8 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
                     ck::tensor_operation::element_wise::PassThrough{}};
 
             // shuffle: blockwise copy C from LDS to global
-#if 1
-            auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v6r3<
+#if 0
+            auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v7<
                 ThisThreadBlock,            // ThreadGroup
                 CDEElementwiseOperation,    // ElementwiseOperation,
                 EGlobalMemoryDataOperation, // DstInMemOp,
@@ -588,11 +587,11 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
                          1,
                          CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
                 CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                Sequence<0, 1, 2, 3>,                       // typename ThreadClusterArrangeOrder,
-                FloatCShuffle,                              // typename Src0Data,
-                remove_cvref_t<decltype(DsDataType{}[I0])>, // typename Src1Data,
-                remove_cvref_t<decltype(DsDataType{}[I1])>, // typename Src2Data,
-                FloatE,                                     // typename DstData,
+                Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
+                FloatCShuffle,        // typename Src0Data,
+                remove_cvref_t<tuple_element_t<0, DsDataType>>, // typename Src1Data,
+                remove_cvref_t<tuple_element_t<1, DsDataType>>, // typename Src2Data,
+                FloatE,                                         // typename DstData,
                 decltype(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
                 decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock[I0]),
                 decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock[I1]),

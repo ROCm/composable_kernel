@@ -97,10 +97,10 @@ struct ThreadwiseTensorSliceTransfer_v7
         });
     }
 
-    // SrcDescs: Tuple<const SrcDesc0&, const SrcDesc1&, ...> 
-    // SrcBuffers: Tuple<const SrcBuffer0&, const SrcBuffer1&, ...> 
-    // DstDescs: Tuple<const DstDesc0&, const DstDesc1&, ...> 
-    // DstBuffers: Tuple<const DstBuffer0&, const DstBuffer1&, ...> 
+    // SrcDescs: Tuple<const SrcDesc0&, const SrcDesc1&, ...>
+    // SrcBuffers: Tuple<const SrcBuffer0&, const SrcBuffer1&, ...>
+    // DstDescs: Tuple<const DstDesc0&, const DstDesc1&, ...>
+    // DstBuffers: Tuple<const DstBuffer0&, const DstBuffer1&, ...>
     template <typename SrcBuffers,
               typename DstBuffers,
               enable_if_t<SrcDescs::Size() == SrcBuffers::Size() &&
@@ -109,16 +109,18 @@ struct ThreadwiseTensorSliceTransfer_v7
     __device__ void Run(const SrcDescs& src_descs,
                         const SrcBuffers& src_bufs,
                         const DstDescs& dst_descs,
-                        const DstBuffers& dst_bufs)
+                        DstBuffers dst_bufs)
     {
         auto generate_vectors = [&](auto data_types) {
             constexpr index_t num = data_types.Size();
 
-            return generate_tuple([&](auto i) {
-                using DataType = remove_cvref_t<decltype(data_types[i])>;
+            return generate_tuple(
+                [&](auto i) {
+                    using DataType = remove_cvref_t<decltype(data_types[i])>;
 
-                return vector_type_maker_t<DataType, ScalarPerVector>{};
-            }, Number<num>{});
+                    return vector_type_maker_t<DataType, ScalarPerVector>{};
+                },
+                Number<num>{});
         };
 
         constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
@@ -130,7 +132,7 @@ struct ThreadwiseTensorSliceTransfer_v7
 
             // copy data from src_bufs into src_vectors
             static_for<0, nSrc, 1>{}([&](auto i) {
-                using src_vector_t = remove_cvref_t<typename decltype(src_vectors[i])::type>;
+                using src_vector_t = typename remove_cvref_t<decltype(src_vectors[i])>::type;
 
                 const bool is_src_valid =
                     coordinate_has_valid_offset_assuming_visible_index_is_valid(src_descs[i],
@@ -149,7 +151,7 @@ struct ThreadwiseTensorSliceTransfer_v7
 
                 using DstData0 = remove_cvref_t<decltype(DstDatas{}[I0])>;
 
-                element_op_(dst_vectors[I0].template AsType<DstData0>()(i),
+                element_op_(dst_vectors(I0).template AsType<DstData0>()(i),
                             src_vectors[I0].template AsType<SrcData0>()[i],
                             src_vectors[I1].template AsType<SrcData1>()[i],
                             src_vectors[I2].template AsType<SrcData2>()[i]);
@@ -157,7 +159,7 @@ struct ThreadwiseTensorSliceTransfer_v7
 
             // copy data from buf_vectors into dst_bufs
             static_for<0, nDst, 1>{}([&](auto i) {
-                using dst_vector_t = typename remove_cv_t<decltype(dst_vectors[i])>::type;
+                using dst_vector_t = typename remove_cvref_t<decltype(dst_vectors[i])>::type;
 
                 const bool is_dst_valid =
                     coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_descs[i],
@@ -230,39 +232,53 @@ struct ThreadwiseTensorSliceTransfer_v7
     }
 
     // src_slice_origin_step_idx need to be known at compile-time, for performance reason
+    template <index_t ISrc>
     __device__ void MoveSrcSliceWindow(const SrcDescs& src_descs,
-                                       const Index& src_slice_origin_step_idx)
+                                       const Index& src_slice_origin_step_idx,
+                                       Number<ISrc> iSrc)
     {
-        static_for<0, nSrc, 1>{}([&](auto i) {
-            // if src coord was not reset by RunRead(), then need to adjust the step here
-            const auto adjusted_step_idx =
-                SrcResetCoordinateAfterRunFlags::At(i)
-                    ? src_slice_origin_step_idx
-                    : src_slice_origin_step_idx + GetCoordinateResetStep();
+        // if src coord was not reset by RunRead(), then need to adjust the step here
+        const auto adjusted_step_idx = SrcResetCoordinateAfterRunFlags::At(iSrc)
+                                           ? src_slice_origin_step_idx
+                                           : src_slice_origin_step_idx + GetCoordinateResetStep();
 
-            // is it OK to construct a new step every time?
-            const auto adjusted_step = make_tensor_coordinate_step(src_descs[i], adjusted_step_idx);
+        // is it OK to construct a new step every time?
+        const auto adjusted_step = make_tensor_coordinate_step(src_descs[iSrc], adjusted_step_idx);
 
-            move_tensor_coordinate(src_descs[i], src_coords_(i), adjusted_step);
-        });
+        move_tensor_coordinate(src_descs[iSrc], src_coords_(iSrc), adjusted_step);
     }
 
     // dst_slice_origin_step_idx need to be known at compile-time, for performance reason
+    template <index_t IDst>
     __device__ void MoveDstSliceWindow(const DstDescs& dst_descs,
-                                       const Index& dst_slice_origin_step_idx)
+                                       const Index& dst_slice_origin_step_idx,
+                                       Number<IDst> iDst)
     {
-        static_for<0, nDst, 1>{}([&](auto i) {
-            // if dst coord was not reset by Run(), then need to adjust the step here
-            const auto adjusted_step_idx =
-                DstResetCoordinateAfterRunFlags::At(i)
-                    ? dst_slice_origin_step_idx
-                    : dst_slice_origin_step_idx + GetCoordinateResetStep();
+        // if dst coord was not reset by Run(), then need to adjust the step here
+        const auto adjusted_step_idx = DstResetCoordinateAfterRunFlags::At(iDst)
+                                           ? dst_slice_origin_step_idx
+                                           : dst_slice_origin_step_idx + GetCoordinateResetStep();
 
-            // is it OK to construct a new step every time?
-            const auto adjusted_step = make_tensor_coordinate_step(dst_descs[i], adjusted_step_idx);
+        // is it OK to construct a new step every time?
+        const auto adjusted_step = make_tensor_coordinate_step(dst_descs[iDst], adjusted_step_idx);
 
-            move_tensor_coordinate(dst_descs[i], dst_coords_(i), adjusted_step);
-        });
+        move_tensor_coordinate(dst_descs[iDst], dst_coords_(iDst), adjusted_step);
+    }
+
+    // src_slice_origin_step_idx need to be known at compile-time, for performance reason
+    __device__ void MoveAllSrcSliceWindow(const SrcDescs& src_descs,
+                                          const Index& src_slice_origin_step_idx)
+    {
+        static_for<0, nSrc, 1>{}(
+            [&](auto i) { MoveSrcSliceWindow(src_descs, src_slice_origin_step_idx, i); });
+    }
+
+    // dst_slice_origin_step_idx need to be known at compile-time, for performance reason
+    __device__ void MoveAllDstSliceWindow(const DstDescs& dst_descs,
+                                          const Index& dst_slice_origin_step_idx)
+    {
+        static_for<0, nDst, 1>{}(
+            [&](auto i) { MoveDstSliceWindow(dst_descs, dst_slice_origin_step_idx, i); });
     }
 
     private:

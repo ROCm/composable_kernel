@@ -1,4 +1,5 @@
 #pragma once
+
 #include "common_header.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
@@ -34,6 +35,10 @@ template <typename ThreadGroup,
           bool ThreadTransferDstResetCoordinateAfterRun>
 struct ThreadGroupTensorSliceTransfer_v7
 {
+    static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
+    static constexpr auto I2 = Number<2>{};
+
     static constexpr index_t nDim = remove_reference_t<Src0Desc>::GetNumOfDimension();
 
     static constexpr auto thread_slice_lengths = SliceLengths{} / ThreadClusterLengths{};
@@ -106,11 +111,10 @@ struct ThreadGroupTensorSliceTransfer_v7
         if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
-            threadwise_transfer_.Run(
-                tie(src0_desc, src1_desc, src2_desc),
-                tie(src0_buf, src1_buf, src2_buf),
-                tie(dst_desc),
-                tie(dst_buf));
+            threadwise_transfer_.Run(tie(src0_desc, src1_desc, src2_desc),
+                                     tie(src0_buf, src1_buf, src2_buf),
+                                     tie(dst_desc),
+                                     tie(dst_buf));
         }
     }
 
@@ -119,7 +123,8 @@ struct ThreadGroupTensorSliceTransfer_v7
         if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
-            threadwise_transfer_.MoveSrc0SliceWindow(src0_desc, step);
+            threadwise_transfer_.MoveSrcSliceWindow(
+                tie(src0_desc, Src1Desc{}, Src2Desc{}), step, I0);
         }
     }
 
@@ -128,7 +133,8 @@ struct ThreadGroupTensorSliceTransfer_v7
         if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
-            threadwise_transfer_.MoveSrc1SliceWindow(src1_desc, step);
+            threadwise_transfer_.MoveSrcSliceWindow(
+                tie(Src0Desc{}, src1_desc, Src2Desc{}), step, I1);
         }
     }
 
@@ -137,7 +143,8 @@ struct ThreadGroupTensorSliceTransfer_v7
         if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
-            threadwise_transfer_.MoveSrc2SliceWindow(src2_desc, step);
+            threadwise_transfer_.MoveSrcSliceWindow(
+                tie(Src0Desc{}, Src1Desc{}, src2_desc), step, I2);
         }
     }
 
@@ -146,7 +153,7 @@ struct ThreadGroupTensorSliceTransfer_v7
         if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
-            threadwise_transfer_.MoveDstSliceWindow(dst_desc, step);
+            threadwise_transfer_.MoveDstSliceWindow(tie(dst_desc), step, I0);
         }
     }
 
@@ -154,26 +161,25 @@ struct ThreadGroupTensorSliceTransfer_v7
     static constexpr auto thread_cluster_desc_ =
         make_cluster_descriptor(ThreadClusterLengths{}, ThreadClusterArrangeOrder{});
 
-    using ThreadwiseTransfer =
-        ThreadwiseTensorSliceTransfer_v7<
-            Tuple<remove_cvref_t<Src0Data>, remove_cvref_t<Src1Data>, remove_cvref_t<Src2Data>>,
-            Tuple<remove_cvref_t<DstData>>,
-            Tuple<remove_reference_t<Src0Desc>&,
-                  remove_reference_t<Src1Desc>&,
-                  remove_reference_t<Src2Desc>&>,
-            Tuple<remove_reference_t<DstDesc>&>,
-            ElementwiseOperation,
-            decltype(thread_slice_lengths),
-            DimAccessOrder,
-            VectorDim,
-            ScalarPerVector,
-            Sequence<ThreadTransferSrc0ResetCoordinateAfterRun,
-                     ThreadTransferSrc1ResetCoordinateAfterRun,
-                     ThreadTransferSrc2ResetCoordinateAfterRun>,
-            Sequence<ThreadTransferDstResetCoordinateAfterRun>,
-            DstInMemOp>;
+    using ThreadwiseTransfer = ThreadwiseTensorSliceTransfer_v7<
+        Tuple<remove_cvref_t<Src0Data>, remove_cvref_t<Src1Data>, remove_cvref_t<Src2Data>>,
+        Tuple<remove_cvref_t<DstData>>,
+        Tuple<remove_reference_t<Src0Desc>&,
+              remove_reference_t<Src1Desc>&,
+              remove_reference_t<Src2Desc>&>,
+        Tuple<remove_reference_t<DstDesc>&>,
+        ElementwiseOperation,
+        decltype(thread_slice_lengths),
+        DimAccessOrder,
+        VectorDim,
+        ScalarPerVector,
+        Sequence<ThreadTransferSrc0ResetCoordinateAfterRun,
+                 ThreadTransferSrc1ResetCoordinateAfterRun,
+                 ThreadTransferSrc2ResetCoordinateAfterRun>,
+        Sequence<ThreadTransferDstResetCoordinateAfterRun>,
+        DstInMemOp>;
 
-        ThreadwiseTransfer threadwise_transfer_;
+    ThreadwiseTransfer threadwise_transfer_;
 };
 
 } // namespace ck
