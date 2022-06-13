@@ -24,13 +24,13 @@ template <typename SrcDatas,
           typename SrcDescs,
           typename DstDescs,
           typename ElementwiseOperation,
+          typename DstInMemOps, // Sequence<InMemoryDataOperationEnum ...>
           typename SliceLengths,
           typename DimAccessOrder,
           index_t VectorDim,
           index_t ScalarPerVector,
-          typename SrcResetCoordinateAfterRunFlags, // Sequence<...>
-          typename DstResetCoordinateAfterRunFlags, // Sequence<...>
-          InMemoryDataOperationEnum... DstInMemOps>
+          typename SrcResetCoordinateAfterRunFlags, // Sequence<bool ...>
+          typename DstResetCoordinateAfterRunFlags> // Sequence<bool ...>
 struct ThreadwiseTensorSliceTransfer_v7
 {
     static constexpr auto I0 = Number<0>{};
@@ -165,7 +165,8 @@ struct ThreadwiseTensorSliceTransfer_v7
                     coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_descs[i],
                                                                                 dst_coords_[i]);
 
-                constexpr auto DstInMemOp = make_tuple(DstInMemOps...)[i];
+                constexpr InMemoryDataOperationEnum DstInMemOp =
+                    static_cast<InMemoryDataOperationEnum>(DstInMemOps::At(i.value));
 
                 dst_bufs(i).template Update<DstInMemOp, dst_vector_t>(
                     dst_coords_[i].GetOffset(),

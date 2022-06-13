@@ -13,20 +13,20 @@ namespace ck {
 // 2. ThreadwiseTensorSliceTransfer_v3 does not keep reference to tensor descriptor
 // 3. ThreadwiseTensorSliceTransfer_v3::Run() does not construct new tensor coordinate
 template <typename ThreadGroup,
-          typename ElementwiseOperation,
-          typename SliceLengths,
-          typename ThreadClusterLengths,
-          typename ThreadClusterArrangeOrder,
           typename SrcDatas,
           typename DstDatas,
           typename SrcDescs,
           typename DstDescs,
+          typename ElementwiseOperation,
+          typename DstInMemOps, // Sequence<InMemoryDataOperationEnum ...>
+          typename SliceLengths,
+          typename ThreadClusterLengths,
+          typename ThreadClusterArrangeOrder,
           typename DimAccessOrder,
           index_t VectorDim,
           index_t ScalarPerVector,
           typename ThreadTransferSrcResetCoordinateAfterRunFlags,
-          typename ThreadTransferDstResetCoordinateAfterRunFlags,
-          InMemoryDataOperationEnum... DstInMemOps>
+          typename ThreadTransferDstResetCoordinateAfterRunFlags>
 struct ThreadGroupTensorSliceTransfer_v7
 {
     static constexpr index_t nDim =
@@ -147,13 +147,13 @@ struct ThreadGroupTensorSliceTransfer_v7
                                          SrcDescs,
                                          DstDescs,
                                          ElementwiseOperation,
+                                         DstInMemOps,
                                          decltype(thread_slice_lengths),
                                          DimAccessOrder,
                                          VectorDim,
                                          ScalarPerVector,
                                          ThreadTransferSrcResetCoordinateAfterRunFlags,
-                                         ThreadTransferDstResetCoordinateAfterRunFlags,
-                                         DstInMemOps...>;
+                                         ThreadTransferDstResetCoordinateAfterRunFlags>;
 
     ThreadwiseTransfer threadwise_transfer_;
 };

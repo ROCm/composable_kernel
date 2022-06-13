@@ -548,26 +548,27 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
                                         ds_grid_desc_mblock_mperblock_nblock_nperblock[I1]);
 
             auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v7<
-                ThisThreadBlock,         // ThreadGroup
-                CDEElementwiseOperation, // ElementwiseOperation,
-                Sequence<1,
-                         CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
-                         1,
-                         CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
-                CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
+                ThisThreadBlock, // ThreadGroup
                 Tuple<FloatCShuffle,
                       remove_cvref_t<tuple_element_t<0, DsDataType>>,
                       remove_cvref_t<tuple_element_t<1, DsDataType>>>,
                 Tuple<FloatE>, // typename DstData,
                 decltype(c_ds_descs),
                 decltype(tie(e_grid_desc_mblock_mperblock_nblock_nperblock)),
-                Sequence<0, 1, 2, 3>,                             // typename DimAccessOrder,
-                3,                                                // index_t VectorDim,
+                CDEElementwiseOperation,                                    // ElementwiseOperation,
+                Sequence<static_cast<index_t>(EGlobalMemoryDataOperation)>, // FIXME: make Sequence
+                                                                            // support arbitray type
+                Sequence<1,
+                         CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
+                         1,
+                         CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
+                CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+                Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
+                Sequence<0, 1, 2, 3>, // typename DimAccessOrder,
+                3,                    // index_t VectorDim,
                 CDEShuffleBlockTransferScalarPerVector_NPerBlock, // index_t ScalarPerVector,
                 Sequence<true, false, false>, // bool ThreadTransferSrcResetCoordinateAfterRunFlags
-                Sequence<false>,              // bool ThreadTransferDstResetCoordinateAfterRunFlags
-                EGlobalMemoryDataOperation>   // DstInMemOp,
+                Sequence<false>>              // bool ThreadTransferDstResetCoordinateAfterRunFlags
                 {c_ds_descs,
                  make_tuple(make_multi_index(0, 0, 0, 0),
                             make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
