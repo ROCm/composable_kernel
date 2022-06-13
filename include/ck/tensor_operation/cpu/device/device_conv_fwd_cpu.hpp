@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include "device_base_cpu.hpp"
+#include "convolution_forward_specialization_cpu.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -76,6 +77,24 @@ using DeviceConvFwdBiasActivationAddPtr =
     std::unique_ptr<DeviceConvFwdBiasActivationAdd<InElementwiseOperation,
                                                    WeiElementwiseOperation,
                                                    OutElementwiseOperation>>;
+
+struct DeviceConvFwdDynamicTunable
+{
+    ck::index_t m_per_block;
+    ck::index_t n_per_block;
+    ck::index_t k_per_block;
+
+    // ck::index_t m_per_thread;
+    // ck::index_t n_per_thread;
+
+    // bool use_a_local_buffer;
+    // bool use_b_local_buffer;
+    // bool use_c_local_buffer;
+
+    // ConvolutionForwardSpecialization_t  forward_spec;
+    // ConvolutionForwardGemmKSpecialization_t gemm_k_spec;
+    ConvolutionForwardBlockLoopOverSpecialization_t loop_over_spec;
+};
 
 } // namespace device
 } // namespace cpu

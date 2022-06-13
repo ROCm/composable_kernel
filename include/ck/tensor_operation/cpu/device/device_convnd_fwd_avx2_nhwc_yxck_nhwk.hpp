@@ -29,11 +29,7 @@ template <typename InDataType,
           typename OutElementwiseOperation,
           ConvolutionForwardSpecialization_t ConvForwardSpecialization,
           ConvolutionForwardGemmKSpecialization_t GemmKSpecialization,
-          ConvolutionForwardBlockLoopOverSpecialization_t BlockLoopOverSpecialization,
           ck::index_t NumDimSpatial,
-          ck::index_t MPerBlock, // block means data are designed to fit in cache (L1/L2/L3)
-          ck::index_t NPerBlock,
-          ck::index_t KPerBlock,
           ck::index_t MPerThread,
           ck::index_t NPerThread,
           bool UseALocalBuffer,
@@ -64,16 +60,11 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_Y_X_C_K_Output_N_Ho_Wo_K
 
     static constexpr bool NonTemporalStore = false;
 
-    static constexpr auto GetBlockMNKAccessOrder()
+    DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_Y_X_C_K_Output_N_Ho_Wo_K(
+        const DeviceConvFwdDynamicTunable& dtune)
+        : gridwise_gemm(dtune)
     {
-        if constexpr(BlockLoopOverSpecialization == DefaultBlockLoopOver ||
-                     BlockLoopOverSpecialization == LoopOver_MNK)
-            return ck::Sequence<0, 1, 2>{};
-        else if constexpr(BlockLoopOverSpecialization == LoopOver_MKN)
-            return ck::Sequence<0, 2, 1>{};
     }
-
-    using BlockMNKAccessOrder = decltype(GetBlockMNKAccessOrder());
 
     static constexpr auto GetThreadwiseGemm_Dispatch()
     {
@@ -514,7 +505,8 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_Y_X_C_K_Output_N_Ho_Wo_K
     {
         if constexpr(UseALocalBuffer)
         {
-            return make_naive_tensor_descriptor_packed(make_tuple(MPerBlock, KPerBlock));
+            // return make_naive_tensor_descriptor_packed(make_tuple(MPerBlock, KPerBlock));
+            return make_naive_tensor_descriptor_packed(make_tuple(0, 0));
         }
         else
         {
@@ -526,7 +518,8 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_Y_X_C_K_Output_N_Ho_Wo_K
     {
         if constexpr(UseBLocalBuffer)
         {
-            return make_naive_tensor_descriptor_packed(make_tuple(KPerBlock, NPerBlock));
+            // return make_naive_tensor_descriptor_packed(make_tuple(KPerBlock, NPerBlock));
+            return make_naive_tensor_descriptor_packed(make_tuple(0, 0));
         }
         else
         {
@@ -538,7 +531,8 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_Y_X_C_K_Output_N_Ho_Wo_K
     {
         if constexpr(UseCLocalBuffer)
         {
-            return make_naive_tensor_descriptor_packed(make_tuple(MPerBlock, NPerBlock));
+            // return make_naive_tensor_descriptor_packed(make_tuple(MPerBlock, NPerBlock));
+            return make_naive_tensor_descriptor_packed(make_tuple(0, 0));
         }
         else
         {
@@ -590,19 +584,17 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_Y_X_C_K_Output_N_Ho_Wo_K
                                       AElementwiseOperation,   // AElementwiseOperation,
                                       BElementwiseOperation,   // BElementwiseOperation,
                                       CElementwiseOperation,   // CElementwiseOperation,
-                                      MPerBlock,               // MPerBlock,
-                                      NPerBlock,               // NPerBlock,
-                                      KPerBlock,               // KPerBlock,
                                       ThreadwiseGemm_Dispatch, // ThreadwiseGemm_Dispatch,
                                       AThreadwiseCopy,         // AThreadwiseCopy
                                       BThreadwiseCopy,         // BThreadwiseCopy
                                       CThreadwiseCopy,         // CThreadwiseCopy
-                                      BlockMNKAccessOrder,     // BlockMNKAccessOrder,
                                       ck::Sequence<0, 1>,      // ThreadMNAccessOrder
                                       UseALocalBuffer,         // UseALocalBuffer
                                       UseBLocalBuffer,         // UseBLocalBuffer
                                       UseCLocalBuffer          // UseCLocalBuffer
                                       >;
+
+    GridwiseGemm gridwise_gemm;
 
     // Argument
     struct Argument : public BaseArgument
@@ -680,12 +672,15 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_Y_X_C_K_Output_N_Ho_Wo_K
     struct Invoker : public BaseInvoker
     {
         using Argument = DeviceOp::Argument;
+        GridwiseGemm gridwise_gemm;
+
+        Invoker(const GridwiseGemm& gridwise_gemm_) : gridwise_gemm(gridwise_gemm_) {}
 
         float Run(const Argument& arg,
                   const StreamConfig& stream_config = StreamConfig{},
                   int nrepeat                       = 1)
         {
-            if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_, arg.b_grid_desc_, arg.c_grid_desc_))
+            if(!gridwise_gemm.CheckValidity(arg.a_grid_desc_, arg.b_grid_desc_, arg.c_grid_desc_))
             {
                 throw std::runtime_error("wrong! GridwiseGemmAvx2_MxN has invalid setting");
             }
@@ -708,6 +703,7 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_Y_X_C_K_Output_N_Ho_Wo_K
             if(nrepeat != 1)
                 ave_time = launch_and_time_cpu_kernel(kernel,
                                                       nrepeat,
+                                                      gridwise_gemm,
                                                       arg.p_a_grid_,
                                                       arg.p_b_grid_,
                                                       arg.p_c_grid_,
@@ -723,6 +719,7 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_Y_X_C_K_Output_N_Ho_Wo_K
             memset(arg.p_c_grid_, 0, arg.c_grid_desc_.GetElementSpaceSize());
 
             launch_cpu_kernel(kernel,
+                              gridwise_gemm,
                               arg.p_a_grid_,
                               arg.p_b_grid_,
                               arg.p_c_grid_,
@@ -750,7 +747,7 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_Y_X_C_K_Output_N_Ho_Wo_K
         return true;
     }
 
-    static bool IsSupportedArgument(const Argument& arg)
+    bool IsSupportedArgument(const Argument& arg)
     {
         if constexpr(ConvForwardSpecialization ==
                      ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
@@ -781,7 +778,7 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_Y_X_C_K_Output_N_Ho_Wo_K
                      ConvForwardSpecialization !=
                          ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
         {
-            if(!(arg.Conv_C_ % KPerBlock == 0))
+            if(!(arg.Conv_C_ % gridwise_gemm.dynamic_tunable.k_per_block == 0))
                 return false;
         }
 
@@ -801,7 +798,7 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_Y_X_C_K_Output_N_Ho_Wo_K
         }
 
         // Gridwise GEMM size
-        return GridwiseGemm::CheckValidity(arg.a_grid_desc_, arg.b_grid_desc_, arg.c_grid_desc_);
+        return gridwise_gemm.CheckValidity(arg.a_grid_desc_, arg.b_grid_desc_, arg.c_grid_desc_);
     }
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override
@@ -844,7 +841,7 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_Y_X_C_K_Output_N_Ho_Wo_K
                         out_element_op};
     }
 
-    static auto MakeInvoker() { return Invoker{}; }
+    auto MakeInvoker() { return Invoker{gridwise_gemm}; }
 
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_in_grid,
@@ -884,7 +881,7 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_Y_X_C_K_Output_N_Ho_Wo_K
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
     {
-        return std::make_unique<Invoker>(Invoker{});
+        return std::make_unique<Invoker>(Invoker{gridwise_gemm});
     }
 
     std::string GetTypeString() const override
@@ -901,9 +898,8 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_Y_X_C_K_Output_N_Ho_Wo_K
             << "DFwdAvx2_NHWC_YXCK"
             <<"_FS"<< static_cast<int>(ConvForwardSpecialization)
             <<"_KS"<< static_cast<int>(GemmKSpecialization)
-            <<"_BS"<< static_cast<int>(BlockLoopOverSpecialization)
-            << "_BT" << MPerBlock << "x" << NPerBlock << "x" << KPerBlock
-            << "_TT" << MPerThread << "x" << NPerThread 
+            <<"_BS"<< static_cast<int>(gridwise_gemm.dynamic_tunable.loop_over_spec)
+            << "_BT" << gridwise_gemm.dynamic_tunable.m_per_block << "x" << gridwise_gemm.dynamic_tunable.n_per_block << "x" << gridwise_gemm.dynamic_tunable.k_per_block
             << "_A" << string_local_buffer(UseALocalBuffer)
             << "_B" << string_local_buffer(UseBLocalBuffer)
             << "_C" << string_local_buffer(UseCLocalBuffer)

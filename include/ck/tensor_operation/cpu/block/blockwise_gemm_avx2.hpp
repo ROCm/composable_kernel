@@ -18,8 +18,6 @@ template <typename FloatA,
           typename BBlockDesc,
           typename CDesc,
 
-          ck::index_t KPerBlock,
-
           typename ThreadwiseGemm_Dispatch,
           typename ThreadMNAccessOrder // how we acces gemm MN to utilize micro kernel
           >
@@ -83,8 +81,11 @@ struct BlockwiseGemmAvx2_MxN
         else
         {
             // N/8 * K * 8
-            return b_block_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<1>{}] *
-                   b_block_desc.GetTransforms()[Number<0>{}].GetUpperLengths()[Number<2>{}];
+            // return b_block_desc.GetTransforms()[Number<BBlockDesc::GetNumOfTransform() -
+            // 1>{}].GetUpperLengths()[Number<1>{}] *
+            //       b_block_desc.GetTransforms()[Number<BBlockDesc::GetNumOfTransform() -
+            //       1>{}].GetUpperLengths()[Number<2>{}];
+            return b_block_desc.GetLength(Number<1>{}) * b_block_desc.GetLength(Number<2>{});
         }
     }
 

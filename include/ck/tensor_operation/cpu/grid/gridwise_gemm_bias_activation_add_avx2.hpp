@@ -32,7 +32,8 @@ template <typename GridwiseGemm,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
-void kernel_gemm_bias_activation_add_avx_mxn(const FloatA* __restrict__ p_a_grid,
+void kernel_gemm_bias_activation_add_avx_mxn(const GridwiseGemm& gridwise_gemm,
+                                             const FloatA* __restrict__ p_a_grid,
                                              const FloatB* __restrict__ p_b_grid,
                                              FloatC* __restrict__ p_c_grid,
                                              const FloatC0* __restrict__ p_c0_grid,
@@ -46,7 +47,7 @@ void kernel_gemm_bias_activation_add_avx_mxn(const FloatA* __restrict__ p_a_grid
                                              const BElementwiseOperation& b_element_op,
                                              const CElementwiseOperation& c_element_op)
 {
-    GridwiseGemm::Run(p_a_grid,
+    gridwise_gemm.Run(p_a_grid,
                       p_b_grid,
                       p_c_grid,
                       p_c0_grid,
@@ -74,14 +75,10 @@ template <typename FloatA,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          ck::index_t MPerBlock, // block means data are designed to fit in cache (L1/L2/L3)
-          ck::index_t NPerBlock,
-          ck::index_t KPerBlock,
           typename ThreadwiseGemm_Dispatch,
           typename AThreadwiseCopy,
           typename BThreadwiseCopy,
           typename CThreadwiseCopy,
-          typename BlockMNKAccessOrder, // how we accss gemm MNK to better fit in cache
           typename ThreadMNAccessOrder, // how we acces gemm MN to utilize micro kernel
           bool UseALocalBuffer,
           bool UseBLocalBuffer,
@@ -91,11 +88,18 @@ template <typename FloatA,
           >
 struct GridwiseGemmBiasActivationAddAvx2_MxN
 {
+    ck::tensor_operation::cpu::device::DeviceConvFwdDynamicTunable dynamic_tunable;
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
 
     // static constexpr auto Avx2RegisterVector = 8;   // 8 floats
     static constexpr index_t MemAlignmentByte = 32; // 256bit
+
+    GridwiseGemmBiasActivationAddAvx2_MxN(
+        const ck::tensor_operation::cpu::device::DeviceConvFwdDynamicTunable dynamic_tunable_)
+        : dynamic_tunable(dynamic_tunable_)
+    {
+    }
 
     static auto GetABlockDescriptor(const ck::index_t m_per_blk,
                                     const ck::index_t k_per_blk,
@@ -254,16 +258,20 @@ struct GridwiseGemmBiasActivationAddAvx2_MxN
         return ck::make_multi_index(i_m, i_n);
     }
 
-    static constexpr bool CheckValidity(const AGridDesc& a_grid_desc,
-                                        const BGridDesc& b_grid_desc,
-                                        const CGridDesc& c_grid_desc)
+    bool CheckValidity(const AGridDesc& a_grid_desc,
+                       const BGridDesc& b_grid_desc,
+                       const CGridDesc& c_grid_desc)
     {
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         bool is_valid    = true;
         const auto GemmN = c_grid_desc.GetLength(I1);
         if constexpr(UseCLocalBuffer)
         {
-            if(std::is_same<BlockMNKAccessOrder, ck::Sequence<0, 2, 1>>::value && NPerBlock < GemmN)
+            if(dynamic_tunable.loop_over_spec ==
+                   ck::tensor_operation::cpu::device::
+                       ConvolutionForwardBlockLoopOverSpecialization_t::LoopOver_MKN &&
+               dynamic_tunable.n_per_block < GemmN)
+
                 is_valid &= false;
         }
         else
@@ -275,23 +283,23 @@ struct GridwiseGemmBiasActivationAddAvx2_MxN
         return is_valid;
     }
 
-    static void Run(const FloatA* __restrict__ p_a_grid,
-                    const FloatB* __restrict__ p_b_grid,
-                    FloatC* __restrict__ p_c_grid,
-                    const FloatC0* __restrict__ p_c0_grid,
-                    const FloatC1* __restrict__ p_c1_grid,
-                    const AGridDesc& a_grid_desc,
-                    const BGridDesc& b_grid_desc,
-                    const CGridDesc& c_grid_desc,
-                    const C0GridDesc& c0_grid_desc,
-                    const C1GridDesc& c1_grid_desc,
-                    const AElementwiseOperation& a_element_op,
-                    const BElementwiseOperation& b_element_op,
-                    const CElementwiseOperation& c_element_op)
+    void Run(const FloatA* __restrict__ p_a_grid,
+             const FloatB* __restrict__ p_b_grid,
+             FloatC* __restrict__ p_c_grid,
+             const FloatC0* __restrict__ p_c0_grid,
+             const FloatC1* __restrict__ p_c1_grid,
+             const AGridDesc& a_grid_desc,
+             const BGridDesc& b_grid_desc,
+             const CGridDesc& c_grid_desc,
+             const C0GridDesc& c0_grid_desc,
+             const C1GridDesc& c1_grid_desc,
+             const AElementwiseOperation& a_element_op,
+             const BElementwiseOperation& b_element_op,
+             const CElementwiseOperation& c_element_op) const
     {
-        ck::index_t m_per_block = MPerBlock;
-        ck::index_t n_per_block = NPerBlock;
-        ck::index_t k_per_block = KPerBlock;
+        ck::index_t m_per_block = dynamic_tunable.m_per_block;
+        ck::index_t n_per_block = dynamic_tunable.n_per_block;
+        ck::index_t k_per_block = dynamic_tunable.k_per_block;
 
         const auto GemmM = c_grid_desc.GetLength(I0);
         const auto GemmN = c_grid_desc.GetLength(I1);
@@ -323,7 +331,6 @@ struct GridwiseGemmBiasActivationAddAvx2_MxN
             decltype(GetABlockDescriptor(m_per_block, k_per_block, a_grid_desc)), // ABlockDesc,
             decltype(GetBBlockDescriptor(k_per_block, n_per_block, b_grid_desc)), // BBlockDesc,
             decltype(GetCBlockDescriptor(m_per_block, n_per_block, c_grid_desc)), // CBlockDesc,
-            KPerBlock,                                                            // KPerBlock,
             ThreadwiseGemm_Dispatch, // ThreadwiseGemm_Dispatch,
             ThreadMNAccessOrder>{};  // ThreadMNAccessOrder  // how we acces
                                      // gemm MN to utilize micro kernel>{};
@@ -349,7 +356,10 @@ struct GridwiseGemmBiasActivationAddAvx2_MxN
 
         // TODO: openmp aware ordering
         //
-        if constexpr(std::is_same<BlockMNKAccessOrder, ck::Sequence<0, 1, 2>>::value)
+
+        if(dynamic_tunable.loop_over_spec ==
+           ck::tensor_operation::cpu::device::ConvolutionForwardBlockLoopOverSpecialization_t::
+               LoopOver_MNK)
         {
             auto a_move_k_step = GetAIndex(0, k_per_block);
             auto b_move_k_step = GetBIndex(k_per_block, 0);
@@ -505,7 +515,9 @@ struct GridwiseGemmBiasActivationAddAvx2_MxN
                 }
             }
         }
-        else if constexpr(std::is_same<BlockMNKAccessOrder, ck::Sequence<0, 2, 1>>::value)
+        else if(dynamic_tunable.loop_over_spec ==
+                ck::tensor_operation::cpu::device::ConvolutionForwardBlockLoopOverSpecialization_t::
+                    LoopOver_MKN)
         {
             auto a_move_k_step = GetAIndex(0, k_per_block);
             auto b_move_k_step = GetBIndex(0, n_per_block);
