@@ -111,7 +111,7 @@ template <index_t BlockSize,
           index_t CShuffleNRepeatPerShuffle,
           index_t CBlockTransferScalarPerVector_NWaveNPerXDL,
           typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-          index_t NumGemmKPrefetchStage = 2>
+          index_t NumGemmKPrefetchStage = 3>
 struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 {
     static constexpr auto I0 = Number<0>{};

@@ -162,6 +162,10 @@ int main(int argc, char* argv[])
     auto b_element_op = BElementOp{};
     auto c_element_op = CElementOp{};
 
+    std::cout << "a device buf: " << a_m_k_device_buf.GetDeviceBuffer() << std::endl;
+    std::cout << "b device buf: " << b_k_n_device_buf.GetDeviceBuffer() << std::endl;
+    std::cout << "c device buf: " << c_m_n_device_buf.GetDeviceBuffer() << std::endl;
+
     // do GEMM
     auto gemm     = DeviceGemmInstance{};
     auto invoker  = gemm.MakeInvoker();
