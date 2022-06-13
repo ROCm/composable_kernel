@@ -43,61 +43,38 @@ template <typename GridwiseReduction,
           typename InDataType,
           typename OutDataType,
           typename AccDataType,
-          typename IndexDataType,
-          typename InGridDesc_M_K,
-          typename OutGridDesc_M,
+          typename ScalarDataType,
+          typename GridDesc_M_K,
           typename InElementwiseOperation,
           typename AccElementwiseOperation>
-__global__ void kernel_softmax(const InGridDesc_M_K in_grid_desc_m_k,
-                                         const OutGridDesc_M out_grid_desc_m,
-                                         const InElementwiseOperation in_elementwise_op,
-                                         const AccElementwiseOperation acc_elementwise_op,
-                                         index_t block_group_size,
-                                         index_t num_k_block_tile_iteration,
-                                         AccDataType alpha,
-                                         const InDataType* const __restrict__ p_in_value_global,
-                                         const IndexDataType* const __restrict__ p_in_index_global,
-                                         AccDataType beta,
-                                         OutDataType* const __restrict__ p_out_value_global,
-                                         IndexDataType* const __restrict__ p_out_index_global)
+__global__ void kernel_softmax(const GridDesc_M_K in_grid_desc_m_k,
+                               const GridDesc_M_K out_grid_desc_m_k,
+                               const InElementwiseOperation in_elementwise_op,
+                               const AccElementwiseOperation acc_elementwise_op,
+                               index_t block_group_size,
+                               index_t num_k_block_tile_iteration,
+                               ScalarDataType alpha,
+                               const InDataType* const __restrict__ p_in_value_global,
+                               ScalarDataType beta,
+                               OutDataType* const __restrict__ p_out_value_global)
 {
-    if constexpr(!OutputIndex)
-    {
-        (void)p_in_index_global;
-        (void)p_out_index_global;
-
-        GridwiseReduction::Run(in_grid_desc_m_k,
-                               out_grid_desc_m,
-                               in_elementwise_op,
-                               acc_elementwise_op,
-                               block_group_size,
-                               num_k_block_tile_iteration,
-                               alpha,
-                               p_in_value_global,
-                               beta,
-                               p_out_value_global);
-    }
-    else
-    {
-        GridwiseReduction::template RunWithIndex<HaveIndexInput>(in_grid_desc_m_k,
-                                                                 out_grid_desc_m,
-                                                                 in_elementwise_op,
-                                                                 acc_elementwise_op,
-                                                                 num_k_block_tile_iteration,
-                                                                 alpha,
-                                                                 p_in_value_global,
-                                                                 p_in_index_global,
-                                                                 beta,
-                                                                 p_out_value_global,
-                                                                 p_out_index_global);
-    };
+    GridwiseReduction::Run(in_grid_desc_m_k,
+                           out_grid_desc_m_k,
+                           in_elementwise_op,
+                           acc_elementwise_op,
+                           block_group_size,
+                           num_k_block_tile_iteration,
+                           alpha,
+                           p_in_value_global,
+                           beta,
+                           p_out_value_global);
 };
 
 template <typename InDataType,
           typename OutDataType,
           typename AccDataType,
-          typename InGridDesc_M_K,
-          typename OutGridDesc_M,
+          typename ScalarDataType,
+          typename GridDesc_M_K,
           typename InElementwiseOperation,
           typename AccElementwiseOperation,
           bool PropagateNan,
@@ -109,16 +86,14 @@ template <typename InDataType,
           index_t InSrcVectorDim,
           index_t InSrcVectorSize,
           index_t OutDstVectorSize>
-struct GridwiseSoftmax_mk_to_m
+struct GridwiseSoftmax_mk_to_mk
 {
     static_assert(((InSrcVectorDim == 0 && MThreadSliceSize % InSrcVectorSize == 0) ||
                    (InSrcVectorDim == 1 && KThreadSliceSize % InSrcVectorSize == 0)) &&
-                      (MThreadSliceSize % OutDstVectorSize == 0),
+                      (KThreadSliceSize % OutDstVectorSize == 0),
                   "Invalid thread slice sizes and/or vector sizes configuration, please check!");
 
     static constexpr bool reorder_thread_cluster = (InSrcVectorDim == 0);
-
-    using ReduceOperation = reduce::Add<AccDataType>;
 
     using ThreadClusterLengths_M_K = Sequence<MThreadClusterSize, KThreadClusterSize>;
 
@@ -136,18 +111,31 @@ struct GridwiseSoftmax_mk_to_m
     using ThreadReduceDstDesc_M =
         decltype(make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{})));
 
-    using BlockwiseReduce = PartitionedBlockwiseReduction<AccDataType,
-                                                          BlockSize,
-                                                          ThreadClusterLengths_M_K,
-                                                          ThreadClusterArrangeOrder,
-                                                          ReduceOperation,
-                                                          PropagateNan>;
+    using BlockwiseMaxReduce = PartitionedBlockwiseReduction<AccDataType,
+                                                             BlockSize,
+                                                             ThreadClusterLengths_M_K,
+                                                             ThreadClusterArrangeOrder,
+                                                             reduce::Max<AccDataType>,
+                                                             PropagateNan>;
 
-    using ThreadwiseReduce = ThreadwiseReduction<AccDataType,
-                                                 ThreadReduceSrcDesc_M_K,
-                                                 ThreadReduceDstDesc_M,
-                                                 ReduceOperation,
-                                                 PropagateNan>;
+    using ThreadwiseMaxReduce = ThreadwiseReduction<AccDataType,
+                                                    ThreadReduceSrcDesc_M_K,
+                                                    ThreadReduceDstDesc_M,
+                                                    reduce::Max<AccDataType>,
+                                                    PropagateNan>;
+
+    using BlockwiseSumReduce = PartitionedBlockwiseReduction<AccDataType,
+                                                             BlockSize,
+                                                             ThreadClusterLengths_M_K,
+                                                             ThreadClusterArrangeOrder,
+                                                             reduce::Add<AccDataType>,
+                                                             PropagateNan>;
+
+    using ThreadwiseSumReduce = ThreadwiseReduction<AccDataType,
+                                                    ThreadReduceSrcDesc_M_K,
+                                                    ThreadReduceDstDesc_M,
+                                                    reduce::Add<AccDataType>,
+                                                    PropagateNan>;
 
     using PassThroughOp = tensor_operation::element_wise::PassThrough;
 
@@ -157,30 +145,22 @@ struct GridwiseSoftmax_mk_to_m
     static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
-    using Accumulation = detail::AccumulateWithNanCheck<PropagateNan, ReduceOperation, AccDataType>;
-
-    __device__ static void Run(const InGridDesc_M_K& in_grid_desc_m_k,
-                               const OutGridDesc_M& out_grid_desc_m,
-                               const InElementwiseOperation& in_elementwise_op,
-                               const AccElementwiseOperation& acc_elementwise_op,
+    __device__ static void Run(const GridDesc_M_K& in_grid_desc_m_k,
+                               const GridDesc_M_K& out_grid_desc_m_k,
+                               const InElementwiseOperation& /* in_elementwise_op */,
+                               const AccElementwiseOperation& /* acc_elementwise_op */,
                                index_t block_group_size,
                                index_t num_k_block_tile_iteration,
-                               AccDataType alpha,
+                               ScalarDataType alpha,
                                const InDataType* const __restrict__ p_in_value_global,
-                               AccDataType beta,
+                               ScalarDataType /* beta */,
                                OutDataType* const __restrict__ p_out_value_global)
     {
-        const auto zeroVal = ReduceOperation::GetReductionZeroVal();
-
         // LDS
         __shared__ AccDataType p_reduce_work_buffer[BlockSize];
 
-        const auto in_global_val_buf =
-            make_dynamic_buffer<AddressSpaceEnum::Global>(p_in_value_global,
-                                                          in_grid_desc_m_k.GetElementSpaceSize(),
-                                                          type_convert<InDataType>(zeroVal));
         auto out_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_out_value_global, out_grid_desc_m.GetElementSpaceSize());
+            p_out_value_global, out_grid_desc_m_k.GetElementSpaceSize());
 
         auto reduce_work_buf =
             make_dynamic_buffer<AddressSpaceEnum::Lds>(p_reduce_work_buffer, BlockSize);
@@ -188,9 +168,15 @@ struct GridwiseSoftmax_mk_to_m
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
             in_thread_buf;
 
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> max_value_buf;
+
+        static_for<0, MThreadSliceSize, 1>{}(
+            [&](auto I) { max_value_buf(I) = reduce::Max<AccDataType>::GetReductionZeroVal(); });
+
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> accu_value_buf;
 
-        static_for<0, MThreadSliceSize, 1>{}([&](auto I) { accu_value_buf(I) = zeroVal; });
+        static_for<0, MThreadSliceSize, 1>{}(
+            [&](auto I) { accu_value_buf(I) = reduce::Add<AccDataType>::GetReductionZeroVal(); });
 
         const index_t thread_local_id = get_thread_local_1d_id();
         const index_t block_global_id = get_block_1d_id();
@@ -211,7 +197,7 @@ struct GridwiseSoftmax_mk_to_m
 
         auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2<InDataType,
                                                                     AccDataType,
-                                                                    InGridDesc_M_K,
+                                                                    GridDesc_M_K,
                                                                     decltype(thread_buffer_desc),
                                                                     ThreadBufferLengths,
                                                                     ThreadBufferDimAccessOrder,
@@ -224,9 +210,86 @@ struct GridwiseSoftmax_mk_to_m
                              block_local_id * reduceSizePerBlock +
                                  thread_k_cluster_id * KThreadSliceSize));
 
-        constexpr auto in_thread_copy_step = make_multi_index(0, K_BlockTileSize);
+        auto threadwise_dst_load = ThreadwiseTensorSliceTransfer_v2<OutDataType,
+                                                                    AccDataType,
+                                                                    GridDesc_M_K,
+                                                                    decltype(thread_buffer_desc),
+                                                                    ThreadBufferLengths,
+                                                                    ThreadBufferDimAccessOrder,
+                                                                    InSrcVectorDim,
+                                                                    InSrcVectorSize,
+                                                                    1,
+                                                                    false>(
+            out_grid_desc_m_k,
+            make_multi_index(blkgroup_id * M_BlockTileSize + thread_m_cluster_id * MThreadSliceSize,
+                             block_local_id * reduceSizePerBlock +
+                                 thread_k_cluster_id * KThreadSliceSize));
 
+        auto threadwise_dst_store =
+            ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
+                                               OutDataType,
+                                               decltype(thread_buffer_desc),
+                                               GridDesc_M_K,
+                                               PassThroughOp,
+                                               ThreadBufferLengths,
+                                               ThreadBufferDimAccessOrder,
+                                               InSrcVectorDim, // FIXME: pass in OutDstVectorDim
+                                               OutDstVectorSize,
+                                               InMemoryDataOperationEnum::Set,
+                                               1,
+                                               true>(
+                out_grid_desc_m_k,
+                make_multi_index(
+                    blkgroup_id * M_BlockTileSize + thread_m_cluster_id * MThreadSliceSize,
+                    block_local_id * reduceSizePerBlock + thread_k_cluster_id * KThreadSliceSize),
+                PassThroughOp{});
+
+        constexpr auto in_thread_copy_fwd_step = make_multi_index(0, K_BlockTileSize);
+        constexpr auto in_thread_copy_bwd_step = make_multi_index(0, -K_BlockTileSize);
+
+        ///
+        /// max(x)
+        ///
+        const auto in_global_val_buf_oob_non_zero =
+            make_dynamic_buffer<AddressSpaceEnum::Global>(p_in_value_global,
+                                                          in_grid_desc_m_k.GetElementSpaceSize(),
+                                                          reduce::Max<InDataType>::GetReductionZeroVal());
         index_t reducedTiles = 0;
+        do
+        {
+            threadwise_src_load.Run(in_grid_desc_m_k,
+                                    in_global_val_buf_oob_non_zero,
+                                    thread_buffer_desc,
+                                    make_tuple(I0, I0),
+                                    in_thread_buf);
+
+            ThreadwiseMaxReduce::Reduce(in_thread_buf, max_value_buf);
+
+            threadwise_src_load.MoveSrcSliceWindow(in_grid_desc_m_k, in_thread_copy_fwd_step);
+
+            reducedTiles++;
+        } while(reducedTiles < num_k_block_tile_iteration);
+
+        static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
+            BlockwiseMaxReduce::Reduce(reduce_work_buf, max_value_buf(I));
+            // block_sync_lds();
+        });
+
+        threadwise_src_load.MoveSrcSliceWindow(in_grid_desc_m_k, in_thread_copy_bwd_step);
+
+        ///
+        /// sum(exp(x - max(x)))
+        ///
+        static_for<0, MThreadSliceSize, 1>{}(
+            [&](auto I) { accu_value_buf(I) = reduce::Add<AccDataType>::GetReductionZeroVal(); });
+
+        const auto in_global_val_buf =
+            make_dynamic_buffer<AddressSpaceEnum::Global>(p_in_value_global,
+                                                          in_grid_desc_m_k.GetElementSpaceSize(),
+                                                          reduce::Add<InDataType>::GetReductionZeroVal());
+
+        // block_sync_lds(); // ensure reduced values are properly loaded
+        reducedTiles = 0;
         do
         {
             threadwise_src_load.Run(in_grid_desc_m_k,
@@ -239,91 +302,115 @@ struct GridwiseSoftmax_mk_to_m
                 // do element-wise pre-reduction operation
                 static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
                     constexpr auto offset = thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
-                    in_elementwise_op(in_thread_buf(Number<offset>{}),
-                                      in_thread_buf(Number<offset>{}));
+                    in_thread_buf(Number<offset>{}) = __expf(in_thread_buf(Number<offset>{}) - max_value_buf(iM));
                 });
             });
 
-            ThreadwiseReduce::Reduce(in_thread_buf, accu_value_buf);
+            ThreadwiseSumReduce::Reduce(in_thread_buf, accu_value_buf);
 
-            threadwise_src_load.MoveSrcSliceWindow(in_grid_desc_m_k, in_thread_copy_step);
+            threadwise_src_load.MoveSrcSliceWindow(in_grid_desc_m_k, in_thread_copy_bwd_step);
 
             reducedTiles++;
         } while(reducedTiles < num_k_block_tile_iteration);
 
-        constexpr auto reduced_data_desc = ThreadReduceDstDesc_M{};
-
-        static_for<0, MThreadSliceSize, 1>{}(
-            [&](auto I) { BlockwiseReduce::Reduce(reduce_work_buf, accu_value_buf(I)); });
-
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-            if(thread_k_cluster_id == 0)
-            {
-                acc_elementwise_op(accu_value_buf(I), accu_value_buf(I));
-
-                accu_value_buf(I) *= alpha;
-            }
+            BlockwiseSumReduce::Reduce(reduce_work_buf, accu_value_buf(I));
+            // block_sync_lds();
         });
 
-        if(thread_k_cluster_id == 0)
+        threadwise_src_load.MoveSrcSliceWindow(in_grid_desc_m_k, in_thread_copy_fwd_step);
+
+        ///
+        /// softmax
+        ///
+        block_sync_lds(); // ensure reduced values are properly loaded
+        reducedTiles = 0;
+        do
         {
-            if(block_group_size == 0 && !float_equal_zero{}(beta))
-            {
-                StaticBuffer<AddressSpaceEnum::Vgpr, OutDataType, MThreadSliceSize, true>
-                    priorDstValueBuf;
+            // TODO ANT: load dst tensor for alpha/beta linear combination
+            threadwise_src_load.Run(in_grid_desc_m_k,
+                                    in_global_val_buf,
+                                    thread_buffer_desc,
+                                    make_tuple(I0, I0),
+                                    in_thread_buf);
 
-                auto threadwise_dst_load =
-                    ThreadwiseTensorSliceTransfer_v2<OutDataType,
-                                                     OutDataType,
-                                                     OutGridDesc_M,
-                                                     decltype(reduced_data_desc),
-                                                     Sequence<MThreadSliceSize>,
-                                                     Sequence<0>,
-                                                     0,
-                                                     OutDstVectorSize,
-                                                     1,
-                                                     false>(
-                        out_grid_desc_m,
-                        make_multi_index(blkgroup_id * M_BlockTileSize +
-                                         thread_m_cluster_id * MThreadSliceSize));
-
-                threadwise_dst_load.Run(out_grid_desc_m,
-                                        out_global_val_buf,
-                                        reduced_data_desc,
-                                        make_tuple(I0),
-                                        priorDstValueBuf);
-
-                static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-                    accu_value_buf(I) += type_convert<AccDataType>(priorDstValueBuf[I]) * beta;
+            static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
+                // exp(x - max(x)) / sum(exp(x - max(x)))
+                static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
+                    constexpr auto offset = thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
+                    in_thread_buf(Number<offset>{}) =
+                        static_cast<AccDataType>(alpha) *
+                        __expf(in_thread_buf(Number<offset>{}) - max_value_buf(iM)) /
+                        accu_value_buf(iM);
                 });
-            };
+            });
 
-            auto threadwise_dst_store =
-                ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
-                                                   OutDataType,
-                                                   decltype(reduced_data_desc),
-                                                   OutGridDesc_M,
-                                                   PassThroughOp,
-                                                   Sequence<MThreadSliceSize>,
-                                                   Sequence<0>,
-                                                   0,
-                                                   OutDstVectorSize,
-                                                   InMemoryDataOperationEnum::Set,
-                                                   1,
-                                                   true>(
-                    out_grid_desc_m,
-                    make_multi_index(blkgroup_id * M_BlockTileSize +
-                                     thread_m_cluster_id * MThreadSliceSize),
-                    PassThroughOp{});
+            threadwise_dst_store.Run(thread_buffer_desc, make_tuple(I0, I0), in_thread_buf, out_grid_desc_m_k, out_global_val_buf);
 
-            threadwise_dst_store.Run(reduced_data_desc,
-                                     make_tuple(I0),
-                                     accu_value_buf,
-                                     out_grid_desc_m,
-                                     out_global_val_buf);
-        }
-    };
+            threadwise_src_load.MoveSrcSliceWindow(in_grid_desc_m_k, in_thread_copy_fwd_step);
+            threadwise_dst_store.MoveDstSliceWindow(out_grid_desc_m_k, in_thread_copy_fwd_step);
 
+            reducedTiles++;
+        } while(reducedTiles < num_k_block_tile_iteration);
+
+    //     if(thread_k_cluster_id == 0)
+    //     {
+    //         if(block_group_size == 0 && !float_equal_zero{}(beta))
+    //         {
+    //             StaticBuffer<AddressSpaceEnum::Vgpr, OutDataType, MThreadSliceSize, true>
+    //                 priorDstValueBuf;
+
+    //             auto threadwise_dst_load =
+    //                 ThreadwiseTensorSliceTransfer_v2<OutDataType,
+    //                                                  OutDataType,
+    //                                                  OutGridDesc_M,
+    //                                                  decltype(reduced_data_desc),
+    //                                                  Sequence<MThreadSliceSize>,
+    //                                                  Sequence<0>,
+    //                                                  0,
+    //                                                  OutDstVectorSize,
+    //                                                  1,
+    //                                                  false>(
+    //                     out_grid_desc_m_k,
+    //                     make_multi_index(blkgroup_id * M_BlockTileSize +
+    //                                      thread_m_cluster_id * MThreadSliceSize));
+
+    //             threadwise_dst_load.Run(out_grid_desc_m_k,
+    //                                     out_global_val_buf,
+    //                                     reduced_data_desc,
+    //                                     make_tuple(I0),
+    //                                     priorDstValueBuf);
+
+    //             static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
+    //                 accu_value_buf(I) += type_convert<AccDataType>(priorDstValueBuf[I]) * beta;
+    //             });
+    //         };
+
+    //         auto threadwise_dst_store =
+    //             ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
+    //                                                OutDataType,
+    //                                                decltype(reduced_data_desc),
+    //                                                OutGridDesc_M,
+    //                                                PassThroughOp,
+    //                                                Sequence<MThreadSliceSize>,
+    //                                                Sequence<0>,
+    //                                                0,
+    //                                                OutDstVectorSize,
+    //                                                InMemoryDataOperationEnum::Set,
+    //                                                1,
+    //                                                true>(
+    //                 out_grid_desc_m_k,
+    //                 make_multi_index(blkgroup_id * M_BlockTileSize +
+    //                                  thread_m_cluster_id * MThreadSliceSize),
+    //                 PassThroughOp{});
+
+    //         threadwise_dst_store.Run(reduced_data_desc,
+    //                                  make_tuple(I0),
+    //                                  accu_value_buf,
+    //                                  out_grid_desc_m_k,
+    //                                  out_global_val_buf);
+    //     }
+    }
 };
 
 } // namespace ck

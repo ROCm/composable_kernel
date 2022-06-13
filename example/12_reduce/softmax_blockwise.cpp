@@ -25,6 +25,7 @@ using namespace ck::tensor_operation::device;
 using InDataType  = ck::half_t;
 using OutDataType = float;
 using AccDataType = float;
+using ScalarDataType = float;
 
 constexpr int Rank         = 3;
 constexpr int NumReduceDim = 1;
@@ -41,6 +42,7 @@ using AccElementwiseOperation =
 using DeviceInstance = DeviceSoftmax<InDataType,
                                      AccDataType,
                                      OutDataType,
+                                     ScalarDataType,
                                      Rank,
                                      NumReduceDim,
                                      PropagateNan,
@@ -205,9 +207,8 @@ int main(int argc, char* argv[])
             for(size_t i = 0; i < out_ref.mDesc.GetElementSpace(); i++)
                 out.mData[i] = out_ref.mData[i];
     };
-
+    std::cout << "beta = " << beta << std::endl;
     LogRangeAsType<float>(std::cout << "tensor in: " , in.mData, ",") << std::endl;
-    LogRangeAsType<float>(std::cout << "tensor out: " , out.mData, ",") << std::endl;
 
     // these buffers are usually provided by the user application
     DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpace());
@@ -282,6 +283,7 @@ int main(int argc, char* argv[])
     if(args.do_verification)
     {
         out_dev.FromDevice(out.mData.data());
+        LogRangeAsType<float>(std::cout << "tensor out: " , out.mData, ",") << std::endl;
         pass = pass && ck::utils::check_err(out.mData, out_ref.mData);
     };
 

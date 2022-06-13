@@ -21,6 +21,7 @@ namespace device {
 template <typename InDataType,
           typename AccDataType,
           typename OutDataType,
+          typename ScalarDataType,
           index_t Rank,
           index_t NumReduceDim,
           bool PropagateNan,
@@ -97,14 +98,13 @@ struct DeviceSoftmax : public DeviceReduceMultiBlock<InDataType,
     using Base::K_BlockTileSize;
     using Base::M_BlockTileSize;
 
-    using InGridDesc_M_K = decltype(Base::MakeSrc2dDescriptor({1}, {1}, 1, 1));
-    using OutGridDesc_M  = decltype(Base::MakeDst1dDescriptor({1}, {1})); // TODO ANT: M_K
+    using GridDesc_M_K = decltype(Base::MakeSrc2dDescriptor({1}, {1}, 1, 1));
 
-    using GridwiseReduce = GridwiseSoftmax_mk_to_m<InDataType,
+    using GridwiseReduce = GridwiseSoftmax_mk_to_mk<InDataType,
                                                    OutDataType,
                                                    AccDataType,
-                                                   InGridDesc_M_K,
-                                                   OutGridDesc_M,
+                                                   float, // ScalarDataType FIXME:
+                                                   GridDesc_M_K,
                                                    InElementwiseOperation,
                                                    AccElementwiseOperation,
                                                    PropagateNan,
@@ -123,7 +123,7 @@ struct DeviceSoftmax : public DeviceReduceMultiBlock<InDataType,
                  const std::vector<index_t> outLengths,
                  const std::vector<index_t> outStrides,
                  const std::vector<int> reduceDims,
-                 float alpha,
+                 float alpha, // FIXME:
                  float beta,
                  const InDataType* in_dev,
                  OutDataType* out_dev,
@@ -158,20 +158,19 @@ struct DeviceSoftmax : public DeviceReduceMultiBlock<InDataType,
         {
             const auto in_grid_desc_m_k = Base::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
-            const auto out_grid_desc_m =
-                Base::MakeDst1dDescriptor(arg.outLengths_, arg.outStrides_);
+            const auto out_grid_desc_m_k = Base::MakeSrc2dDescriptor(
+                arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
 
-            const auto kernel_main = kernel_reduce_multiblock<GridwiseReduce,
-                                                              false, // TODO ANT: remove
-                                                              false, // TODO ANT: remove
-                                                              InDataType,
-                                                              OutDataType,
-                                                              AccDataType,
-                                                              int32_t,
-                                                              InGridDesc_M_K,
-                                                              OutGridDesc_M,
-                                                              InElementwiseOperation,
-                                                              AccElementwiseOperation>;
+            const auto kernel_main = kernel_softmax<GridwiseReduce,
+                                                    false, // TODO ANT: remove
+                                                    false, // TODO ANT: remove
+                                                    InDataType,
+                                                    OutDataType,
+                                                    AccDataType,
+                                                    float, // FIXME ScalarDataType,
+                                                    GridDesc_M_K,
+                                                    InElementwiseOperation,
+                                                    AccElementwiseOperation>;
 
             float avg_time = 0;
 
@@ -181,17 +180,15 @@ struct DeviceSoftmax : public DeviceReduceMultiBlock<InDataType,
                                                dim3(BlockSize),
                                                0,
                                                in_grid_desc_m_k,
-                                               out_grid_desc_m,
+                                               out_grid_desc_m_k,
                                                arg.in_elementwise_op_,
                                                arg.acc_elementwise_op_,
                                                arg.blkGroupSize,
                                                arg.numBlockTileIteration,
                                                arg.alpha_,
                                                arg.in_dev_,
-                                               arg.in_index_dev_,
                                                arg.beta_,
-                                               arg.out_dev_,
-                                               arg.out_index_dev_);
+                                               arg.out_dev_);
 
             return (avg_time);
         };
