@@ -34,7 +34,8 @@ template <typename InDataType,
           index_t KThreadSliceSize,
           index_t InSrcVectorDim,
           index_t InSrcVectorSize,
-          index_t OutDstVectorSize>
+          index_t OutDstVectorSize,
+          bool MultiBlockReduction = false>
 struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccElementwiseOperation>
 {
     static_assert(Rank <= 6, "Bigger Rank size is not supported!");
@@ -43,7 +44,7 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
 
     static_assert(((InSrcVectorDim == 0 && MThreadSliceSize % InSrcVectorSize == 0) ||
                    (InSrcVectorDim == 1 && KThreadSliceSize % InSrcVectorSize == 0)) &&
-                      (MThreadSliceSize % OutDstVectorSize == 0),
+                      (MThreadSliceSize % OutDstVectorSize == 0), // cond is not for softmax_mk_to_mk
                   "Invalid thread slice sizes and/or vector sizes configuration, please check!");
 
     using IndexDataType = int32_t;
@@ -58,7 +59,7 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
 
     // So far, only AtomicAdd is considered, other Atomic Operation like AtomicMax can be added
     // later
-    static constexpr bool use_multiblock =
+    static constexpr bool use_multiblock = MultiBlockReduction &&
         (OutMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd);
 
     static constexpr bool out_type_compatible_with_atomic_op =

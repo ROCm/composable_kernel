@@ -12,7 +12,7 @@
 #include "host_tensor_generator.hpp"
 #include "device_tensor.hpp"
 #include "device_base.hpp"
-#include "device_reduce_multiblock.hpp"
+#include "device_softmax.hpp"
 #include "host_common_util.hpp"
 #include "host_reduction.hpp"
 
@@ -23,42 +23,38 @@ using namespace ck;
 using namespace ck::tensor_operation::device;
 
 using InDataType  = ck::half_t;
-using OutDataType = ck::half_t;
+using OutDataType = float;
 using AccDataType = float;
 
-constexpr int Rank         = 4;
-constexpr int NumReduceDim = 3;
+constexpr int Rank         = 3;
+constexpr int NumReduceDim = 1;
 
 constexpr ReduceTensorOp ReduceOpId = ReduceTensorOp::NORM2;
 constexpr bool PropagateNan         = true;
 constexpr bool OutputIndex          = false;
 
-using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
+// using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
 using InElementwiseOperation =
     typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::InElementwiseOperation;
 using AccElementwiseOperation =
     typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::AccElementwiseOperation;
 
-using DeviceReduceInstance = DeviceReduceMultiBlock<InDataType,
-                                                    AccDataType,
-                                                    OutDataType,
-                                                    Rank,
-                                                    NumReduceDim,
-                                                    ReduceOperation,
-                                                    InElementwiseOperation,
-                                                    AccElementwiseOperation,
-                                                    InMemoryDataOperationEnum::Set,
-                                                    PropagateNan,
-                                                    OutputIndex,
-                                                    false, // HaveIndexInputIfOutputIndex
-                                                    256,
-                                                    4,
-                                                    64,
-                                                    1,
-                                                    1,
-                                                    0,
-                                                    1,
-                                                    1>;
+using DeviceInstance = DeviceSoftmax<InDataType,
+                                     AccDataType,
+                                     OutDataType,
+                                     Rank,
+                                     NumReduceDim,
+                                     PropagateNan,
+                                     InElementwiseOperation,
+                                     AccElementwiseOperation,
+                                     256, // BlockSize
+                                     8, // ClusterM
+                                     32, // ClusterK
+                                     1, // SliceM
+                                     8, // SliceK
+                                     1, // SrcVecDim (0=M, 1=K)
+                                     8, // SrcScalarPerVector
+                                     1>; // OutScalarPerVector FIXME: can be 8
 
 static struct option long_options[] = {{"inLengths", required_argument, nullptr, 'D'},
                                        {"verify", required_argument, nullptr, 'v'},
@@ -71,7 +67,7 @@ class SimpleAppArgs
     int option_index = 0;
 
     public:
-    std::vector<size_t> inLengths = {16, 64, 32, 960};
+    std::vector<size_t> inLengths = {8, 2048, 2048};
     std::vector<float> scales     = {1.0f, 0.0f};
 
     bool do_verification = true;
@@ -149,8 +145,9 @@ int main(int argc, char* argv[])
 {
     using namespace ck::host_reduce;
 
-    const std::vector<int> reduceDims{0, 1, 2};
-    const std::vector<int> invariantDims{3};
+    // Example: batched gemm C[G, M, N] applies max/sum reduction along N internally
+    const std::vector<int> invariantDims{0, 1};
+    const std::vector<int> reduceDims{2};
 
     SimpleAppArgs args;
 
@@ -182,7 +179,10 @@ int main(int argc, char* argv[])
     constexpr bool invalid_reduce = (invalid_reduce_1 || invalid_reduce_2 || invalid_reduce_3);
 
     if constexpr(invalid_reduce)
+    {
         std::cout << "Reduction setting is not supported, exiting!" << std::endl;
+        return -1;
+    }
 
     Tensor<InDataType> in(args.inLengths);
 
@@ -224,6 +224,9 @@ int main(int argc, char* argv[])
             in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5}, num_thread);
             if(beta != 0.0f)
                 out_ref.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5}, num_thread);
+            break;
+        case 3:
+            in.GenerateTensorValue(GeneratorTensor_Sequential<0>{}, num_thread);
             break;
         default:
             in.GenerateTensorValue(GeneratorTensor_3<InDataType>{-5.0, 5.0}, num_thread);
@@ -275,7 +278,7 @@ int main(int argc, char* argv[])
     i_outLengths.assign(outLengths.begin(), outLengths.end());
     i_outStrides.assign(outStrides.begin(), outStrides.end());
 
-    auto reduce = DeviceReduceInstance{};
+    auto reduce = DeviceInstance{};
 
     auto argument_ptr = reduce.MakeArgumentPointer(
         i_inLengths,
