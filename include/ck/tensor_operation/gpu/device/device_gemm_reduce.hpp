@@ -11,7 +11,7 @@ template <typename DPtrsGlobal,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename DxsInElementwiseOperation,
-          typename DxsAccElementwiseOperation>
+          typename DxsReduceAccElementwiseOperation>
 struct DeviceGemmReduce : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
@@ -29,7 +29,7 @@ struct DeviceGemmReduce : public BaseOperator
                         BElementwiseOperation b_element_op,
                         CElementwiseOperation c_element_op,
                         DxsInElementwiseOperation dxs_in_element_op,
-                        DxsAccElementwiseOperation dxs_out_element_op,
+                        DxsReduceAccElementwiseOperation dxs_out_element_op,
                         ck::index_t BatchCount = 1) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
@@ -40,13 +40,13 @@ template <typename DPtrsGlobal,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename DxsInElementwiseOperation,
-          typename DxsAccElementwiseOperation>
+          typename DxsReduceAccElementwiseOperation>
 using DeviceGemmReducePtr = std::unique_ptr<DeviceGemmReduce<DPtrsGlobal,
                                                              AElementwiseOperation,
                                                              BElementwiseOperation,
                                                              CElementwiseOperation,
                                                              DxsInElementwiseOperation,
-                                                             DxsAccElementwiseOperation>>;
+                                                             DxsReduceAccElementwiseOperation>>;
 
 template <typename DPtrsGlobal,
           typename AElementwiseOperation,
@@ -54,7 +54,7 @@ template <typename DPtrsGlobal,
           typename CElementwiseOperation,
           typename C1ElementwiseOperation,
           typename DxsInElementwiseOperation,
-          typename DxsAccElementwiseOperation>
+          typename DxsReduceAccElementwiseOperation>
 struct DeviceGemmBiasAddReduce : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
@@ -76,7 +76,7 @@ struct DeviceGemmBiasAddReduce : public BaseOperator
                         CElementwiseOperation c_element_op,
                         C1ElementwiseOperation c1_element_op,
                         DxsInElementwiseOperation dxs_in_element_op,
-                        DxsAccElementwiseOperation dxs_out_element_op,
+                        DxsReduceAccElementwiseOperation dxs_out_element_op,
                         ck::index_t BatchCount = 1) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
@@ -88,7 +88,7 @@ template <typename DPtrsGlobal,
           typename CElementwiseOperation,
           typename C1ElementwiseOperation,
           typename DxsInElementwiseOperation,
-          typename DxsAccElementwiseOperation>
+          typename DxsReduceAccElementwiseOperation>
 using DeviceGemmBiasAddReducePtr =
     std::unique_ptr<DeviceGemmBiasAddReduce<DPtrsGlobal,
                                             AElementwiseOperation,
@@ -96,7 +96,7 @@ using DeviceGemmBiasAddReducePtr =
                                             CElementwiseOperation,
                                             C1ElementwiseOperation,
                                             DxsInElementwiseOperation,
-                                            DxsAccElementwiseOperation>>;
+                                            DxsReduceAccElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation

@@ -32,7 +32,7 @@ template <typename ALayout,
           typename CElementwiseOperation,
           typename DxsReduceOperation,
           typename DxsInElementwiseOperation,
-          typename DxsAccElementwiseOperation,
+          typename DxsReduceAccElementwiseOperation,
           typename DGlobalMemoryDataOperation,
           GemmSpecialization GemmSpec,
           index_t NumGemmKPrefetchStage,
@@ -73,7 +73,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGlobal,
                                                                BElementwiseOperation,
                                                                CElementwiseOperation,
                                                                DxsInElementwiseOperation,
-                                                               DxsAccElementwiseOperation>
+                                                               DxsReduceAccElementwiseOperation>
 {
     using DeviceOp = DeviceGemmReduce_Xdl_CShuffle;
 
@@ -389,7 +389,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGlobal,
         CElementwiseOperation,
         DxsReduceOperation,
         DxsInElementwiseOperation,
-        DxsAccElementwiseOperation,
+        DxsReduceAccElementwiseOperation,
         InMemoryDataOperationEnum::Set,
         DGlobalMemoryDataOperation,
         AGridDesc_AK0_M_AK1,
@@ -449,7 +449,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGlobal,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op,
                  DxsInElementwiseOperation dxs_in_element_op,
-                 DxsAccElementwiseOperation dxs_out_element_op)
+                 DxsReduceAccElementwiseOperation dxs_out_element_op)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
@@ -498,7 +498,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGlobal,
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
         DxsInElementwiseOperation dxs_in_element_op_;
-        DxsAccElementwiseOperation dxs_out_element_op_;
+        DxsReduceAccElementwiseOperation dxs_out_element_op_;
     };
 
     // Invoker
@@ -554,7 +554,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGlobal,
                     BElementwiseOperation,
                     CElementwiseOperation,
                     DxsInElementwiseOperation,
-                    DxsAccElementwiseOperation,
+                    DxsReduceAccElementwiseOperation,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
                     typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -594,7 +594,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGlobal,
                     BElementwiseOperation,
                     CElementwiseOperation,
                     DxsInElementwiseOperation,
-                    DxsAccElementwiseOperation,
+                    DxsReduceAccElementwiseOperation,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
                     typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -669,7 +669,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGlobal,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op,
                              DxsInElementwiseOperation dxs_in_element_op,
-                             DxsAccElementwiseOperation dxs_out_element_op)
+                             DxsReduceAccElementwiseOperation dxs_out_element_op)
     {
         return Argument{p_a,
                         p_b,
@@ -691,22 +691,23 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DPtrsGlobal,
     static auto MakeInvoker() { return Invoker{}; }
 
     // polymorphic
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
-                                                      const void* p_b,
-                                                      void* p_c,
-                                                      DPtrsGlobal p_dxs,
-                                                      index_t MRaw,
-                                                      index_t NRaw,
-                                                      index_t KRaw,
-                                                      index_t StrideA,
-                                                      index_t StrideB,
-                                                      index_t StrideC,
-                                                      AElementwiseOperation a_element_op,
-                                                      BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op,
-                                                      DxsInElementwiseOperation dxs_in_element_op,
-                                                      DxsAccElementwiseOperation dxs_out_element_op,
-                                                      index_t /* KBatch */ = 1) override
+    std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(const void* p_a,
+                        const void* p_b,
+                        void* p_c,
+                        DPtrsGlobal p_dxs,
+                        index_t MRaw,
+                        index_t NRaw,
+                        index_t KRaw,
+                        index_t StrideA,
+                        index_t StrideB,
+                        index_t StrideC,
+                        AElementwiseOperation a_element_op,
+                        BElementwiseOperation b_element_op,
+                        CElementwiseOperation c_element_op,
+                        DxsInElementwiseOperation dxs_in_element_op,
+                        DxsReduceAccElementwiseOperation dxs_out_element_op,
+                        index_t /* KBatch */ = 1) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
