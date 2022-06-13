@@ -162,7 +162,7 @@ void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
 
         for(int n = 0; n < N; ++n)
         {
-            ReduceAccDataType c_val        = ck::type_convert<float>(c_m_n(m, n));
+            ReduceAccDataType c_val        = ck::type_convert<ReduceAccDataType>(c_m_n(m, n));
             ReduceAccDataType square_c_val = 0;
             UnarySquareElementOp{}(square_c_val, c_val);
 

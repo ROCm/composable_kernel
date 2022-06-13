@@ -261,14 +261,15 @@ int main(int argc, char* argv[])
 
         for(int m = 0; m < M; ++m)
         {
-            float d0_acc = d0_reduce_op.GetIdentityValue();
-            float d1_acc = d1_reduce_op.GetIdentityValue();
+            ReduceAccDataType d0_acc = d0_reduce_op.GetIdentityValue();
+            ReduceAccDataType d1_acc = d1_reduce_op.GetIdentityValue();
 
             for(int n = 0; n < N; ++n)
             {
-                float c_val  = ck::type_convert<float>(c_m_n_host_result(m, n));
-                float d0_val = 0;
-                float d1_val = 0;
+                ReduceAccDataType c_val =
+                    ck::type_convert<ReduceAccDataType>(c_m_n_host_result(m, n));
+                ReduceAccDataType d0_val = 0;
+                ReduceAccDataType d1_val = 0;
 
                 dxs_in_element_op(ck::Number<0>{})(d0_val, c_val);
                 dxs_in_element_op(ck::Number<1>{})(d1_val, c_val);
