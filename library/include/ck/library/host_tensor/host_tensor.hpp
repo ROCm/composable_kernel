@@ -107,6 +107,11 @@ struct HostTensorDescriptor
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
     }
 
+    std::size_t GetOffsetFromMultiIndex(std::vector<std::size_t> iss) const
+    {
+        return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
+    }
+
     friend std::ostream& operator<<(std::ostream& os, const HostTensorDescriptor& desc);
 
     private:
@@ -212,6 +217,52 @@ struct Tensor
 
     Tensor(const HostTensorDescriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpace()) {}
 
+    template <typename F>
+    void ForEach_impl(F&& f, std::vector<size_t>& idx, size_t rank)
+    {
+        if(rank == mDesc.GetNumOfDimension())
+        {
+            f(*this, idx);
+            return;
+        }
+        // else
+        for(size_t i = 0; i < mDesc.GetLengths()[rank]; i++)
+        {
+            idx[rank] = i;
+            ForEach_impl(std::forward<F>(f), idx, rank + 1);
+        }
+    }
+
+    template <typename F>
+    void ForEach(F&& f)
+    {
+        std::vector<size_t> idx(mDesc.GetNumOfDimension(), 0);
+        ForEach_impl(std::forward<F>(f), idx, size_t(0));
+    }
+
+    template <typename F>
+    void ForEach_impl(const F&& f, std::vector<size_t>& idx, size_t rank) const
+    {
+        if(rank == mDesc.GetNumOfDimension())
+        {
+            f(*this, idx);
+            return;
+        }
+        // else
+        for(size_t i = 0; i < mDesc.GetLengths()[rank]; i++)
+        {
+            idx[rank] = i;
+            ForEach_impl(std::forward<const F>(f), idx, rank + 1);
+        }
+    }
+
+    template <typename F>
+    void ForEach(const F&& f) const
+    {
+        std::vector<size_t> idx(mDesc.GetNumOfDimension(), 0);
+        ForEach_impl(std::forward<const F>(f), idx, size_t(0));
+    }
+
     template <typename G>
     void GenerateTensorValue(G g, std::size_t num_thread = 1)
     {
@@ -270,6 +321,16 @@ struct Tensor
     const T& operator()(Is... is) const
     {
         return mData[mDesc.GetOffsetFromMultiIndex(is...)];
+    }
+
+    T& operator()(std::vector<std::size_t> idx)
+    {
+        return mData[mDesc.GetOffsetFromMultiIndex(idx)];
+    }
+
+    const T& operator()(std::vector<std::size_t> idx) const
+    {
+        return mData[mDesc.GetOffsetFromMultiIndex(idx)];
     }
 
     typename std::vector<T>::iterator begin() { return mData.begin(); }

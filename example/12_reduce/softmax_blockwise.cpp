@@ -14,7 +14,7 @@
 #include "device_base.hpp"
 #include "device_softmax.hpp"
 #include "host_common_util.hpp"
-#include "host_reduction.hpp"
+#include "reference_softmax.hpp"
 
 #include "reduction_enums.hpp"
 #include "reduction_operator_mapping.hpp"
@@ -29,9 +29,8 @@ using AccDataType = float;
 constexpr int Rank         = 3;
 constexpr int NumReduceDim = 1;
 
-constexpr ReduceTensorOp ReduceOpId = ReduceTensorOp::NORM2;
+constexpr ReduceTensorOp ReduceOpId = ReduceTensorOp::ADD;
 constexpr bool PropagateNan         = true;
-constexpr bool OutputIndex          = false;
 
 // using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
 using InElementwiseOperation =
@@ -143,8 +142,6 @@ class SimpleAppArgs
 
 int main(int argc, char* argv[])
 {
-    using namespace ck::host_reduce;
-
     // Example: batched gemm C[G, M, N] applies max/sum reduction along N internally
     const std::vector<int> invariantDims{0, 1};
     const std::vector<int> reduceDims{2};
@@ -157,53 +154,23 @@ int main(int argc, char* argv[])
             return (-1);
     };
 
-    constexpr bool op_support_indices =
-        (ReduceOpId == ReduceTensorOp::MIN || ReduceOpId == ReduceTensorOp::MAX ||
-         ReduceOpId == ReduceTensorOp::AMAX);
-
-    // if input is half type, no reason to use float for indiced reduction operation and must use
-    // float for non-indiced reduction operation for accuracy
-    constexpr bool invalid_reduce_1 =
-        std::is_same<InDataType, ck::half_t>::value &&
-        ((!op_support_indices && !std::is_same<AccDataType, float>::value) ||
-         (op_support_indices && !std::is_same<AccDataType, ck::half_t>::value));
-
-    // if input is float type, no reason to use double for indiced reduction operation
-    constexpr bool invalid_reduce_2 =
-        std::is_same<InDataType, float>::value &&
-        (op_support_indices && !std::is_same<AccDataType, float>::value);
-
-    // indices option can only be used when it is really needed
-    constexpr bool invalid_reduce_3 = (!op_support_indices && OutputIndex);
-
-    constexpr bool invalid_reduce = (invalid_reduce_1 || invalid_reduce_2 || invalid_reduce_3);
-
-    if constexpr(invalid_reduce)
-    {
-        std::cout << "Reduction setting is not supported, exiting!" << std::endl;
-        return -1;
-    }
-
     Tensor<InDataType> in(args.inLengths);
 
-    std::vector<size_t> outLengths;
-
+    std::vector<size_t> outLengths(args.inLengths);
+    std::vector<size_t> smScalarLengths; // softmax scalars (max/sum after reduction) lengths
     if(invariantDims.empty())
-        outLengths.push_back(1);
+        smScalarLengths.push_back(1);
     else
         for(auto dim : invariantDims)
-            outLengths.push_back(args.inLengths[dim]);
+            smScalarLengths.push_back(args.inLengths[dim]);
 
     Tensor<OutDataType> out_ref(outLengths);
     Tensor<OutDataType> out(outLengths);
-    Tensor<int> out_indices_ref(outLengths);
-    Tensor<int> out_indices(outLengths);
+    Tensor<OutDataType> sm_scalar(smScalarLengths);
 
     auto inStrides  = in.mDesc.GetStrides();
     auto outStrides = out.mDesc.GetStrides();
-
-    size_t invariant_total_length = out.mDesc.GetElementSize();
-    size_t reduce_total_length    = in.mDesc.GetElementSize() / invariant_total_length;
+    auto smScalarStrides = sm_scalar.mDesc.GetStrides();
 
     float alpha = args.scales[0];
     float beta  = args.scales[1];
@@ -226,7 +193,7 @@ int main(int argc, char* argv[])
                 out_ref.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5}, num_thread);
             break;
         case 3:
-            in.GenerateTensorValue(GeneratorTensor_Sequential<0>{}, num_thread);
+            in.GenerateTensorValue(GeneratorTensor_Sequential<2>{}, num_thread);
             break;
         default:
             in.GenerateTensorValue(GeneratorTensor_3<InDataType>{-5.0, 5.0}, num_thread);
@@ -239,6 +206,9 @@ int main(int argc, char* argv[])
                 out.mData[i] = out_ref.mData[i];
     };
 
+    LogRangeAsType<float>(std::cout << "tensor in: " , in.mData, ",") << std::endl;
+    LogRangeAsType<float>(std::cout << "tensor out: " , out.mData, ",") << std::endl;
+
     // these buffers are usually provided by the user application
     DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpace());
     DeviceMem out_dev(sizeof(OutDataType) * out.mDesc.GetElementSpace());
@@ -248,52 +218,43 @@ int main(int argc, char* argv[])
     if(beta != 0.0f)
         out_dev.ToDevice(out.mData.data());
 
-    size_t indicesSizeInBytes = OutputIndex ? out.mDesc.GetElementSize() * sizeof(int32_t) : 0;
-
-    DeviceMem out_index_dev(indicesSizeInBytes);
-
     if(args.do_verification)
     {
-        ReductionHost<InDataType,
-                      AccDataType,
-                      OutDataType,
-                      ReduceOpId,
-                      Rank,
-                      NumReduceDim,
-                      PropagateNan,
-                      OutputIndex>
-            hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
-
-        hostReduce.Run(
-            alpha, in.mData.data(), beta, out_ref.mData.data(), out_indices_ref.mData.data());
+        using ReferenceInstance =
+            tensor_operation::host::ReferenceSoftmax<InDataType, OutDataType, AccDataType, float>;
+        ReferenceInstance ref;
+        auto ref_arg = ref.MakeArgument(in, out_ref, alpha, beta, Rank, reduceDims);
+        auto invoker = ref.MakeInvoker();
+        invoker.Run(ref_arg);
+        LogRangeAsType<float>(std::cout << "tensor out_ref: ", out_ref.mData, ",") << std::endl;
     };
 
     std::vector<ck::index_t> i_inLengths;
     std::vector<ck::index_t> i_inStrides;
-    std::vector<ck::index_t> i_outLengths;
-    std::vector<ck::index_t> i_outStrides;
+    std::vector<ck::index_t> i_smScalarLengths;
+    std::vector<ck::index_t> i_smScalarStrides;
 
     i_inLengths.assign(args.inLengths.begin(), args.inLengths.end());
     i_inStrides.assign(inStrides.begin(), inStrides.end());
-    i_outLengths.assign(outLengths.begin(), outLengths.end());
-    i_outStrides.assign(outStrides.begin(), outStrides.end());
+    i_smScalarLengths.assign(smScalarLengths.begin(), smScalarLengths.end());
+    i_smScalarStrides.assign(smScalarStrides.begin(), smScalarStrides.end());
 
     auto reduce = DeviceInstance{};
 
     auto argument_ptr = reduce.MakeArgumentPointer(
         i_inLengths,
         i_inStrides,
-        i_outLengths,
-        i_outStrides,
+        i_smScalarLengths,
+        i_smScalarStrides,
         reduceDims,
         alpha,
         beta,
         in_dev.GetDeviceBuffer(),
         nullptr,
         out_dev.GetDeviceBuffer(),
-        out_index_dev.GetDeviceBuffer(),
-        InElementwiseOperation{static_cast<int32_t>(reduce_total_length)},
-        AccElementwiseOperation{static_cast<int32_t>(reduce_total_length)});
+        nullptr,
+        InElementwiseOperation{},
+        AccElementwiseOperation{});
 
     if(!reduce.IsSupportedArgument(argument_ptr.get()))
     {
@@ -308,8 +269,8 @@ int main(int argc, char* argv[])
 
     float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, args.time_kernel});
 
-    std::size_t num_bytes = invariant_total_length * reduce_total_length * sizeof(InDataType) +
-                            invariant_total_length * sizeof(OutDataType);
+    std::size_t num_bytes = in.mDesc.GetElementSize() * sizeof(InDataType) +
+                            out.mDesc.GetElementSize() * sizeof(OutDataType);
 
     float gb_per_sec = num_bytes / 1.E6 / avg_time;
 
@@ -322,12 +283,6 @@ int main(int argc, char* argv[])
     {
         out_dev.FromDevice(out.mData.data());
         pass = pass && ck::utils::check_err(out.mData, out_ref.mData);
-
-        if(OutputIndex)
-        {
-            out_index_dev.FromDevice(out_indices.mData.data());
-            pass = pass && ck::utils::check_err(out_indices.mData, out_indices_ref.mData);
-        };
     };
 
     return (pass ? 0 : 1);
