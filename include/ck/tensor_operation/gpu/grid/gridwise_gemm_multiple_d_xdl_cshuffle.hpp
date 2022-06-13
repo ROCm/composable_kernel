@@ -542,77 +542,39 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
                     ck::tensor_operation::element_wise::PassThrough{}};
 
             // shuffle: blockwise copy C from LDS to global
-#if 0
+            // FIXME: arbitrary # of D tensors
+            const auto c_ds_descs = tie(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
+                                        ds_grid_desc_mblock_mperblock_nblock_nperblock[I0],
+                                        ds_grid_desc_mblock_mperblock_nblock_nperblock[I1]);
+
             auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v7<
-                ThisThreadBlock,            // ThreadGroup
-                CDEElementwiseOperation,    // ElementwiseOperation,
-                EGlobalMemoryDataOperation, // DstInMemOp,
-                Sequence<1,
-                         CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
-                         1,
-                         CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
-                CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                Sequence<0, 1, 2, 3>,                       // typename ThreadClusterArrangeOrder,
-                FloatCShuffle,                              // typename Src0Data,
-                remove_cvref_t<decltype(DsDataType{}[I0])>, // typename Src1Data,
-                remove_cvref_t<decltype(DsDataType{}[I1])>, // typename Src2Data,
-                FloatE,                                     // typename DstData,
-                decltype(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
-                decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock[I0]),
-                decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock[I1]),
-                decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
-                Sequence<0, 1, 2, 3>,                             // typename DimAccessOrder,
-                3,                                                // index_t VectorDim,
-                CDEShuffleBlockTransferScalarPerVector_NPerBlock, // index_t ScalarPerVector,
-                true,  // bool ThreadTransferSrc0ResetCoordinateAfterRun,
-                false, // bool ThreadTransferSrc1ResetCoordinateAfterRun,
-                false, // bool ThreadTransferSrc2ResetCoordinateAfterRun,
-                false> // bool ThreadTransferDstResetCoordinateAfterRun>
-                {c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
-                 make_multi_index(0, 0, 0, 0),
-                 ds_grid_desc_mblock_mperblock_nblock_nperblock[I0],
-                 make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
-                 ds_grid_desc_mblock_mperblock_nblock_nperblock[I1],
-                 make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
-                 e_grid_desc_mblock_mperblock_nblock_nperblock,
-                 make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
-                 cde_element_op};
-#else
-            auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v7<
-                ThisThreadBlock,            // ThreadGroup
-                CDEElementwiseOperation,    // ElementwiseOperation,
-                EGlobalMemoryDataOperation, // DstInMemOp,
+                ThisThreadBlock,         // ThreadGroup
+                CDEElementwiseOperation, // ElementwiseOperation,
                 Sequence<1,
                          CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
                          1,
                          CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
                 CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
                 Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
-                FloatCShuffle,        // typename Src0Data,
-                remove_cvref_t<tuple_element_t<0, DsDataType>>, // typename Src1Data,
-                remove_cvref_t<tuple_element_t<1, DsDataType>>, // typename Src2Data,
-                FloatE,                                         // typename DstData,
-                decltype(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
-                decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock[I0]),
-                decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock[I1]),
-                decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                Tuple<FloatCShuffle,
+                      remove_cvref_t<tuple_element_t<0, DsDataType>>,
+                      remove_cvref_t<tuple_element_t<1, DsDataType>>>,
+                Tuple<FloatE>, // typename DstData,
+                decltype(c_ds_descs),
+                decltype(tie(e_grid_desc_mblock_mperblock_nblock_nperblock)),
                 Sequence<0, 1, 2, 3>,                             // typename DimAccessOrder,
                 3,                                                // index_t VectorDim,
                 CDEShuffleBlockTransferScalarPerVector_NPerBlock, // index_t ScalarPerVector,
-                true,  // bool ThreadTransferSrc0ResetCoordinateAfterRun,
-                false, // bool ThreadTransferSrc1ResetCoordinateAfterRun,
-                false, // bool ThreadTransferSrc2ResetCoordinateAfterRun,
-                false> // bool ThreadTransferDstResetCoordinateAfterRun>
-                {c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
-                 make_multi_index(0, 0, 0, 0),
-                 ds_grid_desc_mblock_mperblock_nblock_nperblock[I0],
-                 make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
-                 ds_grid_desc_mblock_mperblock_nblock_nperblock[I1],
-                 make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
-                 e_grid_desc_mblock_mperblock_nblock_nperblock,
-                 make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
+                Sequence<true, false, false>, // bool ThreadTransferSrcResetCoordinateAfterRunFlags
+                Sequence<false>,              // bool ThreadTransferDstResetCoordinateAfterRunFlags
+                EGlobalMemoryDataOperation>   // DstInMemOp,
+                {c_ds_descs,
+                 make_tuple(make_multi_index(0, 0, 0, 0),
+                            make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
+                            make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0)),
+                 tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                 make_tuple(make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0)),
                  cde_element_op};
-#endif
 
             // space filling curve for threadwise C in VGPR before shuffle
             constexpr auto sfc_c_vgpr =
@@ -655,42 +617,25 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
                 block_sync_lds();
 
                 // each block copy its data from LDS to global
-#if 1
                 cde_block_copy_lds_and_global.Run(
-                    c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
-                    c_shuffle_block_buf,
-                    ds_grid_desc_mblock_mperblock_nblock_nperblock[I0],
-                    ds_grid_buf[I0],
-                    ds_grid_desc_mblock_mperblock_nblock_nperblock[I1],
-                    ds_grid_buf[I1],
-                    e_grid_desc_mblock_mperblock_nblock_nperblock,
-                    e_grid_buf);
-#else
-                cde_block_copy_lds_and_global.Run(
-                    c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
-                    c_shuffle_block_buf,
-                    ds_grid_desc_mblock_mperblock_nblock_nperblock[I0],
-                    ds_grid_buf[I0],
-                    ds_grid_desc_mblock_mperblock_nblock_nperblock[I1],
-                    ds_grid_buf[I1],
-                    e_grid_desc_mblock_mperblock_nblock_nperblock,
-                    e_grid_buf);
-#endif
+                    c_ds_descs,
+                    tie(c_shuffle_block_buf, ds_grid_buf[I0], ds_grid_buf[I1]),
+                    tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                    tie(e_grid_buf));
 
                 if constexpr(access_id < num_access - 1)
                 {
-                    constexpr auto c_global_step = sfc_cde_block.GetForwardStep(access_id);
+                    constexpr auto e_global_step = sfc_cde_block.GetForwardStep(access_id);
 
                     // move on Ds
-                    cde_block_copy_lds_and_global.MoveSrc1SliceWindow(
-                        ds_grid_desc_mblock_mperblock_nblock_nperblock[I0], c_global_step);
-
-                    cde_block_copy_lds_and_global.MoveSrc2SliceWindow(
-                        ds_grid_desc_mblock_mperblock_nblock_nperblock[I1], c_global_step);
+                    static_for<0, DsDataType::Size(), 1>{}([&](auto i) {
+                        cde_block_copy_lds_and_global.MoveSrcSliceWindow(
+                            c_ds_descs, i + I1, e_global_step);
+                    });
 
                     // move on E
                     cde_block_copy_lds_and_global.MoveDstSliceWindow(
-                        e_grid_desc_mblock_mperblock_nblock_nperblock, c_global_step);
+                        tie(e_grid_desc_mblock_mperblock_nblock_nperblock), I0, e_global_step);
                 }
             });
         }

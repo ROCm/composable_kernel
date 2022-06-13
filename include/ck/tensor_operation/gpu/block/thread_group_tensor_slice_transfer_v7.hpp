@@ -14,60 +14,62 @@ namespace ck {
 // 3. ThreadwiseTensorSliceTransfer_v3::Run() does not construct new tensor coordinate
 template <typename ThreadGroup,
           typename ElementwiseOperation,
-          InMemoryDataOperationEnum DstInMemOp,
           typename SliceLengths,
           typename ThreadClusterLengths,
           typename ThreadClusterArrangeOrder,
-          typename Src0Data,
-          typename Src1Data,
-          typename Src2Data,
-          typename DstData,
-          typename Src0Desc,
-          typename Src1Desc,
-          typename Src2Desc,
-          typename DstDesc,
+          typename SrcDatas,
+          typename DstDatas,
+          typename SrcDescs,
+          typename DstDescs,
           typename DimAccessOrder,
           index_t VectorDim,
           index_t ScalarPerVector,
-          bool ThreadTransferSrc0ResetCoordinateAfterRun,
-          bool ThreadTransferSrc1ResetCoordinateAfterRun,
-          bool ThreadTransferSrc2ResetCoordinateAfterRun,
-          bool ThreadTransferDstResetCoordinateAfterRun>
+          typename ThreadTransferSrcResetCoordinateAfterRunFlags,
+          typename ThreadTransferDstResetCoordinateAfterRunFlags,
+          InMemoryDataOperationEnum... DstInMemOps>
 struct ThreadGroupTensorSliceTransfer_v7
 {
-    static constexpr auto I0 = Number<0>{};
-    static constexpr auto I1 = Number<1>{};
-    static constexpr auto I2 = Number<2>{};
+    static constexpr index_t nDim =
+        remove_cvref_t<tuple_element_t<0, SrcDescs>>::GetNumOfDimension();
 
-    static constexpr index_t nDim = remove_reference_t<Src0Desc>::GetNumOfDimension();
-
-    static constexpr auto thread_slice_lengths = SliceLengths{} / ThreadClusterLengths{};
+    static constexpr index_t nSrc = remove_cvref_t<SrcDescs>::Size();
+    static constexpr index_t nDst = remove_cvref_t<DstDescs>::Size();
 
     using Index = MultiIndex<nDim>;
 
-    __device__ constexpr ThreadGroupTensorSliceTransfer_v7(const Src0Desc& src0_desc,
-                                                           const Index& src0_block_slice_origin,
-                                                           const Src1Desc& src1_desc,
-                                                           const Index& src1_block_slice_origin,
-                                                           const Src2Desc& src2_desc,
-                                                           const Index& src2_block_slice_origin,
-                                                           const DstDesc& dst_desc,
-                                                           const Index& dst_block_slice_origin,
-                                                           const ElementwiseOperation& element_op)
-        : threadwise_transfer_(tie(src0_desc, src1_desc, src2_desc),
-                               make_tuple(make_zero_multi_index<nDim>(),
-                                          make_zero_multi_index<nDim>(),
-                                          make_zero_multi_index<nDim>()),
-                               tie(dst_desc),
-                               make_tuple(make_zero_multi_index<nDim>()),
-                               element_op)
+    static constexpr auto thread_slice_lengths = SliceLengths{} / ThreadClusterLengths{};
 
+    __device__ constexpr ThreadGroupTensorSliceTransfer_v7(
+        const SrcDescs& src_descs,
+        const StaticallyIndexedArray<Index, nSrc>& src_block_slice_origins,
+        const DstDescs& dst_descs,
+        const StaticallyIndexedArray<Index, nDst>& dst_block_slice_origins,
+        const ElementwiseOperation& element_op)
+        : threadwise_transfer_(src_descs,
+                               StaticallyIndexedArray<Index, nSrc>{},
+                               dst_descs,
+                               StaticallyIndexedArray<Index, nDst>{},
+                               element_op)
     {
-        static_assert(nDim == remove_cvref_t<Src0Desc>::GetNumOfDimension() &&
-                          nDim == remove_cvref_t<Src1Desc>::GetNumOfDimension() &&
-                          nDim == remove_cvref_t<Src2Desc>::GetNumOfDimension() &&
-                          nDim == remove_cvref_t<DstDesc>::GetNumOfDimension() &&
-                          nDim == ThreadClusterLengths::Size() &&
+        static_assert(nSrc == SrcDatas::Size() && nSrc == SrcDescs::Size() &&
+                          nSrc == ThreadTransferSrcResetCoordinateAfterRunFlags::Size() &&
+                          nDst == DstDatas::Size() && nDst == DstDescs::Size() &&
+                          nDst == ThreadTransferDstResetCoordinateAfterRunFlags::Size(),
+                      "wrong!");
+
+        static_for<0, nSrc, 1>{}([&](auto i) {
+            static_assert(
+                nDim == remove_cvref_t<tuple_element_t<i.value, SrcDescs>>::GetNumOfDimension(),
+                "wrong!");
+        });
+
+        static_for<0, nDst, 1>{}([&](auto i) {
+            static_assert(
+                nDim == remove_cvref_t<tuple_element_t<i.value, DstDescs>>::GetNumOfDimension(),
+                "wrong!");
+        });
+
+        static_assert(nDim == ThreadClusterLengths::Size() &&
                           nDim == ThreadClusterArrangeOrder::Size() &&
                           nDim == DimAccessOrder::Size(),
                       "wrong! nDim not consistent");
@@ -87,73 +89,51 @@ struct ThreadGroupTensorSliceTransfer_v7
 
             const auto thread_data_idx_begin = thread_cluster_idx * thread_slice_lengths;
 
-            threadwise_transfer_.SetSrcSliceOrigin(
-                tie(src0_desc, src1_desc, src2_desc),
-                make_tuple(src0_block_slice_origin + thread_data_idx_begin,
-                           src1_block_slice_origin + thread_data_idx_begin,
-                           src2_block_slice_origin + thread_data_idx_begin));
+            const auto src_thread_slice_origins = generate_tuple(
+                [&](auto i) { return src_block_slice_origins[i] + thread_data_idx_begin; },
+                Number<nSrc>{});
 
-            threadwise_transfer_.SetDstSliceOrigin(
-                tie(dst_desc), make_tuple(dst_block_slice_origin + thread_data_idx_begin));
+            const auto dst_thread_slice_origins = generate_tuple(
+                [&](auto i) { return dst_block_slice_origins[i] + thread_data_idx_begin; },
+                Number<nDst>{});
+
+            threadwise_transfer_.SetSrcSliceOrigins(src_descs, src_thread_slice_origins);
+            threadwise_transfer_.SetDstSliceOrigins(dst_descs, dst_thread_slice_origins);
         }
     }
 
-    template <typename Src0Buffer, typename Src1Buffer, typename Src2Buffer, typename DstBuffer>
-    __device__ void Run(const Src0Desc& src0_desc,
-                        const Src0Buffer& src0_buf,
-                        const Src1Desc& src1_desc,
-                        const Src1Buffer& src1_buf,
-                        const Src2Desc& src2_desc,
-                        const Src2Buffer& src2_buf,
-                        const DstDesc& dst_desc,
-                        DstBuffer& dst_buf)
+    template <typename SrcBuffers, typename DstBuffers>
+    __device__ void Run(const SrcDescs& src_descs,
+                        const SrcBuffers& src_bufs,
+                        const DstDescs& dst_descs,
+                        DstBuffers dst_bufs)
     {
         if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
-            threadwise_transfer_.Run(tie(src0_desc, src1_desc, src2_desc),
-                                     tie(src0_buf, src1_buf, src2_buf),
-                                     tie(dst_desc),
-                                     tie(dst_buf));
+            threadwise_transfer_.Run(src_descs, src_bufs, dst_descs, dst_bufs);
         }
     }
 
-    __device__ void MoveSrc0SliceWindow(const Src0Desc& src0_desc, const Index& step)
+    template <index_t ISrc>
+    __device__ void
+    MoveSrcSliceWindow(const SrcDescs& src_descs, Number<ISrc> iSrc, const Index& step)
     {
         if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
-            threadwise_transfer_.MoveSrcSliceWindow(
-                tie(src0_desc, Src1Desc{}, Src2Desc{}), step, I0);
+            threadwise_transfer_.MoveSrcSliceWindow(src_descs, iSrc, step);
         }
     }
 
-    __device__ void MoveSrc1SliceWindow(const Src1Desc& src1_desc, const Index& step)
+    template <index_t IDst>
+    __device__ void
+    MoveDstSliceWindow(const DstDescs& dst_descs, Number<IDst> iDst, const Index& step)
     {
         if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
-            threadwise_transfer_.MoveSrcSliceWindow(
-                tie(Src0Desc{}, src1_desc, Src2Desc{}), step, I1);
-        }
-    }
-
-    __device__ void MoveSrc2SliceWindow(const Src2Desc& src2_desc, const Index& step)
-    {
-        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
-           ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
-        {
-            threadwise_transfer_.MoveSrcSliceWindow(
-                tie(Src0Desc{}, Src1Desc{}, src2_desc), step, I2);
-        }
-    }
-
-    __device__ void MoveDstSliceWindow(const DstDesc& dst_desc, const Index& step)
-    {
-        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
-           ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
-        {
-            threadwise_transfer_.MoveDstSliceWindow(tie(dst_desc), step, I0);
+            threadwise_transfer_.MoveDstSliceWindow(dst_descs, iDst, step);
         }
     }
 
@@ -161,23 +141,19 @@ struct ThreadGroupTensorSliceTransfer_v7
     static constexpr auto thread_cluster_desc_ =
         make_cluster_descriptor(ThreadClusterLengths{}, ThreadClusterArrangeOrder{});
 
-    using ThreadwiseTransfer = ThreadwiseTensorSliceTransfer_v7<
-        Tuple<remove_cvref_t<Src0Data>, remove_cvref_t<Src1Data>, remove_cvref_t<Src2Data>>,
-        Tuple<remove_cvref_t<DstData>>,
-        Tuple<remove_reference_t<Src0Desc>&,
-              remove_reference_t<Src1Desc>&,
-              remove_reference_t<Src2Desc>&>,
-        Tuple<remove_reference_t<DstDesc>&>,
-        ElementwiseOperation,
-        decltype(thread_slice_lengths),
-        DimAccessOrder,
-        VectorDim,
-        ScalarPerVector,
-        Sequence<ThreadTransferSrc0ResetCoordinateAfterRun,
-                 ThreadTransferSrc1ResetCoordinateAfterRun,
-                 ThreadTransferSrc2ResetCoordinateAfterRun>,
-        Sequence<ThreadTransferDstResetCoordinateAfterRun>,
-        DstInMemOp>;
+    using ThreadwiseTransfer =
+        ThreadwiseTensorSliceTransfer_v7<SrcDatas,
+                                         DstDatas,
+                                         SrcDescs,
+                                         DstDescs,
+                                         ElementwiseOperation,
+                                         decltype(thread_slice_lengths),
+                                         DimAccessOrder,
+                                         VectorDim,
+                                         ScalarPerVector,
+                                         ThreadTransferSrcResetCoordinateAfterRunFlags,
+                                         ThreadTransferDstResetCoordinateAfterRunFlags,
+                                         DstInMemOps...>;
 
     ThreadwiseTransfer threadwise_transfer_;
 };

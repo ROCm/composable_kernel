@@ -80,8 +80,8 @@ struct ThreadwiseTensorSliceTransfer_v7
     }
 
     template <typename Indices, enable_if_t<SrcDescs::Size() == Indices::Size(), bool> = false>
-    __device__ void SetSrcSliceOrigin(const SrcDescs& src_descs,
-                                      const Indices& src_slice_origin_idxs)
+    __device__ void SetSrcSliceOrigins(const SrcDescs& src_descs,
+                                       const Indices& src_slice_origin_idxs)
     {
         static_for<0, nSrc, 1>{}([&](auto i) {
             src_coords_(i) = make_tensor_coordinate(src_descs[i], src_slice_origin_idxs[i]);
@@ -89,8 +89,8 @@ struct ThreadwiseTensorSliceTransfer_v7
     }
 
     template <typename Indices, enable_if_t<DstDescs::Size() == Indices::Size(), bool> = false>
-    __device__ void SetDstSliceOrigin(const DstDescs& dst_descs,
-                                      const Indices& dst_slice_origin_idxs)
+    __device__ void SetDstSliceOrigins(const DstDescs& dst_descs,
+                                       const Indices& dst_slice_origin_idxs)
     {
         static_for<0, nDst, 1>{}([&](auto i) {
             dst_coords_(i) = make_tensor_coordinate(dst_descs[i], dst_slice_origin_idxs[i]);
@@ -234,8 +234,8 @@ struct ThreadwiseTensorSliceTransfer_v7
     // src_slice_origin_step_idx need to be known at compile-time, for performance reason
     template <index_t ISrc>
     __device__ void MoveSrcSliceWindow(const SrcDescs& src_descs,
-                                       const Index& src_slice_origin_step_idx,
-                                       Number<ISrc> iSrc)
+                                       Number<ISrc> iSrc,
+                                       const Index& src_slice_origin_step_idx)
     {
         // if src coord was not reset by RunRead(), then need to adjust the step here
         const auto adjusted_step_idx = SrcResetCoordinateAfterRunFlags::At(iSrc)
@@ -251,8 +251,8 @@ struct ThreadwiseTensorSliceTransfer_v7
     // dst_slice_origin_step_idx need to be known at compile-time, for performance reason
     template <index_t IDst>
     __device__ void MoveDstSliceWindow(const DstDescs& dst_descs,
-                                       const Index& dst_slice_origin_step_idx,
-                                       Number<IDst> iDst)
+                                       Number<IDst> iDst,
+                                       const Index& dst_slice_origin_step_idx)
     {
         // if dst coord was not reset by Run(), then need to adjust the step here
         const auto adjusted_step_idx = DstResetCoordinateAfterRunFlags::At(iDst)
@@ -263,22 +263,6 @@ struct ThreadwiseTensorSliceTransfer_v7
         const auto adjusted_step = make_tensor_coordinate_step(dst_descs[iDst], adjusted_step_idx);
 
         move_tensor_coordinate(dst_descs[iDst], dst_coords_(iDst), adjusted_step);
-    }
-
-    // src_slice_origin_step_idx need to be known at compile-time, for performance reason
-    __device__ void MoveAllSrcSliceWindow(const SrcDescs& src_descs,
-                                          const Index& src_slice_origin_step_idx)
-    {
-        static_for<0, nSrc, 1>{}(
-            [&](auto i) { MoveSrcSliceWindow(src_descs, src_slice_origin_step_idx, i); });
-    }
-
-    // dst_slice_origin_step_idx need to be known at compile-time, for performance reason
-    __device__ void MoveAllDstSliceWindow(const DstDescs& dst_descs,
-                                          const Index& dst_slice_origin_step_idx)
-    {
-        static_for<0, nDst, 1>{}(
-            [&](auto i) { MoveDstSliceWindow(dst_descs, dst_slice_origin_step_idx, i); });
     }
 
     private:
