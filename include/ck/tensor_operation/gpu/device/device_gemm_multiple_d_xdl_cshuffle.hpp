@@ -558,46 +558,6 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<DsDataType:
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-#if 1
-            {
-                std::cout << "arg.a_grid_desc_ak0_m_ak1_{"
-                          << arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) << ", "
-                          << arg.a_grid_desc_ak0_m_ak1_.GetLength(I1) << ", "
-                          << arg.a_grid_desc_ak0_m_ak1_.GetLength(I2) << "}" << std::endl;
-
-                std::cout << "arg.b_grid_desc_bk0_n_bk1_{"
-                          << arg.b_grid_desc_bk0_n_bk1_.GetLength(I0) << ", "
-                          << arg.b_grid_desc_bk0_n_bk1_.GetLength(I1) << ", "
-                          << arg.b_grid_desc_bk0_n_bk1_.GetLength(I2) << "}" << std::endl;
-
-                std::cout << "arg.e_grid_desc_m_n_{ " << arg.e_grid_desc_m_n_.GetLength(I0) << ", "
-                          << arg.e_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
-
-                std::cout << "arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_{ "
-                          << arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[I0].GetLength(I0)
-                          << ", "
-                          << arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[I0].GetLength(I1)
-                          << ", "
-                          << arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[I0].GetLength(I2)
-                          << ", "
-                          << arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[I0].GetLength(I3)
-                          << "}" << std::endl;
-
-                std::cout << "arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_{ "
-                          << arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[I1].GetLength(I0)
-                          << ", "
-                          << arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[I1].GetLength(I1)
-                          << ", "
-                          << arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[I1].GetLength(I2)
-                          << ", "
-                          << arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[I1].GetLength(I3)
-                          << "}" << std::endl;
-
-                std::cout << "p_ds_grid{ " << arg.p_ds_grid_[I0] << ", " << arg.p_ds_grid_[I1]
-                          << "}" << std::endl;
-            }
-#endif
-
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
                                             arg.b_grid_desc_bk0_n_bk1_,
                                             arg.e_grid_desc_m_n_,

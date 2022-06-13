@@ -7,8 +7,8 @@
 #include "tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "blockwise_gemm_xdlops.hpp"
 #include "thread_group_tensor_slice_transfer_v4r1.hpp"
-#include "thread_group_tensor_slice_transfer_v6r1.hpp"
 #include "thread_group_tensor_slice_transfer_v6r3.hpp"
+#include "thread_group_tensor_slice_transfer_v7.hpp"
 #include "threadwise_tensor_slice_transfer.hpp"
 #include "gridwise_gemm_pipeline_v1.hpp"
 
@@ -223,7 +223,7 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
         return e_grid_desc_mblock_mperblock_nblock_nperblock;
     }
 
-    // return block_id to C matrix tile idx (m0, n0) mapping
+    // return block_id to E matrix tile idx (m0, n0) mapping
     __host__ __device__ static constexpr auto
     MakeDefaultBlock2ETileMap(const EGridDesc_M_N& e_grid_desc_m_n)
     {
@@ -579,7 +579,7 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
                  make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
                  cde_element_op};
 #else
-            auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v6r1<
+            auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v7<
                 ThisThreadBlock,            // ThreadGroup
                 CDEElementwiseOperation,    // ElementwiseOperation,
                 EGlobalMemoryDataOperation, // DstInMemOp,
@@ -588,18 +588,28 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
                          1,
                          CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
                 CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
-                FloatCShuffle,        // typename Src0Data,
-                FloatE,               // typename DstData,
+                Sequence<0, 1, 2, 3>,                       // typename ThreadClusterArrangeOrder,
+                FloatCShuffle,                              // typename Src0Data,
+                remove_cvref_t<decltype(DsDataType{}[I0])>, // typename Src1Data,
+                remove_cvref_t<decltype(DsDataType{}[I1])>, // typename Src2Data,
+                FloatE,                                     // typename DstData,
                 decltype(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
+                decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock[I0]),
+                decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock[I1]),
                 decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
                 Sequence<0, 1, 2, 3>,                             // typename DimAccessOrder,
                 3,                                                // index_t VectorDim,
                 CDEShuffleBlockTransferScalarPerVector_NPerBlock, // index_t ScalarPerVector,
                 true,  // bool ThreadTransferSrc0ResetCoordinateAfterRun,
+                false, // bool ThreadTransferSrc1ResetCoordinateAfterRun,
+                false, // bool ThreadTransferSrc2ResetCoordinateAfterRun,
                 false> // bool ThreadTransferDstResetCoordinateAfterRun>
                 {c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
                  make_multi_index(0, 0, 0, 0),
+                 ds_grid_desc_mblock_mperblock_nblock_nperblock[I0],
+                 make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
+                 ds_grid_desc_mblock_mperblock_nblock_nperblock[I1],
+                 make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
                  e_grid_desc_mblock_mperblock_nblock_nperblock,
                  make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
                  cde_element_op};
@@ -660,6 +670,10 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
                 cde_block_copy_lds_and_global.Run(
                     c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
                     c_shuffle_block_buf,
+                    ds_grid_desc_mblock_mperblock_nblock_nperblock[I0],
+                    ds_grid_buf[I0],
+                    ds_grid_desc_mblock_mperblock_nblock_nperblock[I1],
+                    ds_grid_buf[I1],
                     e_grid_desc_mblock_mperblock_nblock_nperblock,
                     e_grid_buf);
 #endif

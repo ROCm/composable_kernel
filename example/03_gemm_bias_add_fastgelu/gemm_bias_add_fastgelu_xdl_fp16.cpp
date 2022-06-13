@@ -113,7 +113,7 @@ int main(int argc, char* argv[])
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: time kernel (0=n0, 1=yes)\n");
+        printf("arg3: time kernel (0=no, 1=yes)\n");
         printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideE\n");
         exit(0);
     }
@@ -160,12 +160,6 @@ int main(int argc, char* argv[])
         d0_m_n.GenerateTensorValue(GeneratorTensor_3<EDataType>{0.0, 1.0});
         d1_m_n.GenerateTensorValue(GeneratorTensor_3<EDataType>{0.0, 1.0});
     }
-
-    std::cout << "a: " << a_m_k.mDesc.GetElementSpace() << std::endl;
-    std::cout << "b: " << b_k_n.mDesc.GetElementSpace() << std::endl;
-    std::cout << "d0: " << d0_m_n.mDesc.GetElementSpace() << std::endl;
-    std::cout << "d1: " << d1_m_n.mDesc.GetElementSpace() << std::endl;
-    std::cout << "e: " << e_m_n_device_result.mDesc.GetElementSpace() << std::endl;
 
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
