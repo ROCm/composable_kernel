@@ -188,10 +188,10 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
                 ReduceAccDataType acc = static_cast<ReduceAccDataType>(c_m_n_host_result(m, n)) +
                                         static_cast<ReduceAccDataType>(bias_n(n));
 
-                ReduceAccDataType c1 = c1_m_n(m, n);
+                ReduceAccDataType c1 = static_cast<ReduceAccDataType>(c1_m_n(m, n));
                 c_element_op(acc, acc);
                 c1_element_op(c1, c1);
-                acc += static_cast<ReduceAccDataType>(c1);
+                acc += c1;
                 c_m_n_host_result(m, n) = static_cast<CDataType>(acc);
             }
 

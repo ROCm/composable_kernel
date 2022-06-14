@@ -169,11 +169,11 @@ void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
             AccDataType acc =
                 static_cast<AccDataType>(c_m_n(m, n)) + static_cast<AccDataType>(bias_n(n));
 
-            AccDataType c1 = c1_m_n(m, n);
+            AccDataType c1 = static_cast<AccDataType>(c1_m_n(m, n));
 
             c_element_op(acc, acc);
             c1_element_op(c1, c1);
-            acc += static_cast<AccDataType>(c1);
+            acc += c1;
             c_m_n(m, n) = static_cast<CDataType>(acc);
         }
 
