@@ -8,11 +8,17 @@
 #include "device_convnd_fwd_bias_activation_add_avx2_nhwc_kyxc_nhwk.hpp"
 #include "element_wise_operation_cpu.hpp"
 #include "reference_conv_fwd_bias_activation_add.hpp"
+#include "reference_conv_fwd_bias_activation.hpp"
 #include "element_wise_operation_cpu.hpp"
 #include "dynamic_buffer_cpu.hpp"
 #include <omp.h>
 
 #define AVX2_DATA_ALIGNMENT 32
+
+#define TEST_FUSION_BIAS_RELU_ADD 0
+#define TEST_FUSION_BIAS_RELU 1
+#define TEST_FUSION_BIAS 2
+#define TEST_FUSION TEST_FUSION_BIAS
 
 #define TEST_LAYOUT_NHWC_KYXC_NHWK 0
 #define TEST_LAYOUT_NHWC_KYXCK8_NHWK 1
@@ -30,45 +36,101 @@ namespace device_conv2d_fwd_bias_activation_add_avx2_instance {
 
 using PassThrough = ck::tensor_operation::cpu::element_wise::PassThrough;
 using AddReluAdd  = ck::tensor_operation::cpu::element_wise::AddReluAdd;
+using AddRelu     = ck::tensor_operation::cpu::element_wise::AddRelu;
+using Add         = ck::tensor_operation::cpu::element_wise::Add;
 
 // ------------------ nhwc-kyxc-nhwk
-void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxc_nhwk(
+void add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_kyxc_nhwk(
     std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
         instances);
 
-void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxc_nhwk_local_c(
+void add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_kyxc_nhwk_local_c(
     std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
         instances);
 
-void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxc_nhwk_mt(
+void add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_kyxc_nhwk_mt(
     std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
         instances);
+
+void add_device_conv2d_fwd_bias_relu_avx2_nhwc_kyxc_nhwk(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddRelu>>& instances);
+
+void add_device_conv2d_fwd_bias_relu_avx2_nhwc_kyxc_nhwk_local_c(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddRelu>>& instances);
+
+void add_device_conv2d_fwd_bias_relu_avx2_nhwc_kyxc_nhwk_mt(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddRelu>>& instances);
+
+void add_device_conv2d_fwd_bias_avx2_nhwc_kyxc_nhwk(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, Add>>& instances);
+
+void add_device_conv2d_fwd_bias_avx2_nhwc_kyxc_nhwk_local_c(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, Add>>& instances);
+
+void add_device_conv2d_fwd_bias_avx2_nhwc_kyxc_nhwk_mt(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, Add>>& instances);
 
 // ------------------ nhwc-kcyxk8-nhwk
-void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxck8_nhwk(
+void add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_kyxck8_nhwk(
     std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
         instances);
 
-void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxck8_nhwk_local_c(
+void add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_kyxck8_nhwk_local_c(
     std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
         instances);
 
-void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxck8_nhwk_mt(
+void add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_kyxck8_nhwk_mt(
     std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
         instances);
+
+void add_device_conv2d_fwd_bias_relu_avx2_nhwc_kyxck8_nhwk(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddRelu>>& instances);
+
+void add_device_conv2d_fwd_bias_relu_avx2_nhwc_kyxck8_nhwk_local_c(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddRelu>>& instances);
+
+void add_device_conv2d_fwd_bias_relu_avx2_nhwc_kyxck8_nhwk_mt(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddRelu>>& instances);
+
+void add_device_conv2d_fwd_bias_avx2_nhwc_kyxck8_nhwk(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, Add>>& instances);
+
+void add_device_conv2d_fwd_bias_avx2_nhwc_kyxck8_nhwk_local_c(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, Add>>& instances);
+
+void add_device_conv2d_fwd_bias_avx2_nhwc_kyxck8_nhwk_mt(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, Add>>& instances);
 
 // ------------------ nhwc-yxck-nhwk
-void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_yxck_nhwk(
+void add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_yxck_nhwk(
     std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
         instances);
 
-void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_yxck_nhwk_local_c(
+void add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_yxck_nhwk_local_c(
     std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
         instances);
 
-void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_yxck_nhwk_mt(
+void add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_yxck_nhwk_mt(
     std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
         instances);
+
+void add_device_conv2d_fwd_bias_relu_avx2_nhwc_yxck_nhwk(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddRelu>>& instances);
+
+void add_device_conv2d_fwd_bias_relu_avx2_nhwc_yxck_nhwk_local_c(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddRelu>>& instances);
+
+void add_device_conv2d_fwd_bias_relu_avx2_nhwc_yxck_nhwk_mt(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddRelu>>& instances);
+
+void add_device_conv2d_fwd_bias_avx2_nhwc_yxck_nhwk(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, Add>>& instances);
+
+void add_device_conv2d_fwd_bias_avx2_nhwc_yxck_nhwk_local_c(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, Add>>& instances);
+
+void add_device_conv2d_fwd_bias_avx2_nhwc_yxck_nhwk_mt(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, Add>>& instances);
 
 } // namespace device_conv2d_fwd_bias_activation_add_avx2_instance
 } // namespace device
@@ -78,7 +140,13 @@ void add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_yxck_nhwk_mt(
 
 using InElementOp  = ck::tensor_operation::cpu::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::cpu::element_wise::PassThrough;
+#if TEST_FUSION == TEST_FUSION_BIAS_RELU_ADD
 using OutElementOp = ck::tensor_operation::cpu::element_wise::AddReluAdd;
+#elif TEST_FUSION == TEST_FUSION_BIAS_RELU
+using OutElementOp = ck::tensor_operation::cpu::element_wise::AddRelu;
+#elif TEST_FUSION == TEST_FUSION_BIAS
+using OutElementOp = ck::tensor_operation::cpu::element_wise::Add;
+#endif
 
 template <typename T>
 static bool
@@ -249,6 +317,7 @@ int main(int argc, char* argv[])
         using WeiDataType = decltype(wei_type);
         using OutDataType = decltype(out_type);
 
+#if TEST_FUSION == TEST_FUSION_BIAS_RELU_ADD
         using ReferenceConvFwdInstance =
             ck::tensor_operation::host::ReferenceConvFwd_Bias_Activation_Add<InDataType,
                                                                              WeiDataType,
@@ -256,6 +325,15 @@ int main(int argc, char* argv[])
                                                                              InElementOp,
                                                                              WeiElementOp,
                                                                              OutElementOp>;
+#else
+        using ReferenceConvFwdInstance =
+            ck::tensor_operation::host::ReferenceConvFwd_Bias_Activation<InDataType,
+                                                                         WeiDataType,
+                                                                         OutDataType,
+                                                                         InElementOp,
+                                                                         WeiElementOp,
+                                                                         OutElementOp>;
+#endif
 
         const ck::index_t YEff = (Y - 1) * conv_dilation_h + 1;
         const ck::index_t XEff = (X - 1) * conv_dilation_w + 1;
@@ -381,7 +459,9 @@ int main(int argc, char* argv[])
                                                       wei_k_c_y_x,
                                                       out_n_k_ho_wo_host_result,
                                                       bias,
+#if TEST_FUSION == TEST_FUSION_BIAS_RELU_ADD
                                                       residual,
+#endif
                                                       conv_filter_strides,
                                                       conv_filter_dilations,
                                                       input_left_pads,
@@ -394,9 +474,19 @@ int main(int argc, char* argv[])
 
         using PassThrough = ck::tensor_operation::cpu::element_wise::PassThrough;
         using AddReluAdd  = ck::tensor_operation::cpu::element_wise::AddReluAdd;
+        using AddRelu     = ck::tensor_operation::cpu::element_wise::AddRelu;
+        using Add         = ck::tensor_operation::cpu::element_wise::Add;
 
+#if TEST_FUSION == TEST_FUSION_BIAS_RELU_ADD
         using DeviceConvFwdNoOpPtr = ck::tensor_operation::cpu::device::
             DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>;
+#elif TEST_FUSION == TEST_FUSION_BIAS_RELU
+        using DeviceConvFwdNoOpPtr = ck::tensor_operation::cpu::device::
+            DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddRelu>;
+#elif TEST_FUSION == TEST_FUSION_BIAS
+        using DeviceConvFwdNoOpPtr = ck::tensor_operation::cpu::device::
+            DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, Add>;
+#endif
 
         // add device Conv instances
         std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
@@ -405,27 +495,27 @@ int main(int argc, char* argv[])
                      ck::is_same_v<ck::remove_cv_t<WeiDataType>, float> &&
                      ck::is_same_v<ck::remove_cv_t<OutDataType>, float>)
         {
+#if TEST_FUSION == TEST_FUSION_BIAS_RELU_ADD
 #if TEST_LAYOUT == TEST_LAYOUT_NHWC_KYXC_NHWK
             if(omp_get_max_threads() > 1)
             {
                 ck::tensor_operation::cpu::device::
                     device_conv2d_fwd_bias_activation_add_avx2_instance::
-                        add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxc_nhwk_mt(conv_ptrs);
+                        add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_kyxc_nhwk_mt(conv_ptrs);
                 ck::tensor_operation::cpu::device::
                     device_conv2d_fwd_bias_activation_add_avx2_instance::
-                        add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxc_nhwk(conv_ptrs);
+                        add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_kyxc_nhwk(conv_ptrs);
             }
             else
             {
                 if(K % 8 == 0)
                     ck::tensor_operation::cpu::device::
                         device_conv2d_fwd_bias_activation_add_avx2_instance::
-                            add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxc_nhwk(
-                                conv_ptrs);
+                            add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_kyxc_nhwk(conv_ptrs);
                 else
                     ck::tensor_operation::cpu::device::
                         device_conv2d_fwd_bias_activation_add_avx2_instance::
-                            add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxc_nhwk_local_c(
+                            add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_kyxc_nhwk_local_c(
                                 conv_ptrs);
             }
 #endif
@@ -434,23 +524,21 @@ int main(int argc, char* argv[])
             {
                 ck::tensor_operation::cpu::device::
                     device_conv2d_fwd_bias_activation_add_avx2_instance::
-                        add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxck8_nhwk_mt(
-                            conv_ptrs);
+                        add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_kyxck8_nhwk_mt(conv_ptrs);
                 ck::tensor_operation::cpu::device::
                     device_conv2d_fwd_bias_activation_add_avx2_instance::
-                        add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxck8_nhwk(conv_ptrs);
+                        add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_kyxck8_nhwk(conv_ptrs);
             }
             else
             {
                 if(K % 8 == 0)
                     ck::tensor_operation::cpu::device::
                         device_conv2d_fwd_bias_activation_add_avx2_instance::
-                            add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxck8_nhwk(
-                                conv_ptrs);
+                            add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_kyxck8_nhwk(conv_ptrs);
                 else
                     ck::tensor_operation::cpu::device::
                         device_conv2d_fwd_bias_activation_add_avx2_instance::
-                            add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_kyxck8_nhwk_local_c(
+                            add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_kyxck8_nhwk_local_c(
                                 conv_ptrs);
             }
 #endif
@@ -459,24 +547,159 @@ int main(int argc, char* argv[])
             {
                 ck::tensor_operation::cpu::device::
                     device_conv2d_fwd_bias_activation_add_avx2_instance::
-                        add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_yxck_nhwk_mt(conv_ptrs);
+                        add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_yxck_nhwk_mt(conv_ptrs);
                 ck::tensor_operation::cpu::device::
                     device_conv2d_fwd_bias_activation_add_avx2_instance::
-                        add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_yxck_nhwk(conv_ptrs);
+                        add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_yxck_nhwk(conv_ptrs);
             }
             else
             {
                 if(K % 8 == 0)
                     ck::tensor_operation::cpu::device::
                         device_conv2d_fwd_bias_activation_add_avx2_instance::
-                            add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_yxck_nhwk(
-                                conv_ptrs);
+                            add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_yxck_nhwk(conv_ptrs);
                 else
                     ck::tensor_operation::cpu::device::
                         device_conv2d_fwd_bias_activation_add_avx2_instance::
-                            add_device_conv2d_fwd_bias_activation_add_avx2_nhwc_yxck_nhwk_local_c(
+                            add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_yxck_nhwk_local_c(
                                 conv_ptrs);
             }
+#endif
+#elif TEST_FUSION == TEST_FUSION_BIAS_RELU
+#if TEST_LAYOUT == TEST_LAYOUT_NHWC_KYXC_NHWK
+            if(omp_get_max_threads() > 1)
+            {
+                ck::tensor_operation::cpu::device::
+                    device_conv2d_fwd_bias_activation_add_avx2_instance::
+                        add_device_conv2d_fwd_bias_relu_avx2_nhwc_kyxc_nhwk_mt(conv_ptrs);
+                ck::tensor_operation::cpu::device::
+                    device_conv2d_fwd_bias_activation_add_avx2_instance::
+                        add_device_conv2d_fwd_bias_relu_avx2_nhwc_kyxc_nhwk(conv_ptrs);
+            }
+            else
+            {
+                if(K % 8 == 0)
+                    ck::tensor_operation::cpu::device::
+                        device_conv2d_fwd_bias_activation_add_avx2_instance::
+                            add_device_conv2d_fwd_bias_relu_avx2_nhwc_kyxc_nhwk(conv_ptrs);
+                else
+                    ck::tensor_operation::cpu::device::
+                        device_conv2d_fwd_bias_activation_add_avx2_instance::
+                            add_device_conv2d_fwd_bias_relu_avx2_nhwc_kyxc_nhwk_local_c(conv_ptrs);
+            }
+#endif
+#if TEST_LAYOUT == TEST_LAYOUT_NHWC_KYXCK8_NHWK
+            if(omp_get_max_threads() > 1)
+            {
+                ck::tensor_operation::cpu::device::
+                    device_conv2d_fwd_bias_activation_add_avx2_instance::
+                        add_device_conv2d_fwd_bias_relu_avx2_nhwc_kyxck8_nhwk_mt(conv_ptrs);
+                ck::tensor_operation::cpu::device::
+                    device_conv2d_fwd_bias_activation_add_avx2_instance::
+                        add_device_conv2d_fwd_bias_relu_avx2_nhwc_kyxck8_nhwk(conv_ptrs);
+            }
+            else
+            {
+                if(K % 8 == 0)
+                    ck::tensor_operation::cpu::device::
+                        device_conv2d_fwd_bias_activation_add_avx2_instance::
+                            add_device_conv2d_fwd_bias_relu_avx2_nhwc_kyxck8_nhwk(conv_ptrs);
+                else
+                    ck::tensor_operation::cpu::device::
+                        device_conv2d_fwd_bias_activation_add_avx2_instance::
+                            add_device_conv2d_fwd_bias_relu_avx2_nhwc_kyxck8_nhwk_local_c(
+                                conv_ptrs);
+            }
+#endif
+#if TEST_LAYOUT == TEST_LAYOUT_NHWC_YXCK_NHWK
+            if(omp_get_max_threads() > 1)
+            {
+                ck::tensor_operation::cpu::device::
+                    device_conv2d_fwd_bias_activation_add_avx2_instance::
+                        add_device_conv2d_fwd_bias_relu_avx2_nhwc_yxck_nhwk_mt(conv_ptrs);
+                ck::tensor_operation::cpu::device::
+                    device_conv2d_fwd_bias_activation_add_avx2_instance::
+                        add_device_conv2d_fwd_bias_relu_avx2_nhwc_yxck_nhwk(conv_ptrs);
+            }
+            else
+            {
+                if(K % 8 == 0)
+                    ck::tensor_operation::cpu::device::
+                        device_conv2d_fwd_bias_activation_add_avx2_instance::
+                            add_device_conv2d_fwd_bias_relu_avx2_nhwc_yxck_nhwk(conv_ptrs);
+                else
+                    ck::tensor_operation::cpu::device::
+                        device_conv2d_fwd_bias_activation_add_avx2_instance::
+                            add_device_conv2d_fwd_bias_relu_avx2_nhwc_yxck_nhwk_local_c(conv_ptrs);
+            }
+#endif
+#elif TEST_FUSION == TEST_FUSION_BIAS
+#if TEST_LAYOUT == TEST_LAYOUT_NHWC_KYXC_NHWK
+            if(omp_get_max_threads() > 1)
+            {
+                ck::tensor_operation::cpu::device::
+                    device_conv2d_fwd_bias_activation_add_avx2_instance::
+                        add_device_conv2d_fwd_bias_avx2_nhwc_kyxc_nhwk_mt(conv_ptrs);
+                ck::tensor_operation::cpu::device::
+                    device_conv2d_fwd_bias_activation_add_avx2_instance::
+                        add_device_conv2d_fwd_bias_avx2_nhwc_kyxc_nhwk(conv_ptrs);
+            }
+            else
+            {
+                if(K % 8 == 0)
+                    ck::tensor_operation::cpu::device::
+                        device_conv2d_fwd_bias_activation_add_avx2_instance::
+                            add_device_conv2d_fwd_bias_avx2_nhwc_kyxc_nhwk(conv_ptrs);
+                else
+                    ck::tensor_operation::cpu::device::
+                        device_conv2d_fwd_bias_activation_add_avx2_instance::
+                            add_device_conv2d_fwd_bias_avx2_nhwc_kyxc_nhwk_local_c(conv_ptrs);
+            }
+#endif
+#if TEST_LAYOUT == TEST_LAYOUT_NHWC_KYXCK8_NHWK
+            if(omp_get_max_threads() > 1)
+            {
+                ck::tensor_operation::cpu::device::
+                    device_conv2d_fwd_bias_activation_add_avx2_instance::
+                        add_device_conv2d_fwd_bias_avx2_nhwc_kyxck8_nhwk_mt(conv_ptrs);
+                ck::tensor_operation::cpu::device::
+                    device_conv2d_fwd_bias_activation_add_avx2_instance::
+                        add_device_conv2d_fwd_bias_avx2_nhwc_kyxck8_nhwk(conv_ptrs);
+            }
+            else
+            {
+                if(K % 8 == 0)
+                    ck::tensor_operation::cpu::device::
+                        device_conv2d_fwd_bias_activation_add_avx2_instance::
+                            add_device_conv2d_fwd_bias_avx2_nhwc_kyxck8_nhwk(conv_ptrs);
+                else
+                    ck::tensor_operation::cpu::device::
+                        device_conv2d_fwd_bias_activation_add_avx2_instance::
+                            add_device_conv2d_fwd_bias_avx2_nhwc_kyxck8_nhwk_local_c(conv_ptrs);
+            }
+#endif
+#if TEST_LAYOUT == TEST_LAYOUT_NHWC_YXCK_NHWK
+            if(omp_get_max_threads() > 1)
+            {
+                ck::tensor_operation::cpu::device::
+                    device_conv2d_fwd_bias_activation_add_avx2_instance::
+                        add_device_conv2d_fwd_bias_avx2_nhwc_yxck_nhwk_mt(conv_ptrs);
+                ck::tensor_operation::cpu::device::
+                    device_conv2d_fwd_bias_activation_add_avx2_instance::
+                        add_device_conv2d_fwd_bias_avx2_nhwc_yxck_nhwk(conv_ptrs);
+            }
+            else
+            {
+                if(K % 8 == 0)
+                    ck::tensor_operation::cpu::device::
+                        device_conv2d_fwd_bias_activation_add_avx2_instance::
+                            add_device_conv2d_fwd_bias_avx2_nhwc_yxck_nhwk(conv_ptrs);
+                else
+                    ck::tensor_operation::cpu::device::
+                        device_conv2d_fwd_bias_activation_add_avx2_instance::
+                            add_device_conv2d_fwd_bias_avx2_nhwc_yxck_nhwk_local_c(conv_ptrs);
+            }
+#endif
 #endif
         }
 
