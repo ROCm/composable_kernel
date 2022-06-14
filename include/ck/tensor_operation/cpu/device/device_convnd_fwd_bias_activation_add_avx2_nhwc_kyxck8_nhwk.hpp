@@ -31,7 +31,6 @@ template <typename InDataType,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
           ConvolutionForwardSpecialization_t ConvForwardSpecialization,
-          ConvolutionForwardGemmKSpecialization_t GemmKSpecialization,
           ck::index_t NumDimSpatial,
           ck::index_t MPerThread,
           ck::index_t NPerThread,
@@ -573,8 +572,7 @@ struct DeviceConvNDFwdBiasActivationAddAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_K8_Ou
             decltype(GetInputBlockDescriptor()),
             InElementwiseOperation,
             !UseALocalBuffer,
-            ConvForwardSpecialization,
-            GemmKSpecialization>;
+            ConvForwardSpecialization>;
 
     using BThreadwiseCopy =
         ck::cpu::ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXCK8<
@@ -584,8 +582,7 @@ struct DeviceConvNDFwdBiasActivationAddAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_K8_Ou
             decltype(GetWeightBlockDescriptor()),
             WeiElementwiseOperation,
             !UseBLocalBuffer,
-            ConvForwardSpecialization,
-            GemmKSpecialization>;
+            ConvForwardSpecialization>;
 
     using CThreadwiseCopy =
         ck::cpu::ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_Bias_Residual_MxN<
@@ -832,10 +829,9 @@ struct DeviceConvNDFwdBiasActivationAddAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_K8_Ou
             }
         }
 
-        if constexpr(GemmKSpecialization ==
-                         ConvolutionForwardGemmKSpecialization_t::NHWC_GemmKLoopOverC &&
-                     ConvForwardSpecialization !=
-                         ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
+        if(gridwise_gemm.dynamic_tunable.gemm_k_spec ==
+               ConvolutionForwardGemmKSpecialization_t::NHWC_GemmKLoopOverC &&
+           ConvForwardSpecialization != ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
         {
             if(!(arg.Conv_C_ % gridwise_gemm.dynamic_tunable.k_per_block == 0))
                 return false;
@@ -961,7 +957,7 @@ struct DeviceConvNDFwdBiasActivationAddAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_K8_Ou
         str << "DeviceConv" << std::to_string(NumDimSpatial) 
             << "DFwd_BAA_Avx2_NHWC_KYXCK8"
             <<"_FS"<< static_cast<int>(ConvForwardSpecialization)
-            <<"_KS"<< static_cast<int>(GemmKSpecialization)
+            <<"_KS"<< static_cast<int>(gridwise_gemm.dynamic_tunable.gemm_k_spec)
             <<"_BS"<< static_cast<int>(gridwise_gemm.dynamic_tunable.loop_over_spec)
             << "_BT" << gridwise_gemm.dynamic_tunable.m_per_block << "x" << gridwise_gemm.dynamic_tunable.n_per_block << "x" << gridwise_gemm.dynamic_tunable.k_per_block
             << "_TT" << MPerThread << "x" << NPerThread 

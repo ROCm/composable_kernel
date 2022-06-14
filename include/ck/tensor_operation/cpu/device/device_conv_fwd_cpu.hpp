@@ -92,7 +92,7 @@ struct DeviceConvFwdDynamicTunable
     // bool use_c_local_buffer;
 
     // ConvolutionForwardSpecialization_t  forward_spec;
-    // ConvolutionForwardGemmKSpecialization_t gemm_k_spec;
+    ConvolutionForwardGemmKSpecialization_t gemm_k_spec;
     ConvolutionForwardBlockLoopOverSpecialization_t loop_over_spec;
 };
 

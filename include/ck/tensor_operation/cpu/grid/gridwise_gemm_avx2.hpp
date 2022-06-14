@@ -352,7 +352,8 @@ struct GridwiseGemmAvx2_MxN
                                     ck::make_zero_multi_index<a_block_copy_dim>(),
                                     GetABlockDescriptor(m_per_block, k_per_block, a_grid_desc),
                                     ck::make_zero_multi_index<a_block_copy_dim>(),
-                                    AElementwiseOperation{});
+                                    AElementwiseOperation{},
+                                    dynamic_tunable.gemm_k_spec);
 
                 auto b_threadwise_copy =
                     BThreadwiseCopy(b_grid_desc,
@@ -495,7 +496,8 @@ struct GridwiseGemmAvx2_MxN
                                     ck::make_zero_multi_index<a_block_copy_dim>(),
                                     GetABlockDescriptor(m_per_block, k_per_block, a_grid_desc),
                                     ck::make_zero_multi_index<a_block_copy_dim>(),
-                                    AElementwiseOperation{});
+                                    AElementwiseOperation{},
+                                    dynamic_tunable.gemm_k_spec);
 
                 auto b_threadwise_copy =
                     BThreadwiseCopy(b_grid_desc,

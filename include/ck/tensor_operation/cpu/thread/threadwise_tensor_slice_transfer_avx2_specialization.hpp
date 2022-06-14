@@ -210,6 +210,69 @@ void memcpy32_avx2_with_extra_2src(void* dst,
     }
 }
 
+template <typename ElementwiseOp>
+void memcpy32_avx2_with_extra_1src(void* dst,
+                                   const void* src,
+                                   const void* src_aux,
+                                   const ck::index_t n,
+                                   const ElementwiseOp& element_op)
+{
+    // 16-8-4-2-1 pattern
+    ck::index_t i_n        = n;
+    float* p_dst           = reinterpret_cast<float*>(dst);
+    const float* p_src     = reinterpret_cast<const float*>(src);
+    const float* p_src_aux = reinterpret_cast<const float*>(src_aux);
+    while(i_n >= 16)
+    {
+        _mm256_storeu_ps(
+            p_dst + 0,
+            element_op.Apply(_mm256_loadu_ps(p_src + 0), _mm256_loadu_ps(p_src_aux + 0)));
+        _mm256_storeu_ps(
+            p_dst + 8,
+            element_op.Apply(_mm256_loadu_ps(p_src + 8), _mm256_loadu_ps(p_src_aux + 8)));
+        p_dst += 16;
+        p_src += 16;
+        p_src_aux += 16;
+        i_n -= 16;
+    }
+    if(i_n & 8)
+    {
+        _mm256_storeu_ps(p_dst,
+                         element_op.Apply(_mm256_loadu_ps(p_src), _mm256_loadu_ps(p_src_aux)));
+        p_dst += 8;
+        p_src += 8;
+        p_src_aux += 8;
+    }
+    if(i_n & 4)
+    {
+        _mm_storeu_ps(p_dst, element_op.Apply(_mm_loadu_ps(p_src), _mm_loadu_ps(p_src_aux)));
+        p_dst += 4;
+        p_src += 4;
+        p_src_aux += 4;
+    }
+    if(i_n & 2)
+    {
+#if defined(__GNUC__) && !defined(__clang__) && !defined(__llvm__)
+        __m128i s  = _mm_loadu_si64(p_src);
+        __m128i s1 = _mm_loadu_si64(p_src_aux);
+
+        __m128 v =
+            element_op.Apply(*reinterpret_cast<__m128*>(&s), *reinterpret_cast<__m128*>(&s1));
+
+        _mm_storeu_si64(p_dst, *reinterpret_cast<__m128i*>(&v));
+#else
+        _mm_storeu_si64(p_dst, element_op.Apply(_mm_loadu_si64(p_src), _mm_loadu_si64(p_src_aux)));
+#endif
+        p_dst += 2;
+        p_src += 2;
+        p_src_aux += 2;
+    }
+    if(i_n & 1)
+    {
+        *p_dst = element_op.Apply(*p_src, *p_src_aux);
+    }
+}
+
 inline void memset32_avx2(void* dst, const int32_t value, const ck::index_t n)
 {
     // 16-8-4-2-1 pattern
@@ -324,8 +387,7 @@ template <typename SrcData,
           typename DstDesc,
           typename ElementwiseOperation,
           bool BypassTransfer,
-          ConvolutionForwardSpecialization_t ConvForwardSpecialization,
-          ConvolutionForwardGemmKSpecialization_t GemmKSpecialization>
+          ConvolutionForwardSpecialization_t ConvForwardSpecialization>
 struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
 {
     static constexpr ck::index_t nDim = SrcDesc::GetNumOfDimension();
@@ -336,8 +398,9 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
         const Index&,
         const DstDesc&,
         const Index&,
-        const ElementwiseOperation& element_op)
-        : element_op_(element_op)
+        const ElementwiseOperation& element_op,
+        const ConvolutionForwardGemmKSpecialization_t& gemm_k_spec)
+        : element_op_(element_op), gemm_k_spec_(gemm_k_spec)
     {
         if constexpr(ConvForwardSpecialization ==
                      ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
@@ -630,8 +693,7 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
             {
                 // ihi = iho * s_stride_h + iy * s_dilation_h - s_pad_h
                 // iwi = iwo * s_stride_w + ix * s_dilation_w - s_pad_w
-                if constexpr(GemmKSpecialization ==
-                             ConvolutionForwardGemmKSpecialization_t::NHWC_GemmKLoopOverC)
+                if(gemm_k_spec_ == ConvolutionForwardGemmKSpecialization_t::NHWC_GemmKLoopOverC)
                 {
                     // c % k_per_block == 0, so every time k_per_block here is the same
                     ck::index_t i_m_itr  = m_per_block;
@@ -782,8 +844,7 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
         }
         else
         {
-            if constexpr(GemmKSpecialization ==
-                         ConvolutionForwardGemmKSpecialization_t::NHWC_GemmKLoopOverC)
+            if(gemm_k_spec_ == ConvolutionForwardGemmKSpecialization_t::NHWC_GemmKLoopOverC)
             {
                 // TODO: branch seems weird
 
@@ -827,6 +888,7 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
 
     private:
     const ElementwiseOperation element_op_;
+    const ConvolutionForwardGemmKSpecialization_t gemm_k_spec_;
 
     ck::index_t i_n;
     ck::index_t i_c;
@@ -875,8 +937,7 @@ template <typename SrcData,
           typename DstDesc,
           typename ElementwiseOperation,
           bool BypassTransfer,
-          ConvolutionForwardSpecialization_t ConvForwardSpecialization,
-          ConvolutionForwardGemmKSpecialization_t GemmKSpecialization>
+          ConvolutionForwardSpecialization_t ConvForwardSpecialization>
 struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXC
 {
     static constexpr ck::index_t nDim = SrcDesc::GetNumOfDimension();
@@ -1096,8 +1157,7 @@ template <typename SrcData,
           typename DstDesc,
           typename ElementwiseOperation,
           bool BypassTransfer,
-          ConvolutionForwardSpecialization_t ConvForwardSpecialization,
-          ConvolutionForwardGemmKSpecialization_t GemmKSpecialization>
+          ConvolutionForwardSpecialization_t ConvForwardSpecialization>
 struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXCK8
 {
     static constexpr ck::index_t nDim = SrcDesc::GetNumOfDimension();
@@ -1283,8 +1343,7 @@ template <typename SrcData,
           typename DstDesc,
           typename ElementwiseOperation,
           bool BypassTransfer,
-          ConvolutionForwardSpecialization_t ConvForwardSpecialization,
-          ConvolutionForwardGemmKSpecialization_t GemmKSpecialization>
+          ConvolutionForwardSpecialization_t ConvForwardSpecialization>
 struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_YXCK
 {
     static constexpr ck::index_t nDim = SrcDesc::GetNumOfDimension();
@@ -1415,8 +1474,7 @@ template <typename SrcData,
           typename DstDesc,
           typename ElementwiseOperation,
           bool BypassTransfer,
-          ConvolutionForwardSpecialization_t ConvForwardSpecialization,
-          ConvolutionForwardGemmKSpecialization_t GemmKSpecialization>
+          ConvolutionForwardSpecialization_t ConvForwardSpecialization>
 struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_MxN
 {
     static constexpr ck::index_t nDim = SrcDesc::GetNumOfDimension();
