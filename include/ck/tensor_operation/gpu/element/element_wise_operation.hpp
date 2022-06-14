@@ -1,5 +1,6 @@
 #pragma once
 #include "data_type.hpp"
+#include "math_v2.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -310,7 +311,7 @@ struct UnaryAbs<float, float>
 {
     __host__ __device__ UnaryAbs(const int32_t divider = 1) { (void)divider; };
 
-    __host__ __device__ void operator()(float& y, const float& x) const { y = abs(x); };
+    __host__ __device__ void operator()(float& y, const float& x) const { y = ck::math::abs(x); };
 };
 
 template <>
@@ -318,7 +319,7 @@ struct UnaryAbs<half_t, half_t>
 {
     __host__ __device__ UnaryAbs(const int32_t divider = 1) { (void)divider; };
 
-    __host__ __device__ void operator()(half_t& y, const half_t& x) const { y = __habs(x); };
+    __host__ __device__ void operator()(half_t& y, const half_t& x) const { y = ck::math::abs(x); };
 };
 
 template <>
@@ -326,7 +327,7 @@ struct UnaryAbs<double, double>
 {
     __host__ __device__ UnaryAbs(const int32_t divider = 1) { (void)divider; };
 
-    __host__ __device__ void operator()(double& y, const double& x) const { y = abs(x); };
+    __host__ __device__ void operator()(double& y, const double& x) const { y = ck::math::abs(x); };
 };
 
 template <>
@@ -334,12 +335,7 @@ struct UnaryAbs<int8_t, int8_t>
 {
     __host__ __device__ UnaryAbs(const int32_t divider = 1) { (void)divider; };
 
-    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const
-    {
-        int8_t sgn = x >> (8 - 1);
-
-        y = (x ^ sgn) - sgn;
-    };
+    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const { y = ck::math::abs(x); };
 };
 
 template <typename Y, typename X>
@@ -350,7 +346,7 @@ struct UnarySqrt<float, float>
 {
     __host__ __device__ UnarySqrt(const int32_t divider = 1) { (void)divider; };
 
-    __host__ __device__ void operator()(float& y, const float& x) const { y = sqrtf(x); };
+    __host__ __device__ void operator()(float& y, const float& x) const { y = ck::math::sqrt(x); };
 };
 
 template <>
@@ -358,7 +354,10 @@ struct UnarySqrt<double, double>
 {
     __host__ __device__ UnarySqrt(const int32_t divider = 1) { (void)divider; };
 
-    __host__ __device__ void operator()(double& y, const double& x) const { y = sqrt(x); };
+    __host__ __device__ void operator()(double& y, const double& x) const
+    {
+        y = ck::math::sqrt(x);
+    };
 };
 
 } // namespace element_wise
