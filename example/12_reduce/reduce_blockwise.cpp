@@ -12,8 +12,8 @@
 #include "host_tensor_generator.hpp"
 #include "device_tensor.hpp"
 #include "device_base.hpp"
-#include "device_reduce_blockwise.hpp"
-#include "host_reduce_util.hpp"
+#include "device_reduce_multiblock.hpp"
+#include "host_common_util.hpp"
 #include "host_reduction.hpp"
 
 #include "reduction_enums.hpp"
@@ -30,9 +30,8 @@ constexpr int Rank         = 4;
 constexpr int NumReduceDim = 3;
 
 constexpr ReduceTensorOp ReduceOpId = ReduceTensorOp::NORM2;
-constexpr NanPropagation NanOpt     = NanPropagation::PROPAGATE_NAN;
-constexpr bool PropagateNan         = (NanOpt == NanPropagation::NOT_PROPAGATE_NAN) ? false : true;
-constexpr ReduceTensorIndices IndicesOpt = ReduceTensorIndices::NO_INDICES;
+constexpr bool PropagateNan         = true;
+constexpr bool OutputIndex          = false;
 
 using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
 using InElementwiseOperation =
@@ -40,86 +39,44 @@ using InElementwiseOperation =
 using AccElementwiseOperation =
     typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::AccElementwiseOperation;
 
-using DeviceReduceInstance = DeviceReduceBlockWise<InDataType,
-                                                   AccDataType,
-                                                   OutDataType,
-                                                   Rank,
-                                                   NumReduceDim,
-                                                   ReduceOperation,
-                                                   InElementwiseOperation,
-                                                   AccElementwiseOperation,
-                                                   PropagateNan,
-                                                   false,
-                                                   256,
-                                                   4,
-                                                   64,
-                                                   1,
-                                                   1,
-                                                   0,
-                                                   1,
-                                                   1>;
+using DeviceReduceInstance = DeviceReduceMultiBlock<InDataType,
+                                                    AccDataType,
+                                                    OutDataType,
+                                                    Rank,
+                                                    NumReduceDim,
+                                                    ReduceOperation,
+                                                    InElementwiseOperation,
+                                                    AccElementwiseOperation,
+                                                    InMemoryDataOperationEnum::Set,
+                                                    PropagateNan,
+                                                    OutputIndex,
+                                                    false, // HaveIndexInputIfOutputIndex
+                                                    256,
+                                                    4,
+                                                    64,
+                                                    1,
+                                                    1,
+                                                    0,
+                                                    1,
+                                                    1>;
 
 static struct option long_options[] = {{"inLengths", required_argument, nullptr, 'D'},
-                                       {"scales", required_argument, nullptr, 'S'},
                                        {"verify", required_argument, nullptr, 'v'},
                                        {"help", no_argument, nullptr, '?'},
                                        {nullptr, 0, nullptr, 0}};
 
 class SimpleAppArgs
 {
-    template <typename T>
-    static T getSingleValueFromString(const std::string& valueStr)
-    {
-        std::istringstream iss(valueStr);
-
-        T ret;
-
-        iss >> ret;
-
-        return (ret);
-    };
-
-    template <typename T>
-    static std::vector<T> getTypeValuesFromString(const char* cstr_values)
-    {
-        std::string valuesStr(cstr_values);
-
-        std::vector<T> values;
-        std::size_t pos = 0;
-        std::size_t new_pos;
-
-        new_pos = valuesStr.find(',', pos);
-        while(new_pos != std::string::npos)
-        {
-            const std::string sliceStr = valuesStr.substr(pos, new_pos - pos);
-
-            T val = getSingleValueFromString<T>(sliceStr);
-
-            values.push_back(val);
-
-            pos     = new_pos + 1;
-            new_pos = valuesStr.find(',', pos);
-        };
-
-        std::string sliceStr = valuesStr.substr(pos);
-        T val                = getSingleValueFromString<T>(sliceStr);
-
-        values.push_back(val);
-
-        return (values);
-    };
-
     private:
     int option_index = 0;
 
     public:
-    std::vector<size_t> inLengths;
-    std::vector<float> scales;
+    std::vector<size_t> inLengths = {16, 64, 32, 960};
+    std::vector<float> scales     = {1.0f, 0.0f};
 
-    bool do_verification = false;
-
-    int init_method = 1;
-    int nrepeat     = 5;
+    bool do_verification = true;
+    int init_method      = 1;
+    bool time_kernel     = true;
 
     public:
     void show_usage(const char* cmd)
@@ -127,24 +84,24 @@ class SimpleAppArgs
         std::cout << "Usage of " << cmd << std::endl;
         std::cout << "--inLengths or -D, comma separated list of input tensor dimension lengths"
                   << std::endl;
-        std::cout << "--scales or -S, comma separated two float values for alpha and beta"
-                  << std::endl;
         std::cout << "--verify or -v, 1/0 to indicate whether to verify the reduction result by "
                      "comparing with the host-based reduction"
                   << std::endl;
         std::cout << "Arg1 -- init method (0=no init, 1=single integer value, 2=scope integer "
                      "value, 3=decimal value)"
                   << std::endl;
-        std::cout << "Arg2 -- number of repeats to run the kernel" << std::endl;
+        std::cout << "Arg2 -- time kernel (0=no, 1=yes)" << std::endl;
     };
 
     int processArgs(int argc, char* argv[])
     {
+        using ck::host_common::getTypeValuesFromString;
+
         int ch;
 
         while(1)
         {
-            ch = getopt_long(argc, argv, "D:S:v:l:", long_options, &option_index);
+            ch = getopt_long(argc, argv, "D:v:l:", long_options, &option_index);
             if(ch == -1)
                 break;
             switch(ch)
@@ -154,12 +111,6 @@ class SimpleAppArgs
                     throw std::runtime_error("Invalid option format!");
 
                 inLengths = getTypeValuesFromString<size_t>(optarg);
-                break;
-            case 'S':
-                if(!optarg)
-                    throw std::runtime_error("Invalid option format!");
-
-                scales = getTypeValuesFromString<float>(optarg);
                 break;
             case 'v':
                 if(!optarg)
@@ -182,7 +133,7 @@ class SimpleAppArgs
             throw std::runtime_error("Invalid cmd-line arguments, more argumetns are needed!");
 
         init_method = std::atoi(argv[optind++]);
-        nrepeat     = std::atoi(argv[optind]);
+        time_kernel = static_cast<bool>(std::atoi(argv[optind]));
 
         if(scales.empty())
         {
@@ -196,22 +147,20 @@ class SimpleAppArgs
 
 int main(int argc, char* argv[])
 {
-    using namespace ck::host_reduce;
-
     const std::vector<int> reduceDims{0, 1, 2};
     const std::vector<int> invariantDims{3};
 
     SimpleAppArgs args;
 
-    if(args.processArgs(argc, argv) < 0)
-        return (-1);
+    if(argc > 1)
+    {
+        if(args.processArgs(argc, argv) < 0)
+            return (-1);
+    };
 
     constexpr bool op_support_indices =
         (ReduceOpId == ReduceTensorOp::MIN || ReduceOpId == ReduceTensorOp::MAX ||
          ReduceOpId == ReduceTensorOp::AMAX);
-
-    constexpr bool NeedIndices =
-        (op_support_indices && (IndicesOpt != ReduceTensorIndices::NO_INDICES));
 
     // if input is half type, no reason to use float for indiced reduction operation and must use
     // float for non-indiced reduction operation for accuracy
@@ -226,8 +175,7 @@ int main(int argc, char* argv[])
         (op_support_indices && !std::is_same<AccDataType, float>::value);
 
     // indices option can only be used when it is really needed
-    constexpr bool invalid_reduce_3 =
-        (!op_support_indices && IndicesOpt != ReduceTensorIndices::NO_INDICES);
+    constexpr bool invalid_reduce_3 = (!op_support_indices && OutputIndex);
 
     constexpr bool invalid_reduce = (invalid_reduce_1 || invalid_reduce_2 || invalid_reduce_3);
 
@@ -295,51 +243,54 @@ int main(int argc, char* argv[])
     if(beta != 0.0f)
         out_dev.ToDevice(out.mData.data());
 
-    size_t indicesSizeInBytes = NeedIndices ? out.mDesc.GetElementSize() * sizeof(int32_t) : 0;
+    size_t indicesSizeInBytes = OutputIndex ? out.mDesc.GetElementSize() * sizeof(int32_t) : 0;
 
-    DeviceMem out_indices_dev(indicesSizeInBytes);
+    DeviceMem out_index_dev(indicesSizeInBytes);
 
     if(args.do_verification)
     {
         ReductionHost<InDataType,
                       AccDataType,
                       OutDataType,
-                      ReduceOpId,
+                      ReduceOperation,
+                      InElementwiseOperation,
+                      AccElementwiseOperation,
                       Rank,
                       NumReduceDim,
                       PropagateNan,
-                      NeedIndices>
+                      OutputIndex>
             hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
 
         hostReduce.Run(
             alpha, in.mData.data(), beta, out_ref.mData.data(), out_indices_ref.mData.data());
     };
 
-    const auto i_inLengths  = to_int_vector(args.inLengths);
-    const auto i_inStrides  = to_int_vector(inStrides);
-    const auto i_outLengths = to_int_vector(outLengths);
-    const auto i_outStrides = to_int_vector(outStrides);
+    std::vector<ck::index_t> i_inLengths;
+    std::vector<ck::index_t> i_inStrides;
+    std::vector<ck::index_t> i_outLengths;
+    std::vector<ck::index_t> i_outStrides;
+
+    i_inLengths.assign(args.inLengths.begin(), args.inLengths.end());
+    i_inStrides.assign(inStrides.begin(), inStrides.end());
+    i_outLengths.assign(outLengths.begin(), outLengths.end());
+    i_outStrides.assign(outStrides.begin(), outStrides.end());
 
     auto reduce = DeviceReduceInstance{};
 
-    auto wsSizeInBytes = reduce.GetWorkspaceSizeInBytes(i_inLengths, reduceDims);
-
-    DeviceMem ws_dev(wsSizeInBytes);
-
-    auto argument_ptr =
-        reduce.MakeArgumentPointer(i_inLengths,
-                                   i_inStrides,
-                                   i_outLengths,
-                                   i_outStrides,
-                                   reduceDims,
-                                   alpha,
-                                   beta,
-                                   in_dev.GetDeviceBuffer(),
-                                   out_dev.GetDeviceBuffer(),
-                                   out_indices_dev.GetDeviceBuffer(),
-                                   ws_dev.GetDeviceBuffer(),
-                                   InElementwiseOperation{static_cast<int>(reduce_total_length)},
-                                   AccElementwiseOperation{static_cast<int>(reduce_total_length)});
+    auto argument_ptr = reduce.MakeArgumentPointer(
+        i_inLengths,
+        i_inStrides,
+        i_outLengths,
+        i_outStrides,
+        reduceDims,
+        alpha,
+        beta,
+        in_dev.GetDeviceBuffer(),
+        nullptr,
+        out_dev.GetDeviceBuffer(),
+        out_index_dev.GetDeviceBuffer(),
+        InElementwiseOperation{static_cast<int32_t>(reduce_total_length)},
+        AccElementwiseOperation{static_cast<int32_t>(reduce_total_length)});
 
     if(!reduce.IsSupportedArgument(argument_ptr.get()))
     {
@@ -352,7 +303,7 @@ int main(int argc, char* argv[])
 
     auto invoker_ptr = reduce.MakeInvokerPointer();
 
-    float avg_time = invoker_ptr->Run(argument_ptr.get(), args.nrepeat);
+    float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, args.time_kernel});
 
     std::size_t num_bytes = invariant_total_length * reduce_total_length * sizeof(InDataType) +
                             invariant_total_length * sizeof(OutDataType);
@@ -362,16 +313,19 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s, " << reduce_name
               << std::endl;
 
+    bool pass = true;
+
     if(args.do_verification)
     {
         out_dev.FromDevice(out.mData.data());
-        ck::utils::check_err(out.mData, out_ref.mData);
+        pass = pass && ck::utils::check_err(out.mData, out_ref.mData);
 
-        if(NeedIndices)
+        if(OutputIndex)
         {
-            out_indices_dev.FromDevice(out_indices.mData.data());
-            ck::utils::check_err(out_indices.mData, out_indices_ref.mData);
-            ;
+            out_index_dev.FromDevice(out_indices.mData.data());
+            pass = pass && ck::utils::check_err(out_indices.mData, out_indices_ref.mData);
         };
     };
+
+    return (pass ? 0 : 1);
 }
