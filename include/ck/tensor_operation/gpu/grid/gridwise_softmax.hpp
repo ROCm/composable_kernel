@@ -122,20 +122,7 @@ struct GridwiseSoftmax_mk_to_mk
                                                     ThreadReduceSrcDesc_M_K,
                                                     ThreadReduceDstDesc_M,
                                                     reduce::Max<AccDataType>,
-                                                    PropagateNan>;
-
-    using BlockwiseSumReduce = PartitionedBlockwiseReduction<AccDataType,
-                                                             BlockSize,
-                                                             ThreadClusterLengths_M_K,
-                                                             ThreadClusterArrangeOrder,
-                                                             reduce::Add<AccDataType>,
-                                                             PropagateNan>;
-
-    using ThreadwiseSumReduce = ThreadwiseReduction<AccDataType,
-                                                    ThreadReduceSrcDesc_M_K,
-                                                    ThreadReduceDstDesc_M,
-                                                    reduce::Add<AccDataType>,
-                                                    PropagateNan>;
+                                                    false>; //PropagateNan
 
     using PassThroughOp = tensor_operation::element_wise::PassThrough;
 
@@ -283,12 +270,40 @@ struct GridwiseSoftmax_mk_to_mk
         static_for<0, MThreadSliceSize, 1>{}(
             [&](auto I) { accu_value_buf(I) = reduce::Add<AccDataType>::GetReductionZeroVal(); });
 
+        // Normally, 0 as invalid element value is adequate since 0 makes no contribution to
+        // accumulated result. However, in stable softmax, all values 0s or not are subtracted by
+        // another value_max. As numbers become non-zero, effectively it allows invalid values to
+        // slip through and contribute to the accumulated result.
+        //
+        // The trick here is leveraging the fact that many math functions (add, sub, exp, ...)
+        // propagate NaNs when operands have NaNs involved. By initialiing invalid element value
+        // with NaN, an invalid value doing math manipulations is still NaN, which in turn can still
+        // be identified as an invalid value. We can then discard the invalid values which
+        // originally failed the bound check during accumulation. This allows to ignore values that
+        // failed bound check even after multiple math manipulations.
         const auto in_global_val_buf =
             make_dynamic_buffer<AddressSpaceEnum::Global>(p_in_value_global,
                                                           in_grid_desc_m_k.GetElementSpaceSize(),
-                                                          reduce::Add<InDataType>::GetReductionZeroVal());
+                                                          NumericLimits<InDataType>::QuietNaN());
 
-        // block_sync_lds(); // ensure reduced values are properly loaded
+        using BlockwiseSumReduce = PartitionedBlockwiseReduction<
+            AccDataType,
+            BlockSize,
+            ThreadClusterLengths_M_K,
+            ThreadClusterArrangeOrder,
+            reduce::Add<AccDataType>,
+            false, // ignored
+            detail::AccumulateWithNanIgnore<reduce::Add<AccDataType>, AccDataType>>;
+
+        using ThreadwiseSumReduce =
+            ThreadwiseReduction<AccDataType,
+                                ThreadReduceSrcDesc_M_K,
+                                ThreadReduceDstDesc_M,
+                                reduce::Add<AccDataType>,
+                                false, // ignored
+                                detail::AccumulateWithNanIgnore<reduce::Add<AccDataType>,
+                                                                AccDataType>>;
+
         reducedTiles = 0;
         do
         {

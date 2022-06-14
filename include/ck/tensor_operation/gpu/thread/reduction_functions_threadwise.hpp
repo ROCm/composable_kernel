@@ -39,7 +39,8 @@ template <typename AccDataType,
           typename SrcThreadDesc_M_K,
           typename DstThreadDesc_M,
           typename OpReduce,
-          bool PropagateNan>
+          bool PropagateNan,
+          typename Accumulation = detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>>
 struct ThreadwiseReduction
 {
     static constexpr auto src_thread_desc_m_k = SrcThreadDesc_M_K{};
@@ -50,8 +51,6 @@ struct ThreadwiseReduction
     static constexpr auto dst_length_m = dst_thread_desc_m.GetLength(Number<0>{});
 
     static_assert(src_length_m == dst_length_m, "lengths of source and dst buffer must match!");
-
-    using Accumulation = detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>;
 
     template <typename SrcBufferType, typename DstBufferType>
     __device__ static void Reduce(const SrcBufferType& src_buf, DstBufferType& dst_buf)
@@ -78,7 +77,8 @@ template <typename AccDataType,
           typename SrcThreadDesc_M_K,
           typename DstThreadDesc_M,
           typename OpReduce,
-          bool PropagateNan>
+          bool PropagateNan,
+          typename Accumulation = detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>>
 struct ThreadwiseReductionWithIndex
 {
     static constexpr auto src_thread_desc_m_k = SrcThreadDesc_M_K{};
@@ -89,9 +89,6 @@ struct ThreadwiseReductionWithIndex
     static constexpr auto dst_length_m = dst_thread_desc_m.GetLength(Number<0>{});
 
     static_assert(src_length_m == dst_length_m, "lengths of source and dst buffer must match!");
-
-    using Accumulation =
-        detail::AccumulateWithIndexAndNanCheck<PropagateNan, OpReduce, AccDataType, IndexDataType>;
 
     template <typename SrcValueBufferType,
               typename SrcIndexBufferType,

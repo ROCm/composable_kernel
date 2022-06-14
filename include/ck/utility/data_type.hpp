@@ -1000,6 +1000,8 @@ struct NumericLimits
     __host__ __device__ static constexpr T Max() { return std::numeric_limits<T>::max(); }
 
     __host__ __device__ static constexpr T Lowest() { return std::numeric_limits<T>::lowest(); }
+
+    __host__ __device__ static constexpr T QuietNaN() { return std::numeric_limits<T>::quiet_NaN(); }
 };
 
 template <>
@@ -1008,12 +1010,15 @@ struct NumericLimits<half_t>
     static constexpr unsigned short binary_min    = 0x0400;
     static constexpr unsigned short binary_max    = 0x7BFF;
     static constexpr unsigned short binary_lowest = 0xFBFF;
+    static constexpr unsigned short binary_qnan   = 0x7FFF;
 
     __host__ __device__ static constexpr half_t Min() { return bit_cast<half_t>(binary_min); }
 
     __host__ __device__ static constexpr half_t Max() { return bit_cast<half_t>(binary_max); }
 
     __host__ __device__ static constexpr half_t Lowest() { return bit_cast<half_t>(binary_lowest); }
+
+    __host__ __device__ static constexpr half_t QuietNaN() { return bit_cast<half_t>(binary_qnan); }
 };
 
 } // namespace ck

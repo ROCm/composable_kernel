@@ -35,9 +35,27 @@
 namespace ck {
 namespace detail {
 
+// Check for NaN; guarantee NaNs are NOT propagated to result (i.e., ignore NaNs)
+template <typename ReduceOperation, typename AccDataType>
+struct AccumulateWithNanIgnore
+{
+    __device__ static inline void Calculate(AccDataType& accuVal, AccDataType currVal)
+    {
+        if(!is_nan(currVal))
+        {
+            ReduceOperation{}(accuVal, currVal);
+        }
+    };
+};
+
 template <bool PropagateNan, typename ReduceOperation, typename AccDataType>
 struct AccumulateWithNanCheck;
 
+// Does not check for NaN; does not guarantee NaNs be propagated to result
+// e.g., given that max(a, b) = a > b ? a : b
+// then  max(NaN, 1) returns 1
+//       max(1, NaN) returns NaN
+// since any comparison involving NaNs returns false
 template <typename ReduceOperation, typename AccDataType>
 struct AccumulateWithNanCheck<false, ReduceOperation, AccDataType>
 {
@@ -48,6 +66,7 @@ struct AccumulateWithNanCheck<false, ReduceOperation, AccDataType>
     };
 };
 
+// Check for NaN; guarantees NaNs be propagated to result
 template <typename ReduceOperation, typename AccDataType>
 struct AccumulateWithNanCheck<true, ReduceOperation, AccDataType>
 {
