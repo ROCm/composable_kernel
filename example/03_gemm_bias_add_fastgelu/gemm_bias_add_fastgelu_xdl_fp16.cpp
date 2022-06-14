@@ -10,10 +10,10 @@
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
 #include "device_tensor.hpp"
-#include "device_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"
 #include "gemm_specialization.hpp"
+#include "device_gemm_multiple_d_xdl_cshuffle.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -26,8 +26,8 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-// E = FastGelu((A * B) + D0 + D1)
 // C = A * B
+// E = FastGelu(C + D0 + D1)
 struct AddAddFastGelu
 {
     __host__ __device__ void
@@ -69,7 +69,7 @@ using CDEElementOp = AddAddFastGelu;
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 // clang-format off
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmMultipleD_Xdl_CShuffle
+using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleD_Xdl_CShuffle
 //######| ALayout| BLayout| ELayout|     AData|     BData|     AccData|         CShuffle|     DsData|     EData|           A|           B|          CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
 //######|        |        |        |      Type|      Type|        Type|         DataType|       Type|      Type| Elementwise| Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
 //######|        |        |        |          |          |            |                 |           |          |   Operation|   Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
@@ -88,9 +88,10 @@ int main(int argc, char* argv[])
     ck::index_t N = 4096;
     ck::index_t K = 4096;
 
-    ck::index_t StrideA = 4096;
-    ck::index_t StrideB = 4096;
-    ck::index_t StrideE = 4096;
+    ck::index_t StrideA  = 4096;
+    ck::index_t StrideB  = 4096;
+    ck::index_t StrideD1 = 4096;
+    ck::index_t StrideE  = 4096;
 
     if(argc == 1)
     {
@@ -102,7 +103,7 @@ int main(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
     }
-    else if(argc == 10)
+    else if(argc == 11)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
@@ -112,16 +113,17 @@ int main(int argc, char* argv[])
         N = std::stoi(argv[5]);
         K = std::stoi(argv[6]);
 
-        StrideA = std::stoi(argv[7]);
-        StrideB = std::stoi(argv[8]);
-        StrideE = std::stoi(argv[9]);
+        StrideA  = std::stoi(argv[7]);
+        StrideB  = std::stoi(argv[8]);
+        StrideD1 = std::stoi(argv[9]);
+        StrideE  = std::stoi(argv[10]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideE\n");
+        printf("arg4 to 10: M (256x), N(128x), K(32x), StrideA, StrideB, StrideD1, StrideE\n");
         exit(0);
     }
 
@@ -184,30 +186,28 @@ int main(int argc, char* argv[])
     auto cde_element_op = CDEElementOp{};
 
     // do GEMM
-    auto gemm    = DeviceGemmInstance{};
-    auto invoker = gemm.MakeInvoker();
+    auto device_op = DeviceOpInstance{};
+    auto invoker   = device_op.MakeInvoker();
     auto argument =
-        gemm.MakeArgument(a_m_k_device_buf.GetDeviceBuffer(),
-                          b_k_n_device_buf.GetDeviceBuffer(),
-                          std::array<const void*, 2>{{d0_m_n_device_buf.GetDeviceBuffer(),
-                                                      d1_m_n_device_buf.GetDeviceBuffer()}},
-                          e_m_n_device_buf.GetDeviceBuffer(),
-                          M,
-                          N,
-                          K,
-                          StrideA,
-                          StrideB,
-                          std::array<ck::index_t, 2>{{0, StrideE}},
-                          StrideE,
-                          a_element_op,
-                          b_element_op,
-                          cde_element_op);
+        device_op.MakeArgument(a_m_k_device_buf.GetDeviceBuffer(),
+                               b_k_n_device_buf.GetDeviceBuffer(),
+                               std::array<const void*, 2>{d0_m_n_device_buf.GetDeviceBuffer(),
+                                                          d1_m_n_device_buf.GetDeviceBuffer()},
+                               e_m_n_device_buf.GetDeviceBuffer(),
+                               M,
+                               N,
+                               K,
+                               StrideA,
+                               StrideB,
+                               std::array<ck::index_t, 2>{0, StrideD1},
+                               StrideE,
+                               a_element_op,
+                               b_element_op,
+                               cde_element_op);
 
-    if(!gemm.IsSupportedArgument(argument))
+    if(!device_op.IsSupportedArgument(argument))
     {
-        throw std::runtime_error(
-            "wrong! device_gemm with the specified compilation parameters does "
-            "not support this GEMM problem");
+        throw std::runtime_error("wrong! this device_op instance does not support this problem");
     }
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
@@ -222,7 +222,7 @@ int main(int argc, char* argv[])
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << gemm.GetTypeString() << std::endl;
+              << device_op.GetTypeString() << std::endl;
 
     if(do_verification)
     {
@@ -237,8 +237,9 @@ int main(int argc, char* argv[])
                                                                                 AElementOp,
                                                                                 BElementOp,
                                                                                 PassThrough>;
-        auto ref_gemm               = ReferenceGemmInstance{};
-        auto ref_invoker            = ref_gemm.MakeInvoker();
+
+        auto ref_gemm    = ReferenceGemmInstance{};
+        auto ref_invoker = ref_gemm.MakeInvoker();
 
         auto ref_argument =
             ref_gemm.MakeArgument(a_m_k, b_k_n, c_m_n, a_element_op, b_element_op, PassThrough{});
