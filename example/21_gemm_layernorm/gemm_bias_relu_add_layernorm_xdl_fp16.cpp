@@ -206,9 +206,9 @@ void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
     {
         for(int n = 0; n < N; ++n)
         {
-            float out_f32 = 0;
-            layerNormInst(out_f32, c_m_n(m, n), mean_m(m), meanSquare_m(m), gamma_n(n), beta_n(n));
-            out_m_n(m, n) = static_cast<DDataType>(out_f32);
+            AccDataType out_acc = 0;
+            layerNormInst(out_acc, c_m_n(m, n), mean_m(m), meanSquare_m(m), gamma_n(n), beta_n(n));
+            out_m_n(m, n) = static_cast<DDataType>(out_acc);
         }
     }
 }
