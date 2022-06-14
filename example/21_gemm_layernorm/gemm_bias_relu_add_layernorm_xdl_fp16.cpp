@@ -153,7 +153,7 @@ void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
     Tensor<CDataType> c_m_n(f_host_tensor_descriptor2d(M, N, StrideC, CLayout{}));
     Tensor<DDataType> mean_m(f_host_tensor_descriptor1d(M, 1));
     Tensor<DDataType> meanSquare_m(f_host_tensor_descriptor1d(M, 1));
-    auto averageOpInst = UnaryDivElementOp{M};
+    auto averageOpInst = UnaryDivElementOp{N};
 
     auto ref_gemm    = ReferenceGemmInstance{};
     auto ref_invoker = ref_gemm.MakeInvoker();
