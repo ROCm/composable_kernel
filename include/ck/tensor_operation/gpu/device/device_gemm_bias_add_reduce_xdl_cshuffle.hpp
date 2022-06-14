@@ -3,7 +3,6 @@
 #include <sstream>
 #include "device.hpp"
 #include "device_gemm_reduce.hpp"
-#include "common_header.hpp"
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
