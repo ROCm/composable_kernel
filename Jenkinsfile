@@ -101,7 +101,7 @@ def buildHipClangJob(Map conf=[:]){
         def variant = env.STAGE_NAME
 
         def retimage
-        gitStatusWrapper(credentialsId: '7126e5fe-eb51-4576-b52b-9aaf1de8f0fd', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
+        gitStatusWrapper(credentialsId: '911f286b-40ee-4cab-9d47-3de2be50fc67', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
             if (params.USE_DOCKERFILE){
                 try {
                     retimage = docker.build("${image}", dockerArgs + '.')
@@ -191,7 +191,7 @@ def runCKProfiler(Map conf=[:]){
         def variant = env.STAGE_NAME
 
         def retimage
-        gitStatusWrapper(credentialsId: '7126e5fe-eb51-4576-b52b-9aaf1de8f0fd', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
+        gitStatusWrapper(credentialsId: '911f286b-40ee-4cab-9d47-3de2be50fc67', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
             if (params.USE_DOCKERFILE){
                 try {
                     retimage = docker.build("${image}", dockerArgs + '.')
