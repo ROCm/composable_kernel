@@ -549,6 +549,14 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
                     { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
                     Number<NumDTensor>{}));
 
+            // tuple of reference to C/Ds tensor descriptors
+            const auto c_ds_buf_refs = concat_tuple_of_reference(
+                tie(c_shuffle_block_buf),
+                generate_tie(
+                    [&](auto i) -> const auto& // return type should be reference
+                    { return ds_grid_buf[i]; },
+                    Number<NumDTensor>{}));
+
             // tuple of starting index of C/Ds blockwise copy
             const auto idx_c_ds_block_begin = container_concat(
                 make_tuple(make_multi_index(0, 0, 0, 0)),
@@ -561,9 +569,7 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
             // blockwise copy C/D/E between LDS and global
             auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v7<
                 ThisThreadBlock,
-                Tuple<FloatCShuffle,
-                      remove_cvref_t<tuple_element_t<0, DsDataType>>,
-                      remove_cvref_t<tuple_element_t<1, DsDataType>>>,
+                decltype(container_concat(make_tuple(FloatCShuffle{}), DsDataType{})),
                 Tuple<FloatE>,
                 decltype(c_ds_desc_refs),
                 decltype(tie(e_grid_desc_mblock_mperblock_nblock_nperblock)),
@@ -633,7 +639,7 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
                 // each block copy its data from LDS to global
                 cde_block_copy_lds_and_global.Run(
                     c_ds_desc_refs,
-                    tie(c_shuffle_block_buf, ds_grid_buf[I0], ds_grid_buf[I1]),
+                    c_ds_buf_refs,
                     tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
                     tie(e_grid_buf));
 

@@ -240,7 +240,13 @@ struct arithmetic_sequence_gen
         }
     };
 
-    using type = typename sequence_gen<(IEnd - IBegin) / Increment, F>::type;
+    using type0 = typename sequence_gen<(IEnd - IBegin) / Increment, F>::type;
+    using type1 = Sequence<>;
+
+    static constexpr bool kHasContent =
+        (Increment > 0 && IBegin < IEnd) || (Increment < 0 && IBegin > IEnd);
+
+    using type = typename conditional<kHasContent, type0, type1>::type;
 };
 
 // uniform sequence

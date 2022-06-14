@@ -503,8 +503,10 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<DsDataType:
                     GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         e_grid_desc_m_n_);
 
+                static_assert(NumDTensor == 0, "wrong!");
+
                 static_for<0, NumDTensor, 1>{}([&](auto i) {
-                    using DDataType = remove_cvref_t<decltype(DsDataType{}.At(i))>;
+                    using DDataType = tuple_element_t<i.value, DsDataType>;
 
                     p_ds_grid_(i) = static_cast<const DDataType*>(p_ds_grid[i]);
 
