@@ -160,7 +160,7 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
     const auto d1_reduce_op  = D1ReduceOp{};
 
     auto dxs_in_element_op  = DxsInElementOps{};
-    auto dxs_out_element_op = DxsOutElementOps{M, M};
+    auto dxs_out_element_op = DxsOutElementOps{N, N};
 
     if(do_verification)
     {

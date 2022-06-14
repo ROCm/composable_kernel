@@ -59,7 +59,7 @@ using UnaryDivElementOp =
 using UnarySquareElementOp =
     ck::tensor_operation::element_wise::UnarySquare<ReduceAccDataType, ReduceAccDataType, false>;
 using DxsInElementOp  = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
-using DxsOutElementOp = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
+using DxsOutElementOps = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
 
 using DxsGlobalMemOp =
     ck::InMemoryDataOperationEnumSequence<ck::InMemoryDataOperationEnum::AtomicAdd,
@@ -74,7 +74,7 @@ using DeviceGemmBiasAddReduceInstance = ck::tensor_operation::device::DeviceGemm
 //######|        |        |        | Type|  Type|  Type|  Type|  Type| DataType| DataType|  DataType|    Type Tuple| Elementwise| Elementwise| Elementwise| Elementwise|      Reduce|               |                |      MemoryData|     Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN| MXdlPerWave| NXdlPerWave|            _MBlock_MPerBlock| ScalarPerVector| ThreadClusterLengths|     SrcDstScalarPerVector|        SrcDstScalarPerVector|
 //######|        |        |        |     |      |      |      |      |         |         |          |              |   Operation|   Operation|   Operation|   Operation|   Operation|               |                |       Operation|                   |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|            _NBlock_NPerBlock|      _NPerBlock| _MPerBlock_NPerBlock|                _NPerBlock|                   _MPerBlock|
 //######|        |        |        |     |      |      |      |      |         |         |          |              |            |            |            |            |            |               |                |                |                   |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |                     |                          |                             |
-        <     Row,     Col,     Row,  F16,   F16,   F16,   F32,   F16,      F32,      F32,       F32,   DPtrsGlobal,  AElementOp,  BElementOp,  CElementOp, C1ElementOp, DxsReduceOp, DxsInElementOp, DxsOutElementOp,  DxsGlobalMemOp, GemmSpecialization,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8,             S<64, 4>,                         4,                            1>;
+        <     Row,     Col,     Row,  F16,   F16,   F16,   F32,   F16,      F32,      F32,       F32,   DPtrsGlobal,  AElementOp,  BElementOp,  CElementOp, C1ElementOp, DxsReduceOp, DxsInElementOp, DxsOutElementOps,  DxsGlobalMemOp, GemmSpecialization,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8,             S<64, 4>,                         4,                            1>;
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
@@ -306,7 +306,7 @@ int main()
                        static_cast<DDataType*>(reduceMeanSquare_device_buf.GetDeviceBuffer()));
 
     auto dxs_in_element_op  = DxsInElementOp{};
-    auto dxs_out_element_op = DxsOutElementOp{M, M};
+    auto dxs_out_element_op = DxsOutElementOps{N, N};
 
     // Prepare GEMM, reduce_mean, reduce_mean_square
     auto gemmReduce         = DeviceGemmBiasAddReduceInstance{};
