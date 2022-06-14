@@ -233,7 +233,7 @@ template <index_t BlockSize,
           index_t CBlockTransferScalarPerVector_NWaveNPerXDL,
           typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           bool BBlockLdsExtraN1 = false,
-          index_t NumGemmKPrefetchStage = 3>
+          index_t NumGemmKPrefetchStage = 4>
 struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 {
     static constexpr auto I0 = Number<0>{};
