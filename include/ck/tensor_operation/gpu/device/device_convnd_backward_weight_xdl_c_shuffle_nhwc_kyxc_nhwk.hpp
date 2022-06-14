@@ -1015,7 +1015,7 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             };
 
             // run kernel for bf16 with splitk
-            const auto Run_bf16_splitk = [&](const auto& kernel) {
+            const auto run_bf16_splitk = [&](const auto& kernel) {
                 hipGetErrorString(hipMemset(
                     arg.p_c_workspace_grid_,
                     0,
@@ -1125,7 +1125,7 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                             remove_reference_t<DeviceOp::Block2CTileMap>,
                             true>;
 
-                        Run_bf16_splitk(kernel_conv);
+                        run_bf16_splitk(kernel_conv);
                         ave_time += Run_type_convert(kernel_type_convert);
                     }
                 }
@@ -1165,7 +1165,7 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                             remove_reference_t<DeviceOp::Block2CTileMap>,
                             false>;
 
-                        Run_bf16_splitk(kernel);
+                        run_bf16_splitk(kernel);
                     }
                 }
             }
