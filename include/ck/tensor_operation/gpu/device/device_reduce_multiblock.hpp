@@ -44,7 +44,7 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
 
     static_assert(((InSrcVectorDim == 0 && MThreadSliceSize % InSrcVectorSize == 0) ||
                    (InSrcVectorDim == 1 && KThreadSliceSize % InSrcVectorSize == 0)) &&
-                      (MThreadSliceSize % OutDstVectorSize == 0), // cond is not for softmax_mk_to_mk
+                      (MThreadSliceSize % OutDstVectorSize == 0),
                   "Invalid thread slice sizes and/or vector sizes configuration, please check!");
 
     using IndexDataType = int32_t;
@@ -444,8 +444,8 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
         else
         {
             // cases with very small reduce_total_length should be handled by ThreadWise kernel
-            if(pArg->reduce_total_length / KThreadSliceSize < 2)
-                return (false);
+            // if(pArg->reduce_total_length / KThreadSliceSize < 2)
+            //     return (false);
         };
 
         return (true);

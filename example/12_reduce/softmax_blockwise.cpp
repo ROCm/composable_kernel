@@ -56,12 +56,12 @@ class SimpleAppArgs
     int option_index = 0;
 
     public:
-    std::vector<size_t> inLengths = {8, 2048, 2048};
+    std::vector<size_t> inLengths = {8, 128, 2048};
     std::vector<ScalarDataType> scales = {2.0f, 2.0f};
 
     bool do_verification = true;
-    int init_method      = 1;
-    bool time_kernel     = false;
+    int init_method      = 2;
+    bool time_kernel     = true;
 
     public:
     void show_usage(const char* cmd)
