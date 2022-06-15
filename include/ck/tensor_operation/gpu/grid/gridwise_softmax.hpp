@@ -105,13 +105,13 @@ struct GridwiseSoftmax_mk_to_mk
                                                              ThreadClusterLengths_M_K,
                                                              ThreadClusterArrangeOrder,
                                                              reduce::Max<AccDataType>,
-                                                             false>; //PropagateNan
+                                                             false>; // PropagateNan
 
     using ThreadwiseMaxReduce = ThreadwiseReduction<AccDataType,
                                                     ThreadReduceSrcDesc_M_K,
                                                     ThreadReduceDstDesc_M,
                                                     reduce::Max<AccDataType>,
-                                                    false>; //PropagateNan
+                                                    false>; // PropagateNan
 
     using PassThroughOp = tensor_operation::element_wise::PassThrough;
 
@@ -227,10 +227,10 @@ struct GridwiseSoftmax_mk_to_mk
         ///
         /// max(x)
         ///
-        const auto in_global_val_buf_oob_non_zero =
-            make_dynamic_buffer<AddressSpaceEnum::Global>(p_in_value_global,
-                                                          in_grid_desc_m_k.GetElementSpaceSize(),
-                                                          reduce::Max<InDataType>::GetReductionZeroVal());
+        const auto in_global_val_buf_oob_non_zero = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_in_value_global,
+            in_grid_desc_m_k.GetElementSpaceSize(),
+            reduce::Max<InDataType>::GetReductionZeroVal());
         index_t reducedTiles = 0;
         do
         {
@@ -247,9 +247,8 @@ struct GridwiseSoftmax_mk_to_mk
             reducedTiles++;
         } while(reducedTiles < num_k_block_tile_iteration);
 
-        static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-            BlockwiseMaxReduce::Reduce(reduce_work_buf, max_value_buf(I));
-        });
+        static_for<0, MThreadSliceSize, 1>{}(
+            [&](auto I) { BlockwiseMaxReduce::Reduce(reduce_work_buf, max_value_buf(I)); });
 
         threadwise_src_load.MoveSrcSliceWindow(in_grid_desc_m_k, in_thread_copy_bwd_step);
 
@@ -284,14 +283,13 @@ struct GridwiseSoftmax_mk_to_mk
             false, // ignored
             detail::AccumulateWithNanIgnore<reduce::Add<AccDataType>, AccDataType>>;
 
-        using ThreadwiseSumReduce =
-            ThreadwiseReduction<AccDataType,
-                                ThreadReduceSrcDesc_M_K,
-                                ThreadReduceDstDesc_M,
-                                reduce::Add<AccDataType>,
-                                false, // ignored
-                                detail::AccumulateWithNanIgnore<reduce::Add<AccDataType>,
-                                                                AccDataType>>;
+        using ThreadwiseSumReduce = ThreadwiseReduction<
+            AccDataType,
+            ThreadReduceSrcDesc_M_K,
+            ThreadReduceDstDesc_M,
+            reduce::Add<AccDataType>,
+            false, // ignored
+            detail::AccumulateWithNanIgnore<reduce::Add<AccDataType>, AccDataType>>;
 
         reducedTiles = 0;
         do
@@ -329,7 +327,7 @@ struct GridwiseSoftmax_mk_to_mk
         /// softmax
         ///
         reducedTiles = 0;
-        if (float_equal_zero{}(beta))
+        if(float_equal_zero{}(beta))
         {
             do
             {
@@ -342,7 +340,8 @@ struct GridwiseSoftmax_mk_to_mk
                 static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
                     // out = alpha * exp(x - max(x)) / sum(exp(x - max(x)))
                     static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
-                        constexpr auto offset = thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
+                        constexpr auto offset =
+                            thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
                         out_thread_buf(Number<offset>{}) =
                             static_cast<AccDataType>(alpha) *
                             __expf(in_thread_buf(Number<offset>{}) - max_value_buf(iM)) /
@@ -350,7 +349,11 @@ struct GridwiseSoftmax_mk_to_mk
                     });
                 });
 
-                threadwise_dst_store.Run(thread_buffer_desc, make_tuple(I0, I0), out_thread_buf, out_grid_desc_m_k, out_global_val_buf);
+                threadwise_dst_store.Run(thread_buffer_desc,
+                                         make_tuple(I0, I0),
+                                         out_thread_buf,
+                                         out_grid_desc_m_k,
+                                         out_global_val_buf);
 
                 threadwise_src_load.MoveSrcSliceWindow(in_grid_desc_m_k, in_thread_copy_fwd_step);
                 threadwise_dst_store.MoveDstSliceWindow(out_grid_desc_m_k, in_thread_copy_fwd_step);

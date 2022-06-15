@@ -1001,7 +1001,10 @@ struct NumericLimits
 
     __host__ __device__ static constexpr T Lowest() { return std::numeric_limits<T>::lowest(); }
 
-    __host__ __device__ static constexpr T QuietNaN() { return std::numeric_limits<T>::quiet_NaN(); }
+    __host__ __device__ static constexpr T QuietNaN()
+    {
+        return std::numeric_limits<T>::quiet_NaN();
+    }
 };
 
 template <>

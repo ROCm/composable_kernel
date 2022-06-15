@@ -36,42 +36,42 @@ struct DeviceSoftmax : public BaseOperator
 
     // Used for freeloading of some handy functions from DeviceReduceMultiBlock
     using Reduction = DeviceReduceMultiBlock<InDataType,
-                                        AccDataType,
-                                        OutDataType,
-                                        Rank,
-                                        NumReduceDim,
-                                        reduce::Add<AccDataType>,
-                                        PassThrough, //InElementwiseOperation
-                                        PassThrough, //AccElementwiseOperation
-                                        InMemoryDataOperationEnum::Set,
-                                        false, // PropagateNan
-                                        false, // OutputIndex
-                                        false, // HaveIndexInputIfOutputIndex
-                                        BlockSize,
-                                        MThreadClusterSize,
-                                        KThreadClusterSize,
-                                        MThreadSliceSize,
-                                        KThreadSliceSize,
-                                        InSrcVectorDim,
-                                        InSrcVectorSize,
-                                        1, // OutDstVectorSize
-                                        false>; // MultiBlockReduction
+                                             AccDataType,
+                                             OutDataType,
+                                             Rank,
+                                             NumReduceDim,
+                                             reduce::Add<AccDataType>,
+                                             PassThrough, // InElementwiseOperation
+                                             PassThrough, // AccElementwiseOperation
+                                             InMemoryDataOperationEnum::Set,
+                                             false, // PropagateNan
+                                             false, // OutputIndex
+                                             false, // HaveIndexInputIfOutputIndex
+                                             BlockSize,
+                                             MThreadClusterSize,
+                                             KThreadClusterSize,
+                                             MThreadSliceSize,
+                                             KThreadSliceSize,
+                                             InSrcVectorDim,
+                                             InSrcVectorSize,
+                                             1,      // OutDstVectorSize
+                                             false>; // MultiBlockReduction
 
     using GridDesc_M_K = decltype(Reduction::MakeSrc2dDescriptor({1}, {1}, 1, 1));
 
     using GridwiseReduce = GridwiseSoftmax_mk_to_mk<InDataType,
-                                                   OutDataType,
-                                                   AccDataType,
-                                                   ScalarDataType,
-                                                   GridDesc_M_K,
-                                                   BlockSize,
-                                                   MThreadClusterSize,
-                                                   KThreadClusterSize,
-                                                   MThreadSliceSize,
-                                                   KThreadSliceSize,
-                                                   InSrcVectorDim,
-                                                   InSrcVectorSize,
-                                                   OutDstVectorSize>;
+                                                    OutDataType,
+                                                    AccDataType,
+                                                    ScalarDataType,
+                                                    GridDesc_M_K,
+                                                    BlockSize,
+                                                    MThreadClusterSize,
+                                                    KThreadClusterSize,
+                                                    MThreadSliceSize,
+                                                    KThreadSliceSize,
+                                                    InSrcVectorDim,
+                                                    InSrcVectorSize,
+                                                    OutDstVectorSize>;
 
     struct Argument : public Reduction::Argument
     {
@@ -85,18 +85,18 @@ struct DeviceSoftmax : public BaseOperator
                  const InDataType* in_dev,
                  OutDataType* out_dev)
             : Reduction::Argument(inLengths,
-                             inStrides,
-                             outLengths,
-                             outStrides,
-                             reduceDims,
-                             0.0f, // alpha
-                             0.0f, // beta
-                             in_dev,
-                             nullptr,
-                             out_dev,
-                             nullptr,
-                             PassThrough{},
-                             PassThrough{}),
+                                  inStrides,
+                                  outLengths,
+                                  outStrides,
+                                  reduceDims,
+                                  0.0f, // alpha
+                                  0.0f, // beta
+                                  in_dev,
+                                  nullptr,
+                                  out_dev,
+                                  nullptr,
+                                  PassThrough{},
+                                  PassThrough{}),
               // FIXME: The base class DeviceReduceMultiBlock::Argument only supports alpha/beta of
               // float32 precision. Make it support any data type so the fields can be removed.
               alpha_(alpha),
@@ -158,7 +158,7 @@ struct DeviceSoftmax : public BaseOperator
     {
         const Argument* p_arg_ = dynamic_cast<const Argument*>(p_arg);
 
-        if (!Reduction::IsSupportedArgument(p_arg_))
+        if(!Reduction::IsSupportedArgument(p_arg_))
         {
             return false;
         }
@@ -171,16 +171,15 @@ struct DeviceSoftmax : public BaseOperator
         return true;
     };
 
-    std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const std::vector<index_t> inLengths,
-                        const std::vector<index_t> inStrides,
-                        const std::vector<index_t> outLengths,
-                        const std::vector<index_t> outStrides,
-                        const std::vector<int> reduceDims,
-                        ScalarDataType alpha,
-                        ScalarDataType beta,
-                        const void* in_dev,
-                        void* out_dev)
+    std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<index_t> inLengths,
+                                                      const std::vector<index_t> inStrides,
+                                                      const std::vector<index_t> outLengths,
+                                                      const std::vector<index_t> outStrides,
+                                                      const std::vector<int> reduceDims,
+                                                      ScalarDataType alpha,
+                                                      ScalarDataType beta,
+                                                      const void* in_dev,
+                                                      void* out_dev)
     {
         return std::make_unique<Argument>(inLengths,
                                           inStrides,
@@ -193,10 +192,7 @@ struct DeviceSoftmax : public BaseOperator
                                           static_cast<OutDataType*>(out_dev));
     };
 
-    std::unique_ptr<BaseInvoker> MakeInvokerPointer()
-    {
-        return std::make_unique<Invoker>();
-    };
+    std::unique_ptr<BaseInvoker> MakeInvokerPointer() { return std::make_unique<Invoker>(); };
 
     std::string GetTypeString() const override
     {

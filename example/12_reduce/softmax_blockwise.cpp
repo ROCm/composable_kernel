@@ -22,9 +22,9 @@
 using namespace ck;
 using namespace ck::tensor_operation::device;
 
-using InDataType  = ck::half_t;
-using OutDataType = ck::half_t;
-using AccDataType = float;
+using InDataType     = ck::half_t;
+using OutDataType    = ck::half_t;
+using AccDataType    = float;
 using ScalarDataType = float;
 
 constexpr int Rank         = 3;
@@ -37,13 +37,13 @@ using DeviceInstance = DeviceSoftmax<InDataType,
                                      Rank,
                                      NumReduceDim,
                                      256, // BlockSize
-                                     8, // ClusterM
-                                     32, // ClusterK
-                                     1, // SliceM
-                                     8, // SliceK
-                                     1, // SrcVecDim (0=M, 1=K)
-                                     8, // SrcScalarPerVector
-                                     8>; // OutScalarPerVector
+                                     8,   // ClusterM
+                                     32,  // ClusterK
+                                     1,   // SliceM
+                                     8,   // SliceK
+                                     1,   // SrcVecDim (0=M, 1=K)
+                                     8,   // SrcScalarPerVector
+                                     8>;  // OutScalarPerVector
 
 static struct option long_options[] = {{"inLengths", required_argument, nullptr, 'D'},
                                        {"verify", required_argument, nullptr, 'v'},
@@ -56,7 +56,7 @@ class SimpleAppArgs
     int option_index = 0;
 
     public:
-    std::vector<size_t> inLengths = {8, 128, 2048};
+    std::vector<size_t> inLengths      = {8, 128, 2048};
     std::vector<ScalarDataType> scales = {2.0f, 2.0f};
 
     bool do_verification = true;
@@ -158,8 +158,8 @@ int main(int argc, char* argv[])
     Tensor<OutDataType> out(outLengths);
     Tensor<OutDataType> sm_scalar(smScalarLengths);
 
-    auto inStrides  = in.mDesc.GetStrides();
-    auto outStrides = out.mDesc.GetStrides();
+    auto inStrides       = in.mDesc.GetStrides();
+    auto outStrides      = out.mDesc.GetStrides();
     auto smScalarStrides = sm_scalar.mDesc.GetStrides();
 
     ScalarDataType alpha = args.scales[0];
@@ -207,8 +207,8 @@ int main(int argc, char* argv[])
 
     if(args.do_verification)
     {
-        using ReferenceInstance =
-            tensor_operation::host::ReferenceSoftmax<InDataType, OutDataType, AccDataType, ScalarDataType>;
+        using ReferenceInstance = tensor_operation::host::
+            ReferenceSoftmax<InDataType, OutDataType, AccDataType, ScalarDataType>;
         ReferenceInstance ref;
         auto ref_arg = ref.MakeArgument(in, out_ref, alpha, beta, Rank, reduceDims);
         auto invoker = ref.MakeInvoker();
@@ -228,16 +228,15 @@ int main(int argc, char* argv[])
 
     auto device_instance = DeviceInstance{};
 
-    auto argument_ptr = device_instance.MakeArgumentPointer(
-        i_inLengths,
-        i_inStrides,
-        i_smScalarLengths,
-        i_smScalarStrides,
-        reduceDims,
-        alpha,
-        beta,
-        in_dev.GetDeviceBuffer(),
-        out_dev.GetDeviceBuffer());
+    auto argument_ptr = device_instance.MakeArgumentPointer(i_inLengths,
+                                                            i_inStrides,
+                                                            i_smScalarLengths,
+                                                            i_smScalarStrides,
+                                                            reduceDims,
+                                                            alpha,
+                                                            beta,
+                                                            in_dev.GetDeviceBuffer(),
+                                                            out_dev.GetDeviceBuffer());
 
     if(!device_instance.IsSupportedArgument(argument_ptr.get()))
     {
@@ -262,8 +261,9 @@ int main(int argc, char* argv[])
 
     float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, args.time_kernel});
 
-    std::size_t num_bytes = in.mDesc.GetElementSize() * sizeof(InDataType) +
-                            (beta == 0.0f ? 1 : 2) * out.mDesc.GetElementSize() * sizeof(OutDataType);
+    std::size_t num_bytes =
+        in.mDesc.GetElementSize() * sizeof(InDataType) +
+        (beta == 0.0f ? 1 : 2) * out.mDesc.GetElementSize() * sizeof(OutDataType);
 
     float gb_per_sec = num_bytes / 1.E6 / avg_time;
 

@@ -40,7 +40,8 @@ template <typename AccDataType,
           typename DstThreadDesc_M,
           typename OpReduce,
           bool PropagateNan,
-          typename Accumulation = detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>>
+          typename Accumulation =
+              detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>>
 struct ThreadwiseReduction
 {
     static constexpr auto src_thread_desc_m_k = SrcThreadDesc_M_K{};
@@ -78,7 +79,8 @@ template <typename AccDataType,
           typename DstThreadDesc_M,
           typename OpReduce,
           bool PropagateNan,
-          typename Accumulation = detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>>
+          typename Accumulation =
+              detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>>
 struct ThreadwiseReductionWithIndex
 {
     static constexpr auto src_thread_desc_m_k = SrcThreadDesc_M_K{};

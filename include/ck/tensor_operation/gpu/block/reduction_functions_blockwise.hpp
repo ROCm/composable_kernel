@@ -46,7 +46,8 @@ template <typename AccDataType,
           typename ThreadClusterArrangeOrder,
           typename OpReduce,
           bool PropagateNan,
-          typename Accumulation = detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>>
+          typename Accumulation =
+              detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>>
 struct PartitionedBlockwiseReduction
 {
     static_assert(BlockSize == ThreadClusterLengths_M_K::At(0) * ThreadClusterLengths_M_K::At(1),
@@ -119,7 +120,8 @@ template <typename AccDataType,
           typename ThreadClusterArrangeOrder,
           typename OpReduce,
           bool PropagateNan,
-          typename Accumulation = detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>>
+          typename Accumulation =
+              detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>>
 struct PartitionedBlockwiseReductionWithIndex
 {
     static_assert(BlockSize == ThreadClusterLengths_M_K::At(0) * ThreadClusterLengths_M_K::At(1),

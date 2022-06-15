@@ -59,8 +59,8 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
 
     // So far, only AtomicAdd is considered, other Atomic Operation like AtomicMax can be added
     // later
-    static constexpr bool use_multiblock = MultiBlockReduction &&
-        (OutMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd);
+    static constexpr bool use_multiblock =
+        MultiBlockReduction && (OutMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd);
 
     static constexpr bool out_type_compatible_with_atomic_op =
         std::is_same<OutDataType, float>::value || std::is_same<OutDataType, double>::value;
