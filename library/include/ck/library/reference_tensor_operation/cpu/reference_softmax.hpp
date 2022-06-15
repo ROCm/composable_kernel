@@ -78,7 +78,7 @@ struct ReferenceSoftmax : public device::BaseOperator
                 reduce_max(to_sm_scalar_idx(idx)) = std::max(reduce_max(to_sm_scalar_idx(idx)), static_cast<AccDataType>(self(idx)));
             });
 
-            LogRangeAsType<float>(std::cout << "reduce_max: ", reduce_max.mData, ",") << std::endl;
+            // LogRangeAsType<float>(std::cout << "reduce_max: ", reduce_max.mData, ",") << std::endl;
 
             Tensor<AccDataType> in_stable(arg.in_.mDesc);
             in_stable.ForEach([&](auto& self, auto idx) {
@@ -86,20 +86,20 @@ struct ReferenceSoftmax : public device::BaseOperator
                 self(idx) = std::exp(static_cast<AccDataType>(arg.in_(idx)) - reduce_max(to_sm_scalar_idx(idx)));
             });
 
-            LogRangeAsType<float>(std::cout << "in_stable: ", in_stable.mData, ",") << std::endl;
+            // LogRangeAsType<float>(std::cout << "in_stable: ", in_stable.mData, ",") << std::endl;
 
             in_stable.ForEach([&](auto& self, auto idx) {
                 // denominator = sum(exp(x - max(x)))
                 reduce_sum(to_sm_scalar_idx(idx)) += self(idx);
             });
 
-            LogRangeAsType<float>(std::cout << "reduce_sum: ", reduce_sum.mData, ",") << std::endl;
+            // LogRangeAsType<float>(std::cout << "reduce_sum: ", reduce_sum.mData, ",") << std::endl;
 
             arg.out_.ForEach([&](auto& self, auto idx) {
                 self(idx) = arg.alpha_ * in_stable(idx) / reduce_sum(to_sm_scalar_idx(idx)) + arg.beta_ * self(idx);
             });
 
-            LogRangeAsType<float>(std::cout << "out: ", arg.out_.mData, ",") << std::endl;
+            // LogRangeAsType<float>(std::cout << "out: ", arg.out_.mData, ",") << std::endl;
             // reduction along reduce dims
             // LogRangeAsType<float>(std::cout << "reduce_max: ", reduce_max.mData, ",") << std::endl;
             // LogRangeAsType<float>(std::cout << "reduce_sum: ", reduce_sum.mData, ",") << std::endl;

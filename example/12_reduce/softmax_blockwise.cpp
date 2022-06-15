@@ -23,7 +23,7 @@ using namespace ck;
 using namespace ck::tensor_operation::device;
 
 using InDataType  = ck::half_t;
-using OutDataType = float;
+using OutDataType = ck::half_t;
 using AccDataType = float;
 using ScalarDataType = float;
 
@@ -43,7 +43,7 @@ using DeviceInstance = DeviceSoftmax<InDataType,
                                      8, // SliceK
                                      1, // SrcVecDim (0=M, 1=K)
                                      8, // SrcScalarPerVector
-                                     1>; // OutScalarPerVector FIXME: can be 8
+                                     8>; // OutScalarPerVector
 
 static struct option long_options[] = {{"inLengths", required_argument, nullptr, 'D'},
                                        {"verify", required_argument, nullptr, 'v'},
@@ -57,11 +57,11 @@ class SimpleAppArgs
 
     public:
     std::vector<size_t> inLengths = {8, 2048, 2048};
-    std::vector<float> scales     = {1.0f, 0.0f};
+    std::vector<ScalarDataType> scales = {2.0f, 2.0f};
 
     bool do_verification = true;
     int init_method      = 1;
-    bool time_kernel     = true;
+    bool time_kernel     = false;
 
     public:
     void show_usage(const char* cmd)
@@ -162,8 +162,8 @@ int main(int argc, char* argv[])
     auto outStrides = out.mDesc.GetStrides();
     auto smScalarStrides = sm_scalar.mDesc.GetStrides();
 
-    float alpha = args.scales[0];
-    float beta  = args.scales[1];
+    ScalarDataType alpha = args.scales[0];
+    ScalarDataType beta  = args.scales[1];
 
     std::size_t num_thread = 1;
 
@@ -175,28 +175,26 @@ int main(int argc, char* argv[])
         case 1:
             in.GenerateTensorValue(GeneratorTensor_1<InDataType>{1}, num_thread);
             if(beta != 0.0f)
-                out_ref.GenerateTensorValue(GeneratorTensor_1<InDataType>{1}, num_thread);
+                out_ref.GenerateTensorValue(GeneratorTensor_1<OutDataType>{1}, num_thread);
             break;
         case 2:
             in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5}, num_thread);
             if(beta != 0.0f)
-                out_ref.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5}, num_thread);
-            break;
-        case 3:
-            in.GenerateTensorValue(GeneratorTensor_Sequential<2>{}, num_thread);
+                out_ref.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5}, num_thread);
             break;
         default:
             in.GenerateTensorValue(GeneratorTensor_3<InDataType>{-5.0, 5.0}, num_thread);
             if(beta != 0.0f)
-                out_ref.GenerateTensorValue(GeneratorTensor_3<InDataType>{-5.0, 5.0}, num_thread);
+                out_ref.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-5.0, 5.0}, num_thread);
         }
 
         if(beta != 0.0f)
             for(size_t i = 0; i < out_ref.mDesc.GetElementSpace(); i++)
                 out.mData[i] = out_ref.mData[i];
     };
-    std::cout << "beta = " << beta << std::endl;
-    LogRangeAsType<float>(std::cout << "tensor in: " , in.mData, ",") << std::endl;
+    // std::cout << "beta = " << beta << std::endl;
+    // LogRangeAsType<float>(std::cout << "tensor in: " , in.mData, ",") << std::endl;
+    // LogRangeAsType<float>(std::cout << "tensor prior out: " , out.mData, ",") << std::endl;
 
     // these buffers are usually provided by the user application
     DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpace());
@@ -210,12 +208,12 @@ int main(int argc, char* argv[])
     if(args.do_verification)
     {
         using ReferenceInstance =
-            tensor_operation::host::ReferenceSoftmax<InDataType, OutDataType, AccDataType, float>;
+            tensor_operation::host::ReferenceSoftmax<InDataType, OutDataType, AccDataType, ScalarDataType>;
         ReferenceInstance ref;
         auto ref_arg = ref.MakeArgument(in, out_ref, alpha, beta, Rank, reduceDims);
         auto invoker = ref.MakeInvoker();
         invoker.Run(ref_arg);
-        LogRangeAsType<float>(std::cout << "tensor out_ref: ", out_ref.mData, ",") << std::endl;
+        // LogRangeAsType<float>(std::cout << "tensor out_ref: ", out_ref.mData, ",") << std::endl;
     };
 
     std::vector<ck::index_t> i_inLengths;
@@ -228,9 +226,9 @@ int main(int argc, char* argv[])
     i_smScalarLengths.assign(smScalarLengths.begin(), smScalarLengths.end());
     i_smScalarStrides.assign(smScalarStrides.begin(), smScalarStrides.end());
 
-    auto reduce = DeviceInstance{};
+    auto device_instance = DeviceInstance{};
 
-    auto argument_ptr = reduce.MakeArgumentPointer(
+    auto argument_ptr = device_instance.MakeArgumentPointer(
         i_inLengths,
         i_inStrides,
         i_smScalarLengths,
@@ -241,35 +239,36 @@ int main(int argc, char* argv[])
         in_dev.GetDeviceBuffer(),
         out_dev.GetDeviceBuffer());
 
-    if(!reduce.IsSupportedArgument(argument_ptr.get()))
+    if(!device_instance.IsSupportedArgument(argument_ptr.get()))
     {
         std::cout
             << "The runtime parameters seems not supported by the DeviceReduce instance, exiting!"
             << std::endl;
+        return 1;
     };
 
-    std::string reduce_name = reduce.GetTypeString();
+    std::string instance_name = device_instance.GetTypeString();
 
-    auto invoker_ptr = reduce.MakeInvokerPointer();
+    auto invoker_ptr = device_instance.MakeInvokerPointer();
+
+    bool pass = true;
+    if(args.do_verification)
+    {
+        invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
+        out_dev.FromDevice(out.mData.data());
+        // LogRangeAsType<float>(std::cout << "tensor out: " , out.mData, ",") << std::endl;
+        pass = pass && ck::utils::check_err(out.mData, out_ref.mData);
+    };
 
     float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, args.time_kernel});
 
     std::size_t num_bytes = in.mDesc.GetElementSize() * sizeof(InDataType) +
-                            out.mDesc.GetElementSize() * sizeof(OutDataType);
+                            (beta == 0.0f ? 1 : 2) * out.mDesc.GetElementSize() * sizeof(OutDataType);
 
     float gb_per_sec = num_bytes / 1.E6 / avg_time;
 
-    std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s, " << reduce_name
+    std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s, " << instance_name
               << std::endl;
-
-    bool pass = true;
-
-    if(args.do_verification)
-    {
-        out_dev.FromDevice(out.mData.data());
-        LogRangeAsType<float>(std::cout << "tensor out: " , out.mData, ",") << std::endl;
-        pass = pass && ck::utils::check_err(out.mData, out_ref.mData);
-    };
 
     return (pass ? 0 : 1);
 }

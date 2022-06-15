@@ -54,7 +54,7 @@ struct DeviceSoftmax : public BaseOperator
                                         KThreadSliceSize,
                                         InSrcVectorDim,
                                         InSrcVectorSize,
-                                        OutDstVectorSize,
+                                        1, // OutDstVectorSize
                                         false>; // MultiBlockReduction
 
     using GridDesc_M_K = decltype(Reduction::MakeSrc2dDescriptor({1}, {1}, 1, 1));
@@ -156,11 +156,18 @@ struct DeviceSoftmax : public BaseOperator
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
-        if (!Reduction::IsSupportedArgument(dynamic_cast<const Argument*>(p_arg)))
+        const Argument* p_arg_ = dynamic_cast<const Argument*>(p_arg);
+
+        if (!Reduction::IsSupportedArgument(p_arg_))
         {
             return false;
         }
-        // TODO: softmax specific checks
+
+        if(p_arg_->inLengths_[Rank - 1] % OutDstVectorSize != 0)
+        {
+            return false;
+        }
+
         return true;
     };
 
@@ -170,8 +177,8 @@ struct DeviceSoftmax : public BaseOperator
                         const std::vector<index_t> outLengths,
                         const std::vector<index_t> outStrides,
                         const std::vector<int> reduceDims,
-                        float alpha,
-                        float beta,
+                        ScalarDataType alpha,
+                        ScalarDataType beta,
                         const void* in_dev,
                         void* out_dev)
     {

@@ -2,7 +2,7 @@
  *
  * MIT License
  *
- * Copyright (c) 2020 Advanced Micro Devices, Inc.
+ * Copyright (c) 2022 Advanced Micro Devices, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -127,7 +127,7 @@ struct GridwiseSoftmax_mk_to_mk
                                index_t num_k_block_tile_iteration,
                                ScalarDataType alpha,
                                const InDataType* const __restrict__ p_in_value_global,
-                               ScalarDataType /* beta */,
+                               ScalarDataType beta,
                                OutDataType* const __restrict__ p_out_value_global)
     {
         // LDS
@@ -141,6 +141,9 @@ struct GridwiseSoftmax_mk_to_mk
 
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
             in_thread_buf;
+
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
+            out_thread_buf;
 
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> max_value_buf;
 
@@ -207,7 +210,7 @@ struct GridwiseSoftmax_mk_to_mk
                                                PassThroughOp,
                                                ThreadBufferLengths,
                                                ThreadBufferDimAccessOrder,
-                                               InSrcVectorDim, // FIXME: pass in OutDstVectorDim
+                                               InSrcVectorDim,
                                                OutDstVectorSize,
                                                InMemoryDataOperationEnum::Set,
                                                1,
@@ -267,7 +270,7 @@ struct GridwiseSoftmax_mk_to_mk
         // be identified as an invalid value. We can then discard the invalid values which
         // originally failed the bound check during accumulation. This allows to ignore values that
         // failed bound check even after multiple math manipulations.
-        const auto in_global_val_buf =
+        const auto in_global_val_buf_oob_nan =
             make_dynamic_buffer<AddressSpaceEnum::Global>(p_in_value_global,
                                                           in_grid_desc_m_k.GetElementSpaceSize(),
                                                           NumericLimits<InDataType>::QuietNaN());
@@ -294,7 +297,7 @@ struct GridwiseSoftmax_mk_to_mk
         do
         {
             threadwise_src_load.Run(in_grid_desc_m_k,
-                                    in_global_val_buf,
+                                    in_global_val_buf_oob_nan,
                                     thread_buffer_desc,
                                     make_tuple(I0, I0),
                                     in_thread_buf);
@@ -325,93 +328,76 @@ struct GridwiseSoftmax_mk_to_mk
         ///
         /// softmax
         ///
-        block_sync_lds(); // ensure reduced values are properly loaded
         reducedTiles = 0;
-        do
+        if (float_equal_zero{}(beta))
         {
-            // TODO ANT: load dst tensor for alpha/beta linear combination
-            threadwise_src_load.Run(in_grid_desc_m_k,
-                                    in_global_val_buf,
-                                    thread_buffer_desc,
-                                    make_tuple(I0, I0),
-                                    in_thread_buf);
+            do
+            {
+                threadwise_src_load.Run(in_grid_desc_m_k,
+                                        in_global_val_buf_oob_nan,
+                                        thread_buffer_desc,
+                                        make_tuple(I0, I0),
+                                        in_thread_buf);
 
-            static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
-                // exp(x - max(x)) / sum(exp(x - max(x)))
-                static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
-                    constexpr auto offset = thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
-                    in_thread_buf(Number<offset>{}) =
-                        static_cast<AccDataType>(alpha) *
-                        __expf(in_thread_buf(Number<offset>{}) - max_value_buf(iM)) /
-                        accu_value_buf(iM);
+                static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
+                    // out = alpha * exp(x - max(x)) / sum(exp(x - max(x)))
+                    static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
+                        constexpr auto offset = thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
+                        out_thread_buf(Number<offset>{}) =
+                            static_cast<AccDataType>(alpha) *
+                            __expf(in_thread_buf(Number<offset>{}) - max_value_buf(iM)) /
+                            accu_value_buf(iM);
+                    });
                 });
-            });
 
-            threadwise_dst_store.Run(thread_buffer_desc, make_tuple(I0, I0), in_thread_buf, out_grid_desc_m_k, out_global_val_buf);
+                threadwise_dst_store.Run(thread_buffer_desc, make_tuple(I0, I0), out_thread_buf, out_grid_desc_m_k, out_global_val_buf);
 
-            threadwise_src_load.MoveSrcSliceWindow(in_grid_desc_m_k, in_thread_copy_fwd_step);
-            threadwise_dst_store.MoveDstSliceWindow(out_grid_desc_m_k, in_thread_copy_fwd_step);
+                threadwise_src_load.MoveSrcSliceWindow(in_grid_desc_m_k, in_thread_copy_fwd_step);
+                threadwise_dst_store.MoveDstSliceWindow(out_grid_desc_m_k, in_thread_copy_fwd_step);
 
-            reducedTiles++;
-        } while(reducedTiles < num_k_block_tile_iteration);
+                reducedTiles++;
+            } while(reducedTiles < num_k_block_tile_iteration);
+        }
+        else
+        {
+            do
+            {
+                threadwise_src_load.Run(in_grid_desc_m_k,
+                                        in_global_val_buf_oob_nan,
+                                        thread_buffer_desc,
+                                        make_tuple(I0, I0),
+                                        in_thread_buf);
+                threadwise_dst_load.Run(out_grid_desc_m_k,
+                                        out_global_val_buf,
+                                        thread_buffer_desc,
+                                        make_tuple(I0, I0),
+                                        out_thread_buf);
+                static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
+                    // out = alpha * exp(x - max(x)) / sum(exp(x - max(x))) + beta * prior_out
+                    static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
+                        constexpr auto offset =
+                            thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
+                        out_thread_buf(Number<offset>{}) =
+                            static_cast<AccDataType>(alpha) *
+                                __expf(in_thread_buf(Number<offset>{}) - max_value_buf(iM)) /
+                                accu_value_buf(iM) +
+                            static_cast<AccDataType>(beta) * out_thread_buf(Number<offset>{});
+                    });
+                });
 
-    //     if(thread_k_cluster_id == 0)
-    //     {
-    //         if(block_group_size == 0 && !float_equal_zero{}(beta))
-    //         {
-    //             StaticBuffer<AddressSpaceEnum::Vgpr, OutDataType, MThreadSliceSize, true>
-    //                 priorDstValueBuf;
+                threadwise_dst_store.Run(thread_buffer_desc,
+                                         make_tuple(I0, I0),
+                                         out_thread_buf,
+                                         out_grid_desc_m_k,
+                                         out_global_val_buf);
 
-    //             auto threadwise_dst_load =
-    //                 ThreadwiseTensorSliceTransfer_v2<OutDataType,
-    //                                                  OutDataType,
-    //                                                  OutGridDesc_M,
-    //                                                  decltype(reduced_data_desc),
-    //                                                  Sequence<MThreadSliceSize>,
-    //                                                  Sequence<0>,
-    //                                                  0,
-    //                                                  OutDstVectorSize,
-    //                                                  1,
-    //                                                  false>(
-    //                     out_grid_desc_m_k,
-    //                     make_multi_index(blkgroup_id * M_BlockTileSize +
-    //                                      thread_m_cluster_id * MThreadSliceSize));
+                threadwise_src_load.MoveSrcSliceWindow(in_grid_desc_m_k, in_thread_copy_fwd_step);
+                threadwise_dst_store.MoveDstSliceWindow(out_grid_desc_m_k, in_thread_copy_fwd_step);
+                threadwise_dst_load.MoveSrcSliceWindow(out_grid_desc_m_k, in_thread_copy_fwd_step);
 
-    //             threadwise_dst_load.Run(out_grid_desc_m_k,
-    //                                     out_global_val_buf,
-    //                                     reduced_data_desc,
-    //                                     make_tuple(I0),
-    //                                     priorDstValueBuf);
-
-    //             static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-    //                 accu_value_buf(I) += type_convert<AccDataType>(priorDstValueBuf[I]) * beta;
-    //             });
-    //         };
-
-    //         auto threadwise_dst_store =
-    //             ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
-    //                                                OutDataType,
-    //                                                decltype(reduced_data_desc),
-    //                                                OutGridDesc_M,
-    //                                                PassThroughOp,
-    //                                                Sequence<MThreadSliceSize>,
-    //                                                Sequence<0>,
-    //                                                0,
-    //                                                OutDstVectorSize,
-    //                                                InMemoryDataOperationEnum::Set,
-    //                                                1,
-    //                                                true>(
-    //                 out_grid_desc_m_k,
-    //                 make_multi_index(blkgroup_id * M_BlockTileSize +
-    //                                  thread_m_cluster_id * MThreadSliceSize),
-    //                 PassThroughOp{});
-
-    //         threadwise_dst_store.Run(reduced_data_desc,
-    //                                  make_tuple(I0),
-    //                                  accu_value_buf,
-    //                                  out_grid_desc_m_k,
-    //                                  out_global_val_buf);
-    //     }
+                reducedTiles++;
+            } while(reducedTiles < num_k_block_tile_iteration);
+        }
     }
 };
 
