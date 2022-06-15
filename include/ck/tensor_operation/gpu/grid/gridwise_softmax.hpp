@@ -305,7 +305,7 @@ struct GridwiseSoftmax_mk_to_mk
                 static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
                     constexpr auto offset = thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
                     in_thread_buf(Number<offset>{}) =
-                        __expf(in_thread_buf(Number<offset>{}) - max_value_buf(iM));
+                        math::exp(in_thread_buf(Number<offset>{}) - max_value_buf(iM));
                 });
             });
 
@@ -344,7 +344,7 @@ struct GridwiseSoftmax_mk_to_mk
                             thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
                         out_thread_buf(Number<offset>{}) =
                             static_cast<AccDataType>(alpha) *
-                            __expf(in_thread_buf(Number<offset>{}) - max_value_buf(iM)) /
+                            math::exp(in_thread_buf(Number<offset>{}) - max_value_buf(iM)) /
                             accu_value_buf(iM);
                     });
                 });
@@ -382,7 +382,7 @@ struct GridwiseSoftmax_mk_to_mk
                             thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
                         out_thread_buf(Number<offset>{}) =
                             static_cast<AccDataType>(alpha) *
-                                __expf(in_thread_buf(Number<offset>{}) - max_value_buf(iM)) /
+                                math::exp(in_thread_buf(Number<offset>{}) - max_value_buf(iM)) /
                                 accu_value_buf(iM) +
                             static_cast<AccDataType>(beta) * out_thread_buf(Number<offset>{});
                     });
