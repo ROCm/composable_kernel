@@ -4,7 +4,6 @@
 #include "tensor_descriptor_helper.hpp"
 #include "cluster_descriptor.hpp"
 #include "threadwise_tensor_slice_transfer_v6r1.hpp"
-#include "threadwise_tensor_slice_transfer_v7.hpp"
 
 namespace ck {
 
@@ -112,20 +111,6 @@ struct ThreadGroupTensorSliceTransfer_v6r1
         make_cluster_descriptor(ThreadClusterLengths{}, ThreadClusterArrangeOrder{});
 
     using ThreadwiseTransfer =
-#if 0
-        ThreadwiseTensorSliceTransfer_v7<Tuple<SrcData>,
-                                         Tuple<DstData>,
-                                         Tuple<SrcDesc>,
-                                         Tuple<DstDesc>,
-                                         ElementwiseOperation,
-                                         decltype(thread_slice_lengths),
-                                         DimAccessOrder,
-                                         VectorDim,
-                                         ScalarPerVector,
-                                         ThreadTransferSrcResetCoordinateAfterRun,
-                                         ThreadTransferDstResetCoordinateAfterRun,
-                                         DstInMemOp>;
-#else
         ThreadwiseTensorSliceTransfer_v6r1<SrcData,
                                            DstData,
                                            SrcDesc,
@@ -138,9 +123,8 @@ struct ThreadGroupTensorSliceTransfer_v6r1
                                            DstInMemOp,
                                            ThreadTransferSrcResetCoordinateAfterRun,
                                            ThreadTransferDstResetCoordinateAfterRun>;
-#endif
 
-        ThreadwiseTransfer threadwise_transfer_;
+    ThreadwiseTransfer threadwise_transfer_;
 };
 
 } // namespace ck
