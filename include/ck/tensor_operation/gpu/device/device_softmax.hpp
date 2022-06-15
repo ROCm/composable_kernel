@@ -202,9 +202,12 @@ struct DeviceSoftmax : public DeviceReduceMultiBlock<InDataType,
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
-        return Base::IsSupportedArgument(p_arg);
-
-        // TODO ANT: softmax specific checks
+        if (!Reduction::IsSupportedArgument(dynamic_cast<const Argument*>(p_arg)))
+        {
+            return false;
+        }
+        // TODO: softmax specific checks
+        return true;
     };
 
     std::unique_ptr<BaseArgument>

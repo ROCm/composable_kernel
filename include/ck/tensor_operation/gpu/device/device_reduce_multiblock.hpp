@@ -394,10 +394,8 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
         };
     };
 
-    bool IsSupportedArgument(const BaseArgument* p_arg) override
+    static bool IsSupportedArgument(const Argument* pArg)
     {
-        const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
-
         if constexpr(use_multiblock)
         {
             if(static_cast<float>(pArg->beta_) != 0.0f)
@@ -451,6 +449,11 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
         };
 
         return (true);
+    }
+
+    bool IsSupportedArgument(const BaseArgument* p_arg) override
+    {
+        return IsSupportedArgument(dynamic_cast<const Argument*>(p_arg));
     };
 
     std::unique_ptr<BaseArgument>
