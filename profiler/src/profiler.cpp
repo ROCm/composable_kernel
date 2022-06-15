@@ -6,21 +6,21 @@
 
 #include "profile_convnd_fwd.hpp"
 
-int profile_gemm(int, char*[]);
-int profile_gemm_bias_2d(int, char*[]);
-int profile_gemm_bias_relu(int, char*[]);
-int profile_gemm_bias_relu_add(int, char*[]);
-int profile_gemm_reduce(int, char*[]);
-int profile_batched_gemm(int, char*[]);
-int profile_grouped_gemm(int, char*[]);
-int profile_conv_fwd(int, char*[]);
-int profile_conv_fwd_bias_relu(int, char*[]);
-int profile_conv_fwd_bias_relu_add(int, char*[]);
-int profile_conv_fwd_bias_relu_atomic_add(int, char*[]);
-int profile_convnd_bwd_data(int, char*[], int);
-int profile_reduce(int, char*[]);
-int profile_conv_bwd_weight(int, char*[]);
-int profile_batched_gemm_reduce(int, char*[]);
+// int profile_gemm(int, char*[]);
+// int profile_gemm_bias_2d(int, char*[]);
+// int profile_gemm_bias_relu(int, char*[]);
+// int profile_gemm_bias_relu_add(int, char*[]);
+// int profile_gemm_reduce(int, char*[]);
+// int profile_batched_gemm(int, char*[]);
+// int profile_grouped_gemm(int, char*[]);
+// int profile_conv_fwd(int, char*[]);
+// int profile_conv_fwd_bias_relu(int, char*[]);
+// int profile_conv_fwd_bias_relu_add(int, char*[]);
+// int profile_conv_fwd_bias_relu_atomic_add(int, char*[]);
+// int profile_convnd_bwd_data(int, char*[], int);
+// int profile_reduce(int, char*[]);
+// int profile_conv_bwd_weight(int, char*[]);
+// int profile_batched_gemm_reduce(int, char*[]);
 int profile_gemm_add_add_fastgelu(int, char*[]);
 
 static void print_helper_message()
@@ -58,6 +58,7 @@ int main(int argc, char* argv[])
     {
         return profile_gemm(argc, argv);
     }
+#if 0
     else if(strcmp(argv[1], "gemm_bias_2d") == 0)
     {
         return profile_gemm_bias_2d(argc, argv);
@@ -122,6 +123,7 @@ int main(int argc, char* argv[])
     {
         return profile_conv_bwd_weight(argc, argv);
     }
+#endif
     else if(strcmp(argv[1], "gemm_add_add_fastgelu") == 0)
     {
         return profile_gemm_add_add_fastgelu(argc, argv);

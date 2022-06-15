@@ -25,13 +25,13 @@ using DeviceGemmAddAddFastGeluPtr = ck::tensor_operation::device::DeviceGemmMult
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::FastGelu>;
 
-void add_device_gemm_gelu_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances(
+void add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances(
     std::vector<DeviceGemmAddAddFastGeluPtr>&);
-void add_device_gemm_gelu_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(
+void add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(
     std::vector<DeviceGemmAddAddFastGeluPtr>&);
-void add_device_gemm_gelu_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances(
+void add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances(
     std::vector<DeviceGemmAddAddFastGeluPtr>&);
-void add_device_gemm_gelu_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(
+void add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(
     std::vector<DeviceGemmAddAddFastGeluPtr>&);
 
 } // namespace device_gemm_instance
@@ -44,20 +44,26 @@ namespace profiler {
 
 template <typename ADataType,
           typename BDataType,
-          typename CDataType,
+          typename D0DataType,
+          typename D1DataType,
+          typename EDataType,
           typename ALayout,
           typename BLayout,
-          typename CLayout>
-int profile_gemm_gelu_impl(int do_verification,
-                           int init_method,
-                           bool do_log,
-                           bool time_kernel,
-                           int M,
-                           int N,
-                           int K,
-                           int StrideA,
-                           int StrideB,
-                           int StrideC)
+          typename D0Layout,
+          typename D1Layout,
+          typename ELayout>
+int profile_gemm_add_add_fastgelu_impl(int do_verification,
+                                       int init_method,
+                                       bool do_log,
+                                       bool time_kernel,
+                                       int M,
+                                       int N,
+                                       int K,
+                                       int StrideA,
+                                       int StrideB,
+                                       int StrideD0,
+                                       int StrideD1,
+                                       int StrideE)
 {
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
@@ -75,65 +81,75 @@ int profile_gemm_gelu_impl(int do_verification,
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-    Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-    Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor(M, N, StrideD0, D0Layout{}));
+    Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor(M, N, StrideD1, D1Layout{}));
+    Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
+    Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
-    std::cout << "c_m_n: " << c_m_n_device_result.mDesc << std::endl;
+    std::cout << "d0_m_n: " << d0_m_n.mDesc << std::endl;
+    std::cout << "d1_m_n: " << d1_m_n.mDesc << std::endl;
+    std::cout << "e_m_n: " << e_m_n_device_result.mDesc << std::endl;
 
-    std::size_t num_thread = 1;
     switch(init_method)
     {
     case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5}, num_thread);
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5}, num_thread);
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        d0_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-5, 5});
+        d1_m_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-5, 5});
         break;
     default:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0}, num_thread);
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        d0_m_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 1.0});
+        d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
     }
 
-    using AElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using BElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using CElementOp = ck::tensor_operation::element_wise::FastGelu;
+    using PassThrough    = ck::tensor_operation::element_wise::PassThrough;
+    using AddAddFastGelu = ck::tensor_operation::element_wise::AddAddFastGelu;
 
-    const auto a_element_op = AElementOp{};
-    const auto b_element_op = BElementOp{};
-    const auto c_element_op = CElementOp{};
+    using AElementOp   = PassThrough;
+    using BElementOp   = PassThrough;
+    using CDEElementOp = AddAddFastGelu;
+
+    const auto a_element_op   = AElementOp{};
+    const auto b_element_op   = BElementOp{};
+    const auto cde_element_op = CDEElementOp{};
 
     // add device GEMM instances
     std::vector<ck::tensor_operation::device::device_gemm_instance::DeviceGemmAddAddFastGeluPtr>
         device_op_ptrs;
 
     if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
-                 is_same_v<CDataType, half_t>)
+                 is_same_v<EDataType, half_t>)
     {
         if constexpr(is_same_v<ALayout, tensor_layout::gemm::RowMajor> &&
                      is_same_v<BLayout, tensor_layout::gemm::RowMajor> &&
-                     is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+                     is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
             ck::tensor_operation::device::device_gemm_instance::
                 add_device_gemm_gelu_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances(device_op_ptrs);
         }
         else if constexpr(is_same_v<ALayout, tensor_layout::gemm::RowMajor> &&
                           is_same_v<BLayout, tensor_layout::gemm::ColumnMajor> &&
-                          is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+                          is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
             ck::tensor_operation::device::device_gemm_instance::
                 add_device_gemm_gelu_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(device_op_ptrs);
         }
         else if constexpr(is_same_v<ALayout, tensor_layout::gemm::ColumnMajor> &&
                           is_same_v<BLayout, tensor_layout::gemm::RowMajor> &&
-                          is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+                          is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
             ck::tensor_operation::device::device_gemm_instance::
                 add_device_gemm_gelu_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances(device_op_ptrs);
         }
         else if constexpr(is_same_v<ALayout, tensor_layout::gemm::ColumnMajor> &&
                           is_same_v<BLayout, tensor_layout::gemm::ColumnMajor> &&
-                          is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+                          is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
             ck::tensor_operation::device::device_gemm_instance::
                 add_device_gemm_gelu_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(device_op_ptrs);
@@ -145,23 +161,44 @@ int profile_gemm_gelu_impl(int do_verification,
     // run reference
     if(do_verification)
     {
-        using ReferenceOpInstance = ck::tensor_operation::host::
-            ReferenceGemm<ADataType, BDataType, CDataType, AElementOp, BElementOp, CElementOp>;
+        Tensor<AccDataType> c_m_n(HostTensorDescriptor(
+            std::vector<std::size_t>{static_cast<std::size_t>(M), static_cast<std::size_t>(N)}));
 
-        auto ref_op       = ReferenceOpInstance{};
-        auto ref_invoker  = ref_op.MakeInvoker();
-        auto ref_argument = ref_op.MakeArgument(
-            a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
+        using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                                BDataType,
+                                                                                AccDataType,
+                                                                                AccDataType,
+                                                                                AElementOp,
+                                                                                BElementOp,
+                                                                                PassThrough>;
+
+        auto ref_gemm    = ReferenceGemmInstance{};
+        auto ref_invoker = ref_gemm.MakeInvoker();
+
+        auto ref_argument =
+            ref_gemm.MakeArgument(a_m_k, b_k_n, c_m_n, a_element_op, b_element_op, PassThrough{});
 
         ref_invoker.Run(ref_argument);
+
+        for(int m = 0; m < M; ++m)
+        {
+            for(int n = 0; n < N; ++n)
+            {
+                cde_element_op(e_m_n_host_result(m, n), c_m_n(m, n), d0_m_n(m, n), d1_m_n(m, n));
+            }
+        }
     }
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
     DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
-    DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpace());
+    DeviceMem d0_m_n_device_buf(sizeof(D0DataType) * d0_m_n.mDesc.GetElementSpace());
+    DeviceMem d1_m_n_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpace());
+    DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpace());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
+    d0_m_n_device_buf.ToDevice(d0_m_n.mData.data());
+    d1_m_n_device_buf.ToDevice(d1_m_n.mData.data());
 
     std::string best_device_op_name;
     float best_ave_time   = 0;
@@ -174,18 +211,21 @@ int profile_gemm_gelu_impl(int do_verification,
     for(auto& device_op_ptr : device_op_ptrs)
     {
         auto argument_ptr = device_op_ptr->MakeArgumentPointer(
-            static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-            static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-            static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+            a_device_buf.GetDeviceBuffer(),
+            b_device_buf.GetDeviceBuffer(),
+            std::array<const void*, 2>{d0_m_n_device_buf.GetDeviceBuffer(),
+                                       d1_m_n_device_buf.GetDeviceBuffer()},
+            static_cast<EDataType*>(e_device_buf.GetDeviceBuffer()),
             M,
             N,
             K,
             StrideA,
             StrideB,
-            StrideC,
+            std::array<ck::index_t, 2>{StrideD0, StrideD1},
+            StrideE,
             a_element_op,
             b_element_op,
-            c_element_op);
+            cde_element_op);
 
         auto invoker_ptr = device_op_ptr->MakeInvokerPointer();
 
@@ -193,8 +233,8 @@ int profile_gemm_gelu_impl(int do_verification,
 
         if(device_op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            // re-init C to zero before profiling a kernel
-            c_device_buf.SetZero();
+            // re-init E to zero before profiling a kernel
+            e_device_buf.SetZero();
 
             float ave_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
@@ -202,7 +242,7 @@ int profile_gemm_gelu_impl(int do_verification,
             std::size_t flop = std::size_t(2) * M * N * K;
 
             std::size_t num_btype =
-                sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
+                sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(EDataType) * M * N;
 
             float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
@@ -221,20 +261,10 @@ int profile_gemm_gelu_impl(int do_verification,
 
             if(do_verification)
             {
-                c_device_buf.FromDevice(c_m_n_device_result.mData.data());
+                e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
                 pass = pass &&
-                       ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
-
-                if(do_log)
-                {
-                    LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
-                        << std::endl;
-                    LogRangeAsType<float>(std::cout << "c_device: ", c_m_n_device_result.mData, ",")
-                        << std::endl;
-                }
+                       ck::utils::check_err(e_m_n_device_result.mData, e_m_n_host_result.mData);
             }
         }
         else
