@@ -102,7 +102,7 @@ def buildHipClangJob(Map conf=[:]){
 
         def retimage
 
-        gitStatusWrapper(credentialsId: '911f286b-40ee-4cab-9d47-3de2be50fc67', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
+        gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
             if (params.USE_DOCKERFILE){
                 try {
                     retimage = docker.build("${image}", dockerArgs + '.')
@@ -193,7 +193,7 @@ def runCKProfiler(Map conf=[:]){
 
         def retimage
 
-        gitStatusWrapper(credentialsId: '911f286b-40ee-4cab-9d47-3de2be50fc67', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
+        gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
             if (params.USE_DOCKERFILE){
                 try {
                     retimage = docker.build("${image}", dockerArgs + '.')
@@ -319,6 +319,7 @@ pipeline {
         dbsshport = "${dbsshport}"
         dbsshuser = "${dbsshuser}"
         dbsshpassword = "${dbsshpassword}"
+        status_wrapper_creds = "${status_wrapper_creds}"
     }
     stages{
         stage("Static checks") {
