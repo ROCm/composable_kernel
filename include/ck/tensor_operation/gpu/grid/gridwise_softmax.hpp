@@ -148,12 +148,12 @@ struct GridwiseSoftmax_mk_to_mk
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> max_value_buf;
 
         static_for<0, MThreadSliceSize, 1>{}(
-            [&](auto I) { max_value_buf(I) = reduce::Max<AccDataType>::GetReductionZeroVal(); });
+            [&](auto I) { max_value_buf(I) = reduce::Max<AccDataType>::GetIdentityValue(); });
 
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> accu_value_buf;
 
         static_for<0, MThreadSliceSize, 1>{}(
-            [&](auto I) { accu_value_buf(I) = reduce::Add<AccDataType>::GetReductionZeroVal(); });
+            [&](auto I) { accu_value_buf(I) = reduce::Add<AccDataType>::GetIdentityValue(); });
 
         const index_t thread_local_id = get_thread_local_1d_id();
         const index_t block_global_id = get_block_1d_id();
@@ -230,7 +230,7 @@ struct GridwiseSoftmax_mk_to_mk
         const auto in_global_val_buf_oob_non_zero = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_in_value_global,
             in_grid_desc_m_k.GetElementSpaceSize(),
-            reduce::Max<InDataType>::GetReductionZeroVal());
+            reduce::Max<InDataType>::GetIdentityValue());
         index_t reducedTiles = 0;
         do
         {
@@ -256,7 +256,7 @@ struct GridwiseSoftmax_mk_to_mk
         /// sum(exp(x - max(x)))
         ///
         static_for<0, MThreadSliceSize, 1>{}(
-            [&](auto I) { accu_value_buf(I) = reduce::Add<AccDataType>::GetReductionZeroVal(); });
+            [&](auto I) { accu_value_buf(I) = reduce::Add<AccDataType>::GetIdentityValue(); });
 
         // Normally, 0 as invalid element value is adequate since 0 makes no contribution to
         // accumulated result. However, in stable softmax, all values 0s or not are subtracted by

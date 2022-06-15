@@ -103,7 +103,8 @@ struct DeviceSoftmax : public BaseOperator
             // std::cout << "blkGroupSize= " << this->blkGroupSize
             //           << ", numBlockTileIteration= " << this->numBlockTileIteration
             //           << ", gridSize=" << this->gridSize
-            //           << ", invariant_total_length=" << this->invariant_total_length << std::endl;
+            //           << ", invariant_total_length=" << this->invariant_total_length <<
+            //           std::endl;
         }
 
         ScalarDataType alpha_;

@@ -148,8 +148,8 @@ int main(int argc, char* argv[])
     Tensor<OutDataType> out_ref(args.inLengths);
     Tensor<OutDataType> out(args.inLengths);
 
-    auto inStrides       = in.mDesc.GetStrides();
-    auto outStrides      = out.mDesc.GetStrides();
+    auto inStrides  = in.mDesc.GetStrides();
+    auto outStrides = out.mDesc.GetStrides();
 
     ScalarDataType alpha = args.scales[0];
     ScalarDataType beta  = args.scales[1];
