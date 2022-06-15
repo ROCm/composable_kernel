@@ -1,5 +1,4 @@
-#ifndef CK_DEVICE_OPERATION_INSTANCE_HPP
-#define CK_DEVICE_OPERATION_INSTANCE_HPP
+#pragma once
 
 #include <stdlib.h>
 
@@ -23,4 +22,3 @@ void add_device_operation_instances(std::vector<std::unique_ptr<OpInstance>>& op
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

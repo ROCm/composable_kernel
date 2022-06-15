@@ -4,9 +4,9 @@
 #include <cstdlib>
 #include <stdlib.h>
 
-#include "profile_gemm_gelu_impl.hpp"
+#include "profile_gemm_add_add_fastgelu_impl.hpp"
 
-int profile_gemm_gelu(int argc, char* argv[])
+int profile_gemm_add_add_fastgelu(int argc, char* argv[])
 {
     enum struct GemmMatrixLayout
     {
@@ -28,19 +28,21 @@ int profile_gemm_gelu(int argc, char* argv[])
         INT8_INT8_INT8, // 3
     };
 
-    if(argc != 14)
+    if(argc != 16)
     {
-        printf("arg1: tensor operation (gemm_gelu: GEMM+GeLU)\n");
+        // clang-format off
+        printf("arg1: tensor operation (gemm_gelu: GEMM+Add+Add+GeLU)\n");
         printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8)\n");
-        printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
-        printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
-        printf("                     2: A[k, m] * B[k, n] = C[m, n];\n");
-        printf("                     3: A[k, m] * B[n, k] = C[m, n])\n");
+        printf("arg3: matrix layout (0: E[m, n] = FastGeLU(A[m, k] * B[k, n] + D0[m, n] + D1[m, n]);\n");
+        printf("                     1: E[m, n] = FastGeLU(A[m, k] * B[n, k] + D0[m, n] + D1[m, n]);\n");
+        printf("                     2: E[m, n] = FastGeLU(A[k, m] * B[k, n] + D0[m, n] + D1[m, n]);\n");
+        printf("                     3: E[m, n] = FastGeLU(A[k, m] * B[n, k] + D0[m, n] + D1[m, n]))\n");
         printf("arg4: verification (0: no; 1: yes)\n");
         printf("arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n");
         printf("arg6: print tensor value (0: no; 1: yes)\n");
         printf("arg7: time kernel (0=n0, 1=yes)\n");
-        printf("arg8 to 13: M, N, K, StrideA, StrideB, StrideC\n");
+        printf("arg8 to 13: M, N, K, StrideA, StrideB, StrideC, StrideD0, StrideD1\n");
+        // clang-format on
         exit(1);
     }
 
@@ -55,9 +57,11 @@ int profile_gemm_gelu(int argc, char* argv[])
     const int N = std::stoi(argv[9]);
     const int K = std::stoi(argv[10]);
 
-    const int StrideA = std::stoi(argv[11]);
-    const int StrideB = std::stoi(argv[12]);
-    const int StrideC = std::stoi(argv[13]);
+    const int StrideA  = std::stoi(argv[11]);
+    const int StrideB  = std::stoi(argv[12]);
+    const int StrideC  = std::stoi(argv[13]);
+    const int StrideD0 = std::stoi(argv[14]);
+    const int StrideD1 = std::stoi(argv[15]);
 
     using F16 = ck::half_t;
 

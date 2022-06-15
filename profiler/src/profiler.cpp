@@ -21,7 +21,7 @@ int profile_convnd_bwd_data(int, char*[], int);
 int profile_reduce(int, char*[]);
 int profile_conv_bwd_weight(int, char*[]);
 int profile_batched_gemm_reduce(int, char*[]);
-int profile_gemm_gelu(int, char*[]);
+int profile_gemm_add_add_fastgelu(int, char*[]);
 
 static void print_helper_message()
 {
@@ -41,7 +41,7 @@ static void print_helper_message()
                "                        conv3d_bwd_data: BackwardConvolution data 3 dim\n"
                "                        reduce: Reduce\n"
                "                        conv2d_bwd_weight: Backward Weight Convolution 2d\n"
-               "                        gemm_gelu: GEMM+GeLU\n");
+               "                        gemm_add_add_fastgelu: GEMM+Add+Add+FastGeLU\n");
     // clang-format on
 }
 
@@ -122,9 +122,9 @@ int main(int argc, char* argv[])
     {
         return profile_conv_bwd_weight(argc, argv);
     }
-    else if(strcmp(argv[1], "gemm_gelu") == 0)
+    else if(strcmp(argv[1], "gemm_add_add_fastgelu") == 0)
     {
-        return profile_gemm_gelu(argc, argv);
+        return profile_gemm_add_add_fastgelu(argc, argv);
     }
     else
     {

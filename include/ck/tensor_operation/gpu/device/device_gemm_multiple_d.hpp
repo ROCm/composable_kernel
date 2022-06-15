@@ -38,6 +38,15 @@ struct DeviceGemmMultipleD : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
+template <ck::index_t NumDTensor,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation>
+using DeviceGemmMultipleDPtr = std::unique_ptr<DeviceGemmMultipleD<NumDTensor,
+                                                                   AElementwiseOperation,
+                                                                   BElementwiseOperation,
+                                                                   CElementwiseOperation>>;
+
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

@@ -19,19 +19,20 @@ namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
 
-using DeviceGemmGeluPtr =
-    ck::tensor_operation::device::DeviceGemmPtr<ck::tensor_operation::element_wise::PassThrough,
-                                                ck::tensor_operation::element_wise::PassThrough,
-                                                ck::tensor_operation::element_wise::FastGelu>;
+using DeviceGemmAddAddFastGeluPtr = ck::tensor_operation::device::DeviceGemmMultipleDPtr<
+    2,
+    ck::tensor_operation::element_wise::PassThrough,
+    ck::tensor_operation::element_wise::PassThrough,
+    ck::tensor_operation::element_wise::FastGelu>;
 
 void add_device_gemm_gelu_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances(
-    std::vector<DeviceGemmGeluPtr>&);
+    std::vector<DeviceGemmAddAddFastGeluPtr>&);
 void add_device_gemm_gelu_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(
-    std::vector<DeviceGemmGeluPtr>&);
+    std::vector<DeviceGemmAddAddFastGeluPtr>&);
 void add_device_gemm_gelu_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances(
-    std::vector<DeviceGemmGeluPtr>&);
+    std::vector<DeviceGemmAddAddFastGeluPtr>&);
 void add_device_gemm_gelu_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(
-    std::vector<DeviceGemmGeluPtr>&);
+    std::vector<DeviceGemmAddAddFastGeluPtr>&);
 
 } // namespace device_gemm_instance
 } // namespace device
@@ -103,7 +104,7 @@ int profile_gemm_gelu_impl(int do_verification,
     const auto c_element_op = CElementOp{};
 
     // add device GEMM instances
-    std::vector<ck::tensor_operation::device::device_gemm_instance::DeviceGemmGeluPtr>
+    std::vector<ck::tensor_operation::device::device_gemm_instance::DeviceGemmAddAddFastGeluPtr>
         device_op_ptrs;
 
     if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
