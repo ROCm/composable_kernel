@@ -77,17 +77,15 @@ struct DeviceSoftmax : public BaseOperator
     {
         Argument(const std::vector<index_t> inLengths,
                  const std::vector<index_t> inStrides,
-                 const std::vector<index_t> outLengths,
-                 const std::vector<index_t> outStrides,
-                 const std::vector<int> reduceDims,
+                 const std::vector<index_t> reduceDims,
                  ScalarDataType alpha,
                  ScalarDataType beta,
                  const InDataType* in_dev,
                  OutDataType* out_dev)
             : Reduction::Argument(inLengths,
                                   inStrides,
-                                  outLengths,
-                                  outStrides,
+                                  {},
+                                  {},
                                   reduceDims,
                                   0.0f, // alpha
                                   0.0f, // beta
@@ -102,10 +100,10 @@ struct DeviceSoftmax : public BaseOperator
               alpha_(alpha),
               beta_(beta)
         {
-            std::cout << "blkGroupSize= " << this->blkGroupSize
-                      << ", numBlockTileIteration= " << this->numBlockTileIteration
-                      << ", gridSize=" << this->gridSize
-                      << ", invariant_total_length=" << this->invariant_total_length << std::endl;
+            // std::cout << "blkGroupSize= " << this->blkGroupSize
+            //           << ", numBlockTileIteration= " << this->numBlockTileIteration
+            //           << ", gridSize=" << this->gridSize
+            //           << ", invariant_total_length=" << this->invariant_total_length << std::endl;
         }
 
         ScalarDataType alpha_;
@@ -173,8 +171,6 @@ struct DeviceSoftmax : public BaseOperator
 
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<index_t> inLengths,
                                                       const std::vector<index_t> inStrides,
-                                                      const std::vector<index_t> outLengths,
-                                                      const std::vector<index_t> outStrides,
                                                       const std::vector<int> reduceDims,
                                                       ScalarDataType alpha,
                                                       ScalarDataType beta,
@@ -183,8 +179,6 @@ struct DeviceSoftmax : public BaseOperator
     {
         return std::make_unique<Argument>(inLengths,
                                           inStrides,
-                                          outLengths,
-                                          outStrides,
                                           reduceDims,
                                           alpha,
                                           beta,

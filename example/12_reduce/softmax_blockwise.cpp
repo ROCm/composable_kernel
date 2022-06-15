@@ -145,22 +145,11 @@ int main(int argc, char* argv[])
     };
 
     Tensor<InDataType> in(args.inLengths);
-
-    std::vector<size_t> outLengths(args.inLengths);
-    std::vector<size_t> smScalarLengths; // softmax scalars (max/sum after reduction) lengths
-    if(invariantDims.empty())
-        smScalarLengths.push_back(1);
-    else
-        for(auto dim : invariantDims)
-            smScalarLengths.push_back(args.inLengths[dim]);
-
-    Tensor<OutDataType> out_ref(outLengths);
-    Tensor<OutDataType> out(outLengths);
-    Tensor<OutDataType> sm_scalar(smScalarLengths);
+    Tensor<OutDataType> out_ref(args.inLengths);
+    Tensor<OutDataType> out(args.inLengths);
 
     auto inStrides       = in.mDesc.GetStrides();
     auto outStrides      = out.mDesc.GetStrides();
-    auto smScalarStrides = sm_scalar.mDesc.GetStrides();
 
     ScalarDataType alpha = args.scales[0];
     ScalarDataType beta  = args.scales[1];
@@ -218,20 +207,14 @@ int main(int argc, char* argv[])
 
     std::vector<ck::index_t> i_inLengths;
     std::vector<ck::index_t> i_inStrides;
-    std::vector<ck::index_t> i_smScalarLengths;
-    std::vector<ck::index_t> i_smScalarStrides;
 
     i_inLengths.assign(args.inLengths.begin(), args.inLengths.end());
     i_inStrides.assign(inStrides.begin(), inStrides.end());
-    i_smScalarLengths.assign(smScalarLengths.begin(), smScalarLengths.end());
-    i_smScalarStrides.assign(smScalarStrides.begin(), smScalarStrides.end());
 
     auto device_instance = DeviceInstance{};
 
     auto argument_ptr = device_instance.MakeArgumentPointer(i_inLengths,
                                                             i_inStrides,
-                                                            i_smScalarLengths,
-                                                            i_smScalarStrides,
                                                             reduceDims,
                                                             alpha,
                                                             beta,
