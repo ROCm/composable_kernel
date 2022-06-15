@@ -16,17 +16,12 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-// TODO ANT: refactor so can reuse most of existing reduction codes
-// TODO ANT: compose, not inherit, DeviceReduceMultiblock because softmax is MK in MK out
 template <typename InDataType,
           typename AccDataType,
           typename OutDataType,
           typename ScalarDataType,
           index_t Rank,
           index_t NumReduceDim,
-          bool PropagateNan,
-          typename InElementwiseOperation, // TODO ANT: remove
-          typename AccElementwiseOperation, // TODO ANT: remove
           index_t BlockSize,
           index_t MThreadClusterSize,
           index_t KThreadClusterSize,
@@ -35,38 +30,21 @@ template <typename InDataType,
           index_t InSrcVectorDim,
           index_t InSrcVectorSize,
           index_t OutDstVectorSize>
-struct DeviceSoftmax : public DeviceReduceMultiBlock<InDataType,
-                                                     AccDataType,
-                                                     OutDataType,
-                                                     Rank,
-                                                     NumReduceDim,
-                                                     reduce::Add<AccDataType>, // TODO ANT: make poisoned
-                                                     InElementwiseOperation,
-                                                     AccElementwiseOperation,
-                                                     InMemoryDataOperationEnum::Set,
-                                                     PropagateNan,
-                                                     false, // OutputIndex
-                                                     false, // HaveIndexInputIfOutputIndex
-                                                     BlockSize,
-                                                     MThreadClusterSize,
-                                                     KThreadClusterSize,
-                                                     MThreadSliceSize,
-                                                     KThreadSliceSize,
-                                                     InSrcVectorDim,
-                                                     InSrcVectorSize,
-                                                     OutDstVectorSize,
-                                                     false> // MultiBlockReduction
+struct DeviceSoftmax : public BaseOperator
 {
-    using Base = DeviceReduceMultiBlock<InDataType,
+    using PassThrough = tensor_operation::element_wise::PassThrough;
+
+    // Used for freeloading of some handy functions from DeviceReduceMultiBlock
+    using Reduction = DeviceReduceMultiBlock<InDataType,
                                         AccDataType,
                                         OutDataType,
                                         Rank,
                                         NumReduceDim,
                                         reduce::Add<AccDataType>,
-                                        InElementwiseOperation,
-                                        AccElementwiseOperation,
+                                        PassThrough, //InElementwiseOperation
+                                        PassThrough, //AccElementwiseOperation
                                         InMemoryDataOperationEnum::Set,
-                                        PropagateNan,
+                                        false, // PropagateNan
                                         false, // OutputIndex
                                         false, // HaveIndexInputIfOutputIndex
                                         BlockSize,
@@ -79,35 +57,13 @@ struct DeviceSoftmax : public DeviceReduceMultiBlock<InDataType,
                                         OutDstVectorSize,
                                         false>; // MultiBlockReduction
 
-
-    using IndexDataType = int32_t;
-
-    using Base::HaveIndexInput;
-
-    using Base::NumInvariantDim;
-
-    using Base::numSrcDim;
-    using Base::numDstDim;
-    using Base::reduceAllDim;
-
-    using Base::use_multiblock;
-
-    static_assert(!use_multiblock,
-                  "softmax kernel requires reduction op be done by single workgroup");
-
-    using Base::K_BlockTileSize;
-    using Base::M_BlockTileSize;
-
-    using GridDesc_M_K = decltype(Base::MakeSrc2dDescriptor({1}, {1}, 1, 1));
+    using GridDesc_M_K = decltype(Reduction::MakeSrc2dDescriptor({1}, {1}, 1, 1));
 
     using GridwiseReduce = GridwiseSoftmax_mk_to_mk<InDataType,
                                                    OutDataType,
                                                    AccDataType,
-                                                   float, // ScalarDataType FIXME:
+                                                   ScalarDataType,
                                                    GridDesc_M_K,
-                                                   InElementwiseOperation,
-                                                   AccElementwiseOperation,
-                                                   PropagateNan,
                                                    BlockSize,
                                                    MThreadClusterSize,
                                                    KThreadClusterSize,
@@ -116,61 +72,61 @@ struct DeviceSoftmax : public DeviceReduceMultiBlock<InDataType,
                                                    InSrcVectorDim,
                                                    InSrcVectorSize,
                                                    OutDstVectorSize>;
-    struct Argument : public Base::Argument
+
+    struct Argument : public Reduction::Argument
     {
         Argument(const std::vector<index_t> inLengths,
                  const std::vector<index_t> inStrides,
                  const std::vector<index_t> outLengths,
                  const std::vector<index_t> outStrides,
                  const std::vector<int> reduceDims,
-                 float alpha, // FIXME:
-                 float beta,
+                 ScalarDataType alpha,
+                 ScalarDataType beta,
                  const InDataType* in_dev,
-                 OutDataType* out_dev,
-                 const InElementwiseOperation in_elementwise_op,
-                 const AccElementwiseOperation acc_elementwise_op)
-            : Base::Argument(inLengths,
+                 OutDataType* out_dev)
+            : Reduction::Argument(inLengths,
                              inStrides,
                              outLengths,
                              outStrides,
                              reduceDims,
-                             alpha,
-                             beta,
+                             0.0f, // alpha
+                             0.0f, // beta
                              in_dev,
                              nullptr,
                              out_dev,
                              nullptr,
-                             in_elementwise_op,
-                             acc_elementwise_op)
+                             PassThrough{},
+                             PassThrough{}),
+              // FIXME: The base class DeviceReduceMultiBlock::Argument only supports alpha/beta of
+              // float32 precision. Make it support any data type so the fields can be removed.
+              alpha_(alpha),
+              beta_(beta)
         {
             std::cout << "blkGroupSize= " << this->blkGroupSize
                       << ", numBlockTileIteration= " << this->numBlockTileIteration
                       << ", gridSize=" << this->gridSize
-                      << ", M_BlockTileSize=" << M_BlockTileSize
-                      << ", invariant_total_length=" << this->invariant_total_length
-                      << std::endl;
+                      << ", invariant_total_length=" << this->invariant_total_length << std::endl;
         }
+
+        ScalarDataType alpha_;
+        ScalarDataType beta_;
     };
 
     struct Invoker : public BaseInvoker
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            const auto in_grid_desc_m_k = Base::MakeSrc2dDescriptor(
+            const auto in_grid_desc_m_k = Reduction::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
-            const auto out_grid_desc_m_k = Base::MakeSrc2dDescriptor(
+            const auto out_grid_desc_m_k = Reduction::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
 
             const auto kernel_main = kernel_softmax<GridwiseReduce,
-                                                    false, // TODO ANT: remove
-                                                    false, // TODO ANT: remove
                                                     InDataType,
                                                     OutDataType,
                                                     AccDataType,
-                                                    float, // FIXME ScalarDataType,
-                                                    GridDesc_M_K,
-                                                    InElementwiseOperation,
-                                                    AccElementwiseOperation>;
+                                                    ScalarDataType,
+                                                    GridDesc_M_K>;
 
             float avg_time = 0;
 
@@ -181,8 +137,6 @@ struct DeviceSoftmax : public DeviceReduceMultiBlock<InDataType,
                                                0,
                                                in_grid_desc_m_k,
                                                out_grid_desc_m_k,
-                                               arg.in_elementwise_op_,
-                                               arg.acc_elementwise_op_,
                                                arg.blkGroupSize,
                                                arg.numBlockTileIteration,
                                                arg.alpha_,
@@ -219,11 +173,7 @@ struct DeviceSoftmax : public DeviceReduceMultiBlock<InDataType,
                         float alpha,
                         float beta,
                         const void* in_dev,
-                        const void* /* in_index_dev */,
-                        void* out_dev,
-                        void* /* out_index_dev */,
-                        const InElementwiseOperation in_elementwise_op,
-                        const AccElementwiseOperation acc_elementwise_op) override
+                        void* out_dev)
     {
         return std::make_unique<Argument>(inLengths,
                                           inStrides,
@@ -233,12 +183,10 @@ struct DeviceSoftmax : public DeviceReduceMultiBlock<InDataType,
                                           alpha,
                                           beta,
                                           static_cast<const InDataType*>(in_dev),
-                                          static_cast<OutDataType*>(out_dev),
-                                          in_elementwise_op,
-                                          acc_elementwise_op);
+                                          static_cast<OutDataType*>(out_dev));
     };
 
-    std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
+    std::unique_ptr<BaseInvoker> MakeInvokerPointer()
     {
         return std::make_unique<Invoker>();
     };

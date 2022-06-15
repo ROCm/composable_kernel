@@ -38,19 +38,13 @@
 namespace ck {
 
 template <typename GridwiseReduction,
-          bool OutputIndex,
-          bool HaveIndexInput,
           typename InDataType,
           typename OutDataType,
           typename AccDataType,
           typename ScalarDataType,
-          typename GridDesc_M_K,
-          typename InElementwiseOperation,
-          typename AccElementwiseOperation>
+          typename GridDesc_M_K>
 __global__ void kernel_softmax(const GridDesc_M_K in_grid_desc_m_k,
                                const GridDesc_M_K out_grid_desc_m_k,
-                               const InElementwiseOperation in_elementwise_op,
-                               const AccElementwiseOperation acc_elementwise_op,
                                index_t block_group_size,
                                index_t num_k_block_tile_iteration,
                                ScalarDataType alpha,
@@ -60,8 +54,6 @@ __global__ void kernel_softmax(const GridDesc_M_K in_grid_desc_m_k,
 {
     GridwiseReduction::Run(in_grid_desc_m_k,
                            out_grid_desc_m_k,
-                           in_elementwise_op,
-                           acc_elementwise_op,
                            block_group_size,
                            num_k_block_tile_iteration,
                            alpha,
@@ -75,9 +67,6 @@ template <typename InDataType,
           typename AccDataType,
           typename ScalarDataType,
           typename GridDesc_M_K,
-          typename InElementwiseOperation,
-          typename AccElementwiseOperation,
-          bool PropagateNan,
           index_t BlockSize,
           index_t MThreadClusterSize,
           index_t KThreadClusterSize,
@@ -116,7 +105,7 @@ struct GridwiseSoftmax_mk_to_mk
                                                              ThreadClusterLengths_M_K,
                                                              ThreadClusterArrangeOrder,
                                                              reduce::Max<AccDataType>,
-                                                             PropagateNan>;
+                                                             false>; //PropagateNan
 
     using ThreadwiseMaxReduce = ThreadwiseReduction<AccDataType,
                                                     ThreadReduceSrcDesc_M_K,
@@ -134,8 +123,6 @@ struct GridwiseSoftmax_mk_to_mk
 
     __device__ static void Run(const GridDesc_M_K& in_grid_desc_m_k,
                                const GridDesc_M_K& out_grid_desc_m_k,
-                               const InElementwiseOperation& /* in_elementwise_op */,
-                               const AccElementwiseOperation& /* acc_elementwise_op */,
                                index_t block_group_size,
                                index_t num_k_block_tile_iteration,
                                ScalarDataType alpha,
@@ -259,7 +246,6 @@ struct GridwiseSoftmax_mk_to_mk
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
             BlockwiseMaxReduce::Reduce(reduce_work_buf, max_value_buf(I));
-            // block_sync_lds();
         });
 
         threadwise_src_load.MoveSrcSliceWindow(in_grid_desc_m_k, in_thread_copy_bwd_step);
@@ -313,11 +299,12 @@ struct GridwiseSoftmax_mk_to_mk
                                     make_tuple(I0, I0),
                                     in_thread_buf);
 
+            // do element-wise pre-reduction operation
             static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
-                // do element-wise pre-reduction operation
                 static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
                     constexpr auto offset = thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
-                    in_thread_buf(Number<offset>{}) = __expf(in_thread_buf(Number<offset>{}) - max_value_buf(iM));
+                    in_thread_buf(Number<offset>{}) =
+                        __expf(in_thread_buf(Number<offset>{}) - max_value_buf(iM));
                 });
             });
 

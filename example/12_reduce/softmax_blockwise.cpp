@@ -30,24 +30,12 @@ using ScalarDataType = float;
 constexpr int Rank         = 3;
 constexpr int NumReduceDim = 1;
 
-constexpr ReduceTensorOp ReduceOpId = ReduceTensorOp::ADD;
-constexpr bool PropagateNan         = true;
-
-// using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
-using InElementwiseOperation =
-    typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::InElementwiseOperation;
-using AccElementwiseOperation =
-    typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::AccElementwiseOperation;
-
 using DeviceInstance = DeviceSoftmax<InDataType,
                                      AccDataType,
                                      OutDataType,
                                      ScalarDataType,
                                      Rank,
                                      NumReduceDim,
-                                     PropagateNan,
-                                     InElementwiseOperation,
-                                     AccElementwiseOperation,
                                      256, // BlockSize
                                      8, // ClusterM
                                      32, // ClusterK
@@ -251,11 +239,7 @@ int main(int argc, char* argv[])
         alpha,
         beta,
         in_dev.GetDeviceBuffer(),
-        nullptr,
-        out_dev.GetDeviceBuffer(),
-        nullptr,
-        InElementwiseOperation{},
-        AccElementwiseOperation{});
+        out_dev.GetDeviceBuffer());
 
     if(!reduce.IsSupportedArgument(argument_ptr.get()))
     {
