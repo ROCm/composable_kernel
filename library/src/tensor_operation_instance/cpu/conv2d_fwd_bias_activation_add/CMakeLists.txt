@@ -1,14 +1,6 @@
-# device_conv2d_fwd_bias_activation_add_cpu_instance
-set(DEVICE_CONV2D_FWD_CPU_INSTANCE_SOURCE
-   device_conv2d_bias_activation_add_avx2_nhwc_kyxc_nhwk_instance.cpp
-   device_conv2d_bias_activation_add_avx2_nhwc_kyxck8_nhwk_instance.cpp
-   device_conv2d_bias_activation_add_avx2_nhwc_yxck_nhwk_instance.cpp
+file(GLOB tmp *.cpp)
+set(CK_CPU_INSTANCE_SRC
+   ${CK_CPU_INSTANCE_SRC}
+   ${tmp}
+   PARENT_SCOPE
 )
-add_library(device_conv2d_fwd_bias_activation_add_cpu_instance SHARED ${DEVICE_CONV2D_FWD_CPU_INSTANCE_SOURCE}) 
-target_compile_features(device_conv2d_fwd_bias_activation_add_cpu_instance PUBLIC)
-set_target_properties(device_conv2d_fwd_bias_activation_add_cpu_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
-target_link_libraries(device_conv2d_fwd_bias_activation_add_cpu_instance PRIVATE "${OMP_LIBRARY}")
-target_compile_options(device_conv2d_fwd_bias_activation_add_cpu_instance PRIVATE "${OMP_CXX_FLAG}")
-install(TARGETS device_conv2d_fwd_bias_activation_add_cpu_instance LIBRARY DESTINATION lib) 
-
-clang_tidy_check(device_conv2d_fwd_bias_activation_add_cpu_instance)
