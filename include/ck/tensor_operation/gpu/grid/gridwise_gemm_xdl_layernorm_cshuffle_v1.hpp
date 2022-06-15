@@ -15,7 +15,7 @@
 
 namespace ck {
 
-// D = Layernorm(A * B + broadcast(bias)) * broadcast(gamma) + broadcast(beta)
+// D = Layernorm(acc_element_op(A * B + broadcast(bias)) + add) * broadcast(gamma) + broadcast(beta)
 template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,

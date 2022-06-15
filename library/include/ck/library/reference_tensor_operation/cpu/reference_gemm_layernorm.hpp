@@ -9,6 +9,7 @@ namespace ck {
 namespace tensor_operation {
 namespace host {
 
+// D = Layernorm(acc_element_op(A * B + broadcast(bias)) + add) * broadcast(gamma) + broadcast(beta)
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
@@ -28,7 +29,6 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
                                                 BElementwiseOperation,
                                                 element_wise::PassThrough>;
 
-    // D = Layernorm(acc + broadcast(bias)) * broadcast(gamma) + broadcast(beta)
     template <typename InDataType, typename OutDataType, typename ComputeDataType>
     static void RunLayernorm(Tensor<OutDataType>& result,
                              const Tensor<ComputeDataType>& acc, // MxN

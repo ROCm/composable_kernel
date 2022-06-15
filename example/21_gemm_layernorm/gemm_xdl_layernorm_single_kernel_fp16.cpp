@@ -2,7 +2,6 @@
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
 #include <half.hpp>
 #include "check_err.hpp"
 #include "config.hpp"
@@ -17,6 +16,13 @@
 #include "reference_gemm_layernorm.hpp"
 #include "gemm_specialization.hpp"
 
+// This example demonstrate a single kernel that runs GEMM layer and laynorm in one fused kernel
+//
+// The GEMM + Layernorm implementation is a specialized kernel which allows fusing both layers
+// together given the condition GEMM extents N of MNK is spanned by a single workgroup. For example,
+// a kernel configured with NPerBlock = 128 allows to operate on all GEMM sizes if N <= 128
+//
+// D = Layernorm(acc_element_op(A * B + broadcast(bias)) + add) * broadcast(gamma) + broadcast(beta)
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 

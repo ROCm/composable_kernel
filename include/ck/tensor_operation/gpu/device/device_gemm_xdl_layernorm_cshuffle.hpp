@@ -22,6 +22,8 @@ namespace device {
 // Note: inter-wave loop scheduler is rolled out to c-shuffle version first. Becuase non c-shuffle
 // version currently has compiler issues with register spill which further causes validation
 // failures.
+//
+// D = Layernorm(acc_element_op(A * B + broadcast(bias)) + add) * broadcast(gamma) + broadcast(beta)
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
