@@ -18,7 +18,7 @@ struct TupleElementKey
 template <typename Key, typename Data>
 struct TupleElementKeyData
 {
-#if 0
+#if 0 // workaround compiler complaint about implicitly-deleted default constructor
     __host__ __device__ constexpr TupleElementKeyData() = default;
 #else
     __host__ __device__ constexpr TupleElementKeyData() : mData{} {}

@@ -54,11 +54,11 @@ int main(int argc, char* argv[])
         return 0;
     }
 
+#if 0
     if(strcmp(argv[1], "gemm") == 0)
     {
         return profile_gemm(argc, argv);
     }
-#if 0
     else if(strcmp(argv[1], "gemm_bias_2d") == 0)
     {
         return profile_gemm_bias_2d(argc, argv);
@@ -124,7 +124,7 @@ int main(int argc, char* argv[])
         return profile_conv_bwd_weight(argc, argv);
     }
 #endif
-    else if(strcmp(argv[1], "gemm_add_add_fastgelu") == 0)
+    if(strcmp(argv[1], "gemm_add_add_fastgelu") == 0)
     {
         return profile_gemm_add_add_fastgelu(argc, argv);
     }

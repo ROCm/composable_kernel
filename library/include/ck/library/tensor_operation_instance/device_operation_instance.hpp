@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdlib.h>
+#include <vector>
 
 namespace ck {
 namespace tensor_operation {

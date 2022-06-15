@@ -12,10 +12,10 @@ namespace device_gemm_instance {
 
 using F16     = ck::half_t;
 using F32     = float;
-using F16_F16 = ck::Tuple<F16, F16>
+using F16_F16 = ck::Tuple<F16, F16>;
 
-    using Row = ck::tensor_layout::gemm::RowMajor;
-using Col     = ck::tensor_layout::gemm::ColumnMajor;
+using Row = ck::tensor_layout::gemm::RowMajor;
+using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;

@@ -11,8 +11,8 @@
 #include "tensor_layout.hpp"
 #include "device_tensor.hpp"
 #include "element_wise_operation.hpp"
-#include "device_gemm.hpp"
 #include "reference_gemm.hpp"
+#include "device_gemm_multiple_d.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -23,7 +23,7 @@ using DeviceGemmAddAddFastGeluPtr = ck::tensor_operation::device::DeviceGemmMult
     2,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::FastGelu>;
+    ck::tensor_operation::element_wise::AddAddFastGelu>;
 
 void add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances(
     std::vector<DeviceGemmAddAddFastGeluPtr>&);
@@ -44,6 +44,7 @@ namespace profiler {
 
 template <typename ADataType,
           typename BDataType,
+          typename AccDataType,
           typename D0DataType,
           typename D1DataType,
           typename EDataType,
@@ -54,7 +55,7 @@ template <typename ADataType,
           typename ELayout>
 int profile_gemm_add_add_fastgelu_impl(int do_verification,
                                        int init_method,
-                                       bool do_log,
+                                       bool /*do_log*/,
                                        bool time_kernel,
                                        int M,
                                        int N,
@@ -131,28 +132,32 @@ int profile_gemm_add_add_fastgelu_impl(int do_verification,
                      is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
             ck::tensor_operation::device::device_gemm_instance::
-                add_device_gemm_gelu_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances(device_op_ptrs);
+                add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances(
+                    device_op_ptrs);
         }
         else if constexpr(is_same_v<ALayout, tensor_layout::gemm::RowMajor> &&
                           is_same_v<BLayout, tensor_layout::gemm::ColumnMajor> &&
                           is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
             ck::tensor_operation::device::device_gemm_instance::
-                add_device_gemm_gelu_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(device_op_ptrs);
+                add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(
+                    device_op_ptrs);
         }
         else if constexpr(is_same_v<ALayout, tensor_layout::gemm::ColumnMajor> &&
                           is_same_v<BLayout, tensor_layout::gemm::RowMajor> &&
                           is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
             ck::tensor_operation::device::device_gemm_instance::
-                add_device_gemm_gelu_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances(device_op_ptrs);
+                add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances(
+                    device_op_ptrs);
         }
         else if constexpr(is_same_v<ALayout, tensor_layout::gemm::ColumnMajor> &&
                           is_same_v<BLayout, tensor_layout::gemm::ColumnMajor> &&
                           is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
             ck::tensor_operation::device::device_gemm_instance::
-                add_device_gemm_gelu_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(device_op_ptrs);
+                add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(
+                    device_op_ptrs);
         }
     }
 

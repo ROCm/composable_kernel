@@ -24,7 +24,7 @@ include_directories(BEFORE
 # ck_profiler
 set(PROFILER_SOURCE
     src/profiler.cpp
-    src/profile_gemm.cpp
+#   src/profile_gemm.cpp
 #   src/profile_gemm_bias_2d.cpp
 #   src/profile_gemm_bias_relu.cpp
 #   src/profile_gemm_bias_relu_add.cpp
@@ -47,7 +47,7 @@ add_executable(ckProfiler ${PROFILER_SOURCE})
 target_link_libraries(ckProfiler PRIVATE host_tensor)
 target_link_libraries(ckProfiler PRIVATE conv_util)
 #target_link_libraries(ckProfiler PRIVATE device_gemm_reduce_instance)
- target_link_libraries(ckProfiler PRIVATE device_gemm_instance)
+#target_link_libraries(ckProfiler PRIVATE device_gemm_instance)
 #target_link_libraries(ckProfiler PRIVATE device_gemm_bias2d_instance)
 #target_link_libraries(ckProfiler PRIVATE device_gemm_bias_relu_instance)
 #target_link_libraries(ckProfiler PRIVATE device_gemm_bias_relu_add_instance)

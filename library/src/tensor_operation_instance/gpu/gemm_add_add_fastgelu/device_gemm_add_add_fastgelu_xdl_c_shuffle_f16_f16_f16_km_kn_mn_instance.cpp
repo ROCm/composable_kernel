@@ -12,10 +12,10 @@ namespace device_gemm_instance {
 
 using F16     = ck::half_t;
 using F32     = float;
-using F16_F16 = ck::Tuple<F16, F16>
+using F16_F16 = ck::Tuple<F16, F16>;
 
-    using Row = ck::tensor_layout::gemm::RowMajor;
-using Col     = ck::tensor_layout::gemm::ColumnMajor;
+using Row = ck::tensor_layout::gemm::RowMajor;
+using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -28,7 +28,7 @@ static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecializa
 // e = elementwise((a * b), d)
 // outout: e[m, n]
 // input: a[k, m], b[k, n], d[m, n]
-using device_gemm_add_add_gelu_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances = std::tuple<
+using device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances = std::tuple<
     // clang-format off
         //##############################| ALayout| BLayout| ELayout| AData| BData| AccData| CShuffle|  DsData| EData|           A|           B|            CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
         //##############################|        |        |        |  Type|  Type|    Type| DataType|    Type|  Type| Elementwise| Elementwise|    Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
