@@ -6,8 +6,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename DPtrsGlobal,
-          typename AElementwiseOperation,
+template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename DxsInElementwiseOperation,
@@ -18,7 +17,7 @@ struct DeviceGemmReduce : public BaseOperator
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
                         void* p_c,
-                        DPtrsGlobal p_dxs,
+                        void* p_dxs,
                         ck::index_t M,
                         ck::index_t N,
                         ck::index_t K,
@@ -35,21 +34,18 @@ struct DeviceGemmReduce : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <typename DPtrsGlobal,
-          typename AElementwiseOperation,
+template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename DxsInElementwiseOperation,
           typename DxsReduceAccElementwiseOperation>
-using DeviceGemmReducePtr = std::unique_ptr<DeviceGemmReduce<DPtrsGlobal,
-                                                             AElementwiseOperation,
+using DeviceGemmReducePtr = std::unique_ptr<DeviceGemmReduce<AElementwiseOperation,
                                                              BElementwiseOperation,
                                                              CElementwiseOperation,
                                                              DxsInElementwiseOperation,
                                                              DxsReduceAccElementwiseOperation>>;
 
-template <typename DPtrsGlobal,
-          typename AElementwiseOperation,
+template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename C1ElementwiseOperation,
@@ -63,7 +59,7 @@ struct DeviceGemmBiasAddReduce : public BaseOperator
                         void* p_c,
                         const void* p_c0,
                         const void* p_c1,
-                        DPtrsGlobal p_dxs,
+                        void* p_dxs,
                         ck::index_t M,
                         ck::index_t N,
                         ck::index_t K,
@@ -82,16 +78,14 @@ struct DeviceGemmBiasAddReduce : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <typename DPtrsGlobal,
-          typename AElementwiseOperation,
+template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename C1ElementwiseOperation,
           typename DxsInElementwiseOperation,
           typename DxsReduceAccElementwiseOperation>
 using DeviceGemmBiasAddReducePtr =
-    std::unique_ptr<DeviceGemmBiasAddReduce<DPtrsGlobal,
-                                            AElementwiseOperation,
+    std::unique_ptr<DeviceGemmBiasAddReduce<AElementwiseOperation,
                                             BElementwiseOperation,
                                             CElementwiseOperation,
                                             C1ElementwiseOperation,

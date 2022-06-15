@@ -71,8 +71,7 @@ template <typename ALayout,
           index_t CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
 struct DeviceGemmBiasAddReduce_Xdl_CShuffle
-    : public DeviceGemmBiasAddReduce<DPtrsGlobal,
-                                     AElementwiseOperation,
+    : public DeviceGemmBiasAddReduce<AElementwiseOperation,
                                      BElementwiseOperation,
                                      CElementwiseOperation,
                                      C1ElementwiseOperation,
@@ -744,7 +743,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                         void* p_c,
                         const void* p_c0,
                         const void* p_c1,
-                        DPtrsGlobal p_dxs,
+                        void* p_dxs,
                         index_t MRaw,
                         index_t NRaw,
                         index_t KRaw,
@@ -760,12 +759,13 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                         DxsReduceAccElementwiseOperation dxs_out_element_op,
                         index_t /* KBatch */ = 1) override
     {
+        DPtrsGlobal dxs_tuple = *(static_cast<DPtrsGlobal*>(p_dxs));
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
                                           static_cast<CDataType*>(p_c),
                                           static_cast<const C0DataType*>(p_c0),
                                           static_cast<const C1DataType*>(p_c1),
-                                          p_dxs,
+                                          dxs_tuple,
                                           MRaw,
                                           NRaw,
                                           KRaw,

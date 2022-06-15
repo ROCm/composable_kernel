@@ -63,8 +63,7 @@ using device_gemm_bias_add_reduce_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_nk
         >;
 
 void add_device_gemm_bias_add_reduce_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_nk_mn_instances(
-    std::vector<DeviceGemmBiasAddReducePtr<DPtrsGlobal,
-                                           PassThrough,
+    std::vector<DeviceGemmBiasAddReducePtr<PassThrough,
                                            PassThrough,
                                            PassThrough,
                                            PassThrough,

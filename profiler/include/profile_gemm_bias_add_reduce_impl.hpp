@@ -27,7 +27,6 @@ using DInElementOps  = ck::Tuple<Identity, Square>;
 using DOutElementOps = ck::Tuple<Div, Div>;
 
 using DeviceGemmBiasAddReduceNoOpPtr = ck::tensor_operation::device::DeviceGemmBiasAddReducePtr<
-    DPtrsGlobal,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
@@ -296,7 +295,7 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
             static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
             static_cast<C0DataType*>(bias_device_buf.GetDeviceBuffer()),
             static_cast<C1DataType*>(c1_device_buf.GetDeviceBuffer()),
-            dxs_global,
+            &dxs_global,
             M,
             N,
             K,
