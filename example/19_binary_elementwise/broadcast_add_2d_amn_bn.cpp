@@ -122,15 +122,17 @@ int main()
     a_m_n_device_buf.ToDevice(a_m_n.mData.data());
     b_n_device_buf.ToDevice(b_n.mData.data());
 
+    auto input =
+        ck::make_tuple(a_m_n_device_buf.GetDeviceBuffer(), b_n_device_buf.GetDeviceBuffer());
+    auto output = ck::make_tuple(c_m_n_device_buf.GetDeviceBuffer());
+
+    std::vector<ck::index_t> a_strides = {Stride, 1};
+    std::vector<ck::index_t> b_strides = {0, 1};
+    std::vector<ck::index_t> c_strides = {Stride, 1};
+
     auto broadcastAdd = DeviceElementwiseAddInstance{};
-    auto argument     = broadcastAdd.MakeArgumentPointer(a_m_n_device_buf.GetDeviceBuffer(),
-                                                     b_n_device_buf.GetDeviceBuffer(),
-                                                     c_m_n_device_buf.GetDeviceBuffer(),
-                                                     {M, N},
-                                                     {Stride, 1},
-                                                     {0, 1}, // broadcast in first dimension
-                                                     {Stride, 1},
-                                                     Add{});
+    auto argument     = broadcastAdd.MakeArgumentPointer(
+        &input, &output, {M, N}, {a_strides, b_strides}, {c_strides}, Add{});
 
     if(!broadcastAdd.IsSupportedArgument(argument.get()))
     {

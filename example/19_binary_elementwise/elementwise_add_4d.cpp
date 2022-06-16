@@ -104,16 +104,21 @@ int main()
     a_device_buf.ToDevice(a.mData.data());
     b_device_buf.ToDevice(b.mData.data());
 
+    auto input  = ck::make_tuple(a_device_buf.GetDeviceBuffer(), b_device_buf.GetDeviceBuffer());
+    auto output = ck::make_tuple(c_device_buf.GetDeviceBuffer());
+
+    std::vector<ck::index_t> a_strides{a.mDesc.GetStrides().begin(), a.mDesc.GetStrides().end()};
+    std::vector<ck::index_t> b_strides{b.mDesc.GetStrides().begin(), b.mDesc.GetStrides().end()};
+    std::vector<ck::index_t> c_strides{c.mDesc.GetStrides().begin(), c.mDesc.GetStrides().end()};
+
     auto broadcastAdd = DeviceElementwiseAddInstance{};
-    auto argument     = broadcastAdd.MakeArgumentPointer(
-        a_device_buf.GetDeviceBuffer(),
-        b_device_buf.GetDeviceBuffer(),
-        c_device_buf.GetDeviceBuffer(),
-        std::vector<ck::index_t>{nchw.begin(), nchw.end()},
-        std::vector<ck::index_t>{a.mDesc.GetStrides().begin(), a.mDesc.GetStrides().end()},
-        std::vector<ck::index_t>{b.mDesc.GetStrides().begin(), b.mDesc.GetStrides().end()},
-        std::vector<ck::index_t>{c.mDesc.GetStrides().begin(), c.mDesc.GetStrides().end()},
-        Add{});
+    auto argument =
+        broadcastAdd.MakeArgumentPointer(&input,
+                                         &output,
+                                         std::vector<ck::index_t>{nchw.begin(), nchw.end()},
+                                         {{a_strides}, b_strides},
+                                         {c_strides},
+                                         Add{});
 
     if(!broadcastAdd.IsSupportedArgument(argument.get()))
     {

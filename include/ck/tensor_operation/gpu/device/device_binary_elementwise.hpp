@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "device.hpp"
-#include "device_base.hpp"
+#include "device_elementwise.hpp"
 #include "gridwise_binary_elementwise_1d.hpp"
 
 namespace ck {
@@ -20,9 +20,10 @@ template <typename ADataType,
           index_t AScalarPerVector,
           index_t BScalarPerVector,
           index_t CScalarPerVector>
-struct DeviceBinaryElementwise : public BaseOperator
+struct DeviceBinaryElementwise : public DeviceElementwise<ElementwiseFunctor>
 {
     static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
 
     template <typename Desc_M>
     static auto PadDescriptor_M_1d(Desc_M desc_m, index_t gridSize, index_t blockSize)
@@ -193,26 +194,33 @@ struct DeviceBinaryElementwise : public BaseOperator
         return true;
     };
 
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
-                                                      const void* p_b,
-                                                      void* p_c,
-                                                      std::vector<index_t> lengths,
-                                                      std::vector<index_t> a_strides,
-                                                      std::vector<index_t> b_strides,
-                                                      std::vector<index_t> c_strides,
-                                                      ElementwiseFunctor functor)
+    std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(const void* p_input_tuple,
+                        void* p_output_tuple,
+                        std::vector<index_t> lengths,
+                        std::vector<std::vector<index_t>> input_strides,
+                        std::vector<std::vector<index_t>> output_strides,
+                        ElementwiseFunctor functor) override
     {
-        return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
-                                          static_cast<const BDataType*>(p_b),
-                                          static_cast<CDataType*>(p_c),
+        using input_type  = const Tuple<ADataType*, BDataType*>;
+        using output_type = Tuple<CDataType*>;
+        input_type p_ab   = *(static_cast<input_type*>(p_input_tuple));
+        output_type p_c   = *(static_cast<output_type*>(p_output_tuple));
+
+        return std::make_unique<Argument>(p_ab[I0],
+                                          p_ab[I1],
+                                          p_c[I0],
                                           lengths,
-                                          a_strides,
-                                          b_strides,
-                                          c_strides,
+                                          input_strides[0],
+                                          input_strides[1],
+                                          output_strides[0],
                                           functor);
     }
 
-    std::unique_ptr<BaseInvoker> MakeInvokerPointer() { return std::make_unique<Invoker>(); }
+    std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
+    {
+        return std::make_unique<Invoker>();
+    }
 
     std::string GetTypeString() const override
     {
