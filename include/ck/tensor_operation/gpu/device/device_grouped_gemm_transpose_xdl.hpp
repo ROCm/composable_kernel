@@ -54,9 +54,9 @@ __global__ void
     }
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(
-        gemm_desc_ptr[group_id].a_ptr,
-        gemm_desc_ptr[group_id].b_ptr,
-        gemm_desc_ptr[group_id].c_ptr,
+        gemm_desc_ptr[group_id].a_ptr_,
+        gemm_desc_ptr[group_id].b_ptr_,
+        gemm_desc_ptr[group_id].c_ptr_,
         p_shared,
         gemm_desc_ptr[group_id].a_grid_desc_k0_m_k1_,
         gemm_desc_ptr[group_id].b_grid_desc_k0_n_k1_,
@@ -347,9 +347,9 @@ struct DeviceGroupedGemmTransposeXdl : public DeviceGroupedGemmTranspose<AElemen
 
         GroupedGemmBlock2CTileMap grouped_gemm_transpose_block_2_ctile_map_;
 
-        const ADataType* a_ptr;
-        const BDataType* b_ptr;
-        CDataType* c_ptr;
+        const ADataType* a_ptr_;
+        const BDataType* b_ptr_;
+        CDataType* c_ptr_;
 
         ck::index_t BlockStart_, BlockEnd_;
     };
