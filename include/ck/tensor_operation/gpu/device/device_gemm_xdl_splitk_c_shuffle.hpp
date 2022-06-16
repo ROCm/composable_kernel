@@ -246,7 +246,8 @@ struct DeviceGemmXdlSplitKCShuffle
         CShuffleNRepeatPerShuffle,
         CBlockTransferScalarPerVector_NWaveNPerXDL,
         CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        true>;
+        true, 
+        3>;
 
     // GridwiseGemm
     using GridwiseGemmAtomicAdd = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
@@ -289,7 +290,8 @@ struct DeviceGemmXdlSplitKCShuffle
         CShuffleNRepeatPerShuffle,
         CBlockTransferScalarPerVector_NWaveNPerXDL,
         CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        true>;
+        true,
+        3>;
 
     using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
         decltype(GridwiseGemm::MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}));
