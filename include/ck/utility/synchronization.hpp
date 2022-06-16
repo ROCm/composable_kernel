@@ -23,5 +23,12 @@ __device__ void s_nop()
     " ::);
 }
 
+__device__ void s_barrier()
+{
+    asm volatile("\
+    s_barrier \
+    " ::);
+}
+
 } // namespace ck
 #endif

@@ -241,16 +241,9 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
         a_thread_copy_.SetSrcCoord(CalculateAThreadOriginDataIndex());
     }
 
-    static constexpr auto a_block_desc_m0_m1_m2_k = MakeABlockDescriptor_M0_M1_M2_K();
-
-    template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>
-    __device__ void Run(const ABlockBuffer& a_block_buf,
-                        const BBlockBuffer& b_thread_buf,
-                        CThreadBuffer& c_thread_buf) const
+    template <typename ABlockBuffer, typename AThreadBuffer>
+    __device__ void ReadAThreadData(const ABlockBuffer& a_block_buf, AThreadBuffer& a_thread_buf)
     {
-        auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
-            a_thread_desc_.GetElementSpaceSize());
-
         static_for<0, MRepeat, 1>{}([&](auto m0) {
             // read A
             a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
@@ -258,8 +251,35 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
                                a_block_buf,
                                a_thread_desc_,
                                make_tuple(I0, I0, I0, I0),
-                               a_thread_buf);
+                               a_thread_buf(Number<m0>{}));
+        });
+    }
 
+    __host__ __device__ static auto AlloCAThreadBuff()
+    {
+        return generate_tuple(
+            [&](auto i) {
+                ignore = i;
+                return StaticBuffer<AddressSpaceEnum::Vgpr,
+                                    FloatAB,
+                                    a_thread_desc_.GetElementSpaceSize(),
+                                    true>{};
+            },
+            Number<MRepeat>{});
+    }
+
+    static constexpr auto a_block_desc_m0_m1_m2_k = MakeABlockDescriptor_M0_M1_M2_K();
+
+    template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>
+    __device__ void Run(const ABlockBuffer& a_thread_buf,
+                        const BBlockBuffer& b_thread_buf,
+                        CThreadBuffer& c_thread_buf) const
+    {
+        // auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
+        //     a_thread_desc_.GetElementSpaceSize());
+
+        static_for<0, MRepeat, 1>{}([&](auto m0) {
+            // read A
             static_for<0, NRepeat, 1>{}([&](auto n0) {
                 // read B
                 static_for<0, KPerThread, KPack>{}([&](auto k) {
@@ -267,8 +287,9 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
                     vector_type<FloatAB, KPack> b_thread_vec;
                     constexpr index_t k0 = k / KPack;
                     static_for<0, KPack, 1>{}([&](auto i) {
-                        a_thread_vec.template AsType<FloatAB>()(i) = a_thread_buf
-                            [Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];
+                        a_thread_vec.template AsType<FloatAB>()(i) =
+                            a_thread_buf[Number<m0>{}][Number<a_thread_desc_.CalculateOffset(
+                                make_tuple(0, 0, 0, k + i))>{}];
                         b_thread_vec.template AsType<FloatAB>()(i) = b_thread_buf
                             [Number<b_thread_desc_.CalculateOffset(make_tuple(k0, n0, i))>{}];
                     });

@@ -118,11 +118,11 @@ int main(int argc, char* argv[])
 #else
     ck::index_t M = 16;
     ck::index_t N = 16;
-    ck::index_t K = 32;
+    ck::index_t K = 8;
 
-    ck::index_t StrideA = 8;
-    ck::index_t StrideB = 8;
-    ck::index_t StrideC = 16;
+    ck::index_t StrideA = K;
+    ck::index_t StrideB = K;
+    ck::index_t StrideC = N;
 #endif
 
     if(argc == 4)
