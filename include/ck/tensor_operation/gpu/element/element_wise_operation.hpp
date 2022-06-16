@@ -1,5 +1,6 @@
 #pragma once
 #include "data_type.hpp"
+#include "math_v2.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -18,6 +19,20 @@ struct PassThrough
     __host__ __device__ void operator()(int8_t& y, const int8_t& x) const { y = x; }
 
     __host__ __device__ void operator()(double& y, const double& x) const { y = x; }
+};
+
+struct FastGelu
+{
+    // https://paperswithcode.com/method/gelu
+    // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
+    __host__ __device__ void operator()(float& y, const float& x) const
+    {
+        const float u   = float(2) * x * (float(0.035677) * x * x + float(0.797885));
+        const float emu = exp(-u);
+        const float cdf = float(0.5) + float(0.5) * (float(2) / (float(1) + emu) - float(1));
+
+        y = x * cdf;
+    }
 };
 
 struct Add
@@ -140,6 +155,29 @@ struct AddHardswishAdd
         float c = (b > 0) * (b > float{6} ? float{6} : b) * a * float{0.166667};
         float d = c + x2;
         y       = d;
+    }
+};
+
+// C = A * B
+// E = FastGelu(C + D0 + D1)
+struct AddAddFastGelu
+{
+    __host__ __device__ void
+    operator()(ck::half_t& e, const float& c, const ck::half_t& d0, const ck::half_t& d1) const
+    {
+        // Fast GeLU
+        // https://paperswithcode.com/method/gelu
+        // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
+        const auto fast_gelu = [&](float x) {
+            const float u   = float(2) * x * (float(0.035677) * x * x + float(0.797885));
+            const float emu = exp(-u);
+            const float cdf = float(0.5) + float(0.5) * (float(2) / (float(1) + emu) - float(1));
+            return x * cdf;
+        };
+
+        const float y = fast_gelu(c + float(d0) + float(d1));
+
+        e = ck::type_convert<ck::half_t>(y);
     }
 };
 
@@ -296,7 +334,7 @@ struct UnaryAbs<float, float>
 {
     __host__ __device__ UnaryAbs(const int32_t divider = 1) { (void)divider; };
 
-    __host__ __device__ void operator()(float& y, const float& x) const { y = abs(x); };
+    __host__ __device__ void operator()(float& y, const float& x) const { y = ck::math::abs(x); };
 };
 
 template <>
@@ -304,7 +342,7 @@ struct UnaryAbs<half_t, half_t>
 {
     __host__ __device__ UnaryAbs(const int32_t divider = 1) { (void)divider; };
 
-    __host__ __device__ void operator()(half_t& y, const half_t& x) const { y = __habs(x); };
+    __host__ __device__ void operator()(half_t& y, const half_t& x) const { y = ck::math::abs(x); };
 };
 
 template <>
@@ -312,7 +350,7 @@ struct UnaryAbs<double, double>
 {
     __host__ __device__ UnaryAbs(const int32_t divider = 1) { (void)divider; };
 
-    __host__ __device__ void operator()(double& y, const double& x) const { y = abs(x); };
+    __host__ __device__ void operator()(double& y, const double& x) const { y = ck::math::abs(x); };
 };
 
 template <>
@@ -320,12 +358,7 @@ struct UnaryAbs<int8_t, int8_t>
 {
     __host__ __device__ UnaryAbs(const int32_t divider = 1) { (void)divider; };
 
-    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const
-    {
-        int8_t sgn = x >> (8 - 1);
-
-        y = (x ^ sgn) - sgn;
-    };
+    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const { y = ck::math::abs(x); };
 };
 
 template <typename Y, typename X>
@@ -336,7 +369,7 @@ struct UnarySqrt<float, float>
 {
     __host__ __device__ UnarySqrt(const int32_t divider = 1) { (void)divider; };
 
-    __host__ __device__ void operator()(float& y, const float& x) const { y = sqrtf(x); };
+    __host__ __device__ void operator()(float& y, const float& x) const { y = ck::math::sqrt(x); };
 };
 
 template <>
@@ -344,7 +377,10 @@ struct UnarySqrt<double, double>
 {
     __host__ __device__ UnarySqrt(const int32_t divider = 1) { (void)divider; };
 
-    __host__ __device__ void operator()(double& y, const double& x) const { y = sqrt(x); };
+    __host__ __device__ void operator()(double& y, const double& x) const
+    {
+        y = ck::math::sqrt(x);
+    };
 };
 
 } // namespace element_wise

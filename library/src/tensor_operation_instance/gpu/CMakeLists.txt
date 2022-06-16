@@ -43,6 +43,7 @@ add_subdirectory(convnd_bwd_data)
 add_subdirectory(grouped_gemm)
 add_subdirectory(conv2d_bwd_weight)
 add_subdirectory(batched_gemm_reduce)
+add_subdirectory(gemm_add_add_fastgelu)
 
 add_library(device_operations STATIC 
     $<TARGET_OBJECTS:device_conv1d_fwd_instance> 
@@ -62,6 +63,7 @@ add_library(device_operations STATIC
     $<TARGET_OBJECTS:device_conv2d_bwd_weight_instance>
     $<TARGET_OBJECTS:device_batched_gemm_reduce_instance>
     $<TARGET_OBJECTS:device_conv3d_fwd_instance>
+    $<TARGET_OBJECTS:device_gemm_add_add_fastgelu_instance>
     device_conv2d.cpp
 )
 add_library(composablekernels::device_operations ALIAS device_operations)
@@ -96,9 +98,11 @@ target_include_directories(device_operations PUBLIC
 #once new arches are enabled make this an option on the main cmake file
 # and pass down here to be exported
 
-target_compile_options(device_operations
-PRIVATE --offload-arch=gfx908
+target_compile_options(device_operations PRIVATE 
+    --offload-arch=gfx908
+    --offload-arch=gfx90a
 )
+
 # install(TARGETS device_operations LIBRARY DESTINATION lib)
 install(TARGETS device_operations
         EXPORT device_operationsTargets
