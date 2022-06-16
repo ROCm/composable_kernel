@@ -246,7 +246,7 @@ struct DeviceGemmXdlSplitKCShuffle
         CShuffleNRepeatPerShuffle,
         CBlockTransferScalarPerVector_NWaveNPerXDL,
         CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        true, 
+        false, 
         3>;
 
     // GridwiseGemm
@@ -290,7 +290,7 @@ struct DeviceGemmXdlSplitKCShuffle
         CShuffleNRepeatPerShuffle,
         CBlockTransferScalarPerVector_NWaveNPerXDL,
         CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        true,
+        false,
         3>;
 
     using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
