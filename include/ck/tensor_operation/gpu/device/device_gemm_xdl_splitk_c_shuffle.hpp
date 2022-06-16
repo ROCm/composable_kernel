@@ -21,44 +21,48 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename ADataType,
-          typename BDataType,
-          typename CDataType,
-          typename AccDataType,
-          typename ALayout,
+template <typename ALayout,
           typename BLayout,
           typename CLayout,
+          typename ADataType,
+          typename BDataType,
+          typename CDataType,
+          typename GemmAccDataType,
+          typename CShuffleDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           GemmSpecialization GemmSpec,
-          ck::index_t BlockSize,
-          ck::index_t MPerBlock,
-          ck::index_t NPerBlock,
-          ck::index_t K0PerBlock,
-          ck::index_t K1,
-          ck::index_t MPerXDL,
-          ck::index_t NPerXDL,
-          ck::index_t MXdlPerWave,
-          ck::index_t NXdlPerWave,
-          typename ABlockTransferThreadClusterLengths_K0_M_K1,
+          index_t NumGemmKPrefetchStage,
+          index_t BlockSize,
+          index_t MPerBlock,
+          index_t NPerBlock,
+          index_t KPerBlock,
+          index_t AK1,
+          index_t BK1,
+          index_t MPerXDL,
+          index_t NPerXDL,
+          index_t MXdlPerWave,
+          index_t NXdlPerWave,
+          typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
-          ck::index_t ABlockTransferSrcVectorDim,
-          ck::index_t ABlockTransferSrcScalarPerVector,
-          ck::index_t ABlockTransferDstScalarPerVector_K1,
-          bool ABlockLdsAddExtraM,
-          typename BBlockTransferThreadClusterLengths_K0_N_K1,
+          index_t ABlockTransferSrcVectorDim,
+          index_t ABlockTransferSrcScalarPerVector,
+          index_t ABlockTransferDstScalarPerVector_AK1,
+          index_t ABlockLdsExtraM,
+          typename BBlockTransferThreadClusterLengths_BK0_N_BK1,
           typename BBlockTransferThreadClusterArrangeOrder,
           typename BBlockTransferSrcAccessOrder,
-          ck::index_t BBlockTransferSrcVectorDim,
-          ck::index_t BBlockTransferSrcScalarPerVector,
-          ck::index_t BBlockTransferDstScalarPerVector_K1,
-          bool BBlockLdsAddExtraN,
-          index_t CShuffleMRepeatPerShuffle,
-          index_t CShuffleNRepeatPerShuffle,
-          typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-          index_t CBlockTransferScalarPerVector_NWaveNPerXDL>
+          index_t BBlockTransferSrcVectorDim,
+          index_t BBlockTransferSrcScalarPerVector,
+          index_t BBlockTransferDstScalarPerVector_BK1,
+          index_t BBlockLdsExtraN,
+          index_t CShuffleMXdlPerWavePerShuffle,
+          index_t CShuffleNXdlPerWavePerShuffle,
+          typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+          index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
+          LoopScheduler LoopSched = make_default_loop_scheduler()>
 struct DeviceGemmXdlSplitKCShuffle
     : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
@@ -67,14 +71,12 @@ struct DeviceGemmXdlSplitKCShuffle
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
 
-    static constexpr auto K1Number = Number<K1>{};
-
     static auto
     MakeAGridDescriptor_KBatch_K0_M_K1(index_t M, index_t K, index_t StrideA, int KBatch, int KPad)
     {
-        assert(KPad % (K1 * KBatch) == 0);
+        assert(KPad % (AK1 * KBatch) == 0);
 
-        const index_t K0 = KPad / (K1 * KBatch);
+        const index_t AK0 = KPad / (AK1 * KBatch);
 
         const auto a_grid_desc_m_k = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
@@ -98,7 +100,7 @@ struct DeviceGemmXdlSplitKCShuffle
             const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
             return transform_tensor_descriptor(
                 a_grid_desc_m_kpad,
-                make_tuple(make_unmerge_transform(make_tuple(KBatch, K0, K1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(KBatch, AK0, AK1)),
                            make_right_pad_transform(M, PadM)),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
@@ -107,7 +109,7 @@ struct DeviceGemmXdlSplitKCShuffle
         {
             return transform_tensor_descriptor(
                 a_grid_desc_m_kpad,
-                make_tuple(make_unmerge_transform(make_tuple(KBatch, K0, K1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(KBatch, AK0, AK1)),
                            make_pass_through_transform(M)),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
@@ -117,9 +119,9 @@ struct DeviceGemmXdlSplitKCShuffle
     static auto
     MakeBGridDescriptor_KBatch_K0_N_K1(index_t K, index_t N, index_t StrideB, int KBatch, int KPad)
     {
-        assert(KPad % (K1 * KBatch) == 0);
+        assert(KPad % (BK1 * KBatch) == 0);
 
-        const index_t K0 = KPad / (K1 * KBatch);
+        const index_t BK0 = KPad / (BK1 * KBatch);
 
         const auto b_grid_desc_k_n = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
@@ -143,7 +145,7 @@ struct DeviceGemmXdlSplitKCShuffle
             const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
             return transform_tensor_descriptor(
                 b_grid_desc_kpad_n,
-                make_tuple(make_unmerge_transform(make_tuple(KBatch, K0, K1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(KBatch, BK0, BK1)),
                            make_right_pad_transform(N, PadN)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
@@ -152,7 +154,7 @@ struct DeviceGemmXdlSplitKCShuffle
         {
             return transform_tensor_descriptor(
                 b_grid_desc_kpad_n,
-                make_tuple(make_unmerge_transform(make_tuple(KBatch, K0, K1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(KBatch, BK0, BK1)),
                            make_pass_through_transform(N)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
@@ -196,8 +198,7 @@ struct DeviceGemmXdlSplitKCShuffle
 
     static auto GetKPad(index_t K, index_t KBatch)
     {
-        const index_t K0   = math::integer_divide_ceil(K, K1 * K0PerBlock * KBatch) * K0PerBlock;
-        const index_t KPad = KBatch * K0 * K1;
+        const index_t KPad = math::integer_divide_ceil(K, KPerBlock * KBatch) * (KPerBlock * KBatch);
         return KPad;
     }
 
@@ -209,7 +210,7 @@ struct DeviceGemmXdlSplitKCShuffle
     using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
-        AccDataType,
+        GemmAccDataType,
         CDataType,
         InMemoryDataOperationEnum::Set,
         AGridDesc_K0_M_K1,
@@ -218,42 +219,42 @@ struct DeviceGemmXdlSplitKCShuffle
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
+        NumGemmKPrefetchStage,
         MPerBlock,
         NPerBlock,
-        K0PerBlock,
+        KPerBlock,
+        AK1,
+        BK1,
         MPerXDL,
         NPerXDL,
-        K1,
         MXdlPerWave,
         NXdlPerWave,
-        ABlockTransferThreadClusterLengths_K0_M_K1,
+        ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
         ABlockTransferSrcVectorDim,
         ABlockTransferSrcScalarPerVector,
-        ABlockTransferDstScalarPerVector_K1,
+        ABlockTransferDstScalarPerVector_AK1,
         false, // AThreadTransferSrcResetCoordinateAfterRun,
-        ABlockLdsAddExtraM,
-        BBlockTransferThreadClusterLengths_K0_N_K1,
+        ABlockLdsExtraM,
+        BBlockTransferThreadClusterLengths_BK0_N_BK1,
         BBlockTransferThreadClusterArrangeOrder,
         BBlockTransferSrcAccessOrder,
         BBlockTransferSrcVectorDim,
         BBlockTransferSrcScalarPerVector,
-        BBlockTransferDstScalarPerVector_K1,
+        BBlockTransferDstScalarPerVector_BK1,
         false, // BThreadTransferSrcResetCoordinateAfterRun,
-        BBlockLdsAddExtraN,
-        CShuffleMRepeatPerShuffle,
-        CShuffleNRepeatPerShuffle,
-        CBlockTransferScalarPerVector_NWaveNPerXDL,
-        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        false, 
-        3>;
+        BBlockLdsExtraN,
+        CShuffleMXdlPerWavePerShuffle,
+        CShuffleNXdlPerWavePerShuffle,
+        CShuffleBlockTransferScalarPerVector_NPerBlock,
+        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>;
 
     // GridwiseGemm
     using GridwiseGemmAtomicAdd = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
-        AccDataType,
+        GemmAccDataType,
         CDataType,
         InMemoryDataOperationEnum::AtomicAdd,
         AGridDesc_K0_M_K1,
@@ -262,36 +263,36 @@ struct DeviceGemmXdlSplitKCShuffle
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
+        NumGemmKPrefetchStage,
         MPerBlock,
         NPerBlock,
-        K0PerBlock,
+        KPerBlock,
+        AK1,
+        BK1,
         MPerXDL,
         NPerXDL,
-        K1,
         MXdlPerWave,
         NXdlPerWave,
-        ABlockTransferThreadClusterLengths_K0_M_K1,
+        ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
         ABlockTransferSrcVectorDim,
         ABlockTransferSrcScalarPerVector,
-        ABlockTransferDstScalarPerVector_K1,
+        ABlockTransferDstScalarPerVector_AK1,
         false, // AThreadTransferSrcResetCoordinateAfterRun,
-        ABlockLdsAddExtraM,
-        BBlockTransferThreadClusterLengths_K0_N_K1,
+        ABlockLdsExtraM,
+        BBlockTransferThreadClusterLengths_BK0_N_BK1,
         BBlockTransferThreadClusterArrangeOrder,
         BBlockTransferSrcAccessOrder,
         BBlockTransferSrcVectorDim,
         BBlockTransferSrcScalarPerVector,
-        BBlockTransferDstScalarPerVector_K1,
+        BBlockTransferDstScalarPerVector_BK1,
         false, // BThreadTransferSrcResetCoordinateAfterRun,
-        BBlockLdsAddExtraN,
-        CShuffleMRepeatPerShuffle,
-        CShuffleNRepeatPerShuffle,
-        CBlockTransferScalarPerVector_NWaveNPerXDL,
-        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        false,
-        3>;
+        BBlockLdsExtraN,
+        CShuffleMXdlPerWavePerShuffle,
+        CShuffleNXdlPerWavePerShuffle,
+        CShuffleBlockTransferScalarPerVector_NPerBlock,
+        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>;
 
     using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
         decltype(GridwiseGemm::MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}));
@@ -412,9 +413,9 @@ struct DeviceGemmXdlSplitKCShuffle
             const index_t grid_size =
                 arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_);
 
-            const auto K0 = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I1);
+            const auto K = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I1) * arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I3);
 
-            const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
+            const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K);
 
             float ave_time = 0;
 
@@ -634,7 +635,7 @@ struct DeviceGemmXdlSplitKCShuffle
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
-            << K0PerBlock
+            << KPerBlock
             << ">";
         // clang-format on
 
