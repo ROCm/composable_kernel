@@ -2,11 +2,10 @@
 #
 # in order to run this script you'd first need to build the ckProfiler executable in ../build/bin/
 # and make sure the following python packages are installed in your environment:
-# pip3 install --upgrade pip
-# pip3 install sqlalchemy
-# pip3 install pymysql
-# pip3 install pandas
-# pip3 install sshtunnel
+
+pip3 install --upgrade pip
+pip3 install sqlalchemy pymysql pandas sshtunnel
+
 # you would also need to set up some environment variables in order to 
 # post your new test results to the database and compare them to the baseline
 # please contact Illia.Silin@amd.com for more details
