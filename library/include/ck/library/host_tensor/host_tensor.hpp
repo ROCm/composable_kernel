@@ -217,6 +217,8 @@ struct Tensor
 
     Tensor(const HostTensorDescriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpace()) {}
 
+    Tensor(const Tensor& other) : mDesc(other.mDesc), mData(other.mData) {}
+
     template <typename F>
     void ForEach_impl(F&& f, std::vector<size_t>& idx, size_t rank)
     {
@@ -346,7 +348,8 @@ struct Tensor
 };
 
 template <typename X>
-HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens) : mLens(lens)
+HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens)
+    : mLens(lens.begin(), lens.end())
 {
     this->CalculateStrides();
 }
@@ -354,7 +357,7 @@ HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens) : mLens(l
 template <typename X, typename Y>
 HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens,
                                            const std::vector<Y>& strides)
-    : mLens(lens), mStrides(strides)
+    : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
 {
 }
 
