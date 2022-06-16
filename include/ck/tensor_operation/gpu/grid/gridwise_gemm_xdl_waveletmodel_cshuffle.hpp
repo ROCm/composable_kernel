@@ -137,10 +137,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
         }
 	__device__ static constexpr bool IsBelong()
         {
-            return (get_thread_local_1d_id() < TileLoadThreadGroupSize);
+            return (get_thread_local_1d_id() >= TileLoadThreadGroupSize);
         }
 
-        __device__ static index_t GetThreadId() { return get_thread_local_1d_id(); }
+        __device__ static index_t GetThreadId() { return get_thread_local_1d_id() - TileMathThreadGroupSize; }
 
     };
 
@@ -152,10 +152,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
         }
 	__device__ static constexpr bool IsBelong()
         {
-	    return get_thread_local_1d_id() >= TileLoadThreadGroupSize;
+	    return get_thread_local_1d_id() < TileMathThreadGroupSize;
         }
 
-        __device__ static index_t GetThreadId() { return get_thread_local_1d_id() - TileMathThreadGroupSize; }
+        __device__ static index_t GetThreadId() { return get_thread_local_1d_id(); }
 
     };
     using CShuffleBlockTransferThreadGroup =
@@ -476,10 +476,14 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
                                                           b_block_buf,
                                                           b_block_slice_copy_step,
                                                           num_k_block_main_loop);
+
+
+            
+        block_sync_lds();
+        block_sync_lds();
         }
         else if (TileMathThreadGroup::IsBelong())
         {
-
 
         //branch early for math wave
         constexpr index_t KPack = math::max(
@@ -506,7 +510,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
                                                           blockwise_gemm,
                                                           c_thread_buf,
                                                           num_k_block_main_loop);
-
 
         // GEMM definition
         //   c_mtx += transpose(a_mtx) * b_mtx
@@ -691,7 +694,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
                                               c_thread_buf,
                                               c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                                               c_shuffle_block_buf);
-
                 // make sure it's safe to read from LDS
                 block_sync_lds();
 
@@ -704,12 +706,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
 
                 if constexpr(access_id < num_access - 1)
                 {
-                    constexpr auto c_global_step = sfc_c_global.GetForwardStep(access_id);
+                        constexpr auto c_global_step = sfc_c_global.GetForwardStep(access_id);
 
-                    // move on C
-                    c_shuffle_block_copy_lds_to_global.MoveDstSliceWindow(
-
-                        c_grid_desc_mblock_mperblock_nblock_nperblock, c_global_step);
+                        // move on C
+                        c_shuffle_block_copy_lds_to_global.MoveDstSliceWindow(
+                            c_grid_desc_mblock_mperblock_nblock_nperblock, c_global_step);
                 }
             });
         }
