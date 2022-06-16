@@ -5,6 +5,7 @@
 #include <algorithm>
 #include "device_base.hpp"
 #include "host_tensor.hpp"
+#include "host_tensor_generator.hpp"
 
 namespace ck {
 namespace tensor_operation {

@@ -1,0 +1,2 @@
+add_gtest_executable(test_softmax test_softmax.cpp)
+target_link_libraries(test_softmax PRIVATE host_tensor)
