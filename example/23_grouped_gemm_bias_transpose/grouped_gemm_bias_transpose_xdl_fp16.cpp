@@ -28,7 +28,7 @@ using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using Add = ck::tensor_operation::element_wise::Add;
+using Add         = ck::tensor_operation::element_wise::Add;
 
 using ADataType   = ck::half_t;
 using BDataType   = ck::half_t;
@@ -43,24 +43,27 @@ using CLayout = ck::tensor_layout::gemm::RowMajor;
 
 using AElementOp = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp = ck::tensor_operation::element_wise::PassThrough;
-//using CElementOp = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp = ck::tensor_operation::element_wise::Add;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
-// static constexpr auto GemmMNPadding =
-// ck::tensor_operation::device::GemmSpecialization::MNPadding;
 
 // clang-format off
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemmBiasTransposeXdl
-//######| AData| BData| DData| EData| AccData| ALayout| BLayout|           A|           B|           C|          GEMM| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer|      Num|
-//######|  Type|  Type|  Type|  Type|    Type|        |        | Elementwise| Elementwise| Elementwise|Spacialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| SrcDstVectorDim|       DstScalar| Prefetch|
-//######|      |      |      |      |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |                |       PerVector|         |
-//######|      |      |      |      |        |        |        |            |            |            |              |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |                |                |         |
-        <   F16,   F16,   F16,   F16,     F32,     Row,     Col, PassThrough, PassThrough,         Add,   GemmDefault,   256,   256,   128,     4,  8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,               7,               1,        1>;
+//######| AData| BData| DData| EData| AccData| ALayout| BLayout|           A|           B|           C|          GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|     CShuffle|    CShuffle| CBlockTransferClusterLengths|      Num|
+//######|  Type|  Type|  Type|  Type|    Type|        |        | Elementwise| Elementwise| Elementwise|Spacialization|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|  MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| Prefetch|
+//######|      |      |      |      |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |   PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|         |
+//######|      |      |      |      |        |        |        |            |            |            |              |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |             |            |                             |         |
+        <   F16,   F16,   F16,   F16,     F32,     Row,     Col, PassThrough, PassThrough,         Add,   GemmDefault,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,            1,           1,               S<1, 32, 1, 8>,        1>;
 // clang-format on
 
-using ReferenceGemmBiasTransposeInstance = ck::tensor_operation::host::
-    ReferenceGemmBiasTranspose<ADataType, BDataType, DDataType, EDataType, AElementOp, BElementOp, CElementOp>;
+using ReferenceGemmBiasTransposeInstance =
+    ck::tensor_operation::host::ReferenceGemmBiasTranspose<ADataType,
+                                                           BDataType,
+                                                           DDataType,
+                                                           EDataType,
+                                                           AElementOp,
+                                                           BElementOp,
+                                                           CElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -212,7 +215,8 @@ int main(int argc, char* argv[])
 
     using DeviceMemPtr = std::unique_ptr<DeviceMem>;
 
-    std::vector<DeviceMemPtr> a_tensors_device, b_tensors_device, d_tensors_device, e_tensors_device;
+    std::vector<DeviceMemPtr> a_tensors_device, b_tensors_device, d_tensors_device,
+        e_tensors_device;
 
     a_tensors_device.reserve(group_count);
     b_tensors_device.reserve(group_count);
@@ -294,8 +298,8 @@ int main(int argc, char* argv[])
             std::make_unique<DeviceMem>(sizeof(BDataType) * b_tensors[i].mDesc.GetElementSpace()));
         e_tensors_device.emplace_back(std::make_unique<DeviceMem>(
             sizeof(EDataType) * e_device_tensors[i].mDesc.GetElementSpace()));
-        d_tensors_device.emplace_back(std::make_unique<DeviceMem>(
-            sizeof(DDataType) * d_tensors[i].mDesc.GetElementSpace()));
+        d_tensors_device.emplace_back(
+            std::make_unique<DeviceMem>(sizeof(DDataType) * d_tensors[i].mDesc.GetElementSpace()));
 
         a_tensors_device[i]->ToDevice(a_tensors[i].mData.data());
         b_tensors_device[i]->ToDevice(b_tensors[i].mData.data());

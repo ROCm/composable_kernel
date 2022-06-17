@@ -9,7 +9,6 @@
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
-//#include "gridwise_gemm_xdlops_v2r3.hpp"
 #include "gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "gemm_specialization.hpp"
 
@@ -52,19 +51,19 @@ __global__ void
     }
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(
-            gemm_desc_ptr[group_id].a_ptr_,
-            gemm_desc_ptr[group_id].b_ptr_,
-            gemm_desc_ptr[group_id].d_ptr_,
-            gemm_desc_ptr[group_id].e_ptr_,
-            p_shared,
-            a_element_op,
-            b_element_op,
-            c_element_op,
-            gemm_desc_ptr[group_id].a_grid_desc_k0_m_k1_,
-            gemm_desc_ptr[group_id].b_grid_desc_k0_n_k1_,
-            gemm_desc_ptr[group_id].ds_grid_desc_mblock_mperblock_nblock_nperblock_,
-            gemm_desc_ptr[group_id].e_grid_desc_mblock_mperblock_nblock_nperblock_,
-            gemm_desc_ptr[group_id].block_2_ctile_map_);
+        gemm_desc_ptr[group_id].a_ptr_,
+        gemm_desc_ptr[group_id].b_ptr_,
+        gemm_desc_ptr[group_id].d_ptr_,
+        gemm_desc_ptr[group_id].e_ptr_,
+        p_shared,
+        a_element_op,
+        b_element_op,
+        c_element_op,
+        gemm_desc_ptr[group_id].a_grid_desc_k0_m_k1_,
+        gemm_desc_ptr[group_id].b_grid_desc_k0_n_k1_,
+        gemm_desc_ptr[group_id].ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+        gemm_desc_ptr[group_id].e_grid_desc_mblock_mperblock_nblock_nperblock_,
+        gemm_desc_ptr[group_id].block_2_ctile_map_);
 #else
     ignore = gemm_descs_const;
     ignore = group_count;
@@ -88,8 +87,9 @@ template <typename ADataType,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
-          ck::index_t K0PerBlock,
-          ck::index_t K1,
+          ck::index_t KPerBlock,
+          ck::index_t AK1,
+          ck::index_t BK1,
           ck::index_t MPerXDL,
           ck::index_t NPerXDL,
           ck::index_t MXdlPerWave,
@@ -108,10 +108,12 @@ template <typename ADataType,
           ck::index_t BBlockTransferSrcScalarPerVector,
           ck::index_t BBlockTransferDstScalarPerVector_K1,
           bool BBlockLdsAddExtraN,
-          ck::index_t CThreadTransferSrcDstVectorDim,
-          ck::index_t CThreadTransferDstScalarPerVector,
-          ck::index_t NumPrefetch   = 1,
-          ck::index_t MaxGroupCount = 10>
+          index_t CShuffleMXdlPerWavePerShuffle,
+          index_t CShuffleNXdlPerWavePerShuffle,
+          typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+          index_t CDEBlockTransferScalarPerVector_NPerBlock,
+          ck::index_t NumPrefetch = 1,
+          LoopScheduler LoopSched = make_default_loop_scheduler()>
 struct DeviceGroupedGemmBiasTransposeXdl
     : public DeviceGroupedGemmBiasTranspose<AElementwiseOperation,
                                             BElementwiseOperation,
@@ -121,13 +123,11 @@ struct DeviceGroupedGemmBiasTransposeXdl
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
-    static constexpr auto K1Number = Number<K1>{};
-
     static auto MakeAGridDescriptor_K0_M_K1(index_t M, index_t K, index_t StrideA)
     {
-        assert(K % K1 == 0);
+        assert(K % BK1 == 0);
 
-        const index_t K0 = K / K1;
+        const index_t K0 = K / AK1;
 
         const auto a_grid_desc_m_k = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
@@ -146,7 +146,7 @@ struct DeviceGroupedGemmBiasTransposeXdl
 
             return transform_tensor_descriptor(
                 a_grid_desc_m_k,
-                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(K0, AK1)),
                            make_right_pad_transform(M, PadM)),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
@@ -155,7 +155,7 @@ struct DeviceGroupedGemmBiasTransposeXdl
         {
             return transform_tensor_descriptor(
                 a_grid_desc_m_k,
-                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(K0, AK1)),
                            make_pass_through_transform(M)),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
@@ -164,9 +164,9 @@ struct DeviceGroupedGemmBiasTransposeXdl
 
     static auto MakeBGridDescriptor_K0_N_K1(index_t K, index_t N, index_t StrideB)
     {
-        assert(K % K1 == 0);
+        assert(K % BK1 == 0);
 
-        const index_t K0 = K / K1;
+        const index_t K0 = K / BK1;
 
         const auto b_grid_desc_k_n = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
@@ -185,7 +185,7 @@ struct DeviceGroupedGemmBiasTransposeXdl
 
             return transform_tensor_descriptor(
                 b_grid_desc_k_n,
-                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(K0, BK1)),
                            make_right_pad_transform(N, PadN)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
@@ -194,7 +194,7 @@ struct DeviceGroupedGemmBiasTransposeXdl
         {
             return transform_tensor_descriptor(
                 b_grid_desc_k_n,
-                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(K0, BK1)),
                            make_pass_through_transform(N)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
@@ -264,13 +264,13 @@ struct DeviceGroupedGemmBiasTransposeXdl
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
         EGridDesc_M_N,
-        NumPrefetch,   // NumGemmKPrefetchStage
+        NumPrefetch, // NumGemmKPrefetchStage
         BlockSize,
         MPerBlock,
         NPerBlock,
-        K0PerBlock * K1,
-        K1, // AK1
-        K1, // BK1
+        KPerBlock,
+        AK1,
+        BK1,
         MPerXDL,
         NPerXDL,
         MXdlPerWave,
@@ -291,30 +291,26 @@ struct DeviceGroupedGemmBiasTransposeXdl
         BBlockTransferDstScalarPerVector_K1,
         false, // BThreadTransferSrcResetCoordinateAfterRun,
         BBlockLdsAddExtraN,
-        1,                     // CShuffleMXdlPerWavePerShuffle,
-        1,                     // CShuffleNXdlPerWavePerShuffle,
-        Sequence<1, 32, 1, 8>, // CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        1,                     // CDEBlockTransferScalarPerVector_NPerBlock,
-        make_default_loop_scheduler() // LoopSched
-        >;
+        CShuffleMXdlPerWavePerShuffle,
+        CShuffleNXdlPerWavePerShuffle,
+        CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CDEBlockTransferScalarPerVector_NPerBlock,
+        LoopSched>;
 
-    struct GroupedGemmBlock2CTileMap
+    struct GroupedGemmBlock2ETileMap
     {
         using UnderlyingBlock2CTileMap = typename GridwiseGemm::DefaultBlock2ETileMap;
         static_assert(
             std::is_same<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{})),
                          typename GridwiseGemm::DefaultBlock2ETileMap>::value,
             "Wrong! Should be the same type name");
-        GroupedGemmBlock2CTileMap()
+        GroupedGemmBlock2ETileMap()
         {
             block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{});
             BlockStart_        = -1;
         }
 
-        GroupedGemmBlock2CTileMap(const EGridDesc_M_N& c_grid_desc_m_n,
-                                  index_t M01,
-                                  index_t N01,
-                                  ck::index_t BlockStart)
+        GroupedGemmBlock2ETileMap(const EGridDesc_M_N& c_grid_desc_m_n, ck::index_t BlockStart)
         {
             block_2_ctile_map_ = GridwiseGemm::MakeDefaultBlock2ETileMap(c_grid_desc_m_n);
             BlockStart_        = BlockStart;
@@ -357,7 +353,7 @@ struct DeviceGroupedGemmBiasTransposeXdl
         typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             e_grid_desc_mblock_mperblock_nblock_nperblock_;
 
-        GroupedGemmBlock2CTileMap block_2_ctile_map_;
+        GroupedGemmBlock2ETileMap block_2_ctile_map_;
 
         const ADataType* a_ptr_;
         const BDataType* b_ptr_;
@@ -375,16 +371,10 @@ struct DeviceGroupedGemmBiasTransposeXdl
                  std::vector<const void*>& p_d,
                  std::vector<void*>& p_e,
                  std::vector<GemmBiasTransposeDesc>& gemm_bias_transpose_desc,
-                 index_t M01,
-                 index_t N01,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op)
-            : M01_{M01},
-              N01_{N01},
-              a_element_op_{a_element_op},
-              b_element_op_{b_element_op},
-              c_element_op_{c_element_op}
+            : a_element_op_{a_element_op}, b_element_op_{b_element_op}, c_element_op_{c_element_op}
         {
             grid_size_ = 0;
 
@@ -444,9 +434,8 @@ struct DeviceGroupedGemmBiasTransposeXdl
                         gemm_bias_transpose_desc[i].stride_D_N0_,
                         gemm_bias_transpose_desc[i].stride_D_N1_);
 
-
                 const index_t grid_size_grp =
-                    GroupedGemmBlock2CTileMap(e_grid_desc_m_n_, M01, N01, 0)
+                    GroupedGemmBlock2ETileMap(e_grid_desc_m_n_, 0)
                         .block_2_ctile_map_.CalculateGridSize(e_grid_desc_m_n_);
 
                 const index_t BlockStart = grid_size_;
@@ -455,7 +444,7 @@ struct DeviceGroupedGemmBiasTransposeXdl
                 grid_size_ += grid_size_grp;
 
                 const auto block_2_ctile_map_ =
-                    GroupedGemmBlock2CTileMap(e_grid_desc_m_n_, M01, N01, BlockStart);
+                    GroupedGemmBlock2ETileMap(e_grid_desc_m_n_, BlockStart);
 
                 if(GridwiseGemm::CheckValidity(a_grid_desc_k0_m_k1_,
                                                b_grid_desc_k0_n_k1_,
@@ -493,8 +482,6 @@ struct DeviceGroupedGemmBiasTransposeXdl
         }
 
         //  private:
-        index_t M01_;
-        index_t N01_;
         index_t group_count_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
@@ -644,16 +631,8 @@ struct DeviceGroupedGemmBiasTransposeXdl
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
-        return Argument{p_a,
-                        p_b,
-                        p_d,
-                        p_e,
-                        gemm_bias_transpose_desc,
-                        1,
-                        1,
-                        a_element_op,
-                        b_element_op,
-                        c_element_op};
+        return Argument{
+            p_a, p_b, p_d, p_e, gemm_bias_transpose_desc, a_element_op, b_element_op, c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -670,16 +649,8 @@ struct DeviceGroupedGemmBiasTransposeXdl
                         CElementwiseOperation c_element_op,
                         index_t /* KBatch */ = 1) override
     {
-        return std::make_unique<Argument>(p_a,
-                                          p_b,
-                                          p_d,
-                                          p_e,
-                                          gemm_bias_transpose_desc,
-                                          1,
-                                          1,
-                                          a_element_op,
-                                          b_element_op,
-                                          c_element_op);
+        return std::make_unique<Argument>(
+            p_a, p_b, p_d, p_e, gemm_bias_transpose_desc, a_element_op, b_element_op, c_element_op);
     }
 
     // polymorphic
@@ -699,8 +670,9 @@ struct DeviceGroupedGemmBiasTransposeXdl
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
-            << K0PerBlock << ", "
-            << K1 << ", "
+            << KPerBlock << ", "
+            << AK1 << ", "
+            << BK1 << ", "
             << MPerXDL << ", "
             << NPerXDL << ", "
             << MXdlPerWave << ", "
