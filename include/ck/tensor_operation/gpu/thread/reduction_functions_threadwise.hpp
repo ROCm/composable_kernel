@@ -73,14 +73,15 @@ struct ThreadwiseReduction
 //  2) DstDesc is known at compile-time
 //  3) SrcBuffer is static buffer
 //  4) DstBuffer is static buffer
-template <typename AccDataType,
-          typename IndexDataType,
-          typename SrcThreadDesc_M_K,
-          typename DstThreadDesc_M,
-          typename OpReduce,
-          bool PropagateNan,
-          typename Accumulation =
-              detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>>
+template <
+    typename AccDataType,
+    typename IndexDataType,
+    typename SrcThreadDesc_M_K,
+    typename DstThreadDesc_M,
+    typename OpReduce,
+    bool PropagateNan,
+    typename Accumulation =
+        detail::AccumulateWithIndexAndNanCheck<PropagateNan, OpReduce, AccDataType, IndexDataType>>
 struct ThreadwiseReductionWithIndex
 {
     static constexpr auto src_thread_desc_m_k = SrcThreadDesc_M_K{};

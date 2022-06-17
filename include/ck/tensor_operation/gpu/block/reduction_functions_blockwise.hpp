@@ -113,15 +113,16 @@ struct PartitionedBlockwiseReduction
 //  3) in_out_value/in_out_index is the input data in vgpr from each thread
 //  4) in_out_value/in_out_index is the over-written reduced output in vgpr for each thread
 // clang-format on
-template <typename AccDataType,
-          typename IndexDataType,
-          index_t BlockSize,
-          typename ThreadClusterLengths_M_K,
-          typename ThreadClusterArrangeOrder,
-          typename OpReduce,
-          bool PropagateNan,
-          typename Accumulation =
-              detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>>
+template <
+    typename AccDataType,
+    typename IndexDataType,
+    index_t BlockSize,
+    typename ThreadClusterLengths_M_K,
+    typename ThreadClusterArrangeOrder,
+    typename OpReduce,
+    bool PropagateNan,
+    typename Accumulation =
+        detail::AccumulateWithIndexAndNanCheck<PropagateNan, OpReduce, AccDataType, IndexDataType>>
 struct PartitionedBlockwiseReductionWithIndex
 {
     static_assert(BlockSize == ThreadClusterLengths_M_K::At(0) * ThreadClusterLengths_M_K::At(1),
