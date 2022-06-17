@@ -39,13 +39,13 @@ struct KernelTimerImpl
 
     void Start()
     {
-        //hip_check_error(hipDeviceSynchronize());
-        //hip_check_error(hipEventRecord(mStart, nullptr));
+        hip_check_error(hipDeviceSynchronize());
+        hip_check_error(hipEventRecord(mStart, nullptr));
     }
 
     void End()
     {
-        //hip_check_error(hipEventRecord(mEnd, nullptr));
+        hip_check_error(hipEventRecord(mEnd, nullptr));
         hip_check_error(hipEventSynchronize(mEnd));
     }
 

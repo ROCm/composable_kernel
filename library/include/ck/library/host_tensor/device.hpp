@@ -98,34 +98,34 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
 
         printf("Start running %d times...\n", nrepeat);
 
-        //KernelTimer timer;
-        //timer.Start();
+        KernelTimer timer;
+        timer.Start();
 
-        hipEvent_t start, stop;
-        hip_check_error(hipEventCreate(&start));
-        hip_check_error(hipEventCreate(&stop));
+        //hipEvent_t start, stop;
+        //hip_check_error(hipEventCreate(&start));
+        //hip_check_error(hipEventCreate(&stop));
 
-        float total_time = 0.0f;
+        //float total_time = 0.0f;
 
 
         for(int i = 0; i < nrepeat; ++i)
         {
-            hipExtLaunchKernelGGL(kernel, grid_dim, block_dim, 0, nullptr, start, stop, 0,
-                                            args...);
+            kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+            //hipExtLaunchKernelGGL(kernel, grid_dim, block_dim, 0, nullptr, start, stop, 0,
+            //                                args...);
+            
+            //hip_check_error(hipEventSynchronize(stop));
 
-            //kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
-            hip_check_error(hipEventSynchronize(stop));
-
-            float time = 0.0f;
-            hip_check_error(hipEventElapsedTime(&time, start, stop));
-            total_time += time;
+            //float time = 0.0f;
+            //hip_check_error(hipEventElapsedTime(&time, start, stop));
+            //total_time += time;
 
         }
 
-        //timer.End();
+        timer.End();
 
-        //return timer.GetElapsedTime() / nrepeat;
-        return total_time/nrepeat;
+        return timer.GetElapsedTime() / nrepeat;
+        //return total_time/nrepeat;
     }
     else
     {
