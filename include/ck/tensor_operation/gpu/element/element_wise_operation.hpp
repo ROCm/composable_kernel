@@ -60,6 +60,27 @@ struct AddHardswishAdd
     }
 };
 
+struct Relu
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, half_t>::value || is_same<T, int32_t>::value ||
+                          is_same<T, int8_t>::value,
+                      "Data type is not supported by this operation!");
+        y = x > 0 ? x : 0;
+    }
+
+    template <>
+    __host__ __device__ void operator()(bhalf_t& y, const bhalf_t& x) const
+    {
+        float x_f32 = ck::type_convert<float>(x);
+        float y_f32 = x_f32 > 0 ? x_f32 : 0;
+        y           = ck::type_convert<bhalf_t>(y_f32);
+    }
+};
+
 struct Normalize
 {
     Normalize(double epsilon = 1e-4) : epsilon_(epsilon) {}
@@ -97,6 +118,27 @@ struct Normalize
     };
 
     double epsilon_;
+};
+
+template <typename Y, typename X>
+struct UnaryTypeConvert;
+
+template <>
+struct UnaryTypeConvert<float, ck::bhalf_t>
+{
+    __host__ __device__ void operator()(float& y, ck::bhalf_t& x) const
+    {
+        y = ck::type_convert<float, ck::bhalf_t>(x);
+    };
+};
+
+template <>
+struct UnaryTypeConvert<ck::bhalf_t, float>
+{
+    __host__ __device__ void operator()(ck::bhalf_t& y, float& x) const
+    {
+        y = ck::type_convert<ck::bhalf_t, float>(x);
+    };
 };
 
 } // namespace element_wise
