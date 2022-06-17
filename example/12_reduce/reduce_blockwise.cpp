@@ -33,11 +33,11 @@ constexpr ReduceTensorOp ReduceOpId = ReduceTensorOp::NORM2;
 constexpr bool PropagateNan         = true;
 constexpr bool OutputIndex          = false;
 
-using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
+using ReduceOperation = typename reduce_binary_operator<ReduceOpId>::opType;
 using InElementwiseOperation =
-    typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::InElementwiseOperation;
+    typename reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation;
 using AccElementwiseOperation =
-    typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::AccElementwiseOperation;
+    typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation;
 
 using DeviceReduceInstance = DeviceReduceMultiBlock<InDataType,
                                                     AccDataType,
@@ -247,6 +247,13 @@ int main(int argc, char* argv[])
 
     DeviceMem out_index_dev(indicesSizeInBytes);
 
+    InElementwiseOperation in_elementwise_op;
+    AccElementwiseOperation acc_elementwise_op;
+
+    std::tie(in_elementwise_op, acc_elementwise_op) =
+        reduce_unary_operator<ReduceOpId, true, true>::GetElementwiseOperator(
+            static_cast<int32_t>(reduce_total_length));
+
     if(args.do_verification)
     {
         ReductionHost<InDataType,
@@ -261,8 +268,13 @@ int main(int argc, char* argv[])
                       OutputIndex>
             hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
 
-        hostReduce.Run(
-            alpha, in.mData.data(), beta, out_ref.mData.data(), out_indices_ref.mData.data());
+        hostReduce.Run(alpha,
+                       in.mData.data(),
+                       beta,
+                       out_ref.mData.data(),
+                       out_indices_ref.mData.data(),
+                       in_elementwise_op,
+                       acc_elementwise_op);
     };
 
     std::vector<ck::index_t> i_inLengths;
@@ -277,20 +289,19 @@ int main(int argc, char* argv[])
 
     auto reduce = DeviceReduceInstance{};
 
-    auto argument_ptr = reduce.MakeArgumentPointer(
-        i_inLengths,
-        i_inStrides,
-        i_outLengths,
-        i_outStrides,
-        reduceDims,
-        alpha,
-        beta,
-        in_dev.GetDeviceBuffer(),
-        nullptr,
-        out_dev.GetDeviceBuffer(),
-        out_index_dev.GetDeviceBuffer(),
-        InElementwiseOperation{static_cast<int32_t>(reduce_total_length)},
-        AccElementwiseOperation{static_cast<int32_t>(reduce_total_length)});
+    auto argument_ptr = reduce.MakeArgumentPointer(i_inLengths,
+                                                   i_inStrides,
+                                                   i_outLengths,
+                                                   i_outStrides,
+                                                   reduceDims,
+                                                   alpha,
+                                                   beta,
+                                                   in_dev.GetDeviceBuffer(),
+                                                   nullptr,
+                                                   out_dev.GetDeviceBuffer(),
+                                                   out_index_dev.GetDeviceBuffer(),
+                                                   in_elementwise_op,
+                                                   acc_elementwise_op);
 
     if(!reduce.IsSupportedArgument(argument_ptr.get()))
     {

@@ -37,7 +37,7 @@ __global__ void kernel_buffer_set_value(const Grid1dBufferDescType grid_1d_buffe
 
 {
 
-    using PassThroughOp = tensor_operation::element_wise::UnaryIdentic<DataType, DataType>;
+    using PassThroughOp = tensor_operation::element_wise::PassThrough;
 
     constexpr auto I0 = Number<0>{};
 

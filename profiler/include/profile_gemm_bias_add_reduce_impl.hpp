@@ -20,9 +20,9 @@ namespace device_gemm_instance {
 using F32            = float;
 using F16            = ck::half_t;
 using DPtrsGlobal    = ck::Tuple<F32*, F32*>;
-using Div            = ck::tensor_operation::element_wise::UnaryIdentic<F32, F32, true>;
-using Identity       = ck::tensor_operation::element_wise::UnaryIdentic<F32, F32, false>;
-using Square         = ck::tensor_operation::element_wise::UnarySquare<F32, F32, false>;
+using Div            = ck::tensor_operation::element_wise::UnaryDivide;
+using Identity       = ck::tensor_operation::element_wise::PassThrough;
+using Square         = ck::tensor_operation::element_wise::UnarySquare;
 using DInElementOps  = ck::Tuple<Identity, Square>;
 using DOutElementOps = ck::Tuple<Div, Div>;
 
@@ -136,20 +136,18 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
         c1_m_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
     }
 
-    using PassThrough       = ck::tensor_operation::element_wise::PassThrough;
-    using AElementOp        = PassThrough;
-    using BElementOp        = PassThrough;
-    using CElementOp        = PassThrough;
-    using C1ElementOp       = PassThrough;
-    using D0ReduceOp        = ck::reduce::Add<float>;
-    using D1ReduceOp        = ck::reduce::Add<float>;
-    using UnaryDivElementOp = ck::tensor_operation::element_wise::UnaryIdentic<float, float, true>;
-    using UnaryIdenticElementOp =
-        ck::tensor_operation::element_wise::UnaryIdentic<float, float, false>;
-    using UnarySquareElementOp =
-        ck::tensor_operation::element_wise::UnarySquare<float, float, false>;
-    using DxsInElementOps  = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
-    using DxsOutElementOps = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
+    using PassThrough           = ck::tensor_operation::element_wise::PassThrough;
+    using AElementOp            = PassThrough;
+    using BElementOp            = PassThrough;
+    using CElementOp            = PassThrough;
+    using C1ElementOp           = PassThrough;
+    using D0ReduceOp            = ck::reduce::Add;
+    using D1ReduceOp            = ck::reduce::Add;
+    using UnaryDivElementOp     = ck::tensor_operation::element_wise::UnaryDivide;
+    using UnaryIdenticElementOp = ck::tensor_operation::element_wise::PassThrough;
+    using UnarySquareElementOp  = ck::tensor_operation::element_wise::UnarySquare;
+    using DxsInElementOps       = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
+    using DxsOutElementOps      = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
 
     const auto a_element_op  = AElementOp{};
     const auto b_element_op  = BElementOp{};
@@ -196,15 +194,15 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
 
         for(int m = 0; m < M; ++m)
         {
-            ReduceAccDataType d0_acc = d0_reduce_op.GetIdentityValue();
-            ReduceAccDataType d1_acc = d1_reduce_op.GetIdentityValue();
+            auto d0_acc = d0_reduce_op.GetIdentityValue<ReduceAccDataType>();
+            auto d1_acc = d1_reduce_op.GetIdentityValue<ReduceAccDataType>();
 
             for(int n = 0; n < N; ++n)
             {
                 ReduceAccDataType c_val =
                     ck::type_convert<ReduceAccDataType>(c_m_n_host_result(m, n));
-                ReduceAccDataType d0_val = 0;
-                ReduceAccDataType d1_val = 0;
+                ReduceAccDataType d0_val;
+                ReduceAccDataType d1_val;
 
                 dxs_in_element_op(ck::Number<0>{})(d0_val, c_val);
                 dxs_in_element_op(ck::Number<1>{})(d1_val, c_val);
