@@ -41,18 +41,15 @@ using CLayout = ck::tensor_layout::gemm::RowMajor;
 using AElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp  = ck::tensor_operation::element_wise::PassThrough;
-using D0ReduceOp  = ck::reduce::Add<ReduceAccDataType>;
-using D1ReduceOp  = ck::reduce::Add<ReduceAccDataType>;
+using D0ReduceOp  = ck::reduce::Add;
+using D1ReduceOp  = ck::reduce::Add;
 using DxsReduceOp = ck::Tuple<D0ReduceOp, D1ReduceOp>;
 
-using UnaryIdenticElementOp =
-    ck::tensor_operation::element_wise::UnaryIdentic<ReduceAccDataType, ReduceAccDataType, false>;
-using UnaryDivElementOp =
-    ck::tensor_operation::element_wise::UnaryIdentic<ReduceAccDataType, ReduceAccDataType, true>;
-using UnarySquareElementOp =
-    ck::tensor_operation::element_wise::UnarySquare<ReduceAccDataType, ReduceAccDataType, false>;
-using DxsInElementOps  = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
-using DxsOutElementOps = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
+using UnaryIdenticElementOp = ck::tensor_operation::element_wise::PassThrough;
+using UnaryDivElementOp     = ck::tensor_operation::element_wise::UnaryDivide;
+using UnarySquareElementOp  = ck::tensor_operation::element_wise::UnarySquare;
+using DxsInElementOps       = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
+using DxsOutElementOps      = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
 
 using DGlobalMemOp =
     ck::InMemoryDataOperationEnumSequence<ck::InMemoryDataOperationEnum::AtomicAdd,
@@ -261,15 +258,14 @@ int main(int argc, char* argv[])
 
         for(int m = 0; m < M; ++m)
         {
-            ReduceAccDataType d0_acc = d0_reduce_op.GetIdentityValue();
-            ReduceAccDataType d1_acc = d1_reduce_op.GetIdentityValue();
+            auto d0_acc = d0_reduce_op.GetIdentityValue<ReduceAccDataType>();
+            auto d1_acc = d1_reduce_op.GetIdentityValue<ReduceAccDataType>();
 
             for(int n = 0; n < N; ++n)
             {
-                ReduceAccDataType c_val =
-                    ck::type_convert<ReduceAccDataType>(c_m_n_host_result(m, n));
-                ReduceAccDataType d0_val = 0;
-                ReduceAccDataType d1_val = 0;
+                auto c_val = ck::type_convert<ReduceAccDataType>(c_m_n_host_result(m, n));
+                ReduceAccDataType d0_val;
+                ReduceAccDataType d1_val;
 
                 dxs_in_element_op(ck::Number<0>{})(d0_val, c_val);
                 dxs_in_element_op(ck::Number<1>{})(d1_val, c_val);

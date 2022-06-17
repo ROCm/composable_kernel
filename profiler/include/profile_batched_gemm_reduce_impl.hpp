@@ -20,8 +20,8 @@ namespace device_gemm_instance {
 using F32            = float;
 using F16            = ck::half_t;
 using DPtrsGlobal    = ck::Tuple<F32*, F32*>;
-using Identity       = ck::tensor_operation::element_wise::UnaryIdentic<F32, F32, false>;
-using Square         = ck::tensor_operation::element_wise::UnarySquare<F32, F32, false>;
+using Identity       = ck::tensor_operation::element_wise::PassThrough;
+using Square         = ck::tensor_operation::element_wise::UnarySquare;
 using DInElementOps  = ck::Tuple<Identity, Square>;
 using DOutElementOps = ck::Tuple<Identity, Identity>;
 
@@ -128,17 +128,15 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
         b_g_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
     }
 
-    using AElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using BElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using CElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using D0ReduceOp = ck::reduce::Add<float>;
-    using D1ReduceOp = ck::reduce::Add<float>;
-    using UnaryIdenticElementOp =
-        ck::tensor_operation::element_wise::UnaryIdentic<float, float, false>;
-    using UnarySquareElementOp =
-        ck::tensor_operation::element_wise::UnarySquare<float, float, false>;
-    using DxsInElementOps  = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
-    using DxsOutElementOps = ck::Tuple<UnaryIdenticElementOp, UnaryIdenticElementOp>;
+    using AElementOp            = ck::tensor_operation::element_wise::PassThrough;
+    using BElementOp            = ck::tensor_operation::element_wise::PassThrough;
+    using CElementOp            = ck::tensor_operation::element_wise::PassThrough;
+    using D0ReduceOp            = ck::reduce::Add;
+    using D1ReduceOp            = ck::reduce::Add;
+    using UnaryIdenticElementOp = ck::tensor_operation::element_wise::PassThrough;
+    using UnarySquareElementOp  = ck::tensor_operation::element_wise::UnarySquare;
+    using DxsInElementOps       = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
+    using DxsOutElementOps      = ck::Tuple<UnaryIdenticElementOp, UnaryIdenticElementOp>;
 
     const auto a_element_op       = AElementOp{};
     const auto b_element_op       = BElementOp{};
@@ -170,8 +168,8 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
         {
             for(int m = 0; m < M; ++m)
             {
-                float d0_acc = d0_reduce_op.GetIdentityValue();
-                float d1_acc = d1_reduce_op.GetIdentityValue();
+                float d0_acc = d0_reduce_op.GetIdentityValue<float>();
+                float d1_acc = d1_reduce_op.GetIdentityValue<float>();
 
                 for(int n = 0; n < N; ++n)
                 {

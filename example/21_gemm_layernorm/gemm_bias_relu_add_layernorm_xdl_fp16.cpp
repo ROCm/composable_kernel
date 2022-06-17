@@ -48,17 +48,14 @@ using AElementOp  = PassThrough;
 using BElementOp  = PassThrough;
 using CElementOp  = ck::tensor_operation::element_wise::Relu;
 using C1ElementOp = PassThrough;
-using ReduceSumOp = ck::reduce::Add<ReduceAccDataType>;
+using ReduceSumOp = ck::reduce::Add;
 using DxsReduceOp = ck::Tuple<ReduceSumOp, ReduceSumOp>;
 
-using UnaryIdenticElementOp =
-    ck::tensor_operation::element_wise::UnaryIdentic<ReduceAccDataType, ReduceAccDataType, false>;
-using UnaryDivElementOp =
-    ck::tensor_operation::element_wise::UnaryIdentic<ReduceAccDataType, ReduceAccDataType, true>;
-using UnarySquareElementOp =
-    ck::tensor_operation::element_wise::UnarySquare<ReduceAccDataType, ReduceAccDataType, false>;
-using DxsInElementOps  = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
-using DxsOutElementOps = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
+using UnaryIdenticElementOp = ck::tensor_operation::element_wise::PassThrough;
+using UnaryDivElementOp     = ck::tensor_operation::element_wise::UnaryDivide;
+using UnarySquareElementOp  = ck::tensor_operation::element_wise::UnarySquare;
+using DxsInElementOps       = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
+using DxsOutElementOps      = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
 
 using DxsGlobalMemOp =
     ck::InMemoryDataOperationEnumSequence<ck::InMemoryDataOperationEnum::AtomicAdd,
@@ -181,8 +178,8 @@ void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
     auto reduceSumOpInst = ReduceSumOp{};
     for(int m = 0; m < M; ++m)
     {
-        AccDataType mean_acc        = reduceSumOpInst.GetIdentityValue();
-        AccDataType square_mean_acc = reduceSumOpInst.GetIdentityValue();
+        auto mean_acc        = reduceSumOpInst.GetIdentityValue<AccDataType>();
+        auto square_mean_acc = reduceSumOpInst.GetIdentityValue<AccDataType>();
 
         for(int n = 0; n < N; ++n)
         {
@@ -207,7 +204,12 @@ void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
         for(int n = 0; n < N; ++n)
         {
             AccDataType out_acc = 0;
-            layerNormInst(out_acc, c_m_n(m, n), mean_m(m), meanSquare_m(m), gamma_n(n), beta_n(n));
+            layerNormInst(out_acc,
+                          static_cast<AccDataType>(c_m_n(m, n)),
+                          static_cast<AccDataType>(mean_m(m)),
+                          static_cast<AccDataType>(meanSquare_m(m)),
+                          static_cast<AccDataType>(gamma_n(n)),
+                          static_cast<AccDataType>(beta_n(n)));
             out_m_n(m, n) = static_cast<DDataType>(out_acc);
         }
     }

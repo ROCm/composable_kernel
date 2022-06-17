@@ -17,8 +17,7 @@ using ABDataType             = F16;
 using CDataType              = F16;
 using EltwiseComputeDataType = F32;
 
-using Add = ck::tensor_operation::binary_element_wise::
-    Add<EltwiseComputeDataType, EltwiseComputeDataType, EltwiseComputeDataType>;
+using Add = ck::tensor_operation::element_wise::Add;
 
 using DeviceElementwiseAddInstance =
     ck::tensor_operation::device::DeviceBinaryElementwise<ABDataType,
