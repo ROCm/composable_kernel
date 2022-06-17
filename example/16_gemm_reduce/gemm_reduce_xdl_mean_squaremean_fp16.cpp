@@ -48,8 +48,8 @@ using DxsReduceOp = ck::Tuple<D0ReduceOp, D1ReduceOp>;
 using UnaryIdenticElementOp = ck::tensor_operation::element_wise::PassThrough;
 using UnaryDivElementOp     = ck::tensor_operation::element_wise::UnaryDivide;
 using UnarySquareElementOp  = ck::tensor_operation::element_wise::UnarySquare;
-using DxsInElementOp        = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
-using DxsOutElementOp       = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
+using DxsInElementOps       = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
+using DxsOutElementOps      = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
 
 using DGlobalMemOp =
     ck::InMemoryDataOperationEnumSequence<ck::InMemoryDataOperationEnum::AtomicAdd,
