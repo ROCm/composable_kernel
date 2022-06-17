@@ -144,6 +144,27 @@ struct AddHardswishAdd
     }
 };
 
+struct Relu
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, half_t>::value || is_same<T, int32_t>::value ||
+                          is_same<T, int8_t>::value,
+                      "Data type is not supported by this operation!");
+        y = x > 0 ? x : 0;
+    }
+
+    template <>
+    __host__ __device__ void operator()(bhalf_t& y, const bhalf_t& x) const
+    {
+        float x_f32 = ck::type_convert<float>(x);
+        float y_f32 = x_f32 > 0 ? x_f32 : 0;
+        y           = ck::type_convert<bhalf_t>(y_f32);
+    }
+};
+
 struct Normalize
 {
     Normalize(float epsilon = 1e-4) : epsilon_(epsilon) {}
