@@ -1,12 +1,13 @@
 ## host_tensor
 include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/include/ck
+    ${PROJECT_SOURCE_DIR}/include/ck/device_utility
     ${PROJECT_SOURCE_DIR}/include/ck/utility
     ${PROJECT_SOURCE_DIR}/library/include/ck/library/host_tensor
 )
 
 set(HOST_TENSOR_SOURCE
-    device.cpp
+    device_memory.cpp
     host_tensor.cpp
 )
 

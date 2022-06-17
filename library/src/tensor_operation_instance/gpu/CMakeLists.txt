@@ -1,7 +1,7 @@
 include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/include/ck
+    ${PROJECT_SOURCE_DIR}/include/ck/device_utility
     ${PROJECT_SOURCE_DIR}/include/ck/utility
-    ${PROJECT_SOURCE_DIR}/include/ck/host_utility
     ${PROJECT_SOURCE_DIR}/include/ck/tensor_description
     ${PROJECT_SOURCE_DIR}/include/ck/tensor
     ${PROJECT_SOURCE_DIR}/include/ck/problem_transform
@@ -64,7 +64,6 @@ add_library(device_operations STATIC
     $<TARGET_OBJECTS:device_batched_gemm_reduce_instance>
     $<TARGET_OBJECTS:device_conv3d_fwd_instance>
     $<TARGET_OBJECTS:device_gemm_add_add_fastgelu_instance>
-    device_conv2d.cpp
 )
 add_library(composablekernels::device_operations ALIAS device_operations)
 

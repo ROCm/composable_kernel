@@ -4,14 +4,15 @@
 #include <cstdlib>
 #include <stdlib.h>
 
-#include "check_err.hpp"
 #include "config.hpp"
-#include "device.hpp"
+#include "tensor_layout.hpp"
+#include "element_wise_operation.hpp"
+
+#include "device_memory.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
-#include "device_tensor.hpp"
-#include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"
+#include "check_err.hpp"
 #include "gemm_specialization.hpp"
 #include "device_gemm_multiple_d_xdl_cshuffle.hpp"
 
