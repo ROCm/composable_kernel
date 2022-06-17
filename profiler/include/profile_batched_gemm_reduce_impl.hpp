@@ -26,7 +26,6 @@ using DInElementOps  = ck::Tuple<Identity, Square>;
 using DOutElementOps = ck::Tuple<Identity, Identity>;
 
 using DeviceGemmReduceNoOpPtr = ck::tensor_operation::device::DeviceGemmReducePtr<
-    DPtrsGlobal,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
@@ -260,7 +259,7 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
             gemm_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
                                           static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
                                           static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                          dxs_global,
+                                          &dxs_global,
                                           M,
                                           N,
                                           K,
