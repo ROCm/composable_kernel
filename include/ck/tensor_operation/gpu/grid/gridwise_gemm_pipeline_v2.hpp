@@ -533,12 +533,14 @@ struct GridwiseGemmPipeline_v2<4>
                     a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
                     b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
-                    block_sync_lds();
+                    //block_sync_lds();
+                    s_nop();
 
                     // GEMM i_main
                     blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
 
-                    block_sync_lds();
+                    //block_sync_lds();
+                    s_nop();
 
                 });
                 
@@ -553,12 +555,14 @@ struct GridwiseGemmPipeline_v2<4>
             a_blockwise_copy.RunWrite(a_block_desc, a_block_buf, Number<i_res>{});
             b_blockwise_copy.RunWrite(b_block_desc, b_block_buf, Number<i_res>{});
 
-            block_sync_lds();
+            //block_sync_lds();
+            s_nop();
 
             // GEMM num_loop - 3
             blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
 
-            block_sync_lds();
+            //block_sync_lds();
+            s_nop();
         });
         
     }
