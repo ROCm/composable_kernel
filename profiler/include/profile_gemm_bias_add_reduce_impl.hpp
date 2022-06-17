@@ -26,24 +26,25 @@ using Square         = ck::tensor_operation::element_wise::UnarySquare<F32, F32,
 using DInElementOps  = ck::Tuple<Identity, Square>;
 using DOutElementOps = ck::Tuple<Div, Div>;
 
-using DeviceGemmReduceNoOpPtr = ck::tensor_operation::device::DeviceGemmReducePtr<
+using DeviceGemmBiasAddReduceNoOpPtr = ck::tensor_operation::device::DeviceGemmBiasAddReducePtr<
+    ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
     DInElementOps,
     DOutElementOps>;
 
-void add_device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_mk_kn_mn_instances(
-    std::vector<DeviceGemmReduceNoOpPtr>&);
+void add_device_gemm_bias_add_reduce_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_kn_mn_instances(
+    std::vector<DeviceGemmBiasAddReduceNoOpPtr>&);
 
-void add_device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_mk_nk_mn_instances(
-    std::vector<DeviceGemmReduceNoOpPtr>&);
+void add_device_gemm_bias_add_reduce_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_nk_mn_instances(
+    std::vector<DeviceGemmBiasAddReduceNoOpPtr>&);
 
-void add_device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_km_kn_mn_instances(
-    std::vector<DeviceGemmReduceNoOpPtr>&);
+void add_device_gemm_bias_add_reduce_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_kn_mn_instances(
+    std::vector<DeviceGemmBiasAddReduceNoOpPtr>&);
 
-void add_device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_km_nk_mn_instances(
-    std::vector<DeviceGemmReduceNoOpPtr>&);
+void add_device_gemm_bias_add_reduce_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_nk_mn_instances(
+    std::vector<DeviceGemmBiasAddReduceNoOpPtr>&);
 
 } // namespace device_gemm_instance
 } // namespace device
@@ -56,24 +57,30 @@ namespace profiler {
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
+          typename C0DataType,
+          typename C1DataType,
           typename DDataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-bool profile_gemm_reduce_impl(int do_verification,
-                              int init_method,
-                              bool do_log,
-                              bool time_kernel,
-                              int M,
-                              int N,
-                              int K,
-                              int StrideA,
-                              int StrideB,
-                              int StrideC)
+void profile_gemm_bias_add_reduce_impl(int do_verification,
+                                       int init_method,
+                                       bool do_log,
+                                       bool time_kernel,
+                                       int M,
+                                       int N,
+                                       int K,
+                                       int StrideA,
+                                       int StrideB,
+                                       int StrideC,
+                                       int StrideC1)
 {
-    bool pass = true;
+    auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
+        return HostTensorDescriptor(std::vector<std::size_t>({len}),
+                                    std::vector<std::size_t>({stride}));
+    };
 
-    auto f_host_tensor_descriptor =
+    auto f_host_tensor_descriptor2d =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
             {
@@ -87,16 +94,18 @@ bool profile_gemm_reduce_impl(int do_verification,
             }
         };
 
-    Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
-    Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
+    Tensor<ADataType> a_m_k(f_host_tensor_descriptor2d(M, K, StrideA, ALayout{}));
+    Tensor<BDataType> b_k_n(f_host_tensor_descriptor2d(K, N, StrideB, BLayout{}));
 
-    Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor2d(M, N, StrideC, CLayout{}));
+    Tensor<C0DataType> bias_n(f_host_tensor_descriptor1d(N, 1));
+    Tensor<C1DataType> c1_m_n(f_host_tensor_descriptor2d(M, N, StrideC, CLayout{}));
     Tensor<DDataType> d0_m_host_result(
         HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(M)})));
     Tensor<DDataType> d1_m_host_result(
         HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(M)})));
 
-    Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor2d(M, N, StrideC, CLayout{}));
     Tensor<DDataType> d0_m_device_result(
         HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(M)})));
     Tensor<DDataType> d1_m_device_result(
@@ -116,16 +125,22 @@ bool profile_gemm_reduce_impl(int do_verification,
         std::srand(0);
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5}, num_thread);
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5}, num_thread);
+        bias_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5}, num_thread);
+        c1_m_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5}, num_thread);
         break;
     default:
         std::srand(0);
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0}, num_thread);
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
+        bias_n.GenerateTensorValue(GeneratorTensor_3<ADataType>{-0.5, 0.5}, num_thread);
+        c1_m_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
     }
 
-    using AElementOp        = ck::tensor_operation::element_wise::PassThrough;
-    using BElementOp        = ck::tensor_operation::element_wise::PassThrough;
-    using CElementOp        = ck::tensor_operation::element_wise::PassThrough;
+    using PassThrough       = ck::tensor_operation::element_wise::PassThrough;
+    using AElementOp        = PassThrough;
+    using BElementOp        = PassThrough;
+    using CElementOp        = PassThrough;
+    using C1ElementOp       = PassThrough;
     using D0ReduceOp        = ck::reduce::Add<float>;
     using D1ReduceOp        = ck::reduce::Add<float>;
     using UnaryDivElementOp = ck::tensor_operation::element_wise::UnaryIdentic<float, float, true>;
@@ -136,11 +151,12 @@ bool profile_gemm_reduce_impl(int do_verification,
     using DxsInElementOps  = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
     using DxsOutElementOps = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
 
-    const auto a_element_op = AElementOp{};
-    const auto b_element_op = BElementOp{};
-    const auto c_element_op = CElementOp{};
-    const auto d0_reduce_op = D0ReduceOp{};
-    const auto d1_reduce_op = D1ReduceOp{};
+    const auto a_element_op  = AElementOp{};
+    const auto b_element_op  = BElementOp{};
+    const auto c_element_op  = CElementOp{};
+    const auto c1_element_op = C1ElementOp{};
+    const auto d0_reduce_op  = D0ReduceOp{};
+    const auto d1_reduce_op  = D1ReduceOp{};
 
     auto dxs_in_element_op  = DxsInElementOps{};
     auto dxs_out_element_op = DxsOutElementOps{N, N};
@@ -161,9 +177,22 @@ bool profile_gemm_reduce_impl(int do_verification,
         auto ref_invoker = ref_gemm.MakeInvoker();
 
         auto ref_argument = ref_gemm.MakeArgument(
-            a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
+            a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, PassThrough{});
 
         ref_invoker.Run(ref_argument);
+
+        for(int m = 0; m < M; ++m)
+            for(int n = 0; n < N; ++n)
+            {
+                ReduceAccDataType acc = static_cast<ReduceAccDataType>(c_m_n_host_result(m, n)) +
+                                        static_cast<ReduceAccDataType>(bias_n(n));
+
+                ReduceAccDataType c1 = static_cast<ReduceAccDataType>(c1_m_n(m, n));
+                c_element_op(acc, acc);
+                c1_element_op(c1, c1);
+                acc += c1;
+                c_m_n_host_result(m, n) = static_cast<CDataType>(acc);
+            }
 
         for(int m = 0; m < M; ++m)
         {
@@ -193,6 +222,8 @@ bool profile_gemm_reduce_impl(int do_verification,
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
     DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
     DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpace());
+    DeviceMem bias_device_buf(sizeof(C0DataType) * bias_n.mDesc.GetElementSpace());
+    DeviceMem c1_device_buf(sizeof(C1DataType) * c1_m_n.mDesc.GetElementSpace());
     DeviceMem d0_device_buf(sizeof(DDataType) * d0_m_device_result.mDesc.GetElementSpace());
     DeviceMem d1_device_buf(sizeof(DDataType) * d1_m_device_result.mDesc.GetElementSpace());
 
@@ -201,9 +232,11 @@ bool profile_gemm_reduce_impl(int do_verification,
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
+    bias_device_buf.ToDevice(bias_n.mData.data());
+    c1_device_buf.ToDevice(c1_m_n.mData.data());
 
     // add device GEMM instances
-    std::vector<ck::tensor_operation::device::device_gemm_instance::DeviceGemmReduceNoOpPtr>
+    std::vector<ck::tensor_operation::device::device_gemm_instance::DeviceGemmBiasAddReduceNoOpPtr>
         gemm_ptrs;
 
     if constexpr(is_same<ADataType, half_t>::value && is_same<BDataType, half_t>::value &&
@@ -214,7 +247,7 @@ bool profile_gemm_reduce_impl(int do_verification,
                      is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
             ck::tensor_operation::device::device_gemm_instance::
-                add_device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_mk_kn_mn_instances(
+                add_device_gemm_bias_add_reduce_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_kn_mn_instances(
                     gemm_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
@@ -222,7 +255,7 @@ bool profile_gemm_reduce_impl(int do_verification,
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
             ck::tensor_operation::device::device_gemm_instance::
-                add_device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_mk_nk_mn_instances(
+                add_device_gemm_bias_add_reduce_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_nk_mn_instances(
                     gemm_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
@@ -230,7 +263,7 @@ bool profile_gemm_reduce_impl(int do_verification,
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
             ck::tensor_operation::device::device_gemm_instance::
-                add_device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_km_kn_mn_instances(
+                add_device_gemm_bias_add_reduce_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_kn_mn_instances(
                     gemm_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
@@ -238,7 +271,7 @@ bool profile_gemm_reduce_impl(int do_verification,
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
             ck::tensor_operation::device::device_gemm_instance::
-                add_device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_km_nk_mn_instances(
+                add_device_gemm_bias_add_reduce_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_nk_mn_instances(
                     gemm_ptrs);
         }
     }
@@ -256,22 +289,26 @@ bool profile_gemm_reduce_impl(int do_verification,
     // profile device GEMM instances
     for(auto& gemm_ptr : gemm_ptrs)
     {
-        auto argument_ptr =
-            gemm_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                                          static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-                                          static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                          &dxs_global,
-                                          M,
-                                          N,
-                                          K,
-                                          StrideA,
-                                          StrideB,
-                                          StrideC,
-                                          a_element_op,
-                                          b_element_op,
-                                          c_element_op,
-                                          dxs_in_element_op,
-                                          dxs_out_element_op);
+        auto argument_ptr = gemm_ptr->MakeArgumentPointer(
+            static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+            static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
+            static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+            static_cast<C0DataType*>(bias_device_buf.GetDeviceBuffer()),
+            static_cast<C1DataType*>(c1_device_buf.GetDeviceBuffer()),
+            &dxs_global,
+            M,
+            N,
+            K,
+            StrideA,
+            StrideB,
+            StrideC,
+            StrideC1,
+            a_element_op,
+            b_element_op,
+            c_element_op,
+            c1_element_op,
+            dxs_in_element_op,
+            dxs_out_element_op);
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
 
@@ -286,14 +323,16 @@ bool profile_gemm_reduce_impl(int do_verification,
 
             std::string gemm_name = gemm_ptr->GetTypeString();
 
-            std::size_t flop = std::size_t(2) * M * N * K;
+            std::size_t flop = std::size_t(2) * M * N * K + std::size_t(2) * M * N;
 
-            std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
-                                    sizeof(CDataType) * M * N + sizeof(CDataType) * N;
+            std::size_t num_byte = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
+                                   sizeof(CDataType) * M * N + sizeof(C0DataType) * M * N +
+                                   sizeof(C1DataType) * M * N + sizeof(DDataType) * M +
+                                   sizeof(DDataType) * M;
 
             float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
-            float gb_per_sec = num_btype / 1.E6 / ave_time;
+            float gb_per_sec = num_byte / 1.E6 / ave_time;
 
             std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
                       << " GB/s, " << gemm_name << std::endl;
@@ -343,8 +382,6 @@ bool profile_gemm_reduce_impl(int do_verification,
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
-
-    return pass;
 }
 
 } // namespace profiler
