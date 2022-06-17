@@ -54,8 +54,7 @@ struct DeviceSoftmax : public BaseOperator
                                              KThreadSliceSize,
                                              InSrcVectorDim,
                                              InSrcVectorSize,
-                                             1,      // OutDstVectorSize
-                                             false>; // MultiBlockReduction
+                                             1>;      // OutDstVectorSize
 
     using GridDesc_M_K = decltype(Reduction::MakeSrc2dDescriptor({1}, {1}, 1, 1));
 
