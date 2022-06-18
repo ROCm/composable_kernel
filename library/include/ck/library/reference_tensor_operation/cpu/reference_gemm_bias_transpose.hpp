@@ -73,8 +73,9 @@ struct ReferenceGemmBiasTranspose : public device::BaseOperator
                     v_acc += v_a * v_b;
                 }
 
-                arg.c_element_op_(
-                    arg.e_m0_m1_n0_n1_(m0, m1, n0, n1), v_acc, arg.d_m0_m1_n0_n1_(m0, m1, n0, n1));
+                arg.c_element_op_(arg.e_m0_m1_n0_n1_(m0, m1, n0, n1),
+                                  type_convert<DDataType>(v_acc),
+                                  arg.d_m0_m1_n0_n1_(m0, m1, n0, n1));
             };
 
             make_ParallelTensorFunctor(f_mk_kn_m0m1n0n1,

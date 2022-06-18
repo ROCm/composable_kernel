@@ -366,10 +366,10 @@ struct DeviceGroupedGemmBiasTransposeXdl
     // Argument
     struct Argument : public BaseArgument
     {
-        Argument(std::vector<const void*>& p_a,
-                 std::vector<const void*>& p_b,
-                 std::vector<const void*>& p_d,
-                 std::vector<void*>& p_e,
+        Argument(std::vector<const void*>& p_As,
+                 std::vector<const void*>& p_Bs,
+                 std::vector<const void*>& p_Ds,
+                 std::vector<void*>& p_Es,
                  std::vector<GemmBiasTransposeDesc>& gemm_bias_transpose_desc,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
@@ -382,12 +382,12 @@ struct DeviceGroupedGemmBiasTransposeXdl
 
             group_count_ = ck::type_convert<ck::index_t>(gemm_bias_transpose_desc.size());
 
-            if(!(group_count_ == ck::type_convert<ck::index_t>(p_a.size()) &&
-                 group_count_ == ck::type_convert<ck::index_t>(p_b.size()) &&
-                 group_count_ == ck::type_convert<ck::index_t>(p_d.size()) &&
-                 group_count_ == ck::type_convert<ck::index_t>(p_e.size())))
+            if(!(group_count_ == ck::type_convert<ck::index_t>(p_As.size()) &&
+                 group_count_ == ck::type_convert<ck::index_t>(p_Bs.size()) &&
+                 group_count_ == ck::type_convert<ck::index_t>(p_Ds.size()) &&
+                 group_count_ == ck::type_convert<ck::index_t>(p_Es.size())))
             {
-                throw std::runtime_error("wrong! group_count_ != P_a/b/c.size");
+                throw std::runtime_error("wrong! group_count_ != p_As/b/c.size");
             }
 
             gemm_desc_kernel_arg_.reserve(group_count_);
@@ -471,10 +471,10 @@ struct DeviceGroupedGemmBiasTransposeXdl
                                                ds_grid_desc_mblock_mperblock_nblock_nperblock_,
                                                e_grid_desc_mblock_mperblock_nblock_nperblock_,
                                                block_2_ctile_map_,
-                                               static_cast<const ADataType*>(p_a[i]),
-                                               static_cast<const BDataType*>(p_b[i]),
-                                               static_cast<const DDataType*>(p_d[i]),
-                                               static_cast<EDataType*>(p_e[i]),
+                                               static_cast<const ADataType*>(p_As[i]),
+                                               static_cast<const BDataType*>(p_Bs[i]),
+                                               static_cast<const DDataType*>(p_Ds[i]),
+                                               static_cast<EDataType*>(p_Es[i]),
                                                BlockStart,
                                                BlockEnd});
                 }
@@ -622,35 +622,47 @@ struct DeviceGroupedGemmBiasTransposeXdl
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-    static auto MakeArgument(std::vector<const void*>& p_a,
-                             std::vector<const void*>& p_b,
-                             std::vector<const void*>& p_d,
-                             std::vector<void*>& p_e,
+    static auto MakeArgument(std::vector<const void*>& p_As,
+                             std::vector<const void*>& p_Bs,
+                             std::vector<const void*>& p_Ds,
+                             std::vector<void*>& p_Es,
                              std::vector<GemmBiasTransposeDesc> gemm_bias_transpose_desc,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
-        return Argument{
-            p_a, p_b, p_d, p_e, gemm_bias_transpose_desc, a_element_op, b_element_op, c_element_op};
+        return Argument{p_As,
+                        p_Bs,
+                        p_Ds,
+                        p_Es,
+                        gemm_bias_transpose_desc,
+                        a_element_op,
+                        b_element_op,
+                        c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
 
     // polymorphic
     std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(std::vector<const void*>& p_a,
-                        std::vector<const void*>& p_b,
-                        std::vector<const void*>& p_d,
-                        std::vector<void*>& p_e,
+    MakeArgumentPointer(std::vector<const void*>& p_As,
+                        std::vector<const void*>& p_Bs,
+                        std::vector<const void*>& p_Ds,
+                        std::vector<void*>& p_Es,
                         std::vector<GemmBiasTransposeDesc>& gemm_bias_transpose_desc,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
                         CElementwiseOperation c_element_op,
                         index_t /* KBatch */ = 1) override
     {
-        return std::make_unique<Argument>(
-            p_a, p_b, p_d, p_e, gemm_bias_transpose_desc, a_element_op, b_element_op, c_element_op);
+        return std::make_unique<Argument>(p_As,
+                                          p_Bs,
+                                          p_Ds,
+                                          p_Es,
+                                          gemm_bias_transpose_desc,
+                                          a_element_op,
+                                          b_element_op,
+                                          c_element_op);
     }
 
     // polymorphic

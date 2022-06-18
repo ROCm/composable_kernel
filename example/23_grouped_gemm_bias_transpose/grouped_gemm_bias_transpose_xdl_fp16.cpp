@@ -89,8 +89,8 @@ int main(int argc, char* argv[])
 
     // GEMM shape
     std::vector<ck::tensor_operation::device::GemmBiasTransposeDesc> gemm_descs;
-    std::vector<const void*> p_a, p_b, p_d;
-    std::vector<void*> p_e;
+    std::vector<const void*> p_As, p_Bs, p_Ds;
+    std::vector<void*> p_Es;
 
     gemm_descs.reserve(group_count);
 
@@ -305,10 +305,10 @@ int main(int argc, char* argv[])
         b_tensors_device[i]->ToDevice(b_tensors[i].mData.data());
         d_tensors_device[i]->ToDevice(d_tensors[i].mData.data());
 
-        p_a.push_back(a_tensors_device[i]->GetDeviceBuffer());
-        p_b.push_back(b_tensors_device[i]->GetDeviceBuffer());
-        p_d.push_back(d_tensors_device[i]->GetDeviceBuffer());
-        p_e.push_back(e_tensors_device[i]->GetDeviceBuffer());
+        p_As.push_back(a_tensors_device[i]->GetDeviceBuffer());
+        p_Bs.push_back(b_tensors_device[i]->GetDeviceBuffer());
+        p_Ds.push_back(d_tensors_device[i]->GetDeviceBuffer());
+        p_Es.push_back(e_tensors_device[i]->GetDeviceBuffer());
     }
 
     auto a_element_op = AElementOp{};
@@ -319,8 +319,8 @@ int main(int argc, char* argv[])
     auto invoker = gemm.MakeInvoker();
 
     // do GEMM
-    auto argument =
-        gemm.MakeArgument(p_a, p_b, p_d, p_e, gemm_descs, a_element_op, b_element_op, c_element_op);
+    auto argument = gemm.MakeArgument(
+        p_As, p_Bs, p_Ds, p_Es, gemm_descs, a_element_op, b_element_op, c_element_op);
 
     DeviceMem gemm_desc_workspace(gemm.GetWorkSpaceSize(&argument));
 
