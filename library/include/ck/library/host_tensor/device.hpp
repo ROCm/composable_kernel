@@ -69,6 +69,7 @@ struct KernelTimer
     std::unique_ptr<KernelTimerImpl> impl;
 };
 
+#define HIP_EXT 1
 template <typename... Args, typename F>
 float launch_and_time_kernel(const StreamConfig& stream_config,
                              F kernel,
@@ -78,6 +79,69 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
                              Args... args)
 {
 #if CK_TIME_KERNEL
+
+#if HIP_EXT
+    if(stream_config.time_kernel_)
+    {
+        printf("%s: grid_dim {%d, %d, %d}, block_dim {%d, %d, %d} \n",
+               __func__,
+               grid_dim.x,
+               grid_dim.y,
+               grid_dim.z,
+               block_dim.x,
+               block_dim.y,
+               block_dim.z);
+
+        constexpr int nrepeat = 10;
+
+        printf("Warm up 1 time\n");
+
+        // warm up
+        kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+        hipLaunchKernelGGL(kernel, grid_dim, block_dim, 0, nullptr, 
+                           args...);
+
+        printf("Start running %d times...\n", nrepeat);
+
+        hipEvent_t start, stop;
+        hip_check_error(hipEventCreate(&start));
+        hip_check_error(hipEventCreate(&stop));
+
+        float total_time = 0.0f;
+
+        hipExtLaunchKernelGGL(kernel, grid_dim, block_dim, 0, nullptr, start, stop, 0,
+                                            args...);
+            
+            hip_check_error(hipEventSynchronize(stop));
+
+            float time0 = 0.0f;
+            hip_check_error(hipEventElapsedTime(&time0, start, stop));
+
+        for(int i = 0; i < nrepeat; ++i)
+        {
+            hipExtLaunchKernelGGL(kernel, grid_dim, block_dim, 0, nullptr, start, stop, 0,
+                                            args...);
+            
+            hip_check_error(hipEventSynchronize(stop));
+
+            float time = 0.0f;
+            hip_check_error(hipEventElapsedTime(&time, start, stop));
+            printf("%f\n", time);
+            total_time += time;
+
+        }
+
+        return total_time / nrepeat;
+    }
+    else
+    {
+        kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+
+        return 0;
+    }
+
+#else
+
     if(stream_config.time_kernel_)
     {
         printf("%s: grid_dim {%d, %d, %d}, block_dim {%d, %d, %d} \n",
@@ -133,6 +197,7 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
 
         return 0;
     }
+#endif
 #else
     kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
 
