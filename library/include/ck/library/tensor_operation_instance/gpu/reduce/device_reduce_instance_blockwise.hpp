@@ -61,10 +61,10 @@ using reduce_configuration_2_instances_blockwise = std::tuple<
     >;
 #endif
 
-template <typename AccDataType, ReduceTensorOp ReduceOpId>
+template <ReduceTensorOp ReduceOpId>
 using deviceReduceBlockWisePtrType = DeviceReducePtr<
-    typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::InElementwiseOperation,
-    typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::AccElementwiseOperation>;
+    typename reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation,
+    typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation>;
 
 template <typename InDataType,
           typename AccDataType,
@@ -75,14 +75,13 @@ template <typename InDataType,
           bool PropagateNan,
           bool UseIndex>
 void add_device_reduce_instance_blockwise(
-    std::vector<deviceReduceBlockWisePtrType<AccDataType, ReduceOpId>>& device_op_instances)
+    std::vector<deviceReduceBlockWisePtrType<ReduceOpId>>& device_op_instances)
 {
-    using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
+    using ReduceOperation = typename reduce_binary_operator<ReduceOpId>::opType;
     using InElementwiseOperation =
-        typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::InElementwiseOperation;
+        typename reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation;
     using AccElementwiseOperation =
-        typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::
-            AccElementwiseOperation;
+        typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation;
 
     constexpr bool Indexable =
         (ReduceOpId == ReduceTensorOp::MIN || ReduceOpId == ReduceTensorOp::MAX ||
@@ -137,7 +136,7 @@ void add_device_reduce_instance_blockwise(
                                                        ReduceOpId,            \
                                                        PropagateNan,          \
                                                        UseIndex>(             \
-        std::vector<deviceReduceBlockWisePtrType<compT, ReduceOpId>> & device_op_instances)
+        std::vector<deviceReduceBlockWisePtrType<ReduceOpId>> & device_op_instances)
 
 #define ADD_BLOCKWISE_INST_BY_ID(                                         \
     inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim) \
@@ -150,21 +149,17 @@ void add_device_reduce_instance_blockwise(
                                Rank,                                      \
                                NumReduceDim)
 
-#define ADD_BLOCKWISE_INST_REF_BY_TYPE(                                                            \
-    inT, compT, outT, ReduceOpId, PropagateNan, UseIndex, Rank, NumReduceDim)                      \
-    extern template void add_device_reduce_instance_blockwise<inT,                                 \
-                                                              compT,                               \
-                                                              outT,                                \
-                                                              Rank,                                \
-                                                              NumReduceDim,                        \
-                                                              ReduceOpId,                          \
-                                                              PropagateNan,                        \
-                                                              UseIndex>(                           \
-        std::vector<DeviceReducePtr<                                                               \
-            typename reduce_unary_operator<compT, ReduceOpId, true, true>::InElementwiseOperation, \
-            typename reduce_unary_operator<compT, ReduceOpId, true, true>::                        \
-                AccElementwiseOperation>> &                                                        \
-        device_op_instances)
+#define ADD_BLOCKWISE_INST_REF_BY_TYPE(                                       \
+    inT, compT, outT, ReduceOpId, PropagateNan, UseIndex, Rank, NumReduceDim) \
+    extern template void add_device_reduce_instance_blockwise<inT,            \
+                                                              compT,          \
+                                                              outT,           \
+                                                              Rank,           \
+                                                              NumReduceDim,   \
+                                                              ReduceOpId,     \
+                                                              PropagateNan,   \
+                                                              UseIndex>(      \
+        std::vector<deviceReduceBlockWisePtrType<ReduceOpId>> & device_op_instances)
 
 #define ADD_BLOCKWISE_INST_REF_BY_ID(                                       \
     inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)   \

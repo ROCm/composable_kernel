@@ -106,9 +106,8 @@ struct ReferenceConvBwdData : public device::BaseOperator
                         }
                     }
 
-                    float v_in;
-                    arg.in_element_op_(v_in, v_acc);
-                    arg.input_(n, c, wi) = ck::type_convert<InDataType>(v_in);
+                    arg.in_element_op_(v_acc, v_acc);
+                    arg.input_(n, c, wi) = ck::type_convert<InDataType>(v_acc);
                 };
 
                 make_ParallelTensorFunctor(f_ncw,

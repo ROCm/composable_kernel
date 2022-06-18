@@ -3,7 +3,6 @@
 #include <sstream>
 #include "device.hpp"
 #include "device_base.hpp"
-#include "common_header.hpp"
 #include "gridwise_5ary_Elementwise_1d.hpp"
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
