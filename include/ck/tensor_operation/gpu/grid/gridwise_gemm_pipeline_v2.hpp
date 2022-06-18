@@ -503,9 +503,13 @@ struct GridwiseGemmPipeline_v2<4>
             a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, Number<i_pre>{});
             b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, Number<i_pre>{});
 
+            s_nop();
+
             // move to i_pre + 1
             a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
             b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+
+            s_nop();
         });
         // Initialize C
         c_thread_buf.Clear();
