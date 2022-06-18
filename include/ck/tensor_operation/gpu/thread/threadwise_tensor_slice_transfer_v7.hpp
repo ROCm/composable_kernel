@@ -7,17 +7,21 @@
 
 namespace ck {
 
+// Thread-level multi-source, multi-destination tensor slice data movement
 // Assume:
-//   1. src_descs and dst_descs are not known at compile-time
-//   2. SrcBuffers and DstBuffers are DynamicBuffer
-//   3. src_slice_origins and dst_slice_origins are not known at compile-time,
-// Do following things to avoid "alloca" in LLVM-IR, which would cause scratch memory
-// and sometimes useless instructions:
-//   1. Don't save a reference to tensor descriptor in class, pass in tensor descriptor as argument
-//   instead
-//   2. Don't construct a new tensor coordinate everytime when using it, update and reuse the same
-//   tensor coordinate instead
-//   3. Don't use a pointer to VGPR buffer, use vector instead
+//   1. All sources and destinations are DynamicBuffer
+//   2. Same VectorDim and ScalerPerVector for all sources and destinations
+//   3. DstInMemOps are per destination tensor
+//   4. ThreadTransferSrcResetCoordinateAfterRunFlags are per source tensor
+//   5. ThreadTransferDstResetCoordinateAfterRunFlags are per destination tensor
+//   6. Does not need to know src_descs and dst_descs at compile-time
+//   7. Does not need to know src_slice_origins and dst_slice_origins at compile-time,
+//
+// Does following things to avoid scratch memory issue
+//   1. Use StaticallyIndexedArray or vector_type instead of C array for thread buffer
+//   2. Pass tensor descritpors by reference (or tuple of references)
+//   3. Does not keep reference to tensor descriptor
+//   4. Does not construct new tensor coordinate when call Run()
 template <typename SrcDatas,
           typename DstDatas,
           typename SrcDescs,

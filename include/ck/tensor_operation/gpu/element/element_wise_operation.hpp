@@ -1,110 +1,13 @@
 #pragma once
+
 #include "data_type.hpp"
 #include "math_v2.hpp"
+#include "unary_element_wise_operation.hpp"
+#include "binary_element_wise_operation.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace element_wise {
-
-struct PassThrough
-{
-    __host__ __device__ void operator()(float& y, const float& x) const { y = x; }
-
-    __host__ __device__ void operator()(half_t& y, const half_t& x) const { y = x; }
-
-    __host__ __device__ void operator()(bhalf_t& y, const bhalf_t& x) const { y = x; }
-
-    __host__ __device__ void operator()(int32_t& y, const int32_t& x) const { y = x; }
-
-    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const { y = x; }
-
-    __host__ __device__ void operator()(double& y, const double& x) const { y = x; }
-};
-
-struct FastGelu
-{
-    // https://paperswithcode.com/method/gelu
-    // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
-    __host__ __device__ void operator()(float& y, const float& x) const
-    {
-        const float u   = float(2) * x * (float(0.035677) * x * x + float(0.797885));
-        const float emu = exp(-u);
-        const float cdf = float(0.5) + float(0.5) * (float(2) / (float(1) + emu) - float(1));
-
-        y = x * cdf;
-    }
-};
-
-struct Add
-{
-    __host__ __device__ constexpr void operator()(float& y, const float& x0, const float& x1) const
-    {
-        y = x0 + x1;
-    }
-
-    __host__ __device__ constexpr void
-    operator()(half_t& y, const half_t& x0, const half_t& x1) const
-    {
-        // FIXME - Use float (acc type) bias in the future.
-        y = x0 + x1;
-    }
-};
-
-struct AlphaBetaAdd
-{
-    AlphaBetaAdd(float alpha, float beta) : alpha_(alpha), beta_(beta) {}
-
-    __host__ __device__ constexpr void operator()(float& y, const float& x0, const float& x1) const
-    {
-        y = alpha_ * x0 + beta_ * x1;
-    }
-
-    __host__ __device__ constexpr void
-    operator()(half_t& y, const half_t& x0, const half_t& x1) const
-    {
-        // FIXME - Let x0 be acc type
-        y = static_cast<half_t>(alpha_ * static_cast<float>(x0) + beta_ * static_cast<float>(x1));
-    }
-
-    float alpha_;
-    float beta_;
-};
-
-struct AddRelu
-{
-    __host__ __device__ constexpr void operator()(float& y, const float& x0, const float& x1) const
-    {
-        const float a = x0 + x1;
-        y             = a > 0 ? a : 0;
-    }
-
-    __host__ __device__ constexpr void
-    operator()(half_t& y, const half_t& x0, const half_t& x1) const
-    {
-        const half_t a = x0 + x1;
-        y              = a > 0 ? a : 0;
-    }
-};
-
-struct AddHardswish
-{
-    __host__ __device__ constexpr void operator()(float& y, const float& x0, const float& x1) const
-    {
-        float a = x0 + x1;
-        float b = a + float{3};
-        float c = (b > 0) * (b > float{6} ? float{6} : b) * a * float{0.166667};
-        y       = c;
-    }
-
-    __host__ __device__ constexpr void
-    operator()(half_t& y, const half_t& x0, const half_t& x1) const
-    {
-        float a = x0 + x1;
-        float b = a + float{3};
-        float c = (b > 0) * (b > float{6} ? float{6} : b) * a * float{0.166667};
-        y       = c;
-    }
-};
 
 struct AddReluAdd
 {
@@ -162,8 +65,14 @@ struct AddHardswishAdd
 // E = FastGelu(C + D0 + D1)
 struct AddAddFastGelu
 {
-    __host__ __device__ void
-    operator()(ck::half_t& e, const float& c, const ck::half_t& d0, const ck::half_t& d1) const
+    template <typename E, typename C, typename D0, typename D1>
+    __host__ __device__ void operator()(E& e, const C& c, const D0& d0, const D1& d1) const;
+
+    template <>
+    __host__ __device__ void operator()<half_t, float, half_t, half_t>(half_t& e,
+                                                                       const float& c,
+                                                                       const half_t& d0,
+                                                                       const half_t& d1) const
     {
         // Fast GeLU
         // https://paperswithcode.com/method/gelu
@@ -177,209 +86,67 @@ struct AddAddFastGelu
 
         const float y = fast_gelu(c + float(d0) + float(d1));
 
-        e = ck::type_convert<ck::half_t>(y);
+        e = type_convert<half_t>(y);
     }
 };
 
 struct Normalize
 {
-    Normalize(float epsilon = 1e-4) : epsilon_(epsilon) {}
+    Normalize(double epsilon = 1e-4) : epsilon_(epsilon) {}
 
-    __host__ __device__ constexpr void operator()(float& y,
-                                                  const float& x,
-                                                  const float& mean,
-                                                  const float& mean_square,
-                                                  const float& gamma,
-                                                  const float& beta) const
+    template <typename T>
+    __host__ __device__ constexpr void operator()(
+        T& y, const T& x, const T& mean, const T& mean_square, const T& gamma, const T& beta) const;
+
+    template <>
+    __host__ __device__ constexpr void operator()<float>(float& y,
+                                                         const float& x,
+                                                         const float& mean,
+                                                         const float& mean_square,
+                                                         const float& gamma,
+                                                         const float& beta) const
     {
+        using ck::math::sqrt;
+
         float variance = mean_square - (mean * mean);
-        y              = ((x - mean) / sqrtf(variance + epsilon_)) * gamma + beta;
-    }
-
-    float epsilon_;
-};
-
-// Unary operators are usually called element-wisely before/after the reduction is executed on the
-// elements. They are needed for easy implementation of reduction types of AVG, NRM1, NRM2
-
-template <typename Y, typename X, bool HasDividing = false>
-struct UnaryIdentic;
-
-template <>
-struct UnaryIdentic<float, float, false>
-{
-    __host__ __device__ UnaryIdentic(const int32_t divider = 1) { (void)divider; };
-
-    __host__ __device__ void operator()(float& y, const float& x) const { y = x; };
-};
-
-template <>
-struct UnaryIdentic<float, float, true>
-{
-    __host__ __device__ UnaryIdentic(const int32_t divider = 1) { divider_ = divider; };
-
-    __host__ __device__ void operator()(float& y, const float& x) const
-    {
-        y = x / type_convert<float>(divider_);
+        y = ((x - mean) / sqrt(variance + static_cast<float>(epsilon_))) * gamma + beta;
     };
 
-    int32_t divider_ = 1;
-};
-
-template <>
-struct UnaryIdentic<half_t, half_t, false>
-{
-    __host__ __device__ UnaryIdentic(const int32_t divider = 1) { (void)divider; };
-
-    __host__ __device__ void operator()(half_t& y, const half_t& x) const { y = x; };
-};
-
-template <>
-struct UnaryIdentic<double, double, false>
-{
-    __host__ __device__ UnaryIdentic(const int32_t divider = 1) { (void)divider; };
-
-    __host__ __device__ void operator()(double& y, const double& x) const { y = x; };
-};
-
-template <>
-struct UnaryIdentic<double, double, true>
-{
-    __host__ __device__ UnaryIdentic(const int32_t divider = 1) { divider_ = divider; };
-
-    __host__ __device__ void operator()(double& y, const double& x) const
+    template <>
+    __host__ __device__ constexpr void operator()<double>(double& y,
+                                                          const double& x,
+                                                          const double& mean,
+                                                          const double& mean_square,
+                                                          const double& gamma,
+                                                          const double& beta) const
     {
-        y = x / type_convert<double>(divider_);
+        using ck::math::sqrt;
+
+        double variance = mean_square - (mean * mean);
+        y               = ((x - mean) / sqrt(variance + epsilon_)) * gamma + beta;
     };
 
-    int32_t divider_ = 1;
-};
-
-template <>
-struct UnaryIdentic<int32_t, int32_t, false>
-{
-    __host__ __device__ UnaryIdentic(const int32_t divider = 1) { (void)divider; };
-
-    __host__ __device__ void operator()(int32_t& y, const int32_t& x) const { y = x; };
-};
-
-template <>
-struct UnaryIdentic<int32_t, int32_t, true>
-{
-    __host__ __device__ UnaryIdentic(const int32_t divider = 1) { divider_ = divider; };
-
-    __host__ __device__ void operator()(int32_t& y, const int32_t& x) const { y = x / divider_; };
-
-    int32_t divider_ = 1;
-};
-
-template <>
-struct UnaryIdentic<int8_t, int8_t, false>
-{
-    __host__ __device__ UnaryIdentic(const int8_t divider = 1) { (void)divider; };
-
-    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const { y = x; };
-};
-
-template <typename Y, typename X, bool HasDividing = false>
-struct UnarySquare;
-
-template <>
-struct UnarySquare<float, float, false>
-{
-    __host__ __device__ UnarySquare(const int32_t divider = 1) { (void)divider; };
-
-    __host__ __device__ void operator()(float& y, const float& x) const { y = x * x; };
-};
-
-template <>
-struct UnarySquare<float, float, true>
-{
-    __host__ __device__ UnarySquare(const int32_t divider = 1) { divider_ = divider; };
-
-    __host__ __device__ void operator()(float& y, const float& x) const
-    {
-        y = x * x / type_convert<float>(divider_);
-    };
-
-    int32_t divider_ = 1;
-};
-
-template <>
-struct UnarySquare<double, double, false>
-{
-    __host__ __device__ UnarySquare(const int32_t divider = 1) { (void)divider; };
-
-    __host__ __device__ void operator()(double& y, const double& x) const { y = x * x; };
-};
-
-template <>
-struct UnarySquare<double, double, true>
-{
-    __host__ __device__ UnarySquare(const int32_t divider = 1) { divider_ = divider; };
-
-    __host__ __device__ void operator()(double& y, const double& x) const
-    {
-        y = x * x / type_convert<double>(divider_);
-    };
-
-    int32_t divider_ = 1;
+    double epsilon_;
 };
 
 template <typename Y, typename X>
-struct UnaryAbs;
+struct UnaryTypeConvert;
 
 template <>
-struct UnaryAbs<float, float>
+struct UnaryTypeConvert<float, ck::bhalf_t>
 {
-    __host__ __device__ UnaryAbs(const int32_t divider = 1) { (void)divider; };
-
-    __host__ __device__ void operator()(float& y, const float& x) const { y = ck::math::abs(x); };
-};
-
-template <>
-struct UnaryAbs<half_t, half_t>
-{
-    __host__ __device__ UnaryAbs(const int32_t divider = 1) { (void)divider; };
-
-    __host__ __device__ void operator()(half_t& y, const half_t& x) const { y = ck::math::abs(x); };
-};
-
-template <>
-struct UnaryAbs<double, double>
-{
-    __host__ __device__ UnaryAbs(const int32_t divider = 1) { (void)divider; };
-
-    __host__ __device__ void operator()(double& y, const double& x) const { y = ck::math::abs(x); };
-};
-
-template <>
-struct UnaryAbs<int8_t, int8_t>
-{
-    __host__ __device__ UnaryAbs(const int32_t divider = 1) { (void)divider; };
-
-    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const { y = ck::math::abs(x); };
-};
-
-template <typename Y, typename X>
-struct UnarySqrt;
-
-template <>
-struct UnarySqrt<float, float>
-{
-    __host__ __device__ UnarySqrt(const int32_t divider = 1) { (void)divider; };
-
-    __host__ __device__ void operator()(float& y, const float& x) const { y = ck::math::sqrt(x); };
-};
-
-template <>
-struct UnarySqrt<double, double>
-{
-    __host__ __device__ UnarySqrt(const int32_t divider = 1) { (void)divider; };
-
-    __host__ __device__ void operator()(double& y, const double& x) const
+    __host__ __device__ void operator()(float& y, ck::bhalf_t& x) const
     {
-        y = ck::math::sqrt(x);
+        y = ck::type_convert<float, ck::bhalf_t>(x);
+    };
+};
+
+template <>
+struct UnaryTypeConvert<ck::bhalf_t, float>
+{
+    __host__ __device__ void operator()(ck::bhalf_t& y, float& x) const
+    {
+        y = ck::type_convert<ck::bhalf_t, float>(x);
     };
 };
 
