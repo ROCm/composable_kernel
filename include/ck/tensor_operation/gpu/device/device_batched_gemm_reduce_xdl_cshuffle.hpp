@@ -162,12 +162,7 @@ template <typename ALayout,
           index_t CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
           index_t CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
-struct DeviceBatchedGemmReduce_Xdl_CShuffle
-    : public DeviceGemmReduce<AElementwiseOperation,
-                              BElementwiseOperation,
-                              CElementwiseOperation,
-                              DxsInElementwiseOperation,
-                              DxsReduceAccElementwiseOperation>
+struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DxsReduceOperation::Size()>
 {
     using DeviceOp = DeviceBatchedGemmReduce_Xdl_CShuffle;
 
@@ -818,30 +813,59 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle
         }
     }
 
-    static auto MakeArgument(const ADataType* p_a,
-                             const BDataType* p_b,
-                             CDataType* p_c,
-                             DPtrsGlobal p_dxs,
-                             index_t MRaw,
-                             index_t NRaw,
-                             index_t KRaw,
+    static constexpr int NumReduce = DxsReduceOperation::Size();
+    static auto MakeArgument(const void* p_a,
+                             const void* p_b,
+                             void* p_c,
+                             std::array<void*, NumReduce> p_reduces,
+                             index_t M,
+                             index_t N,
+                             index_t K,
                              index_t StrideA,
                              index_t StrideB,
                              index_t StrideC,
-                             AElementwiseOperation a_element_op,
-                             BElementwiseOperation b_element_op,
-                             CElementwiseOperation c_element_op,
-                             DxsInElementwiseOperation dxs_in_element_op,
-                             DxsReduceAccElementwiseOperation dxs_out_element_op,
+                             std::array<void*, 3> gemm_element_ops,
+                             std::array<void*, NumReduce> reduce_in_element_op,
+                             std::array<void*, NumReduce> reduce_out_element_op,
                              index_t BatchCount)
     {
-        return Argument{p_a,
-                        p_b,
-                        p_c,
-                        p_dxs,
-                        MRaw,
-                        NRaw,
-                        KRaw,
+        DPtrsGlobal dxs_tuple = generate_tuple(
+            [&](auto I) {
+                auto tmp = DPtrsGlobal{}[I];
+                using T  = remove_pointer_t<decltype(tmp)>;
+                return static_cast<T*>(p_reduces[I]);
+            },
+            Number<NumReduce>{});
+
+        DxsInElementwiseOperation dxs_in_element_op = generate_tuple(
+            [&](auto I) {
+                auto tmp = DxsInElementwiseOperation{}[I];
+                using T  = remove_pointer_t<decltype(tmp)>;
+                return *(static_cast<T*>(reduce_in_element_op[I]));
+            },
+            Number<NumReduce>{});
+        DxsReduceAccElementwiseOperation dxs_out_element_op = generate_tuple(
+            [&](auto I) {
+                auto tmp = DxsReduceAccElementwiseOperation{}[I];
+                using T  = remove_pointer_t<decltype(tmp)>;
+                return *(static_cast<T*>(reduce_out_element_op[I]));
+            },
+            Number<NumReduce>{});
+
+        AElementwiseOperation a_element_op =
+            *(static_cast<AElementwiseOperation*>(gemm_element_ops[0]));
+        BElementwiseOperation b_element_op =
+            *(static_cast<BElementwiseOperation*>(gemm_element_ops[1]));
+        CElementwiseOperation c_element_op =
+            *(static_cast<CElementwiseOperation*>(gemm_element_ops[2]));
+
+        return Argument{static_cast<const ADataType*>(p_a),
+                        static_cast<const BDataType*>(p_b),
+                        static_cast<CDataType*>(p_c),
+                        dxs_tuple,
+                        M,
+                        N,
+                        K,
                         StrideA,
                         StrideB,
                         StrideC,
@@ -860,28 +884,55 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
                         void* p_c,
-                        void* p_dxs,
-                        index_t MRaw,
-                        index_t NRaw,
-                        index_t KRaw,
-                        index_t StrideA,
-                        index_t StrideB,
-                        index_t StrideC,
-                        AElementwiseOperation a_element_op,
-                        BElementwiseOperation b_element_op,
-                        CElementwiseOperation c_element_op,
-                        DxsInElementwiseOperation dxs_in_element_op,
-                        DxsReduceAccElementwiseOperation dxs_out_element_op,
-                        index_t BatchCount) override
+                        std::array<void*, NumReduce> p_reduces,
+                        ck::index_t M,
+                        ck::index_t N,
+                        ck::index_t K,
+                        ck::index_t StrideA,
+                        ck::index_t StrideB,
+                        ck::index_t StrideC,
+                        std::array<void*, 3> gemm_element_ops,
+                        std::array<void*, NumReduce> reduce_in_element_op,
+                        std::array<void*, NumReduce> reduce_out_element_op,
+                        index_t BatchCount = 1) override
     {
-        DPtrsGlobal dxs_tuple = *(static_cast<DPtrsGlobal*>(p_dxs));
+        DPtrsGlobal dxs_tuple = generate_tuple(
+            [&](auto I) {
+                auto tmp = DPtrsGlobal{}[I];
+                using T  = remove_pointer_t<decltype(tmp)>;
+                return static_cast<T*>(p_reduces[I]);
+            },
+            Number<NumReduce>{});
+
+        DxsInElementwiseOperation dxs_in_element_op = generate_tuple(
+            [&](auto I) {
+                auto tmp = DxsInElementwiseOperation{}[I];
+                using T  = remove_pointer_t<decltype(tmp)>;
+                return *(static_cast<T*>(reduce_in_element_op[I]));
+            },
+            Number<NumReduce>{});
+        DxsReduceAccElementwiseOperation dxs_out_element_op = generate_tuple(
+            [&](auto I) {
+                auto tmp = DxsReduceAccElementwiseOperation{}[I];
+                using T  = remove_pointer_t<decltype(tmp)>;
+                return *(static_cast<T*>(reduce_out_element_op[I]));
+            },
+            Number<NumReduce>{});
+
+        AElementwiseOperation a_element_op =
+            *(static_cast<AElementwiseOperation*>(gemm_element_ops[0]));
+        BElementwiseOperation b_element_op =
+            *(static_cast<BElementwiseOperation*>(gemm_element_ops[1]));
+        CElementwiseOperation c_element_op =
+            *(static_cast<CElementwiseOperation*>(gemm_element_ops[2]));
+
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
                                           static_cast<CDataType*>(p_c),
                                           dxs_tuple,
-                                          MRaw,
-                                          NRaw,
-                                          KRaw,
+                                          M,
+                                          N,
+                                          K,
                                           StrideA,
                                           StrideB,
                                           StrideC,

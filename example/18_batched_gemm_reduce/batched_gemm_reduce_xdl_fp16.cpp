@@ -181,11 +181,18 @@ int main(int argc, char* argv[])
     a_device_buf.ToDevice(a_g_m_k.mData.data());
     b_device_buf.ToDevice(b_g_k_n.mData.data());
 
-    auto a_element_op = AElementOp{};
-    auto b_element_op = BElementOp{};
-    auto c_element_op = CElementOp{};
-    auto dxs_global   = ck::make_tuple(static_cast<DDataType*>(d0_device_buf.GetDeviceBuffer()),
-                                     static_cast<DDataType*>(d1_device_buf.GetDeviceBuffer()));
+    auto a_element_op                     = AElementOp{};
+    auto b_element_op                     = BElementOp{};
+    auto c_element_op                     = CElementOp{};
+    std::array<void*, 3> gemm_element_ops = {&a_element_op, &b_element_op, &c_element_op};
+
+    auto passthrough                        = UnaryIdenticElementOp{};
+    auto square                             = UnarySquareElementOp{};
+    std::array<void*, 2> dxs_in_element_op  = {&passthrough, &square};
+    std::array<void*, 2> dxs_out_element_op = {&passthrough, &passthrough};
+
+    std::array<void*, 2> p_reduces = {d0_device_buf.GetDeviceBuffer(),
+                                      d1_device_buf.GetDeviceBuffer()};
 
     // do GEMM
     auto batched_gemm = DeviceBatchedGemmReduceInstance{};
@@ -194,18 +201,16 @@ int main(int argc, char* argv[])
         batched_gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
                                   static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
                                   static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                  dxs_global,
+                                  p_reduces,
                                   M,
                                   N,
                                   K,
                                   StrideA,
                                   StrideB,
                                   StrideC,
-                                  a_element_op,
-                                  b_element_op,
-                                  c_element_op,
-                                  DxsInElementOps{},
-                                  DxsOutElementOps{},
+                                  gemm_element_ops,
+                                  dxs_in_element_op,
+                                  dxs_out_element_op,
                                   BatchCount);
 
     if(!batched_gemm.IsSupportedArgument(argument))

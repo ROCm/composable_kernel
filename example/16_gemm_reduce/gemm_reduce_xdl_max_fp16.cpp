@@ -178,11 +178,13 @@ int main(int argc, char* argv[])
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
 
-    auto a_element_op  = AElementOp{};
-    auto b_element_op  = BElementOp{};
-    auto c_element_op  = CElementOp{};
-    auto ds_element_op = DsElementOp{};
-    auto p_ds_global   = ck::make_tuple(static_cast<DDataType*>(d_device_buf.GetDeviceBuffer()));
+    auto a_element_op                     = AElementOp{};
+    auto b_element_op                     = BElementOp{};
+    auto c_element_op                     = CElementOp{};
+    auto d_element_op                     = DsElementOp{}[ck::Number<0>{}];
+    std::array<void*, 3> gemm_element_ops = {&a_element_op, &b_element_op, &c_element_op};
+    std::array<void*, 1> ds_element_op    = {&d_element_op};
+    std::array<void*, 1> p_reduces        = {d_device_buf.GetDeviceBuffer()};
 
     // do GEMM
     auto gemm     = DeviceGemmReduceInstance{};
@@ -190,16 +192,14 @@ int main(int argc, char* argv[])
     auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
                                       static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
                                       static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                      p_ds_global,
+                                      p_reduces,
                                       M,
                                       N,
                                       K,
                                       StrideA,
                                       StrideB,
                                       StrideC,
-                                      a_element_op,
-                                      b_element_op,
-                                      c_element_op,
+                                      gemm_element_ops,
                                       ds_element_op,
                                       ds_element_op);
 

@@ -6,44 +6,30 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation,
-          typename DxsInElementwiseOperation,
-          typename DxsReduceAccElementwiseOperation>
+template <ck::index_t NumReduce>
 struct DeviceGemmReduce : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
                         void* p_c,
-                        void* p_dxs,
+                        std::array<void*, NumReduce> p_reduces,
                         ck::index_t M,
                         ck::index_t N,
                         ck::index_t K,
                         ck::index_t StrideA,
                         ck::index_t StrideB,
                         ck::index_t StrideC,
-                        AElementwiseOperation a_element_op,
-                        BElementwiseOperation b_element_op,
-                        CElementwiseOperation c_element_op,
-                        DxsInElementwiseOperation dxs_in_element_op,
-                        DxsReduceAccElementwiseOperation dxs_out_element_op,
+                        std::array<void*, 3> gemm_element_ops,
+                        std::array<void*, NumReduce> reduce_in_element_op,
+                        std::array<void*, NumReduce> reduce_out_element_op,
                         ck::index_t BatchCount = 1) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation,
-          typename DxsInElementwiseOperation,
-          typename DxsReduceAccElementwiseOperation>
-using DeviceGemmReducePtr = std::unique_ptr<DeviceGemmReduce<AElementwiseOperation,
-                                                             BElementwiseOperation,
-                                                             CElementwiseOperation,
-                                                             DxsInElementwiseOperation,
-                                                             DxsReduceAccElementwiseOperation>>;
+template <ck::index_t NumReduce>
+using DeviceGemmReducePtr = std::unique_ptr<DeviceGemmReduce<NumReduce>>;
 
 template <typename AElementwiseOperation,
           typename BElementwiseOperation,
