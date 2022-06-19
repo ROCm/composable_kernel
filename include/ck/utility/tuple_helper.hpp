@@ -1,5 +1,4 @@
-#ifndef CK_TUPLE_HELPER_HPP
-#define CK_TUPLE_HELPER_HPP
+#pragma once
 
 #include "functional4.hpp"
 #include "tuple.hpp"
@@ -18,6 +17,17 @@ __host__ __device__ constexpr auto generate_tie(F&& f, Number<N>)
 {
     return unpack([&f](auto&&... xs) { return tie(f(xs)...); },
                   typename arithmetic_sequence_gen<0, N, 1>::type{});
+}
+
+// tx and ty are tuple of references, return type of will tuple of referennce (not rvalue)
+template <typename... X, typename... Y>
+__host__ __device__ constexpr auto concat_tuple_of_reference(const Tuple<X&...>& tx,
+                                                             const Tuple<Y&...>& ty)
+{
+    return unpack2(
+        [&](auto&&... zs) { return Tuple<decltype(zs)...>{std::forward<decltype(zs)>(zs)...}; },
+        tx,
+        ty);
 }
 
 namespace detail {
@@ -66,4 +76,3 @@ __host__ __device__ constexpr auto transform_tuples(F f, const X& x, const Y& y,
 }
 
 } // namespace ck
-#endif

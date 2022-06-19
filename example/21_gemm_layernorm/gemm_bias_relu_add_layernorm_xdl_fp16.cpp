@@ -14,7 +14,6 @@
 #include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"
 #include "gemm_specialization.hpp"
-#include "element_wise_reduce_operation.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;

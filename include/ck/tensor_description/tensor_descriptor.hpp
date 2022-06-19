@@ -111,7 +111,14 @@ struct TensorDescriptor
     using ElementSize = remove_cv_t<decltype(InitializeElementSize(Transforms{}))>;
 
     public:
+#if 0 // workaround compiler complaint about constexpr
     __host__ __device__ constexpr TensorDescriptor() = default;
+#else
+    __host__ __device__ constexpr TensorDescriptor()
+        : transforms_{}, element_size_{}, element_space_size_{}
+    {
+    }
+#endif
 
     __host__ __device__ constexpr TensorDescriptor(const Transforms& transforms,
                                                    ElementSpaceSize element_space_size)

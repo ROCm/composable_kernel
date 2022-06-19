@@ -136,7 +136,11 @@ struct TensorAdaptor
     using ElementSize = remove_cv_t<decltype(InitializeElementSize(Transforms{}))>;
 
     public:
+#if 0 // workaround compiler complaint about constexpr
     __host__ __device__ constexpr TensorAdaptor() = default;
+#else
+    __host__ __device__ constexpr TensorAdaptor() : transforms_{}, element_size_{} {}
+#endif
 
     __host__ __device__ constexpr TensorAdaptor(const Transforms& transforms)
         : transforms_{transforms}, element_size_{InitializeElementSize(transforms)}
