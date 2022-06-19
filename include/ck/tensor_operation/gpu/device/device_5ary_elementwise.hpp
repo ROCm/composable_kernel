@@ -3,6 +3,7 @@
 #include <sstream>
 #include "device.hpp"
 #include "device_base.hpp"
+#include "device_elementwise.hpp"
 #include "gridwise_5ary_Elementwise_1d.hpp"
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
@@ -28,7 +29,7 @@ template <typename ADataType,
           index_t DScalarPerVector,
           index_t EScalarPerVector,
           index_t FScalarPerVector>
-struct Device5AryElementwise : public BaseOperator
+struct Device5AryElementwise : public DeviceElementwise<5, 1, NDim, ElementwiseFunctor>
 {
     static constexpr auto I0 = Number<0>{};
 
@@ -261,12 +262,8 @@ struct Device5AryElementwise : public BaseOperator
         return true;
     };
 
-    static auto MakeArgument(const ADataType* p_a,
-                             const BDataType* p_b,
-                             const CDataType* p_c,
-                             const DDataType* p_d,
-                             const EDataType* p_e,
-                             FDataType* p_f,
+    static auto MakeArgument(std::array<const void*, 5> p_inputs,
+                             std::array<void*, 1> p_outputs,
                              std::vector<index_t> lengths,
                              std::vector<index_t> a_strides,
                              std::vector<index_t> b_strides,
@@ -276,12 +273,12 @@ struct Device5AryElementwise : public BaseOperator
                              std::vector<index_t> f_strides,
                              ElementwiseFunctor functor)
     {
-        return Argument{p_a,
-                        p_b,
-                        p_c,
-                        p_d,
-                        p_e,
-                        p_f,
+        return Argument{static_cast<const ADataType*>(p_inputs[0]),
+                        static_cast<const BDataType*>(p_inputs[1]),
+                        static_cast<const CDataType*>(p_inputs[2]),
+                        static_cast<const DDataType*>(p_inputs[3]),
+                        static_cast<const EDataType*>(p_inputs[4]),
+                        static_cast<FDataType*>(p_outputs[0]),
                         lengths,
                         a_strides,
                         b_strides,
@@ -292,39 +289,35 @@ struct Device5AryElementwise : public BaseOperator
                         functor};
     }
 
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
-                                                      const void* p_b,
-                                                      const void* p_c,
-                                                      const void* p_d,
-                                                      const void* p_e,
-                                                      void* p_f,
-                                                      std::vector<index_t> lengths,
-                                                      std::vector<index_t> a_strides,
-                                                      std::vector<index_t> b_strides,
-                                                      std::vector<index_t> c_strides,
-                                                      std::vector<index_t> d_strides,
-                                                      std::vector<index_t> e_strides,
-                                                      std::vector<index_t> f_strides,
-                                                      ElementwiseFunctor functor)
+    std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(std::array<const void*, 5> p_inputs,
+                        std::array<void*, 1> p_outputs,
+                        std::vector<index_t> lengths,
+                        std::vector<std::vector<index_t>> input_strides,
+                        std::vector<std::vector<index_t>> output_strides,
+                        ElementwiseFunctor functor) override
     {
-        return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
-                                          static_cast<const BDataType*>(p_b),
-                                          static_cast<const CDataType*>(p_c),
-                                          static_cast<const DDataType*>(p_d),
-                                          static_cast<const EDataType*>(p_e),
-                                          static_cast<FDataType*>(p_f),
+        return std::make_unique<Argument>(static_cast<const ADataType*>(p_inputs[0]),
+                                          static_cast<const BDataType*>(p_inputs[1]),
+                                          static_cast<const CDataType*>(p_inputs[2]),
+                                          static_cast<const DDataType*>(p_inputs[3]),
+                                          static_cast<const EDataType*>(p_inputs[4]),
+                                          static_cast<FDataType*>(p_outputs[0]),
                                           lengths,
-                                          a_strides,
-                                          b_strides,
-                                          c_strides,
-                                          d_strides,
-                                          e_strides,
-                                          f_strides,
+                                          input_strides[0],
+                                          input_strides[1],
+                                          input_strides[2],
+                                          input_strides[3],
+                                          input_strides[4],
+                                          output_strides[0],
                                           functor);
     }
 
     static auto MakeInvoker() { return Invoker{}; }
-    std::unique_ptr<BaseInvoker> MakeInvokerPointer() { return std::make_unique<Invoker>(); }
+    std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
+    {
+        return std::make_unique<Invoker>();
+    }
 }; // namespace device
 
 } // namespace device

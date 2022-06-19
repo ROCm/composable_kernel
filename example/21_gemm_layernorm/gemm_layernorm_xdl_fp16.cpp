@@ -302,23 +302,25 @@ int main()
     reduceMeanSquare_device_buf.SetZero();
 
     // Prepare LayerNorm
+    std::array<const void*, 5> input = {c_device_buf.GetDeviceBuffer(),
+                                        reduceMean_device_buf.GetDeviceBuffer(),
+                                        reduceMeanSquare_device_buf.GetDeviceBuffer(),
+                                        gamma_device_buf.GetDeviceBuffer(),
+                                        beta_device_buf.GetDeviceBuffer()};
+    std::array<void*, 1> output      = {layerNorm_device_buf.GetDeviceBuffer()};
+
     auto normalize          = DeviceNormalizeInstance{};
     auto normalize_invoker  = normalize.MakeInvoker();
-    auto normalize_argument = normalize.MakeArgument(
-        static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-        static_cast<DDataType*>(reduceMean_device_buf.GetDeviceBuffer()),
-        static_cast<DDataType*>(reduceMeanSquare_device_buf.GetDeviceBuffer()),
-        static_cast<GammaDataType*>(gamma_device_buf.GetDeviceBuffer()),
-        static_cast<BetaDataType*>(beta_device_buf.GetDeviceBuffer()),
-        static_cast<LayerNormOutDataType*>(layerNorm_device_buf.GetDeviceBuffer()),
-        {M, N},
-        {StrideC, 1},
-        {1, 0},
-        {1, 0},
-        {0, 1},
-        {0, 1},
-        {StrideC, 1},
-        NormalizeFunctor{});
+    auto normalize_argument = normalize.MakeArgument(input,
+                                                     output,
+                                                     {M, N},
+                                                     {StrideC, 1},
+                                                     {1, 0},
+                                                     {1, 0},
+                                                     {0, 1},
+                                                     {0, 1},
+                                                     {StrideC, 1},
+                                                     NormalizeFunctor{});
 
     if(!normalize.IsSupportedArgument(normalize_argument))
     {

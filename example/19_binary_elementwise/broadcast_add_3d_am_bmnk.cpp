@@ -78,18 +78,24 @@ int main()
     a_m_device_buf.ToDevice(a_m.mData.data());
     b_m_n_k_device_buf.ToDevice(b_m_n_k.mData.data());
 
+    std::array<const void*, 2> input = {a_m_device_buf.GetDeviceBuffer(),
+                                        b_m_n_k_device_buf.GetDeviceBuffer()};
+    std::array<void*, 1> output      = {c_m_n_k_device_buf.GetDeviceBuffer()};
+
+    std::vector<ck::index_t> a_strides = {1, 0, 0};
+    std::vector<ck::index_t> b_strides{b_m_n_k.mDesc.GetStrides().begin(),
+                                       b_m_n_k.mDesc.GetStrides().end()};
+    std::vector<ck::index_t> c_strides{c_m_n_k.mDesc.GetStrides().begin(),
+                                       c_m_n_k.mDesc.GetStrides().end()};
+
     auto broadcastAdd = DeviceElementwiseAddInstance{};
-    auto argument     = broadcastAdd.MakeArgumentPointer(
-        a_m_device_buf.GetDeviceBuffer(),
-        b_m_n_k_device_buf.GetDeviceBuffer(),
-        c_m_n_k_device_buf.GetDeviceBuffer(),
-        std::vector<ck::index_t>{mnk.begin(), mnk.end()},
-        {1, 0, 0}, // broadcast A on second and third dimension
-        std::vector<ck::index_t>{b_m_n_k.mDesc.GetStrides().begin(),
-                                 b_m_n_k.mDesc.GetStrides().end()},
-        std::vector<ck::index_t>{c_m_n_k.mDesc.GetStrides().begin(),
-                                 c_m_n_k.mDesc.GetStrides().end()},
-        Add{});
+    auto argument =
+        broadcastAdd.MakeArgumentPointer(input,
+                                         output,
+                                         std::vector<ck::index_t>{mnk.begin(), mnk.end()},
+                                         {a_strides, b_strides},
+                                         {c_strides},
+                                         Add{});
 
     if(!broadcastAdd.IsSupportedArgument(argument.get()))
     {
