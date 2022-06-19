@@ -1,4 +1,5 @@
 #pragma once
+
 #include "data_type.hpp"
 #include "math_v2.hpp"
 #include "unary_element_wise_operation.hpp"
@@ -8,18 +9,56 @@ namespace ck {
 namespace tensor_operation {
 namespace element_wise {
 
+// Need to ensure compiler will fail if there is no matching candidate, instead of compiler
+// siliently do implicit type conversion
+//
+// Method 1:
+//
+// struct ExampleElementwiseOp
+// {
+//     template<typename Y, typename X>
+//     __host__ __device__ constexpr void
+//     operator()(Y&, const X) const;
+//
+//     template<>
+//     __host__ __device__ constexpr void
+//     operator()<half_t, half_t>(half_t& y, const half_t& x) const
+//     {
+//     }
+// };
+//
+// Method 2:
+//
+// template <typename Y, typename X>
+// struct ExampleElementwiseOp;
+//
+// template <>
+// struct ExampleElementwiseOp<float, ck::bhalf_t>
+// {
+//     __host__ __device__ void operator()(float& y, ck::bhalf_t& x) const
+//     {
+//     }
+// };
+
 struct AddReluAdd
 {
-    __host__ __device__ constexpr void
-    operator()(half_t& y, const half_t& x0, const half_t& x1, const half_t& x2) const
+    template <typename Y, typename X0, typename X1, typename X2>
+    __host__ __device__ constexpr void operator()(Y&, const X0&, const X1&, const X2&) const;
+
+    template <>
+    __host__ __device__ constexpr void operator()<half_t, half_t, half_t, half_t>(
+        half_t& y, const half_t& x0, const half_t& x1, const half_t& x2) const
     {
         half_t a = x0 + x1;
         half_t b = a > 0 ? a : 0;
         y        = b + x2;
     }
 
-    __host__ __device__ constexpr void
-    operator()(float& y, const float& x0, const float& x1, const float& x2) const
+    template <>
+    __host__ __device__ constexpr void operator()<float, float, float, float>(float& y,
+                                                                              const float& x0,
+                                                                              const float& x1,
+                                                                              const float& x2) const
     {
         float a = x0 + x1;
         float b = a > 0 ? a : 0;
@@ -27,8 +66,9 @@ struct AddReluAdd
         y       = c;
     }
 
-    __host__ __device__ constexpr void
-    operator()(half_t& y, const float& x0, const half_t& x1, const half_t& x2) const
+    template <>
+    __host__ __device__ constexpr void operator()<half_t, float, half_t, half_t>(
+        half_t& y, const float& x0, const half_t& x1, const half_t& x2) const
     {
         float a = x0 + x1;
         float b = a > 0 ? a : 0;
@@ -39,8 +79,14 @@ struct AddReluAdd
 
 struct AddHardswishAdd
 {
-    __host__ __device__ constexpr void
-    operator()(float& y, const float& x0, const float& x1, const float& x2) const
+    template <typename Y, typename X0, typename X1, typename X2>
+    __host__ __device__ constexpr void operator()(Y&, const X0&, const X1&, const X2&) const;
+
+    template <>
+    __host__ __device__ constexpr void operator()<float, float, float, float>(float& y,
+                                                                              const float& x0,
+                                                                              const float& x1,
+                                                                              const float& x2) const
     {
         float a = x0 + x1;
         float b = a + float{3};
@@ -49,8 +95,9 @@ struct AddHardswishAdd
         y       = d;
     }
 
-    __host__ __device__ constexpr void
-    operator()(half_t& y, const half_t& x0, const half_t& x1, const half_t& x2) const
+    template <>
+    __host__ __device__ constexpr void operator()<half_t, half_t, half_t, half_t>(
+        half_t& y, const half_t& x0, const half_t& x1, const half_t& x2) const
     {
         float a = x0 + x1;
         float b = a + float{3};
@@ -60,29 +107,38 @@ struct AddHardswishAdd
     }
 };
 
-struct Relu
+// C = A * B
+// E = FastGelu(C + D0 + D1)
+struct AddAddFastGelu
 {
-    template <typename T>
-    __host__ __device__ void operator()(T& y, const T& x) const
-    {
-        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, half_t>::value || is_same<T, int32_t>::value ||
-                          is_same<T, int8_t>::value,
-                      "Data type is not supported by this operation!");
-        y = x > 0 ? x : 0;
-    }
+    template <typename E, typename C, typename D0, typename D1>
+    __host__ __device__ void operator()(E&, const C&, const D0&, const D1&) const;
 
     template <>
-    __host__ __device__ void operator()(bhalf_t& y, const bhalf_t& x) const
+    __host__ __device__ void operator()<half_t, float, half_t, half_t>(half_t& e,
+                                                                       const float& c,
+                                                                       const half_t& d0,
+                                                                       const half_t& d1) const
     {
-        float x_f32 = ck::type_convert<float>(x);
-        float y_f32 = x_f32 > 0 ? x_f32 : 0;
-        y           = ck::type_convert<bhalf_t>(y_f32);
+        // Fast GeLU
+        // https://paperswithcode.com/method/gelu
+        // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
+        const auto fast_gelu = [&](float x) {
+            const float u   = float(2) * x * (float(0.035677) * x * x + float(0.797885));
+            const float emu = exp(-u);
+            const float cdf = float(0.5) + float(0.5) * (float(2) / (float(1) + emu) - float(1));
+            return x * cdf;
+        };
+
+        const float y = fast_gelu(c + float(d0) + float(d1));
+
+        e = type_convert<half_t>(y);
     }
 };
 
 struct Normalize
 {
+    // FIXME: is double absolutely necessary?
     Normalize(double epsilon = 1e-4) : epsilon_(epsilon) {}
 
     template <typename T>
@@ -117,6 +173,7 @@ struct Normalize
         y               = ((x - mean) / sqrt(variance + epsilon_)) * gamma + beta;
     };
 
+    // FIXME: is double absolutely necessary?
     double epsilon_;
 };
 
@@ -129,7 +186,7 @@ struct UnaryTypeConvert<float, ck::bhalf_t>
     __host__ __device__ void operator()(float& y, ck::bhalf_t& x) const
     {
         y = ck::type_convert<float, ck::bhalf_t>(x);
-    };
+    }
 };
 
 template <>
@@ -138,7 +195,7 @@ struct UnaryTypeConvert<ck::bhalf_t, float>
     __host__ __device__ void operator()(ck::bhalf_t& y, float& x) const
     {
         y = ck::type_convert<ck::bhalf_t, float>(x);
-    };
+    }
 };
 
 } // namespace element_wise

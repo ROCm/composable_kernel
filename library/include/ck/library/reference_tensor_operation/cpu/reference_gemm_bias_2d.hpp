@@ -66,8 +66,8 @@ struct ReferenceGemmBias2D : public device::BaseOperator
 
                 for(int k = 0; k < K; ++k)
                 {
-                    arg.a_element_op_(a, static_cast<AccDataType>(arg.a_m_k_(m, k)));
-                    arg.b_element_op_(b, static_cast<AccDataType>(arg.b_k_n_(k, n)));
+                    arg.a_element_op_(a, ck::type_convert<AccDataType>(arg.a_m_k_(m, k)));
+                    arg.b_element_op_(b, ck::type_convert<AccDataType>(arg.b_k_n_(k, n)));
                     acc += a * b;
                 }
 
