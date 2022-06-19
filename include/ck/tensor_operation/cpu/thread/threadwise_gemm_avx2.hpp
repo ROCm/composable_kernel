@@ -855,7 +855,7 @@ struct ThreadwiseGemmAvx2_MxN_4x24
 
             ".if m_TransA != 0\n"
             "               lea    m_ABytes(%%rax),    %%rax\n"
-            ".if m_Mr > 3\n lea    m_ABytes(%%r8),     %%r8\n    .endif\n"
+            ".if m_Mr > 2\n lea    m_ABytes(%%r8),     %%r8\n    .endif\n"
             ".else\n"
             "               lea     (%%rax, %%rcx, 1),  %%rax\n"
             "               lea     (%%r8, %%rcx, 1),  %%r8\n"

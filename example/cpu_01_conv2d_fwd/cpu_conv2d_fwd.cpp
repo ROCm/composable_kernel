@@ -10,6 +10,7 @@
 #include "reference_conv_fwd.hpp"
 #include "element_wise_operation_cpu.hpp"
 #include "dynamic_buffer_cpu.hpp"
+#include "envvar.hpp"
 #include <omp.h>
 
 #define AVX2_DATA_ALIGNMENT 32
@@ -91,6 +92,10 @@ void add_device_conv2d_fwd_avx2_nhwc_yxck_nhwk_local_c_relu(
 
 void add_device_conv2d_fwd_avx2_nhwc_yxck_nhwk_mt_relu(
     std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, Relu>>& instances);
+
+// ------------------ direct-conv nhwc-kcyxk8-nhwk
+void add_device_conv2d_direct_fwd_avx2_nhwc_kyxck8_nhwk(
+    std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>>& instances);
 
 } // namespace device_conv2d_fwd_avx2_instance
 } // namespace device
@@ -501,6 +506,8 @@ int main(int argc, char* argv[])
                     ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
                         add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_local_c(conv_ptrs);
             }
+            ck::tensor_operation::cpu::device::device_conv2d_fwd_avx2_instance::
+                add_device_conv2d_direct_fwd_avx2_nhwc_kyxck8_nhwk(conv_ptrs);
 #endif
 #if TEST_FUSION == TEST_FUSION_RELU
             if(omp_get_max_threads() > 1)
@@ -571,6 +578,7 @@ int main(int argc, char* argv[])
         double fastest_kernel_time      = std::numeric_limits<double>::max();
         std::string fastest_kernel_name = "";
         double fastest_kernel_gflops    = 0;
+        int loop                        = ck::getenv_int("CK_LOOP", 10);
         for(auto& conv_ptr : conv_ptrs)
         {
             auto argument_ptr = conv_ptr->MakeArgumentPointer(
@@ -594,7 +602,7 @@ int main(int argc, char* argv[])
             if(conv_ptr->IsSupportedArgument(argument_ptr.get()))
             {
                 auto invoker_ptr = conv_ptr->MakeInvokerPointer();
-                double time      = invoker_ptr->Run(argument_ptr.get(), StreamConfig{}, 10);
+                double time      = invoker_ptr->Run(argument_ptr.get(), StreamConfig{}, loop);
 
                 double total_flop = static_cast<double>(2) * N * C * Ho * Wo * K * Y * X;
 

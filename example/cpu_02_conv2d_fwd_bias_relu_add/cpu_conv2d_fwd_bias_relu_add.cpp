@@ -11,6 +11,7 @@
 #include "reference_conv_fwd_bias_activation.hpp"
 #include "element_wise_operation_cpu.hpp"
 #include "dynamic_buffer_cpu.hpp"
+#include "envvar.hpp"
 #include <omp.h>
 
 #define AVX2_DATA_ALIGNMENT 32
@@ -713,6 +714,7 @@ int main(int argc, char* argv[])
         double fastest_kernel_time      = std::numeric_limits<double>::max();
         std::string fastest_kernel_name = "";
         double fastest_kernel_gflops    = 0;
+        int loop                        = ck::getenv_int("CK_LOOP", 10);
         for(auto& conv_ptr : conv_ptrs)
         {
             auto argument_ptr = conv_ptr->MakeArgumentPointer(
@@ -738,7 +740,7 @@ int main(int argc, char* argv[])
             if(conv_ptr->IsSupportedArgument(argument_ptr.get()))
             {
                 auto invoker_ptr = conv_ptr->MakeInvokerPointer();
-                double time      = invoker_ptr->Run(argument_ptr.get(), StreamConfig{}, 10);
+                double time      = invoker_ptr->Run(argument_ptr.get(), StreamConfig{}, loop);
 
                 double total_flop = static_cast<double>(2) * N * C * Ho * Wo * K * Y * X;
 
