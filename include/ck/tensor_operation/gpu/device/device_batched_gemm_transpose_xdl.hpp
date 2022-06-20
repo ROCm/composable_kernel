@@ -5,7 +5,7 @@
 #include <sstream>
 #include "device.hpp"
 #include "device_base.hpp"
-#include "device_batched_gemm.hpp"
+#include "device_batched_gemm_c_permutation.hpp"
 #include "common_header.hpp"
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
@@ -39,7 +39,7 @@ namespace device {
  *
  * \note \p Block2CTileMap allows customized mapping between a workgroup and the C-tile it computes.
  * Together with \p ComputePtrOffsetOfBatch, we can reuse GridwiseGemm (and GridwiseGemm fusion ) to
- * realize BatchedGemmTranspose and GroupedGemm (and the corresponding GEMM fusion).
+ * realize BatchedGemmCPermutation and GroupedGemm (and the corresponding GEMM fusion).
  *
  */
 template <typename GridwiseGemm,
@@ -159,7 +159,7 @@ template <typename ADataType,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
           ck::index_t NumPrefetch = 1,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
-struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElementwiseOperation,
+struct DeviceBatchedGemmCPermutationXdl : public DeviceBatchedGemmCPermutation<AElementwiseOperation,
                                                                          BElementwiseOperation,
                                                                          CElementwiseOperation>
 {
@@ -391,11 +391,11 @@ struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElemen
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
               BatchCount_(BatchCount),
-              a_grid_desc_k0_m_k1_{DeviceBatchedGemmTransposeXdl::MakeAGridDescriptor_K0_M_K1(
+              a_grid_desc_k0_m_k1_{DeviceBatchedGemmCPermutationXdl::MakeAGridDescriptor_K0_M_K1(
                   gemm_transpose_desc.M_, gemm_transpose_desc.K_, gemm_transpose_desc.stride_A_)},
-              b_grid_desc_k0_n_k1_{DeviceBatchedGemmTransposeXdl::MakeBGridDescriptor_K0_N_K1(
+              b_grid_desc_k0_n_k1_{DeviceBatchedGemmCPermutationXdl::MakeBGridDescriptor_K0_N_K1(
                   gemm_transpose_desc.K_, gemm_transpose_desc.N_, gemm_transpose_desc.stride_B_)},
-              c_grid_desc_m_n_{DeviceBatchedGemmTransposeXdl::MakeCGridDescriptor_M_N(
+              c_grid_desc_m_n_{DeviceBatchedGemmCPermutationXdl::MakeCGridDescriptor_M_N(
                   gemm_transpose_desc.M0_,
                   gemm_transpose_desc.M1_,
                   gemm_transpose_desc.N0_,
@@ -455,7 +455,7 @@ struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElemen
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        using Argument = DeviceBatchedGemmTransposeXdl::Argument;
+        using Argument = DeviceBatchedGemmCPermutationXdl::Argument;
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
@@ -478,7 +478,7 @@ struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElemen
                                             arg.block_2_ctile_map_))
             {
                 throw std::runtime_error(
-                    "wrong! GridwiseBatchedGemmTranspose_km_kn_m0m1n0n1_xdlops_v2r3 has invalid "
+                    "wrong! GridwiseBatchedGemmCPermutation_km_kn_m0m1n0n1_xdlops_v2r3 has invalid "
                     "setting");
             }
 
@@ -496,8 +496,8 @@ struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElemen
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<DeviceBatchedGemmTransposeXdl::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceBatchedGemmTransposeXdl::BGridDesc_K0_N_K1>,
+                    remove_reference_t<DeviceBatchedGemmCPermutationXdl::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceBatchedGemmCPermutationXdl::BGridDesc_K0_N_K1>,
                     typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     AElementwiseOperation,
                     BElementwiseOperation,
@@ -530,8 +530,8 @@ struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElemen
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    remove_reference_t<DeviceBatchedGemmTransposeXdl::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceBatchedGemmTransposeXdl::BGridDesc_K0_N_K1>,
+                    remove_reference_t<DeviceBatchedGemmCPermutationXdl::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceBatchedGemmCPermutationXdl::BGridDesc_K0_N_K1>,
                     typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     AElementwiseOperation,
                     BElementwiseOperation,
@@ -647,7 +647,7 @@ struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElemen
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceBatchedGemmTransposeXdl"
+        str << "DeviceBatchedGemmCPermutationXdl"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

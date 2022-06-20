@@ -11,7 +11,7 @@ namespace device {
 template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
-struct DeviceBatchedGemmTranspose : public BaseOperator
+struct DeviceBatchedGemmCPermutation : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
                                                               const void* p_b,
@@ -28,8 +28,8 @@ struct DeviceBatchedGemmTranspose : public BaseOperator
 template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
-using DeviceBatchedGemmTransposePtr =
-    std::unique_ptr<DeviceBatchedGemmTranspose<AElementwiseOperation,
+using DeviceBatchedGemmCPermutationPtr =
+    std::unique_ptr<DeviceBatchedGemmCPermutation<AElementwiseOperation,
                                                BElementwiseOperation,
                                                CElementwiseOperation>>;
 
