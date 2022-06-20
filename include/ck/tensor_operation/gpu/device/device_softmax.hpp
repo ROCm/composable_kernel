@@ -39,7 +39,7 @@ struct DeviceSoftmax : public BaseOperator
                                              OutDataType,
                                              Rank,
                                              NumReduceDim,
-                                             reduce::Add<AccDataType>,
+                                             reduce::Add,
                                              PassThrough, // InElementwiseOperation
                                              PassThrough, // AccElementwiseOperation
                                              InMemoryDataOperationEnum::Set,
