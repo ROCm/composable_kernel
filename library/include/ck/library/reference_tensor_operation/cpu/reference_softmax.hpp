@@ -11,10 +11,7 @@ namespace ck {
 namespace tensor_operation {
 namespace host {
 
-template <typename InDataType,
-          typename OutDataType,
-          typename AccDataType,
-          typename ScalarDataType> // alpha, beta
+template <typename InDataType, typename OutDataType, typename AccDataType>
 struct ReferenceSoftmax : public device::BaseOperator
 {
     // Argument
@@ -22,8 +19,8 @@ struct ReferenceSoftmax : public device::BaseOperator
     {
         Argument(const Tensor<InDataType>& in,
                  Tensor<OutDataType>& out,
-                 ScalarDataType alpha,
-                 ScalarDataType beta,
+                 AccDataType alpha,
+                 AccDataType beta,
                  const index_t rank,
                  const std::vector<index_t> sm_reduce_dims)
             : in_(in), out_(out), alpha_(alpha), beta_(beta), sm_reduce_dims_(sm_reduce_dims)
@@ -43,8 +40,8 @@ struct ReferenceSoftmax : public device::BaseOperator
 
         const Tensor<InDataType>& in_;
         Tensor<OutDataType>& out_;
-        ScalarDataType alpha_;
-        ScalarDataType beta_;
+        AccDataType alpha_;
+        AccDataType beta_;
         index_t rank_;
         std::vector<index_t> sm_reduce_dims_;
         std::vector<index_t> sm_scalar_dims_; // dim after internal max/sum reduction
@@ -132,8 +129,8 @@ struct ReferenceSoftmax : public device::BaseOperator
 
     static auto MakeArgument(const Tensor<InDataType>& in,
                              Tensor<OutDataType>& out,
-                             ScalarDataType alpha,
-                             ScalarDataType beta,
+                             AccDataType alpha,
+                             AccDataType beta,
                              const index_t rank,
                              const std::vector<index_t> sm_reduce_dims)
     {

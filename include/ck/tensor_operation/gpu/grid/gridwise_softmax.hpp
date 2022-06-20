@@ -41,15 +41,14 @@ template <typename GridwiseReduction,
           typename InDataType,
           typename OutDataType,
           typename AccDataType,
-          typename ScalarDataType,
           typename GridDesc_M_K>
 __global__ void kernel_softmax(const GridDesc_M_K in_grid_desc_m_k,
                                const GridDesc_M_K out_grid_desc_m_k,
                                index_t block_group_size,
                                index_t num_k_block_tile_iteration,
-                               ScalarDataType alpha,
+                               AccDataType alpha,
                                const InDataType* const __restrict__ p_in_value_global,
-                               ScalarDataType beta,
+                               AccDataType beta,
                                OutDataType* const __restrict__ p_out_value_global)
 {
     GridwiseReduction::Run(in_grid_desc_m_k,
@@ -65,7 +64,6 @@ __global__ void kernel_softmax(const GridDesc_M_K in_grid_desc_m_k,
 template <typename InDataType,
           typename OutDataType,
           typename AccDataType,
-          typename ScalarDataType,
           typename GridDesc_M_K,
           index_t BlockSize,
           index_t MThreadClusterSize,
@@ -125,9 +123,9 @@ struct GridwiseSoftmax_mk_to_mk
                                const GridDesc_M_K& out_grid_desc_m_k,
                                index_t block_group_size,
                                index_t num_k_block_tile_iteration,
-                               ScalarDataType alpha,
+                               AccDataType alpha,
                                const InDataType* const __restrict__ p_in_value_global,
-                               ScalarDataType beta,
+                               AccDataType beta,
                                OutDataType* const __restrict__ p_out_value_global)
     {
         // LDS
@@ -343,8 +341,7 @@ struct GridwiseSoftmax_mk_to_mk
                         constexpr auto offset =
                             thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
                         out_thread_buf(Number<offset>{}) =
-                            static_cast<AccDataType>(alpha) *
-                            math::exp(in_thread_buf(Number<offset>{}) - max_value_buf(iM)) /
+                            alpha * math::exp(in_thread_buf(Number<offset>{}) - max_value_buf(iM)) /
                             accu_value_buf(iM);
                     });
                 });
@@ -381,10 +378,9 @@ struct GridwiseSoftmax_mk_to_mk
                         constexpr auto offset =
                             thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
                         out_thread_buf(Number<offset>{}) =
-                            static_cast<AccDataType>(alpha) *
-                                math::exp(in_thread_buf(Number<offset>{}) - max_value_buf(iM)) /
+                            alpha * math::exp(in_thread_buf(Number<offset>{}) - max_value_buf(iM)) /
                                 accu_value_buf(iM) +
-                            static_cast<AccDataType>(beta) * out_thread_buf(Number<offset>{});
+                            beta * out_thread_buf(Number<offset>{});
                     });
                 });
 

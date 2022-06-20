@@ -22,25 +22,23 @@ class TestSoftmax : public ::testing::Test
     using InDataType                            = std::tuple_element_t<0, Tuple>;
     using AccDataType                           = std::tuple_element_t<1, Tuple>;
     using OutDataType                           = std::tuple_element_t<2, Tuple>;
-    using ScalarDataType                        = std::tuple_element_t<3, Tuple>;
-    static constexpr index_t Rank               = std::tuple_element_t<4, Tuple>{}.value;
-    static constexpr index_t NumReduceDim       = std::tuple_element_t<5, Tuple>{}.value;
-    static constexpr index_t BlockSize          = std::tuple_element_t<6, Tuple>{}.value;
-    static constexpr index_t MThreadClusterSize = std::tuple_element_t<7, Tuple>{}.value;
-    static constexpr index_t KThreadClusterSize = std::tuple_element_t<8, Tuple>{}.value;
-    static constexpr index_t MThreadSliceSize   = std::tuple_element_t<9, Tuple>{}.value;
-    static constexpr index_t KThreadSliceSize   = std::tuple_element_t<10, Tuple>{}.value;
-    static constexpr index_t InSrcVectorDim     = std::tuple_element_t<11, Tuple>{}.value;
-    static constexpr index_t InSrcVectorSize    = std::tuple_element_t<12, Tuple>{}.value;
-    static constexpr index_t OutDstVectorSize   = std::tuple_element_t<13, Tuple>{}.value;
+    static constexpr index_t Rank               = std::tuple_element_t<3, Tuple>{}.value;
+    static constexpr index_t NumReduceDim       = std::tuple_element_t<4, Tuple>{}.value;
+    static constexpr index_t BlockSize          = std::tuple_element_t<5, Tuple>{}.value;
+    static constexpr index_t MThreadClusterSize = std::tuple_element_t<6, Tuple>{}.value;
+    static constexpr index_t KThreadClusterSize = std::tuple_element_t<7, Tuple>{}.value;
+    static constexpr index_t MThreadSliceSize   = std::tuple_element_t<8, Tuple>{}.value;
+    static constexpr index_t KThreadSliceSize   = std::tuple_element_t<9, Tuple>{}.value;
+    static constexpr index_t InSrcVectorDim     = std::tuple_element_t<10, Tuple>{}.value;
+    static constexpr index_t InSrcVectorSize    = std::tuple_element_t<11, Tuple>{}.value;
+    static constexpr index_t OutDstVectorSize   = std::tuple_element_t<12, Tuple>{}.value;
 
-    using ReferenceInstance = tensor_operation::host::
-        ReferenceSoftmax<InDataType, OutDataType, AccDataType, ScalarDataType>;
+    using ReferenceInstance =
+        tensor_operation::host::ReferenceSoftmax<InDataType, OutDataType, AccDataType>;
 
     using DeviceInstance = tensor_operation::device::DeviceSoftmax<InDataType,
                                                                    AccDataType,
                                                                    OutDataType,
-                                                                   ScalarDataType,
                                                                    Rank,
                                                                    NumReduceDim,
                                                                    BlockSize,
@@ -54,7 +52,7 @@ class TestSoftmax : public ::testing::Test
 
     TestSoftmax() : ref_instance_invoker_(ReferenceInstance{}.MakeInvoker()) {}
 
-    void RunSingle(std::vector<index_t> in_length, ScalarDataType alpha, ScalarDataType beta)
+    void RunSingle(std::vector<index_t> in_length, AccDataType alpha, AccDataType beta)
     {
         std::vector<index_t> reduce_dims(NumReduceDim);
         std::iota(reduce_dims.begin(), reduce_dims.end(), Rank - NumReduceDim);
@@ -112,32 +110,32 @@ class TestSoftmax : public ::testing::Test
     }
 
     std::vector<std::vector<index_t>> in_lengths_ = {{1, 8, 128}, {2, 128, 1024}, {3, 9, 1032}};
-    std::vector<std::tuple<ScalarDataType, ScalarDataType>> scales_ = {{1, 0}, {2, 2}, {0, 1}};
+    std::vector<std::tuple<AccDataType, AccDataType>> scales_ = {{1, 0}, {2, 2}, {0, 1}};
 
     typename ReferenceInstance::Invoker ref_instance_invoker_;
 };
 
 // clang-format off
 using KernelTypes = ::testing::Types<
-// InDataType, AccDataType, OutDataType, ScalarDataType, Rank, NumReduceDim, BlockSize, MThreadClusterSize, KThreadClusterSize, MThreadSliceSize, KThreadSliceSize, InSrcVectorDim, InSrcVectorSize, OutDstVectorSize>
+// InDataType, AccDataType, OutDataType, Rank, NumReduceDim, BlockSize, MThreadClusterSize, KThreadClusterSize, MThreadSliceSize, KThreadSliceSize, InSrcVectorDim, InSrcVectorSize, OutDstVectorSize>
     // FP16
-    std::tuple<ck::half_t, float, ck::half_t, float, I<3>, I<1>, I<256>, I<8>, I<32>, I<1>, I<8>, I<1>, I<8>, I<8>>,
-    std::tuple<ck::half_t, float, ck::half_t, float, I<3>, I<1>, I<256>, I<4>, I<64>, I<1>, I<8>, I<1>, I<8>, I<8>>,
-    std::tuple<ck::half_t, float, ck::half_t, float, I<3>, I<1>, I<256>, I<2>, I<128>, I<1>, I<8>, I<1>, I<8>, I<8>>,
-    std::tuple<ck::half_t, float, ck::half_t, float, I<3>, I<1>, I<256>, I<1>, I<256>, I<1>, I<8>, I<1>, I<8>, I<8>>,
-    std::tuple<ck::half_t, float, ck::half_t, float, I<3>, I<2>, I<256>, I<8>, I<32>, I<1>, I<8>, I<1>, I<8>, I<8>>,
-    std::tuple<ck::half_t, float, ck::half_t, float, I<3>, I<2>, I<256>, I<4>, I<64>, I<1>, I<8>, I<1>, I<8>, I<8>>,
-    std::tuple<ck::half_t, float, ck::half_t, float, I<3>, I<2>, I<256>, I<2>, I<128>, I<1>, I<8>, I<1>, I<8>, I<8>>,
-    std::tuple<ck::half_t, float, ck::half_t, float, I<3>, I<2>, I<256>, I<1>, I<256>, I<1>, I<8>, I<1>, I<8>, I<8>>,
+    std::tuple<ck::half_t, float, ck::half_t, I<3>, I<1>, I<256>, I<8>, I<32>, I<1>, I<8>, I<1>, I<8>, I<8>>,
+    std::tuple<ck::half_t, float, ck::half_t, I<3>, I<1>, I<256>, I<4>, I<64>, I<1>, I<8>, I<1>, I<8>, I<8>>,
+    std::tuple<ck::half_t, float, ck::half_t, I<3>, I<1>, I<256>, I<2>, I<128>, I<1>, I<8>, I<1>, I<8>, I<8>>,
+    std::tuple<ck::half_t, float, ck::half_t, I<3>, I<1>, I<256>, I<1>, I<256>, I<1>, I<8>, I<1>, I<8>, I<8>>,
+    std::tuple<ck::half_t, float, ck::half_t, I<3>, I<2>, I<256>, I<8>, I<32>, I<1>, I<8>, I<1>, I<8>, I<8>>,
+    std::tuple<ck::half_t, float, ck::half_t, I<3>, I<2>, I<256>, I<4>, I<64>, I<1>, I<8>, I<1>, I<8>, I<8>>,
+    std::tuple<ck::half_t, float, ck::half_t, I<3>, I<2>, I<256>, I<2>, I<128>, I<1>, I<8>, I<1>, I<8>, I<8>>,
+    std::tuple<ck::half_t, float, ck::half_t, I<3>, I<2>, I<256>, I<1>, I<256>, I<1>, I<8>, I<1>, I<8>, I<8>>,
     // FP32
-    std::tuple<float, float, float, float, I<3>, I<1>, I<256>, I<8>, I<32>, I<1>, I<4>, I<1>, I<4>, I<4>>,
-    std::tuple<float, float, float, float, I<3>, I<1>, I<256>, I<4>, I<64>, I<1>, I<4>, I<1>, I<4>, I<4>>,
-    std::tuple<float, float, float, float, I<3>, I<1>, I<256>, I<2>, I<128>, I<1>, I<4>, I<1>, I<4>, I<4>>,
-    std::tuple<float, float, float, float, I<3>, I<1>, I<256>, I<1>, I<256>, I<1>, I<4>, I<1>, I<4>, I<4>>,
-    std::tuple<float, float, float, float, I<3>, I<2>, I<256>, I<8>, I<32>, I<1>, I<4>, I<1>, I<4>, I<4>>,
-    std::tuple<float, float, float, float, I<3>, I<2>, I<256>, I<4>, I<64>, I<1>, I<4>, I<1>, I<4>, I<4>>,
-    std::tuple<float, float, float, float, I<3>, I<2>, I<256>, I<2>, I<128>, I<1>, I<4>, I<1>, I<4>, I<4>>,
-    std::tuple<float, float, float, float, I<3>, I<2>, I<256>, I<1>, I<256>, I<1>, I<4>, I<1>, I<4>, I<4>>
+    std::tuple<float, float, float, I<3>, I<1>, I<256>, I<8>, I<32>, I<1>, I<4>, I<1>, I<4>, I<4>>,
+    std::tuple<float, float, float, I<3>, I<1>, I<256>, I<4>, I<64>, I<1>, I<4>, I<1>, I<4>, I<4>>,
+    std::tuple<float, float, float, I<3>, I<1>, I<256>, I<2>, I<128>, I<1>, I<4>, I<1>, I<4>, I<4>>,
+    std::tuple<float, float, float, I<3>, I<1>, I<256>, I<1>, I<256>, I<1>, I<4>, I<1>, I<4>, I<4>>,
+    std::tuple<float, float, float, I<3>, I<2>, I<256>, I<8>, I<32>, I<1>, I<4>, I<1>, I<4>, I<4>>,
+    std::tuple<float, float, float, I<3>, I<2>, I<256>, I<4>, I<64>, I<1>, I<4>, I<1>, I<4>, I<4>>,
+    std::tuple<float, float, float, I<3>, I<2>, I<256>, I<2>, I<128>, I<1>, I<4>, I<1>, I<4>, I<4>>,
+    std::tuple<float, float, float, I<3>, I<2>, I<256>, I<1>, I<256>, I<1>, I<4>, I<1>, I<4>, I<4>>
     >;
 // clang-format on
 TYPED_TEST_SUITE(TestSoftmax, KernelTypes);

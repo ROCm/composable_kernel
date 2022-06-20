@@ -19,7 +19,6 @@ namespace device {
 template <typename InDataType,
           typename AccDataType,
           typename OutDataType,
-          typename ScalarDataType,
           index_t Rank,
           index_t NumReduceDim,
           index_t BlockSize,
@@ -61,7 +60,6 @@ struct DeviceSoftmax : public BaseOperator
     using GridwiseReduce = GridwiseSoftmax_mk_to_mk<InDataType,
                                                     OutDataType,
                                                     AccDataType,
-                                                    ScalarDataType,
                                                     GridDesc_M_K,
                                                     BlockSize,
                                                     MThreadClusterSize,
@@ -77,8 +75,8 @@ struct DeviceSoftmax : public BaseOperator
         Argument(const std::vector<index_t> inLengths,
                  const std::vector<index_t> inStrides,
                  const std::vector<index_t> reduceDims,
-                 ScalarDataType alpha,
-                 ScalarDataType beta,
+                 AccDataType alpha,
+                 AccDataType beta,
                  const InDataType* in_dev,
                  OutDataType* out_dev)
             : Reduction::Argument(inLengths,
@@ -106,8 +104,8 @@ struct DeviceSoftmax : public BaseOperator
             //           std::endl;
         }
 
-        ScalarDataType alpha_;
-        ScalarDataType beta_;
+        AccDataType alpha_;
+        AccDataType beta_;
     };
 
     struct Invoker : public BaseInvoker
@@ -119,12 +117,8 @@ struct DeviceSoftmax : public BaseOperator
             const auto out_grid_desc_m_k = Reduction::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
 
-            const auto kernel_main = kernel_softmax<GridwiseReduce,
-                                                    InDataType,
-                                                    OutDataType,
-                                                    AccDataType,
-                                                    ScalarDataType,
-                                                    GridDesc_M_K>;
+            const auto kernel_main =
+                kernel_softmax<GridwiseReduce, InDataType, OutDataType, AccDataType, GridDesc_M_K>;
 
             float avg_time = 0;
 
@@ -172,8 +166,8 @@ struct DeviceSoftmax : public BaseOperator
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<index_t> inLengths,
                                                       const std::vector<index_t> inStrides,
                                                       const std::vector<int> reduceDims,
-                                                      ScalarDataType alpha,
-                                                      ScalarDataType beta,
+                                                      AccDataType alpha,
+                                                      AccDataType beta,
                                                       const void* in_dev,
                                                       void* out_dev)
     {

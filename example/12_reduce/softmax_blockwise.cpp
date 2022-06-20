@@ -22,10 +22,9 @@
 using namespace ck;
 using namespace ck::tensor_operation::device;
 
-using InDataType     = ck::half_t;
-using OutDataType    = ck::half_t;
-using AccDataType    = float;
-using ScalarDataType = float;
+using InDataType  = ck::half_t;
+using OutDataType = ck::half_t;
+using AccDataType = float;
 
 constexpr int Rank         = 3;
 constexpr int NumReduceDim = 1;
@@ -33,7 +32,6 @@ constexpr int NumReduceDim = 1;
 using DeviceInstance = DeviceSoftmax<InDataType,
                                      AccDataType,
                                      OutDataType,
-                                     ScalarDataType,
                                      Rank,
                                      NumReduceDim,
                                      256, // BlockSize
@@ -56,8 +54,8 @@ class SimpleAppArgs
     int option_index = 0;
 
     public:
-    std::vector<size_t> inLengths      = {8, 128, 2048};
-    std::vector<ScalarDataType> scales = {2.0f, 2.0f};
+    std::vector<size_t> inLengths   = {8, 128, 2048};
+    std::vector<AccDataType> scales = {2.0f, 2.0f};
 
     bool do_verification = true;
     int init_method      = 2;
@@ -151,8 +149,8 @@ int main(int argc, char* argv[])
     auto inStrides  = in.mDesc.GetStrides();
     auto outStrides = out.mDesc.GetStrides();
 
-    ScalarDataType alpha = args.scales[0];
-    ScalarDataType beta  = args.scales[1];
+    AccDataType alpha = args.scales[0];
+    AccDataType beta  = args.scales[1];
 
     std::size_t num_thread = 1;
 
@@ -196,8 +194,8 @@ int main(int argc, char* argv[])
 
     if(args.do_verification)
     {
-        using ReferenceInstance = tensor_operation::host::
-            ReferenceSoftmax<InDataType, OutDataType, AccDataType, ScalarDataType>;
+        using ReferenceInstance =
+            tensor_operation::host::ReferenceSoftmax<InDataType, OutDataType, AccDataType>;
         ReferenceInstance ref;
         auto ref_arg = ref.MakeArgument(in, out_ref, alpha, beta, Rank, reduceDims);
         auto invoker = ref.MakeInvoker();
