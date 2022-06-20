@@ -4,7 +4,7 @@
 #include <sstream>
 #include "device.hpp"
 #include "device_base.hpp"
-#include "device_grouped_gemm_bias_transpose.hpp"
+#include "device_grouped_gemm_bias_c_permutation.hpp"
 #include "common_header.hpp"
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
@@ -73,17 +73,18 @@ __global__ void
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
-template <typename ADataType,
+template <typename ALayout,
+          typename BLayout,
+          typename ADataType,
           typename BDataType,
           typename DDataType,
           typename EDataType,
           typename AccDataType,
-          typename ALayout,
-          typename BLayout,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           GemmSpecialization GemmSpec,
+          ck::index_t NumPrefetch,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -112,7 +113,6 @@ template <typename ADataType,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
-          ck::index_t NumPrefetch = 1,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
 struct DeviceGroupedGemmBiasCPermuteXdl
     : public DeviceGroupedGemmBiasCPermute<AElementwiseOperation,
@@ -255,7 +255,7 @@ struct DeviceGroupedGemmBiasCPermuteXdl
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
         EDataType,            // CShuffleDataType,
-        ck::Tuple<EDataType>, // DsDataType,
+        ck::Tuple<DDataType>, // DsDataType,
         EDataType,            // EDataType,
         AElementwiseOperation,
         BElementwiseOperation,
