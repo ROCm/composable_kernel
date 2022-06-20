@@ -94,7 +94,7 @@ TEST(Conv3DFwdNDHWC, IntegerValues)
         3, 4, 256, 64, {3, 3, 3}, {18, 18, 18}, {1, 1, 1}, {2, 2, 2}, {2, 2, 2}, {2, 2, 2}};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
-    test::conv::get_test_convolution_fwd_instance<3, T, T, T>(conv_ptrs);
+    test::conv::get_test_convolution_fwd_instance<3, T, T, T, T>(conv_ptrs);
     conv::ConvFwdOpInstance<T,
                             T,
                             T,
@@ -130,7 +130,7 @@ TEST(Conv3DFwdNDHWC, FloatingPointValues)
         3, 4, 256, 64, {3, 3, 3}, {18, 18, 18}, {1, 1, 1}, {2, 2, 2}, {2, 2, 2}, {2, 2, 2}};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
-    test::conv::get_test_convolution_fwd_instance<3, T, T, T>(conv_ptrs);
+    test::conv::get_test_convolution_fwd_instance<3, T, T, T, float>(conv_ptrs);
     conv::ConvFwdOpInstance<T,
                             T,
                             T,
@@ -172,7 +172,7 @@ TEST(Conv3DFwdNDHWC, InputOver2GB)
     params.input_right_pads_       = std::vector<ck::index_t>{1, 1, 1};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
-    test::conv::get_test_convolution_fwd_instance<3, T, T, T>(conv_ptrs);
+    test::conv::get_test_convolution_fwd_instance<3, T, T, T, T>(conv_ptrs);
     auto arg = conv_ptrs.back()->MakeArgumentPointer(nullptr,
                                                      nullptr,
                                                      nullptr,
@@ -212,7 +212,7 @@ TEST(Conv3DFwdNDHWC, FiltersOver2GB)
     params.input_right_pads_       = std::vector<ck::index_t>{1, 1, 1};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
-    test::conv::get_test_convolution_fwd_instance<3, T, T, T>(conv_ptrs);
+    test::conv::get_test_convolution_fwd_instance<3, T, T, T, T>(conv_ptrs);
     auto arg = conv_ptrs.back()->MakeArgumentPointer(nullptr,
                                                      nullptr,
                                                      nullptr,
@@ -252,7 +252,7 @@ TEST(Conv3DFwdNDHWC, OutputOver2GB)
     params.input_right_pads_       = std::vector<ck::index_t>{2, 2, 2};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
-    test::conv::get_test_convolution_fwd_instance<3, T, T, T>(conv_ptrs);
+    test::conv::get_test_convolution_fwd_instance<3, T, T, T, T>(conv_ptrs);
     auto arg = conv_ptrs.back()->MakeArgumentPointer(nullptr,
                                                      nullptr,
                                                      nullptr,

@@ -141,7 +141,6 @@ class OpInstanceRunEngine
                               bool do_verification = false,
                               bool do_log          = false)
     {
-        bool res{true};
         ProfileBestConfig best_config;
 
         for(auto& op_ptr : op_ptrs)
@@ -162,7 +161,7 @@ class OpInstanceRunEngine
                 std::cout << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec
                           << " GB/s, " << op_name << std::endl;
 
-                if(tflops < best_config.best_tflops)
+                if(avg_time < best_config.best_avg_time)
                 {
                     best_config.best_op_name    = op_name;
                     best_config.best_tflops     = tflops;
@@ -180,7 +179,7 @@ class OpInstanceRunEngine
                             " You have to provide reference function.");
                     }
                     // TODO: enable flexible use of custom check_error functions
-                    res = res && CheckErr(out_tensor_->mData, ref_output_->mData);
+                    CheckErr(out_tensor_->mData, ref_output_->mData);
 
                     if(do_log) {}
                 }
@@ -238,3 +237,11 @@ class OpInstanceRunEngine
 
 } // namespace utils
 } // namespace ck
+
+std::ostream& operator<<(std::ostream& os, const ck::utils::ProfileBestConfig& c)
+{
+    os << "Profiler best config: "
+       << "\nOp name: " << c.best_op_name << "\nAvg time: " << c.best_avg_time
+       << "\nTFlops: " << c.best_tflops << "\nGB/s: " << c.best_gb_per_sec;
+    return os;
+}

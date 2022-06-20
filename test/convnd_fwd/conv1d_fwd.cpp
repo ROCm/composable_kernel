@@ -91,7 +91,7 @@ TEST(Conv1DFwdNWC, IntegerValues)
     ck::utils::conv::ConvParams params{1, 4, 256, 64, {3}, {36}, {1}, {2}, {2}, {2}};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
-    test::conv::get_test_convolution_fwd_instance<1, T, T, T>(conv_ptrs);
+    test::conv::get_test_convolution_fwd_instance<1, T, T, T, T>(conv_ptrs);
     conv::ConvFwdOpInstance<T,
                             T,
                             T,
@@ -126,7 +126,7 @@ TEST(Conv1DFwdNWC, FloatingPointValues)
     ck::utils::conv::ConvParams params{1, 4, 256, 64, {3}, {36}, {1}, {2}, {2}, {2}};
 
     std::vector<test::conv::DeviceConvFwdNoOpPtr> conv_ptrs;
-    test::conv::get_test_convolution_fwd_instance<1, T, T, T>(conv_ptrs);
+    test::conv::get_test_convolution_fwd_instance<1, T, T, T, float>(conv_ptrs);
     conv::ConvFwdOpInstance<T,
                             T,
                             T,
