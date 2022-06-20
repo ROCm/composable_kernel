@@ -224,10 +224,10 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        input.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
-        weights.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
-        bias.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
-        residual.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
+        input.GenerateTensorValue(GeneratorTensor_2<InDataType>{-2, 2});
+        weights.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-2, 2});
+        bias.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-2, 2});
+        residual.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-2, 2});
         break;
     default:
         input.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
