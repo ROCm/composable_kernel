@@ -62,7 +62,8 @@ void add_device_conv2d_direct_fwd_avx2_nhwc_kyxck8_nhwk(
         instances,
         std::make_tuple(
             // clang-format off
-            DeviceConvNDDirectFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_K8_Output_N_Ho_Wo_K<float, float, float, PT, PT, PT, ConvFwdDefault, 2, 4, 24, false, false, false>({0, 0, 0, DefaultGemmKLoop, LoopOver_MKN})
+            DeviceConvNDDirectFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_K8_Output_N_Ho_Wo_K<float, float, float, PT, PT, PT, ConvFwdDefault, 2, 6, 16, false, false, false>({0, 0, 0, DefaultGemmKLoop, LoopOver_MKN}),
+            DeviceConvNDDirectFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_K8_Output_N_Ho_Wo_K<float, float, float, PT, PT, PT, ConvFwdDefault, 2, 6, 16, false, false, false>({0, 0, 0, DefaultGemmKLoop, LoopOver_MNK})
             // clang-format on
             ));
 }
