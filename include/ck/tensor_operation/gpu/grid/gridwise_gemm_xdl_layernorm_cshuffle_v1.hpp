@@ -923,17 +923,17 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                         ThreadwiseReduction<FloatReduceAcc,
                                             decltype(c_reduce_thread_desc_mperblock_nperblock),
                                             decltype(d_reduce_thread_desc_mperblock),
-                                            reduce::Add<FloatReduceAcc>,
+                                            reduce::Add,
                                             false>;
                     using ThreadwiseReduceD1 =
                         ThreadwiseReduction<FloatReduceAcc,
                                             decltype(c_reduce_thread_desc_mperblock_nperblock),
                                             decltype(d_reduce_thread_desc_mperblock),
-                                            reduce::SquaredAdd<FloatReduceAcc>,
+                                            reduce::SquaredAdd,
                                             false>;
 
-                    const auto d0_zeroVal = ThreadwiseReduceD0::Op::GetIdentityValue();
-                    const auto d1_zeroVal = ThreadwiseReduceD1::Op::GetIdentityValue();
+                    const auto d0_zeroVal = ThreadwiseReduceD0::Op::template GetIdentityValue<FloatReduceAcc>();
+                    const auto d1_zeroVal = ThreadwiseReduceD1::Op::template GetIdentityValue<FloatReduceAcc>();
                     static_for<0, mreduce_per_thread, 1>{}(
                         [&](auto i) { d0_thread_buf(i) = d0_zeroVal; });
                     static_for<0, mreduce_per_thread, 1>{}(
@@ -951,7 +951,7 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                         BlockSize,
                         CReduceThreadClusterLengths_MPerBlock_NPerBlock, // ThreadClusterLengths_M_K
                         Sequence<1, 0>, // ThreadClusterArrangeOrder
-                        reduce::Add<FloatReduceAcc>,
+                        reduce::Add,
                         false>;
 
                     static_for<0, mreduce_per_thread, 1>{}([&](auto i) {
@@ -984,8 +984,7 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                             FloatReduceAcc numerator = c_reduce_thread_buf(dst_offset) - avg_sum;
                             FloatReduceAcc divisor = epsilon + avg_squared_sum - avg_sum * avg_sum;
                             FloatReduceAcc divisor_sqrt;
-                            tensor_operation::element_wise::UnarySqrt<FloatReduceAcc,
-                                                                      FloatReduceAcc>{}(
+                            tensor_operation::element_wise::UnarySqrt{}(
                                 divisor_sqrt, divisor);
 
                             c_reduce_thread_buf(dst_offset) = numerator / divisor_sqrt;
