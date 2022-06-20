@@ -15,7 +15,7 @@ template <typename ADataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
-struct ReferenceGemmBiasTranspose : public device::BaseOperator
+struct ReferenceGemmBiasCPermute : public device::BaseOperator
 {
     // Argument
     struct Argument : public device::BaseArgument
@@ -50,7 +50,7 @@ struct ReferenceGemmBiasTranspose : public device::BaseOperator
     // Invoker
     struct Invoker : public device::BaseInvoker
     {
-        using Argument = ReferenceGemmBiasTranspose::Argument;
+        using Argument = ReferenceGemmBiasCPermute::Argument;
 
         float Run(const Argument& arg)
         {
@@ -127,7 +127,7 @@ struct ReferenceGemmBiasTranspose : public device::BaseOperator
         auto str = std::stringstream();
 
         // clang-format off
-        str << "ReferenceGemmBiasTranspose"
+        str << "ReferenceGemmBiasCPermute"
             << std::endl;
         // clang-format on
 
