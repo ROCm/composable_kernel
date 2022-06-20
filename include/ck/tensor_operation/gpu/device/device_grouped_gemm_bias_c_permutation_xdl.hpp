@@ -255,7 +255,7 @@ struct DeviceGroupedGemmBiasCPermuteXdl
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
         EDataType,            // CShuffleDataType,
-        ck::Tuple<EDataType>, // DsDataType,
+        ck::Tuple<DDataType>, // DsDataType,
         EDataType,            // EDataType,
         AElementwiseOperation,
         BElementwiseOperation,
