@@ -73,10 +73,9 @@ __global__ void
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
-template <
-          typename ALayout,
+template <typename ALayout,
           typename BLayout,
-typename ADataType,
+          typename ADataType,
           typename BDataType,
           typename DDataType,
           typename EDataType,
