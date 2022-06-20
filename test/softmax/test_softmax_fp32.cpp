@@ -5,7 +5,9 @@ template <ck::index_t N>
 using I = ck::Number<N>;
 
 template <typename Tuple>
-class TestSoftmaxFP32 : public ck::TestSoftmax<Tuple>{};
+class TestSoftmaxFP32 : public ck::TestSoftmax<Tuple>
+{
+};
 
 // clang-format off
 using KernelTypes = ::testing::Types<
