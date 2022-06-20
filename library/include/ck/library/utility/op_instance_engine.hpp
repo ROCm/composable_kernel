@@ -237,11 +237,3 @@ class OpInstanceRunEngine
 
 } // namespace utils
 } // namespace ck
-
-std::ostream& operator<<(std::ostream& os, const ck::utils::ProfileBestConfig& c)
-{
-    os << "Profiler best config: "
-       << "\nOp name: " << c.best_op_name << "\nAvg time: " << c.best_avg_time
-       << "\nTFlops: " << c.best_tflops << "\nGB/s: " << c.best_gb_per_sec;
-    return os;
-}
