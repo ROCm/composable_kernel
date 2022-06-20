@@ -44,14 +44,18 @@ using DeviceConvFwdNoOpPtr =
 static constexpr auto ConvFwdDefault =
     ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
 
-template <ck::index_t SpatialDims, typename InDataType, typename WeiDataType, typename OutDataType>
+template <ck::index_t SpatialDims,
+          typename InDataType,
+          typename WeiDataType,
+          typename OutDataType,
+          typename AccDataType>
 using DeviceConvNDFwdInstance = ck::tensor_operation::device::
     DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
         // clang-format off
         InDataType,         // 
         WeiDataType,        //
         OutDataType,        //
-        typename ck::AccumulatorDataType<InDataType>::type, // Accumulator data type.
+        AccDataType,        // Accumulator data type.
         InElementOp,        // Input Elementwise Operation
         WeiElementOp,       // Weights Elementwise Operation
         OutElementOp,       // Output Elementwise Operation
@@ -84,10 +88,15 @@ using DeviceConvNDFwdInstance = ck::tensor_operation::device::
         1>;                // CThreadTransferDstScalarPerVector
 // clang-format on
 
-template <ck::index_t NDim, typename InDataType, typename WeiDataType, typename OutDataType>
+template <ck::index_t NDim,
+          typename InDataType,
+          typename WeiDataType,
+          typename OutDataType,
+          typename AccDataType>
 void get_test_convolution_fwd_instance(std::vector<DeviceConvFwdNoOpPtr>& instances)
 {
-    using ConvInstanceT = DeviceConvNDFwdInstance<NDim, InDataType, WeiDataType, OutDataType>;
+    using ConvInstanceT =
+        DeviceConvNDFwdInstance<NDim, InDataType, WeiDataType, OutDataType, AccDataType>;
     instances.emplace_back(std::make_unique<ConvInstanceT>());
 }
 
