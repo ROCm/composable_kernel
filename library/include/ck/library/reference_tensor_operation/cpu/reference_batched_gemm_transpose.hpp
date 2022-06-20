@@ -16,7 +16,7 @@ template <typename ADataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
-struct ReferenceBatchedGemmTranspose : public device::BaseOperator
+struct ReferenceBatchedGemmCPermutation : public device::BaseOperator
 {
     // Argument
     struct Argument : public device::BaseArgument
@@ -48,7 +48,7 @@ struct ReferenceBatchedGemmTranspose : public device::BaseOperator
     // Invoker
     struct Invoker : public device::BaseInvoker
     {
-        using Argument = ReferenceBatchedGemmTranspose::Argument;
+        using Argument = ReferenceBatchedGemmCPermutation::Argument;
 
         float Run(const Argument& arg)
         {
@@ -127,7 +127,7 @@ struct ReferenceBatchedGemmTranspose : public device::BaseOperator
         auto str = std::stringstream();
 
         // clang-format off
-        str << "ReferenceBatchedGemmTranspose"
+        str << "ReferenceBatchedGemmCPermutation"
             << std::endl;
         // clang-format on
 

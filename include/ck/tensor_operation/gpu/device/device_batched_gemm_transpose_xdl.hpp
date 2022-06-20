@@ -1,5 +1,4 @@
-#ifndef DEVICE_BATCHED_GEMM_TRANSPOSE_XDL_HPP
-#define DEVICE_BATCHED_GEMM_TRANSPOSE_XDL_HPP
+#pragma once
 
 #include <iostream>
 #include <sstream>
@@ -58,20 +57,19 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_batched_gemm_transpose_xdlops_v2r3(
-            const FloatAB* __restrict__ p_a_grid,
-            const FloatAB* __restrict__ p_b_grid,
-            FloatC* __restrict__ p_c_grid,
-            const index_t batch_count,
-            const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
-            const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
-            const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-                c_grid_desc_mblock_mperblock_nblock_nperblock,
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const CElementwiseOperation c_element_op,
-            const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
-            const Block2CTileMap block_2_ctile_map)
+        kernel_batched_gemm_transpose_xdl(const FloatAB* __restrict__ p_a_grid,
+                                          const FloatAB* __restrict__ p_b_grid,
+                                          FloatC* __restrict__ p_c_grid,
+                                          const index_t batch_count,
+                                          const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
+                                          const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
+                                          const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+                                              c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                          const AElementwiseOperation a_element_op,
+                                          const BElementwiseOperation b_element_op,
+                                          const CElementwiseOperation c_element_op,
+                                          const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
+                                          const Block2CTileMap block_2_ctile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     const index_t num_blocks_per_batch =
@@ -119,16 +117,17 @@ __global__ void
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
-template <typename ADataType,
+template <typename ALayout,
+          typename BLayout,
+          typename ADataType,
           typename BDataType,
           typename CDataType,
           typename AccDataType,
-          typename ALayout,
-          typename BLayout,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           GemmSpecialization GemmSpec,
+          ck::index_t NumPrefetch,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -157,11 +156,11 @@ template <typename ADataType,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
-          ck::index_t NumPrefetch = 1,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
-struct DeviceBatchedGemmCPermutationXdl : public DeviceBatchedGemmCPermutation<AElementwiseOperation,
-                                                                         BElementwiseOperation,
-                                                                         CElementwiseOperation>
+struct DeviceBatchedGemmCPermutationXdl
+    : public DeviceBatchedGemmCPermutation<AElementwiseOperation,
+                                           BElementwiseOperation,
+                                           CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -490,9 +489,8 @@ struct DeviceBatchedGemmCPermutationXdl : public DeviceBatchedGemmCPermutation<A
 
             float ave_time = 0;
 
-            if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
-            {
-                const auto kernel = kernel_batched_gemm_transpose_xdlops_v2r3<
+            auto launch_kernel = [&](auto has_main_k_block_loop_) {
+                const auto kernel = kernel_batched_gemm_transpose_xdl<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
@@ -504,59 +502,34 @@ struct DeviceBatchedGemmCPermutationXdl : public DeviceBatchedGemmCPermutation<A
                     CElementwiseOperation,
                     ComputePtrOffsetOfStridedBatch,
                     remove_reference_t<Block2CTileMap>,
-                    true>;
+                    has_main_k_block_loop_>;
 
-                ave_time = launch_and_time_kernel(stream_config,
-                                                  kernel,
-                                                  dim3(grid_size),
-                                                  dim3(BlockSize),
-                                                  0,
-                                                  arg.p_a_grid_,
-                                                  arg.p_b_grid_,
-                                                  arg.p_c_grid_,
-                                                  arg.BatchCount_,
-                                                  arg.a_grid_desc_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  arg.a_element_op_,
-                                                  arg.b_element_op_,
-                                                  arg.c_element_op_,
-                                                  arg.compute_ptr_offset_of_batch_,
-                                                  arg.block_2_ctile_map_);
+                return launch_and_time_kernel(stream_config,
+                                              kernel,
+                                              dim3(grid_size),
+                                              dim3(BlockSize),
+                                              0,
+                                              arg.p_a_grid_,
+                                              arg.p_b_grid_,
+                                              arg.p_c_grid_,
+                                              arg.BatchCount_,
+                                              arg.a_grid_desc_k0_m_k1_,
+                                              arg.b_grid_desc_k0_n_k1_,
+                                              arg.c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                              arg.a_element_op_,
+                                              arg.b_element_op_,
+                                              arg.c_element_op_,
+                                              arg.compute_ptr_offset_of_batch_,
+                                              arg.block_2_ctile_map_);
+            };
+
+            if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
+            {
+                ave_time = launch_kernel(integral_constant<bool, true>{});
             }
             else
             {
-                const auto kernel = kernel_batched_gemm_transpose_xdlops_v2r3<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    CDataType,
-                    remove_reference_t<DeviceBatchedGemmCPermutationXdl::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceBatchedGemmCPermutationXdl::BGridDesc_K0_N_K1>,
-                    typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CElementwiseOperation,
-                    ComputePtrOffsetOfStridedBatch,
-                    remove_reference_t<Block2CTileMap>,
-                    false>;
-
-                ave_time = launch_and_time_kernel(stream_config,
-                                                  kernel,
-                                                  dim3(grid_size),
-                                                  dim3(BlockSize),
-                                                  0,
-                                                  arg.p_a_grid_,
-                                                  arg.p_b_grid_,
-                                                  arg.p_c_grid_,
-                                                  arg.BatchCount_,
-                                                  arg.a_grid_desc_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  arg.a_element_op_,
-                                                  arg.b_element_op_,
-                                                  arg.c_element_op_,
-                                                  arg.compute_ptr_offset_of_batch_,
-                                                  arg.block_2_ctile_map_);
+                ave_time = launch_kernel(integral_constant<bool, false>{});
             }
 
             return ave_time;
@@ -663,4 +636,3 @@ struct DeviceBatchedGemmCPermutationXdl : public DeviceBatchedGemmCPermutation<A
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

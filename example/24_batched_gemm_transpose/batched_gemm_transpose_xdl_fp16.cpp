@@ -45,21 +45,21 @@ using CElementOp = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 // clang-format off
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmTransposeXdl
-//######| AData| BData| CData| AccData| ALayout| BLayout|           A|           B|           C|          GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|     CShuffle|    CShuffle| CBlockTransferClusterLengths|      Num|
-//######|  Type|  Type|  Type|    Type|        |        | Elementwise| Elementwise| Elementwise|Spacialization|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|  MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| Prefetch|
-//######|      |      |      |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |   PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|         |
-//######|      |      |      |        |        |        |            |            |            |              |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |             |            |                             |         |
-        <   F16,   F16,   F16,     F32,     Row,     Col, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,            1,           1,               S<1, 32, 1, 8>,        1>;
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmCPermutationXdl
+//######| ALayout| BLayout| AData| BData| CData| AccData|           A|           B|           C|          GEMM|      Num| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|     CShuffle|    CShuffle| CBlockTransferClusterLengths|   CBlockTransfer|
+//######|        |        |  Type|  Type|  Type|    Type| Elementwise| Elementwise| Elementwise|Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|  MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl|  ScalarPerVector|
+//######|        |        |      |      |      |        |   Operation|   Operation|   Operation|              |         |      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |   PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|    _NWaveNPerXdl|
+//######|        |        |      |      |      |        |            |            |            |              |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |             |            |                             |                 |
+        <     Row,     Col,   F16,   F16,   F16,     F32, PassThrough, PassThrough, PassThrough,   GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,            1,           1,               S<1, 32, 1, 8>,                8>;
 // clang-format on
 
-using ReferenceBatchedGemmTransposeInstance =
-    ck::tensor_operation::host::ReferenceBatchedGemmTranspose<ADataType,
-                                                              BDataType,
-                                                              CDataType,
-                                                              AElementOp,
-                                                              BElementOp,
-                                                              CElementOp>;
+using ReferenceBatchedGemmCPermutationInstance =
+    ck::tensor_operation::host::ReferenceBatchedGemmCPermutation<ADataType,
+                                                                 BDataType,
+                                                                 CDataType,
+                                                                 AElementOp,
+                                                                 BElementOp,
+                                                                 CElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -216,7 +216,7 @@ int main(int argc, char* argv[])
     {
         c_device_buf.FromDevice(c_g_m0_m1_n0_n1_device_result.mData.data());
 
-        auto ref_batched_gemm = ReferenceBatchedGemmTransposeInstance{};
+        auto ref_batched_gemm = ReferenceBatchedGemmCPermutationInstance{};
         auto ref_invoker      = ref_batched_gemm.MakeInvoker();
 
         auto ref_argument = ref_batched_gemm.MakeArgument(a_g_m_k,
