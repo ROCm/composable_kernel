@@ -452,6 +452,8 @@ int main(int argc, char* argv[])
         resi_device_buf.ToDevice(residual.mData.data());
 
         // get host result
+        int cpu_validation = ck::getenv_int("CK_CPU_VALIDATION", 1);
+        if(cpu_validation)
         {
             auto ref_conv    = ReferenceConvFwdInstance{};
             auto ref_invoker = ref_conv.MakeInvoker();
@@ -748,17 +750,18 @@ int main(int argc, char* argv[])
 
                 out_device_buf.FromDevice(out_n_k_ho_wo_device_result.mData.data());
 
-                if(!check_out(out_n_k_ho_wo_host_result,
-                              out_n_k_ho_wo_device_result,
-                              1e-6,
-                              per_pixel_check))
+                if(cpu_validation && !check_out(out_n_k_ho_wo_host_result,
+                                                out_n_k_ho_wo_device_result,
+                                                1e-6,
+                                                per_pixel_check))
                 {
                     std::cout << "Fail Info: " << conv_ptr->GetTypeString() << std::endl;
                     success = false;
                 }
                 else
                 {
-                    std::cout << "Pass Info: " << conv_ptr->GetTypeString() << ", Time:" << time
+                    std::cout << (cpu_validation ? "Pass" : "Ignore")
+                              << " Info: " << conv_ptr->GetTypeString() << ", Time:" << time
                               << "ms, Gflops:" << gflops << std::endl;
 
                     if(time < fastest_kernel_time)
