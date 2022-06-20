@@ -14,7 +14,6 @@
 #include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"
 #include "gemm_specialization.hpp"
-#include "element_wise_reduce_operation.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -44,17 +43,14 @@ using CLayout = ck::tensor_layout::gemm::RowMajor;
 using AElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp  = ck::tensor_operation::element_wise::PassThrough;
-using ReduceSumOp = ck::reduce::Add<ReduceAccDataType>;
+using ReduceSumOp = ck::reduce::Add;
 using DxsReduceOp = ck::Tuple<ReduceSumOp, ReduceSumOp>;
 
-using UnaryIdenticElementOp =
-    ck::tensor_operation::element_wise::UnaryIdentic<ReduceAccDataType, ReduceAccDataType, false>;
-using UnaryDivElementOp =
-    ck::tensor_operation::element_wise::UnaryIdentic<ReduceAccDataType, ReduceAccDataType, true>;
-using UnarySquareElementOp =
-    ck::tensor_operation::element_wise::UnarySquare<ReduceAccDataType, ReduceAccDataType, false>;
-using DxsInElementOps  = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
-using DxsOutElementOps = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
+using UnaryIdenticElementOp = ck::tensor_operation::element_wise::PassThrough;
+using UnaryDivElementOp     = ck::tensor_operation::element_wise::UnaryDivide;
+using UnarySquareElementOp  = ck::tensor_operation::element_wise::UnarySquare;
+using DxsInElementOps       = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
+using DxsOutElementOps      = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
 
 using DxsGlobalMemOp =
     ck::InMemoryDataOperationEnumSequence<ck::InMemoryDataOperationEnum::AtomicAdd,
@@ -156,13 +152,14 @@ void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
     auto reduceSumOpInst = ReduceSumOp{};
     for(int m = 0; m < M; ++m)
     {
-        float mean_acc        = reduceSumOpInst.GetIdentityValue();
-        float square_mean_acc = reduceSumOpInst.GetIdentityValue();
+        auto mean_acc        = reduceSumOpInst.GetIdentityValue<ReduceAccDataType>();
+        auto square_mean_acc = reduceSumOpInst.GetIdentityValue<ReduceAccDataType>();
 
         for(int n = 0; n < N; ++n)
         {
-            ReduceAccDataType c_val        = ck::type_convert<ReduceAccDataType>(c_m_n(m, n));
-            ReduceAccDataType square_c_val = 0;
+            auto c_val        = ck::type_convert<ReduceAccDataType>(c_m_n(m, n));
+            auto square_c_val = reduceSumOpInst.GetIdentityValue<ReduceAccDataType>();
+
             UnarySquareElementOp{}(square_c_val, c_val);
 
             reduceSumOpInst(mean_acc, c_val);
@@ -182,7 +179,12 @@ void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
         for(int n = 0; n < N; ++n)
         {
             float out_f32 = 0;
-            layerNormInst(out_f32, c_m_n(m, n), mean_m(m), meanSquare_m(m), gamma_n(n), beta_n(n));
+            layerNormInst(out_f32,
+                          static_cast<float>(c_m_n(m, n)),
+                          static_cast<float>(mean_m(m)),
+                          static_cast<float>(meanSquare_m(m)),
+                          static_cast<float>(gamma_n(n)),
+                          static_cast<float>(beta_n(n)));
             out_m_n(m, n) = static_cast<out_type>(out_f32);
         }
     }
