@@ -84,7 +84,10 @@ struct Add
 struct SquaredAdd
 {
     template <class T>
-    __host__ __device__ static constexpr T GetIdentityValue() { return type_convert<T>(0.0f); };
+    __host__ __device__ static constexpr T GetIdentityValue()
+    {
+        return type_convert<T>(0.0f);
+    };
 
     __host__ __device__ static constexpr bool
     IsCompatibleInMemoryDataOperation(InMemoryDataOperationEnum operation)
