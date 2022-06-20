@@ -35,8 +35,8 @@ template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename C1ElementwiseOperation,
-          typename DxsInElementwiseOperation,
-          typename DxsReduceAccElementwiseOperation>
+          typename ReduceInElementwiseOperations,
+          typename ReduceAccElementwiseOperations>
 struct DeviceGemmBiasAddReduce : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
@@ -57,8 +57,8 @@ struct DeviceGemmBiasAddReduce : public BaseOperator
                         BElementwiseOperation b_element_op,
                         CElementwiseOperation c_element_op,
                         C1ElementwiseOperation c1_element_op,
-                        DxsInElementwiseOperation dxs_in_element_op,
-                        DxsReduceAccElementwiseOperation dxs_out_element_op,
+                        ReduceInElementwiseOperations reduce_in_element_ops,
+                        ReduceAccElementwiseOperations reduce_out_element_ops,
                         ck::index_t BatchCount = 1) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
@@ -68,15 +68,15 @@ template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename C1ElementwiseOperation,
-          typename DxsInElementwiseOperation,
-          typename DxsReduceAccElementwiseOperation>
+          typename ReduceInElementwiseOperations,
+          typename ReduceAccElementwiseOperations>
 using DeviceGemmBiasAddReducePtr =
     std::unique_ptr<DeviceGemmBiasAddReduce<AElementwiseOperation,
                                             BElementwiseOperation,
                                             CElementwiseOperation,
                                             C1ElementwiseOperation,
-                                            DxsInElementwiseOperation,
-                                            DxsReduceAccElementwiseOperation>>;
+                                            ReduceInElementwiseOperations,
+                                            ReduceAccElementwiseOperations>>;
 
 } // namespace device
 } // namespace tensor_operation

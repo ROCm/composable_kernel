@@ -17,16 +17,16 @@ namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
 
-using F32            = float;
-using F16            = ck::half_t;
-using DPtrsGlobal    = ck::Tuple<F32*, F32*>;
-using Identity       = ck::tensor_operation::element_wise::PassThrough;
-using Square         = ck::tensor_operation::element_wise::UnarySquare;
-using DInElementOps  = ck::Tuple<Identity, Square>;
-using DOutElementOps = ck::Tuple<Identity, Identity>;
+using F32              = float;
+using F16              = ck::half_t;
+using ReducePtrsGlobal = ck::Tuple<F32*, F32*>;
+using Identity         = ck::tensor_operation::element_wise::PassThrough;
+using Square           = ck::tensor_operation::element_wise::UnarySquare;
+using ReduceInElementOps    = ck::Tuple<Identity, Square>;
+using ReduceOutElementOps   = ck::Tuple<Identity, Identity>;
 
 using DeviceGemmReduceNoOpPtr =
-    ck::tensor_operation::device::DeviceGemmReducePtr<DPtrsGlobal::Size()>;
+    ck::tensor_operation::device::DeviceGemmReducePtr<ReducePtrsGlobal::Size()>;
 
 void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gmk_gkn_gmn_instances(
     std::vector<DeviceGemmReduceNoOpPtr>&);
@@ -51,7 +51,7 @@ namespace profiler {
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
-          typename DDataType,
+          typename ReduceDataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
@@ -91,16 +91,16 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
 
     Tensor<CDataType> c_g_m_n_host_result(
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
-    Tensor<DDataType> d0_g_m_host_result(HostTensorDescriptor(std::vector<std::size_t>(
+    Tensor<ReduceDataType> d0_g_m_host_result(HostTensorDescriptor(std::vector<std::size_t>(
         {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
-    Tensor<DDataType> d1_g_m_host_result(HostTensorDescriptor(std::vector<std::size_t>(
+    Tensor<ReduceDataType> d1_g_m_host_result(HostTensorDescriptor(std::vector<std::size_t>(
         {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
 
     Tensor<CDataType> c_g_m_n_device_result(
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
-    Tensor<DDataType> d0_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
+    Tensor<ReduceDataType> d0_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
         {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
-    Tensor<DDataType> d1_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
+    Tensor<ReduceDataType> d1_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
         {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
 
     std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
@@ -127,8 +127,8 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
     using AElementOp            = ck::tensor_operation::element_wise::PassThrough;
     using BElementOp            = ck::tensor_operation::element_wise::PassThrough;
     using CElementOp            = ck::tensor_operation::element_wise::PassThrough;
-    using D0ReduceOp            = ck::reduce::Add;
-    using D1ReduceOp            = ck::reduce::Add;
+    using ReduceOp0             = ck::reduce::Add;
+    using ReduceOp1             = ck::reduce::Add;
     using UnaryIdenticElementOp = ck::tensor_operation::element_wise::PassThrough;
     using UnarySquareElementOp  = ck::tensor_operation::element_wise::UnarySquare;
 
@@ -137,13 +137,13 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
     auto c_element_op                     = CElementOp{};
     std::array<void*, 3> gemm_element_ops = {&a_element_op, &b_element_op, &c_element_op};
 
-    const auto d0_reduce_op = D0ReduceOp{};
-    const auto d1_reduce_op = D1ReduceOp{};
+    const auto reduce0_op = ReduceOp0{};
+    const auto reduce1_op = ReduceOp1{};
 
-    auto passthrough                        = UnaryIdenticElementOp{};
-    auto square                             = UnarySquareElementOp{};
-    std::array<void*, 2> dxs_in_element_op  = {&passthrough, &square};
-    std::array<void*, 2> dxs_out_element_op = {&passthrough, &passthrough};
+    auto passthrough                            = UnaryIdenticElementOp{};
+    auto square                                 = UnarySquareElementOp{};
+    std::array<void*, 2> reduce_in_element_ops  = {&passthrough, &square};
+    std::array<void*, 2> reduce_out_element_ops = {&passthrough, &passthrough};
 
     if(do_verification)
     {
@@ -155,7 +155,7 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
                                                              BElementOp,
                                                              CElementOp>;
 
-        using ReduceAccDataType = DDataType;
+        using ReduceAccDataType = ReduceDataType;
 
         auto ref_batched_gemm = ReferenceBatchedGemmInstance{};
         auto ref_invoker      = ref_batched_gemm.MakeInvoker();
@@ -169,8 +169,8 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
         {
             for(int m = 0; m < M; ++m)
             {
-                auto d0_acc = d0_reduce_op.GetIdentityValue<ReduceAccDataType>();
-                auto d1_acc = d1_reduce_op.GetIdentityValue<ReduceAccDataType>();
+                auto reduce0_acc = reduce0_op.GetIdentityValue<ReduceAccDataType>();
+                auto reduce1_acc = reduce1_op.GetIdentityValue<ReduceAccDataType>();
 
                 for(int n = 0; n < N; ++n)
                 {
@@ -179,12 +179,12 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
                     ReduceAccDataType d1_val;
 
                     square(d1_val, d0_val);
-                    d0_reduce_op(d0_acc, d0_val);
-                    d1_reduce_op(d1_acc, d1_val);
+                    reduce0_op(reduce0_acc, d0_val);
+                    reduce1_op(reduce1_acc, d1_val);
                 }
 
-                d0_g_m_host_result(batch, m) = ck::type_convert<DDataType>(d0_acc);
-                d1_g_m_host_result(batch, m) = ck::type_convert<DDataType>(d1_acc);
+                d0_g_m_host_result(batch, m) = ck::type_convert<ReduceDataType>(reduce0_acc);
+                d1_g_m_host_result(batch, m) = ck::type_convert<ReduceDataType>(reduce1_acc);
             }
         }
     }
@@ -192,11 +192,13 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
     DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpace());
     DeviceMem b_device_buf(sizeof(BDataType) * b_g_k_n.mDesc.GetElementSpace());
     DeviceMem c_device_buf(sizeof(CDataType) * c_g_m_n_device_result.mDesc.GetElementSpace());
-    DeviceMem d0_device_buf(sizeof(DDataType) * d0_g_m_device_result.mDesc.GetElementSpace());
-    DeviceMem d1_device_buf(sizeof(DDataType) * d1_g_m_device_result.mDesc.GetElementSpace());
+    DeviceMem reduce0_device_buf(sizeof(ReduceDataType) *
+                                 d0_g_m_device_result.mDesc.GetElementSpace());
+    DeviceMem reduce1_device_buf(sizeof(ReduceDataType) *
+                                 d1_g_m_device_result.mDesc.GetElementSpace());
 
-    std::array<void*, 2> p_reduces = {d0_device_buf.GetDeviceBuffer(),
-                                      d1_device_buf.GetDeviceBuffer()};
+    std::array<void*, 2> p_reduces = {reduce0_device_buf.GetDeviceBuffer(),
+                                      reduce1_device_buf.GetDeviceBuffer()};
 
     a_device_buf.ToDevice(a_g_m_k.mData.data());
     b_device_buf.ToDevice(b_g_k_n.mData.data());
@@ -267,8 +269,8 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
                                           StrideB,
                                           StrideC,
                                           gemm_element_ops,
-                                          dxs_in_element_op,
-                                          dxs_out_element_op,
+                                          reduce_in_element_ops,
+                                          reduce_out_element_ops,
                                           BatchCount);
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
@@ -276,8 +278,8 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             // init DO, D1 to 0
-            d0_device_buf.SetZero();
-            d1_device_buf.SetZero();
+            reduce0_device_buf.SetZero();
+            reduce1_device_buf.SetZero();
 
             float ave_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
@@ -307,8 +309,8 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
             if(do_verification)
             {
                 c_device_buf.FromDevice(c_g_m_n_device_result.mData.data());
-                d0_device_buf.FromDevice(d0_g_m_device_result.mData.data());
-                d1_device_buf.FromDevice(d1_g_m_device_result.mData.data());
+                reduce0_device_buf.FromDevice(d0_g_m_device_result.mData.data());
+                reduce1_device_buf.FromDevice(d1_g_m_device_result.mData.data());
 
                 float c_error  = check_error(c_g_m_n_host_result, c_g_m_n_device_result);
                 float d0_error = check_error(d0_g_m_host_result, d0_g_m_device_result);

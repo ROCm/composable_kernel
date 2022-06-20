@@ -27,15 +27,15 @@ template <typename ALayout,
           typename GemmAccDataType,
           typename CShuffleDataType,
           typename ReduceAccDataType,
-          typename DPtrsGlobal,
+          typename ReducePtrsGlobal,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename C1ElementwiseOperation,
-          typename DxsReduceOperation,
-          typename DxsInElementwiseOperation,
-          typename DxsReduceAccElementwiseOperation,
-          typename DGlobalMemoryDataOperation,
+          typename ReduceOperations,
+          typename ReduceInElementwiseOperations,
+          typename ReduceAccElementwiseOperations,
+          typename ReduceGlobalMemoryDataOperation,
           GemmSpecialization GemmSpec,
           index_t NumGemmKPrefetchStage,
           index_t BlockSize,
@@ -75,8 +75,8 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                                      BElementwiseOperation,
                                      CElementwiseOperation,
                                      C1ElementwiseOperation,
-                                     DxsInElementwiseOperation,
-                                     DxsReduceAccElementwiseOperation>
+                                     ReduceInElementwiseOperations,
+                                     ReduceAccElementwiseOperations>
 {
     using DeviceOp = DeviceGemmBiasAddReduce_Xdl_CShuffle;
 
@@ -349,7 +349,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
     }
 
     // assume D is packed tensor
-    static auto MakeDGridDescriptor_M(index_t MRaw)
+    static auto MakeReduceGridDescriptor_M(index_t MRaw)
     {
         const auto d_grid_desc_mraw = make_naive_tensor_descriptor_packed(make_tuple(MRaw));
 
@@ -379,7 +379,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
     using CGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
     using C0GridDesc_M_N      = decltype(MakeCGridDescriptor_M_N(1, 1, 0));
     using C1GridDesc_M_N      = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
-    using DGridDesc_M         = decltype(MakeDGridDescriptor_M(1));
+    using ReduceGridDesc_M    = decltype(MakeReduceGridDescriptor_M(1));
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmBiasAddReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1<
@@ -390,22 +390,22 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
         C0DataType,
         C1DataType,
         ReduceAccDataType,
-        DPtrsGlobal,
+        ReducePtrsGlobal,
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
         C1ElementwiseOperation,
-        DxsReduceOperation,
-        DxsInElementwiseOperation,
-        DxsReduceAccElementwiseOperation,
+        ReduceOperations,
+        ReduceInElementwiseOperations,
+        ReduceAccElementwiseOperations,
         InMemoryDataOperationEnum::Set,
-        DGlobalMemoryDataOperation,
+        ReduceGlobalMemoryDataOperation,
         AGridDesc_AK0_M_AK1,
         BGridDesc_BK0_N_BK1,
         CGridDesc_M_N,
         C0GridDesc_M_N,
         C1GridDesc_M_N,
-        DGridDesc_M,
+        ReduceGridDesc_M,
         NumGemmKPrefetchStage,
         BlockSize,
         MPerBlock,
@@ -450,7 +450,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                  CDataType* p_c_grid,
                  const C0DataType* p_c0_grid,
                  const C1DataType* p_c1_grid,
-                 DPtrsGlobal p_ds_grid,
+                 ReducePtrsGlobal p_reduces_grid,
                  index_t MRaw,
                  index_t NRaw,
                  index_t KRaw,
@@ -462,31 +462,31 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op,
                  C1ElementwiseOperation c1_element_op,
-                 DxsInElementwiseOperation dxs_in_element_op,
-                 DxsReduceAccElementwiseOperation dxs_out_element_op)
+                 ReduceInElementwiseOperations reduce_in_element_ops,
+                 ReduceAccElementwiseOperations reduce_out_element_ops)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
               p_c0_grid_{p_c0_grid},
               p_c1_grid_{p_c1_grid},
-              p_ds_grid_{p_ds_grid},
+              p_reduces_grid_{p_reduces_grid},
               a_grid_desc_ak0_m_ak1_{DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, KRaw, StrideA)},
               b_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1(KRaw, NRaw, StrideB)},
               c_grid_desc_m_n_{DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC)},
               c0_grid_desc_m_n_{DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, 0)},
               c1_grid_desc_m_n_{DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC1)},
-              d_grid_desc_m_{DeviceOp::MakeDGridDescriptor_M(MRaw)},
+              reduce_grid_desc_m_{DeviceOp::MakeReduceGridDescriptor_M(MRaw)},
               c_grid_desc_mblock_mperblock_nblock_nperblock_{},
               c0_grid_desc_mblock_mperblock_nblock_nperblock_{},
               c1_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              d_grid_desc_mblock_mperblock_{},
+              reduce_grid_desc_mblock_mperblock_{},
               block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op},
               c1_element_op_{c1_element_op},
-              dxs_in_element_op_{dxs_in_element_op},
-              dxs_out_element_op_{dxs_out_element_op}
+              reduce_in_element_ops_{reduce_in_element_ops},
+              reduce_out_element_ops_{reduce_out_element_ops}
         {
             if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
                                            b_grid_desc_bk0_n_bk1_,
@@ -505,8 +505,8 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         c1_grid_desc_m_n_);
 
-                d_grid_desc_mblock_mperblock_ =
-                    GridwiseGemm::MakeDGridDescriptor_MBlock_MPerBlock(d_grid_desc_m_);
+                reduce_grid_desc_mblock_mperblock_ =
+                    GridwiseGemm::MakeReduceGridDescriptor_MBlock_MPerBlock(reduce_grid_desc_m_);
             }
         }
 
@@ -516,27 +516,28 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
         CDataType* p_c_grid_;
         const C0DataType* p_c0_grid_;
         const C1DataType* p_c1_grid_;
-        DPtrsGlobal p_ds_grid_;
+        ReducePtrsGlobal p_reduces_grid_;
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         CGridDesc_M_N c_grid_desc_m_n_;
         C0GridDesc_M_N c0_grid_desc_m_n_;
         C1GridDesc_M_N c1_grid_desc_m_n_;
-        DGridDesc_M d_grid_desc_m_;
+        ReduceGridDesc_M reduce_grid_desc_m_;
         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
         typename GridwiseGemm::C0GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c0_grid_desc_mblock_mperblock_nblock_nperblock_;
         typename GridwiseGemm::C1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c1_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock d_grid_desc_mblock_mperblock_;
+        typename GridwiseGemm::ReduceGridDescriptor_MBlock_MPerBlock
+            reduce_grid_desc_mblock_mperblock_;
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
         C1ElementwiseOperation c1_element_op_;
-        DxsInElementwiseOperation dxs_in_element_op_;
-        DxsReduceAccElementwiseOperation dxs_out_element_op_;
+        ReduceInElementwiseOperations reduce_in_element_ops_;
+        ReduceAccElementwiseOperations reduce_out_element_ops_;
     };
 
     // Invoker
@@ -569,19 +570,19 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                     CDataType,
                     C0DataType,
                     C1DataType,
-                    DPtrsGlobal,
+                    ReducePtrsGlobal,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
                     C1ElementwiseOperation,
-                    DxsInElementwiseOperation,
-                    DxsReduceAccElementwiseOperation,
+                    ReduceInElementwiseOperations,
+                    ReduceAccElementwiseOperations,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
                     typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseGemm::C0GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseGemm::C1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock,
+                    typename GridwiseGemm::ReduceGridDescriptor_MBlock_MPerBlock,
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     true>;
 
@@ -596,19 +597,19 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                                            arg.p_c_grid_,
                                            arg.p_c0_grid_,
                                            arg.p_c1_grid_,
-                                           arg.p_ds_grid_,
+                                           arg.p_reduces_grid_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
                                            arg.c1_element_op_,
-                                           arg.dxs_in_element_op_,
-                                           arg.dxs_out_element_op_,
+                                           arg.reduce_in_element_ops_,
+                                           arg.reduce_out_element_ops_,
                                            arg.a_grid_desc_ak0_m_ak1_,
                                            arg.b_grid_desc_bk0_n_bk1_,
                                            arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                                            arg.c0_grid_desc_mblock_mperblock_nblock_nperblock_,
                                            arg.c1_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.d_grid_desc_mblock_mperblock_,
+                                           arg.reduce_grid_desc_mblock_mperblock_,
                                            arg.block_2_ctile_map_);
             }
             else
@@ -619,19 +620,19 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                     CDataType,
                     C0DataType,
                     C1DataType,
-                    DPtrsGlobal,
+                    ReducePtrsGlobal,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
                     C1ElementwiseOperation,
-                    DxsInElementwiseOperation,
-                    DxsReduceAccElementwiseOperation,
+                    ReduceInElementwiseOperations,
+                    ReduceAccElementwiseOperations,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
                     typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseGemm::C0GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseGemm::C1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock,
+                    typename GridwiseGemm::ReduceGridDescriptor_MBlock_MPerBlock,
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     false>;
 
@@ -646,19 +647,19 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                                            arg.p_c_grid_,
                                            arg.p_c0_grid_,
                                            arg.p_c1_grid_,
-                                           arg.p_ds_grid_,
+                                           arg.p_reduces_grid_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
                                            arg.c1_element_op_,
-                                           arg.dxs_in_element_op_,
-                                           arg.dxs_out_element_op_,
+                                           arg.reduce_in_element_ops_,
+                                           arg.reduce_out_element_ops_,
                                            arg.a_grid_desc_ak0_m_ak1_,
                                            arg.b_grid_desc_bk0_n_bk1_,
                                            arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
                                            arg.c0_grid_desc_mblock_mperblock_nblock_nperblock_,
                                            arg.c1_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.d_grid_desc_mblock_mperblock_,
+                                           arg.reduce_grid_desc_mblock_mperblock_,
                                            arg.block_2_ctile_map_);
             }
 
@@ -698,7 +699,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                              CDataType* p_c,
                              const C0DataType* p_c0,
                              const C1DataType* p_c1,
-                             DPtrsGlobal p_dxs,
+                             ReducePtrsGlobal p_dxs,
                              index_t MRaw,
                              index_t NRaw,
                              index_t KRaw,
@@ -710,8 +711,8 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op,
                              C1ElementwiseOperation c1_element_op,
-                             DxsInElementwiseOperation dxs_in_element_op,
-                             DxsReduceAccElementwiseOperation dxs_out_element_op)
+                             ReduceInElementwiseOperations reduce_in_element_ops,
+                             ReduceAccElementwiseOperations reduce_out_element_ops)
     {
         return Argument{p_a,
                         p_b,
@@ -730,8 +731,8 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                         b_element_op,
                         c_element_op,
                         c1_element_op,
-                        dxs_in_element_op,
-                        dxs_out_element_op};
+                        reduce_in_element_ops,
+                        reduce_out_element_ops};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -755,17 +756,17 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                         BElementwiseOperation b_element_op,
                         CElementwiseOperation c_element_op,
                         C1ElementwiseOperation c1_element_op,
-                        DxsInElementwiseOperation dxs_in_element_op,
-                        DxsReduceAccElementwiseOperation dxs_out_element_op,
+                        ReduceInElementwiseOperations reduce_in_element_ops,
+                        ReduceAccElementwiseOperations reduce_out_element_ops,
                         index_t /* KBatch */ = 1) override
     {
-        DPtrsGlobal dxs_tuple = *(static_cast<DPtrsGlobal*>(p_dxs));
+        ReducePtrsGlobal reduce_tuple = *(static_cast<ReducePtrsGlobal*>(p_dxs));
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
                                           static_cast<CDataType*>(p_c),
                                           static_cast<const C0DataType*>(p_c0),
                                           static_cast<const C1DataType*>(p_c1),
-                                          dxs_tuple,
+                                          reduce_tuple,
                                           MRaw,
                                           NRaw,
                                           KRaw,
@@ -777,8 +778,8 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                                           b_element_op,
                                           c_element_op,
                                           c1_element_op,
-                                          dxs_in_element_op,
-                                          dxs_out_element_op);
+                                          reduce_in_element_ops,
+                                          reduce_out_element_ops);
     }
 
     // polymorphic

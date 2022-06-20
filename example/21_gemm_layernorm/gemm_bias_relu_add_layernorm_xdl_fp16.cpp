@@ -31,8 +31,8 @@ using C0DataType               = F32;
 using C1DataType               = F16;
 using GemmAccDataType          = F32;
 using ReduceAccDataType        = F32;
-using DDataType                = F32;
-using DPtrsGlobal              = ck::Tuple<DDataType*, DDataType*>;
+using ReduceDataType           = F32;
+using ReducePtrsGlobal         = ck::Tuple<ReduceDataType*, ReduceDataType*>;
 using GammaDataType            = F16;
 using BetaDataType             = F16;
 using LayerNormOutDataType     = F16;
@@ -48,15 +48,15 @@ using BElementOp  = PassThrough;
 using CElementOp  = ck::tensor_operation::element_wise::Relu;
 using C1ElementOp = PassThrough;
 using ReduceSumOp = ck::reduce::Add;
-using DxsReduceOp = ck::Tuple<ReduceSumOp, ReduceSumOp>;
+using ReduceOps   = ck::Tuple<ReduceSumOp, ReduceSumOp>;
 
 using UnaryIdenticElementOp = ck::tensor_operation::element_wise::PassThrough;
 using UnaryDivElementOp     = ck::tensor_operation::element_wise::UnaryDivide;
 using UnarySquareElementOp  = ck::tensor_operation::element_wise::UnarySquare;
-using DxsInElementOps       = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
-using DxsOutElementOps      = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
+using ReduceInElementOps    = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
+using ReduceOutElementOps   = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
 
-using DxsGlobalMemOp =
+using ReduceGlobalMemOps =
     ck::InMemoryDataOperationEnumSequence<ck::InMemoryDataOperationEnum::AtomicAdd,
                                           ck::InMemoryDataOperationEnum::AtomicAdd>;
 
@@ -65,11 +65,11 @@ static constexpr auto GemmSpecialization =
 
 // clang-format off
 using DeviceGemmBiasAddReduceInstance = ck::tensor_operation::device::DeviceGemmBiasAddReduce_Xdl_CShuffle
-//######| ALayout| BLayout| CLayout|AData| BData| CData|C0Data|C1Data|  GemmAcc| CShuffle| ReduceAcc|         DData|           A|           B|           C|          C1|         Dxs|     DxsInEleOp|     DxsAccEleOp|               D|               GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|              CReduce| CReduceThreadLds2VGprCopy| CReduceThreadVgpr2GlobalCopy|
-//######|        |        |        | Type|  Type|  Type|  Type|  Type| DataType| DataType|  DataType|    Type Tuple| Elementwise| Elementwise| Elementwise| Elementwise|      Reduce|               |                |      MemoryData|     Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN| MXdlPerWave| NXdlPerWave|            _MBlock_MPerBlock| ScalarPerVector| ThreadClusterLengths|     SrcDstScalarPerVector|        SrcDstScalarPerVector|
-//######|        |        |        |     |      |      |      |      |         |         |          |              |   Operation|   Operation|   Operation|   Operation|   Operation|               |                |       Operation|                   |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|            _NBlock_NPerBlock|      _NPerBlock| _MPerBlock_NPerBlock|                _NPerBlock|                   _MPerBlock|
-//######|        |        |        |     |      |      |      |      |         |         |          |              |            |            |            |            |            |               |                |                |                   |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |                     |                          |                             |
-        <     Row,     Col,     Row,  F16,   F16,   F16,   F32,   F16,      F32,      F32,       F32,   DPtrsGlobal,  AElementOp,  BElementOp,  CElementOp, C1ElementOp, DxsReduceOp, DxsInElementOps, DxsOutElementOps,  DxsGlobalMemOp, GemmSpecialization,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8,             S<64, 4>,                         4,                            1>;
+//######| ALayout| BLayout| CLayout|AData| BData| CData|C0Data|C1Data|  GemmAcc| CShuffle| ReduceAcc|       ReduceData|           A|           B|           C|          C1|    Reduce|     ReduceInEleOp|      ReduceAccEleOp|              Reduce|               GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|              CReduce| CReduceThreadLds2VGprCopy| CReduceThreadVgpr2GlobalCopy|
+//######|        |        |        | Type|  Type|  Type|  Type|  Type| DataType| DataType|  DataType|       Type Tuple| Elementwise| Elementwise| Elementwise| Elementwise| Operation|                  |                    |          MemoryData|     Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN| MXdlPerWave| NXdlPerWave|            _MBlock_MPerBlock| ScalarPerVector| ThreadClusterLengths|     SrcDstScalarPerVector|        SrcDstScalarPerVector|
+//######|        |        |        |     |      |      |      |      |         |         |          |                 |   Operation|   Operation|   Operation|   Operation|          |                  |                    |           Operation|                   |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|            _NBlock_NPerBlock|      _NPerBlock| _MPerBlock_NPerBlock|                _NPerBlock|                   _MPerBlock|
+//######|        |        |        |     |      |      |      |      |         |         |          |                 |            |            |            |            |          |                  |                    |                    |                   |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |                     |                          |                             |
+        <     Row,     Col,     Row,  F16,   F16,   F16,   F32,   F16,      F32,      F32,       F32, ReducePtrsGlobal,  AElementOp,  BElementOp,  CElementOp, C1ElementOp, ReduceOps,ReduceInElementOps, ReduceOutElementOps,  ReduceGlobalMemOps, GemmSpecialization,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8,             S<64, 4>,                         4,                            1>;
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
@@ -85,8 +85,8 @@ using NormalizeFunctor = ck::tensor_operation::element_wise::Normalize;
 // A:x, B:E[x], C:E[x^2], D:Gamma, E:Beta , F:y
 using DeviceNormalizeInstance =
     ck::tensor_operation::device::Device5AryElementwise<CDataType,
-                                                        DDataType,
-                                                        DDataType,
+                                                        ReduceDataType,
+                                                        ReduceDataType,
                                                         GammaDataType,
                                                         BetaDataType,
                                                         LayerNormOutDataType,
@@ -121,7 +121,7 @@ auto f_host_tensor_descriptor2d =
     };
 
 template <typename CDataType,
-          typename DDataType,
+          typename ReduceDataType,
           typename AccDataType,
           typename C0DataType,
           typename C1DataType,
@@ -146,8 +146,8 @@ void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
 
     int StrideC = N;
     Tensor<CDataType> c_m_n(f_host_tensor_descriptor2d(M, N, StrideC, CLayout{}));
-    Tensor<DDataType> mean_m(f_host_tensor_descriptor1d(M, 1));
-    Tensor<DDataType> meanSquare_m(f_host_tensor_descriptor1d(M, 1));
+    Tensor<ReduceDataType> mean_m(f_host_tensor_descriptor1d(M, 1));
+    Tensor<ReduceDataType> meanSquare_m(f_host_tensor_descriptor1d(M, 1));
     auto averageOpInst = UnaryDivElementOp{N};
 
     auto ref_gemm    = ReferenceGemmInstance{};
@@ -192,8 +192,8 @@ void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
 
         averageOpInst(mean_acc, mean_acc);
         averageOpInst(square_mean_acc, square_mean_acc);
-        mean_m(m)       = ck::type_convert<DDataType>(mean_acc);
-        meanSquare_m(m) = ck::type_convert<DDataType>(square_mean_acc);
+        mean_m(m)       = ck::type_convert<ReduceDataType>(mean_acc);
+        meanSquare_m(m) = ck::type_convert<ReduceDataType>(square_mean_acc);
     }
 
     // LayerNorm
@@ -209,7 +209,7 @@ void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
                           static_cast<AccDataType>(meanSquare_m(m)),
                           static_cast<AccDataType>(gamma_n(n)),
                           static_cast<AccDataType>(beta_n(n)));
-            out_m_n(m, n) = static_cast<DDataType>(out_acc);
+            out_m_n(m, n) = static_cast<ReduceDataType>(out_acc);
         }
     }
 }
@@ -219,7 +219,7 @@ template <typename ADataType,
           typename CDataType,
           typename C0DataType,
           typename C1DataType,
-          typename DDataType,
+          typename ReduceDataType,
           typename GammaDataType,
           typename BetaDataType,
           typename NormalizeDataType>
@@ -228,11 +228,11 @@ void DumpGemmLayerNormPerf(float gemm_reduce_time, float normalize_time, int M, 
     std::size_t gemm_flop     = std::size_t(2) * M * N * K + std::size_t(2) * M * N;
     std::size_t gemm_num_byte = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
                                 sizeof(CDataType) * M * N + sizeof(C0DataType) * M * N +
-                                sizeof(C1DataType) * M * N + sizeof(DDataType) * M +
-                                sizeof(DDataType) * M;
+                                sizeof(C1DataType) * M * N + sizeof(ReduceDataType) * M +
+                                sizeof(ReduceDataType) * M;
 
-    std::size_t normalize_num_byte = sizeof(CDataType) * M * N + sizeof(DDataType) * M +
-                                     sizeof(DDataType) * M + sizeof(GammaDataType) * N +
+    std::size_t normalize_num_byte = sizeof(CDataType) * M * N + sizeof(ReduceDataType) * M +
+                                     sizeof(ReduceDataType) * M + sizeof(GammaDataType) * N +
                                      sizeof(BetaDataType) * N + sizeof(NormalizeDataType) * M * N;
 
     float tflops               = static_cast<float>(gemm_flop) / 1.E9 / gemm_reduce_time;
@@ -263,8 +263,8 @@ int main()
     Tensor<CDataType> c_m_n(f_host_tensor_descriptor2d(M, N, StrideC, CLayout{}));
     Tensor<C0DataType> bias_n(f_host_tensor_descriptor1d(N, 1));
     Tensor<C1DataType> c1_m_n(f_host_tensor_descriptor2d(M, N, StrideC, CLayout{}));
-    Tensor<DDataType> reduceMean_m(f_host_tensor_descriptor1d(M, 1));
-    Tensor<DDataType> reduceMeanSquare_m(f_host_tensor_descriptor1d(M, 1));
+    Tensor<ReduceDataType> reduceMean_m(f_host_tensor_descriptor1d(M, 1));
+    Tensor<ReduceDataType> reduceMeanSquare_m(f_host_tensor_descriptor1d(M, 1));
     Tensor<GammaDataType> gamma_n(f_host_tensor_descriptor1d(N, 1));
     Tensor<BetaDataType> beta_n(f_host_tensor_descriptor1d(N, 1));
     Tensor<LayerNormOutDataType> layerNorm_m_n(
@@ -282,8 +282,8 @@ int main()
     DeviceMem c_device_buf(sizeof(CDataType) * c_m_n.mDesc.GetElementSpace());
     DeviceMem bias_device_buf(sizeof(C0DataType) * bias_n.mDesc.GetElementSpace());
     DeviceMem c1_device_buf(sizeof(C1DataType) * c1_m_n.mDesc.GetElementSpace());
-    DeviceMem reduceMean_device_buf(sizeof(DDataType) * reduceMean_m.mDesc.GetElementSpace());
-    DeviceMem reduceMeanSquare_device_buf(sizeof(DDataType) *
+    DeviceMem reduceMean_device_buf(sizeof(ReduceDataType) * reduceMean_m.mDesc.GetElementSpace());
+    DeviceMem reduceMeanSquare_device_buf(sizeof(ReduceDataType) *
                                           reduceMeanSquare_m.mDesc.GetElementSpace());
     DeviceMem gamma_device_buf(sizeof(GammaDataType) * gamma_n.mDesc.GetElementSpace());
     DeviceMem beta_device_buf(sizeof(BetaDataType) * beta_n.mDesc.GetElementSpace());
@@ -301,12 +301,12 @@ int main()
     auto b_element_op  = BElementOp{};
     auto c_element_op  = CElementOp{};
     auto c1_element_op = C1ElementOp{};
-    auto dxs_global =
-        ck::make_tuple(static_cast<DDataType*>(reduceMean_device_buf.GetDeviceBuffer()),
-                       static_cast<DDataType*>(reduceMeanSquare_device_buf.GetDeviceBuffer()));
+    auto p_reduces =
+        ck::make_tuple(static_cast<ReduceDataType*>(reduceMean_device_buf.GetDeviceBuffer()),
+                       static_cast<ReduceDataType*>(reduceMeanSquare_device_buf.GetDeviceBuffer()));
 
-    auto dxs_in_element_op  = DxsInElementOps{};
-    auto dxs_out_element_op = DxsOutElementOps{N, N};
+    auto reduce_in_element_ops  = ReduceInElementOps{};
+    auto reduce_out_element_ops = ReduceOutElementOps{N, N};
 
     // Prepare GEMM, reduce_mean, reduce_mean_square
     auto gemmReduce         = DeviceGemmBiasAddReduceInstance{};
@@ -317,7 +317,7 @@ int main()
                                 static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
                                 static_cast<C0DataType*>(bias_device_buf.GetDeviceBuffer()),
                                 static_cast<C1DataType*>(c1_device_buf.GetDeviceBuffer()),
-                                dxs_global,
+                                p_reduces,
                                 M,
                                 N,
                                 K,
@@ -329,8 +329,8 @@ int main()
                                 b_element_op,
                                 c_element_op,
                                 c1_element_op,
-                                dxs_in_element_op,
-                                dxs_out_element_op);
+                                reduce_in_element_ops,
+                                reduce_out_element_ops);
 
     if(!gemmReduce.IsSupportedArgument(gemmReduce_argument))
     {
@@ -379,19 +379,19 @@ int main()
         Tensor<LayerNormOutDataType> host_layerNorm_m_n(
             f_host_tensor_descriptor2d(M, N, StrideC, CLayout{}));
 
-        host_gemm_layernorm<CDataType, DDataType, ReduceAccDataType>(host_layerNorm_m_n,
-                                                                     a_m_k,
-                                                                     b_k_n,
-                                                                     bias_n,
-                                                                     c1_m_n,
-                                                                     gamma_n,
-                                                                     beta_n,
-                                                                     a_element_op,
-                                                                     b_element_op,
-                                                                     c_element_op,
-                                                                     c1_element_op,
-                                                                     M,
-                                                                     N);
+        host_gemm_layernorm<CDataType, ReduceDataType, ReduceAccDataType>(host_layerNorm_m_n,
+                                                                          a_m_k,
+                                                                          b_k_n,
+                                                                          bias_n,
+                                                                          c1_m_n,
+                                                                          gamma_n,
+                                                                          beta_n,
+                                                                          a_element_op,
+                                                                          b_element_op,
+                                                                          c_element_op,
+                                                                          c1_element_op,
+                                                                          M,
+                                                                          N);
 
         layerNorm_device_buf.FromDevice(layerNorm_m_n.mData.data());
         pass &= ck::utils::check_err(layerNorm_m_n.mData,
@@ -416,7 +416,7 @@ int main()
                                   CDataType,
                                   C0DataType,
                                   C1DataType,
-                                  DDataType,
+                                  ReduceDataType,
                                   GammaDataType,
                                   BetaDataType,
                                   LayerNormOutDataType>(

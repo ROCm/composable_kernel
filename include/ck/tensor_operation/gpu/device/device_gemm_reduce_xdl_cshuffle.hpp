@@ -26,14 +26,14 @@ template <typename ALayout,
           typename GemmAccDataType,
           typename CShuffleDataType,
           typename ReduceAccDataType,
-          typename DPtrsGlobal,
+          typename ReducePtrsGlobal,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          typename DxsReduceOperation,
-          typename DxsInElementwiseOperation,
-          typename DxsReduceAccElementwiseOperation,
-          typename DGlobalMemoryDataOperation,
+          typename ReduceOperations,
+          typename ReduceInElementwiseOperations,
+          typename ReduceAccElementwiseOperations,
+          typename ReduceGlobalMemoryDataOperation,
           GemmSpecialization GemmSpec,
           index_t NumGemmKPrefetchStage,
           index_t BlockSize,
@@ -68,7 +68,7 @@ template <typename ALayout,
           index_t CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
           index_t CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
-struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DxsReduceOperation::Size()>
+struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<ReduceOperations::Size()>
 {
     using DeviceOp = DeviceGemmReduce_Xdl_CShuffle;
 
@@ -340,8 +340,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DxsReduceOperatio
         }
     }
 
-    // assume D is packed tensor
-    static auto MakeDGridDescriptor_M(index_t MRaw)
+    // assume Reduce is packed tensor
+    static auto MakeReduceGridDescriptor_M(index_t MRaw)
     {
         const auto d_grid_desc_mraw = make_naive_tensor_descriptor_packed(make_tuple(MRaw));
 
@@ -369,7 +369,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DxsReduceOperatio
     using AGridDesc_AK0_M_AK1 = decltype(MakeAGridDescriptor_AK0_M_AK1(1, 1, 1));
     using BGridDesc_BK0_N_BK1 = decltype(MakeBGridDescriptor_BK0_N_BK1(1, 1, 1));
     using CGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
-    using DGridDesc_M         = decltype(MakeDGridDescriptor_M(1));
+    using ReduceGridDesc_M    = decltype(MakeReduceGridDescriptor_M(1));
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1<
@@ -378,19 +378,19 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DxsReduceOperatio
         CShuffleDataType,
         CDataType,
         ReduceAccDataType,
-        DPtrsGlobal,
+        ReducePtrsGlobal,
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
-        DxsReduceOperation,
-        DxsInElementwiseOperation,
-        DxsReduceAccElementwiseOperation,
+        ReduceOperations,
+        ReduceInElementwiseOperations,
+        ReduceAccElementwiseOperations,
         InMemoryDataOperationEnum::Set,
-        DGlobalMemoryDataOperation,
+        ReduceGlobalMemoryDataOperation,
         AGridDesc_AK0_M_AK1,
         BGridDesc_BK0_N_BK1,
         CGridDesc_M_N,
-        DGridDesc_M,
+        ReduceGridDesc_M,
         NumGemmKPrefetchStage,
         BlockSize,
         MPerBlock,
@@ -433,7 +433,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DxsReduceOperatio
         Argument(const ADataType* p_a_grid,
                  const BDataType* p_b_grid,
                  CDataType* p_c_grid,
-                 DPtrsGlobal p_ds_grid,
+                 ReducePtrsGlobal p_reduces_grid,
                  index_t MRaw,
                  index_t NRaw,
                  index_t KRaw,
@@ -443,24 +443,24 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DxsReduceOperatio
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op,
-                 DxsInElementwiseOperation dxs_in_element_op,
-                 DxsReduceAccElementwiseOperation dxs_out_element_op)
+                 ReduceInElementwiseOperations reduce_in_element_ops,
+                 ReduceAccElementwiseOperations reduce_out_element_ops)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
-              p_ds_grid_{p_ds_grid},
+              p_reduces_grid_{p_reduces_grid},
               a_grid_desc_ak0_m_ak1_{DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, KRaw, StrideA)},
               b_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1(KRaw, NRaw, StrideB)},
               c_grid_desc_m_n_{DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC)},
-              d_grid_desc_m_{DeviceOp::MakeDGridDescriptor_M(MRaw)},
+              reduce_grid_desc_m_{DeviceOp::MakeReduceGridDescriptor_M(MRaw)},
               c_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              d_grid_desc_mblock_mperblock_{},
+              reduce_grid_desc_mblock_mperblock_{},
               block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op},
-              dxs_in_element_op_{dxs_in_element_op},
-              dxs_out_element_op_{dxs_out_element_op}
+              reduce_in_element_ops_{reduce_in_element_ops},
+              reduce_out_element_ops_{reduce_out_element_ops}
         {
             if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
                                            b_grid_desc_bk0_n_bk1_,
@@ -471,8 +471,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DxsReduceOperatio
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         c_grid_desc_m_n_);
 
-                d_grid_desc_mblock_mperblock_ =
-                    GridwiseGemm::MakeDGridDescriptor_MBlock_MPerBlock(d_grid_desc_m_);
+                reduce_grid_desc_mblock_mperblock_ =
+                    GridwiseGemm::MakeReduceGridDescriptor_MBlock_MPerBlock(reduce_grid_desc_m_);
             }
         }
 
@@ -480,20 +480,21 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DxsReduceOperatio
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
-        DPtrsGlobal p_ds_grid_;
+        ReducePtrsGlobal p_reduces_grid_;
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         CGridDesc_M_N c_grid_desc_m_n_;
-        DGridDesc_M d_grid_desc_m_;
+        ReduceGridDesc_M reduce_grid_desc_m_;
         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock d_grid_desc_mblock_mperblock_;
+        typename GridwiseGemm::ReduceGridDescriptor_MBlock_MPerBlock
+            reduce_grid_desc_mblock_mperblock_;
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
-        DxsInElementwiseOperation dxs_in_element_op_;
-        DxsReduceAccElementwiseOperation dxs_out_element_op_;
+        ReduceInElementwiseOperations reduce_in_element_ops_;
+        ReduceAccElementwiseOperations reduce_out_element_ops_;
     };
 
     // Invoker
@@ -518,7 +519,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DxsReduceOperatio
                 std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
                           << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
 
-                std::cout << "arg.d_grid_desc_m_{ " << arg.d_grid_desc_m_.GetLength(I0) << "}"
+                std::cout << "arg.reduce_grid_desc_m_{ " << arg.reduce_grid_desc_m_.GetLength(I0) << "}"
                           << std::endl;
             }
 #endif
@@ -544,16 +545,16 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DxsReduceOperatio
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    DPtrsGlobal,
+                    ReducePtrsGlobal,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    DxsInElementwiseOperation,
-                    DxsReduceAccElementwiseOperation,
+                    ReduceInElementwiseOperations,
+                    ReduceAccElementwiseOperations,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
                     typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock,
+                    typename GridwiseGemm::ReduceGridDescriptor_MBlock_MPerBlock,
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     true>;
 
@@ -566,16 +567,16 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DxsReduceOperatio
                                            arg.p_a_grid_,
                                            arg.p_b_grid_,
                                            arg.p_c_grid_,
-                                           arg.p_ds_grid_,
+                                           arg.p_reduces_grid_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
-                                           arg.dxs_in_element_op_,
-                                           arg.dxs_out_element_op_,
+                                           arg.reduce_in_element_ops_,
+                                           arg.reduce_out_element_ops_,
                                            arg.a_grid_desc_ak0_m_ak1_,
                                            arg.b_grid_desc_bk0_n_bk1_,
                                            arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.d_grid_desc_mblock_mperblock_,
+                                           arg.reduce_grid_desc_mblock_mperblock_,
                                            arg.block_2_ctile_map_);
             }
             else
@@ -584,16 +585,16 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DxsReduceOperatio
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    DPtrsGlobal,
+                    ReducePtrsGlobal,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    DxsInElementwiseOperation,
-                    DxsReduceAccElementwiseOperation,
+                    ReduceInElementwiseOperations,
+                    ReduceAccElementwiseOperations,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
                     typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock,
+                    typename GridwiseGemm::ReduceGridDescriptor_MBlock_MPerBlock,
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     false>;
 
@@ -606,16 +607,16 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DxsReduceOperatio
                                            arg.p_a_grid_,
                                            arg.p_b_grid_,
                                            arg.p_c_grid_,
-                                           arg.p_ds_grid_,
+                                           arg.p_reduces_grid_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
-                                           arg.dxs_in_element_op_,
-                                           arg.dxs_out_element_op_,
+                                           arg.reduce_in_element_ops_,
+                                           arg.reduce_out_element_ops_,
                                            arg.a_grid_desc_ak0_m_ak1_,
                                            arg.b_grid_desc_bk0_n_bk1_,
                                            arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.d_grid_desc_mblock_mperblock_,
+                                           arg.reduce_grid_desc_mblock_mperblock_,
                                            arg.block_2_ctile_map_);
             }
 
@@ -650,7 +651,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DxsReduceOperatio
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-    static constexpr int NumReduce = DxsReduceOperation::Size();
+    static constexpr int NumReduce = ReduceOperations::Size();
     static auto MakeArgument(const void* p_a,
                              const void* p_b,
                              void* p_c,
@@ -665,24 +666,24 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DxsReduceOperatio
                              std::array<void*, NumReduce> reduce_in_element_op,
                              std::array<void*, NumReduce> reduce_out_element_op)
     {
-        DPtrsGlobal dxs_tuple = generate_tuple(
+        ReducePtrsGlobal reduce_tuple = generate_tuple(
             [&](auto I) {
-                auto tmp = DPtrsGlobal{}[I];
+                auto tmp = ReducePtrsGlobal{}[I];
                 using T  = remove_pointer_t<decltype(tmp)>;
                 return static_cast<T*>(p_reduces[I]);
             },
             Number<NumReduce>{});
 
-        DxsInElementwiseOperation dxs_in_element_op = generate_tuple(
+        ReduceInElementwiseOperations reduce_in_element_ops = generate_tuple(
             [&](auto I) {
-                auto tmp = DxsInElementwiseOperation{}[I];
+                auto tmp = ReduceInElementwiseOperations{}[I];
                 using T  = remove_pointer_t<decltype(tmp)>;
                 return *(static_cast<T*>(reduce_in_element_op[I]));
             },
             Number<NumReduce>{});
-        DxsReduceAccElementwiseOperation dxs_out_element_op = generate_tuple(
+        ReduceAccElementwiseOperations reduce_out_element_ops = generate_tuple(
             [&](auto I) {
-                auto tmp = DxsReduceAccElementwiseOperation{}[I];
+                auto tmp = ReduceAccElementwiseOperations{}[I];
                 using T  = remove_pointer_t<decltype(tmp)>;
                 return *(static_cast<T*>(reduce_out_element_op[I]));
             },
@@ -698,7 +699,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DxsReduceOperatio
         return Argument{static_cast<const ADataType*>(p_a),
                         static_cast<const BDataType*>(p_b),
                         static_cast<CDataType*>(p_c),
-                        dxs_tuple,
+                        reduce_tuple,
                         M,
                         N,
                         K,
@@ -708,8 +709,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DxsReduceOperatio
                         a_element_op,
                         b_element_op,
                         c_element_op,
-                        dxs_in_element_op,
-                        dxs_out_element_op};
+                        reduce_in_element_ops,
+                        reduce_out_element_ops};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -731,24 +732,24 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DxsReduceOperatio
                         std::array<void*, NumReduce> reduce_out_element_op,
                         index_t /* KBatch */ = 1) override
     {
-        DPtrsGlobal dxs_tuple = generate_tuple(
+        ReducePtrsGlobal reduce_tuple = generate_tuple(
             [&](auto I) {
-                auto tmp = DPtrsGlobal{}[I];
+                auto tmp = ReducePtrsGlobal{}[I];
                 using T  = remove_pointer_t<decltype(tmp)>;
                 return static_cast<T*>(p_reduces[I]);
             },
             Number<NumReduce>{});
 
-        DxsInElementwiseOperation dxs_in_element_op = generate_tuple(
+        ReduceInElementwiseOperations reduce_in_element_ops = generate_tuple(
             [&](auto I) {
-                auto tmp = DxsInElementwiseOperation{}[I];
+                auto tmp = ReduceInElementwiseOperations{}[I];
                 using T  = remove_pointer_t<decltype(tmp)>;
                 return *(static_cast<T*>(reduce_in_element_op[I]));
             },
             Number<NumReduce>{});
-        DxsReduceAccElementwiseOperation dxs_out_element_op = generate_tuple(
+        ReduceAccElementwiseOperations reduce_out_element_ops = generate_tuple(
             [&](auto I) {
-                auto tmp = DxsReduceAccElementwiseOperation{}[I];
+                auto tmp = ReduceAccElementwiseOperations{}[I];
                 using T  = remove_pointer_t<decltype(tmp)>;
                 return *(static_cast<T*>(reduce_out_element_op[I]));
             },
@@ -764,7 +765,7 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DxsReduceOperatio
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
                                           static_cast<CDataType*>(p_c),
-                                          dxs_tuple,
+                                          reduce_tuple,
                                           M,
                                           N,
                                           K,
@@ -774,8 +775,8 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<DxsReduceOperatio
                                           a_element_op,
                                           b_element_op,
                                           c_element_op,
-                                          dxs_in_element_op,
-                                          dxs_out_element_op);
+                                          reduce_in_element_ops,
+                                          reduce_out_element_ops);
     }
 
     // polymorphic
