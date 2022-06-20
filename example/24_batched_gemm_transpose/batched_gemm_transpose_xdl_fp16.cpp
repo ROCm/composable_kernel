@@ -13,7 +13,7 @@
 #include "host_tensor_generator.hpp"
 #include "host_gemm.hpp"
 #include "device_tensor.hpp"
-#include "device_batched_gemm_transpose_xdl.hpp"
+#include "device_batched_gemm_c_permutation_xdl.hpp"
 #include "element_wise_operation.hpp"
 #include "reference_batched_gemm_transpose.hpp"
 #include "gemm_specialization.hpp"
