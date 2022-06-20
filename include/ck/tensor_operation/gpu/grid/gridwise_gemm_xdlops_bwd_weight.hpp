@@ -791,8 +791,10 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
             constexpr auto c_block_desc_mblock_mperblock_nblock_nperblock =
                 GetCBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
 
+            void* p_shared = static_cast<void*>(p_shared_block);
+
             auto c_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-                static_cast<FloatC*>(p_shared_block),
+                static_cast<FloatC*>(p_shared),
                 c_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
             static_assert(M1 == MWave, "");

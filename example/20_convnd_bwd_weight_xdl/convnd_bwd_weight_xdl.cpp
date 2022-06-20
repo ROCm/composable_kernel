@@ -297,52 +297,15 @@ int main(int argc, char* argv[])
                                   split_k);
 
     // alloc work space
-    size_t bwd_weight_workspace_size = conv->GetWorkSpaceSize(argument.get());
-    float ave_time                   = 0.f;
-    if(std::is_same<InDataType, ck::bhalf_t>::value && split_k > 1)
+    float ave_time = 0.f;
+    if(!conv->IsSupportedArgument(argument.get()))
     {
-        DeviceMem wei_work_space_device_buf(bwd_weight_workspace_size);
-        wei_work_space_device_buf.SetZero();
-        argument = conv->MakeArgumentPointer(
-            static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-            static_cast<AccDataType*>(wei_work_space_device_buf.GetDeviceBuffer()),
-            static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-            params.N_,
-            params.K_,
-            params.C_,
-            params.input_spatial_lengths_,
-            params.filter_spatial_lengths_,
-            output_spatial_lengths,
-            params.conv_filter_strides_,
-            params.conv_filter_dilations_,
-            params.input_left_pads_,
-            params.input_right_pads_,
-            InElementOp{},
-            WeiElementOp{},
-            OutElementOp{},
-            split_k);
-
-        if(!conv->IsSupportedArgument(argument.get()))
-        {
-            std::cout << "wrong! device_conv with the specified compilation parameters does "
-                         "not support this Conv problem"
-                      << std::endl;
-            return 1;
-        }
-
-        ave_time = invoker->Run(argument.get(), StreamConfig{nullptr, time_kernel});
+        std::cout << "wrong! device_conv with the specified compilation parameters does "
+                     "not support this Conv problem"
+                  << std::endl;
+        return 1;
     }
-    else
-    {
-        if(!conv->IsSupportedArgument(argument.get()))
-        {
-            std::cout << "wrong! device_conv with the specified compilation parameters does "
-                         "not support this Conv problem"
-                      << std::endl;
-            return 1;
-        }
-        ave_time = invoker->Run(argument.get(), StreamConfig{nullptr, time_kernel});
-    }
+    ave_time = invoker->Run(argument.get(), StreamConfig{nullptr, time_kernel});
 
     std::size_t flop = ck::utils::conv::get_flops(
         params.N_, params.C_, params.K_, params.filter_spatial_lengths_, output_spatial_lengths);

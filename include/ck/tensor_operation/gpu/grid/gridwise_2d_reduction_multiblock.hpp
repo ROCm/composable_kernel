@@ -171,15 +171,15 @@ struct GridwiseReduction_mk_to_m_multiblock
                                AccDataType beta,
                                OutDataType* const __restrict__ p_out_value_global)
     {
-        const auto identityVal = ReduceOperation::GetIdentityValue();
+        const auto identityVal = ReduceOperation::template GetIdentityValue<AccDataType>();
 
         // LDS
         __shared__ AccDataType p_reduce_work_buffer[BlockSize];
 
-        const auto in_global_val_buf =
-            make_dynamic_buffer<AddressSpaceEnum::Global>(p_in_value_global,
-                                                          in_grid_desc_m_k.GetElementSpaceSize(),
-                                                          type_convert<InDataType>(identityVal));
+        const auto in_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_in_value_global,
+            in_grid_desc_m_k.GetElementSpaceSize(),
+            ReduceOperation::template GetIdentityValue<InDataType>());
         auto out_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_out_value_global, out_grid_desc_m.GetElementSpaceSize());
 
@@ -358,12 +358,12 @@ struct GridwiseReduction_mk_to_m_multiblock
         __shared__ AccDataType p_reduce_work_val_buffer[BlockSize];
         __shared__ IndexDataType p_reduce_work_idx_buffer[BlockSize];
 
-        const auto identityVal = ReduceOperation::GetIdentityValue();
+        const auto identityVal = ReduceOperation::template GetIdentityValue<AccDataType>();
 
-        const auto in_global_val_buf =
-            make_dynamic_buffer<AddressSpaceEnum::Global>(p_in_value_global,
-                                                          in_grid_desc_m_k.GetElementSpaceSize(),
-                                                          type_convert<InDataType>(identityVal));
+        const auto in_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_in_value_global,
+            in_grid_desc_m_k.GetElementSpaceSize(),
+            ReduceOperation::template GetIdentityValue<InDataType>());
         const auto in_global_idx_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_in_index_global, in_grid_desc_m_k.GetElementSpaceSize());
         auto out_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(

@@ -1,4 +1,5 @@
 #pragma once
+
 #include "statically_indexed_array.hpp"
 
 namespace ck {
