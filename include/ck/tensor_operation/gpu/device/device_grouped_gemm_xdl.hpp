@@ -593,8 +593,7 @@ struct DeviceGroupedGemmXdl
                                                       std::vector<GemmDesc>& gemm_descs,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op,
-                                                      index_t /* KBatch */ = 1) override
+                                                      CElementwiseOperation c_element_op) override
     {
         return std::make_unique<Argument>(
             p_a, p_b, p_c, gemm_descs, 1, 1, a_element_op, b_element_op, c_element_op);

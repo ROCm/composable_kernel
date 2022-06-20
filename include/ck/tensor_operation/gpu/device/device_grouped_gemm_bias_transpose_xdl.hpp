@@ -26,7 +26,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_gemm_bias_transpose_xdlops_v2r3(
+        kernel_grouped_gemm_bias_transpose_xdl(
             const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
             const index_t group_count,
             const AElementwiseOperation a_element_op,
@@ -114,10 +114,10 @@ template <typename ADataType,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
           ck::index_t NumPrefetch = 1,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
-struct DeviceGroupedGemmBiasTransposeXdl
-    : public DeviceGroupedGemmBiasTranspose<AElementwiseOperation,
-                                            BElementwiseOperation,
-                                            CElementwiseOperation>
+struct DeviceGroupedGemmBiasCPermuteXdl
+    : public DeviceGroupedGemmBiasCPermute<AElementwiseOperation,
+                                           BElementwiseOperation,
+                                           CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -370,7 +370,7 @@ struct DeviceGroupedGemmBiasTransposeXdl
                  std::vector<const void*>& p_Bs,
                  std::vector<const void*>& p_Ds,
                  std::vector<void*>& p_Es,
-                 std::vector<GemmBiasTransposeDesc>& gemm_bias_transpose_desc,
+                 std::vector<GemmBiasCPermuteDesc>& gemm_bias_transpose_desc,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op)
@@ -408,12 +408,12 @@ struct DeviceGroupedGemmBiasTransposeXdl
                 }
 
                 const auto a_grid_desc_k0_m_k1_ =
-                    DeviceGroupedGemmBiasTransposeXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
+                    DeviceGroupedGemmBiasCPermuteXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
                 const auto b_grid_desc_k0_n_k1_ =
-                    DeviceGroupedGemmBiasTransposeXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
+                    DeviceGroupedGemmBiasCPermuteXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
 
                 const auto e_grid_desc_m_n_ =
-                    DeviceGroupedGemmBiasTransposeXdl::MakeCGridDescriptor_M_N(
+                    DeviceGroupedGemmBiasCPermuteXdl::MakeCGridDescriptor_M_N(
                         gemm_bias_transpose_desc[i].M0_,
                         gemm_bias_transpose_desc[i].M1_,
                         gemm_bias_transpose_desc[i].N0_,
@@ -424,7 +424,7 @@ struct DeviceGroupedGemmBiasTransposeXdl
                         gemm_bias_transpose_desc[i].stride_E_N1_);
 
                 const auto d_grid_desc_m_n_ =
-                    DeviceGroupedGemmBiasTransposeXdl::MakeCGridDescriptor_M_N(
+                    DeviceGroupedGemmBiasCPermuteXdl::MakeCGridDescriptor_M_N(
                         gemm_bias_transpose_desc[i].M0_,
                         gemm_bias_transpose_desc[i].M1_,
                         gemm_bias_transpose_desc[i].N0_,
@@ -497,7 +497,7 @@ struct DeviceGroupedGemmBiasTransposeXdl
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        using Argument = DeviceGroupedGemmBiasTransposeXdl::Argument;
+        using Argument = DeviceGroupedGemmBiasCPermuteXdl::Argument;
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
@@ -546,17 +546,15 @@ struct DeviceGroupedGemmBiasTransposeXdl
 
             float ave_time = 0;
 
-            if(has_main_k_block_loop)
-            {
-                const auto kernel =
-                    kernel_grouped_gemm_bias_transpose_xdlops_v2r3<GridwiseGemm,
-                                                                   GemmBiasTransKernelArg,
-                                                                   AElementwiseOperation,
-                                                                   BElementwiseOperation,
-                                                                   CElementwiseOperation,
-                                                                   true>;
+            auto launch_kernel = [&](auto has_main_k_block_loop_) {
+                const auto kernel = kernel_grouped_gemm_bias_transpose_xdl<GridwiseGemm,
+                                                                           GemmBiasTransKernelArg,
+                                                                           AElementwiseOperation,
+                                                                           BElementwiseOperation,
+                                                                           CElementwiseOperation,
+                                                                           has_main_k_block_loop_>;
 
-                ave_time = launch_and_time_kernel(
+                return launch_and_time_kernel(
                     stream_config,
                     kernel,
                     dim3(arg.grid_size_),
@@ -567,28 +565,15 @@ struct DeviceGroupedGemmBiasTransposeXdl
                     arg.a_element_op_,
                     arg.b_element_op_,
                     arg.c_element_op_);
+            };
+
+            if(has_main_k_block_loop)
+            {
+                ave_time = launch_kernel(integral_constant<bool, true>{});
             }
             else
             {
-                const auto kernel =
-                    kernel_grouped_gemm_bias_transpose_xdlops_v2r3<GridwiseGemm,
-                                                                   GemmBiasTransKernelArg,
-                                                                   AElementwiseOperation,
-                                                                   BElementwiseOperation,
-                                                                   CElementwiseOperation,
-                                                                   false>;
-
-                ave_time = launch_and_time_kernel(
-                    stream_config,
-                    kernel,
-                    dim3(arg.grid_size_),
-                    dim3(BlockSize),
-                    0,
-                    cast_pointer_to_constant_address_space(arg.gemm_descs_args_workspace_),
-                    arg.gemm_desc_kernel_arg_.size(),
-                    arg.a_element_op_,
-                    arg.b_element_op_,
-                    arg.c_element_op_);
+                ave_time = launch_kernel(integral_constant<bool, false>{});
             }
 
             return ave_time;
@@ -626,7 +611,7 @@ struct DeviceGroupedGemmBiasTransposeXdl
                              std::vector<const void*>& p_Bs,
                              std::vector<const void*>& p_Ds,
                              std::vector<void*>& p_Es,
-                             std::vector<GemmBiasTransposeDesc> gemm_bias_transpose_desc,
+                             std::vector<GemmBiasCPermuteDesc> gemm_bias_transpose_desc,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
@@ -649,7 +634,7 @@ struct DeviceGroupedGemmBiasTransposeXdl
                         std::vector<const void*>& p_Bs,
                         std::vector<const void*>& p_Ds,
                         std::vector<void*>& p_Es,
-                        std::vector<GemmBiasTransposeDesc>& gemm_bias_transpose_desc,
+                        std::vector<GemmBiasCPermuteDesc>& gemm_bias_transpose_desc,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
                         CElementwiseOperation c_element_op,
@@ -677,7 +662,7 @@ struct DeviceGroupedGemmBiasTransposeXdl
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGroupedGemmBiasTransposeXdl"
+        str << "DeviceGroupedGemmBiasCPermuteXdl"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
@@ -704,7 +689,7 @@ struct DeviceGroupedGemmBiasTransposeXdl
     {
         dynamic_cast<Argument*>(p_arg)->gemm_descs_args_workspace_ = workspace_ptr;
     }
-}; // namespace device
+};
 
 } // namespace device
 } // namespace tensor_operation

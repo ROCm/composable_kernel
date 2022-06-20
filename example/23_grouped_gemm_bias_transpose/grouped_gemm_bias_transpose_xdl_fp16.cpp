@@ -48,7 +48,7 @@ using CElementOp = ck::tensor_operation::element_wise::Add;
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 // clang-format off
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemmBiasTransposeXdl
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemmBiasCPermuteXdl
 //######| AData| BData| DData| EData| AccData| ALayout| BLayout|           A|           B|           C|          GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|     CShuffle|    CShuffle| CBlockTransferClusterLengths|      Num|
 //######|  Type|  Type|  Type|  Type|    Type|        |        | Elementwise| Elementwise| Elementwise|Spacialization|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|  MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| Prefetch|
 //######|      |      |      |      |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |   PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|         |
@@ -56,14 +56,14 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemmBiasTr
         <   F16,   F16,   F16,   F16,     F32,     Row,     Col, PassThrough, PassThrough,         Add,   GemmDefault,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,            1,           1,               S<1, 32, 1, 8>,        1>;
 // clang-format on
 
-using ReferenceGemmBiasTransposeInstance =
-    ck::tensor_operation::host::ReferenceGemmBiasTranspose<ADataType,
-                                                           BDataType,
-                                                           DDataType,
-                                                           EDataType,
-                                                           AElementOp,
-                                                           BElementOp,
-                                                           CElementOp>;
+using ReferenceGemmBiasCPermuteInstance =
+    ck::tensor_operation::host::ReferenceGemmBiasCPermute<ADataType,
+                                                          BDataType,
+                                                          DDataType,
+                                                          EDataType,
+                                                          AElementOp,
+                                                          BElementOp,
+                                                          CElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -81,14 +81,14 @@ int main(int argc, char* argv[])
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: time kernel (0=n0, 1=yes)\n");
+        printf("arg3: time kernel (0=no, 1=yes)\n");
         exit(0);
     }
 
     int group_count = rand() % 16 + 1;
 
     // GEMM shape
-    std::vector<ck::tensor_operation::device::GemmBiasTransposeDesc> gemm_descs;
+    std::vector<ck::tensor_operation::device::GemmBiasCPermuteDesc> gemm_descs;
     std::vector<const void*> p_As, p_Bs, p_Ds;
     std::vector<void*> p_Es;
 
@@ -109,68 +109,34 @@ int main(int argc, char* argv[])
         const int stride_A = K;
         const int stride_B = K;
 
-        if(i % 2 == 0)
-        {
-            // output layout [M0, N0, M1, N1]
-            const int stride_E_M0 = N1 * M1 * N0;
-            const int stride_E_M1 = N1;
-            const int stride_E_N0 = N1 * M1;
-            const int stride_E_N1 = 1;
+        // output layout [M0, N0, M1, N1]
+        const int stride_E_M0 = N1 * M1 * N0;
+        const int stride_E_M1 = N1;
+        const int stride_E_N0 = N1 * M1;
+        const int stride_E_N1 = 1;
 
-            int stride_D_M0 = 0;
-            int stride_D_M1 = 0;
-            int stride_D_N0 = N1;
-            int stride_D_N1 = 1;
+        int stride_D_M0 = 0;
+        int stride_D_M1 = 0;
+        int stride_D_N0 = N1;
+        int stride_D_N1 = 1;
 
-            gemm_descs.push_back({M,
-                                  N,
-                                  K,
-                                  stride_A,
-                                  stride_B,
-                                  M0,
-                                  M1,
-                                  N0,
-                                  N1,
-                                  stride_D_M0,
-                                  stride_D_M1,
-                                  stride_D_N0,
-                                  stride_D_N1,
-                                  stride_E_M0,
-                                  stride_E_M1,
-                                  stride_E_N0,
-                                  stride_E_N1});
-        }
-        else
-        {
-            // output layout [M0, N0, N1, M1]
-            int stride_E_M0 = N1 * M1 * N0;
-            int stride_E_M1 = 1;
-            int stride_E_N0 = M1 * N1;
-            int stride_E_N1 = M1;
-
-            int stride_D_M0 = 0;
-            int stride_D_M1 = 0;
-            int stride_D_N0 = N1;
-            int stride_D_N1 = 1;
-
-            gemm_descs.push_back({M,
-                                  N,
-                                  K,
-                                  stride_A,
-                                  stride_B,
-                                  M0,
-                                  M1,
-                                  N0,
-                                  N1,
-                                  stride_D_M0,
-                                  stride_D_M1,
-                                  stride_D_N0,
-                                  stride_D_N1,
-                                  stride_E_M0,
-                                  stride_E_M1,
-                                  stride_E_N0,
-                                  stride_E_N1});
-        }
+        gemm_descs.push_back({M,
+                              N,
+                              K,
+                              stride_A,
+                              stride_B,
+                              M0,
+                              M1,
+                              N0,
+                              N1,
+                              stride_D_M0,
+                              stride_D_M1,
+                              stride_D_N0,
+                              stride_D_N1,
+                              stride_E_M0,
+                              stride_E_M1,
+                              stride_E_N0,
+                              stride_E_N1});
     }
 
     auto f_host_tensor_descriptor =
@@ -348,7 +314,7 @@ int main(int argc, char* argv[])
         for(std::size_t i = 0; i < gemm_descs.size(); i++)
         {
             e_tensors_device[i]->FromDevice(e_device_tensors[i].mData.data());
-            auto ref_gemm    = ReferenceGemmBiasTransposeInstance{};
+            auto ref_gemm    = ReferenceGemmBiasCPermuteInstance{};
             auto ref_invoker = ref_gemm.MakeInvoker();
 
             auto ref_argument = ref_gemm.MakeArgument(a_tensors[i],
