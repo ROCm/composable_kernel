@@ -65,8 +65,8 @@ struct ReferenceBatchedGemmTranspose : public device::BaseOperator
                     float v_a;
                     float v_b;
 
-                    arg.a_element_op_(v_a, static_cast<const float>(arg.a_g_m_k_(g, m, k)));
-                    arg.b_element_op_(v_b, static_cast<const float>(arg.b_g_k_n_(g, k, n)));
+                    arg.a_element_op_(v_a, type_convert<const float>(arg.a_g_m_k_(g, m, k)));
+                    arg.b_element_op_(v_b, type_convert<const float>(arg.b_g_k_n_(g, k, n)));
 
                     v_acc += v_a * v_b;
                 }
