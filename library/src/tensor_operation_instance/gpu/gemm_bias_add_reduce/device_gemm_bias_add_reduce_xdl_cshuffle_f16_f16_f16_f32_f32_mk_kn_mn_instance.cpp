@@ -24,9 +24,9 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using ReduceSum   = ck::reduce::Add;
 using ReduceOps   = ck::Tuple<ReduceSum, ReduceSum>;
 
-using Div            = ck::tensor_operation::element_wise::UnaryDivide;
-using Identity       = ck::tensor_operation::element_wise::PassThrough;
-using Square         = ck::tensor_operation::element_wise::UnarySquare;
+using Div                 = ck::tensor_operation::element_wise::UnaryDivide;
+using Identity            = ck::tensor_operation::element_wise::PassThrough;
+using Square              = ck::tensor_operation::element_wise::UnarySquare;
 using ReduceInElementOps  = ck::Tuple<Identity, Square>;
 using ReduceOutElementOps = ck::Tuple<Div, Div>;
 
@@ -63,12 +63,7 @@ using device_gemm_bias_add_reduce_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_kn
         >;
 
 void add_device_gemm_bias_add_reduce_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_kn_mn_instances(
-    std::vector<DeviceGemmBiasAddReducePtr<PassThrough,
-                                           PassThrough,
-                                           PassThrough,
-                                           PassThrough,
-                                           ReduceInElementOps,
-                                           ReduceOutElementOps>>& instances)
+    std::vector<DeviceGemmReducePtr<1, ReduceOps::Size()>>& instances)
 {
     add_device_operation_instances(
         instances,

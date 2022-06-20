@@ -22,8 +22,8 @@ template <typename ALayout,
           typename ADataType,
           typename BDataType,
           typename CDataType,
-          typename C0DataType,
-          typename C1DataType,
+          typename BiasDataType,
+          typename D0DataType,
           typename GemmAccDataType,
           typename CShuffleDataType,
           typename ReduceAccDataType,
@@ -31,7 +31,7 @@ template <typename ALayout,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          typename C1ElementwiseOperation,
+          typename D0ElementwiseOperation,
           typename ReduceOperations,
           typename ReduceInElementwiseOperations,
           typename ReduceAccElementwiseOperations,
@@ -70,13 +70,7 @@ template <typename ALayout,
           index_t CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
           index_t CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
-struct DeviceGemmBiasAddReduce_Xdl_CShuffle
-    : public DeviceGemmBiasAddReduce<AElementwiseOperation,
-                                     BElementwiseOperation,
-                                     CElementwiseOperation,
-                                     C1ElementwiseOperation,
-                                     ReduceInElementwiseOperations,
-                                     ReduceAccElementwiseOperations>
+struct DeviceGemmBiasAddReduce_Xdl_CShuffle : public DeviceGemmReduce<1, ReduceOperations::Size()>
 {
     using DeviceOp = DeviceGemmBiasAddReduce_Xdl_CShuffle;
 
@@ -387,14 +381,14 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
         GemmAccDataType,
         CShuffleDataType,
         CDataType,
-        C0DataType,
-        C1DataType,
+        BiasDataType,
+        D0DataType,
         ReduceAccDataType,
         ReducePtrsGlobal,
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
-        C1ElementwiseOperation,
+        D0ElementwiseOperation,
         ReduceOperations,
         ReduceInElementwiseOperations,
         ReduceAccElementwiseOperations,
@@ -448,8 +442,8 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
         Argument(const ADataType* p_a_grid,
                  const BDataType* p_b_grid,
                  CDataType* p_c_grid,
-                 const C0DataType* p_c0_grid,
-                 const C1DataType* p_c1_grid,
+                 const BiasDataType* p_bias_grid,
+                 const D0DataType* p_d0_grid,
                  ReducePtrsGlobal p_reduces_grid,
                  index_t MRaw,
                  index_t NRaw,
@@ -461,14 +455,14 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op,
-                 C1ElementwiseOperation c1_element_op,
+                 D0ElementwiseOperation d0_element_op,
                  ReduceInElementwiseOperations reduce_in_element_ops,
                  ReduceAccElementwiseOperations reduce_out_element_ops)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
-              p_c0_grid_{p_c0_grid},
-              p_c1_grid_{p_c1_grid},
+              p_bias_grid_{p_bias_grid},
+              p_d0_grid_{p_d0_grid},
               p_reduces_grid_{p_reduces_grid},
               a_grid_desc_ak0_m_ak1_{DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, KRaw, StrideA)},
               b_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1(KRaw, NRaw, StrideB)},
@@ -484,7 +478,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op},
-              c1_element_op_{c1_element_op},
+              d0_element_op_{d0_element_op},
               reduce_in_element_ops_{reduce_in_element_ops},
               reduce_out_element_ops_{reduce_out_element_ops}
         {
@@ -514,8 +508,8 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
-        const C0DataType* p_c0_grid_;
-        const C1DataType* p_c1_grid_;
+        const BiasDataType* p_bias_grid_;
+        const D0DataType* p_d0_grid_;
         ReducePtrsGlobal p_reduces_grid_;
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
@@ -535,7 +529,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
-        C1ElementwiseOperation c1_element_op_;
+        D0ElementwiseOperation d0_element_op_;
         ReduceInElementwiseOperations reduce_in_element_ops_;
         ReduceAccElementwiseOperations reduce_out_element_ops_;
     };
@@ -568,13 +562,13 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    C0DataType,
-                    C1DataType,
+                    BiasDataType,
+                    D0DataType,
                     ReducePtrsGlobal,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    C1ElementwiseOperation,
+                    D0ElementwiseOperation,
                     ReduceInElementwiseOperations,
                     ReduceAccElementwiseOperations,
                     DeviceOp::AGridDesc_AK0_M_AK1,
@@ -595,13 +589,13 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                                            arg.p_a_grid_,
                                            arg.p_b_grid_,
                                            arg.p_c_grid_,
-                                           arg.p_c0_grid_,
-                                           arg.p_c1_grid_,
+                                           arg.p_bias_grid_,
+                                           arg.p_d0_grid_,
                                            arg.p_reduces_grid_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
-                                           arg.c1_element_op_,
+                                           arg.d0_element_op_,
                                            arg.reduce_in_element_ops_,
                                            arg.reduce_out_element_ops_,
                                            arg.a_grid_desc_ak0_m_ak1_,
@@ -618,13 +612,13 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
-                    C0DataType,
-                    C1DataType,
+                    BiasDataType,
+                    D0DataType,
                     ReducePtrsGlobal,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
-                    C1ElementwiseOperation,
+                    D0ElementwiseOperation,
                     ReduceInElementwiseOperations,
                     ReduceAccElementwiseOperations,
                     DeviceOp::AGridDesc_AK0_M_AK1,
@@ -645,13 +639,13 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
                                            arg.p_a_grid_,
                                            arg.p_b_grid_,
                                            arg.p_c_grid_,
-                                           arg.p_c0_grid_,
-                                           arg.p_c1_grid_,
+                                           arg.p_bias_grid_,
+                                           arg.p_d0_grid_,
                                            arg.p_reduces_grid_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
-                                           arg.c1_element_op_,
+                                           arg.d0_element_op_,
                                            arg.reduce_in_element_ops_,
                                            arg.reduce_out_element_ops_,
                                            arg.a_grid_desc_ak0_m_ak1_,
@@ -694,43 +688,74 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-    static auto MakeArgument(const ADataType* p_a,
-                             const BDataType* p_b,
-                             CDataType* p_c,
-                             const C0DataType* p_c0,
-                             const C1DataType* p_c1,
-                             ReducePtrsGlobal p_dxs,
-                             index_t MRaw,
-                             index_t NRaw,
-                             index_t KRaw,
-                             index_t StrideA,
-                             index_t StrideB,
-                             index_t StrideC,
-                             index_t StrideC1,
-                             AElementwiseOperation a_element_op,
-                             BElementwiseOperation b_element_op,
-                             CElementwiseOperation c_element_op,
-                             C1ElementwiseOperation c1_element_op,
-                             ReduceInElementwiseOperations reduce_in_element_ops,
-                             ReduceAccElementwiseOperations reduce_out_element_ops)
+    static constexpr int NumReduce = ReduceOperations::Size();
+    static auto MakeArgument(const void* p_a,
+                             const void* p_b,
+                             const void* p_bias,
+                             void* p_c,
+                             std::array<const void*, 1> p_ds,
+                             std::array<void*, NumReduce> p_reduces,
+                             ck::index_t M,
+                             ck::index_t N,
+                             ck::index_t K,
+                             ck::index_t StrideA,
+                             ck::index_t StrideB,
+                             ck::index_t StrideC,
+                             std::array<ck::index_t, 1> StrideDs,
+                             std::array<void*, 3> gemm_element_ops,
+                             std::array<void*, 1> d_element_ops,
+                             std::array<void*, NumReduce> reduce_in_element_op,
+                             std::array<void*, NumReduce> reduce_out_element_op)
     {
-        return Argument{p_a,
-                        p_b,
-                        p_c,
-                        p_c0,
-                        p_c1,
-                        p_dxs,
-                        MRaw,
-                        NRaw,
-                        KRaw,
+        ReducePtrsGlobal reduce_tuple = generate_tuple(
+            [&](auto I) {
+                auto tmp = ReducePtrsGlobal{}[I];
+                using T  = remove_pointer_t<decltype(tmp)>;
+                return static_cast<T*>(p_reduces[I]);
+            },
+            Number<NumReduce>{});
+
+        ReduceInElementwiseOperations reduce_in_element_ops = generate_tuple(
+            [&](auto I) {
+                auto tmp = ReduceInElementwiseOperations{}[I];
+                using T  = remove_pointer_t<decltype(tmp)>;
+                return *(static_cast<T*>(reduce_in_element_op[I]));
+            },
+            Number<NumReduce>{});
+        ReduceAccElementwiseOperations reduce_out_element_ops = generate_tuple(
+            [&](auto I) {
+                auto tmp = ReduceAccElementwiseOperations{}[I];
+                using T  = remove_pointer_t<decltype(tmp)>;
+                return *(static_cast<T*>(reduce_out_element_op[I]));
+            },
+            Number<NumReduce>{});
+
+        AElementwiseOperation a_element_op =
+            *(static_cast<AElementwiseOperation*>(gemm_element_ops[0]));
+        BElementwiseOperation b_element_op =
+            *(static_cast<BElementwiseOperation*>(gemm_element_ops[1]));
+        CElementwiseOperation c_element_op =
+            *(static_cast<CElementwiseOperation*>(gemm_element_ops[2]));
+        D0ElementwiseOperation d_element_op =
+            *(static_cast<D0ElementwiseOperation*>(d_element_ops[0]));
+
+        return Argument{static_cast<const ADataType*>(p_a),
+                        static_cast<const BDataType*>(p_b),
+                        static_cast<CDataType*>(p_c),
+                        static_cast<const BiasDataType*>(p_bias),
+                        static_cast<const D0DataType*>(p_ds[0]),
+                        reduce_tuple,
+                        M,
+                        N,
+                        K,
                         StrideA,
                         StrideB,
                         StrideC,
-                        StrideC1,
+                        StrideDs[0],
                         a_element_op,
                         b_element_op,
                         c_element_op,
-                        c1_element_op,
+                        d_element_op,
                         reduce_in_element_ops,
                         reduce_out_element_ops};
     }
@@ -741,43 +766,72 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
+                        const void* p_bias,
                         void* p_c,
-                        const void* p_c0,
-                        const void* p_c1,
-                        void* p_dxs,
-                        index_t MRaw,
-                        index_t NRaw,
-                        index_t KRaw,
-                        index_t StrideA,
-                        index_t StrideB,
-                        index_t StrideC,
-                        index_t StrideC1,
-                        AElementwiseOperation a_element_op,
-                        BElementwiseOperation b_element_op,
-                        CElementwiseOperation c_element_op,
-                        C1ElementwiseOperation c1_element_op,
-                        ReduceInElementwiseOperations reduce_in_element_ops,
-                        ReduceAccElementwiseOperations reduce_out_element_ops,
+                        std::array<const void*, 1> p_ds,
+                        std::array<void*, NumReduce> p_reduces,
+                        ck::index_t M,
+                        ck::index_t N,
+                        ck::index_t K,
+                        ck::index_t StrideA,
+                        ck::index_t StrideB,
+                        ck::index_t StrideC,
+                        std::array<ck::index_t, 1> StrideDs,
+                        std::array<void*, 3> gemm_element_ops,
+                        std::array<void*, 1> d_element_ops,
+                        std::array<void*, NumReduce> reduce_in_element_op,
+                        std::array<void*, NumReduce> reduce_out_element_op,
                         index_t /* KBatch */ = 1) override
     {
-        ReducePtrsGlobal reduce_tuple = *(static_cast<ReducePtrsGlobal*>(p_dxs));
+        ReducePtrsGlobal reduce_tuple = generate_tuple(
+            [&](auto I) {
+                auto tmp = ReducePtrsGlobal{}[I];
+                using T  = remove_pointer_t<decltype(tmp)>;
+                return static_cast<T*>(p_reduces[I]);
+            },
+            Number<NumReduce>{});
+
+        ReduceInElementwiseOperations reduce_in_element_ops = generate_tuple(
+            [&](auto I) {
+                auto tmp = ReduceInElementwiseOperations{}[I];
+                using T  = remove_pointer_t<decltype(tmp)>;
+                return *(static_cast<T*>(reduce_in_element_op[I]));
+            },
+            Number<NumReduce>{});
+        ReduceAccElementwiseOperations reduce_out_element_ops = generate_tuple(
+            [&](auto I) {
+                auto tmp = ReduceAccElementwiseOperations{}[I];
+                using T  = remove_pointer_t<decltype(tmp)>;
+                return *(static_cast<T*>(reduce_out_element_op[I]));
+            },
+            Number<NumReduce>{});
+
+        AElementwiseOperation a_element_op =
+            *(static_cast<AElementwiseOperation*>(gemm_element_ops[0]));
+        BElementwiseOperation b_element_op =
+            *(static_cast<BElementwiseOperation*>(gemm_element_ops[1]));
+        CElementwiseOperation c_element_op =
+            *(static_cast<CElementwiseOperation*>(gemm_element_ops[2]));
+        D0ElementwiseOperation d_element_op =
+            *(static_cast<D0ElementwiseOperation*>(d_element_ops[0]));
+
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
                                           static_cast<CDataType*>(p_c),
-                                          static_cast<const C0DataType*>(p_c0),
-                                          static_cast<const C1DataType*>(p_c1),
+                                          static_cast<const BiasDataType*>(p_bias),
+                                          static_cast<const D0DataType*>(p_ds[0]),
                                           reduce_tuple,
-                                          MRaw,
-                                          NRaw,
-                                          KRaw,
+                                          M,
+                                          N,
+                                          K,
                                           StrideA,
                                           StrideB,
                                           StrideC,
-                                          StrideC1,
+                                          StrideDs[0],
                                           a_element_op,
                                           b_element_op,
                                           c_element_op,
-                                          c1_element_op,
+                                          d_element_op,
                                           reduce_in_element_ops,
                                           reduce_out_element_ops);
     }
@@ -794,7 +848,7 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGemmReduce_Xdl_CShuffle"
+        str << "DeviceGemmBiasAddReduce_Xdl_CShuffle"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

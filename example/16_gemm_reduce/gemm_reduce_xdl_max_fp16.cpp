@@ -190,9 +190,11 @@ int main(int argc, char* argv[])
     // do GEMM
     auto gemm     = DeviceGemmReduceInstance{};
     auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                                      static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-                                      static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+    auto argument = gemm.MakeArgument(a_device_buf.GetDeviceBuffer(),
+                                      b_device_buf.GetDeviceBuffer(),
+                                      nullptr,
+                                      c_device_buf.GetDeviceBuffer(),
+                                      {},
                                       p_reduces,
                                       M,
                                       N,
@@ -200,7 +202,9 @@ int main(int argc, char* argv[])
                                       StrideA,
                                       StrideB,
                                       StrideC,
+                                      {},
                                       gemm_element_ops,
+                                      {},
                                       reduce_element_ops,
                                       reduce_element_ops);
 

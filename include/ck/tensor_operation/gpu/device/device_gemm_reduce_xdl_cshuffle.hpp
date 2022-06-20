@@ -68,7 +68,7 @@ template <typename ALayout,
           index_t CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
           index_t CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
-struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<ReduceOperations::Size()>
+struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<0, ReduceOperations::Size()>
 {
     using DeviceOp = DeviceGemmReduce_Xdl_CShuffle;
 
@@ -654,7 +654,9 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<ReduceOperations:
     static constexpr int NumReduce = ReduceOperations::Size();
     static auto MakeArgument(const void* p_a,
                              const void* p_b,
+                             const void* p_bias,
                              void* p_c,
+                             std::array<const void*, 0> p_ds,
                              std::array<void*, NumReduce> p_reduces,
                              ck::index_t M,
                              ck::index_t N,
@@ -662,10 +664,17 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<ReduceOperations:
                              ck::index_t StrideA,
                              ck::index_t StrideB,
                              ck::index_t StrideC,
+                             std::array<ck::index_t, 0> StrideDs,
                              std::array<void*, 3> gemm_element_ops,
+                             std::array<void*, 0> d_element_ops,
                              std::array<void*, NumReduce> reduce_in_element_op,
                              std::array<void*, NumReduce> reduce_out_element_op)
     {
+        (void)p_bias;
+        (void)p_ds;
+        (void)StrideDs;
+        (void)d_element_ops;
+
         ReducePtrsGlobal reduce_tuple = generate_tuple(
             [&](auto I) {
                 auto tmp = ReducePtrsGlobal{}[I];
@@ -719,7 +728,9 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<ReduceOperations:
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
+                        const void* p_bias,
                         void* p_c,
+                        std::array<const void*, 0> p_ds,
                         std::array<void*, NumReduce> p_reduces,
                         ck::index_t M,
                         ck::index_t N,
@@ -727,11 +738,18 @@ struct DeviceGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<ReduceOperations:
                         ck::index_t StrideA,
                         ck::index_t StrideB,
                         ck::index_t StrideC,
+                        std::array<ck::index_t, 0> StrideDs,
                         std::array<void*, 3> gemm_element_ops,
+                        std::array<void*, 0> d_element_ops,
                         std::array<void*, NumReduce> reduce_in_element_op,
                         std::array<void*, NumReduce> reduce_out_element_op,
-                        index_t /* KBatch */ = 1) override
+                        ck::index_t = 1) override
     {
+        (void)p_bias;
+        (void)p_ds;
+        (void)StrideDs;
+        (void)d_element_ops;
+
         ReducePtrsGlobal reduce_tuple = generate_tuple(
             [&](auto I) {
                 auto tmp = ReducePtrsGlobal{}[I];

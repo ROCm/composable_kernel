@@ -199,21 +199,24 @@ int main(int argc, char* argv[])
     // do GEMM
     auto batched_gemm = DeviceBatchedGemmReduceInstance{};
     auto invoker      = batched_gemm.MakeInvoker();
-    auto argument =
-        batched_gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                                  static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-                                  static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                  p_reduces,
-                                  M,
-                                  N,
-                                  K,
-                                  StrideA,
-                                  StrideB,
-                                  StrideC,
-                                  gemm_element_ops,
-                                  reduce_in_element_ops,
-                                  reduce_out_element_ops,
-                                  BatchCount);
+    auto argument     = batched_gemm.MakeArgument(a_device_buf.GetDeviceBuffer(),
+                                              b_device_buf.GetDeviceBuffer(),
+                                              nullptr,
+                                              c_device_buf.GetDeviceBuffer(),
+                                              {},
+                                              p_reduces,
+                                              M,
+                                              N,
+                                              K,
+                                              StrideA,
+                                              StrideB,
+                                              StrideC,
+                                              {},
+                                              gemm_element_ops,
+                                              {},
+                                              reduce_in_element_ops,
+                                              reduce_out_element_ops,
+                                              BatchCount);
 
     if(!batched_gemm.IsSupportedArgument(argument))
     {

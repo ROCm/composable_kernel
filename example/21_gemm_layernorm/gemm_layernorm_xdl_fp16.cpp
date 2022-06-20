@@ -276,22 +276,25 @@ int main()
                                       reduceMeanSquare_device_buf.GetDeviceBuffer()};
 
     // Prepare GEMM, reduce_mean, reduce_mean_square
-    auto gemmReduce         = DeviceGemmReduceInstance{};
-    auto gemmReduce_invoker = gemmReduce.MakeInvoker();
-    auto gemmReduce_argument =
-        gemmReduce.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                                static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-                                static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                p_reduces,
-                                M,
-                                N,
-                                K,
-                                StrideA,
-                                StrideB,
-                                StrideC,
-                                gemm_element_ops,
-                                reduce_in_element_ops,
-                                reduce_out_element_ops);
+    auto gemmReduce          = DeviceGemmReduceInstance{};
+    auto gemmReduce_invoker  = gemmReduce.MakeInvoker();
+    auto gemmReduce_argument = gemmReduce.MakeArgument(a_device_buf.GetDeviceBuffer(),
+                                                       b_device_buf.GetDeviceBuffer(),
+                                                       nullptr,
+                                                       c_device_buf.GetDeviceBuffer(),
+                                                       {},
+                                                       p_reduces,
+                                                       M,
+                                                       N,
+                                                       K,
+                                                       StrideA,
+                                                       StrideB,
+                                                       StrideC,
+                                                       {},
+                                                       gemm_element_ops,
+                                                       {},
+                                                       reduce_in_element_ops,
+                                                       reduce_out_element_ops);
 
     if(!gemmReduce.IsSupportedArgument(gemmReduce_argument))
     {

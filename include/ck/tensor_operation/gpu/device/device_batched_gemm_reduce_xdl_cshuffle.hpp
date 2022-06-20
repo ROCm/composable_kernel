@@ -162,7 +162,7 @@ template <typename ALayout,
           index_t CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
           index_t CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
-struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<ReduceOperations::Size()>
+struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<0, ReduceOperations::Size()>
 {
     using DeviceOp = DeviceBatchedGemmReduce_Xdl_CShuffle;
 
@@ -817,19 +817,28 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<ReduceOper
     static constexpr int NumReduce = ReduceOperations::Size();
     static auto MakeArgument(const void* p_a,
                              const void* p_b,
+                             const void* p_bias,
                              void* p_c,
+                             std::array<const void*, 0> p_ds,
                              std::array<void*, NumReduce> p_reduces,
-                             index_t M,
-                             index_t N,
-                             index_t K,
-                             index_t StrideA,
-                             index_t StrideB,
-                             index_t StrideC,
+                             ck::index_t M,
+                             ck::index_t N,
+                             ck::index_t K,
+                             ck::index_t StrideA,
+                             ck::index_t StrideB,
+                             ck::index_t StrideC,
+                             std::array<ck::index_t, 0> StrideDs,
                              std::array<void*, 3> gemm_element_ops,
+                             std::array<void*, 0> d_element_ops,
                              std::array<void*, NumReduce> reduce_in_element_op,
                              std::array<void*, NumReduce> reduce_out_element_op,
                              index_t BatchCount)
     {
+        (void)p_bias;
+        (void)p_ds;
+        (void)StrideDs;
+        (void)d_element_ops;
+
         ReducePtrsGlobal reduce_tuple = generate_tuple(
             [&](auto I) {
                 auto tmp = ReducePtrsGlobal{}[I];
@@ -884,7 +893,9 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<ReduceOper
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
+                        const void* p_bias,
                         void* p_c,
+                        std::array<const void*, 0> p_ds,
                         std::array<void*, NumReduce> p_reduces,
                         ck::index_t M,
                         ck::index_t N,
@@ -892,11 +903,18 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<ReduceOper
                         ck::index_t StrideA,
                         ck::index_t StrideB,
                         ck::index_t StrideC,
+                        std::array<ck::index_t, 0> StrideDs,
                         std::array<void*, 3> gemm_element_ops,
+                        std::array<void*, 0> d_element_ops,
                         std::array<void*, NumReduce> reduce_in_element_op,
                         std::array<void*, NumReduce> reduce_out_element_op,
                         index_t BatchCount = 1) override
     {
+        (void)p_bias;
+        (void)p_ds;
+        (void)StrideDs;
+        (void)d_element_ops;
+
         ReducePtrsGlobal reduce_tuple = generate_tuple(
             [&](auto I) {
                 auto tmp = ReducePtrsGlobal{}[I];

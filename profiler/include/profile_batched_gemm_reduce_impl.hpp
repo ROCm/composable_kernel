@@ -17,16 +17,16 @@ namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
 
-using F32              = float;
-using F16              = ck::half_t;
-using ReducePtrsGlobal = ck::Tuple<F32*, F32*>;
-using Identity         = ck::tensor_operation::element_wise::PassThrough;
-using Square           = ck::tensor_operation::element_wise::UnarySquare;
-using ReduceInElementOps    = ck::Tuple<Identity, Square>;
-using ReduceOutElementOps   = ck::Tuple<Identity, Identity>;
+using F32                 = float;
+using F16                 = ck::half_t;
+using ReducePtrsGlobal    = ck::Tuple<F32*, F32*>;
+using Identity            = ck::tensor_operation::element_wise::PassThrough;
+using Square              = ck::tensor_operation::element_wise::UnarySquare;
+using ReduceInElementOps  = ck::Tuple<Identity, Square>;
+using ReduceOutElementOps = ck::Tuple<Identity, Identity>;
 
 using DeviceGemmReduceNoOpPtr =
-    ck::tensor_operation::device::DeviceGemmReducePtr<ReducePtrsGlobal::Size()>;
+    ck::tensor_operation::device::DeviceGemmReducePtr<0, ReducePtrsGlobal::Size()>;
 
 void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gmk_gkn_gmn_instances(
     std::vector<DeviceGemmReduceNoOpPtr>&);
@@ -257,21 +257,24 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
     // profile device GEMM instances
     for(auto& gemm_ptr : gemm_ptrs)
     {
-        auto argument_ptr =
-            gemm_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                                          static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-                                          static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                          p_reduces,
-                                          M,
-                                          N,
-                                          K,
-                                          StrideA,
-                                          StrideB,
-                                          StrideC,
-                                          gemm_element_ops,
-                                          reduce_in_element_ops,
-                                          reduce_out_element_ops,
-                                          BatchCount);
+        auto argument_ptr = gemm_ptr->MakeArgumentPointer(a_device_buf.GetDeviceBuffer(),
+                                                          b_device_buf.GetDeviceBuffer(),
+                                                          nullptr,
+                                                          c_device_buf.GetDeviceBuffer(),
+                                                          {},
+                                                          p_reduces,
+                                                          M,
+                                                          N,
+                                                          K,
+                                                          StrideA,
+                                                          StrideB,
+                                                          StrideC,
+                                                          {},
+                                                          gemm_element_ops,
+                                                          {},
+                                                          reduce_in_element_ops,
+                                                          reduce_out_element_ops,
+                                                          BatchCount);
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
 

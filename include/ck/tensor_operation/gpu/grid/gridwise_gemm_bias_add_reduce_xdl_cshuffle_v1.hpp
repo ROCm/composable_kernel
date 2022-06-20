@@ -40,8 +40,8 @@ __global__ void
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
-            const FloatC0* __restrict__ p_c0_grid,
-            const FloatC1* __restrict__ p_c1_grid,
+            const FloatC0* __restrict__ p_bias_grid,
+            const FloatC1* __restrict__ p_d0_grid,
             ReducePtrsGlobal p_reduces_grid,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
@@ -66,8 +66,8 @@ __global__ void
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
                                                   p_b_grid,
                                                   p_c_grid,
-                                                  p_c0_grid,
-                                                  p_c1_grid,
+                                                  p_bias_grid,
+                                                  p_d0_grid,
                                                   p_reduces_grid,
                                                   p_shared,
                                                   a_element_op,
@@ -87,8 +87,8 @@ __global__ void
     ignore = p_a_grid;
     ignore = p_b_grid;
     ignore = p_c_grid;
-    ignore = p_c0_grid;
-    ignore = p_c1_grid;
+    ignore = p_bias_grid;
+    ignore = p_d0_grid;
     ignore = p_reduces_grid;
     ignore = a_element_op;
     ignore = b_element_op;
@@ -357,8 +357,8 @@ struct GridwiseGemmBiasAddReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     Run(const FloatAB* __restrict__ p_a_grid,
         const FloatAB* __restrict__ p_b_grid,
         FloatC* __restrict__ p_c_grid,
-        const FloatC0* __restrict__ p_c0_grid,
-        const FloatC1* __restrict__ p_c1_grid,
+        const FloatC0* __restrict__ p_bias_grid,
+        const FloatC1* __restrict__ p_d0_grid,
         ReducePtrsGlobal p_reduces_grid,
         void* __restrict__ p_shared,
         const AElementwiseOperation& a_element_op,
@@ -385,9 +385,9 @@ struct GridwiseGemmBiasAddReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
         auto c0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_c0_grid, c0_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
+            p_bias_grid, c0_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
         auto c1_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_c1_grid, c1_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
+            p_d0_grid, c1_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
         // divide block work by [M, N]
         const auto block_work_idx =
