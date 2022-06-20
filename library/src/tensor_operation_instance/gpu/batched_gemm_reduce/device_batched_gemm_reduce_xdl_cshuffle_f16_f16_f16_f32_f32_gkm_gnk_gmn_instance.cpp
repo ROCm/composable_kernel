@@ -21,11 +21,11 @@ template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using ReduceSum   = ck::reduce::Add<F32>;
+using ReduceSum   = ck::reduce::Add;
 using ReduceOps   = ck::Tuple<ReduceSum, ReduceSum>;
 
-using Identity       = ck::tensor_operation::element_wise::UnaryIdentic<F32, F32, false>;
-using Square         = ck::tensor_operation::element_wise::UnarySquare<F32, F32, false>;
+using Identity       = ck::tensor_operation::element_wise::PassThrough;
+using Square         = ck::tensor_operation::element_wise::UnarySquare;
 using DInElementOps  = ck::Tuple<Identity, Square>;
 using DOutElementOps = ck::Tuple<Identity, Identity>;
 
@@ -62,12 +62,9 @@ using device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gkm_gnk_gmn_in
         >;
 
 void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gkm_gnk_gmn_instances(
-    std::vector<DeviceGemmReducePtr<DPtrsGlobal,
-                                    PassThrough,
-                                    PassThrough,
-                                    PassThrough,
-                                    DInElementOps,
-                                    DOutElementOps>>& instances)
+    std::vector<
+        DeviceGemmReducePtr<PassThrough, PassThrough, PassThrough, DInElementOps, DOutElementOps>>&
+        instances)
 {
     add_device_operation_instances(
         instances,

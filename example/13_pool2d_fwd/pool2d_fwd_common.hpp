@@ -8,10 +8,12 @@
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
-#include "host_reduce_util.hpp"
 #include "device_tensor.hpp"
 #include "tensor_layout.hpp"
 #include "reduction_enums.hpp"
+#include "reduction_operator_mapping.hpp"
+#include "reduction_functions_accumulate.hpp"
+
 #include "device_pool2d_fwd_nhwc_nhwc.hpp"
 
 template <typename InDataType,
@@ -29,19 +31,23 @@ static void pool_host_verify(const Tensor<InDataType>& in,
                              const std::array<ck::index_t, 2>& in_left_pads,
                              const std::array<ck::index_t, 2>& /*in_right_pads*/)
 {
-    using namespace ck::host_reduce;
+    const int32_t reduceLength = window_spatial_lengths[0] * window_spatial_lengths[1];
 
-    const int32_t divider = window_spatial_lengths[0] * window_spatial_lengths[1];
+    using ReduceOperation = typename ck::reduce_binary_operator<ReduceOpId>::opType;
 
-    const auto PreUnaryOp = PreUnaryOpFn<AccDataType, ReduceOpId>(divider);
-    const auto PosUnaryOp = PosUnaryOpFn<AccDataType, ReduceOpId>(divider);
+    auto elementwise_ops =
+        ck::reduce_unary_operator<ReduceOpId, true, true>::GetElementwiseOperator(reduceLength);
+
+    auto in_elementwise_op  = std::get<0>(elementwise_ops);
+    auto acc_elementwise_op = std::get<1>(elementwise_ops);
 
     if constexpr(!OutputIndex)
     {
-        auto opReduce = ReduceOpFn<AccDataType, ReduceOpId>();
+        using Accumulation =
+            ck::detail::AccumulateWithNanCheck<PropagateNan, ReduceOperation, AccDataType>;
 
         auto f_nchw = [&](auto n, auto c, auto ho, auto wo) {
-            auto accuVal = ReduceOpZeroVal<AccDataType, ReduceOpId>();
+            auto accuVal = ReduceOperation::template GetIdentityValue<AccDataType>();
 
             for(ck::index_t y = 0; y < window_spatial_lengths[0]; ++y)
             {
@@ -54,14 +60,14 @@ static void pool_host_verify(const Tensor<InDataType>& in,
                     {
                         AccDataType currVal = static_cast<AccDataType>(in(n, c, hi, wi));
 
-                        PreUnaryOp(currVal);
+                        in_elementwise_op(currVal, currVal);
 
-                        binop_with_nan_check<AccDataType, PropagateNan>(opReduce, accuVal, currVal);
+                        Accumulation::Calculate(accuVal, currVal);
                     }
                 }
             }
 
-            PosUnaryOp(accuVal);
+            acc_elementwise_op(accuVal, accuVal);
 
             out(n, c, ho, wo) = accuVal;
         };
@@ -74,10 +80,12 @@ static void pool_host_verify(const Tensor<InDataType>& in,
     }
     else
     {
-        auto opReduce = ReduceOpFn2<AccDataType, ReduceOpId>();
-
-        auto f_nchw = [&](auto n, auto c, auto ho, auto wo) {
-            auto accuVal            = ReduceOpZeroVal<AccDataType, ReduceOpId>();
+        using Accumulation = ck::detail::AccumulateWithIndexAndNanCheck<PropagateNan,
+                                                                        ReduceOperation,
+                                                                        AccDataType,
+                                                                        IndexDataType>;
+        auto f_nchw        = [&](auto n, auto c, auto ho, auto wo) {
+            auto accuVal            = ReduceOperation::template GetIdentityValue<AccDataType>();
             IndexDataType accuIndex = 0;
 
             for(ck::index_t y = 0; y < window_spatial_lengths[0]; ++y)
@@ -92,15 +100,14 @@ static void pool_host_verify(const Tensor<InDataType>& in,
                         AccDataType currVal     = static_cast<AccDataType>(in(n, c, hi, wi));
                         IndexDataType currIndex = y * window_spatial_lengths[1] + x;
 
-                        PreUnaryOp(currVal);
+                        in_elementwise_op(currVal, currVal);
 
-                        binop_with_index_and_nan_check<AccDataType, IndexDataType, PropagateNan>(
-                            opReduce, accuVal, currVal, accuIndex, currIndex);
+                        Accumulation::Calculate(accuVal, currVal, accuIndex, currIndex);
                     }
                 }
             }
 
-            PosUnaryOp(accuVal);
+            acc_elementwise_op(accuVal, accuVal);
 
             out(n, c, ho, wo)         = accuVal;
             out_indices(n, c, ho, wo) = accuIndex;
@@ -139,8 +146,6 @@ bool pool_test(bool do_verification,
                ck::index_t in_right_pad_h,
                ck::index_t in_right_pad_w)
 {
-    using namespace ck::host_reduce;
-
     using DevicePoolFwdInstance =
         ck::tensor_operation::device::DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C<
             InDataType,  // InDataType

@@ -10,7 +10,8 @@
 #include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdlops_v2r3.hpp"
+#include "gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
+#include "gemm_specialization.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -46,7 +47,7 @@ template <typename GridwiseGemm,
           typename FloatC,
           typename AGridDesc_K0_M_K1,
           typename BGridDesc_K0_N_K1,
-          typename CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2,
+          typename CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
@@ -64,7 +65,8 @@ __global__ void
             const index_t batch_count,
             const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
             const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
-            const CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+            const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+                c_grid_desc_mblock_mperblock_nblock_nperblock,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op,
@@ -85,17 +87,22 @@ __global__ void
 
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
-                                                  p_b_grid + b_batch_offset,
-                                                  p_c_grid + c_batch_offset,
-                                                  p_shared,
-                                                  a_grid_desc_k0_m_k1,
-                                                  b_grid_desc_k0_n_k1,
-                                                  c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  c_element_op,
-                                                  block_2_ctile_map);
+    GridwiseGemm::template Run<HasMainKBlockLoop>(
+        p_a_grid + a_batch_offset,
+        p_b_grid + b_batch_offset,
+        ck::Tuple<>{},
+        p_c_grid + c_batch_offset,
+        p_shared,
+        a_element_op,
+        b_element_op,
+        c_element_op,
+        a_grid_desc_k0_m_k1,
+        b_grid_desc_k0_n_k1,
+        ck::StaticallyIndexedArray<
+            typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+            0>{},
+        c_grid_desc_mblock_mperblock_nblock_nperblock,
+        block_2_ctile_map);
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -103,7 +110,7 @@ __global__ void
     ignore = batch_count;
     ignore = a_grid_desc_k0_m_k1;
     ignore = b_grid_desc_k0_n_k1;
-    ignore = c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2;
+    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = c_element_op;
@@ -118,15 +125,16 @@ template <typename ADataType,
           typename AccDataType,
           typename ALayout,
           typename BLayout,
-          typename CLayout,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
+          GemmSpecialization GemmSpec,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
-          ck::index_t K0PerBlock,
-          ck::index_t K1,
+          ck::index_t KPerBlock,
+          ck::index_t AK1,
+          ck::index_t BK1,
           ck::index_t MPerXDL,
           ck::index_t NPerXDL,
           ck::index_t MXdlPerWave,
@@ -145,8 +153,12 @@ template <typename ADataType,
           ck::index_t BBlockTransferSrcScalarPerVector,
           ck::index_t BBlockTransferDstScalarPerVector_K1,
           bool BBlockLdsAddExtraN,
-          ck::index_t CThreadTransferSrcDstVectorDim,
-          ck::index_t CThreadTransferDstScalarPerVector>
+          index_t CShuffleMXdlPerWavePerShuffle,
+          index_t CShuffleNXdlPerWavePerShuffle,
+          typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+          index_t CDEBlockTransferScalarPerVector_NPerBlock,
+          ck::index_t NumPrefetch = 1,
+          LoopScheduler LoopSched = make_default_loop_scheduler()>
 struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElementwiseOperation,
                                                                          BElementwiseOperation,
                                                                          CElementwiseOperation>
@@ -155,13 +167,11 @@ struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElemen
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
-    static constexpr auto K1Number = Number<K1>{};
-
     static auto MakeAGridDescriptor_K0_M_K1(index_t M, index_t K, index_t StrideA)
     {
-        assert(K % K1 == 0);
+        assert(K % BK1 == 0);
 
-        const index_t K0 = K / K1;
+        const index_t K0 = K / AK1;
 
         const auto a_grid_desc_m_k = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
@@ -174,23 +184,33 @@ struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElemen
             }
         }();
 
-        const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
+        if constexpr(GemmSpec == GemmSpecialization::MNPadding)
+        {
+            const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
 
-        const auto a_grid_desc_k0_mp_k1 =
-            transform_tensor_descriptor(a_grid_desc_m_k,
-                                        make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                                                   make_right_pad_transform(M, PadM)),
-                                        make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                        make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-        return a_grid_desc_k0_mp_k1;
+            return transform_tensor_descriptor(
+                a_grid_desc_m_k,
+                make_tuple(make_unmerge_transform(make_tuple(K0, AK1)),
+                           make_right_pad_transform(M, PadM)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        }
+        else
+        {
+            return transform_tensor_descriptor(
+                a_grid_desc_m_k,
+                make_tuple(make_unmerge_transform(make_tuple(K0, AK1)),
+                           make_pass_through_transform(M)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        }
     }
 
     static auto MakeBGridDescriptor_K0_N_K1(index_t K, index_t N, index_t StrideB)
     {
-        assert(K % K1 == 0);
+        assert(K % BK1 == 0);
 
-        const index_t K0 = K / K1;
+        const index_t K0 = K / BK1;
 
         const auto b_grid_desc_k_n = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
@@ -203,16 +223,26 @@ struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElemen
             }
         }();
 
-        const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
+        if constexpr(GemmSpec == GemmSpecialization::MNPadding)
+        {
+            const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
 
-        const auto b_grid_desc_k0_np_k1 =
-            transform_tensor_descriptor(b_grid_desc_k_n,
-                                        make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                                                   make_right_pad_transform(N, PadN)),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                        make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-        return b_grid_desc_k0_np_k1;
+            return transform_tensor_descriptor(
+                b_grid_desc_k_n,
+                make_tuple(make_unmerge_transform(make_tuple(K0, BK1)),
+                           make_right_pad_transform(N, PadN)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        }
+        else
+        {
+            return transform_tensor_descriptor(
+                b_grid_desc_k_n,
+                make_tuple(make_unmerge_transform(make_tuple(K0, BK1)),
+                           make_pass_through_transform(N)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        }
     }
 
     static auto MakeCGridDescriptor_M_N(index_t M0,
@@ -238,16 +268,26 @@ struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElemen
         const index_t M = M0 * M1;
         const index_t N = N0 * N1;
 
-        const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
-        const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
+        if constexpr(GemmSpec == GemmSpecialization::MNPadding)
+        {
+            const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
+            const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
 
-        const auto c_grid_desc_mp_np = transform_tensor_descriptor(
-            c_grid_desc_m_n,
-            make_tuple(make_right_pad_transform(M, PadM), make_right_pad_transform(N, PadN)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}));
+            return transform_tensor_descriptor(
+                c_grid_desc_m_n,
+                make_tuple(make_right_pad_transform(M, PadM), make_right_pad_transform(N, PadN)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+        }
+        else
+        {
 
-        return c_grid_desc_mp_np;
+            return transform_tensor_descriptor(
+                c_grid_desc_m_n,
+                make_tuple(make_pass_through_transform(M), make_pass_through_transform(N)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+        }
     }
 
     using AGridDesc_K0_M_K1 = decltype(MakeAGridDescriptor_K0_M_K1(1, 1, 1));
@@ -284,50 +324,55 @@ struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElemen
         index_t BatchStrideC_;
     };
 
-    // GridwiseGemm
-    using GridwiseGemm =
-        GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3<BlockSize,
-                                                ADataType, // TODO: distinguish A/B datatype
-                                                AccDataType,
-                                                CDataType,
-                                                InMemoryDataOperationEnum::Set,
-                                                AGridDesc_K0_M_K1,
-                                                BGridDesc_K0_N_K1,
-                                                CGridDesc_M_N,
-                                                AElementwiseOperation,
-                                                BElementwiseOperation,
-                                                CElementwiseOperation,
-                                                MPerBlock,
-                                                NPerBlock,
-                                                K0PerBlock,
-                                                MPerXDL,
-                                                NPerXDL,
-                                                K1,
-                                                MXdlPerWave,
-                                                NXdlPerWave,
-                                                ABlockTransferThreadClusterLengths_K0_M_K1,
-                                                ABlockTransferThreadClusterArrangeOrder,
-                                                ABlockTransferSrcAccessOrder,
-                                                ABlockTransferSrcVectorDim,
-                                                ABlockTransferSrcScalarPerVector,
-                                                ABlockTransferDstScalarPerVector_K1,
-                                                false, // AThreadTransferSrcResetCoordinateAfterRun,
-                                                ABlockLdsAddExtraM,
-                                                BBlockTransferThreadClusterLengths_K0_N_K1,
-                                                BBlockTransferThreadClusterArrangeOrder,
-                                                BBlockTransferSrcAccessOrder,
-                                                BBlockTransferSrcVectorDim,
-                                                BBlockTransferSrcScalarPerVector,
-                                                BBlockTransferDstScalarPerVector_K1,
-                                                false, // BThreadTransferSrcResetCoordinateAfterRun,
-                                                BBlockLdsAddExtraN,
-                                                Sequence<2, 3, 0, 1, 7, 5, 4, 6>,
-                                                CThreadTransferSrcDstVectorDim,
-                                                CThreadTransferDstScalarPerVector>;
+    using GridwiseGemm = GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle<
+        ADataType, // TODO: distinguish A/B datatype
+        AccDataType,
+        CDataType,   // CShuffleDataType,
+        ck::Tuple<>, // DsDataType,
+        CDataType,   // EDataType,
+        AElementwiseOperation,
+        BElementwiseOperation,
+        CElementwiseOperation,
+        InMemoryDataOperationEnum::Set,
+        AGridDesc_K0_M_K1,
+        BGridDesc_K0_N_K1,
+        CGridDesc_M_N,
+        NumPrefetch,
+        BlockSize,
+        MPerBlock,
+        NPerBlock,
+        KPerBlock,
+        AK1,
+        BK1,
+        MPerXDL,
+        NPerXDL,
+        MXdlPerWave,
+        NXdlPerWave,
+        ABlockTransferThreadClusterLengths_K0_M_K1,
+        ABlockTransferThreadClusterArrangeOrder,
+        ABlockTransferSrcAccessOrder,
+        ABlockTransferSrcVectorDim,
+        ABlockTransferSrcScalarPerVector,
+        ABlockTransferDstScalarPerVector_K1,
+        false, // AThreadTransferSrcResetCoordinateAfterRun,
+        ABlockLdsAddExtraM,
+        BBlockTransferThreadClusterLengths_K0_N_K1,
+        BBlockTransferThreadClusterArrangeOrder,
+        BBlockTransferSrcAccessOrder,
+        BBlockTransferSrcVectorDim,
+        BBlockTransferSrcScalarPerVector,
+        BBlockTransferDstScalarPerVector_K1,
+        false, // BThreadTransferSrcResetCoordinateAfterRun,
+        BBlockLdsAddExtraN,
+        CShuffleMXdlPerWavePerShuffle,
+        CShuffleNXdlPerWavePerShuffle,
+        CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CDEBlockTransferScalarPerVector_NPerBlock,
+        LoopSched>;
 
-    using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
-        decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
-    using Block2CTileMap = typename GridwiseGemm::DefaultBlock2CTileMap;
+    using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = decltype(
+        GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}));
+    using Block2CTileMap = typename GridwiseGemm::DefaultBlock2ETileMap;
 
     // Argument
     struct Argument : public BaseArgument
@@ -359,13 +404,12 @@ struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElemen
                   gemm_transpose_desc.stride_M1_,
                   gemm_transpose_desc.stride_N0_,
                   gemm_transpose_desc.stride_N1_)},
-              c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
+              c_grid_desc_mblock_mperblock_nblock_nperblock{},
               compute_ptr_offset_of_batch_{
                   type_convert<index_t>(a_grid_desc_k0_m_k1_.GetElementSpaceSize()),
                   type_convert<index_t>(b_grid_desc_k0_n_k1_.GetElementSpaceSize()),
                   type_convert<index_t>(c_grid_desc_m_n_.GetElementSpaceSize())},
-              block_2_ctile_map_{
-                  GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01)},
+              block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2ETileMap(c_grid_desc_m_n_)},
               M01_{M01},
               N01_{N01},
               a_element_op_{a_element_op},
@@ -384,8 +428,9 @@ struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElemen
                                            c_grid_desc_m_n_,
                                            block_2_ctile_map_))
             {
-                c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
-                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
+                c_grid_desc_mblock_mperblock_nblock_nperblock =
+                    GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                        c_grid_desc_m_n_);
             }
         }
 
@@ -397,7 +442,7 @@ struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElemen
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
-        CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
+        CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock c_grid_desc_mblock_mperblock_nblock_nperblock;
         ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch_;
         Block2CTileMap block_2_ctile_map_;
         index_t M01_;
@@ -453,7 +498,7 @@ struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElemen
                     CDataType,
                     remove_reference_t<DeviceBatchedGemmTransposeXdl::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceBatchedGemmTransposeXdl::BGridDesc_K0_N_K1>,
-                    remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
@@ -472,7 +517,7 @@ struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElemen
                                                   arg.BatchCount_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock,
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
                                                   arg.c_element_op_,
@@ -487,7 +532,7 @@ struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElemen
                     CDataType,
                     remove_reference_t<DeviceBatchedGemmTransposeXdl::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceBatchedGemmTransposeXdl::BGridDesc_K0_N_K1>,
-                    remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
@@ -506,7 +551,7 @@ struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElemen
                                                   arg.BatchCount_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock,
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
                                                   arg.c_element_op_,
@@ -607,7 +652,7 @@ struct DeviceBatchedGemmTransposeXdl : public DeviceBatchedGemmTranspose<AElemen
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
-            << K0PerBlock
+            << KPerBlock
             << ">";
         // clang-format on
 

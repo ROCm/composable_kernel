@@ -30,6 +30,8 @@ struct BaseArgument
     BaseArgument& operator=(const BaseArgument&) = default;
 
     virtual ~BaseArgument() {}
+
+    void* p_workspace_ = nullptr;
 };
 
 struct BaseInvoker
@@ -57,7 +59,11 @@ struct BaseOperator
 
     virtual size_t GetWorkSpaceSize(const BaseArgument*) const { return 0; }
 
-    virtual void SetWorkSpacePointer(BaseArgument*, void*) const {}
+    virtual void SetWorkSpacePointer(BaseArgument* p_arg, void* p_workspace) const
+    {
+        assert(p_arg);
+        p_arg->p_workspace_ = p_workspace;
+    }
 
     virtual ~BaseOperator() {}
 };

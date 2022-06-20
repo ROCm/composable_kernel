@@ -10,24 +10,27 @@ namespace host {
 
 template <typename ADataType,
           typename BDataType,
-          typename CDataType,
+          typename DDataType,
+          typename EDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
-struct ReferenceGemmTranspose : public device::BaseOperator
+struct ReferenceGemmBiasTranspose : public device::BaseOperator
 {
     // Argument
     struct Argument : public device::BaseArgument
     {
         Argument(const Tensor<ADataType>& a_m_k,
                  const Tensor<BDataType>& b_k_n,
-                 Tensor<CDataType>& c_m0_m1_n0_n1,
+                 const Tensor<DDataType>& d_m0_m1_n0_n1,
+                 Tensor<EDataType>& e_m0_m1_n0_n1,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op)
             : a_m_k_{a_m_k},
               b_k_n_{b_k_n},
-              c_m0_m1_n0_n1_{c_m0_m1_n0_n1},
+              d_m0_m1_n0_n1_{d_m0_m1_n0_n1},
+              e_m0_m1_n0_n1_{e_m0_m1_n0_n1},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op}
@@ -36,7 +39,8 @@ struct ReferenceGemmTranspose : public device::BaseOperator
 
         const Tensor<ADataType>& a_m_k_;
         const Tensor<BDataType>& b_k_n_;
-        Tensor<CDataType>& c_m0_m1_n0_n1_;
+        const Tensor<DDataType>& d_m0_m1_n0_n1_;
+        Tensor<EDataType>& e_m0_m1_n0_n1_;
 
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
@@ -46,15 +50,15 @@ struct ReferenceGemmTranspose : public device::BaseOperator
     // Invoker
     struct Invoker : public device::BaseInvoker
     {
-        using Argument = ReferenceGemmTranspose::Argument;
+        using Argument = ReferenceGemmBiasTranspose::Argument;
 
         float Run(const Argument& arg)
         {
             auto f_mk_kn_m0m1n0n1 = [&](auto m0, auto m1, auto n0, auto n1) {
                 const int K = arg.a_m_k_.mDesc.GetLengths()[1];
 
-                const int m = m0 * arg.c_m0_m1_n0_n1_.mDesc.GetLengths()[1] + m1;
-                const int n = n0 * arg.c_m0_m1_n0_n1_.mDesc.GetLengths()[3] + n1;
+                const int m = m0 * arg.e_m0_m1_n0_n1_.mDesc.GetLengths()[1] + m1;
+                const int n = n0 * arg.e_m0_m1_n0_n1_.mDesc.GetLengths()[3] + n1;
 
                 float v_acc = 0;
 
@@ -69,18 +73,16 @@ struct ReferenceGemmTranspose : public device::BaseOperator
                     v_acc += v_a * v_b;
                 }
 
-                float v_c;
-
-                arg.c_element_op_(v_c, v_acc);
-
-                arg.c_m0_m1_n0_n1_(m0, m1, n0, n1) = v_c;
+                arg.c_element_op_(arg.e_m0_m1_n0_n1_(m0, m1, n0, n1),
+                                  type_convert<DDataType>(v_acc),
+                                  arg.d_m0_m1_n0_n1_(m0, m1, n0, n1));
             };
 
             make_ParallelTensorFunctor(f_mk_kn_m0m1n0n1,
-                                       arg.c_m0_m1_n0_n1_.mDesc.GetLengths()[0],
-                                       arg.c_m0_m1_n0_n1_.mDesc.GetLengths()[1],
-                                       arg.c_m0_m1_n0_n1_.mDesc.GetLengths()[2],
-                                       arg.c_m0_m1_n0_n1_.mDesc.GetLengths()[3])(
+                                       arg.e_m0_m1_n0_n1_.mDesc.GetLengths()[0],
+                                       arg.e_m0_m1_n0_n1_.mDesc.GetLengths()[1],
+                                       arg.e_m0_m1_n0_n1_.mDesc.GetLengths()[2],
+                                       arg.e_m0_m1_n0_n1_.mDesc.GetLengths()[3])(
                 std::thread::hardware_concurrency());
 
             return 0;
@@ -103,12 +105,14 @@ struct ReferenceGemmTranspose : public device::BaseOperator
 
     static auto MakeArgument(const Tensor<ADataType>& a_m_k,
                              const Tensor<BDataType>& b_k_n,
-                             Tensor<CDataType>& c_m0_m1_n0_n1,
+                             const Tensor<DDataType>& d_m0_m1_n0_n1,
+                             Tensor<EDataType>& e_m0_m1_n0_n1,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
-        return Argument{a_m_k, b_k_n, c_m0_m1_n0_n1, a_element_op, b_element_op, c_element_op};
+        return Argument{
+            a_m_k, b_k_n, d_m0_m1_n0_n1, e_m0_m1_n0_n1, a_element_op, b_element_op, c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -123,7 +127,7 @@ struct ReferenceGemmTranspose : public device::BaseOperator
         auto str = std::stringstream();
 
         // clang-format off
-        str << "ReferenceGemmTranspose"
+        str << "ReferenceGemmBiasTranspose"
             << std::endl;
         // clang-format on
 

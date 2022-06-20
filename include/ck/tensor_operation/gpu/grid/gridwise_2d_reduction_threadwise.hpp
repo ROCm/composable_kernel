@@ -135,12 +135,12 @@ struct GridwiseReduction_mk_to_m_threadwise
                                                      ReduceOperation,
                                                      PropagateNan>;
 
-        const auto zeroVal = ReduceOperation::GetReductionZeroVal();
+        const auto identityVal = ReduceOperation::template GetIdentityValue<AccDataType>();
 
-        const auto in_global_val_buf =
-            make_dynamic_buffer<AddressSpaceEnum::Global>(p_in_value_global,
-                                                          in_grid_desc_m_k.GetElementSpaceSize(),
-                                                          type_convert<InDataType>(zeroVal));
+        const auto in_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_in_value_global,
+            in_grid_desc_m_k.GetElementSpaceSize(),
+            ReduceOperation::template GetIdentityValue<InDataType>());
         auto dst_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_out_value_global, out_grid_desc_m.GetElementSpaceSize());
 
@@ -149,7 +149,7 @@ struct GridwiseReduction_mk_to_m_threadwise
 
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> accu_value_buf;
 
-        static_for<0, MThreadSliceSize, 1>{}([&](auto I) { accu_value_buf(I) = zeroVal; });
+        static_for<0, MThreadSliceSize, 1>{}([&](auto I) { accu_value_buf(I) = identityVal; });
 
         const auto toReduceLength = in_grid_desc_m_k.GetLength(Number<1>{});
 
@@ -276,12 +276,12 @@ struct GridwiseReduction_mk_to_m_threadwise
 
         (void)acc_elementwise_op;
 
-        const auto zeroVal = ReduceOperation::GetReductionZeroVal();
+        const auto identityVal = ReduceOperation::template GetIdentityValue<AccDataType>();
 
-        const auto in_global_val_buf =
-            make_dynamic_buffer<AddressSpaceEnum::Global>(p_in_value_global,
-                                                          in_grid_desc_m_k.GetElementSpaceSize(),
-                                                          type_convert<InDataType>(zeroVal));
+        const auto in_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_in_value_global,
+            in_grid_desc_m_k.GetElementSpaceSize(),
+            ReduceOperation::template GetIdentityValue<InDataType>());
         const auto in_global_idx_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_in_index_global, in_grid_desc_m_k.GetElementSpaceSize());
 
@@ -303,7 +303,7 @@ struct GridwiseReduction_mk_to_m_threadwise
         StaticBuffer<AddressSpaceEnum::Vgpr, IndexDataType, MThreadSliceSize, true> accu_index_buf;
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-            accu_value_buf(I) = zeroVal;
+            accu_value_buf(I) = identityVal;
             accu_index_buf(I) = 0;
         });
 

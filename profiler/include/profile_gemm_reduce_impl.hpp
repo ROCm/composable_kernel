@@ -1,4 +1,5 @@
 #pragma once
+#include "check_err.hpp"
 #include "config.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -19,14 +20,13 @@ namespace device_gemm_instance {
 using F32            = float;
 using F16            = ck::half_t;
 using DPtrsGlobal    = ck::Tuple<F32*, F32*>;
-using Div            = ck::tensor_operation::element_wise::UnaryIdentic<F32, F32, true>;
-using Identity       = ck::tensor_operation::element_wise::UnaryIdentic<F32, F32, false>;
-using Square         = ck::tensor_operation::element_wise::UnarySquare<F32, F32, false>;
+using Div            = ck::tensor_operation::element_wise::UnaryDivide;
+using Identity       = ck::tensor_operation::element_wise::PassThrough;
+using Square         = ck::tensor_operation::element_wise::UnarySquare;
 using DInElementOps  = ck::Tuple<Identity, Square>;
 using DOutElementOps = ck::Tuple<Div, Div>;
 
 using DeviceGemmReduceNoOpPtr = ck::tensor_operation::device::DeviceGemmReducePtr<
-    DPtrsGlobal,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
@@ -123,18 +123,16 @@ bool profile_gemm_reduce_impl(int do_verification,
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
     }
 
-    using AElementOp        = ck::tensor_operation::element_wise::PassThrough;
-    using BElementOp        = ck::tensor_operation::element_wise::PassThrough;
-    using CElementOp        = ck::tensor_operation::element_wise::PassThrough;
-    using D0ReduceOp        = ck::reduce::Add<float>;
-    using D1ReduceOp        = ck::reduce::Add<float>;
-    using UnaryDivElementOp = ck::tensor_operation::element_wise::UnaryIdentic<float, float, true>;
-    using UnaryIdenticElementOp =
-        ck::tensor_operation::element_wise::UnaryIdentic<float, float, false>;
-    using UnarySquareElementOp =
-        ck::tensor_operation::element_wise::UnarySquare<float, float, false>;
-    using DxsInElementOps  = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
-    using DxsOutElementOps = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
+    using AElementOp            = ck::tensor_operation::element_wise::PassThrough;
+    using BElementOp            = ck::tensor_operation::element_wise::PassThrough;
+    using CElementOp            = ck::tensor_operation::element_wise::PassThrough;
+    using D0ReduceOp            = ck::reduce::Add;
+    using D1ReduceOp            = ck::reduce::Add;
+    using UnaryDivElementOp     = ck::tensor_operation::element_wise::UnaryDivide;
+    using UnaryIdenticElementOp = ck::tensor_operation::element_wise::PassThrough;
+    using UnarySquareElementOp  = ck::tensor_operation::element_wise::UnarySquare;
+    using DxsInElementOps       = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
+    using DxsOutElementOps      = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
 
     const auto a_element_op = AElementOp{};
     const auto b_element_op = BElementOp{};
@@ -143,7 +141,7 @@ bool profile_gemm_reduce_impl(int do_verification,
     const auto d1_reduce_op = D1ReduceOp{};
 
     auto dxs_in_element_op  = DxsInElementOps{};
-    auto dxs_out_element_op = DxsOutElementOps{M, M};
+    auto dxs_out_element_op = DxsOutElementOps{N, N};
 
     if(do_verification)
     {
@@ -155,6 +153,8 @@ bool profile_gemm_reduce_impl(int do_verification,
                                                                                 BElementOp,
                                                                                 CElementOp>;
 
+        using ReduceAccDataType = DDataType;
+
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
 
@@ -165,14 +165,15 @@ bool profile_gemm_reduce_impl(int do_verification,
 
         for(int m = 0; m < M; ++m)
         {
-            float d0_acc = d0_reduce_op.GetReductionZeroVal();
-            float d1_acc = d1_reduce_op.GetReductionZeroVal();
+            auto d0_acc = d0_reduce_op.GetIdentityValue<ReduceAccDataType>();
+            auto d1_acc = d1_reduce_op.GetIdentityValue<ReduceAccDataType>();
 
             for(int n = 0; n < N; ++n)
             {
-                float c_val  = ck::type_convert<float>(c_m_n_host_result(m, n));
-                float d0_val = 0;
-                float d1_val = 0;
+                ReduceAccDataType c_val =
+                    ck::type_convert<ReduceAccDataType>(c_m_n_host_result(m, n));
+                ReduceAccDataType d0_val;
+                ReduceAccDataType d1_val;
 
                 dxs_in_element_op(ck::Number<0>{})(d0_val, c_val);
                 dxs_in_element_op(ck::Number<1>{})(d1_val, c_val);
@@ -257,7 +258,7 @@ bool profile_gemm_reduce_impl(int do_verification,
             gemm_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
                                           static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
                                           static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                          dxs_global,
+                                          &dxs_global,
                                           M,
                                           N,
                                           K,
@@ -309,13 +310,9 @@ bool profile_gemm_reduce_impl(int do_verification,
                 d0_device_buf.FromDevice(d0_m_device_result.mData.data());
                 d1_device_buf.FromDevice(d1_m_device_result.mData.data());
 
-                float c_error  = check_error(c_m_n_host_result, c_m_n_device_result);
-                float d0_error = check_error(d0_m_host_result, d0_m_device_result);
-                float d1_error = check_error(d1_m_host_result, d1_m_device_result);
-
-                pass = pass && (c_error < 1E-6);
-                pass = pass && (d0_error < 1E-6);
-                pass = pass && (d1_error < 1E-6);
+                ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
+                ck::utils::check_err(d0_m_device_result.mData, d0_m_host_result.mData);
+                ck::utils::check_err(d1_m_device_result.mData, d1_m_host_result.mData);
 
                 if(do_log)
                 {
