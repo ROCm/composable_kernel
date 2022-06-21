@@ -18,12 +18,12 @@ struct GeneratorTensor_0
 template <typename T>
 struct GeneratorTensor_1
 {
-    int value = 1;
+    T value = 1;
 
     template <typename... Is>
     T operator()(Is...)
     {
-        return ck::type_convert<T>(value);
+        return value;
     }
 };
 
