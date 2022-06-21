@@ -11,8 +11,7 @@
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
 #include "device_tensor.hpp"
-#include "device_gemm_xdl.hpp"
-#include "device_gemm_xdl_c_shuffle.hpp"
+#include "device_gemm_xdl_cshuffle.hpp"
 #include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"
 #include "gemm_specialization.hpp"
@@ -37,57 +36,61 @@ using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
 using CLayout = ck::tensor_layout::gemm::RowMajor;
 
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
+
 // clang-format off
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl_C_Shuffle<
-    ADataType,              // ADataType
-    BDataType,              // BDataType
-    CDataType,              // CDataType
-    AccDataType,            // AccDataType
-    CDataType,              // CShuffleDataType
-    ALayout,                // ALayout
-    BLayout,                // BLayout
-    CLayout,                // CLayout
-    PassThrough,            // AElementwiseOperation
-    PassThrough,            // BElementwiseOperation
-    PassThrough,            // CElementwiseOperation
-    256,                    // BlockSize
-    256,                    // MPerBlock
-    128,                    // NPerBlock
-    32,                     // KPerBlock
-    8,                      // AK1
-    8,                      // BK1
-    32,                     // MPerXDL
-    32,                     // NPerXDL
-    4,                      // MXdlPerWave
-    2,                      // NXdlPerWave
-    S<4, 64, 1>,            // ABlockTransferThreadClusterLengths_K0_M_K1
-    S<1, 0, 2>,             // ABlockTransferThreadClusterArrangeOrder
-    S<1, 0, 2>,             // ABlockTransferSrcAccessOrder
-    2,                      // ABlockTransferSrcVectorDim
-    8,                      // ABlockTransferSrcScalarPerVector
-    8,                      // ABlockTransferDstScalarPerVector_K1
-    true,                   // ABlockLdsAddExtraM
-    S<4, 64, 1>,            // BBlockTransferThreadClusterLengths_K0_N_K1
-    S<1, 0, 2>,             // BBlockTransferThreadClusterArrangeOrder
-    S<1, 0, 2>,             // BBlockTransferSrcAccessOrder
-    2,                      // BBlockTransferSrcVectorDim
-    8,                      // BBlockTransferSrcScalarPerVector
-    8,                      // BBlockTransferDstScalarPerVector_K1
-    true,                   // BBlockLdsAddExtraN
-    1,                      // CShuffleMXdlPerWavePerShuffle
-    1,                      // CShuffleNXdlPerWavePerShuffle
-    S<1, 1, 32, 1, 1, 8>,   // CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
-    8>;                     // CBlockTransferScalarPerVector_NWaveNPerXdl
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle
+    <ALayout,                    // typename ALayout
+     BLayout,                    // typename BLayout
+     CLayout,                    // typename CLayout
+     ADataType,                  // typename ADataType
+     BDataType,                  // typename BDataType
+     CDataType,                  // typename CDataType
+     AccDataType,                // typename GemmAccDataType
+     CDataType,                  // typename CShuffleDataType
+     PassThrough,                // typename AElementwiseOperation
+     PassThrough,                // typename BElementwiseOperation
+     PassThrough,                // typename CElementwiseOperation
+     GemmDefault,                // GemmSpecialization GemmSpec
+     1,                          // index_t NumGemmKPrefetchStage
+     256,                        // index_t BlockSize
+     256,                        // index_t MPerBlock
+     128,                        // index_t NPerBlock
+     32,                         // index_t KPerBlock
+     8,                          // index_t AK1
+     8,                          // index_t BK1
+     32,                         // index_t MPerXDL
+     32,                         // index_t NPerXDL
+     4,                          // index_t MXdlPerWave
+     2,                          // index_t NXdlPerWave
+     S<4, 64, 1>,                // typename ABlockTransferThreadClusterLengths_AK0_M_AK1
+     S<1, 0, 2>,                 // typename ABlockTransferThreadClusterArrangeOrder
+     S<1, 0, 2>,                 // typename ABlockTransferSrcAccessOrder
+     2,                          // index_t ABlockTransferSrcVectorDim
+     8,                          // index_t ABlockTransferSrcScalarPerVector
+     8,                          // index_t ABlockTransferDstScalarPerVector_AK1
+     1,                          // index_t ABlockLdsExtraM
+     S<4, 64, 1>,                // typename BBlockTransferThreadClusterLengths_BK0_N_BK1
+     S<1, 0, 2>,                 // typename BBlockTransferThreadClusterArrangeOrder
+     S<1, 0, 2>,                 // typename BBlockTransferSrcAccessOrder
+     2,                          // index_t BBlockTransferSrcVectorDim
+     8,                          // index_t BBlockTransferSrcScalarPerVector
+     8,                          // index_t BBlockTransferDstScalarPerVector_BK1
+     1,                          // index_t BBlockLdsExtraN
+     1,                          // index_t CShuffleMXdlPerWavePerShuffle
+     1,                          // index_t CShuffleNXdlPerWavePerShuffle
+     S<1, 32, 1, 8>,             // typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+     8>;                         // index_t CShuffleBlockTransferScalarPerVector_NPerBlock
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<float, float, float, PassThrough, PassThrough, PassThrough>;
+    ReferenceGemm<float, float, float, float, PassThrough, PassThrough, PassThrough>;
 
 int main(int argc, char* argv[])
 {
-    bool do_verification = 0;
-    int init_method      = 0;
-    int nrepeat          = 5;
+    bool do_verification = true;
+    int init_method      = 1;
+    bool time_kernel     = false;
 
     // GEMM shape
     ck::index_t M = 3840;
@@ -102,13 +105,13 @@ int main(int argc, char* argv[])
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
     }
     else if(argc == 10)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
 
         M = std::stoi(argv[4]);
         N = std::stoi(argv[5]);
@@ -122,7 +125,7 @@ int main(int argc, char* argv[])
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: run kernel # of times (>1)\n");
+        printf("arg3: time kernel (0=n0, 1=yes)\n");
         printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC\n");
         exit(0);
     }
@@ -190,12 +193,12 @@ int main(int argc, char* argv[])
 
     if(!gemm.IsSupportedArgument(argument))
     {
-        throw std::runtime_error(
-            "wrong! device_gemm with the specified compilation parameters does "
-            "not support this GEMM problem");
+        std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
+
+        return 0;
     }
 
-    float ave_time = invoker.Run(argument, nrepeat);
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_btype =
@@ -229,7 +232,7 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
 
-        ck::utils::check_err(c_m_n_device_f32_result.mData, c_m_n_host_result.mData);
+        return ck::utils::check_err(c_m_n_device_f32_result.mData, c_m_n_host_result.mData) ? 0 : 1;
     }
 
     return 0;

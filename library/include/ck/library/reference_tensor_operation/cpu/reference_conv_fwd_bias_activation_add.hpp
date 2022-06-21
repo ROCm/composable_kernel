@@ -76,18 +76,25 @@ struct ReferenceConvFwd_Bias_Activation_Add : public device::BaseOperator
             auto f_nchw = [&](auto n, auto k, auto ho, auto wo) {
                 float v_acc = 0;
 
-                for(int c = 0; c < arg.wei_k_c_y_x_.mDesc.GetLengths()[1]; ++c)
+                for(std::size_t c = 0; c < arg.wei_k_c_y_x_.mDesc.GetLengths()[1]; ++c)
                 {
-                    for(int y = 0; y < arg.wei_k_c_y_x_.mDesc.GetLengths()[2]; ++y)
+                    for(std::size_t y = 0; y < arg.wei_k_c_y_x_.mDesc.GetLengths()[2]; ++y)
                     {
-                        int hi = ho * arg.conv_strides_[0] + y * arg.conv_dilations_[0] -
-                                 arg.in_left_pads_[0];
-                        for(int x = 0; x < arg.wei_k_c_y_x_.mDesc.GetLengths()[3]; ++x)
+                        auto hi = ck::type_convert<ck::long_index_t>(ho * arg.conv_strides_[0]) +
+                                  ck::type_convert<ck::long_index_t>(y * arg.conv_dilations_[0]) -
+                                  ck::type_convert<ck::long_index_t>(arg.in_left_pads_[0]);
+                        for(std::size_t x = 0; x < arg.wei_k_c_y_x_.mDesc.GetLengths()[3]; ++x)
                         {
-                            int wi = wo * arg.conv_strides_[1] + x * arg.conv_dilations_[1] -
-                                     arg.in_left_pads_[1];
-                            if(hi >= 0 && hi < arg.in_n_c_hi_wi_.mDesc.GetLengths()[2] && wi >= 0 &&
-                               wi < arg.in_n_c_hi_wi_.mDesc.GetLengths()[3])
+                            auto wi =
+                                ck::type_convert<ck::long_index_t>(wo * arg.conv_strides_[1]) +
+                                ck::type_convert<ck::long_index_t>(x * arg.conv_dilations_[1]) -
+                                ck::type_convert<ck::long_index_t>(arg.in_left_pads_[1]);
+                            if(hi >= 0 &&
+                               ck::type_convert<std::size_t>(hi) <
+                                   arg.in_n_c_hi_wi_.mDesc.GetLengths()[2] &&
+                               wi >= 0 &&
+                               ck::type_convert<std::size_t>(wi) <
+                                   arg.in_n_c_hi_wi_.mDesc.GetLengths()[3])
                             {
                                 float v_in;
                                 float v_wei;
@@ -123,7 +130,8 @@ struct ReferenceConvFwd_Bias_Activation_Add : public device::BaseOperator
             return 0;
         }
 
-        float Run(const device::BaseArgument* p_arg, int) override
+        float Run(const device::BaseArgument* p_arg,
+                  const StreamConfig& /*stream_config*/ = StreamConfig{}) override
         {
             return Run(*dynamic_cast<const Argument*>(p_arg));
         }

@@ -56,29 +56,29 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemmXdl
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, CDataType, AElementOp, BElementOp, CElementOp>;
+    ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
 
 int main(int argc, char* argv[])
 {
-    bool do_verification = 0;
-    int init_method      = 0;
-    int nrepeat          = 5;
+    bool do_verification = true;
+    int init_method      = 1;
+    bool time_kernel     = false;
 
     if(argc == 4)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: run kernel # of times (>1)\n");
+        printf("arg3: time kernel (0=n0, 1=yes)\n");
         exit(0);
     }
 
-    int group_count = 4;
+    int group_count = rand() % 16 + 1;
 
     // GEMM shape
     std::vector<ck::tensor_operation::device::GemmShape> gemm_shapes;
@@ -131,7 +131,7 @@ int main(int argc, char* argv[])
 
     std::size_t flop = 0, num_btype = 0;
 
-    for(int i = 0; i < gemm_shapes.size(); i++)
+    for(std::size_t i = 0; i < gemm_shapes.size(); i++)
     {
         a_tensors.push_back(Tensor<ADataType>(f_host_tensor_descriptor(
             gemm_shapes[i].M, gemm_shapes[i].K, gemm_shapes[i].StrideA, ALayout{})));
@@ -168,7 +168,7 @@ int main(int argc, char* argv[])
         }
     }
 
-    for(int i = 0; i < gemm_shapes.size(); i++)
+    for(std::size_t i = 0; i < gemm_shapes.size(); i++)
     {
         a_tensors_device.emplace_back(
             std::make_unique<DeviceMem>(sizeof(ADataType) * a_tensors[i].mDesc.GetElementSpace()));
@@ -189,11 +189,16 @@ int main(int argc, char* argv[])
     auto b_element_op = BElementOp{};
     auto c_element_op = CElementOp{};
 
-    // do GEMM
     auto gemm    = DeviceGemmInstance{};
     auto invoker = gemm.MakeInvoker();
+
+    // do GEMM
     auto argument =
         gemm.MakeArgument(p_a, p_b, p_c, gemm_shapes, a_element_op, b_element_op, c_element_op);
+
+    DeviceMem gemm_desc_workspace(gemm.GetWorkSpaceSize(&argument));
+
+    gemm.SetWorkSpacePointer(&argument, gemm_desc_workspace.GetDeviceBuffer());
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -202,7 +207,7 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    float ave_time = invoker.Run(argument, nrepeat);
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
@@ -211,9 +216,10 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
+    bool pass = true;
     if(do_verification)
     {
-        for(int i = 0; i < gemm_shapes.size(); i++)
+        for(std::size_t i = 0; i < gemm_shapes.size(); i++)
         {
             c_tensors_device[i]->FromDevice(c_device_tensors[i].mData.data());
             auto ref_gemm    = ReferenceGemmInstance{};
@@ -227,9 +233,9 @@ int main(int argc, char* argv[])
                                                       c_element_op);
 
             ref_invoker.Run(ref_argument);
-            ck::utils::check_err(c_device_tensors[i].mData, c_host_tensors[i].mData);
+            pass &= ck::utils::check_err(c_device_tensors[i].mData, c_host_tensors[i].mData);
         }
     }
 
-    return 0;
+    return pass ? 0 : 1;
 }

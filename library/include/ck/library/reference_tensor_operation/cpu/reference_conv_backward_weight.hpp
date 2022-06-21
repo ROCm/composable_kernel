@@ -1,5 +1,4 @@
-#ifndef REFERENCE_CONV_WRW_HPP
-#define REFERENCE_CONV_WRW_HPP
+#pragma once
 
 #include <iostream>
 #include <sstream>
@@ -16,7 +15,9 @@ template <typename InDataType,
           typename OutDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
-          typename OutElementwiseOperation>
+          typename OutElementwiseOperation,
+          ck::index_t NumDimSpatial                                                    = 2,
+          typename ck::enable_if<NumDimSpatial >= 1 && NumDimSpatial <= 3, bool>::type = false>
 struct ReferenceConvBwdWeight : public device::BaseOperator
 {
     // Argument
@@ -32,9 +33,9 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
                  InElementwiseOperation in_element_op,
                  WeiElementwiseOperation wei_element_op,
                  OutElementwiseOperation out_element_op)
-            : in_n_c_hi_wi_{in_n_c_hi_wi},
-              wei_k_c_y_x_{wei_k_c_y_x},
-              out_n_k_ho_wo_{out_n_k_ho_wo},
+            : input_{in_n_c_hi_wi},
+              weight_{wei_k_c_y_x},
+              output_{out_n_k_ho_wo},
               conv_strides_{conv_filter_strides},
               conv_dilations_{conv_filter_dilations},
               in_left_pads_{input_left_pads},
@@ -45,9 +46,9 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
         {
         }
 
-        const Tensor<InDataType>& in_n_c_hi_wi_;
-        Tensor<WeiDataType>& wei_k_c_y_x_;
-        const Tensor<OutDataType>& out_n_k_ho_wo_;
+        const Tensor<InDataType>& input_;
+        Tensor<WeiDataType>& weight_;
+        const Tensor<OutDataType>& output_;
 
         std::vector<index_t> conv_strides_;
         std::vector<index_t> conv_dilations_;
@@ -66,55 +67,184 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
 
         float Run(const Argument& arg)
         {
-            constexpr auto I0 = Number<0>{};
-            constexpr auto I1 = Number<1>{};
-            auto f_kcyx       = [&](auto k, auto c, auto y, auto x) {
-                float v_acc = 0;
-                for(int n = 0; n < arg.out_n_k_ho_wo_.mDesc.GetLengths()[0]; ++n)
-                {
-                    for(int ho = 0; ho < arg.out_n_k_ho_wo_.mDesc.GetLengths()[2]; ++ho)
+            if constexpr(NumDimSpatial == 1)
+            {
+                constexpr auto I0 = Number<0>{};
+                auto f_kcx        = [&](auto k, auto c, auto x) {
+                    float v_acc = 0;
+                    for(std::size_t n = 0; n < arg.output_.mDesc.GetLengths()[0]; ++n)
                     {
-                        int hi = ho * arg.conv_strides_[I0] + y * arg.conv_dilations_[I0] -
-                                 arg.in_left_pads_[I0];
-                        for(int wo = 0; wo < arg.out_n_k_ho_wo_.mDesc.GetLengths()[3]; ++wo)
+                        for(std::size_t wo = 0; wo < arg.output_.mDesc.GetLengths()[2]; ++wo)
                         {
-                            int wi = wo * arg.conv_strides_[I1] + x * arg.conv_dilations_[I1] -
-                                     arg.in_left_pads_[I1];
-                            if(hi >= 0 && hi < arg.in_n_c_hi_wi_.mDesc.GetLengths()[2] && wi >= 0 &&
-                               wi < arg.in_n_c_hi_wi_.mDesc.GetLengths()[3])
+                            auto wi =
+                                ck::type_convert<ck::long_index_t>(wo * arg.conv_strides_[I0]) +
+                                ck::type_convert<ck::long_index_t>(x * arg.conv_dilations_[I0]) -
+                                ck::type_convert<ck::long_index_t>(arg.in_left_pads_[I0]);
+                            if(wi >= 0 &&
+                               ck::type_convert<std::size_t>(wi) < arg.input_.mDesc.GetLengths()[2])
                             {
                                 float v_out;
                                 float v_in;
 
-                                arg.out_element_op_(
-                                    v_out,
-                                    ck::type_convert<float>(arg.out_n_k_ho_wo_(n, k, ho, wo)));
-                                arg.in_element_op_(
-                                    v_in, ck::type_convert<float>(arg.in_n_c_hi_wi_(n, c, hi, wi)));
+                                arg.out_element_op_(v_out,
+                                                    ck::type_convert<float>(arg.output_(n, k, wo)));
+                                arg.in_element_op_(v_in,
+                                                   ck::type_convert<float>(arg.input_(n, c, wi)));
 
                                 v_acc += v_out * v_in;
                             }
                         }
                     }
-                }
-                float v_wei;
+                    float v_wei;
 
-                arg.wei_element_op_(v_wei, v_acc);
+                    arg.wei_element_op_(v_wei, v_acc);
 
-                arg.wei_k_c_y_x_(k, c, y, x) = ck::type_convert<OutDataType>(v_wei);
-            };
+                    arg.weight_(k, c, x) = ck::type_convert<WeiDataType>(v_wei);
+                };
 
-            make_ParallelTensorFunctor(f_kcyx,
-                                       arg.wei_k_c_y_x_.mDesc.GetLengths()[0],
-                                       arg.wei_k_c_y_x_.mDesc.GetLengths()[1],
-                                       arg.wei_k_c_y_x_.mDesc.GetLengths()[2],
-                                       arg.wei_k_c_y_x_.mDesc.GetLengths()[3])(
-                std::thread::hardware_concurrency());
+                make_ParallelTensorFunctor(f_kcx,
+                                           arg.weight_.mDesc.GetLengths()[0],
+                                           arg.weight_.mDesc.GetLengths()[1],
+                                           arg.weight_.mDesc.GetLengths()[2])(
+                    std::thread::hardware_concurrency());
 
-            return 0;
+                return 0;
+            }
+            else if constexpr(NumDimSpatial == 2)
+            {
+                constexpr auto I0 = Number<0>{};
+                constexpr auto I1 = Number<1>{};
+                auto f_kcyx       = [&](auto k, auto c, auto y, auto x) {
+                    float v_acc = 0;
+                    for(std::size_t n = 0; n < arg.output_.mDesc.GetLengths()[0]; ++n)
+                    {
+                        for(std::size_t ho = 0; ho < arg.output_.mDesc.GetLengths()[2]; ++ho)
+                        {
+                            auto hi =
+                                ck::type_convert<ck::long_index_t>(ho * arg.conv_strides_[I0]) +
+                                ck::type_convert<ck::long_index_t>(y * arg.conv_dilations_[I0]) -
+                                ck::type_convert<ck::long_index_t>(arg.in_left_pads_[I0]);
+                            for(std::size_t wo = 0; wo < arg.output_.mDesc.GetLengths()[3]; ++wo)
+                            {
+                                auto wi =
+                                    ck::type_convert<ck::long_index_t>(wo * arg.conv_strides_[I1]) +
+                                    ck::type_convert<ck::long_index_t>(x *
+                                                                       arg.conv_dilations_[I1]) -
+                                    ck::type_convert<ck::long_index_t>(arg.in_left_pads_[I1]);
+                                if(hi >= 0 &&
+                                   ck::type_convert<std::size_t>(hi) <
+                                       arg.input_.mDesc.GetLengths()[2] &&
+                                   wi >= 0 &&
+                                   ck::type_convert<std::size_t>(wi) <
+                                       arg.input_.mDesc.GetLengths()[3])
+                                {
+                                    float v_out;
+                                    float v_in;
+
+                                    arg.out_element_op_(
+                                        v_out, ck::type_convert<float>(arg.output_(n, k, ho, wo)));
+                                    arg.in_element_op_(
+                                        v_in, ck::type_convert<float>(arg.input_(n, c, hi, wi)));
+
+                                    v_acc += v_out * v_in;
+                                }
+                            }
+                        }
+                    }
+                    float v_wei;
+
+                    arg.wei_element_op_(v_wei, v_acc);
+
+                    arg.weight_(k, c, y, x) = ck::type_convert<WeiDataType>(v_wei);
+                };
+
+                make_ParallelTensorFunctor(f_kcyx,
+                                           arg.weight_.mDesc.GetLengths()[0],
+                                           arg.weight_.mDesc.GetLengths()[1],
+                                           arg.weight_.mDesc.GetLengths()[2],
+                                           arg.weight_.mDesc.GetLengths()[3])(
+                    std::thread::hardware_concurrency());
+
+                return 0;
+            }
+            else if constexpr(NumDimSpatial == 3)
+            {
+                constexpr auto I0 = Number<0>{};
+                constexpr auto I1 = Number<1>{};
+                constexpr auto I2 = Number<2>{};
+                auto f_kczyx      = [&](auto k, auto c, auto z, auto y, auto x) {
+                    float v_acc = 0;
+                    for(std::size_t n = 0; n < arg.output_.mDesc.GetLengths()[0]; ++n)
+                    {
+                        for(std::size_t do_ = 0; do_ < arg.output_.mDesc.GetLengths()[2]; ++do_)
+                        {
+                            auto di =
+                                ck::type_convert<ck::long_index_t>(do_ * arg.conv_strides_[I0]) +
+                                ck::type_convert<ck::long_index_t>(z * arg.conv_dilations_[I0]) -
+                                ck::type_convert<ck::long_index_t>(arg.in_left_pads_[I0]);
+                            for(std::size_t ho = 0; ho < arg.output_.mDesc.GetLengths()[3]; ++ho)
+                            {
+                                auto hi =
+                                    ck::type_convert<ck::long_index_t>(ho * arg.conv_strides_[I1]) +
+                                    ck::type_convert<ck::long_index_t>(y *
+                                                                       arg.conv_dilations_[I1]) -
+                                    ck::type_convert<ck::long_index_t>(arg.in_left_pads_[I1]);
+                                for(std::size_t wo = 0; wo < arg.output_.mDesc.GetLengths()[4];
+                                    ++wo)
+                                {
+                                    auto wi =
+                                        ck::type_convert<ck::long_index_t>(wo *
+                                                                           arg.conv_strides_[I2]) +
+                                        ck::type_convert<ck::long_index_t>(
+                                            x * arg.conv_dilations_[I2]) -
+                                        ck::type_convert<ck::long_index_t>(arg.in_left_pads_[I2]);
+                                    if(di >= 0 &&
+                                       ck::type_convert<std::size_t>(di) <
+                                           arg.input_.mDesc.GetLengths()[2] &&
+                                       hi >= 0 &&
+                                       ck::type_convert<std::size_t>(hi) <
+                                           arg.input_.mDesc.GetLengths()[3] &&
+                                       wi >= 0 &&
+                                       ck::type_convert<std::size_t>(wi) <
+                                           arg.input_.mDesc.GetLengths()[4])
+                                    {
+                                        float v_out;
+                                        float v_in;
+
+                                        arg.out_element_op_(v_out,
+                                                            ck::type_convert<float>(
+                                                                arg.output_(n, k, do_, ho, wo)));
+                                        arg.in_element_op_(
+                                            v_in,
+                                            ck::type_convert<float>(arg.input_(n, c, di, hi, wi)));
+
+                                        v_acc += v_out * v_in;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    float v_wei;
+
+                    arg.wei_element_op_(v_wei, v_acc);
+
+                    arg.weight_(k, c, z, y, x) = ck::type_convert<WeiDataType>(v_wei);
+                };
+
+                make_ParallelTensorFunctor(f_kczyx,
+                                           arg.weight_.mDesc.GetLengths()[0],
+                                           arg.weight_.mDesc.GetLengths()[1],
+                                           arg.weight_.mDesc.GetLengths()[2],
+                                           arg.weight_.mDesc.GetLengths()[3],
+                                           arg.weight_.mDesc.GetLengths()[4])(
+                    std::thread::hardware_concurrency());
+
+                return 0;
+            }
         }
 
-        float Run(const device::BaseArgument* p_arg, int) override
+        float Run(const device::BaseArgument* p_arg,
+                  const StreamConfig& /*stream_config*/ = StreamConfig{}) override
         {
             return Run(*dynamic_cast<const Argument*>(p_arg));
         }
@@ -174,4 +304,3 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
 } // namespace host
 } // namespace tensor_operation
 } // namespace ck
-#endif

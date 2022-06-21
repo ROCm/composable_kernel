@@ -5,7 +5,7 @@
 #include <vector>
 #include <half.hpp>
 
-#include "conv_fwd_util.hpp"
+#include "conv_util.hpp"
 #include "element_wise_operation.hpp"
 #include "fill.hpp"
 #include "profile_convnd_fwd.hpp"
@@ -119,7 +119,7 @@ template <int NDim,
 void profile_convnd_instances_impl(const ck::utils::conv::ConvParams& params,
                                    bool do_verification,
                                    bool do_log,
-                                   int nrepeat,
+                                   bool time_kernel,
                                    int init_method,
                                    ConvLayouts)
 {
@@ -185,7 +185,7 @@ void profile_convnd_instances_impl(const ck::utils::conv::ConvParams& params,
                                                                          reference_conv_fwd_fun);
     auto best_conf = run_engine.Profile(
         conv::ConvolutionFwdInstances<InDataType, WeiDataType, OutDataType>::template Get<NDim>(),
-        nrepeat,
+        time_kernel,
         do_verification,
         do_log);
 
@@ -201,7 +201,7 @@ void profile_convnd_instances(ConvDataType data_type,
                               const ck::utils::conv::ConvParams& params,
                               bool do_verification,
                               bool do_log,
-                              int nrepeat,
+                              bool time_kernel,
                               int init_method)
 {
     switch(data_layout)
@@ -214,7 +214,7 @@ void profile_convnd_instances(ConvDataType data_type,
                 params,
                 do_verification,
                 do_log,
-                nrepeat,
+                time_kernel,
                 init_method,
                 ConvolutionLayouts<NDim, ConvDataLayout::NHWC>{});
             break;
@@ -223,7 +223,7 @@ void profile_convnd_instances(ConvDataType data_type,
                 params,
                 do_verification,
                 do_log,
-                nrepeat,
+                time_kernel,
                 init_method,
                 ConvolutionLayouts<NDim, ConvDataLayout::NHWC>{});
             break;
@@ -232,7 +232,7 @@ void profile_convnd_instances(ConvDataType data_type,
                 params,
                 do_verification,
                 do_log,
-                nrepeat,
+                time_kernel,
                 init_method,
                 ConvolutionLayouts<NDim, ConvDataLayout::NHWC>{});
             break;
@@ -241,7 +241,7 @@ void profile_convnd_instances(ConvDataType data_type,
                 params,
                 do_verification,
                 do_log,
-                nrepeat,
+                time_kernel,
                 init_method,
                 ConvolutionLayouts<NDim, ConvDataLayout::NHWC>{});
             break;
@@ -256,7 +256,7 @@ void profile_convnd_instances(ConvDataType data_type,
                 params,
                 do_verification,
                 do_log,
-                nrepeat,
+                time_kernel,
                 init_method,
                 ConvolutionLayouts<NDim, ConvDataLayout::NCHW>{});
             break;
@@ -265,7 +265,7 @@ void profile_convnd_instances(ConvDataType data_type,
                 params,
                 do_verification,
                 do_log,
-                nrepeat,
+                time_kernel,
                 init_method,
                 ConvolutionLayouts<NDim, ConvDataLayout::NCHW>{});
             break;
@@ -274,7 +274,7 @@ void profile_convnd_instances(ConvDataType data_type,
                 params,
                 do_verification,
                 do_log,
-                nrepeat,
+                time_kernel,
                 init_method,
                 ConvolutionLayouts<NDim, ConvDataLayout::NCHW>{});
             break;
@@ -283,7 +283,7 @@ void profile_convnd_instances(ConvDataType data_type,
                 params,
                 do_verification,
                 do_log,
-                nrepeat,
+                time_kernel,
                 init_method,
                 ConvolutionLayouts<NDim, ConvDataLayout::NCHW>{});
             break;
@@ -304,7 +304,7 @@ int ck::profiler::profile_convnd_fwd(int argc, char* argv[])
     bool do_verification{true};
     int init_method{2};
     bool do_log{false};
-    int nrepeat{100};
+    bool time_kernel{false};
     int num_dim_spatial{2};
     ConvParams params;
 
@@ -318,7 +318,7 @@ int ck::profiler::profile_convnd_fwd(int argc, char* argv[])
         do_verification = std::stoi(argv[4]);
         init_method     = std::stoi(argv[5]);
         do_log          = std::stoi(argv[6]);
-        nrepeat         = std::stoi(argv[7]);
+        time_kernel     = std::stoi(argv[7]);
         num_dim_spatial = std::stoi(argv[8]);
     }
     if(argc >= 10)
@@ -332,20 +332,20 @@ int ck::profiler::profile_convnd_fwd(int argc, char* argv[])
     {
     case 1:
         profile_convnd_instances<1>(
-            data_type, data_layout, params, do_verification, do_log, nrepeat, init_method);
+            data_type, data_layout, params, do_verification, do_log, time_kernel, init_method);
         break;
     case 2:
         profile_convnd_instances<2>(
-            data_type, data_layout, params, do_verification, do_log, nrepeat, init_method);
+            data_type, data_layout, params, do_verification, do_log, time_kernel, init_method);
         break;
     case 3:
         profile_convnd_instances<3>(
-            data_type, data_layout, params, do_verification, do_log, nrepeat, init_method);
+            data_type, data_layout, params, do_verification, do_log, time_kernel, init_method);
         break;
     default:
         throw std::runtime_error("profile_conv_fwd: unsupported num_dim_spatial value: " +
                                  std::to_string(num_dim_spatial));
     }
 
-    return 1;
+    return 0;
 }

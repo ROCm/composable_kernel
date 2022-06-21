@@ -1,7 +1,7 @@
 #pragma once
 #include "config.hpp"
 #include "device.hpp"
-#include "conv_fwd_util.hpp"
+#include "conv_util.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
 #include "tensor_layout.hpp"
@@ -222,7 +222,7 @@ static bool check_out(const Tensor<T>& ref, const Tensor<T>& result)
 {
     float max_diff = 1e-6;
 
-    for(int i = 0; i < ref.mData.size(); ++i)
+    for(std::size_t i = 0; i < ref.mData.size(); ++i)
     {
         float diff = std::abs(double(ref.mData[i]) - double(result.mData[i]));
         if(max_diff < diff)
@@ -236,16 +236,16 @@ template <typename DataType>
 void show_data_nhwc_layout(Tensor<DataType>& nhwc)
 {
     std::cout << "[";
-    for(int n = 0; n < nhwc.mDesc.GetLengths()[0]; n++)
+    for(int n = 0; n < ck::type_convert<int>(nhwc.mDesc.GetLengths()[0]); n++)
     {
         std::cout << "[";
-        for(int hi = 0; hi < nhwc.mDesc.GetLengths()[2]; hi++)
+        for(int hi = 0; hi < ck::type_convert<int>(nhwc.mDesc.GetLengths()[2]); hi++)
         {
             std::cout << "[";
-            for(int wi = 0; wi < nhwc.mDesc.GetLengths()[3]; wi++)
+            for(int wi = 0; wi < ck::type_convert<int>(nhwc.mDesc.GetLengths()[3]); wi++)
             {
                 std::cout << "[";
-                for(int c = 0; c < nhwc.mDesc.GetLengths()[1]; c++)
+                for(int c = 0; c < ck::type_convert<int>(nhwc.mDesc.GetLengths()[1]); c++)
                 {
                     std::cout << static_cast<float>(nhwc(n, c, hi, wi)) << "  ";
                 }
@@ -269,7 +269,7 @@ template <int NDimSpatial,
 bool profile_convnd_bwd_data_impl(int do_verification,
                                   int init_method,
                                   bool do_log,
-                                  int nrepeat,
+                                  bool time_kernel,
                                   ck::index_t N,
                                   ck::index_t K,
                                   ck::index_t C,
@@ -410,7 +410,8 @@ bool profile_convnd_bwd_data_impl(int do_verification,
         {
             std::string conv_name = conv_ptr->GetTypeString();
 
-            float ave_time = invoker_ptr->Run(argument_ptr.get(), nrepeat);
+            float ave_time =
+                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
             std::size_t flop =
                 ck::utils::conv::get_flops(N, C, K, filter_spatial_lengths, output_spatial_lengths);

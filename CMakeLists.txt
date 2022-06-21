@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.14)
 
 # Check support for CUDA/HIP in Cmake
 project(composable_kernel)
@@ -72,8 +72,9 @@ message(STATUS "Build with HIP ${HIP_VERSION}")
 
 
 rocm_create_package(
-    NAME CK-${CK_BACKEND}
+    NAME composablekernel
     DESCRIPTION "High Performance Composable Kernel for AMD GPUs"
+    MAINTAINER "MIOpen Kernels Dev Team <dl.MIOpen@amd.com>"
     LDCONFIG
 )
 
@@ -226,13 +227,12 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 
-configure_file("${PROJECT_SOURCE_DIR}/include/ck/hip_version.hpp.in" "${PROJECT_BINARY_DIR}/include/ck/hip_version.hpp")
-
 include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_BINARY_DIR}/include
     ${PROJECT_SOURCE_DIR}/library/include
 )
+
 
 SET(BUILD_DEV ON CACHE BOOL "BUILD_DEV")
 if(BUILD_DEV)
@@ -241,7 +241,31 @@ if(BUILD_DEV)
 endif()
 message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 
+add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
+
 add_subdirectory(library)
 add_subdirectory(example)
 add_subdirectory(test)
 add_subdirectory(profiler)
+
+#Create an interface target for the include only files and call it "composablekernels"
+include(CMakePackageConfigHelpers)
+
+set(version 1.0.0)
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfigVersion.cmake"
+    VERSION "${version}"
+    COMPATIBILITY AnyNewerVersion
+)
+
+configure_package_config_file(${CMAKE_CURRENT_SOURCE_DIR}/Config.cmake.in
+        "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfig.cmake"
+        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
+        NO_CHECK_REQUIRED_COMPONENTS_MACRO
+)
+
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfigVersion.cmake"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
+)

@@ -460,6 +460,8 @@ struct
     using C0GridDesc_M_N    = remove_cvref_t<decltype(GridDescs{}[I3])>;
     using C1GridDesc_M_N    = remove_cvref_t<decltype(GridDescs{}[I4])>;
 
+    using Block2CTileMap = BlockToCTileMap_M00_N0_M01<MPerBlock, NPerBlock, CGridDesc_M_N>;
+
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r3<
         BlockSize,
@@ -522,8 +524,6 @@ struct
                  std::vector<ck::index_t> conv_filter_dilations,
                  std::vector<ck::index_t> input_left_pads,
                  std::vector<ck::index_t> input_right_pads,
-                 ck::index_t M01,
-                 ck::index_t N01,
                  InElementwiseOperation in_element_op,
                  WeiElementwiseOperation wei_element_op,
                  OutElementwiseOperation out_element_op)
@@ -541,8 +541,6 @@ struct
               c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_{},
               c1_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_{},
               block_2_ctile_map_{},
-              M01_{M01},
-              N01_{N01},
               in_element_op_{in_element_op},
               wei_element_op_{wei_element_op},
               out_element_op_{out_element_op},
@@ -575,8 +573,12 @@ struct
             c0_grid_desc_m_n_    = descs[I3];
             c1_grid_desc_m_n_    = descs[I4];
 
-            if(GridwiseGemm::CheckValidity(
-                   a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
+            block_2_ctile_map_ = Block2CTileMap{c_grid_desc_m_n_};
+
+            if(GridwiseGemm::CheckValidity(a_grid_desc_k0_m_k1_,
+                                           b_grid_desc_k0_n_k1_,
+                                           c_grid_desc_m_n_,
+                                           block_2_ctile_map_))
             {
                 c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_ =
                     GridwiseGemm::
@@ -592,9 +594,6 @@ struct
                     GridwiseGemm::
                         MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
                             c1_grid_desc_m_n_);
-
-                block_2_ctile_map_ =
-                    GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
             }
         }
 
@@ -618,9 +617,7 @@ struct
         typename GridwiseGemm::
             C1GridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
                 c1_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_;
-        typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
-        index_t M01_;
-        index_t N01_;
+        Block2CTileMap block_2_ctile_map_;
         InElementwiseOperation in_element_op_;
         WeiElementwiseOperation wei_element_op_;
         OutElementwiseOperation out_element_op_;
@@ -642,7 +639,7 @@ struct
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
 #if 0
             {
@@ -689,22 +686,21 @@ struct
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                             arg.b_grid_desc_k0_n_k1_,
                                             arg.c_grid_desc_m_n_,
-                                            arg.M01_,
-                                            arg.N01_))
+                                            arg.block_2_ctile_map_))
             {
                 throw std::runtime_error(
                     "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v3r3 has invalid setting");
             }
 
-            const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_);
+            const index_t grid_size =
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_);
 
-            const auto K0 = arg.a_grid_desc_k0_m_k1_.GetLength(I0);
-
-            const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
+            const auto K =
+                arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
 
             float ave_time = 0;
 
-            if(has_main_k0_block_loop)
+            if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
                 const auto kernel = kernel_gemm_xdlops_v3r3<
                     GridwiseGemm,
@@ -724,12 +720,12 @@ struct
                     InElementwiseOperation,
                     WeiElementwiseOperation,
                     OutElementwiseOperation,
-                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
+                    Block2CTileMap,
                     true>;
 
                 ave_time = launch_and_time_kernel(
+                    stream_config,
                     kernel,
-                    nrepeat,
                     dim3(grid_size),
                     dim3(BlockSize),
                     0,
@@ -768,12 +764,12 @@ struct
                     InElementwiseOperation,
                     WeiElementwiseOperation,
                     OutElementwiseOperation,
-                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
+                    Block2CTileMap,
                     false>;
 
                 ave_time = launch_and_time_kernel(
+                    stream_config,
                     kernel,
-                    nrepeat,
                     dim3(grid_size),
                     dim3(BlockSize),
                     0,
@@ -796,9 +792,10 @@ struct
             return ave_time;
         }
 
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 
@@ -852,8 +849,7 @@ struct
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                            arg.b_grid_desc_k0_n_k1_,
                                            arg.c_grid_desc_m_n_,
-                                           arg.M01_,
-                                           arg.N01_);
+                                           arg.block_2_ctile_map_);
     }
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override
@@ -895,8 +891,6 @@ struct
                         conv_filter_dilations,
                         input_left_pads,
                         input_right_pads,
-                        1,
-                        1,
                         in_element_op,
                         wei_element_op,
                         out_element_op};
@@ -939,8 +933,6 @@ struct
                                           conv_filter_dilations,
                                           input_left_pads,
                                           input_right_pads,
-                                          1,
-                                          1,
                                           in_element_op,
                                           wei_element_op,
                                           out_element_op);
