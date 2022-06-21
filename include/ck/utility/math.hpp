@@ -141,6 +141,22 @@ __host__ __device__ constexpr auto min(X x, Ys... ys)
     return min(x, min(ys...));
 }
 
+// disallow implicit type casting
+template <typename T>
+__device__ T exp(T x);
+
+template <>
+__device__ float exp<float>(float x)
+{
+    return __expf(x);
+}
+
+template <>
+__device__ double exp<double>(double x)
+{
+    return exp(x);
+}
+
 // greatest common divisor, aka highest common factor
 __host__ __device__ constexpr index_t gcd(index_t x, index_t y)
 {
