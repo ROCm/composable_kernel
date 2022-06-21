@@ -1,5 +1,6 @@
 #pragma once
-#include "config.hpp"
+
+#include "ck/ck.hpp"
 #include "array.hpp"
 #include "container_helper.hpp"
 #include "statically_indexed_array.hpp"

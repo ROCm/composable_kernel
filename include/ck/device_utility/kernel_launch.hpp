@@ -2,9 +2,9 @@
 
 #include <hip/hip_runtime.h>
 
-#include "ck/options.hpp"
-#include "stream_config.hpp"
-#include "hip_check_error.hpp"
+#include "ck/ck.hpp"
+#include "ck/stream_config.hpp"
+#include "ck/device_utility/hip_check_error.hpp"
 
 template <typename... Args, typename F>
 float launch_and_time_kernel(const StreamConfig& stream_config,

@@ -1,10 +1,11 @@
-#ifndef CK_CONFIG_AMD_HPP
-#define CK_CONFIG_AMD_HPP
+#pragma once
 
 #ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
 #endif
+
+#define CK_TIME_KERNEL 1
 
 // constant address space for kernel parameter
 // https://llvm.org/docs/AMDGPUUsage.html#address-spaces
@@ -153,6 +154,7 @@ enum struct InMemoryDataOperationEnum
     Add
 };
 
+// FIXME: use regular Sequence and remove this
 template <InMemoryDataOperationEnum... Is>
 struct InMemoryDataOperationEnumSequence
 {
@@ -166,6 +168,7 @@ struct InMemoryDataOperationEnumSequence
     }
 };
 
+#if 0
 // TODO: no longer needed, remove this
 enum struct ActivTypeEnum
 {
@@ -173,10 +176,10 @@ enum struct ActivTypeEnum
     LeakyRelu,
     Sigmoid
 };
+#endif
 
 // index type
 using index_t      = int32_t;
 using long_index_t = int64_t;
 
 } // namespace ck
-#endif

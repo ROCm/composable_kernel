@@ -9,17 +9,17 @@
 #include <type_traits>
 #include <vector>
 
-#include "check_err.hpp"
 #include "config.hpp"
-#include "device.hpp"
+#include "device_memory.hpp"
+#include "tensor_layout.hpp"
+#include "element_wise_operation.hpp"
+#include "check_err.hpp"
 #include "device_conv_fwd.hpp"
 #include "device_tensor.hpp"
-#include "element_wise_operation.hpp"
 #include "fill.hpp"
 #include "host_tensor.hpp"
 #include "op_instance_engine.hpp"
 #include "reference_conv_fwd.hpp"
-#include "tensor_layout.hpp"
 
 namespace ck {
 namespace tensor_operation {

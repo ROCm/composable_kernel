@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include <stdlib.h>
 
-#include "config.hpp"
+#include "ck/ck.hpp"
 #include "tensor_layout.hpp"
 #include "element_wise_operation.hpp"
 #include "device_memory.hpp"
