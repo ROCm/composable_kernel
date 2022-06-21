@@ -216,6 +216,7 @@ struct DeviceBinaryElementwise : public DeviceElementwise<2, 1, NDim, Elementwis
         return std::make_unique<Invoker>();
     }
 
+    // polymorphic
     std::string GetTypeString() const override
     {
         auto str = std::stringstream();
@@ -223,7 +224,11 @@ struct DeviceBinaryElementwise : public DeviceElementwise<2, 1, NDim, Elementwis
         // clang-format off
         str << "DeviceBinaryElementwise"
             << "<"
+            << "NDim = " << NDim
             << "MPerThread = " << MPerThread
+            << "AScalarPerVector = " << AScalarPerVector
+            << "BScalarPerVector = " << BScalarPerVector
+            << "CScalarPerVector = " << CScalarPerVector
             << ">";
         // clang-format on
 

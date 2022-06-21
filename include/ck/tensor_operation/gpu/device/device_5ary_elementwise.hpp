@@ -318,6 +318,28 @@ struct Device5AryElementwise : public DeviceElementwise<5, 1, NDim, ElementwiseF
     {
         return std::make_unique<Invoker>();
     }
+
+    // polymorphic
+    std::string GetTypeString() const override
+    {
+        auto str = std::stringstream();
+
+        // clang-format off
+        str << "Device5aryElementwise"
+            << "<"
+            << "NDim = " << NDim
+            << "MPerThread = " << MPerThread
+            << "AScalarPerVector = " << AScalarPerVector
+            << "BScalarPerVector = " << BScalarPerVector
+            << "CScalarPerVector = " << CScalarPerVector
+            << "DScalarPerVector = " << DScalarPerVector
+            << "EScalarPerVector = " << EScalarPerVector
+            << "FScalarPerVector = " << FScalarPerVector
+            << ">";
+        // clang-format on
+
+        return str.str();
+    }
 }; // namespace device
 
 } // namespace device
