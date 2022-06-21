@@ -7,7 +7,6 @@
 #include "kernel_launch.hpp"
 #include "device_gemm_multiple_d.hpp"
 #include "common_header.hpp"
-//#include "tensor_layout.hpp"
 #include "tensor_descriptor.hpp"
 #include "tensor_descriptor_helper.hpp"
 #include "gemm_specialization.hpp"

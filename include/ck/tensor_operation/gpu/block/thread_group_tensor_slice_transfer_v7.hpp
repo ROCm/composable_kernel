@@ -8,10 +8,18 @@
 
 namespace ck {
 
-// this version does following things to avoid scratch memory issue
-// 1. Use StaticallyIndexedArray instead of C array for thread buffer
-// 2. ThreadwiseTensorSliceTransfer_v3 does not keep reference to tensor descriptor
-// 3. ThreadwiseTensorSliceTransfer_v3::Run() does not construct new tensor coordinate
+// Thread-group level multi-source, multi-destination tensor slice data movement
+// Assume:
+//   1. All sources and destinations are DynamicBuffer
+//   2. Same VectorDim and ScalerPerVector for all sources and destinations
+//   3. DstInMemOps are per destination tensor
+//   4. ThreadTransferSrcResetCoordinateAfterRunFlags are per source tensor
+//   5. ThreadTransferDstResetCoordinateAfterRunFlags are per destination tensor
+//
+// Does following things to avoid scratch memory issue
+//   1. Pass tensor descritpors by reference (or tuple of references)
+//   2. Does not keep reference to tensor descriptor
+//   3. Does not construct new tensor coordinate when call Run()
 template <typename ThreadGroup,
           typename SrcDatas,
           typename DstDatas,

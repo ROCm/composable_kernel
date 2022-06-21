@@ -7,7 +7,6 @@
 #include "config.hpp"
 #include "tensor_layout.hpp"
 #include "element_wise_operation.hpp"
-
 #include "device_memory.hpp"
 #include "host_tensor.hpp"
 #include "host_tensor_generator.hpp"
