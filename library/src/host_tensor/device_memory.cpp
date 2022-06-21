@@ -1,5 +1,5 @@
-#include "device_memory.hpp"
-#include "hip_check_error.hpp"
+#include "ck/device_utility/hip_check_error.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
 
 DeviceMem::DeviceMem(std::size_t mem_size) : mMemSize(mem_size)
 {

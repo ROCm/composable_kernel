@@ -1,9 +1,7 @@
 ## host_tensor
 include_directories(BEFORE
-    ${PROJECT_SOURCE_DIR}/include/ck
-    ${PROJECT_SOURCE_DIR}/include/ck/device_utility
-    ${PROJECT_SOURCE_DIR}/include/ck/utility
-    ${PROJECT_SOURCE_DIR}/library/include/ck/library/host_tensor
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/library/include
 )
 
 set(HOST_TENSOR_SOURCE
