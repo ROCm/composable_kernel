@@ -26,7 +26,7 @@ REPEAT=$9
 
  N=${10}
 
-# Resnet50 from Bing
+# Resnet50 (no duplicated layer)
 ########  op  datatype  in_layout   wei_layout  out_layout  verify  init  log  repeat  N__ K___ C___ Y X Hi__ Wi__ Strides Dilations LeftPads RightPads
 #$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256 1024 1 1   14   14     1 1       1 1      0 0       0 0
 #$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  512 1024 1 1   14   14     1 1       1 1      0 0       0 0
@@ -50,7 +50,7 @@ REPEAT=$9
 #$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N   64    8 7 7  224  224     2 2       1 1      3 3       3 3
 
 
-# Resnet50 from Bing
+# Resnet50 fusion
 ####### op_________________    datatype  in_layout   wei_layout  out_layout  verify  init  log  repeat    N__  K___ C_ Y X  Hi_ Wi__ Strides Dilations LeftPads RightPads
 $DRIVER conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N   64    3 7 7  224 224    2   2     1   1    3   3     3   3
 $DRIVER conv_fwd_bias_relu     $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N   64   64 1 1   56  56    1   1     1   1    0   0     0   0
