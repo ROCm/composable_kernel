@@ -1,6 +1,7 @@
 #pragma once
-#include "common_header.hpp"
-#include "tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
 
 namespace ck {
 

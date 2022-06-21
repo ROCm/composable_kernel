@@ -1,8 +1,7 @@
-#ifndef CK_MULTI_INDEX_TRANSFORM_HELPER_HPP
-#define CK_MULTI_INDEX_TRANSFORM_HELPER_HPP
+#pragma once
 
-#include "common_header.hpp"
-#include "multi_index_transform.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/multi_index_transform.hpp"
 
 namespace ck {
 
@@ -126,4 +125,3 @@ __host__ __device__ constexpr auto make_modulo_transform(const Modulus& modulus,
     return Modulo<Modulus, UpLength>{modulus, up_length};
 }
 } // namespace ck
-#endif

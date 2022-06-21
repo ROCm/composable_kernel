@@ -1,10 +1,8 @@
-#ifndef CHECK_ERR_HPP
-#define CHECK_ERR_HPP
+#pragma once
 
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
-//#include <half.hpp>
 #include <iostream>
 #include <iomanip>
 #include <iterator>
@@ -12,7 +10,7 @@
 #include <type_traits>
 #include <vector>
 
-#include "data_type.hpp"
+#include "ck/utility/data_type.hpp"
 
 namespace ck {
 namespace utils {
@@ -190,5 +188,3 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
     std::copy(std::begin(v), std::end(v), std::ostream_iterator<T>(os, " "));
     return os;
 }
-
-#endif
