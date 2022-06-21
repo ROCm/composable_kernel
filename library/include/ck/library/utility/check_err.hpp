@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
-#include <half.hpp>
+//#include <half.hpp>
 #include <iostream>
 #include <iomanip>
 #include <iterator>
@@ -108,8 +108,7 @@ check_err(const std::vector<T>& out,
 }
 
 template <typename T>
-typename std::enable_if<std::is_same<T, half_t>::value || std::is_same<T, half_float::half>::value,
-                        bool>::type
+typename std::enable_if<std::is_same<T, half_t>::value, bool>::type
 check_err(const std::vector<T>& out,
           const std::vector<T>& ref,
           const std::string& msg = "Error: Incorrect results!",
