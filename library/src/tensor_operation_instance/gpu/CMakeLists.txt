@@ -57,8 +57,8 @@ add_library(composablekernels::device_operations ALIAS device_operations)
 set(DEV_OPS_INC_DIRS
     ${PROJECT_SOURCE_DIR}/include/ck/
     ${PROJECT_SOURCE_DIR}/library/include/ck/
-    ${PROJECT_SOURCE_DIR}/external/include/
 )
+
 target_compile_features(device_operations PUBLIC)
 set_target_properties(device_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(device_operations PUBLIC
