@@ -30,8 +30,8 @@ template <typename AElementwiseOperation,
           typename CElementwiseOperation>
 using DeviceBatchedGemmCPermutationPtr =
     std::unique_ptr<DeviceBatchedGemmCPermutation<AElementwiseOperation,
-                                               BElementwiseOperation,
-                                               CElementwiseOperation>>;
+                                                  BElementwiseOperation,
+                                                  CElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation
