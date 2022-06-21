@@ -44,6 +44,8 @@ set(PROFILER_SOURCE
 )
 
 add_executable(ckProfiler ${PROFILER_SOURCE})
+add_executable(profile_normalization src/profile_normalization.cpp)
+target_link_libraries(profile_normalization PRIVATE host_tensor device_normalization_instance)
 
 target_link_libraries(ckProfiler PRIVATE host_tensor)
 target_link_libraries(ckProfiler PRIVATE conv_util)

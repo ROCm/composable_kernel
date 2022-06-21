@@ -31,6 +31,13 @@ template <typename InDataType,
           index_t OutDstVectorSize>
 struct DeviceSoftmax : public DeviceNormalization
 {
+    static constexpr index_t kRank = Rank;
+    static constexpr index_t kNumReduceDim = NumReduceDim;
+
+    virtual index_t GetRank() const override { return kRank; }
+
+    virtual index_t GetNumReduceDim() const override { return kNumReduceDim; }
+
     using PassThrough = tensor_operation::element_wise::PassThrough;
 
     // Used for freeloading of some handy functions from DeviceReduceMultiBlock

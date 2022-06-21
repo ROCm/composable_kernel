@@ -45,6 +45,7 @@ add_subdirectory(grouped_gemm)
 add_subdirectory(conv2d_bwd_weight)
 add_subdirectory(batched_gemm_reduce)
 add_subdirectory(gemm_add_add_fastgelu)
+add_subdirectory(normalization)
 
 add_library(device_operations STATIC
     $<TARGET_OBJECTS:device_conv1d_fwd_instance>
@@ -99,7 +100,7 @@ target_include_directories(device_operations PUBLIC
 #once new arches are enabled make this an option on the main cmake file
 # and pass down here to be exported
 
-target_compile_options(device_operations PRIVATE 
+target_compile_options(device_operations PRIVATE
     --offload-arch=gfx908
     --offload-arch=gfx90a
 )

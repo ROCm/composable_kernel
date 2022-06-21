@@ -19,6 +19,10 @@ struct DeviceNormalization : public BaseOperator
                                                               void* out_dev) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
+
+    virtual index_t GetRank() const = 0;
+
+    virtual index_t GetNumReduceDim() const = 0;
 };
 
 using DeviceNormalizationPtr = std::unique_ptr<DeviceNormalization>;
