@@ -6,7 +6,7 @@ docker run                                     \
 --group-add sudo                               \
 -w /root/workspace                             \
 -v ${PATH_TO_LOCAL_WORKSPACE}:/root/workspace  \
-rocm/tensorflow:rocm4.3.1-tf2.6-dev            \
+rocm/tensorflow:rocm5.1-tf2.6-dev              \
 /bin/bash
 ```
 
