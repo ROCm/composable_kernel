@@ -671,11 +671,11 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             return PadDescriptor_M0_1d(desc, gridSize, blockSize);
     }
 
-    using TypeConvertFunctor =
+    using TypeConvertFp32ToBf16Functor =
         ck::tensor_operation::element_wise::UnaryTypeConvert<ck::bhalf_t, float>;
     using GridDesc_M0 = decltype(MakeDescriptor_M0<1>({1}, {1}, 1, 1));
     using GridwiseUEltwise =
-        GridwiseUnaryElementwise_1D<AccDataType, InDataType, GridDesc_M0, TypeConvertFunctor, 4>;
+        GridwiseUnaryElementwise_1D<AccDataType, InDataType, GridDesc_M0, TypeConvertFp32ToBf16Functor, 4>;
 
     using ABCGridDescs = decltype(GetABCGridDesc<NumDimSpatial>());
 
@@ -1070,7 +1070,7 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                                            p_c_grid_tmp_bf16_,
                                            a_grid_desc_m0_,
                                            b_grid_desc_m0_,
-                                           TypeConvertFunctor{});
+                                           TypeConvertFp32ToBf16Functor{});
                 return elapsed_time;
             };
 
@@ -1103,7 +1103,7 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                                                         AccDataType,
                                                         InDataType,
                                                         GridDesc_M0,
-                                                        TypeConvertFunctor>;
+                                                        TypeConvertFp32ToBf16Functor>;
 
                         const auto kernel_conv = kernel_gemm_xdlops_bwd_weight<
                             GridwiseGemmAtomicAddFloatBf16Splitk,
