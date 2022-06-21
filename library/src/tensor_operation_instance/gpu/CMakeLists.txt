@@ -57,6 +57,7 @@ add_library(device_operations STATIC
     $<TARGET_OBJECTS:device_gemm_instance>
     $<TARGET_OBJECTS:device_gemm_bias_relu_instance>
     $<TARGET_OBJECTS:device_gemm_bias_relu_add_instance>
+    $<TARGET_OBJECTS:device_gemm_bias_add_reduce_instance>
     $<TARGET_OBJECTS:device_gemm_bias2d_instance>
     $<TARGET_OBJECTS:device_reduce_instance>
     $<TARGET_OBJECTS:device_convnd_bwd_data_instance>
@@ -99,7 +100,7 @@ target_include_directories(device_operations PUBLIC
 #once new arches are enabled make this an option on the main cmake file
 # and pass down here to be exported
 
-target_compile_options(device_operations PRIVATE 
+target_compile_options(device_operations PRIVATE
     --offload-arch=gfx908
     --offload-arch=gfx90a
 )
