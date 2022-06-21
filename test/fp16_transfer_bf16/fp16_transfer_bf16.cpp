@@ -67,7 +67,7 @@ gpu_transpose_convert_data(SrcDataType* in, DstDataType* out, const int size, co
 
 void host_convert_data(SrcDataType* in, DstDataType* out, size_t len)
 {
-    for(int i = 0; i < len; i++)
+    for(size_t i = 0; i < len; i++)
     {
         out[i] = ck::type_convert<ck::bhalf_t, ck::half_t>(in[i]);
     }
