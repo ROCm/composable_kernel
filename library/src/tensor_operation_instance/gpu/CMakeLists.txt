@@ -25,6 +25,7 @@ function(add_instance_library INSTANCE_NAME)
     set_target_properties(${INSTANCE_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endfunction(add_instance_library INSTANCE_NAME)
 
+add_subdirectory(elementwise)
 add_subdirectory(gemm)
 add_subdirectory(gemm_bias2d)
 add_subdirectory(gemm_bias_relu)
@@ -66,6 +67,7 @@ add_library(device_operations STATIC
     $<TARGET_OBJECTS:device_batched_gemm_reduce_instance>
     $<TARGET_OBJECTS:device_conv3d_fwd_instance>
     $<TARGET_OBJECTS:device_gemm_add_add_fastgelu_instance>
+    $<TARGET_OBJECTS:device_elementwise_instance>
     device_conv2d.cpp
 )
 add_library(composablekernels::device_operations ALIAS device_operations)
