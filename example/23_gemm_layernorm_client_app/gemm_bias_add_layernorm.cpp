@@ -51,7 +51,8 @@ void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f
 using Normalize          = ck::tensor_operation::element_wise::Normalize;
 using DeviceNormalizePtr = ck::tensor_operation::device::DeviceElementwisePtr<5, 1, 2, Normalize>;
 
-void add_device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances(std::vector<DeviceNormalizePtr>& instances);
+void add_device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances(
+    std::vector<DeviceNormalizePtr>& instances);
 
 } // namespace device
 } // namespace tensor_operation
@@ -97,8 +98,8 @@ void GetDeviceOp(std::vector<gemm_reduce>& gemm_reduce_ptrs, std::vector<normali
                 gemm_reduce_ptrs);
     }
 
-    ck::tensor_operation::device::add_device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances(
-        normalize_ptrs);
+    ck::tensor_operation::device::
+        add_device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances(normalize_ptrs);
 }
 
 template <typename gemm_reduce_op_ptr>

@@ -36,7 +36,8 @@ using device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances = std:
 void add_device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances(
     std::vector<DeviceElementwisePtr<5, 1, 2, Normalize>>& instances)
 {
-    add_device_operation_instances(instances, device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances{});
+    add_device_operation_instances(
+        instances, device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances{});
 }
 
 } // namespace device
