@@ -234,9 +234,14 @@ template <typename SrcData,
           index_t SrcScalarPerVector,
           index_t SrcScalarStrideInVector,
           bool SrcResetCoordinateAfterRun,
+          bool InvalidElementAsNaN                                        = false,
           typename enable_if<DstDesc::IsKnownAtCompileTime(), bool>::type = false>
 struct ThreadwiseTensorSliceTransfer_v2
 {
+    static_assert((InvalidElementAsNaN && !std::is_integral<DstData>::value) ||
+                      (!InvalidElementAsNaN),
+                  "Filling invalid element as NaN is only for floating point types");
+
     static constexpr index_t nDim = SliceLengths::Size();
 
     using Index = MultiIndex<nDim>;
@@ -316,8 +321,18 @@ struct ThreadwiseTensorSliceTransfer_v2
                     dst_desc.CalculateOffset(to_multi_index(dst_slice_origin_idx) + src_data_idx +
                                              i * src_scalar_step_in_vector);
 
-                dst_buf(Number<dst_offset>{}) =
-                    type_convert<DstData>(src_vector.template AsType<SrcData>()[i]);
+                if constexpr(InvalidElementAsNaN)
+                {
+                    dst_buf(Number<dst_offset>{}) =
+                        is_src_valid
+                            ? type_convert<DstData>(src_vector.template AsType<SrcData>()[i])
+                            : NumericLimits<DstData>::QuietNaN();
+                }
+                else
+                {
+                    dst_buf(Number<dst_offset>{}) =
+                        type_convert<DstData>(src_vector.template AsType<SrcData>()[i]);
+                }
             });
 
             if constexpr(idx_1d.value != num_access - 1)

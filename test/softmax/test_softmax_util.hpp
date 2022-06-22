@@ -11,6 +11,18 @@
 
 namespace ck {
 
+template <typename Range>
+std::string serialize_range(const Range& range)
+{
+    std::stringstream ss;
+    for (auto& r : range)
+    {
+        ss << r << ", ";
+    }
+    std::string str = ss.str();
+    return std::string(str.begin(), str.end() - 2);
+}
+
 template <typename Tuple>
 class TestSoftmax : public ::testing::Test
 {
@@ -91,7 +103,16 @@ class TestSoftmax : public ::testing::Test
         ref_instance_invoker_.Run({in, out_ref, alpha, beta, Rank, reduce_dims});
 
         out_dev.FromDevice(out.mData.data());
-        EXPECT_TRUE(ck::utils::check_err(out.mData, out_ref.mData));
+
+        bool pass;
+
+        EXPECT_TRUE(pass = ck::utils::check_err(out.mData, out_ref.mData));
+
+        if(!pass)
+        {
+            FAIL() << "Failure in input lengths = [" << serialize_range(in_length) << "], "
+                   << "scaler = [" << alpha << ", " << beta << "].";
+        }
     }
 
     void Run()
@@ -100,13 +121,13 @@ class TestSoftmax : public ::testing::Test
         {
             for(auto scale : this->scales_)
             {
-                this->RunSingle(in_length, std::get<0>(scale), std::get<1>(scale));
+                this->RunSingle(in_length, scale[0], scale[1]);
             }
         }
     }
 
-    std::vector<std::vector<index_t>> in_lengths_ = {{1, 8, 128}, {2, 128, 1024}, {3, 9, 1032}};
-    std::vector<std::tuple<AccDataType, AccDataType>> scales_ = {{1, 0}, {2, 2}, {0, 1}};
+    std::vector<std::vector<index_t>> in_lengths_ = {{1, 8, 128}, {2, 128, 1024}, {3, 9, 1032}, {4, 4, 2048}, {8, 1, 8192}};
+    std::vector<std::vector<AccDataType>> scales_ = {{1, 0}, {1, 1}, {0, 1}, {2, 2}};
 
     typename ReferenceInstance::Invoker ref_instance_invoker_;
 };

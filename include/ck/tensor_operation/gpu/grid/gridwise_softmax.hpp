@@ -165,6 +165,20 @@ struct GridwiseSoftmax_mk_to_mk
         constexpr auto thread_buffer_desc = make_naive_tensor_descriptor_packed(
             make_tuple(Number<MThreadSliceSize>{}, Number<KThreadSliceSize>{}));
 
+        // Normally, 0 as invalid element value is adequate since 0 makes no contribution to
+        // accumulated result. However, in stable softmax, all values 0s or not are subtracted by
+        // another value_max. As numbers become non-zero, effectively it allows invalid values to
+        // slip through and contribute to the accumulated result.
+        //
+        // The trick here is leveraging the fact that many math functions (add, sub, exp, ...)
+        // propagate NaNs when operands have NaNs involved. By initialiing invalid element value
+        // with NaN, an invalid value doing math manipulations is still NaN, which in turn can still
+        // be identified as an invalid value. We can then discard the invalid values which
+        // originally failed the bound check during accumulation. This allows to ignore values that
+        // failed bound check even after multiple math manipulations.
+        //
+        // NOTE: reset coordinate after every step because the same threadwise copy will sweep
+        // through global memory 3 times back and forth
         auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2<InDataType,
                                                                     AccDataType,
                                                                     GridDesc_M_K,
@@ -174,7 +188,8 @@ struct GridwiseSoftmax_mk_to_mk
                                                                     InSrcVectorDim,
                                                                     InSrcVectorSize,
                                                                     1,
-                                                                    false>(
+                                                                    true /* ResetCoordAfterRun */,
+                                                                    true /* InvalidElementAsNaN */>(
             in_grid_desc_m_k,
             make_multi_index(blkgroup_id * M_BlockTileSize + thread_m_cluster_id * MThreadSliceSize,
                              block_local_id * reduceSizePerBlock +
@@ -239,27 +254,14 @@ struct GridwiseSoftmax_mk_to_mk
                                 false, // param ignored
                                 detail::AccumulateWithNanIgnore<reduce::Max, AccDataType>>;
 
-        // Normally, 0 as invalid element value is adequate since 0 makes no contribution to
-        // accumulated result. However, in stable softmax, all values 0s or not are subtracted by
-        // another value_max. As numbers become non-zero, effectively it allows invalid values to
-        // slip through and contribute to the accumulated result.
-        //
-        // The trick here is leveraging the fact that many math functions (add, sub, exp, ...)
-        // propagate NaNs when operands have NaNs involved. By initialiing invalid element value
-        // with NaN, an invalid value doing math manipulations is still NaN, which in turn can still
-        // be identified as an invalid value. We can then discard the invalid values which
-        // originally failed the bound check during accumulation. This allows to ignore values that
-        // failed bound check even after multiple math manipulations.
-        const auto in_global_val_buf_oob_nan =
-            make_dynamic_buffer<AddressSpaceEnum::Global>(p_in_value_global,
-                                                          in_grid_desc_m_k.GetElementSpaceSize(),
-                                                          NumericLimits<InDataType>::QuietNaN());
+        const auto in_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_in_value_global, in_grid_desc_m_k.GetElementSpaceSize());
 
         index_t reducedTiles = 0;
         do
         {
             threadwise_src_load.Run(in_grid_desc_m_k,
-                                    in_global_val_buf_oob_nan,
+                                    in_global_val_buf,
                                     thread_buffer_desc,
                                     make_tuple(I0, I0),
                                     in_thread_buf);
@@ -302,7 +304,7 @@ struct GridwiseSoftmax_mk_to_mk
             if constexpr(!SweepOnce)
             {
                 threadwise_src_load.Run(in_grid_desc_m_k,
-                                        in_global_val_buf_oob_nan,
+                                        in_global_val_buf,
                                         thread_buffer_desc,
                                         make_tuple(I0, I0),
                                         in_thread_buf);
@@ -342,7 +344,7 @@ struct GridwiseSoftmax_mk_to_mk
                 if constexpr(!SweepOnce)
                 {
                     threadwise_src_load.Run(in_grid_desc_m_k,
-                                            in_global_val_buf_oob_nan,
+                                            in_global_val_buf,
                                             thread_buffer_desc,
                                             make_tuple(I0, I0),
                                             in_thread_buf);
@@ -383,7 +385,7 @@ struct GridwiseSoftmax_mk_to_mk
                 if constexpr(!SweepOnce)
                 {
                     threadwise_src_load.Run(in_grid_desc_m_k,
-                                            in_global_val_buf_oob_nan,
+                                            in_global_val_buf,
                                             thread_buffer_desc,
                                             make_tuple(I0, I0),
                                             in_thread_buf);

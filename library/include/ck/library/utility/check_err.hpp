@@ -56,7 +56,8 @@ check_err(const std::vector<T>& out,
     }
     if(!res)
     {
-        std::cout << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
+        std::cout << std::setw(12) << std::setprecision(7) << "max err: " << max_err
+                  << ", err count: " << err_count << std::endl;
     }
     return res;
 }
@@ -102,7 +103,8 @@ check_err(const std::vector<T>& out,
     }
     if(!res)
     {
-        std::cout << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
+        std::cout << std::setw(12) << std::setprecision(7) << "max err: " << max_err
+                  << ", err count: " << err_count << std::endl;
     }
     return res;
 }
@@ -148,7 +150,8 @@ check_err(const std::vector<T>& out,
     }
     if(!res)
     {
-        std::cout << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
+        std::cout << std::setw(12) << std::setprecision(7) << "max err: " << max_err
+                  << ", err count: " << err_count << std::endl;
     }
     return res;
 }
