@@ -79,7 +79,8 @@ class OpInstanceRunEngine
 
     template <typename ReferenceOp = std::function<void()>>
     OpInstanceRunEngine(const OpInstanceT& op_instance,
-                        const ReferenceOp& reference_op = ReferenceOp{})
+                        const ReferenceOp& reference_op = ReferenceOp{},
+                        bool do_verification            = true)
         : op_instance_{op_instance}
     {
         in_tensors_ = op_instance_.GetInputTensors();
@@ -89,8 +90,11 @@ class OpInstanceRunEngine
                                          const Tensor<InArgTypes>&...,
                                          Tensor<OutDataType>&>)
         {
-            ref_output_ = op_instance_.GetOutputTensor();
-            CallRefOpUnpackArgs(reference_op, std::make_index_sequence<kNInArgs_>{});
+            if(do_verification)
+            {
+                ref_output_ = op_instance_.GetOutputTensor();
+                CallRefOpUnpackArgs(reference_op, std::make_index_sequence<kNInArgs_>{});
+            }
         }
         AllocateDeviceInputTensors(std::make_index_sequence<kNInArgs_>{});
         out_device_buffer_ =

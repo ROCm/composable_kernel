@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <functional>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -184,8 +185,10 @@ void profile_convnd_instances_impl(const ck::utils::conv::ConvParams& params,
         _1,
         _2,
         _3);
-    OpInstanceRunEngine<InDataType, WeiDataType, OutDataType> run_engine(*conv_instance,
-                                                                         reference_conv_fwd_fun);
+
+    OpInstanceRunEngine<InDataType, WeiDataType, OutDataType> run_engine(
+        *conv_instance, reference_conv_fwd_fun, do_verification);
+
     auto best_conf = run_engine.Profile(
         conv::ConvolutionFwdInstances<InDataType, WeiDataType, OutDataType>::template Get<NDim>(),
         time_kernel,
