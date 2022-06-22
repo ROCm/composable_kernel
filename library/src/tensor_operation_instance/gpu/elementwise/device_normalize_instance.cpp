@@ -20,7 +20,7 @@ using BetaDataType   = F16;
 using outputType     = F16;
 
 using Normalize = ck::tensor_operation::element_wise::Normalize;
-using device_normalize_f16_f32_f32_f16_f16_instances = std::tuple<
+using device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances = std::tuple<
     // clang-format off
     //###################|in | mean| square_mean| gamma| beta| out| ComputeDataType|  functor| NDim| MPerThread| in, mean, square_mean, gamma, beta, out ScalarPerVector|
     //###################|in | mean| square_mean| gamma| beta| out| ComputeDataType|  functor| NDim| MPerThread| in, mean, square_mean, gamma, beta, out ScalarPerVector|
@@ -33,10 +33,10 @@ using device_normalize_f16_f32_f32_f16_f16_instances = std::tuple<
     // clang-format on
     >;
 
-void add_device_normalize_f16_f32_f32_f16_f16_instances(
+void add_device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances(
     std::vector<DeviceElementwisePtr<5, 1, 2, Normalize>>& instances)
 {
-    add_device_operation_instances(instances, device_normalize_f16_f32_f32_f16_f16_instances{});
+    add_device_operation_instances(instances, device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances{});
 }
 
 } // namespace device

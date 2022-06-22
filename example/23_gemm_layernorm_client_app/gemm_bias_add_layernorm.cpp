@@ -51,7 +51,7 @@ void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f
 using Normalize          = ck::tensor_operation::element_wise::Normalize;
 using DeviceNormalizePtr = ck::tensor_operation::device::DeviceElementwisePtr<5, 1, 2, Normalize>;
 
-void add_device_normalize_f16_f32_f32_f16_f16_instances(std::vector<DeviceNormalizePtr>& instances);
+void add_device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances(std::vector<DeviceNormalizePtr>& instances);
 
 } // namespace device
 } // namespace tensor_operation
@@ -97,8 +97,110 @@ void GetDeviceOp(std::vector<gemm_reduce>& gemm_reduce_ptrs, std::vector<normali
                 gemm_reduce_ptrs);
     }
 
-    ck::tensor_operation::device::add_device_normalize_f16_f32_f32_f16_f16_instances(
+    ck::tensor_operation::device::add_device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances(
         normalize_ptrs);
+}
+
+template <typename gemm_reduce_op_ptr>
+bool RunDeviceGemmMeanSquareMean(gemm_reduce_op_ptr& p_op,
+                                 const void* p_a,
+                                 const void* p_b,
+                                 const void* p_bias,
+                                 const void* p_d0,
+                                 void* p_c,
+                                 void* p_mean,
+                                 void* p_square_mean,
+                                 int M,
+                                 int N,
+                                 int K,
+                                 int StrideA,
+                                 int StrideB,
+                                 int StrideC,
+                                 int StrideD0,
+                                 bool time_kernel)
+{
+    using PassThrough          = ck::tensor_operation::element_wise::PassThrough;
+    using UnaryDivElementOp    = ck::tensor_operation::element_wise::UnaryDivide;
+    using UnarySquareElementOp = ck::tensor_operation::element_wise::UnarySquare;
+
+    auto passOp   = PassThrough{};
+    auto squareOp = UnarySquareElementOp{};
+    auto divOp    = UnaryDivElementOp{N};
+
+    auto argument_ptr =
+        p_op->MakeArgumentPointer(p_a,
+                                  p_b,
+                                  p_bias,
+                                  {p_d0},
+                                  p_c,
+                                  {p_mean, p_square_mean},
+                                  M,
+                                  N,
+                                  K,
+                                  StrideA,
+                                  StrideB,
+                                  StrideC,
+                                  {StrideD0},
+                                  {&passOp, &passOp, &passOp}, // functor for a, b, c
+                                  {&passOp},                   // functor for d0
+                                  {&passOp, &squareOp},        // functor for inputs of reduction
+                                  {&divOp, &divOp});           // functor for outputs of reduction
+
+    if(p_op->IsSupportedArgument(argument_ptr.get()))
+    {
+        auto invoker_ptr = p_op->MakeInvokerPointer();
+
+        // If we evaluate running time of gemm_reduce. The output may wrong.
+        // Because we need to initialize the reduction tensor before runing the kernel.
+        // However we run kernel many times for time_kernel = trie without reinitialize the out
+        // of reduction tensor.
+        float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+
+        if(time_kernel)
+            std::cout << "Gemm + reduce Perf: " << std::setw(10) << ave_time << " ms" << std::endl;
+
+        return true;
+    }
+
+    return false;
+}
+
+template <typename normalize_op_ptr>
+bool RunDeviceNormalize2D(normalize_op_ptr& p_op,
+                          const void* p_x,
+                          const void* p_mean,
+                          const void* p_square_mean,
+                          const void* p_gamma,
+                          const void* p_beta,
+                          void* p_y,
+                          int M,
+                          int N,
+                          int StrideX,
+                          bool time_kernel)
+{
+    std::array<const void*, 5> input = {p_x, p_mean, p_square_mean, p_gamma, p_beta};
+    std::array<void*, 1> output      = {p_y};
+    auto normalize_functor           = ck::tensor_operation::device::Normalize{};
+
+    auto argument_ptr = p_op->MakeArgumentPointer(input,
+                                                  output,
+                                                  {M, N},
+                                                  {{StrideX, 1}, {1, 0}, {1, 0}, {0, 1}, {0, 1}},
+                                                  {{StrideX, 1}},
+                                                  ck::tensor_operation::device::Normalize{});
+
+    if(p_op->IsSupportedArgument(argument_ptr.get()))
+    {
+        auto invoker_ptr = p_op->MakeInvokerPointer();
+        float ave_time   = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+
+        if(time_kernel)
+            std::cout << "Normalize Perf: " << std::setw(10) << ave_time << " ms" << std::endl;
+
+        return true;
+    }
+
+    return false;
 }
 
 int main()
@@ -128,10 +230,6 @@ int main()
     using ALayout = ck::tensor_layout::gemm::RowMajor;
     using BLayout = ck::tensor_layout::gemm::ColumnMajor;
     using CLayout = ck::tensor_layout::gemm::RowMajor;
-
-    using PassThrough          = ck::tensor_operation::element_wise::PassThrough;
-    using UnaryDivElementOp    = ck::tensor_operation::element_wise::UnaryDivide;
-    using UnarySquareElementOp = ck::tensor_operation::element_wise::UnarySquare;
 
     std::vector<
         ck::tensor_operation::device::device_gemm_instance::DeviceGemmBiasAddMeanSquareMeanPtr>
@@ -176,90 +274,63 @@ int main()
     DeviceMem beta_device_buf(sizeof(BetaDataType) * N);
     DeviceMem layerNorm_device_buf(sizeof(LayerNormOutDataType) * M * N);
 
-    auto passOp   = PassThrough{};
-    auto squareOp = UnarySquareElementOp{};
-    auto divOp    = UnaryDivElementOp{N};
+    bool b_time_kernel           = true;
+    bool b_only_run_first_kernel = true;
 
     // layernorm => (1) + (2)
     // (1). c = gemm(a, b), reduce_mean(c), reduce_square_mean(c)
     // (2). normalize(c, mean, square_mean, gamma, beta)
-    bool time_kernel = true;
     for(auto& gemm_reduce_ptr : gemm_reduce_ptrs)
     {
-        std::string gemm_reduce_op_name = gemm_reduce_ptr->GetTypeString();
-
-        auto argument_ptr = gemm_reduce_ptr->MakeArgumentPointer(
-            a_device_buf.GetDeviceBuffer(),
-            b_device_buf.GetDeviceBuffer(),
-            bias_device_buf.GetDeviceBuffer(),
-            {d0_device_buf.GetDeviceBuffer()},
-            c_device_buf.GetDeviceBuffer(),
-            {reduceMean_device_buf.GetDeviceBuffer(),
-             reduceMeanSquare_device_buf.GetDeviceBuffer()},
-            M,
-            N,
-            K,
-            StrideA,
-            StrideB,
-            StrideC,
-            {StrideD0},
-            {&passOp, &passOp, &passOp}, // functor for a, b, c
-            {&passOp},                   // functor for d0
-            {&passOp, &squareOp},        // functor for inputs of reduction
-            {&divOp, &divOp});           // functor for outputs of reduction
-
-        if(gemm_reduce_ptr->IsSupportedArgument(argument_ptr.get()))
+        // run first available kernel
+        if(RunDeviceGemmMeanSquareMean(gemm_reduce_ptr,
+                                       a_device_buf.GetDeviceBuffer(),
+                                       b_device_buf.GetDeviceBuffer(),
+                                       bias_device_buf.GetDeviceBuffer(),
+                                       d0_device_buf.GetDeviceBuffer(),
+                                       c_device_buf.GetDeviceBuffer(),
+                                       reduceMean_device_buf.GetDeviceBuffer(),
+                                       reduceMeanSquare_device_buf.GetDeviceBuffer(),
+                                       M,
+                                       N,
+                                       K,
+                                       StrideA,
+                                       StrideB,
+                                       StrideC,
+                                       StrideD0,
+                                       b_time_kernel))
         {
-            auto invoker_ptr = gemm_reduce_ptr->MakeInvokerPointer();
-
-            // If we evaluate running time of gemm_reduce. The output may wrong.
-            // Because we need to initialize the reduction tensor before runing the kernel.
-            // However we run kernel many times for time_kernel = trie without reinitialize the out
-            // of reduction tensor.
-            float ave_time =
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
-
-            if(time_kernel)
-                std::cout << "Gemm + reduce Perf: " << std::setw(10) << ave_time << " ms"
-                          << std::endl;
+            if(b_only_run_first_kernel)
+                break;
         }
         else
         {
-            std::cout << gemm_reduce_op_name << " does not support this problem" << std::endl;
+            std::cout << gemm_reduce_ptr->GetTypeString() << " does not support this problem"
+                      << std::endl;
         }
     }
 
     for(auto& normalize_ptr : normalize_ptrs)
     {
-        std::string normalize_op_name = normalize_ptr->GetTypeString();
-
-        std::array<const void*, 5> input = {c_device_buf.GetDeviceBuffer(),
-                                            reduceMean_device_buf.GetDeviceBuffer(),
-                                            reduceMeanSquare_device_buf.GetDeviceBuffer(),
-                                            gamma_device_buf.GetDeviceBuffer(),
-                                            beta_device_buf.GetDeviceBuffer()};
-        std::array<void*, 1> output      = {layerNorm_device_buf.GetDeviceBuffer()};
-
-        auto argument_ptr =
-            normalize_ptr->MakeArgumentPointer(input,
-                                               output,
-                                               {M, N},
-                                               {{StrideC, 1}, {1, 0}, {1, 0}, {0, 1}, {0, 1}},
-                                               {{StrideC, 1}},
-                                               ck::tensor_operation::device::Normalize{});
-
-        if(normalize_ptr->IsSupportedArgument(argument_ptr.get()))
+        if(RunDeviceNormalize2D(normalize_ptr,
+                                c_device_buf.GetDeviceBuffer(),
+                                reduceMean_device_buf.GetDeviceBuffer(),
+                                reduceMeanSquare_device_buf.GetDeviceBuffer(),
+                                gamma_device_buf.GetDeviceBuffer(),
+                                beta_device_buf.GetDeviceBuffer(),
+                                layerNorm_device_buf.GetDeviceBuffer(),
+                                M,
+                                N,
+                                StrideC,
+                                b_time_kernel))
         {
-            auto invoker_ptr = normalize_ptr->MakeInvokerPointer();
-            float ave_time =
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
-
-            if(time_kernel)
-                std::cout << "Normalize Perf: " << std::setw(10) << ave_time << " ms" << std::endl;
+            if(b_only_run_first_kernel)
+                break;
         }
         else
         {
-            std::cout << normalize_op_name << " does not support this problem" << std::endl;
+            std::cout << normalize_ptr->GetTypeString() << " does not support this problem"
+                      << std::endl;
         }
     }
 }

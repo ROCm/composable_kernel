@@ -35,7 +35,6 @@ struct DeviceGemmReduce : public BaseOperator
 template <ck::index_t NumDTensor, ck::index_t NumReduce>
 using DeviceGemmReducePtr = std::unique_ptr<DeviceGemmReduce<NumDTensor, NumReduce>>;
 
-
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
