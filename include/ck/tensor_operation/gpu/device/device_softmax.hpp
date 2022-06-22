@@ -57,18 +57,33 @@ struct DeviceSoftmax : public BaseOperator
 
     using GridDesc_M_K = decltype(Reduction::MakeSrc2dDescriptor({1}, {1}, 1, 1));
 
-    using GridwiseReduce = GridwiseSoftmax_mk_to_mk<InDataType,
-                                                    OutDataType,
-                                                    AccDataType,
-                                                    GridDesc_M_K,
-                                                    BlockSize,
-                                                    MThreadClusterSize,
-                                                    KThreadClusterSize,
-                                                    MThreadSliceSize,
-                                                    KThreadSliceSize,
-                                                    InSrcVectorDim,
-                                                    InSrcVectorSize,
-                                                    OutDstVectorSize>;
+    using GridwiseSoftmaxGeneric = GridwiseSoftmax_mk_to_mk<InDataType,
+                                                            OutDataType,
+                                                            AccDataType,
+                                                            GridDesc_M_K,
+                                                            BlockSize,
+                                                            MThreadClusterSize,
+                                                            KThreadClusterSize,
+                                                            MThreadSliceSize,
+                                                            KThreadSliceSize,
+                                                            InSrcVectorDim,
+                                                            InSrcVectorSize,
+                                                            OutDstVectorSize,
+                                                            false>;
+
+    using GridwiseSoftmaxSweepOnce = GridwiseSoftmax_mk_to_mk<InDataType,
+                                                              OutDataType,
+                                                              AccDataType,
+                                                              GridDesc_M_K,
+                                                              BlockSize,
+                                                              MThreadClusterSize,
+                                                              KThreadClusterSize,
+                                                              MThreadSliceSize,
+                                                              KThreadSliceSize,
+                                                              InSrcVectorDim,
+                                                              InSrcVectorSize,
+                                                              OutDstVectorSize,
+                                                              true>;
 
     struct Argument : public Reduction::Argument
     {
@@ -117,8 +132,19 @@ struct DeviceSoftmax : public BaseOperator
             const auto out_grid_desc_m_k = Reduction::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
 
-            const auto kernel_main =
-                kernel_softmax<GridwiseReduce, InDataType, OutDataType, AccDataType, GridDesc_M_K>;
+            bool sweep_once =
+                in_grid_desc_m_k.GetLength(Number<1>{}) <= KThreadClusterSize * KThreadSliceSize;
+
+            const auto kernel_main = sweep_once ? kernel_softmax<GridwiseSoftmaxSweepOnce,
+                                                                 InDataType,
+                                                                 OutDataType,
+                                                                 AccDataType,
+                                                                 GridDesc_M_K>
+                                                : kernel_softmax<GridwiseSoftmaxGeneric,
+                                                                 InDataType,
+                                                                 OutDataType,
+                                                                 AccDataType,
+                                                                 GridDesc_M_K>;
 
             float avg_time = 0;
 
