@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018 - 2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef CK_CONFIG_AMD_HPP
 #define CK_CONFIG_AMD_HPP
