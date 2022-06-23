@@ -3,7 +3,7 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <stdlib.h>
-#include <half.hpp>
+
 #include "profile_gemm_impl.hpp"
 
 enum struct GemmMatrixLayout

@@ -3,7 +3,6 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <stdlib.h>
-#include <half.hpp>
 
 #include "profile_batched_gemm_reduce_impl.hpp"
 
