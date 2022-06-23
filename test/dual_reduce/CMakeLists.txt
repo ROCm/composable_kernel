@@ -1,0 +1,4 @@
+add_test_executable(test_dual_reduce dual_reduce.cpp)
+target_link_libraries(test_dual_reduce PRIVATE host_tensor)
+target_link_libraries(test_dual_reduce PRIVATE device_reduce_instance)
+

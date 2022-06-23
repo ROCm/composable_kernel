@@ -40,6 +40,7 @@ set(PROFILER_SOURCE
     src/profile_grouped_gemm.cpp
     src/profile_conv_bwd_weight.cpp
     src/profile_batched_gemm_reduce.cpp
+    src/profile_dual_reduce.cpp
 )
 
 add_executable(ckProfiler ${PROFILER_SOURCE})
