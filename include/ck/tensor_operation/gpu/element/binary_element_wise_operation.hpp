@@ -219,7 +219,8 @@ struct InvVariance
     __host__ __device__ constexpr void operator()(T& y, const T& mean, const T& meansquare) const;
 
     template <>
-    __host__ __device__ constexpr void operator()<float>(float& y, const float& mean, const float& meansquare) const
+    __host__ __device__ constexpr void
+    operator()<float>(float& y, const float& mean, const float& meansquare) const
     {
         using ck::math::sqrt;
 
@@ -228,7 +229,8 @@ struct InvVariance
     };
 
     template <>
-    __host__ __device__ constexpr void operator()<double>(double& y, const double& mean, const double& meansquare) const
+    __host__ __device__ constexpr void
+    operator()<double>(double& y, const double& mean, const double& meansquare) const
     {
         using ck::math::sqrt;
 
