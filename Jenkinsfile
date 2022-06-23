@@ -7,7 +7,6 @@ def show_node_info() {
         echo "NODE_NAME = \$NODE_NAME"
         lsb_release -sd
         uname -r
-        cat /sys/module/amdgpu/version
         ls /opt/ -la
     """
 }
@@ -101,7 +100,8 @@ def buildHipClangJob(Map conf=[:]){
         def variant = env.STAGE_NAME
 
         def retimage
-        gitStatusWrapper(credentialsId: '7126e5fe-eb51-4576-b52b-9aaf1de8f0fd', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
+
+        gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
             if (params.USE_DOCKERFILE){
                 try {
                     retimage = docker.build("${image}", dockerArgs + '.')
@@ -191,7 +191,8 @@ def runCKProfiler(Map conf=[:]){
         def variant = env.STAGE_NAME
 
         def retimage
-        gitStatusWrapper(credentialsId: '7126e5fe-eb51-4576-b52b-9aaf1de8f0fd', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
+
+        gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
             if (params.USE_DOCKERFILE){
                 try {
                     retimage = docker.build("${image}", dockerArgs + '.')
@@ -317,6 +318,7 @@ pipeline {
         dbsshport = "${dbsshport}"
         dbsshuser = "${dbsshuser}"
         dbsshpassword = "${dbsshpassword}"
+        status_wrapper_creds = "${status_wrapper_creds}"
     }
     stages{
         stage("Static checks") {

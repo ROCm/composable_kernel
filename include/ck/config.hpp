@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #ifndef CK_CONFIG_AMD_HPP
 #define CK_CONFIG_AMD_HPP
 
@@ -140,10 +143,6 @@
 // workaround: verifaction failure, due to compiler regression, for conv bwd-data fp16 using some
 // tuning parameter
 #define CK_WORKAROUND_SWDEV_325164 1
-
-// workaround for verification failure ConvNd forward
-// https://github.com/ROCmSoftwarePlatform/composable_kernel/issues/135
-#define CK_WORKAROUND_GITHUB_135 1
 
 namespace ck {
 

@@ -437,7 +437,7 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                    make_tuple(n0, I0, I0, I0),
                                    b_thread_buf);
             });
-            __builtin_amdgcn_sched_barrier();
+            __builtin_amdgcn_sched_barrier(0);
             // NOTE: Synchronize threads in a workgroup at the start of each MAC cluster, but except
             // the first, as we can shorten non-MAC cluster a bit and there's no observable negative
             // impact. The desired effect is waves in a workgroup executing MAC in sync. This avoids
@@ -447,7 +447,7 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
             if constexpr(k.value != 0 || KPerInnerLoop == KPerThread)
             {
                 asm volatile("s_barrier" ::);
-                __builtin_amdgcn_sched_barrier();
+                __builtin_amdgcn_sched_barrier(0);
             }
             static_for<0, KPerInnerLoop, KPack>{}([&](auto k_) {
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
@@ -479,9 +479,9 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                      k_.value == KPerInnerLoop - KPack && m0.value == MRepeat - 1 &&
                                      n0.value == NRepeat - 1)
                         {
-                            __builtin_amdgcn_sched_barrier();
+                            __builtin_amdgcn_sched_barrier(0);
                             block_sync_lds();
-                            __builtin_amdgcn_sched_barrier();
+                            __builtin_amdgcn_sched_barrier(0);
                         }
 
                         // TODO: insert setprio in more precise manner since we
@@ -492,16 +492,16 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                             c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                         if constexpr(k_.value == 0 && m0.value == 0 && n0.value == 0)
                         {
-                            __builtin_amdgcn_sched_barrier();
+                            __builtin_amdgcn_sched_barrier(0);
                             __builtin_amdgcn_s_setprio(1);
-                            __builtin_amdgcn_sched_barrier();
+                            __builtin_amdgcn_sched_barrier(0);
                         }
                     });
                 });
             });
-            __builtin_amdgcn_sched_barrier();
+            __builtin_amdgcn_sched_barrier(0);
             __builtin_amdgcn_s_setprio(0);
-            __builtin_amdgcn_sched_barrier();
+            __builtin_amdgcn_sched_barrier(0);
         });
     }
 

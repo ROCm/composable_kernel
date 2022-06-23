@@ -61,12 +61,9 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
     static constexpr bool use_multiblock =
         (OutMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd);
 
-    static constexpr bool out_type_compatible_with_atomic_op =
-        std::is_same<OutDataType, float>::value || std::is_same<OutDataType, double>::value;
-
-    static_assert(
-        !use_multiblock || (use_multiblock && out_type_compatible_with_atomic_op),
-        "The OutDataType must support the atomic operation for using MultiBlock reduction");
+    static_assert(ck::reduce::InMemoryDataOperatonSupportedOnDataType<OutMemoryDataOperation,
+                                                                      OutDataType>::value,
+                  "The OutDataType must support the specified OutMemoryDataOperation!");
 
     static_assert(!use_multiblock || (use_multiblock && !OutputIndex),
                   "MultiBlock reduction can only be used when outputing index is not required");
@@ -349,7 +346,7 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
             if constexpr(use_multiblock)
             {
                 const auto identityVal =
-                    ck::reduce::GetIdentityValueueForInMemoryDataOperation<OutDataType>(
+                    ck::reduce::GetIdentityValueForInMemoryDataOperation<OutDataType>(
                         OutMemoryDataOperation);
 
                 const auto kernel_pre =
@@ -393,10 +390,8 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
         };
     };
 
-    bool IsSupportedArgument(const BaseArgument* p_arg) override
+    static bool IsSupportedArgument(const Argument* pArg)
     {
-        const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
-
         if constexpr(use_multiblock)
         {
             if(static_cast<float>(pArg->beta_) != 0.0f)
@@ -445,11 +440,16 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
         else
         {
             // cases with very small reduce_total_length should be handled by ThreadWise kernel
-            if(pArg->reduce_total_length / KThreadSliceSize < 2)
-                return (false);
+            // if(pArg->reduce_total_length / KThreadSliceSize < 2)
+            //     return (false);
         };
 
         return (true);
+    }
+
+    bool IsSupportedArgument(const BaseArgument* p_arg) override
+    {
+        return IsSupportedArgument(dynamic_cast<const Argument*>(p_arg));
     };
 
     std::unique_ptr<BaseArgument>
@@ -492,7 +492,7 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceReduceMultiBlockAtomicAdd<" << BlockSize << ",";
+        str << (OutMemoryDataOperation == InMemoryDataOperationEnum::Set? "DeviceReduceBlockWise<" : "DeviceReduceMultiBlock<") << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
         str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
         str << "InSrcVectorDim_" << InSrcVectorDim << "_InSrcVectorSize_" << InSrcVectorSize << "_OutDstVectorSize_" << OutDstVectorSize << ">";
