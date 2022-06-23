@@ -1,4 +1,5 @@
 #include <sstream>
+#include <iomanip>
 #include "config.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -642,20 +643,13 @@ int main(int argc, char* argv[])
 
         if(fastest_kernel_time != std::numeric_limits<double>::max())
         {
-            std::cout << "  fastest:" << fastest_kernel_name << ", time:" << fastest_kernel_time
-                      << "ms, Gflops:" << fastest_kernel_gflops << std::endl;
+            double total_flop = static_cast<double>(2) * N * C * Ho * Wo * K * Y * X;
+            std::cout << "fastest: " << fastest_kernel_name;
+            std::cout << ", total_gflop:" << ((double)total_flop / 1.0e9)
+                      << ", time(ms):" << fastest_kernel_time
+                      << ", Gflops:" << fastest_kernel_gflops << std::endl;
         }
         return 0;
-        // if(success)
-        // {
-        //     std::cout << "test conv2d fwd cpu : Pass" << std::endl;
-        //     return 0;
-        // }
-        // else
-        // {
-        //     std::cout << "test conv2d fwd cpu: Fail " << std::endl;
-        //     return -1;
-        // }
     };
 
     if(data_type == 0)
