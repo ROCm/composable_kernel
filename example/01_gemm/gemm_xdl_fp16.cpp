@@ -57,7 +57,7 @@ using DeviceGemmInstance_WaveletModel = ck::tensor_operation::device::DeviceGemm
 //######|        |        |        |      |      |      |        |         |   Operation|   Operation|   Operation|               |    Stage|                |                |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
 //######|        |        |        |      |      |      |        |         |            |            |            |               |         |                |                |      |      |      |    |    |
 //######|        |        |        |      |      |      |        |         |            |            |            |               |         |                |                      
-        <     Row,     Col,     Row,   F16,   F16,   F16,     F32,      F16,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        1,             256,             256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 64, 1, 8>,               8>;
+        <     Row,     Col,     Row,   F16,   F16,   F16,     F32,      F16,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        1,             256,             256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8>;
 // clang-format on
 // clang-format on
 
@@ -160,8 +160,8 @@ int main(int argc, char* argv[])
 
     // do GEMM
     //replace DeviceGemmInstance_WaveletModel for wavelet gemm pipeline
-    auto gemm     = DeviceGemmInstance_WaveletModel{};
-    //auto gemm     = DeviceGemmInstance{};
+    //auto gemm     = DeviceGemmInstance_WaveletModel{};
+    auto gemm     = DeviceGemmInstance{};
     auto invoker  = gemm.MakeInvoker();
     auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
                                       static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
