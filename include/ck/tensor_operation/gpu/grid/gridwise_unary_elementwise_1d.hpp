@@ -1,9 +1,9 @@
 #pragma once
 
-#include "cluster_descriptor.hpp"
-#include "data_type.hpp"
-#include "element_wise_operation.hpp"
-#include "threadwise_tensor_slice_transfer.hpp"
+#include "ck/utility/data_type.hpp"
+#include "ck/tensor_description/cluster_descriptor.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 namespace ck {
 

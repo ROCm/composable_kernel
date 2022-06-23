@@ -4,7 +4,6 @@
 #include <type_traits>
 #include <sstream>
 
-#include "ck/stream_config.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/library/host_tensor/host_tensor.hpp"
 

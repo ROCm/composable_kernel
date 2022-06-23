@@ -2,7 +2,7 @@
 
 #include "ck/utility/reduction_operator.hpp"
 #include "ck/utility/reduction_enums.hpp"
-#include "ck/device_operation/element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 // FIXME: can it be replaced with ck::Tuple?
 #include <tuple>
 

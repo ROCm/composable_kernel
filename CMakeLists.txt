@@ -78,10 +78,6 @@ rocm_create_package(
     LDCONFIG
 )
 
-## half
-set(HALF_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/external/include/half")
-message("HALF_INCLUDE_DIR: ${HALF_INCLUDE_DIR}")
-
 ## tidy
 include(EnableCompilerWarnings)
 set(CK_TIDY_ERRORS ERRORS * -readability-inconsistent-declaration-parameter-name)

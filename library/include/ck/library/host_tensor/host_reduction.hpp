@@ -4,12 +4,12 @@
 #include <array>
 #include <functional>
 
-#include "reduction_enums.hpp"
-#include "reduction_common.hpp"
-#include "host_common_util.hpp"
-#include "host_tensor.hpp"
-#include "data_type.hpp"
-#include "reduction_functions_accumulate.hpp"
+#include "ck/utility/data_type.hpp"
+#include "ck/utility/reduction_enums.hpp"
+#include "ck/utility/reduction_common.hpp"
+#include "ck/utility/reduction_functions_accumulate.hpp"
+#include "ck/library/host_tensor/host_common_util.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
 
 template <int NDim>
 static void get_all_indexes(const std::array<size_t, NDim>& dimLengths,

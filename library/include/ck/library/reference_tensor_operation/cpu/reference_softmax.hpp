@@ -1,11 +1,13 @@
 #pragma once
+
 #include <iostream>
 #include <sstream>
 #include <vector>
 #include <algorithm>
-#include "device_base.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
+
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
 
 namespace ck {
 namespace tensor_operation {

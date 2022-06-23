@@ -5,7 +5,7 @@
 
 #include "ck/utility/common_header.hpp"
 #include "ck/utility/reduction_enums.hpp"
-#include "ck/utility/rreduction_operator.hpp"
+#include "ck/utility/reduction_operator.hpp"
 
 namespace ck {
 namespace tensor_operation {
