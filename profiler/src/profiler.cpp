@@ -18,7 +18,7 @@ int profile_conv_fwd(int, char*[]);
 int profile_conv_fwd_bias_relu(int, char*[]);
 int profile_conv_fwd_bias_relu_add(int, char*[]);
 int profile_convnd_bwd_data(int, char*[], int);
-// int profile_reduce(int, char*[]);
+int profile_reduce(int, char*[]);
 int profile_conv_bwd_weight(int, char*[]);
 int profile_batched_gemm_reduce(int, char*[]);
 int profile_gemm_add_add_fastgelu(int, char*[]);
@@ -113,12 +113,10 @@ int main(int argc, char* argv[])
     {
         return profile_convnd_bwd_data(argc, argv, 3);
     }
-#if 0
     else if(strcmp(argv[1], "reduce") == 0)
     {
         return profile_reduce(argc, argv);
     }
-#endif
     else if(strcmp(argv[1], "conv2d_bwd_weight") == 0)
     {
         return profile_conv_bwd_weight(argc, argv);
