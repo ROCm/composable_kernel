@@ -214,8 +214,8 @@ int main(int argc, char* argv[])
     auto argument_ptr = device_instance.MakeArgumentPointer(i_inLengths,
                                                             i_inStrides,
                                                             reduceDims,
-                                                            alpha,
-                                                            beta,
+                                                            &alpha,
+                                                            &beta,
                                                             in_dev.GetDeviceBuffer(),
                                                             out_dev.GetDeviceBuffer());
 

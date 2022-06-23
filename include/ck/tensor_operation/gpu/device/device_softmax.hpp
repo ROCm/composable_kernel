@@ -4,7 +4,7 @@
 #include <iostream>
 #include <sstream>
 #include "device.hpp"
-#include "device_base.hpp"
+#include "device_normalization.hpp"
 #include "device_reduce.hpp"
 #include "device_reduce_multiblock.hpp"
 #include "device_reduce_common.hpp"
@@ -29,7 +29,7 @@ template <typename InDataType,
           index_t InSrcVectorDim,
           index_t InSrcVectorSize,
           index_t OutDstVectorSize>
-struct DeviceSoftmax : public BaseOperator
+struct DeviceSoftmax : public DeviceNormalization
 {
     using PassThrough = tensor_operation::element_wise::PassThrough;
 
@@ -192,21 +192,24 @@ struct DeviceSoftmax : public BaseOperator
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<index_t> inLengths,
                                                       const std::vector<index_t> inStrides,
                                                       const std::vector<int> reduceDims,
-                                                      AccDataType alpha,
-                                                      AccDataType beta,
+                                                      void* alpha,
+                                                      void* beta,
                                                       const void* in_dev,
-                                                      void* out_dev)
+                                                      void* out_dev) override
     {
         return std::make_unique<Argument>(inLengths,
                                           inStrides,
                                           reduceDims,
-                                          alpha,
-                                          beta,
+                                          *static_cast<AccDataType*>(alpha),
+                                          *static_cast<AccDataType*>(beta),
                                           static_cast<const InDataType*>(in_dev),
                                           static_cast<OutDataType*>(out_dev));
     };
 
-    std::unique_ptr<BaseInvoker> MakeInvokerPointer() { return std::make_unique<Invoker>(); };
+    std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
+    {
+        return std::make_unique<Invoker>();
+    };
 
     std::string GetTypeString() const override
     {

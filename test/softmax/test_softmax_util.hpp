@@ -87,8 +87,8 @@ class TestSoftmax : public ::testing::Test
         auto argument_ptr    = device_instance.MakeArgumentPointer(i_in_lengths,
                                                                 i_in_strides,
                                                                 reduce_dims,
-                                                                alpha,
-                                                                beta,
+                                                                &alpha,
+                                                                &beta,
                                                                 in_dev.GetDeviceBuffer(),
                                                                 out_dev.GetDeviceBuffer());
 
