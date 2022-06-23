@@ -25,6 +25,7 @@
  *******************************************************************************/
 #pragma once
 #include "data_type.hpp"
+#include "math_v2.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -208,6 +209,34 @@ struct AddHardswish
         float c = (b > 0) * (b > 6.0f ? 6.0f : b) * a * 0.166667f;
         y       = c;
     };
+};
+
+struct InvVariance
+{
+    InvVariance(double epsilon) : epsilon_(epsilon){};
+
+    template <typename T>
+    __host__ __device__ constexpr void operator()(T& y, const T& mean, const T& meansquare) const;
+
+    template <>
+    __host__ __device__ constexpr void operator()<float>(float& y, const float& mean, const float& meansquare) const
+    {
+        using ck::math::sqrt;
+
+        y = meansquare - mean * mean;
+        y = 1.0f / sqrt(static_cast<float>(epsilon_) + y);
+    };
+
+    template <>
+    __host__ __device__ constexpr void operator()<double>(double& y, const double& mean, const double& meansquare) const
+    {
+        using ck::math::sqrt;
+
+        y = meansquare - mean * mean;
+        y = 1.0f / sqrt(epsilon_ + y);
+    };
+
+    double epsilon_;
 };
 
 } // namespace element_wise
