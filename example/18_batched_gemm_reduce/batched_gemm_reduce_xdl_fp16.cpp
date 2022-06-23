@@ -3,18 +3,18 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <stdlib.h>
-#include <half.hpp>
-#include "check_err.hpp"
-#include "config.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "device_tensor.hpp"
-#include "device_batched_gemm_reduce_xdl_cshuffle.hpp"
-#include "element_wise_operation.hpp"
-#include "reduction_operator.hpp"
-#include "reference_batched_gemm.hpp"
-#include "gemm_specialization.hpp"
+
+#include "ck/ck.hpp"
+#include "ck/utility/reduction_operator.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/device/device_batched_gemm_reduce_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;

@@ -1,34 +1,9 @@
-/*******************************************************************************
- *
- * MIT License
- *
- * Copyright (c) 2020 Advanced Micro Devices, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
- *******************************************************************************/
-#ifndef CK_REDUCTION_OPERATOR_MAPPING_HPP
-#define CK_REDUCTION_OPERATOR_MAPPING_HPP
+#pragma once
 
-#include "reduction_operator.hpp"
-#include "reduction_enums.hpp"
-#include "element_wise_operation.hpp"
+#include "ck/utility/reduction_operator.hpp"
+#include "ck/utility/reduction_enums.hpp"
+#include "ck/device_operation/element_wise_operation.hpp"
+// FIXME: can it be replaced with ck::Tuple?
 #include <tuple>
 
 namespace ck {
@@ -205,6 +180,4 @@ struct reduce_unary_operator<ReduceTensorOp::NORM2, false, true>
     };
 };
 
-} // end of namespace ck
-
-#endif
+} // namespace ck

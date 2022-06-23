@@ -1,5 +1,4 @@
-#ifndef REFERENCE_BATCHED_GEMM_HPP
-#define REFERENCE_BATCHED_GEMM_HPP
+#pragma once
 
 #include <iostream>
 #include <sstream>
@@ -132,4 +131,3 @@ struct ReferenceBatchedGemm : public device::BaseOperator
 } // namespace host
 } // namespace tensor_operation
 } // namespace ck
-#endif

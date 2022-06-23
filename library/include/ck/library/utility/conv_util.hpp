@@ -9,17 +9,16 @@
 #include <type_traits>
 #include <vector>
 
-#include "config.hpp"
-#include "device_memory.hpp"
-#include "tensor_layout.hpp"
-#include "element_wise_operation.hpp"
-#include "check_err.hpp"
-#include "device_conv_fwd.hpp"
-#include "device_tensor.hpp"
-#include "fill.hpp"
-#include "host_tensor.hpp"
-#include "op_instance_engine.hpp"
-#include "reference_conv_fwd.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/device/device_conv_fwd.hpp"
+
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/fill.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/utility/op_instance_engine.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 
 namespace ck {
 namespace tensor_operation {

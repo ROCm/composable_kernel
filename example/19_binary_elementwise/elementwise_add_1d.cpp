@@ -25,15 +25,14 @@
  *******************************************************************************/
 #include <iostream>
 #include <cstdlib>
-#include "check_err.hpp"
-#include "config.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
 
-#include "device_tensor.hpp"
-#include "binary_element_wise_operation.hpp"
-#include "device_binary_elementwise.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/binary_element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/device/device_binary_elementwise.hpp"
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;
