@@ -24,12 +24,12 @@
  *
  *******************************************************************************/
 #pragma once
+
 #include "data_type.hpp"
 #include "math_v2.hpp"
 
 namespace ck {
 namespace tensor_operation {
-
 namespace element_wise {
 
 struct Add
@@ -240,6 +240,5 @@ struct InvVariance
 };
 
 } // namespace element_wise
-
 } // namespace tensor_operation
 } // namespace ck

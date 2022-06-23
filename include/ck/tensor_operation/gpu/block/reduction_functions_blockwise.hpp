@@ -45,7 +45,9 @@ template <typename AccDataType,
           typename ThreadClusterLengths_M_K,
           typename ThreadClusterArrangeOrder,
           typename OpReduce,
-          bool PropagateNan>
+          bool PropagateNan,
+          typename Accumulation =
+              detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>>
 struct PartitionedBlockwiseReduction
 {
     static_assert(BlockSize == ThreadClusterLengths_M_K::At(0) * ThreadClusterLengths_M_K::At(1),
@@ -61,8 +63,6 @@ struct PartitionedBlockwiseReduction
 
     static constexpr auto thread_cluster_desc =
         make_cluster_descriptor(ThreadClusterLengths_M_K{}, ThreadClusterArrangeOrder{});
-
-    using Accumulation = detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>;
 
     template <typename BufferType>
     __device__ static void Reduce(BufferType& work_buffer, AccDataType& in_out_value)
@@ -113,13 +113,16 @@ struct PartitionedBlockwiseReduction
 //  3) in_out_value/in_out_index is the input data in vgpr from each thread
 //  4) in_out_value/in_out_index is the over-written reduced output in vgpr for each thread
 // clang-format on
-template <typename AccDataType,
-          typename IndexDataType,
-          index_t BlockSize,
-          typename ThreadClusterLengths_M_K,
-          typename ThreadClusterArrangeOrder,
-          typename OpReduce,
-          bool PropagateNan>
+template <
+    typename AccDataType,
+    typename IndexDataType,
+    index_t BlockSize,
+    typename ThreadClusterLengths_M_K,
+    typename ThreadClusterArrangeOrder,
+    typename OpReduce,
+    bool PropagateNan,
+    typename Accumulation =
+        detail::AccumulateWithIndexAndNanCheck<PropagateNan, OpReduce, AccDataType, IndexDataType>>
 struct PartitionedBlockwiseReductionWithIndex
 {
     static_assert(BlockSize == ThreadClusterLengths_M_K::At(0) * ThreadClusterLengths_M_K::At(1),
@@ -135,9 +138,6 @@ struct PartitionedBlockwiseReductionWithIndex
 
     static constexpr auto thread_cluster_desc =
         make_cluster_descriptor(ThreadClusterLengths_M_K{}, ThreadClusterArrangeOrder{});
-
-    using Accumulation =
-        detail::AccumulateWithIndexAndNanCheck<PropagateNan, OpReduce, AccDataType, IndexDataType>;
 
     // This interface accumulates on both data values and indices
     template <typename BufferType, typename IdxBufferType>
