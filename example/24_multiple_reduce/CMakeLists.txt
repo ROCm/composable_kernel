@@ -1,0 +1,1 @@
+add_example_executable(example_multiple_reduce multiple_reduce.cpp)
