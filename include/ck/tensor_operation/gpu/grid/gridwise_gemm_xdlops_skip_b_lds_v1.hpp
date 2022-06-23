@@ -587,7 +587,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
                         read_a_lds_data();
                         read_b_last_half_data();
 
-                        s_nop();
+                     //   s_nop();
 
                         static_for<0, BaseMultK0 / 2, 1>{}([&](auto ii) {
                             blockwise_gemm.Run(a_thread_buf(Number<ii>{}),
@@ -598,7 +598,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
                         read_a_lds_data();
                         read_b_first_half_data();
 
-                        s_nop();
+                //        s_nop();
 
                         static_for<BaseMultK0 / 2, BaseMultK0, 1>{}([&](auto ii) {
                             blockwise_gemm.Run(a_thread_buf(Number<ii - BaseMultK0 / 2>{}),
@@ -626,7 +626,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
                     read_a_lds_data();
                     read_b_last_half_data();
 
-                    s_nop();
+                 //   s_nop();
 
                     static_for<0, BaseMultK0 / 2, 1>{}([&](auto ii) {
                         blockwise_gemm.Run(
@@ -640,7 +640,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
                         read_b_first_half_data();
                     }
 
-                    s_nop();
+                //    s_nop();
 
                     static_for<BaseMultK0 / 2, BaseMultK0, 1>{}([&](auto ii) {
                         blockwise_gemm.Run(a_thread_buf(Number<ii - BaseMultK0 / 2>{}),
