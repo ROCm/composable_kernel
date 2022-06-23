@@ -166,17 +166,34 @@ check_err(const std::vector<T>& out,
         return false;
     }
 
+    bool res{true};
+    int err_count   = 0;
+    int64_t err     = 0;
+    int64_t max_err = std::numeric_limits<int64_t>::min();
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
-        if(out[i] != ref[i])
+        int64_t o = out[i];
+        int64_t r = ref[i];
+        err       = std::abs(o - r);
+
+        if(err > 0)
         {
-            std::cout << "out[" << i << "] != ref[" << i << "]: " << static_cast<int>(out[i])
-                      << " != " << static_cast<int>(ref[i]) << std::endl
-                      << msg << std::endl;
-            return false;
+            max_err = err > max_err ? err : max_err;
+            err_count++;
+            if(err_count < 5)
+            {
+                std::cout << "out[" << i << "] != ref[" << i << "]: " << static_cast<int>(out[i])
+                          << " != " << static_cast<int>(ref[i]) << std::endl
+                          << msg << std::endl;
+            }
+            res = false;
         }
     }
-    return true;
+    if(!res)
+    {
+        std::cout << "max err: " << max_err << std::endl;
+    }
+    return res;
 }
 
 } // namespace utils

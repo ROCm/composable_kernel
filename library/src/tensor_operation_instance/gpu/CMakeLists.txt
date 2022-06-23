@@ -22,7 +22,6 @@ add_subdirectory(conv2d_fwd)
 add_subdirectory(conv3d_fwd)
 add_subdirectory(conv2d_fwd_bias_relu)
 add_subdirectory(conv2d_fwd_bias_relu_add)
-add_subdirectory(conv2d_fwd_bias_relu_atomic_add)
 add_subdirectory(conv2d_bwd_data)
 add_subdirectory(reduce)
 add_subdirectory(convnd_bwd_data)
@@ -38,7 +37,6 @@ add_library(device_operations STATIC
     $<TARGET_OBJECTS:device_conv2d_fwd_instance>
     $<TARGET_OBJECTS:device_conv2d_fwd_bias_relu_instance>
     $<TARGET_OBJECTS:device_conv2d_fwd_bias_relu_add_instance>
-    $<TARGET_OBJECTS:device_conv2d_fwd_bias_relu_atomic_add_instance>
     $<TARGET_OBJECTS:device_gemm_instance>
     $<TARGET_OBJECTS:device_gemm_bias_relu_instance>
     $<TARGET_OBJECTS:device_gemm_bias_relu_add_instance>
@@ -77,7 +75,6 @@ target_include_directories(device_operations PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/host>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/reduce>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/half>
 )
 
 #once new arches are enabled make this an option on the main cmake file
