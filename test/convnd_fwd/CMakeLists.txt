@@ -5,7 +5,7 @@ target_link_libraries(test_conv1d_fwd PRIVATE host_tensor device_conv1d_fwd_inst
 add_dependencies(test_convnd_fwd test_conv1d_fwd)
 
 add_gtest_executable(test_conv2d_fwd conv2d_fwd.cpp)
-target_link_libraries(test_conv2d_fwd PRIVATE host_tensor device_conv2d_fwd_instance conv_util)
+target_link_libraries(test_conv2d_fwd PRIVATE host_tensor device_conv2d_fwd_instance device_convnd_2d_fwd_instance conv_util)
 add_dependencies(test_convnd_fwd test_conv2d_fwd)
 
 add_gtest_executable(test_conv3d_fwd conv3d_fwd.cpp)

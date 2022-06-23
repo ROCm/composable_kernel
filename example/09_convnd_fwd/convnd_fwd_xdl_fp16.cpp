@@ -291,8 +291,8 @@ int main(int argc, char* argv[])
 
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_btype / 1.E6 / ave_time;
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, " << conv->GetTypeString() 
-              << std::endl;
+    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+              << conv->GetTypeString() << std::endl;
 
     if(do_verification)
     {
