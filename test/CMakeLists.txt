@@ -1,7 +1,7 @@
 include_directories(BEFORE
+    ${PROJECT_SOURCE_DIR}/
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/library/include
-    ${PROJECT_SOURCE_DIR}/test/include
 )
 
 include(googletest)
@@ -42,7 +42,7 @@ add_subdirectory(batched_gemm)
 add_subdirectory(batched_gemm_reduce)
 add_subdirectory(grouped_gemm)
 add_subdirectory(convnd_fwd)
-add_subdirectory(reduce)
+#add_subdirectory(reduce)
 add_subdirectory(conv2d_bwd_weight)
 add_subdirectory(convnd_bwd_data)
 add_subdirectory(block_to_ctile_map)

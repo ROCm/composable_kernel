@@ -3,11 +3,10 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <stdlib.h>
-#include <half.hpp>
 #include <vector>
 
-#include "conv_util.hpp"
-#include "profile_conv_bwd_weight_impl.hpp"
+#include "test/convnd_fwd/conv_util.hpp"
+#include "profiler/include/profile_conv_bwd_weight_impl.hpp"
 
 int test_self()
 {

@@ -3,10 +3,9 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <stdlib.h>
-#include <half.hpp>
 #include <vector>
 
-#include "profile_convnd_bwd_data_impl.hpp"
+#include "profiler/include/profile_convnd_bwd_data_impl.hpp"
 
 int main()
 {

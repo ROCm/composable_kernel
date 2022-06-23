@@ -3,10 +3,11 @@
 #include <vector>
 #include <gtest/gtest.h>
 
-#include "config.hpp"
-#include "conv_util.hpp"
-#include "tensor_layout.hpp"
-#include "check_err.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/conv_util.hpp"
 
 namespace {
 
