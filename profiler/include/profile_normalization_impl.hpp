@@ -136,8 +136,8 @@ void profile_normalization_impl(int do_verification,
 
     for(auto& inst_ptr : instances)
     {
-        // Is this user's responsibility to check if problem mismatches kernel instance (ie. rank 3 problem to
-        // rank 4 kernel) other than invoking IsSupportedArgument()?
+        // Is this user's responsibility to check if problem mismatches kernel instance (ie. rank 3
+        // problem to rank 4 kernel) other than invoking IsSupportedArgument()?
         if(!(inst_ptr->GetRank() == static_cast<index_t>(i_in_lengths.size()) &&
              inst_ptr->GetNumReduceDim() == static_cast<index_t>(reduce_dims.size())))
         {

@@ -5,9 +5,9 @@
 
 #include "profile_normalization_impl.hpp"
 
-using ck::profiler::NormType;
-using ck::profiler::NormDataType;
 using ck::index_t;
+using ck::profiler::NormDataType;
+using ck::profiler::NormType;
 
 struct ArgParser
 {
@@ -74,12 +74,12 @@ int profile_normalization(int argc, char* argv[])
     ArgParser arg_parser;
 
     // short unnamed options
-    const NormType norm_type = arg_parser.norm_dict[argv[1]];
+    const NormType norm_type     = arg_parser.norm_dict[argv[1]];
     const NormDataType data_type = static_cast<NormDataType>(std::stoi(argv[2]));
-    const bool do_verification = std::stoi(argv[3]);
-    const int init_method      = std::stoi(argv[4]);
-    const bool do_log          = std::stoi(argv[5]);
-    const bool time_kernel     = std::stoi(argv[6]);
+    const bool do_verification   = std::stoi(argv[3]);
+    const int init_method        = std::stoi(argv[4]);
+    const bool do_log            = std::stoi(argv[5]);
+    const bool time_kernel       = std::stoi(argv[6]);
 
     // parse the long options
     arg_parser(argc, argv);
@@ -90,33 +90,31 @@ int profile_normalization(int argc, char* argv[])
         arg_parser.long_opts["alpha"].empty() ? 1 : arg_parser.long_opts["alpha"][0];
     const index_t beta = arg_parser.long_opts["beta"].empty() ? 0 : arg_parser.long_opts["beta"][0];
 
-    if (data_type == NormDataType::F16_F16)
+    if(data_type == NormDataType::F16_F16)
     {
-        ck::profiler::profile_normalization_impl<ck::half_t, float, ck::half_t>(
-            do_verification,
-            init_method,
-            do_log,
-            time_kernel,
-            length,
-            stride,
-            reduce,
-            float(alpha),
-            float(beta),
-            norm_type);
+        ck::profiler::profile_normalization_impl<ck::half_t, float, ck::half_t>(do_verification,
+                                                                                init_method,
+                                                                                do_log,
+                                                                                time_kernel,
+                                                                                length,
+                                                                                stride,
+                                                                                reduce,
+                                                                                float(alpha),
+                                                                                float(beta),
+                                                                                norm_type);
     }
-    else if (data_type == NormDataType::F32_F32)
+    else if(data_type == NormDataType::F32_F32)
     {
-        ck::profiler::profile_normalization_impl<float, float, float>(
-            do_verification,
-            init_method,
-            do_log,
-            time_kernel,
-            length,
-            stride,
-            reduce,
-            float(alpha),
-            float(beta),
-            norm_type);
+        ck::profiler::profile_normalization_impl<float, float, float>(do_verification,
+                                                                      init_method,
+                                                                      do_log,
+                                                                      time_kernel,
+                                                                      length,
+                                                                      stride,
+                                                                      reduce,
+                                                                      float(alpha),
+                                                                      float(beta),
+                                                                      norm_type);
     }
     else
     {

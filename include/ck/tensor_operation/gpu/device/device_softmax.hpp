@@ -31,7 +31,7 @@ template <typename InDataType,
           index_t OutDstVectorSize>
 struct DeviceSoftmax : public DeviceNormalization
 {
-    static constexpr index_t kRank = Rank;
+    static constexpr index_t kRank         = Rank;
     static constexpr index_t kNumReduceDim = NumReduceDim;
 
     virtual index_t GetRank() const override { return kRank; }

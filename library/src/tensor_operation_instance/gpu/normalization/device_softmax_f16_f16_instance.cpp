@@ -12,9 +12,8 @@ using F16 = ck::half_t;
 using F32 = float;
 
 template <index_t Rank, index_t Reduce>
-using device_softmax_f16_f16_instances =
-    std::tuple<
-        // clang-format off
+using device_softmax_f16_f16_instances = std::tuple<
+    // clang-format off
         // InDataType, AccDataType, OutDataType, Rank, NumReduceDim, BlockSize, MThreadClusterSize, KThreadClusterSize, MThreadSliceSize, KThreadSliceSize, InSrcVectorDim, InSrcVectorSize, OutDstVectorSize>
         DeviceSoftmax<F16, F32, F16, Rank, Reduce, 256, 8, 32, 1, 8, 1, 1, 1>, // fallback kernel
         DeviceSoftmax<F16, F32, F16, Rank, Reduce, 256, 8, 32, 1, 8, 1, 8, 8>,
@@ -25,18 +24,16 @@ using device_softmax_f16_f16_instances =
         DeviceSoftmax<F16, F32, F16, Rank, Reduce, 256, 1, 256, 1, 8, 1, 8, 8>,
         DeviceSoftmax<F16, F32, F16, Rank, Reduce, 256, 1, 256, 1, 16, 1, 8, 8>,
         DeviceSoftmax<F16, F32, F16, Rank, Reduce, 256, 1, 256, 1, 32, 1, 8, 8>
-        // clang-format on
-        >;
+    // clang-format on
+    >;
 
-void add_device_softmax_f16_f16_rank3_instances(
-    std::vector<DeviceNormalizationPtr>& instances)
+void add_device_softmax_f16_f16_rank3_instances(std::vector<DeviceNormalizationPtr>& instances)
 {
     add_device_operation_instances(instances, device_softmax_f16_f16_instances<3, 1>{});
     add_device_operation_instances(instances, device_softmax_f16_f16_instances<3, 2>{});
 }
 
-void add_device_softmax_f16_f16_rank4_instances(
-    std::vector<DeviceNormalizationPtr>& instances)
+void add_device_softmax_f16_f16_rank4_instances(std::vector<DeviceNormalizationPtr>& instances)
 {
     add_device_operation_instances(instances, device_softmax_f16_f16_instances<4, 1>{});
     add_device_operation_instances(instances, device_softmax_f16_f16_instances<4, 2>{});

@@ -175,7 +175,8 @@ check_err(const std::vector<T>& out,
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
         T abs_err = out[i] - ref[i];
-        if (abs_err < 0) abs_err = -abs_err;
+        if(abs_err < 0)
+            abs_err = -abs_err;
 
         if(abs_err > atol)
         {
