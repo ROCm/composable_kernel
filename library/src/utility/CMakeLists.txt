@@ -1,8 +1,3 @@
-include_directories(BEFORE
-    ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/library/include
-)
-
 set(CONV_UTIL_SOURCE
     conv_util.cpp
 )

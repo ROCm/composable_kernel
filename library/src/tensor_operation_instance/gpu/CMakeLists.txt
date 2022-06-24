@@ -1,8 +1,3 @@
-include_directories(BEFORE
-    ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/library/include
-)
-
 function(add_instance_library INSTANCE_NAME)
     message("adding instance ${INSTANCE_NAME}")
     add_library(${INSTANCE_NAME} OBJECT ${ARGN})

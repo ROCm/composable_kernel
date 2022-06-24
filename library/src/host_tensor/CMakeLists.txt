@@ -1,9 +1,4 @@
 ## host_tensor
-include_directories(BEFORE
-    ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/library/include
-)
-
 set(HOST_TENSOR_SOURCE
     device_memory.cpp
     host_tensor.cpp
