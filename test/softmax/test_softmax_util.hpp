@@ -105,7 +105,7 @@ class TestSoftmax : public ::testing::Test
         auto invoker_ptr = device_instance.MakeInvokerPointer();
         invoker_ptr->Run(argument_ptr.get());
 
-        ref_instance_invoker_.Run({in, out_ref, alpha, beta, Rank, reduce_dims});
+        ref_instance_invoker_.Run({in, out_ref, alpha, beta, reduce_dims});
 
         out_dev.FromDevice(out.mData.data());
 

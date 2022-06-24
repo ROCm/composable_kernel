@@ -197,7 +197,7 @@ int main(int argc, char* argv[])
         using ReferenceInstance =
             tensor_operation::host::ReferenceSoftmax<InDataType, OutDataType, AccDataType>;
         ReferenceInstance ref;
-        auto ref_arg = ref.MakeArgument(in, out_ref, alpha, beta, Rank, reduceDims);
+        auto ref_arg = ref.MakeArgument(in, out_ref, alpha, beta, reduceDims);
         auto invoker = ref.MakeInvoker();
         invoker.Run(ref_arg);
         // LogRangeAsType<float>(std::cout << "tensor out_ref: ", out_ref.mData, ",") << std::endl;
