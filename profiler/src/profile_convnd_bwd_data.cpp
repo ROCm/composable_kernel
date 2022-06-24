@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include <stdlib.h>
 
-#include "profile_convnd_bwd_data_impl.hpp"
+#include "profiler/include/profile_convnd_bwd_data_impl.hpp"
 
 namespace {
 

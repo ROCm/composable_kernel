@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include <stdlib.h>
 
-#include "profile_batched_gemm_reduce_impl.hpp"
+#include "profiler/include/profile_batched_gemm_reduce_impl.hpp"
 
 int profile_batched_gemm_reduce(int argc, char* argv[])
 {

@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include <stdlib.h>
 
-#include "profile_gemm_add_add_fastgelu_impl.hpp"
+#include "profiler/include/profile_gemm_add_add_fastgelu_impl.hpp"
 
 int profile_gemm_add_add_fastgelu(int argc, char* argv[])
 {

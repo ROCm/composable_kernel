@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "profile_convnd_fwd.hpp"
+#include "profiler/include/profile_convnd_fwd.hpp"
 
 int profile_gemm(int, char*[]);
 int profile_gemm_bias_2d(int, char*[]);

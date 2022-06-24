@@ -5,7 +5,7 @@
 #include <cstdlib>
 #include <stdlib.h>
 
-#include "profile_batched_gemm_impl.hpp"
+#include "profiler/include/profile_batched_gemm_impl.hpp"
 
 enum struct GemmMatrixLayout
 {

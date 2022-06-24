@@ -7,8 +7,6 @@
 #include "ck/utility/container_element_picker.hpp"
 #include "ck/utility/multi_index.hpp"
 #include "ck/utility/data_type.hpp"
-#include "ck/utility/data_type_enum.hpp"
-#include "ck/utility/data_type_enum_helper.hpp"
 #include "ck/utility/functional.hpp"
 #include "ck/utility/functional2.hpp"
 #include "ck/utility/functional3.hpp"

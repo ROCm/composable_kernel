@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include <stdlib.h>
 
-#include "profile_gemm_bias_add_reduce_impl.hpp"
+#include "profiler/include/profile_gemm_bias_add_reduce_impl.hpp"
 
 int profile_gemm_bias_add_reduce(int argc, char* argv[])
 {

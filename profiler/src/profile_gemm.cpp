@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include <stdlib.h>
 
-#include "profile_gemm_impl.hpp"
+#include "profiler/include/profile_gemm_impl.hpp"
 
 enum struct GemmMatrixLayout
 {

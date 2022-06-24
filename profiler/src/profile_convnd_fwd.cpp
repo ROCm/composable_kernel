@@ -10,7 +10,7 @@
 #include "ck/library/utility/conv_util.hpp"
 #include "ck/library/utility/fill.hpp"
 
-#include "profile_convnd_fwd.hpp"
+#include "profiler/include/profile_convnd_fwd.hpp"
 
 namespace {
 
