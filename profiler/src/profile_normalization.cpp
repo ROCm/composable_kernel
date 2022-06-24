@@ -2,7 +2,8 @@
 #include <vector>
 #include <unordered_map>
 #include <half.hpp>
-#include "profile_normalization.hpp"
+
+#include "profile_normalization_impl.hpp"
 
 using ck::profiler::NormType;
 using ck::profiler::NormDataType;
