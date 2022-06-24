@@ -15,7 +15,7 @@ struct ArgParser
                                                            {"softmax", NormType::SOFTMAX}};
 
     std::unordered_map<std::string, std::vector<int>> long_opts = {
-        {"length", {}}, {"stride", {}}, {"reduce", {}}};
+        {"length", {}}, {"stride", {}}, {"reduce", {}}, {"alpha", {}}, {"beta", {}}};
 
     bool parse_opt(int argc, char* argv[], const std::string& key, int i)
     {
@@ -57,6 +57,8 @@ void print_help()
               << "--length: tensor extents (e.g, --length 4 8 256) \n"
               << "--stride: tensor strides (e.g, --stride 1024 256 1)\n"
               << "--reduce: to-reduce dimensions (e.g, --reduce 2)\n"
+              << "--alpha: alpha scaling value\n"
+              << "--beta: beta scaling value\n"
               << std::endl;
 }
 
@@ -83,6 +85,9 @@ int profile_normalization(int argc, char* argv[])
     const std::vector<index_t> length = arg_parser.long_opts["length"];
     const std::vector<index_t> stride = arg_parser.long_opts["stride"];
     const std::vector<index_t> reduce = arg_parser.long_opts["reduce"];
+    const index_t alpha =
+        arg_parser.long_opts["alpha"].empty() ? 1 : arg_parser.long_opts["alpha"][0];
+    const index_t beta = arg_parser.long_opts["beta"].empty() ? 0 : arg_parser.long_opts["beta"][0];
     // LogRange(std::cout, arg_parser.long_opts["length"], ",") << std::endl;
     // LogRange(std::cout, arg_parser.long_opts["stride"], ",") << std::endl;
     // LogRange(std::cout, arg_parser.long_opts["reduce"], ",") << std::endl;
@@ -90,16 +95,34 @@ int profile_normalization(int argc, char* argv[])
     if (data_type == NormDataType::F16_F16)
     {
         ck::profiler::profile_normalization_impl<ck::half_t, float, ck::half_t>(
-                do_verification,
-                init_method,
-                do_log,
-                time_kernel,
-                length,
-                stride,
-                reduce,
-                1, // alpha
-                0, // beta
-                norm_type);
+            do_verification,
+            init_method,
+            do_log,
+            time_kernel,
+            length,
+            stride,
+            reduce,
+            float(alpha),
+            float(beta),
+            norm_type);
+    }
+    else if (data_type == NormDataType::F32_F32)
+    {
+        ck::profiler::profile_normalization_impl<float, float, float>(
+            do_verification,
+            init_method,
+            do_log,
+            time_kernel,
+            length,
+            stride,
+            reduce,
+            float(alpha),
+            float(beta),
+            norm_type);
+    }
+    else
+    {
+        throw std::runtime_error("not implemented yet");
     }
 
     return 0;

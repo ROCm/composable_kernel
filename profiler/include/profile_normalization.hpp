@@ -19,6 +19,9 @@ namespace device_normalization_instance {
 void add_device_softmax_f16_f16_rank3_instances(std::vector<DeviceNormalizationPtr>&);
 void add_device_softmax_f16_f16_rank4_instances(std::vector<DeviceNormalizationPtr>&);
 
+void add_device_softmax_f32_f32_rank3_instances(std::vector<DeviceNormalizationPtr>&);
+void add_device_softmax_f32_f32_rank4_instances(std::vector<DeviceNormalizationPtr>&);
+
 } // namespace device_normalization_instance
 } // namespace device
 } // namespace tensor_operation
@@ -57,14 +60,15 @@ void profile_normalization_impl(int do_verification,
                                 bool do_log,
                                 bool time_kernel,
                                 std::vector<index_t> in_length,
-                                std::vector<index_t> /* in_strides */, // TODO:
+                                std::vector<index_t> in_strides,
                                 std::vector<index_t> reduce_dims,
                                 AccDataType alpha,
                                 AccDataType beta,
-                                NormType /* norm_type */) // TODO:
+                                NormType norm_type)
 {
-    Tensor<InDataType> in(in_length);
-    Tensor<OutDataType> out(in_length);
+    Tensor<InDataType> in = in_strides.empty() ? Tensor<InDataType>(in_length)
+                                               : Tensor<InDataType>(in_length, in_strides);
+    Tensor<OutDataType> out(in);
 
     switch(init_method)
     {
@@ -95,16 +99,30 @@ void profile_normalization_impl(int do_verification,
     // add device normalization instances
     std::vector<tensor_operation::device::DeviceNormalizationPtr> instances;
 
-    if constexpr(is_same<InDataType, half_t>::value && is_same<OutDataType, half_t>::value &&
-                 is_same<AccDataType, float>::value)
+    if(norm_type == NormType::SOFTMAX)
     {
-        if (in_length.size() == 3)
-        tensor_operation::device::device_normalization_instance::
-            add_device_softmax_f16_f16_rank3_instances(instances);
+        if constexpr(is_same<InDataType, half_t>::value && is_same<OutDataType, half_t>::value &&
+                     is_same<AccDataType, float>::value)
+        {
+            if(in_length.size() == 3)
+                tensor_operation::device::device_normalization_instance::
+                    add_device_softmax_f16_f16_rank3_instances(instances);
 
-        if (in_length.size() == 4)
-        tensor_operation::device::device_normalization_instance::
-            add_device_softmax_f16_f16_rank4_instances(instances);
+            if(in_length.size() == 4)
+                tensor_operation::device::device_normalization_instance::
+                    add_device_softmax_f16_f16_rank4_instances(instances);
+        }
+        else if constexpr(is_same<InDataType, float>::value && is_same<OutDataType, float>::value &&
+                          is_same<AccDataType, float>::value)
+        {
+            if(in_length.size() == 3)
+                tensor_operation::device::device_normalization_instance::
+                    add_device_softmax_f32_f32_rank3_instances(instances);
+
+            if(in_length.size() == 4)
+                tensor_operation::device::device_normalization_instance::
+                    add_device_softmax_f32_f32_rank4_instances(instances);
+        }
     }
 
     if(instances.size() <= 0)
@@ -208,13 +226,13 @@ void profile_normalization_impl(int do_verification,
         }
     }
     std::cout << "Best Perf for datatype = " << type_to_string<InDataType>() << "_"
-                << type_to_string<OutDataType>() << ", ";
+              << type_to_string<OutDataType>() << ", ";
     LogRange(std::cout << "length = ", i_in_lengths, ",") << ", ";
     LogRange(std::cout << "stride = ", i_in_strides, ",") << ", ";
     LogRange(std::cout << "reduce dims ", reduce_dims, ",") << ", ";
-    std::cout << best_avg_time << " ms, " << best_gb_per_sec << " GB/s, " << best_instance_name
-                << std::endl;
-    // return pass ? 0 : 1;
+    std::cout << "alpha = " << alpha << ", "
+              << "beta = " << beta << ", " << best_avg_time << " ms, " << best_gb_per_sec
+              << " GB/s, " << best_instance_name << std::endl;
 }
 
 } // namespace profiler
