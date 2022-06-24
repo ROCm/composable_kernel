@@ -2,7 +2,6 @@
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"

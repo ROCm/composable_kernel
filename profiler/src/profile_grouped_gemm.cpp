@@ -2,7 +2,6 @@
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
 
 #include "profiler/include/profile_grouped_gemm_impl.hpp"
 

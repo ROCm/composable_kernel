@@ -3,7 +3,6 @@
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
 
 #include "profiler/include/profile_batched_gemm_impl.hpp"
 

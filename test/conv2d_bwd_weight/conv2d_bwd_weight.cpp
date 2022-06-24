@@ -2,7 +2,6 @@
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
 #include <vector>
 
 #include "test/convnd_fwd/conv_util.hpp"

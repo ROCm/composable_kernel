@@ -2,7 +2,6 @@
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
 #include <vector>
 
 #include "profiler/include/profile_convnd_bwd_data_impl.hpp"

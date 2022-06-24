@@ -2,7 +2,6 @@
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
@@ -13,7 +12,6 @@
 #include "ck/library/host_tensor/device_memory.hpp"
 #include "ck/library/host_tensor/host_tensor.hpp"
 #include "ck/library/host_tensor/host_tensor_generator.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 template <ck::index_t... Is>

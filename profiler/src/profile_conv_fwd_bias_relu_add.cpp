@@ -2,7 +2,6 @@
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
 
 #include "profiler/include/profile_conv_fwd_bias_relu_add_impl.hpp"
 

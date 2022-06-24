@@ -13,7 +13,6 @@
 #include "ck/library/host_tensor/device_memory.hpp"
 #include "ck/library/host_tensor/host_tensor.hpp"
 #include "ck/library/host_tensor/host_tensor_generator.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
 
 template <typename InDataType,
           typename OutDataType,

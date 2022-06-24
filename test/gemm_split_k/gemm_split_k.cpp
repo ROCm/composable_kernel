@@ -1,7 +1,6 @@
 #include <iostream>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
