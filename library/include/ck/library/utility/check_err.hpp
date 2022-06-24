@@ -181,7 +181,7 @@ check_err(const std::vector<T>& out,
         int64_t r = ref[i];
         err       = std::abs(o - r);
 
-        if(err > 0)
+        if(err > atol)
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
