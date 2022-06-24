@@ -1,7 +1,7 @@
-#include "getopt.h"
+#include <getopt.h>
 
-#include "host_common_util.hpp"
-#include "profile_reduce_impl.hpp"
+#include "ck/library/host_tensor/host_common_util.hpp"
+#include "profiler/include/profile_reduce_impl.hpp"
 
 using namespace ck;
 
