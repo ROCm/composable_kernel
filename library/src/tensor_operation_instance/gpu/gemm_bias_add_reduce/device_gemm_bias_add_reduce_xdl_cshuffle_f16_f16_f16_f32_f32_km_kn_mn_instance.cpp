@@ -1,4 +1,4 @@
-#include <stdlib.h>
+#include <cstdlib>
 
 #include "ck/ck.hpp"
 #include "ck/utility/reduction_operator.hpp"
