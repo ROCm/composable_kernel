@@ -65,7 +65,7 @@ void print_help()
 
 int profile_normalization(int argc, char* argv[])
 {
-    if(argc <= 1)
+    if(argc <= 2)
     {
         print_help();
         return 0;
@@ -89,9 +89,6 @@ int profile_normalization(int argc, char* argv[])
     const index_t alpha =
         arg_parser.long_opts["alpha"].empty() ? 1 : arg_parser.long_opts["alpha"][0];
     const index_t beta = arg_parser.long_opts["beta"].empty() ? 0 : arg_parser.long_opts["beta"][0];
-    // LogRange(std::cout, arg_parser.long_opts["length"], ",") << std::endl;
-    // LogRange(std::cout, arg_parser.long_opts["stride"], ",") << std::endl;
-    // LogRange(std::cout, arg_parser.long_opts["reduce"], ",") << std::endl;
 
     if (data_type == NormDataType::F16_F16)
     {
@@ -129,9 +126,9 @@ int profile_normalization(int argc, char* argv[])
     return 0;
 }
 
-// TODO: remove; temporary
-int main(int argc, char* argv[])
-{
-    profile_normalization(argc, argv);
-    return 0;
-}
+// hijack main() for quick debugging
+// int main(int argc, char* argv[])
+// {
+//     profile_normalization(argc, argv);
+//     return 0;
+// }
