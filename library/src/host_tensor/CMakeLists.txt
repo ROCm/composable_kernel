@@ -17,22 +17,20 @@ target_compile_features(host_tensor PUBLIC)
 set_target_properties(host_tensor PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(host_tensor SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
 
-target_include_directories(host_tensor PUBLIC 
+target_include_directories(host_tensor PUBLIC
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/utility>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/host_tensor>"
 )
 
-install(TARGETS host_tensor 
-        EXPORT host_tensorTargets
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+rocm_install(
+    TARGETS host_tensor
+    EXPORT host_tensorTargets
 )
 
-install(EXPORT host_tensorTargets
-    FILE composable_kernelhost_tensorTargets.cmake 
+rocm_install(
+    EXPORT host_tensorTargets
+    FILE composable_kernelhost_tensorTargets.cmake
     NAMESPACE composable_kernel::
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
 )

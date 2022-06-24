@@ -34,6 +34,7 @@ function(add_test_executable TEST_NAME)
     add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> )
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
+    rocm_install(TARGETS ${TEST_NAME} COMPONENT tests)
 endfunction(add_test_executable TEST_NAME)
 
 include(GoogleTest)
@@ -47,6 +48,7 @@ function(add_gtest_executable TEST_NAME)
     target_compile_options(${TEST_NAME} PRIVATE -Wno-global-constructors -Wno-undef)
     target_link_libraries(${TEST_NAME} PRIVATE gtest_main)
     gtest_discover_tests(${TEST_NAME})
+    rocm_install(TARGETS ${TEST_NAME} COMPONENT tests)
 endfunction(add_gtest_executable TEST_NAME)
 
 
