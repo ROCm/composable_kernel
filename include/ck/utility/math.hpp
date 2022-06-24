@@ -146,6 +146,8 @@ __host__ __device__ constexpr auto min(X x, Ys... ys)
 template <typename T>
 __device__ T exp(T x);
 
+// TODO: add f16 support using v_exp_f16
+
 template <>
 __device__ float exp<float>(float x)
 {

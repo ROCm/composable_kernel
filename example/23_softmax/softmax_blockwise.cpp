@@ -152,6 +152,9 @@ int main(int argc, char* argv[])
     AccDataType alpha = args.scales[0];
     AccDataType beta  = args.scales[1];
 
+    std::cout << "in: " << in.mDesc << std::endl;
+    std::cout << "out: " << out.mDesc << std::endl;
+
     std::size_t num_thread = 1;
 
     if(args.do_verification)
