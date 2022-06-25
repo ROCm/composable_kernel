@@ -1,15 +1,20 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
-#include "common_header.hpp"
-#include "multi_index_transform_helper.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "tensor_operation/gpu/grid/block_to_ctile_map.hpp"
-#include "blockwise_gemm_xdlops.hpp"
-#include "thread_group_tensor_slice_transfer_v4r1.hpp"
-#include "thread_group_tensor_slice_transfer_v6r1.hpp"
-#include "threadwise_tensor_slice_transfer.hpp"
-#include "gridwise_gemm_pipeline_v1.hpp"
-#include "reduction_functions_threadwise.hpp"
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/multi_index_transform_helper.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
+#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
+#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
+#include "ck/tensor_operation/gpu/thread/reduction_functions_threadwise.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 namespace ck {
 
@@ -21,7 +26,7 @@ template <typename GridwiseGemm,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename DxsInElementwiseOperation,
-          typename DxsAccElementwiseOperation,
+          typename DxsReduceAccElementwiseOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
           typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -41,7 +46,7 @@ __global__ void
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op,
             const DxsInElementwiseOperation dxs_in_element_op,
-            const DxsAccElementwiseOperation dxs_out_element_op,
+            const DxsReduceAccElementwiseOperation dxs_out_element_op,
             const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
             const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
@@ -96,7 +101,7 @@ template <typename FloatAB,
           typename CElementwiseOperation,
           typename DxsReduceOperation,
           typename DxsInElementwiseOperation,
-          typename DxsAccElementwiseOperation,
+          typename DxsReduceAccElementwiseOperation,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           typename DGlobalMemoryDataOperation,
           typename AGridDesc_AK0_M_AK1,
@@ -329,7 +334,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                const BElementwiseOperation& b_element_op,
                                const CElementwiseOperation& c_element_op,
                                const DxsInElementwiseOperation& dxs_in_element_op,
-                               const DxsAccElementwiseOperation& dxs_out_element_op,
+                               const DxsReduceAccElementwiseOperation& dxs_out_element_op,
                                const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
                                const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
                                const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
@@ -816,10 +821,11 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                                 false>;
 
                         // Global write Gemm shuffle + reduction
-                        const auto d_zeroVal = DReduceOperation::GetReductionZeroVal();
+                        const auto d_identityVal =
+                            DReduceOperation::template GetIdentityValue<FloatReduceAcc>();
 
                         static_for<0, mreduce_per_thread, 1>{}(
-                            [&](auto I) { d_thread_buf(I) = d_zeroVal; });
+                            [&](auto I) { d_thread_buf(I) = d_identityVal; });
 
                         // reduce in VGPR
                         static_for<0, mreduce_per_thread, 1>{}([&](auto im) {

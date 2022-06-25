@@ -1,19 +1,22 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <cmath>
 #include <cstdlib>
-#include <half.hpp>
 #include <numeric>
 #include <type_traits>
 #include <vector>
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
-#include "check_err.hpp"
-#include "config.hpp"
-#include "conv_util.hpp"
-#include "element_wise_operation.hpp"
-#include "fill.hpp"
-#include "host_tensor.hpp"
-#include "reference_conv_fwd.hpp"
-#include "tensor_layout.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/conv_util.hpp"
+#include "ck/library/utility/fill.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 
 namespace {
 using InElementOp  = ck::tensor_operation::element_wise::PassThrough;

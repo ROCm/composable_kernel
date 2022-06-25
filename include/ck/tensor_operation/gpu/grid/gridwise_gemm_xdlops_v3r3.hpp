@@ -1,14 +1,19 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
-#include "common_header.hpp"
-#include "multi_index_transform_helper.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "tensor_operation/gpu/grid/block_to_ctile_map.hpp"
-#include "blockwise_gemm_xdlops.hpp"
-#include "thread_group_tensor_slice_transfer_v4r1.hpp"
-#include "thread_group_tensor_slice_transfer_v6r3.hpp"
-#include "threadwise_tensor_slice_transfer.hpp"
-#include "gridwise_gemm_pipeline_v1.hpp"
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/multi_index_transform_helper.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
+#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
+#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r3.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 namespace ck {
 
@@ -340,7 +345,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r3
     using DefaultBlock2CTileMap =
         remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1))>;
 
-    template <bool HasMainKBlockLoop, typename Block2CTileMap = DefaultBlock2CTileMap>
+    template <bool HasMainKBlockLoop, typename Block2CTileMap>
     __device__ static void
     Run(const FloatAB* __restrict__ p_a_grid,
         const FloatAB* __restrict__ p_b_grid,

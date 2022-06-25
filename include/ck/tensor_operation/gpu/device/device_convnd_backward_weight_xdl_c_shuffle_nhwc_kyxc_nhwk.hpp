@@ -1,16 +1,21 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include <iostream>
 #include <sstream>
-#include "device.hpp"
-#include "device_base.hpp"
-#include "device_conv_backward_weight.hpp"
-#include "convolution_backward_weight_specialization.hpp"
-#include "common_header.hpp"
-#include "tensor_layout.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdlops_bwd_weight.hpp"
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_conv_backward_weight.hpp"
+#include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_bwd_weight.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_unary_elementwise_1d.hpp"
+#include "ck/device_utility/device_prop.hpp"
+#include "ck/device_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -432,7 +437,7 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         using namespace ck;
 
         const index_t Di = input_spatial_lengths[0];
-        const index_t Hi = input_spatial_lengths[2];
+        const index_t Hi = input_spatial_lengths[1];
         const index_t Wi = input_spatial_lengths[2];
 
         const index_t Do = output_spatial_lengths[0];
@@ -628,6 +633,57 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                                                                   1);
     }
 
+    // type convert descs
+    template <typename Desc_M0>
+    static auto PadDescriptor_M0_1d(Desc_M0 desc_m0, index_t gridSize, index_t blockSize)
+    {
+        const auto m0           = desc_m0.GetLength(I0);
+        const index_t loop_step = gridSize * blockSize * 4;
+        const auto pad          = math::integer_least_multiple(m0, loop_step) - m0;
+        const auto desc_m0_pad =
+            transform_tensor_descriptor(desc_m0,
+                                        make_tuple(make_right_pad_transform(m0, pad)),
+                                        make_tuple(Sequence<0>{}),
+                                        make_tuple(Sequence<0>{}));
+        return desc_m0_pad;
+    }
+
+    template <index_t Dim>
+    static auto MakeDescriptor_M0(const std::vector<index_t>& shape,
+                                  const std::vector<index_t>& stride,
+                                  index_t gridSize,
+                                  index_t blockSize)
+    {
+        auto tupleOfShape  = generate_tuple([&](auto I) { return shape[I]; }, Number<Dim>{});
+        auto tupleOfStride = generate_tuple([&](auto I) { return stride[I]; }, Number<Dim>{});
+
+        // nd desc - [s0, s1, s2, ...]
+        const auto desc = make_naive_tensor_descriptor(tupleOfShape, tupleOfStride);
+
+        // merge nd to 1d desc - [s0 * s1 * ...]
+        if constexpr(Dim > 1)
+        {
+            const auto desc_m0 = transform_tensor_descriptor(
+                desc,
+                make_tuple(make_merge_transform(tupleOfShape)),
+                make_tuple(generate_sequence_v2([&](auto I) { return I; }, Number<Dim>{})),
+                make_tuple(Sequence<0>{}));
+
+            return PadDescriptor_M0_1d(desc_m0, gridSize, blockSize);
+        }
+        else
+            return PadDescriptor_M0_1d(desc, gridSize, blockSize);
+    }
+
+    using TypeConvertFp32ToBf16Functor =
+        ck::tensor_operation::element_wise::UnaryTypeConvert<ck::bhalf_t, float>;
+    using GridDesc_M0      = decltype(MakeDescriptor_M0<1>({1}, {1}, 1, 1));
+    using GridwiseUEltwise = GridwiseUnaryElementwise_1D<AccDataType,
+                                                         InDataType,
+                                                         GridDesc_M0,
+                                                         TypeConvertFp32ToBf16Functor,
+                                                         4>;
+
     using ABCGridDescs = decltype(GetABCGridDesc<NumDimSpatial>());
 
     using AGridDesc_K0_M_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I0])>;
@@ -689,6 +745,55 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
         CDataType,
+        InMemoryDataOperationEnum::AtomicAdd,
+        AGridDesc_K0_M_K1,
+        BGridDesc_K0_N_K1,
+        CGridDesc_M_N,
+        AElementwiseOperation,
+        BElementwiseOperation,
+        CElementwiseOperation,
+        MPerBlock,
+        NPerBlock,
+        K0PerBlock,
+        MPerXdl,
+        NPerXdl,
+        K1,
+        MXdlPerWave,
+        NXdlPerWave,
+        ABlockTransferThreadClusterLengths_K0_M_K1,
+        ABlockTransferThreadClusterArrangeOrder,
+        ABlockTransferSrcAccessOrder,
+        ABlockTransferSrcVectorDim,
+        ABlockTransferSrcScalarPerVector,
+        ABlockTransferDstScalarPerVector_K1,
+        false, // AThreadTransferSrcResetCoordinateAfterRun,
+        ABlockLdsAddExtraM,
+        ABlockLdsM1PerBlock,
+        ABlockLdsM0PerBlock,
+        ABlockLdsM1Padding,
+        BBlockTransferThreadClusterLengths_K0_N_K1,
+        BBlockTransferThreadClusterArrangeOrder,
+        BBlockTransferSrcAccessOrder,
+        BBlockTransferSrcVectorDim,
+        BBlockTransferSrcScalarPerVector,
+        BBlockTransferDstScalarPerVector_K1,
+        false, // BThreadTransferSrcResetCoordinateAfterRun,
+        BBlockLdsAddExtraN,
+        BBlockLdsN1PerBlock,
+        BBlockLdsN0PerBlock,
+        BBlockLdsN1Padding,
+        CShuffleMXdlPerWavePerShuffle,
+        CShuffleNXdlPerWavePerShuffle,
+        CBlockTransferScalarPerVector_NWaveNPerXdl,
+        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        true,
+        true>;
+
+    using GridwiseGemmAtomicAddFloatBf16Splitk = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight<
+        BlockSize,
+        ADataType, // TODO: distinguish A/B datatype
+        AccDataType,
+        AccDataType,
         InMemoryDataOperationEnum::AtomicAdd,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
@@ -881,76 +986,165 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
 
             const auto K0 = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I1);
 
-            const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
-
             float ave_time = 0;
 
-            const auto Run = [&](const auto& kernel) {
+            const bool has_main_k0_block_loop = GridwiseGemm::CalculateHasMainK0BlockLoop(K0);
+
+            const auto run_conv = [&](const auto& kernel) {
                 hipGetErrorString(hipMemset(
                     arg.p_c_grid_,
                     0,
                     arg.c_grid_desc_mblock_mperblock_nblock_nperblock_.GetElementSpaceSize() *
                         sizeof(CDataType)));
 
-                ave_time =
+                return launch_and_time_kernel(stream_config,
+                                              kernel,
+                                              dim3(grid_size),
+                                              dim3(BlockSize),
+                                              0,
+                                              arg.p_a_grid_,
+                                              arg.p_b_grid_,
+                                              arg.p_c_grid_,
+                                              arg.a_grid_desc_kbatch_k0_m_k1_,
+                                              arg.b_grid_desc_kbatch_k0_n_k1_,
+                                              arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                              arg.a_element_op_,
+                                              arg.b_element_op_,
+                                              arg.c_element_op_,
+                                              arg.block_2_ctile_map_);
+            };
+
+            // run kernel for bf16 with splitk
+            const auto run_bf16_splitk = [&](const auto& kernel) {
+                hipGetErrorString(hipMemset(
+                    arg.p_workspace_,
+                    0,
+                    arg.c_grid_desc_mblock_mperblock_nblock_nperblock_.GetElementSpaceSize() *
+                        sizeof(AccDataType)));
+
+                return launch_and_time_kernel(stream_config,
+                                              kernel,
+                                              dim3(grid_size),
+                                              dim3(BlockSize),
+                                              0,
+                                              arg.p_a_grid_,
+                                              arg.p_b_grid_,
+                                              static_cast<AccDataType*>(arg.p_workspace_),
+                                              arg.a_grid_desc_kbatch_k0_m_k1_,
+                                              arg.b_grid_desc_kbatch_k0_n_k1_,
+                                              arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                              arg.a_element_op_,
+                                              arg.b_element_op_,
+                                              arg.c_element_op_,
+                                              arg.block_2_ctile_map_);
+            };
+
+            // kernel for type conversion
+            std::vector<std::size_t> filter_dims{static_cast<std::size_t>(arg.Conv_K_),
+                                                 static_cast<std::size_t>(arg.Conv_C_)};
+
+            filter_dims.insert(std::end(filter_dims),
+                               std::begin(arg.filter_spatial_lengths_),
+                               std::end(arg.filter_spatial_lengths_));
+
+            int tensor_size =
+                std::accumulate(filter_dims.begin(), filter_dims.end(), 1, std::multiplies<int>{});
+
+            const index_t type_convert_grid_size = GridwiseUEltwise::CalculateGridSize(tensor_size);
+            GridDesc_M0 a_grid_desc_m0_ =
+                MakeDescriptor_M0<1>({tensor_size}, {1}, type_convert_grid_size, 256);
+            GridDesc_M0 b_grid_desc_m0_ =
+                MakeDescriptor_M0<1>({tensor_size}, {1}, type_convert_grid_size, 256);
+
+            if(!GridwiseUEltwise::CheckValidity(a_grid_desc_m0_, b_grid_desc_m0_))
+            {
+                throw std::runtime_error("wrong! GridwiseUnaryElementwise_1D has invalid setting");
+            }
+
+            // run kernel for type conversion
+            void* p_c_grid_tmp_            = static_cast<void*>(arg.p_c_grid_);
+            InDataType* p_c_grid_tmp_bf16_ = static_cast<InDataType*>(p_c_grid_tmp_);
+            const auto run_type_convert    = [&](const auto& kernel) {
+                float elapsed_time =
                     launch_and_time_kernel(stream_config,
                                            kernel,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
+                                           dim3(type_convert_grid_size),
+                                           dim3(256),
                                            0,
-                                           arg.p_a_grid_,
-                                           arg.p_b_grid_,
-                                           arg.p_c_grid_,
-                                           arg.a_grid_desc_kbatch_k0_m_k1_,
-                                           arg.b_grid_desc_kbatch_k0_n_k1_,
-                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.c_element_op_,
-                                           arg.block_2_ctile_map_);
+                                           static_cast<AccDataType*>(arg.p_workspace_),
+                                           p_c_grid_tmp_bf16_,
+                                           a_grid_desc_m0_,
+                                           b_grid_desc_m0_,
+                                           TypeConvertFp32ToBf16Functor{});
+                return elapsed_time;
             };
 
             if constexpr(std::is_same<InDataType, ck::bhalf_t>::value)
             {
+                auto launch_kernel = [&](auto has_main_k_block_loop) {
+                    constexpr bool has_main_loop = has_main_k_block_loop.value;
+
+                    if(kbatch == 1)
+                    {
+                        const auto kernel = kernel_gemm_xdlops_bwd_weight<
+                            GridwiseGemm,
+                            ADataType, // TODO: distiguish A/B datatype
+                            CDataType,
+                            remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                            remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                            remove_reference_t<
+                                DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                            OutElementwiseOperation,
+                            InElementwiseOperation,
+                            WeiElementwiseOperation,
+                            remove_reference_t<DeviceOp::Block2CTileMap>,
+                            has_main_loop>;
+
+                        return run_conv(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel_type_convert =
+                            kernel_unary_elementwise_1d<GridwiseUEltwise,
+                                                        AccDataType,
+                                                        InDataType,
+                                                        GridDesc_M0,
+                                                        TypeConvertFp32ToBf16Functor>;
+
+                        const auto kernel_conv = kernel_gemm_xdlops_bwd_weight<
+                            GridwiseGemmAtomicAddFloatBf16Splitk,
+                            ADataType, // TODO: distiguish A/B datatype
+                            AccDataType,
+                            remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                            remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                            remove_reference_t<
+                                DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                            OutElementwiseOperation,
+                            InElementwiseOperation,
+                            WeiElementwiseOperation,
+                            remove_reference_t<DeviceOp::Block2CTileMap>,
+                            has_main_loop>;
+
+                        float elapsed_time = 0;
+                        elapsed_time += run_bf16_splitk(kernel_conv);
+                        elapsed_time += run_type_convert(kernel_type_convert);
+                        return elapsed_time;
+                    }
+                };
                 if(has_main_k0_block_loop)
                 {
-                    const auto kernel = kernel_gemm_xdlops_bwd_weight<
-                        GridwiseGemm,
-                        ADataType, // TODO: distiguish A/B datatype
-                        CDataType,
-                        remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
-                        remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                        remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
-                        OutElementwiseOperation,
-                        InElementwiseOperation,
-                        WeiElementwiseOperation,
-                        remove_reference_t<DeviceOp::Block2CTileMap>,
-                        true>;
-
-                    Run(kernel);
+                    ave_time = launch_kernel(integral_constant<bool, true>{});
                 }
                 else
                 {
-                    const auto kernel = kernel_gemm_xdlops_bwd_weight<
-                        GridwiseGemm,
-                        ADataType, // TODO: distiguish A/B datatype
-                        CDataType,
-                        remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
-                        remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                        remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
-                        OutElementwiseOperation,
-                        InElementwiseOperation,
-                        WeiElementwiseOperation,
-                        remove_reference_t<DeviceOp::Block2CTileMap>,
-                        false>;
-
-                    Run(kernel);
+                    ave_time = launch_kernel(integral_constant<bool, false>{});
                 }
             }
             else
             {
-                if(has_main_k0_block_loop)
-                {
+                auto launch_kernel = [&](auto has_main_k_block_loop) {
+                    constexpr bool has_main_loop = has_main_k_block_loop.value;
+
                     if(kbatch == 1)
                     {
                         const auto kernel = kernel_gemm_xdlops_bwd_weight<
@@ -965,9 +1159,9 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                             InElementwiseOperation,
                             WeiElementwiseOperation,
                             remove_reference_t<DeviceOp::Block2CTileMap>,
-                            true>;
+                            has_main_loop>;
 
-                        Run(kernel);
+                        return run_conv(kernel);
                     }
                     else
                     {
@@ -983,49 +1177,18 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                             InElementwiseOperation,
                             WeiElementwiseOperation,
                             remove_reference_t<DeviceOp::Block2CTileMap>,
-                            true>;
+                            has_main_loop>;
 
-                        Run(kernel);
+                        return run_conv(kernel);
                     }
+                };
+                if(has_main_k0_block_loop)
+                {
+                    ave_time = launch_kernel(integral_constant<bool, true>{});
                 }
                 else
                 {
-                    if(kbatch == 1)
-                    {
-                        const auto kernel = kernel_gemm_xdlops_bwd_weight<
-                            GridwiseGemm,
-                            ADataType, // TODO: distiguish A/B datatype
-                            CDataType,
-                            remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
-                            remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                            remove_reference_t<
-                                DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
-                            OutElementwiseOperation,
-                            InElementwiseOperation,
-                            WeiElementwiseOperation,
-                            remove_reference_t<DeviceOp::Block2CTileMap>,
-                            false>;
-
-                        Run(kernel);
-                    }
-                    else
-                    {
-                        const auto kernel = kernel_gemm_xdlops_bwd_weight<
-                            GridwiseGemmAtomicAdd,
-                            ADataType, // TODO: distiguish A/B datatype
-                            CDataType,
-                            remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
-                            remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                            remove_reference_t<
-                                DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
-                            OutElementwiseOperation,
-                            InElementwiseOperation,
-                            WeiElementwiseOperation,
-                            remove_reference_t<DeviceOp::Block2CTileMap>,
-                            false>;
-
-                        Run(kernel);
-                    }
+                    ave_time = launch_kernel(integral_constant<bool, false>{});
                 }
             }
 

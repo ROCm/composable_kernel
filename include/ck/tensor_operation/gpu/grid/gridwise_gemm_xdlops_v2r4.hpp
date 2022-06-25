@@ -1,14 +1,18 @@
-#ifndef CK_GRIDWISE_GEMM_XDLOPS_V2R4_HPP
-#define CK_GRIDWISE_GEMM_XDLOPS_V2R4_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "common_header.hpp"
-#include "multi_index_transform_helper.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "tensor_operation/gpu/grid/block_to_ctile_map.hpp"
-#include "blockwise_gemm_xdlops.hpp"
-#include "thread_group_tensor_slice_transfer_v4r1.hpp"
-#include "threadwise_tensor_slice_transfer.hpp"
+#pragma once
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/multi_index_transform_helper.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
+#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 namespace ck {
 
@@ -607,7 +611,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
                               c_grid_buf);
         }
     }
-}; // namespace ck
+};
 
 } // namespace ck
-#endif

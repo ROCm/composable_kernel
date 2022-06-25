@@ -1,20 +1,22 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
 
-#include "check_err.hpp"
-#include "config.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "device_tensor.hpp"
-#include "device_gemm_reduce_xdl_cshuffle.hpp"
-#include "element_wise_operation.hpp"
-#include "reference_gemm.hpp"
-#include "gemm_specialization.hpp"
-#include "element_wise_reduce_operation.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_reduce_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+#include "ck/library/utility/check_err.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -41,9 +43,8 @@ using CLayout = ck::tensor_layout::gemm::RowMajor;
 using AElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp  = ck::tensor_operation::element_wise::PassThrough;
-using DsReduceOp  = ck::Tuple<ck::reduce::Max<ReduceAccDataType>>;
-using DsElementOp = ck::Tuple<
-    ck::tensor_operation::element_wise::UnaryIdentic<ReduceAccDataType, ReduceAccDataType, false>>;
+using DsReduceOp  = ck::Tuple<ck::reduce::Max>;
+using DsElementOp = ck::Tuple<ck::tensor_operation::element_wise::PassThrough>;
 using DGlobalMemOp =
     ck::InMemoryDataOperationEnumSequence<ck::InMemoryDataOperationEnum::AtomicMax>;
 
@@ -236,10 +237,14 @@ int main(int argc, char* argv[])
 
         for(int m = 0; m < M; ++m)
         {
-            ReduceAccDataType d_acc = d_reduce_op.GetReductionZeroVal();
+            ReduceAccDataType d_acc = d_reduce_op.GetIdentityValue<ReduceAccDataType>();
 
             for(int n = 0; n < N; ++n)
-                d_reduce_op(d_acc, c_m_n_host_result(m, n));
+            {
+                ReduceAccDataType curr_val =
+                    ck::type_convert<ReduceAccDataType>(c_m_n_host_result(m, n));
+                d_reduce_op(d_acc, curr_val);
+            };
 
             d_m_host_result(m) = d_acc;
         }

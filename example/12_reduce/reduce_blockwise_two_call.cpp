@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <numeric>
 #include <sstream>
@@ -5,20 +8,17 @@
 #include <cstdlib>
 #include <getopt.h>
 
-#include "check_err.hpp"
-#include "config.hpp"
-#include "print.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "device_tensor.hpp"
-#include "device_base.hpp"
-#include "device_reduce_multiblock.hpp"
-#include "host_common_util.hpp"
-#include "host_reduction.hpp"
+#include "ck/ck.hpp"
+#include "ck/utility/reduction_enums.hpp"
+#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
+#include "ck/tensor_operation/gpu/device/device_reduce_multiblock.hpp"
 
-#include "reduction_enums.hpp"
-#include "reduction_operator_mapping.hpp"
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/host_tensor/host_common_util.hpp"
+#include "ck/library/host_tensor/host_reduction.hpp"
 
 using namespace ck;
 using namespace ck::tensor_operation::device;
@@ -31,13 +31,13 @@ constexpr ReduceTensorOp ReduceOpId = ReduceTensorOp::NORM2;
 constexpr bool PropagateNan         = true;
 constexpr bool OutputIndex          = false;
 
-using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
+using ReduceOperation = typename reduce_binary_operator<ReduceOpId>::opType;
 using InElementwiseOperation =
-    typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::InElementwiseOperation;
+    typename reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation;
 using AccElementwiseOperation =
-    typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::AccElementwiseOperation;
+    typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation;
 
-using PassThroughOp = tensor_operation::element_wise::UnaryIdentic<AccDataType, AccDataType>;
+using PassThroughOp = tensor_operation::element_wise::PassThrough;
 
 using DeviceReduceInstance_1 = DeviceReduceMultiBlock<InOutDataType,
                                                       AccDataType,
@@ -107,8 +107,6 @@ int main(int argc, char* argv[])
     const std::vector<size_t> inLengths_2 = {64, 320, 80, 4};
 
     const std::vector<size_t> outLengths = {64, 320, 80};
-
-    using namespace ck::host_reduce;
 
     if(argc == 1)
     {
@@ -186,19 +184,34 @@ int main(int argc, char* argv[])
     if(beta != 0.0f)
         out_dev.ToDevice(out.mData.data());
 
+    InElementwiseOperation in_elementwise_op;
+    AccElementwiseOperation acc_elementwise_op;
+
+    std::tie(in_elementwise_op, acc_elementwise_op) =
+        reduce_unary_operator<ReduceOpId, true, true>::GetElementwiseOperator(
+            static_cast<int32_t>(reduce_total_length));
+
     if(do_verify)
     {
         ReductionHost<InOutDataType,
                       AccDataType,
                       InOutDataType,
-                      ReduceOpId,
+                      ReduceOperation,
+                      InElementwiseOperation,
+                      AccElementwiseOperation,
                       5, // Rank
                       2, // NumReduceDim
                       PropagateNan,
                       OutputIndex>
             hostReduce(in_1.mDesc, out_ref.mDesc, invariantDims, reduceDims);
 
-        hostReduce.Run(alpha, in_1.mData.data(), beta, out_ref.mData.data(), nullptr);
+        hostReduce.Run(alpha,
+                       in_1.mData.data(),
+                       beta,
+                       out_ref.mData.data(),
+                       nullptr,
+                       in_elementwise_op,
+                       acc_elementwise_op);
     };
 
     std::vector<ck::index_t> i_inLengths_1;
@@ -217,20 +230,19 @@ int main(int argc, char* argv[])
 
     auto reduce_1 = DeviceReduceInstance_1{};
 
-    auto argument_ptr_1 = reduce_1.MakeArgumentPointer(
-        i_inLengths_1,
-        i_inStrides_1,
-        i_inLengths_2,
-        i_inStrides_2,
-        reduceDims_1,
-        1.0f,
-        0.0f,
-        in_1_dev.GetDeviceBuffer(),
-        nullptr,
-        in_2_dev.GetDeviceBuffer(),
-        nullptr,
-        InElementwiseOperation{static_cast<int32_t>(reduce_total_length)},
-        PassThroughOp{});
+    auto argument_ptr_1 = reduce_1.MakeArgumentPointer(i_inLengths_1,
+                                                       i_inStrides_1,
+                                                       i_inLengths_2,
+                                                       i_inStrides_2,
+                                                       reduceDims_1,
+                                                       1.0f,
+                                                       0.0f,
+                                                       in_1_dev.GetDeviceBuffer(),
+                                                       nullptr,
+                                                       in_2_dev.GetDeviceBuffer(),
+                                                       nullptr,
+                                                       in_elementwise_op,
+                                                       PassThroughOp{});
 
     if(!reduce_1.IsSupportedArgument(argument_ptr_1.get()))
     {
@@ -243,20 +255,19 @@ int main(int argc, char* argv[])
 
     auto reduce_2 = DeviceReduceInstance_2{};
 
-    auto argument_ptr_2 = reduce_2.MakeArgumentPointer(
-        i_inLengths_2,
-        i_inStrides_2,
-        i_outLengths,
-        i_outStrides,
-        reduceDims_2,
-        alpha,
-        beta,
-        in_2_dev.GetDeviceBuffer(),
-        nullptr,
-        out_dev.GetDeviceBuffer(),
-        nullptr,
-        PassThroughOp{},
-        AccElementwiseOperation{static_cast<int32_t>(reduce_total_length)});
+    auto argument_ptr_2 = reduce_2.MakeArgumentPointer(i_inLengths_2,
+                                                       i_inStrides_2,
+                                                       i_outLengths,
+                                                       i_outStrides,
+                                                       reduceDims_2,
+                                                       alpha,
+                                                       beta,
+                                                       in_2_dev.GetDeviceBuffer(),
+                                                       nullptr,
+                                                       out_dev.GetDeviceBuffer(),
+                                                       nullptr,
+                                                       PassThroughOp{},
+                                                       acc_elementwise_op);
 
     if(!reduce_2.IsSupportedArgument(argument_ptr_2.get()))
     {

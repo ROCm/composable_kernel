@@ -1,16 +1,20 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
-#include "config.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "host_conv.hpp"
-#include "tensor_layout.hpp"
-#include "device_tensor.hpp"
-#include "element_wise_operation.hpp"
-#include "reduction_operator.hpp"
-#include "device_gemm_reduce.hpp"
-#include "reference_batched_gemm.hpp"
+#include "ck/ck.hpp"
+#include "ck/utility/reduction_operator.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_reduce.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/conv_util.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -20,13 +24,12 @@ namespace device_gemm_instance {
 using F32            = float;
 using F16            = ck::half_t;
 using DPtrsGlobal    = ck::Tuple<F32*, F32*>;
-using Identity       = ck::tensor_operation::element_wise::UnaryIdentic<F32, F32, false>;
-using Square         = ck::tensor_operation::element_wise::UnarySquare<F32, F32, false>;
+using Identity       = ck::tensor_operation::element_wise::PassThrough;
+using Square         = ck::tensor_operation::element_wise::UnarySquare;
 using DInElementOps  = ck::Tuple<Identity, Square>;
 using DOutElementOps = ck::Tuple<Identity, Identity>;
 
 using DeviceGemmReduceNoOpPtr = ck::tensor_operation::device::DeviceGemmReducePtr<
-    DPtrsGlobal,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
@@ -129,17 +132,15 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
         b_g_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
     }
 
-    using AElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using BElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using CElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using D0ReduceOp = ck::reduce::Add<float>;
-    using D1ReduceOp = ck::reduce::Add<float>;
-    using UnaryIdenticElementOp =
-        ck::tensor_operation::element_wise::UnaryIdentic<float, float, false>;
-    using UnarySquareElementOp =
-        ck::tensor_operation::element_wise::UnarySquare<float, float, false>;
-    using DxsInElementOps  = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
-    using DxsOutElementOps = ck::Tuple<UnaryIdenticElementOp, UnaryIdenticElementOp>;
+    using AElementOp            = ck::tensor_operation::element_wise::PassThrough;
+    using BElementOp            = ck::tensor_operation::element_wise::PassThrough;
+    using CElementOp            = ck::tensor_operation::element_wise::PassThrough;
+    using D0ReduceOp            = ck::reduce::Add;
+    using D1ReduceOp            = ck::reduce::Add;
+    using UnaryIdenticElementOp = ck::tensor_operation::element_wise::PassThrough;
+    using UnarySquareElementOp  = ck::tensor_operation::element_wise::UnarySquare;
+    using DxsInElementOps       = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
+    using DxsOutElementOps      = ck::Tuple<UnaryIdenticElementOp, UnaryIdenticElementOp>;
 
     const auto a_element_op       = AElementOp{};
     const auto b_element_op       = BElementOp{};
@@ -171,8 +172,8 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
         {
             for(int m = 0; m < M; ++m)
             {
-                float d0_acc = d0_reduce_op.GetReductionZeroVal();
-                float d1_acc = d1_reduce_op.GetReductionZeroVal();
+                float d0_acc = d0_reduce_op.GetIdentityValue<float>();
+                float d1_acc = d1_reduce_op.GetIdentityValue<float>();
 
                 for(int n = 0; n < N; ++n)
                 {
@@ -260,7 +261,7 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
             gemm_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
                                           static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
                                           static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                          dxs_global,
+                                          &dxs_global,
                                           M,
                                           N,
                                           K,

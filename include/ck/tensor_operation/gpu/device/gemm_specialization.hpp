@@ -1,5 +1,7 @@
-#ifndef GEMM_SPECIALIZATION
-#define GEMM_SPECIALIZATION
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 namespace ck {
 namespace tensor_operation {
@@ -20,4 +22,3 @@ enum struct GemmSpecialization
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

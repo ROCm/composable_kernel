@@ -1,10 +1,13 @@
-#ifndef REFERENCE_GEMM_BIAS_BIAS_2D_HPP
-#define REFERENCE_GEMM_BIAS_BIAS_2D_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <iostream>
 #include <sstream>
-#include "device_base.hpp"
-#include "host_tensor.hpp"
+
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -66,8 +69,8 @@ struct ReferenceGemmBias2D : public device::BaseOperator
 
                 for(int k = 0; k < K; ++k)
                 {
-                    arg.a_element_op_(a, arg.a_m_k_(m, k));
-                    arg.b_element_op_(b, arg.b_k_n_(k, n));
+                    arg.a_element_op_(a, ck::type_convert<AccDataType>(arg.a_m_k_(m, k)));
+                    arg.b_element_op_(b, ck::type_convert<AccDataType>(arg.b_k_n_(k, n)));
                     acc += a * b;
                 }
 
@@ -131,4 +134,3 @@ struct ReferenceGemmBias2D : public device::BaseOperator
 } // namespace host
 } // namespace tensor_operation
 } // namespace ck
-#endif

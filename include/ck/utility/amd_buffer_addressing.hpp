@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 #include "data_type.hpp"
 
@@ -6,6 +9,8 @@ namespace ck {
 template <typename T>
 union BufferResource
 {
+    __device__ constexpr BufferResource() : content{} {}
+
     // 128 bit SGPRs to supply buffer resource in buffer instructions
     // https://rocm-documentation.readthedocs.io/en/latest/GCN_ISA_Manuals/testdocbook.html#vector-memory-buffer-instructions
     int32x4_t content;

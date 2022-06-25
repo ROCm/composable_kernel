@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include "integral_constant.hpp"
@@ -16,14 +19,18 @@ struct TupleElementKey
 };
 
 template <typename Key, typename Data>
-struct TupleElement
+struct TupleElementKeyData
 {
-    __host__ __device__ constexpr TupleElement() = default;
+#if 0 // workaround compiler complaint about implicitly-deleted default constructor
+    __host__ __device__ constexpr TupleElementKeyData() = default;
+#else
+    __host__ __device__ constexpr TupleElementKeyData() : mData{} {}
+#endif
 
-    template <
-        typename T,
-        typename enable_if<!is_same<remove_cvref_t<T>, TupleElement>::value, bool>::type = false>
-    __host__ __device__ constexpr TupleElement(T&& v) : mData(std::forward<T>(v))
+    template <typename T,
+              typename enable_if<!is_same<remove_cvref_t<T>, TupleElementKeyData>::value,
+                                 bool>::type = false>
+    __host__ __device__ constexpr TupleElementKeyData(T&& v) : mData(std::forward<T>(v))
     {
     }
 
@@ -31,20 +38,21 @@ struct TupleElement
 };
 
 template <typename Key, typename Data>
-__host__ __device__ constexpr const Data& get_tuple_element(const TupleElement<Key, Data>& x)
+__host__ __device__ constexpr const Data&
+get_tuple_element_data(const TupleElementKeyData<Key, Data>& x)
 {
     return static_cast<const Data&>(x.mData);
 }
 
 template <typename Key, typename Data>
-__host__ __device__ constexpr Data& get_tuple_element(TupleElement<Key, Data>& x)
+__host__ __device__ constexpr Data& get_tuple_element_data(TupleElementKeyData<Key, Data>& x)
 {
     return x.mData;
 }
 
 // TODO: not sure the use of reference is correct
 template <typename Key, typename Data>
-__host__ __device__ constexpr Data&& get_tuple_element(TupleElement<Key, Data>&& x)
+__host__ __device__ constexpr Data&& get_tuple_element_data(TupleElementKeyData<Key, Data>&& x)
 {
     return static_cast<Data&&>(x.mData);
 }
@@ -53,7 +61,7 @@ template <typename Indices, typename... Xs>
 struct TupleImpl;
 
 template <index_t... Is, typename... Xs>
-struct TupleImpl<Sequence<Is...>, Xs...> : TupleElement<TupleElementKey<Is>, Xs>...
+struct TupleImpl<Sequence<Is...>, Xs...> : TupleElementKeyData<TupleElementKey<Is>, Xs>...
 {
     __host__ __device__ constexpr TupleImpl() = default;
 
@@ -62,13 +70,13 @@ struct TupleImpl<Sequence<Is...>, Xs...> : TupleElement<TupleElementKey<Is>, Xs>
                                      !is_same<remove_cvref_t<Y>, TupleImpl>::value,
                                  bool>::type = false>
     __host__ __device__ constexpr TupleImpl(Y&& y)
-        : TupleElement<TupleElementKey<Is>, Xs>(std::forward<Y>(y))...
+        : TupleElementKeyData<TupleElementKey<Is>, Xs>(std::forward<Y>(y))...
     {
     }
 
     template <typename... Ys, typename enable_if<sizeof...(Ys) >= 2, bool>::type = false>
     __host__ __device__ constexpr TupleImpl(Ys&&... ys)
-        : TupleElement<TupleElementKey<Is>, Xs>(std::forward<Ys>(ys))...
+        : TupleElementKeyData<TupleElementKey<Is>, Xs>(std::forward<Ys>(ys))...
     {
         static_assert(sizeof...(Is) == sizeof...(Xs) && sizeof...(Is) == sizeof...(Ys),
                       "wrong! inconsistent size");
@@ -77,15 +85,15 @@ struct TupleImpl<Sequence<Is...>, Xs...> : TupleElement<TupleElementKey<Is>, Xs>
     __host__ __device__ static constexpr index_t Size() { return sizeof...(Xs); }
 
     template <index_t I>
-    __host__ __device__ constexpr const auto& GetElementByKey(TupleElementKey<I>) const
+    __host__ __device__ constexpr const auto& GetElementDataByKey(TupleElementKey<I>) const
     {
-        return get_tuple_element<TupleElementKey<I>>(*this);
+        return get_tuple_element_data<TupleElementKey<I>>(*this);
     }
 
     template <index_t I>
-    __host__ __device__ constexpr auto& GetElementByKey(TupleElementKey<I>)
+    __host__ __device__ constexpr auto& GetElementDataByKey(TupleElementKey<I>)
     {
-        return get_tuple_element<TupleElementKey<I>>(*this);
+        return get_tuple_element_data<TupleElementKey<I>>(*this);
     }
 };
 
@@ -120,7 +128,7 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
     __host__ __device__ constexpr const auto& At(Number<I>) const
     {
         static_assert(I < base::Size(), "wrong! out of range");
-        return base::GetElementByKey(detail::TupleElementKey<I>{});
+        return base::GetElementDataByKey(detail::TupleElementKey<I>{});
     }
 
     // write access
@@ -128,7 +136,7 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
     __host__ __device__ constexpr auto& At(Number<I>)
     {
         static_assert(I < base::Size(), "wrong! out of range");
-        return base::GetElementByKey(detail::TupleElementKey<I>{});
+        return base::GetElementDataByKey(detail::TupleElementKey<I>{});
     }
 
     // read access
@@ -157,6 +165,31 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
 
     __host__ __device__ static constexpr bool IsStaticBuffer() { return true; }
 };
+
+template <>
+struct Tuple<>
+{
+    __host__ __device__ constexpr Tuple() = default;
+
+    __host__ __device__ static constexpr index_t Size() { return 0; }
+
+    template <typename T>
+    __host__ __device__ constexpr auto operator=(const T&)
+    {
+        return *this;
+    }
+
+    __host__ __device__ static constexpr bool IsStaticBuffer() { return true; }
+};
+
+template <index_t I, typename TTuple>
+struct tuple_element
+{
+    using type = decltype(TTuple{}.At(Number<I>{}));
+};
+
+template <index_t I, typename TTuple>
+using tuple_element_t = typename tuple_element<I, TTuple>::type;
 
 template <typename... Xs>
 __host__ __device__ constexpr auto make_tuple(Xs&&... xs)

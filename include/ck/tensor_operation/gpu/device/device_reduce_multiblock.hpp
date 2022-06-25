@@ -1,15 +1,21 @@
-#ifndef DEVICE_REDUCE_MULTIBLOCK_HPP
-#define DEVICE_REDUCE_MULTIBLOCK_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <iostream>
 #include <sstream>
-#include "device.hpp"
-#include "device_base.hpp"
-#include "device_reduce.hpp"
-#include "device_reduce_common.hpp"
-#include "gridwise_2d_reduction_multiblock.hpp"
-#include "gridwise_set_buffer_value.hpp"
-#include "reduction_operator.hpp"
+
+#include "ck/utility/common_header.hpp"
+#include "ck/utility/reduction_operator.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/device/device_reduce.hpp"
+#include "ck/tensor_operation/gpu/device/device_reduce_common.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_2d_reduction_multiblock.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_set_buffer_value.hpp"
+#include "ck/device_utility/device_prop.hpp"
+#include "ck/device_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -61,12 +67,9 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
     static constexpr bool use_multiblock =
         (OutMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd);
 
-    static constexpr bool out_type_compatible_with_atomic_op =
-        std::is_same<OutDataType, float>::value || std::is_same<OutDataType, double>::value;
-
-    static_assert(
-        !use_multiblock || (use_multiblock && out_type_compatible_with_atomic_op),
-        "The OutDataType must support the atomic operation for using MultiBlock reduction");
+    static_assert(ck::reduce::InMemoryDataOperatonSupportedOnDataType<OutMemoryDataOperation,
+                                                                      OutDataType>::value,
+                  "The OutDataType must support the specified OutMemoryDataOperation!");
 
     static_assert(!use_multiblock || (use_multiblock && !OutputIndex),
                   "MultiBlock reduction can only be used when outputing index is not required");
@@ -348,8 +351,8 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
 
             if constexpr(use_multiblock)
             {
-                const auto zeroVal =
-                    ck::reduce::GetReductionZeroValueForInMemoryDataOperation<OutDataType>(
+                const auto identityVal =
+                    ck::reduce::GetIdentityValueForInMemoryDataOperation<OutDataType>(
                         OutMemoryDataOperation);
 
                 const auto kernel_pre =
@@ -362,7 +365,7 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
                                                    0,
                                                    out_grid_desc_m_2,
                                                    arg.out_dev_,
-                                                   zeroVal);
+                                                   identityVal);
             };
 
             avg_time += launch_and_time_kernel(stream_config,
@@ -393,10 +396,8 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
         };
     };
 
-    bool IsSupportedArgument(const BaseArgument* p_arg) override
+    static bool IsSupportedArgument(const Argument* pArg)
     {
-        const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
-
         if constexpr(use_multiblock)
         {
             if(static_cast<float>(pArg->beta_) != 0.0f)
@@ -445,11 +446,16 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
         else
         {
             // cases with very small reduce_total_length should be handled by ThreadWise kernel
-            if(pArg->reduce_total_length / KThreadSliceSize < 2)
-                return (false);
+            // if(pArg->reduce_total_length / KThreadSliceSize < 2)
+            //     return (false);
         };
 
         return (true);
+    }
+
+    bool IsSupportedArgument(const BaseArgument* p_arg) override
+    {
+        return IsSupportedArgument(dynamic_cast<const Argument*>(p_arg));
     };
 
     std::unique_ptr<BaseArgument>
@@ -492,7 +498,7 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceReduceMultiBlockAtomicAdd<" << BlockSize << ",";
+        str << (OutMemoryDataOperation == InMemoryDataOperationEnum::Set? "DeviceReduceBlockWise<" : "DeviceReduceMultiBlock<") << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
         str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
         str << "InSrcVectorDim_" << InSrcVectorDim << "_InSrcVectorSize_" << InSrcVectorSize << "_OutDstVectorSize_" << OutDstVectorSize << ">";
@@ -505,4 +511,3 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

@@ -1,42 +1,23 @@
-/*******************************************************************************
- *
- * MIT License
- *
- * Copyright (c) 2022 Advanced Micro Devices, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
- *******************************************************************************/
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
+
 #include <iostream>
 #include <sstream>
-#include "device.hpp"
-#include "device_gemm.hpp"
-#include "device_cgemm.hpp"
-#include "common_header.hpp"
-#include "tensor_layout.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdl_cshuffle_v1.hpp"
-#include "binary_element_wise_operation.hpp"
-#include "gridwise_binary_elementwise_1d.hpp"
-#include "tensor_operation/gpu/device/gemm_specialization.hpp"
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm.hpp"
+#include "ck/tensor_operation/gpu/device/device_cgemm.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v1.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_binary_elementwise_1d.hpp"
+#include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
+#include "ck/device_utility/device_prop.hpp"
+#include "ck/device_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -557,11 +538,9 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
 
             float ave_time = 0;
 
-            using Add =
-                ck::tensor_operation::binary_element_wise::Add<CDataType, CDataType, CDataType>;
-            using Substract = ck::tensor_operation::binary_element_wise::
-                Substract<CDataType, CDataType, CDataType>;
-            using GridwiseBinAdd        = GridwiseBinaryElementwise_1D<CDataType,
+            using Add                  = ck::tensor_operation::element_wise::Add;
+            using Subtract             = ck::tensor_operation::element_wise::Subtract;
+            using GridwiseBinAdd       = GridwiseBinaryElementwise_1D<CDataType,
                                                                 CDataType,
                                                                 CDataType,
                                                                 CDataType,
@@ -573,19 +552,19 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                                                 AScalarPerVector,
                                                                 BScalarPerVector,
                                                                 CScalarPerVector>;
-            using GridwiseBinSubstract  = GridwiseBinaryElementwise_1D<CDataType,
-                                                                      CDataType,
-                                                                      CDataType,
-                                                                      CDataType,
-                                                                      CGridDesc_M,
-                                                                      CGridDesc_M,
-                                                                      CGridDesc_M,
-                                                                      Substract,
-                                                                      MPerThread,
-                                                                      AScalarPerVector,
-                                                                      BScalarPerVector,
-                                                                      CScalarPerVector>;
-            const auto add_kernel       = kernel_binary_elementwise_1d<GridwiseBinAdd,
+            using GridwiseBinSubtract  = GridwiseBinaryElementwise_1D<CDataType,
+                                                                     CDataType,
+                                                                     CDataType,
+                                                                     CDataType,
+                                                                     CGridDesc_M,
+                                                                     CGridDesc_M,
+                                                                     CGridDesc_M,
+                                                                     Subtract,
+                                                                     MPerThread,
+                                                                     AScalarPerVector,
+                                                                     BScalarPerVector,
+                                                                     CScalarPerVector>;
+            const auto add_kernel      = kernel_binary_elementwise_1d<GridwiseBinAdd,
                                                                  CDataType,
                                                                  CDataType,
                                                                  CDataType,
@@ -593,14 +572,14 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                                                  CGridDesc_M,
                                                                  CGridDesc_M,
                                                                  Add>;
-            const auto substract_kernel = kernel_binary_elementwise_1d<GridwiseBinSubstract,
-                                                                       CDataType,
-                                                                       CDataType,
-                                                                       CDataType,
-                                                                       CGridDesc_M,
-                                                                       CGridDesc_M,
-                                                                       CGridDesc_M,
-                                                                       Substract>;
+            const auto subtract_kernel = kernel_binary_elementwise_1d<GridwiseBinSubtract,
+                                                                      CDataType,
+                                                                      CDataType,
+                                                                      CDataType,
+                                                                      CGridDesc_M,
+                                                                      CGridDesc_M,
+                                                                      CGridDesc_M,
+                                                                      Subtract>;
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
@@ -653,7 +632,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
 
                 // c_real = aux - aux_2
                 ave_time += launch_and_time_kernel(stream_config,
-                                                   substract_kernel,
+                                                   subtract_kernel,
                                                    dim3(grid_size),
                                                    dim3(BlockSize),
                                                    0,
@@ -663,7 +642,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                                    arg.c_grid_desc_m_,
                                                    arg.c_grid_desc_m_,
                                                    arg.c_grid_desc_m_,
-                                                   Substract{});
+                                                   Subtract{});
 
                 ave_time +=
                     launch_and_time_kernel(stream_config,
@@ -764,7 +743,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
 
                 // c_real = aux - aux_2
                 ave_time += launch_and_time_kernel(stream_config,
-                                                   substract_kernel,
+                                                   subtract_kernel,
                                                    dim3(grid_size),
                                                    dim3(BlockSize),
                                                    0,
@@ -774,7 +753,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                                    arg.c_grid_desc_m_,
                                                    arg.c_grid_desc_m_,
                                                    arg.c_grid_desc_m_,
-                                                   Substract{});
+                                                   Subtract{});
 
                 ave_time +=
                     launch_and_time_kernel(stream_config,
