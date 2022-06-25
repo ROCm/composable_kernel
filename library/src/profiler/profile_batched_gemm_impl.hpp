@@ -66,20 +66,18 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-bool profile_batched_gemm_impl(int do_verification,
-                               int init_method,
-                               bool do_log,
-                               bool time_kernel,
-                               int M,
-                               int N,
-                               int K,
-                               int StrideA,
-                               int StrideB,
-                               int StrideC,
-                               int BatchCount)
+int profile_batched_gemm_impl(int do_verification,
+                              int init_method,
+                              bool do_log,
+                              bool time_kernel,
+                              int M,
+                              int N,
+                              int K,
+                              int StrideA,
+                              int StrideB,
+                              int StrideC,
+                              int BatchCount)
 {
-    bool pass = true;
-
     auto f_host_tensor_descriptor = [](std::size_t batch_count,
                                        std::size_t row,
                                        std::size_t col,
@@ -103,27 +101,22 @@ bool profile_batched_gemm_impl(int do_verification,
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_g_m_n_device_result(
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
-    std::unique_ptr<Tensor<float>> c_f32_g_m_n_host_result   = nullptr;
-    std::unique_ptr<Tensor<float>> c_f32_g_m_n_device_result = nullptr;
 
     std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
     std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;
     std::cout << "c_g_m_n: " << c_g_m_n_host_result.mDesc << std::endl;
 
-    std::size_t num_thread = 1;
     switch(init_method)
     {
     case 0: break;
     case 1:
-        a_g_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5}, num_thread);
-        b_g_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5}, num_thread);
+        a_g_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
+        b_g_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
         break;
     default:
-        a_g_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0}, num_thread);
-        b_g_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
+        a_g_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+        b_g_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
     }
-    // set zero to c_device_buf
-    c_g_m_n_device_result.GenerateTensorValue(GeneratorTensor_0<CDataType>{}, num_thread);
 
     using AElementOp = ck::tensor_operation::element_wise::PassThrough;
     using BElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -135,56 +128,21 @@ bool profile_batched_gemm_impl(int do_verification,
 
     if(do_verification)
     {
-        if constexpr(is_same<ADataType, ck::bhalf_t>::value &&
-                     is_same<BDataType, ck::bhalf_t>::value &&
-                     is_same<CDataType, ck::bhalf_t>::value)
-        {
-            Tensor<float> a_f32_g_m_k(
-                f_host_tensor_descriptor(BatchCount, M, K, StrideA, ALayout{}));
-            Tensor<float> b_f32_g_k_n(
-                f_host_tensor_descriptor(BatchCount, K, N, StrideB, BLayout{}));
-            c_f32_g_m_n_host_result = std::make_unique<Tensor<float>>(
-                f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
-            c_f32_g_m_n_device_result = std::make_unique<Tensor<float>>(
-                f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
+        using ReferenceBatchedGemmInstance =
+            ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
+                                                             BDataType,
+                                                             CDataType,
+                                                             AElementOp,
+                                                             BElementOp,
+                                                             CElementOp>;
 
-            bf16_to_f32_(a_g_m_k, a_f32_g_m_k);
-            bf16_to_f32_(b_g_k_n, b_f32_g_k_n);
+        auto ref_batched_gemm = ReferenceBatchedGemmInstance{};
+        auto ref_invoker      = ref_batched_gemm.MakeInvoker();
 
-            using ReferenceBatchedGemmInstance = ck::tensor_operation::host::
-                ReferenceBatchedGemm<float, float, float, AElementOp, BElementOp, CElementOp>;
+        auto ref_argument = ref_batched_gemm.MakeArgument(
+            a_g_m_k, b_g_k_n, c_g_m_n_host_result, a_element_op, b_element_op, c_element_op);
 
-            auto ref_batched_gemm = ReferenceBatchedGemmInstance{};
-            auto ref_invoker      = ref_batched_gemm.MakeInvoker();
-
-            auto ref_argument = ref_batched_gemm.MakeArgument(a_f32_g_m_k,
-                                                              b_f32_g_k_n,
-                                                              *c_f32_g_m_n_host_result,
-                                                              a_element_op,
-                                                              b_element_op,
-                                                              c_element_op);
-
-            ref_invoker.Run(ref_argument);
-        }
-        else
-        {
-
-            using ReferenceBatchedGemmInstance =
-                ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
-                                                                 BDataType,
-                                                                 CDataType,
-                                                                 AElementOp,
-                                                                 BElementOp,
-                                                                 CElementOp>;
-
-            auto ref_batched_gemm = ReferenceBatchedGemmInstance{};
-            auto ref_invoker      = ref_batched_gemm.MakeInvoker();
-
-            auto ref_argument = ref_batched_gemm.MakeArgument(
-                a_g_m_k, b_g_k_n, c_g_m_n_host_result, a_element_op, b_element_op, c_element_op);
-
-            ref_invoker.Run(ref_argument);
-        }
+        ref_invoker.Run(ref_argument);
     }
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpace());
@@ -338,6 +296,8 @@ bool profile_batched_gemm_impl(int do_verification,
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
 
+    bool pass = true;
+
     // profile device GEMM instances
     for(auto& gemm_ptr : gemm_ptrs)
     {
@@ -360,6 +320,9 @@ bool profile_batched_gemm_impl(int do_verification,
 
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            // re-init C to zero before profiling next kernel
+            c_device_buf.SetZero();
+
             std::string gemm_name = gemm_ptr->GetTypeString();
 
             float ave_time =
@@ -390,20 +353,8 @@ bool profile_batched_gemm_impl(int do_verification,
             {
                 c_device_buf.FromDevice(c_g_m_n_device_result.mData.data());
 
-                if constexpr(is_same<ADataType, ck::bhalf_t>::value &&
-                             is_same<BDataType, ck::bhalf_t>::value &&
-                             is_same<CDataType, ck::bhalf_t>::value)
-                {
-
-                    bf16_to_f32_(c_g_m_n_device_result, *c_f32_g_m_n_device_result);
-                    float err = check_error(*c_f32_g_m_n_host_result, *c_f32_g_m_n_device_result);
-                    pass      = pass && (err < 1E-6);
-                }
-                else
-                {
-                    float err = check_error(c_g_m_n_host_result, c_g_m_n_device_result);
-                    pass      = pass && (err < 1E-6);
-                }
+                pass = pass &
+                       ck::utils::check_err(c_g_m_n_device_result.mData, c_g_m_n_host_result.mData);
 
                 if(do_log)
                 {
@@ -419,15 +370,14 @@ bool profile_batched_gemm_impl(int do_verification,
         }
         else
         {
-            std::cout << "this device GEMM instance does not support this GEMM problem"
-                      << std::endl;
+            std::cout << gemm_ptr->GetTypeString() << " does not support this problem" << std::endl;
         }
     }
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
 
-    return pass;
+    return pass ? 0 : 1;
 }
 
 } // namespace profiler

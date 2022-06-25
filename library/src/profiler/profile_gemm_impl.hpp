@@ -101,22 +101,22 @@ namespace profiler {
 
 template <typename ADataType,
           typename BDataType,
-          typename CDataType,
           typename AccDataType,
+          typename CDataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-void profile_gemm_impl(int do_verification,
-                       int init_method,
-                       bool do_log,
-                       bool time_kernel,
-                       int M,
-                       int N,
-                       int K,
-                       int StrideA,
-                       int StrideB,
-                       int StrideC,
-                       int KBatch)
+int profile_gemm_impl(int do_verification,
+                      int init_method,
+                      bool do_log,
+                      bool time_kernel,
+                      int M,
+                      int N,
+                      int K,
+                      int StrideA,
+                      int StrideB,
+                      int StrideC,
+                      int KBatch)
 {
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
@@ -134,31 +134,24 @@ void profile_gemm_impl(int do_verification,
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
+    Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_device_result.mDesc << std::endl;
 
-    std::size_t num_thread = 1;
     switch(init_method)
     {
-    // case 0: break;
-    case 0:
-        a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{}, num_thread);
-        b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{}, num_thread);
-        break;
+    case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5}, num_thread);
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5}, num_thread);
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
         break;
     default:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0}, num_thread);
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
     }
-
-    // set zero to c_device_buf
-    c_m_n_device_result.GenerateTensorValue(GeneratorTensor_0<CDataType>{}, num_thread);
 
     using AElementOp = ck::tensor_operation::element_wise::PassThrough;
     using BElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -441,10 +434,32 @@ void profile_gemm_impl(int do_verification,
         throw std::runtime_error("wrong! no device GEMM instance found");
     }
 
+    // Run reference GEMM
+    if(do_verification)
+    {
+        using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                                BDataType,
+                                                                                CDataType,
+                                                                                AccDataType,
+                                                                                AElementOp,
+                                                                                BElementOp,
+                                                                                CElementOp>;
+
+        auto ref_gemm    = ReferenceGemmInstance{};
+        auto ref_invoker = ref_gemm.MakeInvoker();
+
+        auto ref_argument = ref_gemm.MakeArgument(
+            a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
+
+        ref_invoker.Run(ref_argument);
+    }
+
     std::string best_gemm_name;
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
+
+    bool pass = true;
 
     // profile device GEMM instances
     for(auto& gemm_ptr : gemm_ptrs)
@@ -469,8 +484,7 @@ void profile_gemm_impl(int do_verification,
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             // re-init C to zero before profiling next kernel
-            c_m_n_device_result.GenerateTensorValue(GeneratorTensor_0<CDataType>{}, num_thread);
-            c_device_buf.ToDevice(c_m_n_device_result.mData.data());
+            c_device_buf.SetZero();
 
             std::string gemm_name = gemm_ptr->GetTypeString();
 
@@ -501,86 +515,15 @@ void profile_gemm_impl(int do_verification,
             {
                 c_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-                if constexpr(is_same<ADataType, ck::bhalf_t>::value &&
-                             is_same<BDataType, ck::bhalf_t>::value &&
-                             is_same<CDataType, ck::bhalf_t>::value)
-                {
-                    Tensor<float> a_f32_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
-                    Tensor<float> b_f32_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-                    Tensor<float> c_m_n_host_result(
-                        f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-                    Tensor<float> c_m_n_device_f32_result(
-                        f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-
-                    bf16_to_f32_(a_m_k, a_f32_m_k);
-                    bf16_to_f32_(b_k_n, b_f32_k_n);
-                    bf16_to_f32_(c_m_n_device_result, c_m_n_device_f32_result);
-
-                    using ReferenceGemmInstance =
-                        ck::tensor_operation::host::ReferenceGemm<float,
-                                                                  float,
-                                                                  float,
-                                                                  float,
-                                                                  AElementOp,
-                                                                  BElementOp,
-                                                                  CElementOp>;
-
-                    auto ref_gemm    = ReferenceGemmInstance{};
-                    auto ref_invoker = ref_gemm.MakeInvoker();
-
-                    auto ref_argument = ref_gemm.MakeArgument(a_f32_m_k,
-                                                              b_f32_k_n,
-                                                              c_m_n_host_result,
-                                                              a_element_op,
-                                                              b_element_op,
-                                                              c_element_op);
-
-                    ref_invoker.Run(ref_argument);
-
-                    ck::utils::check_err(c_m_n_device_f32_result.mData, c_m_n_host_result.mData);
-
-                    if(do_log)
-                    {
-                        LogRangeAsType<float>(
-                            std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
-                            << std::endl;
-                    }
-                }
-                else
-                {
-                    Tensor<CDataType> c_m_n_host_result(
-                        f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-
-                    using ReferenceGemmInstance =
-                        ck::tensor_operation::host::ReferenceGemm<ADataType,
-                                                                  BDataType,
-                                                                  CDataType,
-                                                                  AccDataType,
-                                                                  AElementOp,
-                                                                  BElementOp,
-                                                                  CElementOp>;
-
-                    auto ref_gemm    = ReferenceGemmInstance{};
-                    auto ref_invoker = ref_gemm.MakeInvoker();
-
-                    auto ref_argument = ref_gemm.MakeArgument(
-                        a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
-
-                    ref_invoker.Run(ref_argument);
-                    ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
-
-                    if(do_log)
-                    {
-                        LogRangeAsType<float>(
-                            std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
-                            << std::endl;
-                    }
-                }
+                pass =
+                    pass & ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
 
                 if(do_log)
                 {
                     LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
                     LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
+                        << std::endl;
                     LogRangeAsType<float>(std::cout << "c_device: ", c_m_n_device_result.mData, ",")
                         << std::endl;
                 }
@@ -588,8 +531,7 @@ void profile_gemm_impl(int do_verification,
         }
         else
         {
-            std::cout << gemm_ptr->GetTypeString() << " does not support this GEMM problem"
-                      << std::endl;
+            std::cout << gemm_ptr->GetTypeString() << " does not support this problem" << std::endl;
         }
     }
 
@@ -632,6 +574,8 @@ void profile_gemm_impl(int do_verification,
               << " StrideB = " << StrideB << " StrideC = " << StrideC << " : " << best_ave_time
               << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec << " GB/s, "
               << best_gemm_name << std::endl;
+
+    return pass ? 0 : 1;
 }
 
 } // namespace profiler
