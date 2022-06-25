@@ -6,7 +6,7 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "profiler/include/profile_gemm_bias_2d_impl.hpp"
+#include "profile_gemm_bias_2d_impl.hpp"
 
 enum struct GemmMatrixLayout
 {

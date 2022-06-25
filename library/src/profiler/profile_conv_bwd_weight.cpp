@@ -6,7 +6,7 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "profiler/include/profile_conv_bwd_weight_impl.hpp"
+#include "profile_conv_bwd_weight_impl.hpp"
 
 enum struct ConvDataType
 {

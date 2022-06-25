@@ -4,23 +4,23 @@ include_directories(BEFORE
 
 # ck_profiler
 set(PROFILER_SOURCE
-    src/profiler.cpp
-    src/profile_gemm.cpp
-    src/profile_gemm_bias_2d.cpp
-    src/profile_gemm_bias_relu.cpp
-    src/profile_gemm_bias_relu_add.cpp
-    src/profile_gemm_reduce.cpp
-    src/profile_gemm_bias_add_reduce.cpp
-    src/profile_batched_gemm.cpp
-    src/profile_conv_fwd_bias_relu.cpp
-    src/profile_conv_fwd_bias_relu_add.cpp
-    src/profile_convnd_fwd.cpp
-    src/profile_convnd_bwd_data.cpp
-    src/profile_reduce.cpp
-    src/profile_grouped_gemm.cpp
-    src/profile_conv_bwd_weight.cpp
-    src/profile_batched_gemm_reduce.cpp
-    src/profile_gemm_add_add_fastgelu.cpp
+    profiler.cpp
+    profile_gemm.cpp
+    profile_gemm_bias_2d.cpp
+    profile_gemm_bias_relu.cpp
+    profile_gemm_bias_relu_add.cpp
+    profile_gemm_reduce.cpp
+    profile_gemm_bias_add_reduce.cpp
+    profile_batched_gemm.cpp
+    profile_conv_fwd_bias_relu.cpp
+    profile_conv_fwd_bias_relu_add.cpp
+    profile_convnd_fwd.cpp
+    profile_convnd_bwd_data.cpp
+    profile_reduce.cpp
+    profile_grouped_gemm.cpp
+    profile_conv_bwd_weight.cpp
+    profile_batched_gemm_reduce.cpp
+    profile_gemm_add_add_fastgelu.cpp
 )
 
 add_executable(ckProfiler ${PROFILER_SOURCE})

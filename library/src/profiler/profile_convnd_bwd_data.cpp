@@ -6,7 +6,7 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "profiler/include/profile_convnd_bwd_data_impl.hpp"
+#include "profile_convnd_bwd_data_impl.hpp"
 
 namespace {
 
