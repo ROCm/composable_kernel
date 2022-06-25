@@ -88,3 +88,8 @@ ADD rbuild.ini /rbuild.ini
 ADD dev-requirements.txt dev-requirements.txt
 RUN rbuild prepare -s develop -d $PREFIX
 RUN groupadd -f render
+
+# Install the new rocm-cmake version
+RUN git clone -b master https://github.com/RadeonOpenCompute/rocm-cmake.git  && \
+  cd rocm-cmake && mkdir build && cd build && \
+  cmake  .. && cmake --build . && cmake --build . --target install

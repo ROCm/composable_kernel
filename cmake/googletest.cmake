@@ -8,7 +8,7 @@ endif()
 
 message(STATUS "Fetching GoogleTest")
 
-list(APPEND GTEST_CMAKE_CXX_FLAGS 
+list(APPEND GTEST_CMAKE_CXX_FLAGS
      -Wno-undef
      -Wno-reserved-identifier
      -Wno-global-constructors
@@ -31,7 +31,11 @@ FetchContent_Declare(
 
 # Will be necessary for windows build
 # set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
+FetchContent_GetProperties(googletest)
+if(NOT googletest_POPULATED)
+  FetchContent_Populate(googletest)
+  add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR} EXCLUDE_FROM_ALL)
+endif()
 
 target_compile_options(gtest PRIVATE ${GTEST_CMAKE_CXX_FLAGS})
 target_compile_options(gtest_main PRIVATE ${GTEST_CMAKE_CXX_FLAGS})
