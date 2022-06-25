@@ -4,7 +4,7 @@
 #include <cmath>
 #include <random>
 
-#include "data_type.hpp"
+#include "ck/utility/data_type.hpp"
 
 namespace ck {
 namespace utils {

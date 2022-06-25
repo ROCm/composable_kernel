@@ -1,8 +1,9 @@
-#include <ck/config.hpp>
-#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
-#include "gtest/gtest.h"
 #include <iostream>
 #include <vector>
+#include <gtest/gtest.h>
+
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 
 using namespace ck;
 

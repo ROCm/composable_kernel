@@ -71,9 +71,12 @@ if( DEFINED CK_OVERRIDE_HIP_VERSION_PATCH )
 endif()
 message(STATUS "Build with HIP ${HIP_VERSION}")
 
-## half
-set(HALF_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/external/include/half")
-message("HALF_INCLUDE_DIR: ${HALF_INCLUDE_DIR}")
+rocm_create_package(
+    NAME composablekernel
+    DESCRIPTION "High Performance Composable Kernel for AMD GPUs"
+    MAINTAINER "MIOpen Kernels Dev Team <dl.MIOpen@amd.com>"
+    LDCONFIG
+)
 
 ## tidy
 include(EnableCompilerWarnings)
@@ -222,7 +225,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 
 include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_BINARY_DIR}/include
     ${PROJECT_SOURCE_DIR}/library/include
 )
 

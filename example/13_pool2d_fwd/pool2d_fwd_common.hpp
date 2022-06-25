@@ -2,19 +2,17 @@
 
 #include <iostream>
 
-#include "check_err.hpp"
-#include "config.hpp"
-#include "print.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "device_tensor.hpp"
-#include "tensor_layout.hpp"
-#include "reduction_enums.hpp"
-#include "reduction_operator_mapping.hpp"
-#include "reduction_functions_accumulate.hpp"
+#include "ck/ck.hpp"
+#include "ck/utility/reduction_enums.hpp"
+#include "ck/utility/reduction_functions_accumulate.hpp"
+#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
+#include "ck/tensor_operation/gpu/device/device_pool2d_fwd_nhwc_nhwc.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "device_pool2d_fwd_nhwc_nhwc.hpp"
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
 
 template <typename InDataType,
           typename OutDataType,

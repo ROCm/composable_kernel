@@ -1,10 +1,10 @@
-#ifndef REFERENCE_BATCHED_GEMM_HPP
-#define REFERENCE_BATCHED_GEMM_HPP
+#pragma once
 
 #include <iostream>
 #include <sstream>
-#include "device_base.hpp"
-#include "host_tensor.hpp"
+
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -132,4 +132,3 @@ struct ReferenceBatchedGemm : public device::BaseOperator
 } // namespace host
 } // namespace tensor_operation
 } // namespace ck
-#endif

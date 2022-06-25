@@ -1,7 +1,6 @@
-#ifndef CK_MAGIC_DIVISION_HPP
-#define CK_MAGIC_DIVISION_HPP
+#pragma once
 
-#include "config.hpp"
+#include "ck/ck.hpp"
 #include "integral_constant.hpp"
 #include "number.hpp"
 #include "type.hpp"
@@ -156,5 +155,3 @@ struct MagicDivision
 };
 
 } // namespace ck
-
-#endif

@@ -1,6 +1,6 @@
 #include <iostream>
 
-#include "profile_gemm_reduce_impl.hpp"
+#include "profiler/include/profile_gemm_reduce_impl.hpp"
 
 int main()
 {

@@ -1,8 +1,8 @@
-#ifndef DEVICE_GEMM_BIAS_ACTIVATION_HPP
-#define DEVICE_GEMM_BIAS_ACTIVATION_HPP
+#pragma once
 
 #include <iostream>
-#include "device_base.hpp"
+
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -40,4 +40,3 @@ using DeviceGemmBiasActivationPtr = std::unique_ptr<
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

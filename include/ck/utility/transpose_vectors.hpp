@@ -1,7 +1,6 @@
-#ifndef CK_TRANSPOSE_VECTORS_AMD_HPP
-#define CK_TRANSPOSE_VECTORS_AMD_HPP
+#pragma once
 
-#include "config.hpp"
+#include "ck/ck.hpp"
 #include "statically_indexed_array.hpp"
 #include "data_type.hpp"
 
@@ -165,4 +164,3 @@ struct transpose_vectors<int8_t, NX, NY>
 };
 
 } // namespace ck
-#endif
