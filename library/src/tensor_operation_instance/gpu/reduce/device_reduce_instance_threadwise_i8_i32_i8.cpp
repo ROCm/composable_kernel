@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance_threadwise.hpp"
 
 namespace ck {

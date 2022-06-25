@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #ifndef CK_STATIC_BUFFER_HPP
 #define CK_STATIC_BUFFER_HPP
 
