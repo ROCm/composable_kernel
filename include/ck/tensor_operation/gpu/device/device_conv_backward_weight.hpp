@@ -1,8 +1,9 @@
-#ifndef DEVICE_CONV_WRW_HPP
-#define DEVICE_CONV_WRW_HPP
+#pragma once
 
+#include <vector>
 #include <iostream>
-#include "device_base.hpp"
+
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -44,4 +45,3 @@ using DeviceConvBwdWeightPtr = std::unique_ptr<
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

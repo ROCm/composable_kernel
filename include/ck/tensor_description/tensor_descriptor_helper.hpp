@@ -1,7 +1,8 @@
 #pragma once
-#include "common_header.hpp"
-#include "tensor_descriptor.hpp"
-#include "multi_index_transform_helper.hpp"
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/multi_index_transform_helper.hpp"
 
 namespace ck {
 

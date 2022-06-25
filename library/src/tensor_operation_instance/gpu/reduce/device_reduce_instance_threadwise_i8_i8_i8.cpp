@@ -1,4 +1,4 @@
-#include "device_reduce_instance_threadwise.hpp"
+#include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance_threadwise.hpp"
 
 namespace ck {
 namespace tensor_operation {

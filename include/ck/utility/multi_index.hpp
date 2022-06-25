@@ -1,5 +1,4 @@
-#ifndef CK_MULTI_INDEX_HPP
-#define CK_MULTI_INDEX_HPP
+#pragma once
 
 #include "common_header.hpp"
 
@@ -7,6 +6,4 @@
 #include "array_multi_index.hpp"
 #else
 #include "statically_indexed_array_multi_index.hpp"
-#endif
-
 #endif

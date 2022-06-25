@@ -1,9 +1,9 @@
 #include <iostream>
 #include <cstdlib>
 
-#include "config.hpp"
-#include "tensor_layout.hpp"
-#include "reduction_enums.hpp"
+#include "ck/ck.hpp"
+#include "ck/utility/reduction_enums.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
 #include "pool2d_fwd_common.hpp"
 

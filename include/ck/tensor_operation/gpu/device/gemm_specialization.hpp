@@ -1,5 +1,4 @@
-#ifndef GEMM_SPECIALIZATION
-#define GEMM_SPECIALIZATION
+#pragma once
 
 namespace ck {
 namespace tensor_operation {
@@ -20,4 +19,3 @@ enum struct GemmSpecialization
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

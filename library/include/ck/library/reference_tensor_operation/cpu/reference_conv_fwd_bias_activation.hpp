@@ -1,10 +1,10 @@
-#ifndef REFERENCE_CONV_FWD_BIAS_ACTIVATION_HPP
-#define REFERENCE_CONV_FWD_BIAS_ACTIVATION_HPP
+#pragma once
 
 #include <iostream>
 #include <sstream>
-#include "device_base.hpp"
-#include "host_tensor.hpp"
+
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -187,4 +187,3 @@ struct ReferenceConvFwd_Bias_Activation : public device::BaseOperator
 } // namespace host
 } // namespace tensor_operation
 } // namespace ck
-#endif

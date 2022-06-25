@@ -1,8 +1,7 @@
-#ifndef CK_DATA_TYPE_ENUM_HELPER_HPP
-#define CK_DATA_TYPE_ENUM_HELPER_HPP
+#pragma
 
-#include "data_type.hpp"
-#include "data_type_enum.hpp"
+#include "ck/utility/data_type.hpp"
+#include "profiler/include/data_type_enum.hpp"
 
 namespace ck {
 
@@ -73,4 +72,3 @@ struct get_datatype_enum_from_type<double>
 };
 
 } // namespace ck
-#endif

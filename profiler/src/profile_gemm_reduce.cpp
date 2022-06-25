@@ -2,9 +2,8 @@
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
-#include <half.hpp>
-#include "profile_gemm_reduce_impl.hpp"
+
+#include "profiler/include/profile_gemm_reduce_impl.hpp"
 
 int profile_gemm_reduce(int argc, char* argv[])
 {

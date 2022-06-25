@@ -1,13 +1,15 @@
-#ifndef DEVICE_POOL2D_FWD_NHWC_NHWC_HPP
-#define DEVICE_POOL2D_FWD_NHWC_NHWC_HPP
+#pragma once
 
 #include <iostream>
 #include <sstream>
-#include "device_pool2d_fwd.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "reduction_operator_mapping.hpp"
-#include "gridwise_2d_reduction_threadwise.hpp"
+
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
+#include "ck/tensor_operation/gpu/device/device_pool2d_fwd.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_2d_reduction_threadwise.hpp"
+#include "ck/device_utility/device_prop.hpp"
+#include "ck/device_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -315,9 +317,8 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
 
         return str.str();
     }
-}; // namespace device
+};
 
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

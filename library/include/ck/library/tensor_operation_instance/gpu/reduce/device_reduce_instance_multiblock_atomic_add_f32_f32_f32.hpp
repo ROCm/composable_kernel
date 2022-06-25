@@ -1,7 +1,8 @@
-#ifndef DEVICE_REDUCE_INSTANCE_MULTIBLOCK_ATOMIC_ADD_F32_F32_F32_HPP
-#define DEVICE_REDUCE_INSTANCE_MULTIBLOCK_ATOMIC_ADD_F32_F32_F32_HPP
+#pragma once
 
-#include "device_reduce_instance_multiblock_atomic_add.hpp"
+#include "ck/utility/data_type.hpp"
+
+#include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance_multiblock_atomic_add.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -23,7 +24,4 @@ ADD_MULTIBLOCK_ATOMIC_ADD_INST_REF_BY_ID(float, float, float, 5, 0, 0, 2, 1);
 } // namespace device_reduce_instance
 } // namespace device
 } // namespace tensor_operation
-
 } // namespace ck
-
-#endif

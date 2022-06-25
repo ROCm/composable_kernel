@@ -3,7 +3,7 @@
 #include <cmath>
 #include <numeric>
 
-#include "config.hpp"
+#include "ck/ck.hpp"
 
 template <typename T>
 struct GeneratorTensor_0

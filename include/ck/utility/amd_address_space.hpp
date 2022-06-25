@@ -1,7 +1,6 @@
-#ifndef CK_AMD_ADDRESS_SPACE_HPP
-#define CK_AMD_ADDRESS_SPACE_HPP
+#pragma once
 
-#include "config.hpp"
+#include "ck/ck.hpp"
 #include "c_style_pointer_cast.hpp"
 
 // Address Space for AMDGCN
@@ -41,4 +40,3 @@ __host__ __device__ T CK_CONSTANT_ADDRESS_SPACE* cast_pointer_to_constant_addres
 }
 
 } // namespace ck
-#endif

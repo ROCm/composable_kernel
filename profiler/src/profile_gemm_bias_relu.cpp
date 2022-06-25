@@ -2,9 +2,8 @@
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
-#include <half.hpp>
-#include "profile_gemm_bias_relu_impl.hpp"
+
+#include "profiler/include/profile_gemm_bias_relu_impl.hpp"
 
 enum struct GemmMatrixLayout
 {

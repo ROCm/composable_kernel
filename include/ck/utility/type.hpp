@@ -1,7 +1,6 @@
-#ifndef CK_TYPE_HPP
-#define CK_TYPE_HPP
+#pragma once
 
-#include "config.hpp"
+#include "ck/ck.hpp"
 #include "integral_constant.hpp"
 #include "enable_if.hpp"
 
@@ -56,4 +55,3 @@ __host__ __device__ constexpr Y bit_cast(const X& x)
 }
 
 } // namespace ck
-#endif

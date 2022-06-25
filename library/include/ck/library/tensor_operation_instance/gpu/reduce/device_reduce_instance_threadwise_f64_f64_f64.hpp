@@ -1,7 +1,8 @@
-#ifndef DEVICE_REDUCE_INSTANCE_THREADWISE_F64_F64_F64_HPP
-#define DEVICE_REDUCE_INSTANCE_THREADWISE_F64_F64_F64_HPP
+#pragma once
 
-#include "device_reduce_instance_threadwise.hpp"
+#include "ck/utility/data_type.hpp"
+
+#include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance_threadwise.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -51,7 +52,4 @@ ADD_THREADWISE_INST_REF_BY_ID(double, double, double, 4, 0, 1, 2, 1);
 } // namespace device_reduce_instance
 } // namespace device
 } // namespace tensor_operation
-
 } // namespace ck
-
-#endif

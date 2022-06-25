@@ -1,8 +1,7 @@
-#ifndef CK_FUNCTIONAL2_HPP
-#define CK_FUNCTIONAL2_HPP
+#pragma once
 
-#include "functional.hpp"
-#include "sequence.hpp"
+#include "ck/utility/functional.hpp"
+#include "ck/utility/sequence.hpp"
 
 namespace ck {
 
@@ -45,4 +44,3 @@ struct static_for
 };
 
 } // namespace ck
-#endif

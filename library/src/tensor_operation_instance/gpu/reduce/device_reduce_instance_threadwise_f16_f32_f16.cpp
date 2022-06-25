@@ -1,4 +1,4 @@
-#include "device_reduce_instance_threadwise.hpp"
+#include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance_threadwise.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -24,5 +24,4 @@ ADD_THREADWISE_INST_BY_ID(half_t, float, half_t, 7, 0, 0, 2, 1);
 } // namespace device_reduce_instance
 } // namespace device
 } // namespace tensor_operation
-
 } // namespace ck
