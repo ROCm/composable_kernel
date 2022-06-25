@@ -1,10 +1,9 @@
-#ifndef CK_THREADWISE_TENSOR_SLICE_TRANSFER_V3R1_HPP
-#define CK_THREADWISE_TENSOR_SLICE_TRANSFER_V3R1_HPP
+#pragma once
 
-#include "common_header.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "static_tensor.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor/static_tensor.hpp"
 
 namespace ck {
 
@@ -789,4 +788,3 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 };
 
 } // namespace ck
-#endif

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "statically_indexed_array.hpp"
+#include "ck/utility/statically_indexed_array.hpp"
 
 namespace ck {
 

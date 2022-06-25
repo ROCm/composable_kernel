@@ -2,6 +2,7 @@
 
 #include <string>
 #include <map>
+#include <hip/hip_runtime.h>
 
 namespace ck {
 

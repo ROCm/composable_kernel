@@ -1,17 +1,17 @@
-#ifndef DEVICE_CONV2D_FWD_XDL_C_SHUFFLE_BIAS_ACTIVATION_ADD_NHWC_KYXC_NHWK_HPP
-#define DEVICE_CONV2D_FWD_XDL_C_SHUFFLE_BIAS_ACTIVATION_ADD_NHWC_KYXC_NHWK_HPP
+#pragma once
 
 #include <iostream>
 #include <sstream>
-#include "device.hpp"
-#include "device_base.hpp"
-#include "device_conv_fwd_bias_activation_add.hpp"
-#include "convolution_forward_specialization.hpp"
-#include "common_header.hpp"
-#include "tensor_layout.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdlops_v3r3.hpp"
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_conv_fwd_bias_activation_add.hpp"
+#include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v3r3.hpp"
+#include "ck/device_utility/device_prop.hpp"
+#include "ck/device_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -963,4 +963,3 @@ struct
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

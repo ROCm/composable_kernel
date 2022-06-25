@@ -1,19 +1,21 @@
 #pragma once
-#include "config.hpp"
-#include "device.hpp"
-#include "conv_util.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "tensor_layout.hpp"
-#include "device_tensor.hpp"
-#include "device_conv_bwd_data.hpp"
-#include "element_wise_operation.hpp"
-#include "reference_conv_bwd_data.hpp"
+
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_conv_bwd_data.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+#include "ck/library/utility/conv_util.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_data.hpp"
 
 using F16  = ck::half_t;
 using F32  = float;
 using BF16 = ck::bhalf_t;
 using INT8 = int8_t;
+
 namespace ck {
 namespace tensor_operation {
 namespace device {

@@ -78,10 +78,6 @@ rocm_create_package(
     LDCONFIG
 )
 
-## half
-set(HALF_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/external/include/half")
-message("HALF_INCLUDE_DIR: ${HALF_INCLUDE_DIR}")
-
 ## tidy
 include(EnableCompilerWarnings)
 set(CK_TIDY_ERRORS ERRORS * -readability-inconsistent-declaration-parameter-name)
@@ -229,7 +225,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 
 include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_BINARY_DIR}/include
     ${PROJECT_SOURCE_DIR}/library/include
 )
 

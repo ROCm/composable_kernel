@@ -1,13 +1,12 @@
-#ifndef GEMM_UTILS_HPP
-#define GEMM_UTILS_HPP
+#pragma once
 
-#include "check_err.hpp"
-#include "config.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "reference_gemm.hpp"
-#include "tensor_layout.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 namespace ck {
 namespace gemm_util {
@@ -350,4 +349,3 @@ struct TestGemmBF16
 
 } // namespace gemm_util
 } // namespace ck
-#endif

@@ -2,20 +2,18 @@
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
-#include <half.hpp>
 
-#include "check_err.hpp"
-#include "config.hpp"
-#include "conv_util.hpp"
-#include "device.hpp"
-#include "device_conv2d_fwd_xdl_c_shuffle_bias_activation_nhwc_kyxc_nhwk.hpp"
-#include "device_tensor.hpp"
-#include "element_wise_operation.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "reference_conv_fwd_bias_activation.hpp"
-#include "tensor_layout.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_conv2d_fwd_xdl_c_shuffle_bias_activation_nhwc_kyxc_nhwk.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/conv_util.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd_bias_activation.hpp"
 
 namespace {
 

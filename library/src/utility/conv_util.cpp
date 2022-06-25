@@ -1,5 +1,5 @@
 
-#include "conv_util.hpp"
+#include "ck/library/utility/conv_util.hpp"
 
 namespace ck {
 namespace utils {

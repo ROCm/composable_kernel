@@ -1,5 +1,4 @@
-#ifndef HOST_TENSOR_HPP
-#define HOST_TENSOR_HPP
+#pragma once
 
 #include <thread>
 #include <vector>
@@ -8,7 +7,8 @@
 #include <utility>
 #include <cassert>
 #include <iostream>
-#include "data_type.hpp"
+
+#include "ck/utility/data_type.hpp"
 
 template <typename Range>
 std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
@@ -413,5 +413,3 @@ float check_error(const Tensor<T>& ref, const Tensor<T>& result)
 
     return linf_error;
 }
-
-#endif

@@ -1,7 +1,6 @@
-#ifndef CK_MATH_HPP
-#define CK_MATH_HPP
+#pragma once
 
-#include "config.hpp"
+#include "ck/ck.hpp"
 #include "integral_constant.hpp"
 #include "number.hpp"
 #include "type.hpp"
@@ -228,5 +227,3 @@ struct less
 
 } // namespace math
 } // namespace ck
-
-#endif

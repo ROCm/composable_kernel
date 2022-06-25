@@ -1,9 +1,8 @@
-#ifndef CK_XDLOPS_GEMM_HPP
-#define CK_XDLOPS_GEMM_HPP
+#pragma once
 
-#include "common_header.hpp"
-#include "math.hpp"
-#include "amd_xdlops.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/utility/math.hpp"
+#include "ck/utility/amd_xdlops.hpp"
 
 namespace ck {
 
@@ -786,4 +785,3 @@ struct XdlopsGemm
 };
 
 } // namespace ck
-#endif

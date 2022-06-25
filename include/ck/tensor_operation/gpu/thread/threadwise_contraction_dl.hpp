@@ -1,6 +1,7 @@
 #pragma once
-#include "common_header.hpp"
-#include "math.hpp"
+
+#include "ck/utility/common_header.hpp"
+#include "ck/utility/math.hpp"
 
 namespace ck {
 
