@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "tuple.hpp"
+#include "ck/utility/tuple.hpp"
 
 namespace ck {
 
