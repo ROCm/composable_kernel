@@ -1,7 +1,7 @@
 #pragma once
 
-#include "data_type.hpp"
-#include "math_v2.hpp"
+#include "ck/utility/data_type.hpp"
+#include "ck/utility/math_v2.hpp"
 
 namespace ck {
 namespace tensor_operation {

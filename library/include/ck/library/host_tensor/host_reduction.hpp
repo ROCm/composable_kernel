@@ -1,42 +1,15 @@
-
-/*******************************************************************************
- *
- * MIT License
- *
- * Copyright (c) 2020 Advanced Micro Devices, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
- *******************************************************************************/
-#ifndef HOST_REDUCTION_HPP_
-#define HOST_REDUCTION_HPP_
+#pragma once
 
 #include <vector>
 #include <array>
 #include <functional>
 
-#include "reduction_enums.hpp"
-#include "reduction_common.hpp"
-#include "host_common_util.hpp"
-#include "host_tensor.hpp"
-#include "data_type.hpp"
-#include "reduction_functions_accumulate.hpp"
+#include "ck/utility/data_type.hpp"
+#include "ck/utility/reduction_enums.hpp"
+#include "ck/utility/reduction_common.hpp"
+#include "ck/utility/reduction_functions_accumulate.hpp"
+#include "ck/library/host_tensor/host_common_util.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
 
 template <int NDim>
 static void get_all_indexes(const std::array<size_t, NDim>& dimLengths,
@@ -400,5 +373,3 @@ struct ReductionHost
         };
     };
 };
-
-#endif

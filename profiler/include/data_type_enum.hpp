@@ -1,5 +1,4 @@
-#ifndef CK_DATA_TYPE_ENUM_HPP
-#define CK_DATA_TYPE_ENUM_HPP
+#pragma once
 
 namespace ck {
 
@@ -16,4 +15,3 @@ enum struct DataTypeEnum
 };
 
 } // namespace ck
-#endif

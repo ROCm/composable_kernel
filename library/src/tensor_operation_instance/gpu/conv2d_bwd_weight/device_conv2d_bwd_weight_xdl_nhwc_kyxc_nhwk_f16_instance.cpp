@@ -1,8 +1,10 @@
-#include <stdlib.h>
-#include "config.hpp"
-#include "device_conv2d_backward_weight_xdl_c_shuffle_nhwc_kyxc_nhwk.hpp"
-#include "element_wise_operation.hpp"
-#include "device_operation_instance.hpp"
+#include <cstdlib>
+
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_conv2d_backward_weight_xdl_c_shuffle_nhwc_kyxc_nhwk.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/library/tensor_operation_instance/device_operation_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {

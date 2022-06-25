@@ -1,9 +1,8 @@
-#ifndef CK_THREADWISE_TENSOR_SET_HPP
-#define CK_THREADWISE_TENSOR_SET_HPP
+#pragma once
 
-#include "common_header.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
 
 namespace ck {
 
@@ -56,4 +55,3 @@ struct ThreadwiseTensorSliceSet_v1
 };
 
 } // namespace ck
-#endif

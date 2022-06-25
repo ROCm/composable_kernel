@@ -1,13 +1,14 @@
-#ifndef DEVICE_REDUCE_THREADWISE_HPP
-#define DEVICE_REDUCE_THREADWISE_HPP
+#pragma once
 
 #include <iostream>
 #include <sstream>
-#include "device.hpp"
-#include "device_reduce.hpp"
-#include "device_reduce_common.hpp"
-#include "gridwise_2d_reduction_multiblock.hpp"
-#include "gridwise_2d_reduction_threadwise.hpp"
+
+#include "ck/device_utility/device_prop.hpp"
+#include "ck/device_utility/kernel_launch.hpp"
+#include "ck/tensor_operation/gpu/device/device_reduce.hpp"
+#include "ck/tensor_operation/gpu/device/device_reduce_common.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_2d_reduction_multiblock.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_2d_reduction_threadwise.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -370,4 +371,3 @@ struct DeviceReduceThreadWise : public DeviceReduce<InElementwiseOperation, AccE
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

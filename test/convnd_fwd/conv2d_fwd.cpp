@@ -1,13 +1,11 @@
 #include <tuple>
 #include <vector>
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
+#include "ck/utility/data_type.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/library/utility/conv_util.hpp"
-#include "config.hpp"
-#include "conv_util.hpp"
-#include "data_type.hpp"
-#include "element_wise_operation.hpp"
-#include "fill.hpp"
+#include "test/convnd_fwd/conv_util.hpp"
 
 namespace {
 

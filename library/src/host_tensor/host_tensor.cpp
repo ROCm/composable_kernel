@@ -1,5 +1,6 @@
 #include <cassert>
-#include "host_tensor.hpp"
+
+#include "ck/library/host_tensor/host_tensor.hpp"
 
 void HostTensorDescriptor::CalculateStrides()
 {

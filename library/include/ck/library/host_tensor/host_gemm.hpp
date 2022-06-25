@@ -1,4 +1,5 @@
 #pragma once
+
 #include "host_tensor.hpp"
 
 template <typename AType,

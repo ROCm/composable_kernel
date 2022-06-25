@@ -1,38 +1,12 @@
-/*******************************************************************************
- *
- * MIT License
- *
- * Copyright (c) 2021 Advanced Micro Devices, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
- *******************************************************************************/
-#ifndef CK_GRIDWISE_2D_REDUCTION_THREADWISE_HPP
-#define CK_GRIDWISE_2D_REDUCTION_THREADWISE_HPP
+#pragma once
 
-#include "data_type.hpp"
-#include "reduction_common.hpp"
-#include "reduction_operator.hpp"
-#include "reduction_functions_accumulate.hpp"
-#include "reduction_functions_threadwise.hpp"
-#include "threadwise_tensor_slice_transfer.hpp"
-#include "element_wise_operation.hpp"
+#include "ck/utility/data_type.hpp"
+#include "ck/utility/reduction_common.hpp"
+#include "ck/utility/reduction_operator.hpp"
+#include "ck/utility/reduction_functions_accumulate.hpp"
+#include "ck/tensor_operation/gpu/thread/reduction_functions_threadwise.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 namespace ck {
 
@@ -495,4 +469,3 @@ struct GridwiseReduction_mk_to_m_threadwise
 };
 
 } // namespace ck
-#endif

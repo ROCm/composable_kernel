@@ -1,10 +1,12 @@
 #pragma once
+
 #include <iostream>
 #include <vector>
 
-#include "device.hpp"
-#include "device_base.hpp"
-#include "gridwise_unary_elementwise_1d.hpp"
+#include "ck/device_utility/device_prop.hpp"
+#include "ck/device_utility/kernel_launch.hpp"
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_unary_elementwise_1d.hpp"
 
 namespace ck {
 namespace tensor_operation {

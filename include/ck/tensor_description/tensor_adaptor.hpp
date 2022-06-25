@@ -1,9 +1,8 @@
-#ifndef CK_TENSOR_ADAPTOR_HPP
-#define CK_TENSOR_ADAPTOR_HPP
+#pragma once
 
-#include "common_header.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
 
 namespace ck {
 
@@ -478,4 +477,3 @@ __host__ __device__ constexpr auto chain_tensor_adaptors(const X& x, const Xs&..
 }
 
 } // namespace ck
-#endif

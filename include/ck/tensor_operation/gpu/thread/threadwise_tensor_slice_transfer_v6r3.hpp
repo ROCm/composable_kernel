@@ -1,10 +1,9 @@
-#ifndef CK_THREADWISE_TENSOR_SLICE_TRANSFER_V6R3_HPP
-#define CK_THREADWISE_TENSOR_SLICE_TRANSFER_V6R3_HPP
+#pragma once
 
-#include "common_header.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "tensor_space_filling_curve.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_description/tensor_space_filling_curve.hpp"
 
 namespace ck {
 
@@ -306,4 +305,3 @@ struct ThreadwiseTensorSliceTransfer_v6r3
 };
 
 } // namespace ck
-#endif

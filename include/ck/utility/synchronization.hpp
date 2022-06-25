@@ -1,7 +1,6 @@
-#ifndef CK_SYNCHRONIZATION_AMD_HPP
-#define CK_SYNCHRONIZATION_AMD_HPP
+#pragma once
 
-#include "config.hpp"
+#include "ck/ck.hpp"
 
 namespace ck {
 
@@ -18,4 +17,3 @@ __device__ void block_sync_lds()
 }
 
 } // namespace ck
-#endif

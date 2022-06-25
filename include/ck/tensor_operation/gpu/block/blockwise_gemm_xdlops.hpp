@@ -1,9 +1,9 @@
 #pragma once
-#include "common_header.hpp"
-#include "threadwise_tensor_slice_transfer.hpp"
-#include "xdlops_gemm.hpp"
-#include "tensor_adaptor.hpp"
-#include "thread_group.hpp"
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
+#include "ck/tensor_operation/gpu/warp/xdlops_gemm.hpp"
+#include "ck/tensor_description/tensor_adaptor.hpp"
 
 namespace ck {
 

@@ -1,13 +1,3 @@
-include_directories(BEFORE
-    ${PROJECT_SOURCE_DIR}/include/ck
-    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/device
-    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/element
-    ${PROJECT_SOURCE_DIR}/include/ck/utility
-    ${PROJECT_SOURCE_DIR}/library/include/ck/library/host_tensor
-    ${PROJECT_SOURCE_DIR}/library/include/ck/library/reference_tensor_operation/cpu
-    ${PROJECT_SOURCE_DIR}/library/include/ck/library/utility
-)
-
 set(CONV_UTIL_SOURCE
     conv_util.cpp
 )

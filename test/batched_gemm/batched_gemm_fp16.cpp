@@ -1,6 +1,6 @@
 #include <iostream>
 
-#include "profile_batched_gemm_impl.hpp"
+#include "profiler/include/profile_batched_gemm_impl.hpp"
 
 namespace {
 using ADataType = ck::half_t;

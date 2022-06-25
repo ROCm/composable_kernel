@@ -1,5 +1,6 @@
 #pragma once
-#include "config.hpp"
+
+#include "ck/ck.hpp"
 
 namespace ck {
 
