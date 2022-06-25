@@ -10,6 +10,9 @@ rocm/tensorflow:rocm5.1-tf2.6-dev              \
 /bin/bash
 ```
 
+# Install the new rocm-cmake version
+https://github.com/RadeonOpenCompute/rocm-cmake
+
 ## Build
 ```bash
 mkdir build && cd build
@@ -34,7 +37,7 @@ Instructions for running each individual examples are under ```example/```
 
 ## Tests
 ```bash
- make -j tests
+ make -j examples tests
  make test
 ```
 

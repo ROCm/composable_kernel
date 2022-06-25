@@ -6,10 +6,10 @@ set(DEVICE_GROUPED_GEMM_INSTANCE_SOURCE
    device_grouped_gemm_xdl_f16_f16_f16_km_nk_mn_instance.cpp;
 )
 
-add_library(device_grouped_gemm_instance OBJECT ${DEVICE_GROUPED_GEMM_INSTANCE_SOURCE}) 
+add_library(device_grouped_gemm_instance OBJECT ${DEVICE_GROUPED_GEMM_INSTANCE_SOURCE})
 
 target_compile_features(device_grouped_gemm_instance PUBLIC)
 set_target_properties(device_grouped_gemm_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
-install(TARGETS device_grouped_gemm_instance LIBRARY DESTINATION lib)
+rocm_install(TARGETS device_grouped_gemm_instance)
 
 clang_tidy_check(device_grouped_gemm_instance)

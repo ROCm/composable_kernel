@@ -75,21 +75,17 @@ target_include_directories(device_operations PUBLIC
 #once new arches are enabled make this an option on the main cmake file
 # and pass down here to be exported
 
-target_compile_options(device_operations PRIVATE 
+target_compile_options(device_operations PRIVATE
     --offload-arch=gfx908
     --offload-arch=gfx90a
 )
 
 # install(TARGETS device_operations LIBRARY DESTINATION lib)
-install(TARGETS device_operations
-        EXPORT device_operationsTargets
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
-install(DIRECTORY ${DEV_OPS_INC_DIRS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck)
-install(EXPORT device_operationsTargets
+rocm_install(TARGETS device_operations
+        EXPORT device_operationsTargets)
+
+rocm_install(DIRECTORY ${DEV_OPS_INC_DIRS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck)
+rocm_install(EXPORT device_operationsTargets
         FILE composable_kerneldevice_operationsTargets.cmake
         NAMESPACE composable_kernel::
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
