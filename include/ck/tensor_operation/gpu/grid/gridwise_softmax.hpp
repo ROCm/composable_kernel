@@ -1,39 +1,16 @@
-/*******************************************************************************
- *
- * MIT License
- *
- * Copyright (c) 2022 Advanced Micro Devices, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
- *******************************************************************************/
-#ifndef GRIDWISE_SOFTMAX_HPP
-#define GRIDWISE_SOFTMAX_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "reduction_common.hpp"
-#include "reduction_operator.hpp"
-#include "reduction_functions_accumulate.hpp"
-#include "reduction_functions_blockwise.hpp"
-#include "reduction_functions_threadwise.hpp"
+#pragma once
 
-#include "threadwise_tensor_slice_transfer.hpp"
-#include "element_wise_operation.hpp"
+#include "ck/utility/data_type.hpp"
+#include "ck/utility/reduction_common.hpp"
+#include "ck/utility/reduction_operator.hpp"
+#include "ck/utility/reduction_functions_accumulate.hpp"
+#include "ck/tensor_operation/gpu/block/reduction_functions_blockwise.hpp"
+#include "ck/tensor_operation/gpu/thread/reduction_functions_threadwise.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 namespace ck {
 
@@ -425,4 +402,3 @@ struct GridwiseSoftmax_mk_to_mk
 };
 
 } // namespace ck
-#endif // GRIDWISE_SOFTMAX_HPP

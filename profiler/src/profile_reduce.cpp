@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <fstream>
 #include <cstdlib>
@@ -6,11 +9,12 @@
 #include <sstream>
 #include <getopt.h>
 
-#include "data_type_enum.hpp"
-#include "reduction_enums.hpp"
+#include "ck/utility/reduction_enums.hpp"
 
-#include "host_common_util.hpp"
-#include "profile_reduce_impl.hpp"
+#include "ck/library/host_tensor/host_common_util.hpp"
+
+#include "profiler/include/profile_reduce_impl.hpp"
+#include "profiler/include/data_type_enum.hpp"
 
 using namespace std;
 

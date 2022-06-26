@@ -1,9 +1,11 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
-#include <half.hpp>
 #include <iostream>
 #include <iomanip>
 #include <iterator>
@@ -11,7 +13,7 @@
 #include <type_traits>
 #include <vector>
 
-#include "data_type.hpp"
+#include "ck/utility/data_type.hpp"
 
 namespace ck {
 namespace utils {
@@ -55,8 +57,7 @@ check_err(const std::vector<T>& out,
     }
     if(!res)
     {
-        std::cout << std::setw(12) << std::setprecision(7) << "max err: " << max_err
-                  << ", err count: " << err_count << std::endl;
+        std::cout << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
     }
     return res;
 }
@@ -102,15 +103,13 @@ check_err(const std::vector<T>& out,
     }
     if(!res)
     {
-        std::cout << std::setw(12) << std::setprecision(7) << "max err: " << max_err
-                  << ", err count: " << err_count << std::endl;
+        std::cout << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
     }
     return res;
 }
 
 template <typename T>
-typename std::enable_if<std::is_same<T, half_t>::value || std::is_same<T, half_float::half>::value,
-                        bool>::type
+typename std::enable_if<std::is_same<T, half_t>::value, bool>::type
 check_err(const std::vector<T>& out,
           const std::vector<T>& ref,
           const std::string& msg = "Error: Incorrect results!",
@@ -149,8 +148,7 @@ check_err(const std::vector<T>& out,
     }
     if(!res)
     {
-        std::cout << std::setw(12) << std::setprecision(7) << "max err: " << max_err
-                  << ", err count: " << err_count << std::endl;
+        std::cout << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
     }
     return res;
 }

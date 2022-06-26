@@ -1,8 +1,10 @@
-#ifndef CK_DATA_TYPE_ENUM_HELPER_HPP
-#define CK_DATA_TYPE_ENUM_HELPER_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "data_type.hpp"
-#include "data_type_enum.hpp"
+#pragma
+
+#include "ck/utility/data_type.hpp"
+#include "profiler/include/data_type_enum.hpp"
 
 namespace ck {
 
@@ -73,4 +75,3 @@ struct get_datatype_enum_from_type<double>
 };
 
 } // namespace ck
-#endif

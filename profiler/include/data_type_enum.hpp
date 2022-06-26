@@ -1,5 +1,7 @@
-#ifndef CK_DATA_TYPE_ENUM_HPP
-#define CK_DATA_TYPE_ENUM_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 namespace ck {
 
@@ -16,4 +18,3 @@ enum struct DataTypeEnum
 };
 
 } // namespace ck
-#endif

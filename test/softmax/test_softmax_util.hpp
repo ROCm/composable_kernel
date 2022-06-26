@@ -1,15 +1,20 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include <vector>
 #include <iostream>
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
-#include "config.hpp"
-#include "host_tensor.hpp"
-#include "check_err.hpp"
-#include "number.hpp"
-#include "reference_softmax.hpp"
-#include "device_softmax.hpp"
+#include "ck/ck.hpp"
+#include "ck/utility/number.hpp"
+#include "ck/tensor_operation/gpu/device/device_softmax.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
 
 namespace ck {
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #ifndef DEVICE_GEMM_BIAS_ACTIVATION_ADD_HPP
 #define DEVICE_GEMM_BIAS_ACTIVATION_ADD_HPP
 

@@ -1,15 +1,21 @@
-#ifndef DEVICE_REDUCE_MULTIBLOCK_HPP
-#define DEVICE_REDUCE_MULTIBLOCK_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <iostream>
 #include <sstream>
-#include "device.hpp"
-#include "device_base.hpp"
-#include "device_reduce.hpp"
-#include "device_reduce_common.hpp"
-#include "gridwise_2d_reduction_multiblock.hpp"
-#include "gridwise_set_buffer_value.hpp"
-#include "reduction_operator.hpp"
+
+#include "ck/utility/common_header.hpp"
+#include "ck/utility/reduction_operator.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/device/device_reduce.hpp"
+#include "ck/tensor_operation/gpu/device/device_reduce_common.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_2d_reduction_multiblock.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_set_buffer_value.hpp"
+#include "ck/device_utility/device_prop.hpp"
+#include "ck/device_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -505,4 +511,3 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

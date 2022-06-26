@@ -1,12 +1,14 @@
-#ifndef TENSOR_SPACE_FILLING_CURVE_HPP
-#define TENSOR_SPACE_FILLING_CURVE_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "math.hpp"
-#include "sequence.hpp"
-#include "sequence_helper.hpp"
-#include "tensor_adaptor.hpp"
-#include "statically_indexed_array_multi_index.hpp"
-#include "tuple_helper.hpp"
+#pragma once
+
+#include "ck/utility/math.hpp"
+#include "ck/utility/sequence.hpp"
+#include "ck/utility/sequence_helper.hpp"
+#include "ck/utility/statically_indexed_array_multi_index.hpp"
+#include "ck/utility/tuple_helper.hpp"
+#include "ck/tensor_description/tensor_adaptor.hpp"
 
 namespace ck {
 
@@ -156,4 +158,3 @@ struct SpaceFillingCurve
 };
 
 } // namespace ck
-#endif

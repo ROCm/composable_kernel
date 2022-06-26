@@ -1,12 +1,13 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
-#include <half.hpp>
 #include <vector>
 
-#include "profile_convnd_bwd_data_impl.hpp"
+#include "profiler/include/profile_convnd_bwd_data_impl.hpp"
 
 int main()
 {

@@ -1,7 +1,11 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include <string>
 #include <map>
+#include <hip/hip_runtime.h>
 
 namespace ck {
 

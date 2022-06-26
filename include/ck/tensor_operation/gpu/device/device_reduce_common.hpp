@@ -1,12 +1,14 @@
-#ifndef DEVICE_REDUCE_COMMON_HPP
-#define DEVICE_REDUCE_COMMON_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <vector>
 #include <cassert>
 
-#include "common_header.hpp"
-#include "reduction_enums.hpp"
-#include "reduction_operator.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/utility/reduction_enums.hpp"
+#include "ck/utility/reduction_operator.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -85,6 +87,4 @@ std::vector<index_t> shuffle_tensor_dimensions(const std::vector<index_t>& origL
 
 } // namespace device
 } // namespace tensor_operation
-
 } // namespace ck
-#endif
