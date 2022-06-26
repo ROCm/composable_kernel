@@ -234,6 +234,8 @@ struct TestGemm
     }
 };
 
+#if 0
+//FIXME: remove
 template <typename DeviceGemmPtr_,
           typename ALayout,
           typename BLayout,
@@ -349,6 +351,7 @@ struct TestGemmBF16
         return res;
     };
 };
+#endif
 
 } // namespace gemm_util
 } // namespace ck

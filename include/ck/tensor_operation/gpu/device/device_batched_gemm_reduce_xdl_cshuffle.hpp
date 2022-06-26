@@ -10,7 +10,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_reduce.hpp"
+#include "ck/tensor_operation/gpu/device/device_batched_gemm_reduce.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_reduce_xdl_cshuffle_v1.hpp"
 #include "ck/device_utility/device_prop.hpp"
@@ -111,7 +111,7 @@ __global__ void
     ignore = d_grid_desc_mblock_mperblock;
     ignore = compute_base_ptr_of_batch_;
     ignore = block_2_ctile_map;
-#endif // end of if defined (defined(__gfx908__) || defined(__gfx90a__))
+#endif
 }
 
 // Note: inter-wave loop scheduler is rolled out to c-shuffle version first. Becuase non c-shuffle
@@ -169,11 +169,11 @@ template <typename ALayout,
           index_t CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
 struct DeviceBatchedGemmReduce_Xdl_CShuffle
-    : public DeviceGemmReduce<AElementwiseOperation,
-                              BElementwiseOperation,
-                              CElementwiseOperation,
-                              DxsInElementwiseOperation,
-                              DxsReduceAccElementwiseOperation>
+    : public DeviceBatchedGemmReduce<AElementwiseOperation,
+                                     BElementwiseOperation,
+                                     CElementwiseOperation,
+                                     DxsInElementwiseOperation,
+                                     DxsReduceAccElementwiseOperation>
 {
     using DeviceOp = DeviceBatchedGemmReduce_Xdl_CShuffle;
 
@@ -594,12 +594,12 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle
                  CElementwiseOperation c_element_op,
                  DxsInElementwiseOperation dxs_in_element_op,
                  DxsReduceAccElementwiseOperation dxs_out_element_op,
-                 index_t BatchCount)
+                 index_t Batch)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
               p_ds_grid_{p_ds_grid},
-              BatchCount_(BatchCount),
+              Batch_(Batch),
               a_grid_desc_ak0_m_ak1_{DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, KRaw, StrideA)},
               b_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1(KRaw, NRaw, StrideB)},
               c_grid_desc_m_n_{DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC)},
@@ -637,7 +637,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
         DPtrsGlobal p_ds_grid_;
-        index_t BatchCount_;
+        index_t Batch_;
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         CGridDesc_M_N c_grid_desc_m_n_;
@@ -663,7 +663,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle
         {
 #if 0
             {
-                std::cout << "arg.BatchCount_ = " << arg.BatchCount_ << std::endl;
+                std::cout << "arg.Batch_ = " << arg.Batch_ << std::endl;
 
                 std::cout << "arg.a_grid_desc_ak0_m_ak1_{"
                           << arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) << ", "
@@ -692,7 +692,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle
             }
 
             const index_t grid_size =
-                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_) * arg.BatchCount_;
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_) * arg.Batch_;
 
             const auto K =
                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
@@ -728,7 +728,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle
                                            arg.p_b_grid_,
                                            arg.p_c_grid_,
                                            arg.p_ds_grid_,
-                                           arg.BatchCount_,
+                                           arg.Batch_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
@@ -771,7 +771,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle
                                            arg.p_b_grid_,
                                            arg.p_c_grid_,
                                            arg.p_ds_grid_,
-                                           arg.BatchCount_,
+                                           arg.Batch_,
                                            arg.a_element_op_,
                                            arg.b_element_op_,
                                            arg.c_element_op_,
@@ -839,7 +839,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle
                              CElementwiseOperation c_element_op,
                              DxsInElementwiseOperation dxs_in_element_op,
                              DxsReduceAccElementwiseOperation dxs_out_element_op,
-                             index_t BatchCount)
+                             index_t Batch)
     {
         return Argument{p_a,
                         p_b,
@@ -856,7 +856,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle
                         c_element_op,
                         dxs_in_element_op,
                         dxs_out_element_op,
-                        BatchCount};
+                        Batch};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -878,7 +878,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle
                         CElementwiseOperation c_element_op,
                         DxsInElementwiseOperation dxs_in_element_op,
                         DxsReduceAccElementwiseOperation dxs_out_element_op,
-                        index_t BatchCount) override
+                        index_t Batch) override
     {
         DPtrsGlobal dxs_tuple = *(static_cast<DPtrsGlobal*>(p_dxs));
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
@@ -896,7 +896,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle
                                           c_element_op,
                                           dxs_in_element_op,
                                           dxs_out_element_op,
-                                          BatchCount);
+                                          Batch);
     }
 
     // polymorphic
