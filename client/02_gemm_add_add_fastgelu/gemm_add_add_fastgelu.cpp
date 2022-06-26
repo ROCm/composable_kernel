@@ -132,13 +132,19 @@ int main(int argc, char* argv[])
     const auto cde_element_op = CDEElementOp{};
 
     std::string best_op_name;
+    bool found            = false;
+    int best_op_id        = -1;
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
 
     // profile device operation instances
-    for(auto& op_ptr : op_ptrs)
+    std::cout << "Run all instances and do timing" << std::endl;
+
+    for(int i = 0; i < op_ptrs.size(); ++i)
     {
+        auto& op_ptr = op_ptrs[i];
+
         auto argument_ptr = op_ptr->MakeArgumentPointer(
             a_device_buf.GetDeviceBuffer(),
             b_device_buf.GetDeviceBuffer(),
@@ -178,6 +184,8 @@ int main(int argc, char* argv[])
 
             if(tflops > best_tflops)
             {
+                found           = true;
+                best_op_id      = i;
                 best_op_name    = op_name;
                 best_tflops     = tflops;
                 best_ave_time   = ave_time;
@@ -192,6 +200,38 @@ int main(int argc, char* argv[])
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
+
+    // run the best intance
+    {
+        auto& op_ptr = op_ptrs[best_op_id];
+
+        std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
+                  << std::endl;
+
+        auto argument_ptr = op_ptr->MakeArgumentPointer(
+            a_device_buf.GetDeviceBuffer(),
+            b_device_buf.GetDeviceBuffer(),
+            std::array<const void*, 2>{d0_m_n_device_buf.GetDeviceBuffer(),
+                                       d1_m_n_device_buf.GetDeviceBuffer()},
+            static_cast<EDataType*>(e_device_buf.GetDeviceBuffer()),
+            M,
+            N,
+            K,
+            StrideA,
+            StrideB,
+            std::array<ck::index_t, 2>{StrideD0, StrideD1},
+            StrideE,
+            a_element_op,
+            b_element_op,
+            cde_element_op);
+
+        auto invoker_ptr = op_ptr->MakeInvokerPointer();
+
+        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
+        {
+            invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
+        }
+    }
 
     return 0;
 }
