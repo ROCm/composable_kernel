@@ -15,8 +15,8 @@ rocm/tensorflow:rocm5.1-tf2.6-dev              \
 
 ## Build
 ```bash
-mkdir -p client/build
-cd client/build
+mkdir -p client_example/build
+cd client_example/build
 ```
 
 ```bash
