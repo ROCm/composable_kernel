@@ -85,13 +85,13 @@ int profile_gemm_splitk(int argc, char* argv[])
         const int DefaultStrideB = ck::is_same_v<BLayout, Row> ? N : K;
         const int DefaultStrideC = ck::is_same_v<CLayout, Row> ? N : M;
 
-        return ck::profiler::profile_gemm_splitk_impl<ADataType,
-                                                      BDataType,
-                                                      AccDataType,
-                                                      CDataType,
-                                                      ALayout,
-                                                      BLayout,
-                                                      CLayout>(
+        bool pass = ck::profiler::profile_gemm_splitk_impl<ADataType,
+                                                           BDataType,
+                                                           AccDataType,
+                                                           CDataType,
+                                                           ALayout,
+                                                           BLayout,
+                                                           CLayout>(
             do_verification,
             init_method,
             do_log,
@@ -103,6 +103,8 @@ int profile_gemm_splitk(int argc, char* argv[])
             (StrideB < 0) ? DefaultStrideB : StrideB,
             (StrideC < 0) ? DefaultStrideC : StrideC,
             KBatch);
+
+        return pass ? 0 : 1;
     };
 
     if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)

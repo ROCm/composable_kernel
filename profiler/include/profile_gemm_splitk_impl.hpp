@@ -62,18 +62,20 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-int profile_gemm_splitk_impl(int do_verification,
-                             int init_method,
-                             bool do_log,
-                             bool time_kernel,
-                             int M,
-                             int N,
-                             int K,
-                             int StrideA,
-                             int StrideB,
-                             int StrideC,
-                             int KBatch)
+bool profile_gemm_splitk_impl(int do_verification,
+                              int init_method,
+                              bool do_log,
+                              bool time_kernel,
+                              int M,
+                              int N,
+                              int K,
+                              int StrideA,
+                              int StrideB,
+                              int StrideC,
+                              int KBatch)
 {
+    bool pass = true;
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
@@ -224,8 +226,6 @@ int profile_gemm_splitk_impl(int do_verification,
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
 
-    bool pass = true;
-
     // profile device GEMM instances
     for(auto& op_ptr : op_ptrs)
     {
@@ -340,7 +340,7 @@ int profile_gemm_splitk_impl(int do_verification,
               << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec << " GB/s, "
               << best_op_name << std::endl;
 
-    return pass ? 0 : 1;
+    return pass;
 }
 
 } // namespace profiler

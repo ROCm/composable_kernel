@@ -107,6 +107,8 @@ int profile_gemm_impl(int do_verification,
                       int StrideB,
                       int StrideC)
 {
+    bool pass = true;
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
@@ -383,8 +385,6 @@ int profile_gemm_impl(int do_verification,
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
-
-    bool pass = true;
 
     // profile device GEMM instances
     for(auto& gemm_ptr : gemm_ptrs)

@@ -74,18 +74,20 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-int profile_batched_gemm_impl(int do_verification,
-                              int init_method,
-                              bool do_log,
-                              bool time_kernel,
-                              int M,
-                              int N,
-                              int K,
-                              int StrideA,
-                              int StrideB,
-                              int StrideC,
-                              int BatchCount)
+bool profile_batched_gemm_impl(int do_verification,
+                               int init_method,
+                               bool do_log,
+                               bool time_kernel,
+                               int M,
+                               int N,
+                               int K,
+                               int StrideA,
+                               int StrideB,
+                               int StrideC,
+                               int BatchCount)
 {
+    bool pass = true;
+
     auto f_host_tensor_descriptor = [](std::size_t batch_count,
                                        std::size_t row,
                                        std::size_t col,
@@ -305,8 +307,6 @@ int profile_batched_gemm_impl(int do_verification,
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
 
-    bool pass = true;
-
     // profile device GEMM instances
     for(auto& gemm_ptr : gemm_ptrs)
     {
@@ -386,7 +386,7 @@ int profile_batched_gemm_impl(int do_verification,
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
 
-    return pass ? 0 : 1;
+    return pass;
 }
 
 } // namespace profiler

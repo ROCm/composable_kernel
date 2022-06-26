@@ -86,22 +86,25 @@ int profile_gemm(int argc, char* argv[])
         const int DefaultStrideB = ck::is_same_v<BLayout, Row> ? N : K;
         const int DefaultStrideC = ck::is_same_v<CLayout, Row> ? N : M;
 
-        return ck::profiler::profile_gemm_impl<ADataType,
-                                               BDataType,
-                                               AccDataType,
-                                               CDataType,
-                                               ALayout,
-                                               BLayout,
-                                               CLayout>(do_verification,
-                                                        init_method,
-                                                        do_log,
-                                                        time_kernel,
-                                                        M,
-                                                        N,
-                                                        K,
-                                                        (StrideA < 0) ? DefaultStrideA : StrideA,
-                                                        (StrideB < 0) ? DefaultStrideB : StrideB,
-                                                        (StrideC < 0) ? DefaultStrideC : StrideC);
+        bool pass =
+            ck::profiler::profile_gemm_impl<ADataType,
+                                            BDataType,
+                                            AccDataType,
+                                            CDataType,
+                                            ALayout,
+                                            BLayout,
+                                            CLayout>(do_verification,
+                                                     init_method,
+                                                     do_log,
+                                                     time_kernel,
+                                                     M,
+                                                     N,
+                                                     K,
+                                                     (StrideA < 0) ? DefaultStrideA : StrideA,
+                                                     (StrideB < 0) ? DefaultStrideB : StrideB,
+                                                     (StrideC < 0) ? DefaultStrideC : StrideC);
+
+        return pass ? 0 : 1;
     };
 
     if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
