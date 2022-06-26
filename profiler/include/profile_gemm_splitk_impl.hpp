@@ -12,45 +12,13 @@
 #include "ck/tensor_operation/gpu/device/device_gemm_splitk.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/tensor_operation_instance/gpu/device_gemm_splitk_instance.hpp"
+
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/conv_util.hpp"
 #include "ck/library/host_tensor/device_memory.hpp"
 #include "ck/library/host_tensor/host_tensor.hpp"
 #include "ck/library/host_tensor/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
-
-namespace ck {
-namespace tensor_operation {
-namespace device {
-namespace device_gemm_instance {
-
-using DeviceGemmSplitKNoOpPtr = ck::tensor_operation::device::DeviceGemmSplitKPtr<
-    ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::PassThrough>;
-
-void add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(
-    std::vector<DeviceGemmSplitKNoOpPtr>&);
-void add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(
-    std::vector<DeviceGemmSplitKNoOpPtr>&);
-void add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(
-    std::vector<DeviceGemmSplitKNoOpPtr>&);
-void add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(
-    std::vector<DeviceGemmSplitKNoOpPtr>&);
-
-void add_device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instances(
-    std::vector<DeviceGemmSplitKNoOpPtr>&);
-void add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instances(
-    std::vector<DeviceGemmSplitKNoOpPtr>&);
-void add_device_gemm_xdl_splitk_f16_f16_f16_km_kn_mn_instances(
-    std::vector<DeviceGemmSplitKNoOpPtr>&);
-void add_device_gemm_xdl_splitk_f16_f16_f16_km_nk_mn_instances(
-    std::vector<DeviceGemmSplitKNoOpPtr>&);
-
-} // namespace device_gemm_instance
-} // namespace device
-} // namespace tensor_operation
-} // namespace ck
 
 namespace ck {
 namespace profiler {
@@ -127,74 +95,15 @@ bool profile_gemm_splitk_impl(int do_verification,
     b_device_buf.ToDevice(b_k_n.mData.data());
     c_device_buf.ToDevice(c_m_n_device_result.mData.data());
 
-    // add device GEMM instances
-    std::vector<ck::tensor_operation::device::device_gemm_instance::DeviceGemmSplitKNoOpPtr>
-        op_ptrs;
-
-    if constexpr(is_same<ADataType, float>::value && is_same<BDataType, float>::value &&
-                 is_same<CDataType, float>::value)
-    {
-        if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
-                     is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
-                     is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
-        {
-            ck::tensor_operation::device::device_gemm_instance::
-                add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(op_ptrs);
-        }
-        else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
-                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
-                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
-        {
-            ck::tensor_operation::device::device_gemm_instance::
-                add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(op_ptrs);
-        }
-        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
-                          is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
-                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
-        {
-            ck::tensor_operation::device::device_gemm_instance::
-                add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(op_ptrs);
-        }
-        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
-                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
-                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
-        {
-            ck::tensor_operation::device::device_gemm_instance::
-                add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(op_ptrs);
-        }
-    }
-    else if constexpr(is_same<ADataType, half_t>::value && is_same<BDataType, half_t>::value &&
-                      is_same<CDataType, half_t>::value)
-    {
-        if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
-                     is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
-                     is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
-        {
-            ck::tensor_operation::device::device_gemm_instance::
-                add_device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_instances(op_ptrs);
-        }
-        else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
-                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
-                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
-        {
-            ck::tensor_operation::device::device_gemm_instance::
-                add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instances(op_ptrs);
-        }
-        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
-                          is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
-                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
-        {
-            ck::tensor_operation::device::device_gemm_instance::
-                add_device_gemm_xdl_splitk_f16_f16_f16_km_kn_mn_instances(op_ptrs);
-        }
-        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
-                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
-                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
-        {
-            ck::tensor_operation::device::device_gemm_instance::
-                add_device_gemm_xdl_splitk_f16_f16_f16_km_nk_mn_instances(op_ptrs);
-        }
-    }
+    // add device op instances
+    const auto op_ptrs =
+        ck::tensor_operation::device::device_gemm_instance::get_device_gemm_splitk_instances<
+            ADataType,
+            BDataType,
+            CDataType,
+            ALayout,
+            BLayout,
+            CLayout>();
 
     if(op_ptrs.size() <= 0)
     {
