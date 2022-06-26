@@ -71,7 +71,7 @@ int main(int argc, char* argv[])
     {
         // use default case
     }
-    else if(argc == 7)
+    else if(argc == 9)
     {
         M = std::stoi(argv[1]);
         N = std::stoi(argv[2]);
