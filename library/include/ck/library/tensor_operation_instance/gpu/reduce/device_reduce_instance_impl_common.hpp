@@ -1,5 +1,7 @@
-#ifndef DEVICE_REDUCE_INSTANCE_IMPL_COMMON_HPP
-#define DEVICE_REDUCE_INSTANCE_IMPL_COMMON_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 namespace ck {
 namespace tensor_operation {
@@ -35,7 +37,4 @@ struct ReductionConfiguration_2
 } // namespace device_reduce_instance
 } // namespace device
 } // namespace tensor_operation
-
 } // namespace ck
-
-#endif

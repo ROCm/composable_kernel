@@ -1,8 +1,12 @@
-#include <ck/config.hpp>
-#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
-#include "gtest/gtest.h"
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <vector>
+#include <gtest/gtest.h>
+
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 
 using namespace ck;
 

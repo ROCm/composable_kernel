@@ -1,10 +1,12 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
 
-#include "profile_gemm_add_add_fastgelu_impl.hpp"
+#include "profiler/include/profile_gemm_add_add_fastgelu_impl.hpp"
 
 int profile_gemm_add_add_fastgelu(int argc, char* argv[])
 {

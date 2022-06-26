@@ -6,9 +6,12 @@ docker run                                     \
 --group-add sudo                               \
 -w /root/workspace                             \
 -v ${PATH_TO_LOCAL_WORKSPACE}:/root/workspace  \
-rocm/tensorflow:rocm4.3.1-tf2.6-dev            \
+rocm/tensorflow:rocm5.1-tf2.6-dev              \
 /bin/bash
 ```
+
+# Install the new rocm-cmake version
+https://github.com/RadeonOpenCompute/rocm-cmake
 
 ## Build
 ```bash
@@ -34,7 +37,7 @@ Instructions for running each individual examples are under ```example/```
 
 ## Tests
 ```bash
- make -j tests
+ make -j examples tests
  make test
 ```
 

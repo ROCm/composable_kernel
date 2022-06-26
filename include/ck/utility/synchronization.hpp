@@ -1,7 +1,9 @@
-#ifndef CK_SYNCHRONIZATION_AMD_HPP
-#define CK_SYNCHRONIZATION_AMD_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "config.hpp"
+#pragma once
+
+#include "ck/ck.hpp"
 
 namespace ck {
 
@@ -18,4 +20,3 @@ __device__ void block_sync_lds()
 }
 
 } // namespace ck
-#endif

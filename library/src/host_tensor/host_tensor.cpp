@@ -1,5 +1,9 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <cassert>
-#include "host_tensor.hpp"
+
+#include "ck/library/host_tensor/host_tensor.hpp"
 
 void HostTensorDescriptor::CalculateStrides()
 {

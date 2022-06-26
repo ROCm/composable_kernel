@@ -1,9 +1,12 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include <cmath>
 #include <numeric>
 
-#include "config.hpp"
+#include "ck/ck.hpp"
 
 template <typename T>
 struct GeneratorTensor_0
@@ -18,12 +21,12 @@ struct GeneratorTensor_0
 template <typename T>
 struct GeneratorTensor_1
 {
-    int value = 1;
+    T value = 1;
 
     template <typename... Is>
     T operator()(Is...)
     {
-        return ck::type_convert<T>(value);
+        return value;
     }
 };
 

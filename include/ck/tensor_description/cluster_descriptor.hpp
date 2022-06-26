@@ -1,8 +1,10 @@
-#ifndef CK_CLUSTER_DESCRIPTOR_HPP
-#define CK_CLUSTER_DESCRIPTOR_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "common_header.hpp"
-#include "tensor_adaptor.hpp"
+#pragma once
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_adaptor.hpp"
 
 namespace ck {
 
@@ -30,4 +32,3 @@ __host__ __device__ constexpr auto make_cluster_descriptor(
 }
 
 } // namespace ck
-#endif

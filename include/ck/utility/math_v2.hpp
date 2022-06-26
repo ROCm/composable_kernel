@@ -1,9 +1,12 @@
-#ifndef CK_MATH_V2_HPP
-#define CK_MATH_V2_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <cmath>
-#include "data_type.hpp"
-#include "type.hpp"
+
+#include "ck/utility/data_type.hpp"
+#include "ck/utility/type.hpp"
 
 namespace ck {
 namespace math {
@@ -112,5 +115,3 @@ static inline __device__ double sqrt(double x) { return ::sqrt(x); };
 
 } // namespace math
 } // namespace ck
-
-#endif
