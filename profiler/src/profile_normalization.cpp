@@ -57,7 +57,7 @@ void print_help()
               << "arg4: initialization (0: no init; 1: integer value; 2: decimal value)\n"
               << "arg5: print tensor value (0: no; 1: yes)\n"
               << "arg6: time kernel (0=n0, 1=yes)\n"
-              << "--length: tensor extents (e.g, --length 4 8 256) \n"
+              << "--length: tensor extents (e.g, --length 8 4 256) \n"
               << "--stride: tensor strides (e.g, --stride 1024 256 1)\n"
               << "--reduce: to-reduce dimensions (e.g, --reduce 2)\n"
               << "--alpha: alpha scaling value\n"
