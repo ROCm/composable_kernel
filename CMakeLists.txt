@@ -245,8 +245,8 @@ rocm_package_setup_component(tests
 
 add_subdirectory(library)
 add_subdirectory(example)
-add_subdirectory(profiler)
 add_subdirectory(test)
+add_subdirectory(profiler)
 
 #Create an interface target for the include only files and call it "composablekernels"
 include(CMakePackageConfigHelpers)
