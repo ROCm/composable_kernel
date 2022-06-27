@@ -67,9 +67,11 @@ using device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gkm_gnk_gmn_in
         >;
 
 void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gkm_gnk_gmn_instances(
-    std::vector<
-        DeviceGemmReducePtr<PassThrough, PassThrough, PassThrough, DInElementOps, DOutElementOps>>&
-        instances)
+    std::vector<DeviceBatchedGemmReducePtr<PassThrough,
+                                           PassThrough,
+                                           PassThrough,
+                                           DInElementOps,
+                                           DOutElementOps>>& instances)
 {
     add_device_operation_instances(
         instances,

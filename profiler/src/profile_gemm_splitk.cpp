@@ -6,7 +6,7 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "profiler/include/profile_gemm_impl.hpp"
+#include "profiler/include/profile_gemm_splitk_impl.hpp"
 
 enum struct GemmMatrixLayout
 {
@@ -24,11 +24,11 @@ enum struct GemmDataType
     INT8_INT8_INT8, // 3
 };
 
-int profile_gemm(int argc, char* argv[])
+int profile_gemm_splitk(int argc, char* argv[])
 {
-    if(argc != 14)
+    if(argc != 15)
     {
-        printf("arg1: tensor operation (gemm: GEMM)\n");
+        printf("arg1: tensor operation (gemm_splitk: Split-K GEMM)\n");
         printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8)\n");
         printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
         printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
@@ -39,6 +39,7 @@ int profile_gemm(int argc, char* argv[])
         printf("arg6: print tensor value (0: no; 1: yes)\n");
         printf("arg7: time kernel (0=no, 1=yes)\n");
         printf("arg8 to 13: M, N, K, StrideA, StrideB, StrideC\n");
+        printf("arg14: split k into  mulitiple batch\n");
         exit(1);
     }
 
@@ -56,12 +57,10 @@ int profile_gemm(int argc, char* argv[])
     const int StrideA = std::stoi(argv[11]);
     const int StrideB = std::stoi(argv[12]);
     const int StrideC = std::stoi(argv[13]);
+    const int KBatch  = std::stoi(argv[14]);
 
-    using F32   = float;
-    using F16   = ck::half_t;
-    using BF16  = ck::bhalf_t;
-    using INT8  = int8_t;
-    using INT32 = int32_t;
+    using F32 = float;
+    using F16 = ck::half_t;
 
     using Row = ck::tensor_layout::gemm::RowMajor;
     using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -86,23 +85,24 @@ int profile_gemm(int argc, char* argv[])
         const int DefaultStrideB = ck::is_same_v<BLayout, Row> ? N : K;
         const int DefaultStrideC = ck::is_same_v<CLayout, Row> ? N : M;
 
-        bool pass =
-            ck::profiler::profile_gemm_impl<ADataType,
-                                            BDataType,
-                                            AccDataType,
-                                            CDataType,
-                                            ALayout,
-                                            BLayout,
-                                            CLayout>(do_verification,
-                                                     init_method,
-                                                     do_log,
-                                                     time_kernel,
-                                                     M,
-                                                     N,
-                                                     K,
-                                                     (StrideA < 0) ? DefaultStrideA : StrideA,
-                                                     (StrideB < 0) ? DefaultStrideB : StrideB,
-                                                     (StrideC < 0) ? DefaultStrideC : StrideC);
+        bool pass = ck::profiler::profile_gemm_splitk_impl<ADataType,
+                                                           BDataType,
+                                                           AccDataType,
+                                                           CDataType,
+                                                           ALayout,
+                                                           BLayout,
+                                                           CLayout>(
+            do_verification,
+            init_method,
+            do_log,
+            time_kernel,
+            M,
+            N,
+            K,
+            (StrideA < 0) ? DefaultStrideA : StrideA,
+            (StrideB < 0) ? DefaultStrideB : StrideB,
+            (StrideC < 0) ? DefaultStrideC : StrideC,
+            KBatch);
 
         return pass ? 0 : 1;
     };
@@ -138,38 +138,6 @@ int profile_gemm(int argc, char* argv[])
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_NK_MN)
     {
         return profile(F16{}, F16{}, F32{}, F16{}, Col{}, Col{}, Row{});
-    }
-    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
-    {
-        return profile(BF16{}, BF16{}, F32{}, BF16{}, Row{}, Row{}, Row{});
-    }
-    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
-    {
-        return profile(BF16{}, BF16{}, F32{}, BF16{}, Row{}, Col{}, Row{});
-    }
-    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::KM_KN_MN)
-    {
-        return profile(BF16{}, BF16{}, F32{}, BF16{}, Col{}, Row{}, Row{});
-    }
-    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::KM_NK_MN)
-    {
-        return profile(BF16{}, BF16{}, F32{}, BF16{}, Col{}, Col{}, Row{});
-    }
-    else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::MK_KN_MN)
-    {
-        return profile(INT8{}, INT8{}, INT32{}, INT8{}, Row{}, Row{}, Row{});
-    }
-    else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::MK_NK_MN)
-    {
-        return profile(INT8{}, INT8{}, INT32{}, INT8{}, Row{}, Col{}, Row{});
-    }
-    else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::KM_KN_MN)
-    {
-        return profile(INT8{}, INT8{}, INT32{}, INT8{}, Col{}, Row{}, Row{});
-    }
-    else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::KM_NK_MN)
-    {
-        return profile(INT8{}, INT8{}, INT32{}, INT8{}, Col{}, Col{}, Row{});
     }
     else
     {

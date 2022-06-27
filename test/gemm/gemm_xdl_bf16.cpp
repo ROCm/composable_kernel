@@ -47,6 +47,11 @@ void add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_mk_kn_mn_instances(
 
 int main()
 {
+    using ADataType   = ck::bhalf_t;
+    using BDataType   = ck::bhalf_t;
+    using CDataType   = ck::bhalf_t;
+    using AccDataType = float;
+
     using RowMajor    = ck::tensor_layout::gemm::RowMajor;
     using ColumnMajor = ck::tensor_layout::gemm::ColumnMajor;
 
@@ -58,13 +63,17 @@ int main()
 
     for(auto& gemmPtr : gemmPtrs)
     {
-        res &= ck::gemm_util::TestGemmBF16<DeviceGemmNoOpPtr,
-                                           ColumnMajor,
-                                           RowMajor,
-                                           RowMajor,
-                                           PassThrough,
-                                           PassThrough,
-                                           PassThrough>{}(gemmPtr);
+        res &= ck::gemm_util::TestGemm<DeviceGemmNoOpPtr,
+                                       ADataType,
+                                       BDataType,
+                                       CDataType,
+                                       AccDataType,
+                                       ColumnMajor,
+                                       RowMajor,
+                                       RowMajor,
+                                       PassThrough,
+                                       PassThrough,
+                                       PassThrough>{}(gemmPtr);
     }
 
     gemmPtrs.clear();
@@ -73,13 +82,17 @@ int main()
 
     for(auto& gemmPtr : gemmPtrs)
     {
-        res &= ck::gemm_util::TestGemmBF16<DeviceGemmNoOpPtr,
-                                           ColumnMajor,
-                                           ColumnMajor,
-                                           RowMajor,
-                                           PassThrough,
-                                           PassThrough,
-                                           PassThrough>{}(gemmPtr);
+        res &= ck::gemm_util::TestGemm<DeviceGemmNoOpPtr,
+                                       ADataType,
+                                       BDataType,
+                                       CDataType,
+                                       AccDataType,
+                                       ColumnMajor,
+                                       ColumnMajor,
+                                       RowMajor,
+                                       PassThrough,
+                                       PassThrough,
+                                       PassThrough>{}(gemmPtr);
     }
 
     gemmPtrs.clear();
@@ -88,13 +101,17 @@ int main()
 
     for(auto& gemmPtr : gemmPtrs)
     {
-        res &= ck::gemm_util::TestGemmBF16<DeviceGemmNoOpPtr,
-                                           RowMajor,
-                                           RowMajor,
-                                           RowMajor,
-                                           PassThrough,
-                                           PassThrough,
-                                           PassThrough>{}(gemmPtr);
+        res &= ck::gemm_util::TestGemm<DeviceGemmNoOpPtr,
+                                       ADataType,
+                                       BDataType,
+                                       CDataType,
+                                       AccDataType,
+                                       RowMajor,
+                                       RowMajor,
+                                       RowMajor,
+                                       PassThrough,
+                                       PassThrough,
+                                       PassThrough>{}(gemmPtr);
     }
 
     gemmPtrs.clear();
@@ -103,13 +120,17 @@ int main()
 
     for(auto& gemmPtr : gemmPtrs)
     {
-        res &= ck::gemm_util::TestGemmBF16<DeviceGemmNoOpPtr,
-                                           RowMajor,
-                                           ColumnMajor,
-                                           RowMajor,
-                                           PassThrough,
-                                           PassThrough,
-                                           PassThrough>{}(gemmPtr);
+        res &= ck::gemm_util::TestGemm<DeviceGemmNoOpPtr,
+                                       ADataType,
+                                       BDataType,
+                                       CDataType,
+                                       AccDataType,
+                                       RowMajor,
+                                       ColumnMajor,
+                                       RowMajor,
+                                       PassThrough,
+                                       PassThrough,
+                                       PassThrough>{}(gemmPtr);
     }
 
     std::cout << "TestGemm ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;

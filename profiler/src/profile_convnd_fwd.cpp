@@ -10,10 +10,9 @@
 
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
 #include "ck/library/utility/conv_util.hpp"
 #include "ck/library/utility/fill.hpp"
-
-#include "profiler/include/profile_convnd_fwd.hpp"
 
 namespace {
 
@@ -304,7 +303,7 @@ void profile_convnd_instances(ConvDataType data_type,
 
 } // namespace
 
-int ck::profiler::profile_convnd_fwd(int argc, char* argv[])
+int profile_convnd_fwd(int argc, char* argv[])
 {
     using namespace ck::utils::conv;
 
