@@ -200,7 +200,7 @@ def main():
             df_add=pd.DataFrame(data=[sorted_tflops],columns=testlist)
             flops=pd.concat([flops,df_add],axis=1)
             print("new tflops for gemm tests:",flops)
-            #flops.to_sql("ck_gemm_tflops",conn,if_exists='append',index=False)
+            flops.to_sql("ck_gemm_tflops",conn,if_exists='append',index=False)
 
         #save resnet50 performance tests:
         if 'resnet50' in filename:
@@ -219,11 +219,11 @@ def main():
             df_add=pd.DataFrame(data=[tflops[0:49]],columns=testlist)
             flops=pd.concat([flops0,df_add],axis=1)
             print("new tflops for N=256 resnet50 test:",flops)
-            #flops.to_sql("ck_resnet50_N256_tflops",conn,if_exists='append',index=False)
+            flops.to_sql("ck_resnet50_N256_tflops",conn,if_exists='append',index=False)
             df_add=pd.DataFrame(data=[tflops[49:98]],columns=testlist)
             flops=pd.concat([flops0,df_add],axis=1)
             print("new tflops for N=4 resnet50 test:",flops)
-            #flops.to_sql("ck_resnet50_N4_tflops",conn,if_exists='append',index=False)
+            flops.to_sql("ck_resnet50_N4_tflops",conn,if_exists='append',index=False)
 
         conn.close()
 
