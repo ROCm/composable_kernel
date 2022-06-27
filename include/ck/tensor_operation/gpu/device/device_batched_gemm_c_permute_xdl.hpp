@@ -519,7 +519,7 @@ struct DeviceBatchedGemmCPermuteXdl : public DeviceBatchedGemmCPermute<AElementw
         {
             const index_t G1 = e_grid_desc_g0_g1_m_n_.GetLength(I1);
             index_t b0       = g_idx / G1;
-            index_t b1       = b0 - b0 * G1; // g_idx % G1
+            index_t b1       = g_idx - b0 * G1; // g_idx % G1
             return e_grid_desc_g0_g1_m_n_.CalculateOffset(make_multi_index(b0, b1, 0, 0));
         }
 
