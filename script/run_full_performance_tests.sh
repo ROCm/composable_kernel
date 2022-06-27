@@ -90,8 +90,8 @@ python3 parse_perf_data.py $grouped_gemm_log
 #run fwd_conv tests
 export fwd_conv_log="perf_fwd_conv.log"
 print_log_header $fwd_conv_log $env_type
-./profile_conva.sh conv_fwd 0 1 1 1 1 1 0 5 256 | tee -a $fwd_conv_log
-./profile_conva.sh conv_fwd 1 1 1 1 1 1 0 5 256 | tee -a $fwd_conv_log
+./profile_conv.sh conv_fwd 0 1 1 1 1 1 0 5 256 | tee -a $fwd_conv_log
+./profile_conv.sh conv_fwd 1 1 1 1 1 1 0 5 256 | tee -a $fwd_conv_log
 ./profile_conv.sh conv_fwd 2 1 1 1 1 1 0 5 256 | tee -a $fwd_conv_log
 ./profile_conv.sh conv_fwd 3 1 1 1 1 1 0 5 256 | tee -a $fwd_conv_log
 python3 parse_perf_data.py $fwd_conv_log
