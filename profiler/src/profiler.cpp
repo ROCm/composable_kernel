@@ -131,7 +131,7 @@ int main(int argc, char* argv[])
     {
         return profile_gemm_add_add_fastgelu(argc, argv);
     }
-    else if(strcmp(argv[1], "softmax") == 0 || strcmp(argv[1], "layernorm") == 0 ||
+    else if(strcmp(argv[1], "batchnorm") == 0 || strcmp(argv[1], "layernorm") == 0 ||
             strcmp(argv[1], "softmax") == 0)
     {
         return profile_normalization(argc, argv);
