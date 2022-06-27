@@ -15,7 +15,6 @@
 #include "ck/library/host_tensor/device_memory.hpp"
 #include "ck/library/host_tensor/host_tensor.hpp"
 #include "ck/library/host_tensor/host_tensor_generator.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 #include "ck/library/host_tensor/host_gemm.hpp"
@@ -28,20 +27,24 @@ enum struct GemmMatrixLayout
     KM_NK_MN, // 3
 };
 
-using DeviceGemmNoOpPtr =
-    ck::tensor_operation::device::DeviceGemmPtr<ck::tensor_operation::element_wise::PassThrough,
-                                                ck::tensor_operation::element_wise::PassThrough,
-                                                ck::tensor_operation::element_wise::PassThrough>;
+using DeviceGemmSplitKNoOpPtr = ck::tensor_operation::device::DeviceGemmSplitKPtr<
+    ck::tensor_operation::element_wise::PassThrough,
+    ck::tensor_operation::element_wise::PassThrough,
+    ck::tensor_operation::element_wise::PassThrough>;
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
 
-void add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(
+    std::vector<DeviceGemmSplitKNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(
+    std::vector<DeviceGemmSplitKNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(
+    std::vector<DeviceGemmSplitKNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(
+    std::vector<DeviceGemmSplitKNoOpPtr>&);
 
 } // namespace device_gemm_instance
 } // namespace device
@@ -150,7 +153,7 @@ int test_gemm(const gemmArgs& args)
     c_device_buf.ToDevice(c_m_n_device_result.mData.data());
 
     // add device GEMM instances
-    std::vector<DeviceGemmNoOpPtr> gemm_ptrs;
+    std::vector<DeviceGemmSplitKNoOpPtr> gemm_ptrs;
 
     if(args.layout == GemmMatrixLayout::MK_KN_MN)
     {

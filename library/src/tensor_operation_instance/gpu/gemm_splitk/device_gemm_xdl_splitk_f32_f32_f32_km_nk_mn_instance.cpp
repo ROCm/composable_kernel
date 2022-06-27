@@ -46,7 +46,7 @@ using device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances = std::tuple<
     >;
 
 void add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(
-    std::vector<DeviceGemmPtr<PassThrough, PassThrough, PassThrough>>& instances)
+    std::vector<DeviceGemmSplitKPtr<PassThrough, PassThrough, PassThrough>>& instances)
 {
     add_device_operation_instances(instances,
                                    device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances{});

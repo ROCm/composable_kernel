@@ -9,10 +9,10 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_splitk.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/device_gemm_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/device_gemm_splitk_instance.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/host_tensor/device_memory.hpp"
@@ -30,16 +30,17 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-int profile_gemm_impl(int do_verification,
-                      int init_method,
-                      bool do_log,
-                      bool time_kernel,
-                      int M,
-                      int N,
-                      int K,
-                      int StrideA,
-                      int StrideB,
-                      int StrideC)
+bool profile_gemm_splitk_impl(int do_verification,
+                              int init_method,
+                              bool do_log,
+                              bool time_kernel,
+                              int M,
+                              int N,
+                              int K,
+                              int StrideA,
+                              int StrideB,
+                              int StrideC,
+                              int KBatch)
 {
     bool pass = true;
 
@@ -95,12 +96,18 @@ int profile_gemm_impl(int do_verification,
     c_device_buf.ToDevice(c_m_n_device_result.mData.data());
 
     // add device op instances
-    const auto op_ptrs = ck::tensor_operation::device::device_gemm_instance::
-        get_device_gemm_instances<ADataType, BDataType, CDataType, ALayout, BLayout, CLayout>();
+    const auto op_ptrs =
+        ck::tensor_operation::device::device_gemm_instance::get_device_gemm_splitk_instances<
+            ADataType,
+            BDataType,
+            CDataType,
+            ALayout,
+            BLayout,
+            CLayout>();
 
     if(op_ptrs.size() <= 0)
     {
-        throw std::runtime_error("wrong! no device GEMM instance found");
+        throw std::runtime_error("wrong! no device operation instance found");
     }
 
     // Run reference GEMM
@@ -114,10 +121,10 @@ int profile_gemm_impl(int do_verification,
                                                                                 BElementOp,
                                                                                 CElementOp>;
 
-        auto ref_op      = ReferenceGemmInstance{};
-        auto ref_invoker = ref_op.MakeInvoker();
+        auto ref_gemm    = ReferenceGemmInstance{};
+        auto ref_invoker = ref_gemm.MakeInvoker();
 
-        auto ref_argument = ref_op.MakeArgument(
+        auto ref_argument = ref_gemm.MakeArgument(
             a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
 
         ref_invoker.Run(ref_argument);
@@ -141,9 +148,10 @@ int profile_gemm_impl(int do_verification,
                                         StrideA,
                                         StrideB,
                                         StrideC,
-                                        ck::tensor_operation::element_wise::PassThrough{},
-                                        ck::tensor_operation::element_wise::PassThrough{},
-                                        ck::tensor_operation::element_wise::PassThrough{});
+                                        a_element_op,
+                                        b_element_op,
+                                        c_element_op,
+                                        KBatch);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
@@ -241,7 +249,7 @@ int profile_gemm_impl(int do_verification,
               << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec << " GB/s, "
               << best_op_name << std::endl;
 
-    return pass ? 0 : 1;
+    return pass;
 }
 
 } // namespace profiler
