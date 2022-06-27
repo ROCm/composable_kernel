@@ -1,13 +1,15 @@
-#ifndef DEVICE_REDUCE_HPP
-#define DEVICE_REDUCE_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <vector>
 #include <memory>
 #include <iostream>
 
-#include "common_header.hpp"
-#include "device_base.hpp"
-#include "reduction_enums.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/utility/reduction_enums.hpp"
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -41,4 +43,3 @@ using DeviceReducePtr =
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

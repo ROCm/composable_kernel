@@ -1,24 +1,26 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <algorithm>
 #include <cstdlib>
-#include <half.hpp>
 #include <iostream>
 #include <numeric>
 #include <tuple>
 #include <vector>
 
-#include "gemm_util.hpp"
-#include "config.hpp"
-#include "print.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "host_gemm.hpp"
-#include "device_tensor.hpp"
-#include "device_gemm_xdl.hpp"
-#include "device_gemm_xdl_cshuffle.hpp"
-#include "element_wise_operation.hpp"
-#include "reference_gemm.hpp"
-#include "gemm_specialization.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+
+#include "test/gemm/gemm_util.hpp"
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -36,10 +38,12 @@ void add_device_gemm_xdl_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNo
 void add_device_gemm_xdl_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_f32_f32_f32_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 
+#if 0
 void add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+#endif
 
 void add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
@@ -65,8 +69,10 @@ int main()
     std::vector<DeviceGemmNoOpPtr> gemmPtrs;
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_f32_f32_f32_km_kn_mn_instances(gemmPtrs);
+#if 0
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(gemmPtrs);
+#endif
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_kn_mn_instances(gemmPtrs);
 
@@ -88,8 +94,10 @@ int main()
     gemmPtrs.clear();
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_f32_f32_f32_km_nk_mn_instances(gemmPtrs);
+#if 0
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(gemmPtrs);
+#endif
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_nk_mn_instances(gemmPtrs);
 
@@ -111,8 +119,10 @@ int main()
     gemmPtrs.clear();
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_f32_f32_f32_mk_kn_mn_instances(gemmPtrs);
+#if 0
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(gemmPtrs);
+#endif
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_c_shuffle_f32_f32_f32_mk_kn_mn_instances(gemmPtrs);
 
@@ -134,8 +144,10 @@ int main()
     gemmPtrs.clear();
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_f32_f32_f32_mk_nk_mn_instances(gemmPtrs);
+#if 0
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(gemmPtrs);
+#endif
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_c_shuffle_f32_f32_f32_mk_nk_mn_instances(gemmPtrs);
 

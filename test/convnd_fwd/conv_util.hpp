@@ -1,13 +1,16 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include <tuple>
 
-#include "config.hpp"
-#include "data_type.hpp"
-#include "device_convnd_fwd_xdl_nhwc_kyxc_nhwk.hpp"
-#include "element_wise_operation.hpp"
-#include "host_tensor.hpp"
-#include "sequence.hpp"
+#include "ck/ck.hpp"
+#include "ck/utility/sequence.hpp"
+#include "ck/utility/data_type.hpp"
+#include "ck/tensor_operation/gpu/device/device_convnd_fwd_xdl_nhwc_kyxc_nhwk.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
 
 namespace ck {
 namespace tensor_operation {

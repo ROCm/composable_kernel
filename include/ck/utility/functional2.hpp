@@ -1,8 +1,10 @@
-#ifndef CK_FUNCTIONAL2_HPP
-#define CK_FUNCTIONAL2_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "functional.hpp"
-#include "sequence.hpp"
+#pragma once
+
+#include "ck/utility/functional.hpp"
+#include "ck/utility/sequence.hpp"
 
 namespace ck {
 
@@ -45,4 +47,3 @@ struct static_for
 };
 
 } // namespace ck
-#endif

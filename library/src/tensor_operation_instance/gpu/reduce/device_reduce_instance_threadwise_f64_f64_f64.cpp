@@ -1,4 +1,7 @@
-#include "device_reduce_instance_threadwise.hpp"
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance_threadwise.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -48,5 +51,4 @@ ADD_THREADWISE_INST_BY_ID(double, double, double, 4, 0, 1, 2, 1);
 } // namespace device_reduce_instance
 } // namespace device
 } // namespace tensor_operation
-
 } // namespace ck

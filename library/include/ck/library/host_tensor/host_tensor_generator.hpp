@@ -1,10 +1,13 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include <cmath>
 #include <numeric>
 #include <random>
 
-#include "config.hpp"
+#include "ck/ck.hpp"
 
 template <typename T>
 struct GeneratorTensor_0

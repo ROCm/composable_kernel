@@ -1,9 +1,12 @@
-#include <stdlib.h>
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "config.hpp"
-#include "element_wise_operation.hpp"
-#include "device_operation_instance.hpp"
-#include "device_gemm_multiple_d_xdl_cshuffle.hpp"
+#include <cstdlib>
+
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/library/tensor_operation_instance/device_operation_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -25,9 +28,9 @@ using AddAddFastGelu = ck::tensor_operation::element_wise::AddAddFastGelu;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
-// e = elementwise((a * b), d)
+// e = elementwise((a * b), d0, d1)
 // outout: e[m, n]
-// input: a[k, m], b[k, n], d[m, n]
+// input: a[k, m], b[k, n], d0[m, n], d1[m, n]
 using device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances = std::tuple<
     // clang-format off
         //##############################| ALayout| BLayout| ELayout| AData| BData| AccData| CShuffle|  DsData| EData|           A|           B|            CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|

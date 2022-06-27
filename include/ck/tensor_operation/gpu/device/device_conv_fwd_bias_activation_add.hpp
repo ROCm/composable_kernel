@@ -1,8 +1,12 @@
-#ifndef DEVICE_CONV_FWD_BIAS_ACTIVATION_ADD_HPP
-#define DEVICE_CONV_FWD_BIAS_ACTIVATION_ADD_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
+#pragma once
+
+#include <vector>
 #include <iostream>
-#include "device_base.hpp"
+
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -47,4 +51,3 @@ using DeviceConvFwdBiasActivationAddPtr =
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

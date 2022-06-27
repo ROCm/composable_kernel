@@ -1,24 +1,25 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <algorithm>
 #include <cstdlib>
-#include <half.hpp>
 #include <iostream>
 #include <numeric>
 #include <tuple>
 #include <vector>
 
-#include "gemm_util.hpp"
-#include "config.hpp"
-#include "print.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "host_gemm.hpp"
-#include "device_tensor.hpp"
-#include "device_gemm_xdl.hpp"
-#include "device_gemm_xdl_cshuffle.hpp"
-#include "element_wise_operation.hpp"
-#include "reference_gemm.hpp"
-#include "gemm_specialization.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+
+#include "test/gemm/gemm_util.hpp"
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -46,6 +47,11 @@ void add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_mk_kn_mn_instances(
 
 int main()
 {
+    using ADataType   = ck::bhalf_t;
+    using BDataType   = ck::bhalf_t;
+    using CDataType   = ck::bhalf_t;
+    using AccDataType = float;
+
     using RowMajor    = ck::tensor_layout::gemm::RowMajor;
     using ColumnMajor = ck::tensor_layout::gemm::ColumnMajor;
 
@@ -57,13 +63,17 @@ int main()
 
     for(auto& gemmPtr : gemmPtrs)
     {
-        res &= ck::gemm_util::TestGemmBF16<DeviceGemmNoOpPtr,
-                                           ColumnMajor,
-                                           RowMajor,
-                                           RowMajor,
-                                           PassThrough,
-                                           PassThrough,
-                                           PassThrough>{}(gemmPtr);
+        res &= ck::gemm_util::TestGemm<DeviceGemmNoOpPtr,
+                                       ADataType,
+                                       BDataType,
+                                       CDataType,
+                                       AccDataType,
+                                       ColumnMajor,
+                                       RowMajor,
+                                       RowMajor,
+                                       PassThrough,
+                                       PassThrough,
+                                       PassThrough>{}(gemmPtr);
     }
 
     gemmPtrs.clear();
@@ -72,13 +82,17 @@ int main()
 
     for(auto& gemmPtr : gemmPtrs)
     {
-        res &= ck::gemm_util::TestGemmBF16<DeviceGemmNoOpPtr,
-                                           ColumnMajor,
-                                           ColumnMajor,
-                                           RowMajor,
-                                           PassThrough,
-                                           PassThrough,
-                                           PassThrough>{}(gemmPtr);
+        res &= ck::gemm_util::TestGemm<DeviceGemmNoOpPtr,
+                                       ADataType,
+                                       BDataType,
+                                       CDataType,
+                                       AccDataType,
+                                       ColumnMajor,
+                                       ColumnMajor,
+                                       RowMajor,
+                                       PassThrough,
+                                       PassThrough,
+                                       PassThrough>{}(gemmPtr);
     }
 
     gemmPtrs.clear();
@@ -87,13 +101,17 @@ int main()
 
     for(auto& gemmPtr : gemmPtrs)
     {
-        res &= ck::gemm_util::TestGemmBF16<DeviceGemmNoOpPtr,
-                                           RowMajor,
-                                           RowMajor,
-                                           RowMajor,
-                                           PassThrough,
-                                           PassThrough,
-                                           PassThrough>{}(gemmPtr);
+        res &= ck::gemm_util::TestGemm<DeviceGemmNoOpPtr,
+                                       ADataType,
+                                       BDataType,
+                                       CDataType,
+                                       AccDataType,
+                                       RowMajor,
+                                       RowMajor,
+                                       RowMajor,
+                                       PassThrough,
+                                       PassThrough,
+                                       PassThrough>{}(gemmPtr);
     }
 
     gemmPtrs.clear();
@@ -102,13 +120,17 @@ int main()
 
     for(auto& gemmPtr : gemmPtrs)
     {
-        res &= ck::gemm_util::TestGemmBF16<DeviceGemmNoOpPtr,
-                                           RowMajor,
-                                           ColumnMajor,
-                                           RowMajor,
-                                           PassThrough,
-                                           PassThrough,
-                                           PassThrough>{}(gemmPtr);
+        res &= ck::gemm_util::TestGemm<DeviceGemmNoOpPtr,
+                                       ADataType,
+                                       BDataType,
+                                       CDataType,
+                                       AccDataType,
+                                       RowMajor,
+                                       ColumnMajor,
+                                       RowMajor,
+                                       PassThrough,
+                                       PassThrough,
+                                       PassThrough>{}(gemmPtr);
     }
 
     std::cout << "TestGemm ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
