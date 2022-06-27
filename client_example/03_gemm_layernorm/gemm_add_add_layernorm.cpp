@@ -1,106 +1,51 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iomanip>
 #include <vector>
-#include <type_traits>
 #include <iostream>
 
-#include "config.hpp"
-#include "tensor_layout.hpp"
-#include "element_wise_operation.hpp"
-#include "device_gemm_reduce.hpp"
-#include "device_elementwise.hpp"
-#include "reduction_operator.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_reduce.hpp"
+#include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-struct DeviceMem
+#include "ck/library/tensor_operation_instance/gpu/device_elementwise_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/device_gemm_mean_squaremean_instance.hpp"
+
+using F16 = ck::half_t;
+using F32 = float;
+
+using ADataType            = F16;
+using BDataType            = F16;
+using BiasDataType         = F32;
+using CDataType            = F16;
+using D0DataType           = F16;
+using ReduceDataType       = F32;
+using GammaDataType        = F16;
+using BetaDataType         = F16;
+using LayerNormOutDataType = F16;
+
+using ALayout = ck::tensor_layout::gemm::RowMajor;
+using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+using CLayout = ck::tensor_layout::gemm::RowMajor;
+
+struct SimpleDeviceMem
 {
-    DeviceMem() = delete;
-    DeviceMem(std::size_t mem_size);
-    void* GetDeviceBuffer();
-    std::size_t GetBufferSize();
-    void ToDevice(const void* p);
-    void FromDevice(void* p);
-    void SetZero();
-    template <typename T>
-    void SetValue(T x);
-    ~DeviceMem();
+    SimpleDeviceMem() = delete;
 
-    void* mpDeviceBuf;
-    std::size_t mMemSize;
+    SimpleDeviceMem(std::size_t mem_size) : p_mem_{}
+    {
+        (void)hipMalloc(static_cast<void**>(&p_mem_), mem_size);
+    }
+
+    void* GetDeviceBuffer() { return p_mem_; }
+
+    ~SimpleDeviceMem() { (void)hipFree(p_mem_); }
+
+    void* p_mem_;
 };
-
-namespace ck {
-namespace tensor_operation {
-namespace device {
-namespace device_gemm_instance {
-
-using DeviceGemmBiasAddMeanSquareMeanPtr = ck::tensor_operation::device::DeviceGemmReducePtr<1, 2>;
-
-void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_kn_mn_instances(
-    std::vector<DeviceGemmBiasAddMeanSquareMeanPtr>&);
-
-void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_nk_mn_instances(
-    std::vector<DeviceGemmBiasAddMeanSquareMeanPtr>&);
-
-void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_kn_mn_instances(
-    std::vector<DeviceGemmBiasAddMeanSquareMeanPtr>&);
-
-void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_nk_mn_instances(
-    std::vector<DeviceGemmBiasAddMeanSquareMeanPtr>&);
-
-} // namespace device_gemm_instance
-
-using Normalize          = ck::tensor_operation::element_wise::Normalize;
-using DeviceNormalizePtr = ck::tensor_operation::device::DeviceElementwisePtr<5, 1, 2, Normalize>;
-
-void add_device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances(
-    std::vector<DeviceNormalizePtr>& instances);
-
-} // namespace device
-} // namespace tensor_operation
-} // namespace ck
-
-template <typename gemm_reduce,
-          typename normalize,
-          typename ALayout,
-          typename BLayout,
-          typename CLayout>
-void GetDeviceOp(std::vector<gemm_reduce>& gemm_reduce_ptrs, std::vector<normalize>& normalize_ptrs)
-{
-    if(std::is_same<ALayout, ck::tensor_layout::gemm::RowMajor>::value &&
-       std::is_same<BLayout, ck::tensor_layout::gemm::RowMajor>::value &&
-       std::is_same<CLayout, ck::tensor_layout::gemm::RowMajor>::value)
-    {
-        ck::tensor_operation::device::device_gemm_instance::
-            add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_kn_mn_instances(
-                gemm_reduce_ptrs);
-    }
-    else if(std::is_same<ALayout, ck::tensor_layout::gemm::RowMajor>::value &&
-            std::is_same<BLayout, ck::tensor_layout::gemm::ColumnMajor>::value &&
-            std::is_same<CLayout, ck::tensor_layout::gemm::RowMajor>::value)
-    {
-        ck::tensor_operation::device::device_gemm_instance::
-            add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_nk_mn_instances(
-                gemm_reduce_ptrs);
-    }
-    else if(std::is_same<ALayout, ck::tensor_layout::gemm::ColumnMajor>::value &&
-            std::is_same<BLayout, ck::tensor_layout::gemm::RowMajor>::value &&
-            std::is_same<CLayout, ck::tensor_layout::gemm::RowMajor>::value)
-    {
-        ck::tensor_operation::device::device_gemm_instance::
-            add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_kn_mn_instances(
-                gemm_reduce_ptrs);
-    }
-    else if(std::is_same<ALayout, ck::tensor_layout::gemm::ColumnMajor>::value &&
-            std::is_same<BLayout, ck::tensor_layout::gemm::ColumnMajor>::value &&
-            std::is_same<CLayout, ck::tensor_layout::gemm::RowMajor>::value)
-    {
-        ck::tensor_operation::device::device_gemm_instance::
-            add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_nk_mn_instances(
-                gemm_reduce_ptrs);
-    }
-
-    ck::tensor_operation::device::
-        add_device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances(normalize_ptrs);
-}
 
 template <typename gemm_reduce_op_ptr>
 bool RunDeviceGemmMeanSquareMean(gemm_reduce_op_ptr& p_op,
@@ -181,14 +126,14 @@ bool RunDeviceNormalize2D(normalize_op_ptr& p_op,
 {
     std::array<const void*, 5> input = {p_x, p_mean, p_square_mean, p_gamma, p_beta};
     std::array<void*, 1> output      = {p_y};
-    auto normalize_functor           = ck::tensor_operation::device::Normalize{};
+    auto normalize_functor           = ck::tensor_operation::element_wise::Normalize{};
 
     auto argument_ptr = p_op->MakeArgumentPointer(input,
                                                   output,
                                                   {M, N},
                                                   {{StrideX, 1}, {1, 0}, {1, 0}, {0, 1}, {0, 1}},
                                                   {{StrideX, 1}},
-                                                  ck::tensor_operation::device::Normalize{});
+                                                  ck::tensor_operation::element_wise::Normalize{});
 
     if(p_op->IsSupportedArgument(argument_ptr.get()))
     {
@@ -215,35 +160,22 @@ int main()
     ck::index_t StrideC  = 1024;
     ck::index_t StrideD0 = 1024;
 
-    using F16 = ck::half_t;
-    using F32 = float;
+    const auto gemm_reduce_ptrs = ck::tensor_operation::device::device_gemm_instance::
+        get_device_gemm_add_add_mean_squaremean_instances<ADataType,
+                                                          BDataType,
+                                                          CDataType,
+                                                          ALayout,
+                                                          BLayout,
+                                                          CLayout>();
 
-    using ADataType            = F16;
-    using BDataType            = F16;
-    using BiasDataType         = F32;
-    using CDataType            = F16;
-    using D0DataType           = F16;
-    using ReduceDataType       = F32;
-    using GammaDataType        = F16;
-    using BetaDataType         = F16;
-    using LayerNormOutDataType = F16;
-
-    using ALayout = ck::tensor_layout::gemm::RowMajor;
-    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
-    using CLayout = ck::tensor_layout::gemm::RowMajor;
-
-    std::vector<
-        ck::tensor_operation::device::device_gemm_instance::DeviceGemmBiasAddMeanSquareMeanPtr>
-        gemm_reduce_ptrs;
-
-    std::vector<ck::tensor_operation::device::DeviceNormalizePtr> normalize_ptrs;
-
-    GetDeviceOp<
-        ck::tensor_operation::device::device_gemm_instance::DeviceGemmBiasAddMeanSquareMeanPtr,
-        ck::tensor_operation::device::DeviceNormalizePtr,
-        ALayout,
-        BLayout,
-        CLayout>(gemm_reduce_ptrs, normalize_ptrs);
+    const auto normalize_ptrs =
+        ck::tensor_operation::device::get_device_normalize_from_mean_meansquare_instances<
+            CDataType,
+            ReduceDataType,
+            ReduceDataType,
+            GammaDataType,
+            BetaDataType,
+            LayerNormOutDataType>();
 
     std::cout << "found " << gemm_reduce_ptrs.size()
               << " gemm_reduceMean_reduceSquareMean instances" << std::endl;
@@ -264,16 +196,17 @@ int main()
             }
         };
 
-    DeviceMem a_device_buf(sizeof(ADataType) * f_matrix_space_size(M, K, StrideA, ALayout{}));
-    DeviceMem b_device_buf(sizeof(BDataType) * f_matrix_space_size(K, N, StrideB, BLayout{}));
-    DeviceMem bias_device_buf(sizeof(BiasDataType) * N);
-    DeviceMem c_device_buf(sizeof(CDataType) * f_matrix_space_size(M, N, StrideC, CLayout{}));
-    DeviceMem d0_device_buf(sizeof(D0DataType) * f_matrix_space_size(M, N, StrideD0, CLayout{}));
-    DeviceMem reduceMean_device_buf(sizeof(ReduceDataType) * M);
-    DeviceMem reduceMeanSquare_device_buf(sizeof(ReduceDataType) * M);
-    DeviceMem gamma_device_buf(sizeof(GammaDataType) * N);
-    DeviceMem beta_device_buf(sizeof(BetaDataType) * N);
-    DeviceMem layerNorm_device_buf(sizeof(LayerNormOutDataType) * M * N);
+    SimpleDeviceMem a_device_buf(sizeof(ADataType) * f_matrix_space_size(M, K, StrideA, ALayout{}));
+    SimpleDeviceMem b_device_buf(sizeof(BDataType) * f_matrix_space_size(K, N, StrideB, BLayout{}));
+    SimpleDeviceMem bias_device_buf(sizeof(BiasDataType) * N);
+    SimpleDeviceMem c_device_buf(sizeof(CDataType) * f_matrix_space_size(M, N, StrideC, CLayout{}));
+    SimpleDeviceMem d0_device_buf(sizeof(D0DataType) *
+                                  f_matrix_space_size(M, N, StrideD0, CLayout{}));
+    SimpleDeviceMem reduceMean_device_buf(sizeof(ReduceDataType) * M);
+    SimpleDeviceMem reduceMeanSquare_device_buf(sizeof(ReduceDataType) * M);
+    SimpleDeviceMem gamma_device_buf(sizeof(GammaDataType) * N);
+    SimpleDeviceMem beta_device_buf(sizeof(BetaDataType) * N);
+    SimpleDeviceMem layerNorm_device_buf(sizeof(LayerNormOutDataType) * M * N);
 
     bool b_time_kernel           = true;
     bool b_only_run_first_kernel = true;
