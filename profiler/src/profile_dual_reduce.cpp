@@ -6,11 +6,10 @@
 #include <sstream>
 #include <getopt.h>
 
-#include "data_type_enum.hpp"
-#include "reduction_enums.hpp"
+#include "ck/library/host_tensor/host_common_util.hpp"
 
-#include "host_common_util.hpp"
-#include "profile_dual_reduce_impl.hpp"
+#include "profiler/include/profile_dual_reduce_impl.hpp"
+#include "profiler/include/data_type_enum.hpp"
 
 using namespace std;
 

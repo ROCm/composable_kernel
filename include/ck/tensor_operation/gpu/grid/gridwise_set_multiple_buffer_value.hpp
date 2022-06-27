@@ -26,7 +26,8 @@
 #ifndef CK_GRIDWISE_SET_MULTIPLE_BUFFER_VALUE_HPP
 #define CK_GRIDWISE_SET_MULTIPLE_BUFFER_VALUE_HPP
 
-#include "threadwise_tensor_slice_transfer.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 
 namespace ck {
 

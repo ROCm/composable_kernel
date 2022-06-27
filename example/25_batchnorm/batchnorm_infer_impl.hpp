@@ -1,9 +1,12 @@
 #pragma once
 
 #include <cassert>
+#include <vector>
 
-#include "reduction_operator.hpp"
-#include "device_5ary_elementwise.hpp"
+#include "ck/ck.hpp"
+#include "ck/utility/reduction_operator.hpp"
+#include "ck/tensor_operation/gpu/device/device_5ary_elementwise.hpp"
+
 #include "batchnorm_common.hpp"
 
 namespace batchnorm {

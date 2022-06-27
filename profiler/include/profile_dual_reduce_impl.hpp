@@ -1,12 +1,14 @@
 #pragma once
 
-#include "check_err.hpp"
-#include "device_multiple_reduce.hpp"
-#include "device_dual_reduce_instance.hpp"
-#include "host_common_util.hpp"
-#include "host_reduction.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
+#include "ck/tensor_operation/gpu/device/device_multiple_reduce.hpp"
+
+#include "ck/library/tensor_operation_instance/gpu/reduce/device_dual_reduce_instance.hpp"
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_common_util.hpp"
+#include "ck/library/host_tensor/host_reduction.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
 
 namespace ck {
 namespace tensor_operation {

@@ -3,14 +3,17 @@
 
 #include <iostream>
 #include <sstream>
-#include "sequence.hpp"
-#include "device.hpp"
-#include "device_base.hpp"
-#include "device_multiple_reduce.hpp"
-#include "device_reduce_common.hpp"
-#include "gridwise_2d_multiple_reduction_multiblock.hpp"
-#include "gridwise_set_multiple_buffer_value.hpp"
-#include "reduction_operator.hpp"
+
+#include "ck/utility/sequence.hpp"
+#include "ck/utility/reduction_operator.hpp"
+
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/tensor_operation/gpu/device/device_multiple_reduce.hpp"
+#include "ck/tensor_operation/gpu/device/device_reduce_common.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_2d_multiple_reduction_multiblock.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_set_multiple_buffer_value.hpp"
+
+#include "ck/device_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {

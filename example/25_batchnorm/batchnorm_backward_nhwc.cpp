@@ -1,16 +1,16 @@
 #include <limits>
 #include <iostream>
 #include <getopt.h>
-#include "check_err.hpp"
-#include "config.hpp"
-#include "print.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "host_common_util.hpp"
-#include "device_tensor.hpp"
+
+#include "ck/ck.hpp"
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/host_tensor/host_common_util.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_backward_nhwc_c.hpp"
+
 #include "batchnorm_backward_impl.hpp"
-#include "reference_batchnorm_backward_nhwc_c.hpp"
 
 template <typename InOutDataType, typename AccDataType>
 using ReferenceBatchNormBwdInstance =

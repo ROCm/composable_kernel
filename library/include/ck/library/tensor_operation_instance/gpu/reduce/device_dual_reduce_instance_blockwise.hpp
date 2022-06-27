@@ -1,8 +1,8 @@
 #ifndef DEVICE_DUAL_REDUCE_INSTANCE_BLOCKWISE_HPP
 #define DEVICE_DUAL_REDUCE_INSTANCE_BLOCKWISE_HPP
 
-#include "device_reduce_instance_impl_common.hpp"
-#include "device_multiple_reduce_multiblock.hpp"
+#include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance_impl_common.hpp"
+#include "ck/tensor_operation/gpu/device/device_multiple_reduce_multiblock.hpp"
 
 namespace ck {
 namespace tensor_operation {

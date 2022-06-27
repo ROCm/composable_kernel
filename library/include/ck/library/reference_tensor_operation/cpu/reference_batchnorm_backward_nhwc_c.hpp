@@ -4,7 +4,8 @@
 #include <iostream>
 #include <sstream>
 #include <algorithm>
-#include "device_batchnorm_backward.hpp"
+
+#include "ck/tensor_operation/gpu/device/device_batchnorm_backward.hpp"
 
 namespace ck {
 namespace tensor_operation {

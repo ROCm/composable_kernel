@@ -1,14 +1,17 @@
 #pragma once
 
 #include <cassert>
+#include <vector>
 
-#include "reduction_operator.hpp"
-#include "binary_element_wise_operation.hpp"
-#include "device_multiple_reduce_multiblock.hpp"
-#include "device_reduce_multiblock.hpp"
-#include "device_binary_elementwise.hpp"
-#include "device_5ary_elementwise.hpp"
-#include "device_4ary_elementwise.hpp"
+#include "ck/ck.hpp"
+#include "ck/utility/reduction_operator.hpp"
+#include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/device/device_multiple_reduce_multiblock.hpp"
+#include "ck/tensor_operation/gpu/device/device_reduce_multiblock.hpp"
+#include "ck/tensor_operation/gpu/device/device_binary_elementwise.hpp"
+#include "ck/tensor_operation/gpu/device/device_5ary_elementwise.hpp"
+#include "ck/tensor_operation/gpu/device/device_4ary_elementwise.hpp"
+
 #include "batchnorm_common.hpp"
 
 namespace batchnorm {

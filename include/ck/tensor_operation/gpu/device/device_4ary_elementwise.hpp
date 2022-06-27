@@ -1,12 +1,14 @@
 #pragma once
 #include <iostream>
 #include <sstream>
-#include "device.hpp"
-#include "device_base.hpp"
-#include "gridwise_4ary_elementwise_1d.hpp"
-#include "tensor_layout.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
+
+#include "ck/utility/math.hpp"
+#include "ck/utility/sequence.hpp"
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_4ary_elementwise_1d.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+
+#include "ck/device_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {

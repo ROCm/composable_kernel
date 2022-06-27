@@ -1,12 +1,11 @@
-#ifndef DEVICE_BNORM_FWD_HPP
-#define DEVICE_BNORM_FWD_HPP
+#ifndef DEVICE_BATCHNORM_FORWARD_HPP
+#define DEVICE_BATCHNORM_FORWARD_HPP
 
 #include <vector>
 #include <memory>
-#include <iostream>
 
-#include "common_header.hpp"
-#include "device_base.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
 
 namespace ck {
 namespace tensor_operation {

@@ -3,11 +3,12 @@
 
 #include <vector>
 #include <memory>
+#include <array>
 #include <iostream>
 
-#include "common_header.hpp"
-#include "device_base.hpp"
-#include "reduction_enums.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/utility/reduction_enums.hpp"
 
 namespace ck {
 namespace tensor_operation {

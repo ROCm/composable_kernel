@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <vector>
+#include <type_traits>
 
 namespace batchnorm {
 

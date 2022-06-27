@@ -1,8 +1,8 @@
 #ifndef DEVICE_DUAL_REDUCE_INSTANTCE_HPP
 #define DEVICE_DUAL_REDUCE_INSTANTCE_HPP
 
-#include "device_dual_reduce_instance_blockwise.hpp"
-#include "device_dual_reduce_instance_multiblock_atomic_add.hpp"
+#include "ck/library/tensor_operation_instance/gpu/reduce/device_dual_reduce_instance_blockwise.hpp"
+#include "ck/library/tensor_operation_instance/gpu/reduce/device_dual_reduce_instance_multiblock_atomic_add.hpp"
 
 namespace ck {
 namespace tensor_operation {

@@ -1,4 +1,4 @@
-#include "device_dual_reduce_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/reduce/device_dual_reduce_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {

@@ -26,14 +26,13 @@
 #ifndef CK_GRIDWISE_2D_MULTIPLE_REDUCTION_MULTIBLOCK_HPP
 #define CK_GRIDWISE_2D_MULTIPLE_REDUCTION_MULTIBLOCK_HPP
 
-#include "reduction_common.hpp"
-#include "reduction_operator.hpp"
-#include "reduction_functions_accumulate.hpp"
-#include "reduction_functions_blockwise.hpp"
-#include "reduction_functions_threadwise.hpp"
-
-#include "threadwise_tensor_slice_transfer.hpp"
-#include "element_wise_operation.hpp"
+#include "ck/utility/reduction_common.hpp"
+#include "ck/utility/reduction_operator.hpp"
+#include "ck/utility/reduction_functions_accumulate.hpp"
+#include "ck/tensor_operation/gpu/block/reduction_functions_blockwise.hpp"
+#include "ck/tensor_operation/gpu/thread/reduction_functions_threadwise.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 namespace ck {
 
