@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include <cstdlib>
@@ -9,17 +12,17 @@
 #include <type_traits>
 #include <vector>
 
-#include "check_err.hpp"
-#include "config.hpp"
-#include "device.hpp"
-#include "device_conv_fwd.hpp"
-#include "device_tensor.hpp"
-#include "element_wise_operation.hpp"
-#include "fill.hpp"
-#include "host_tensor.hpp"
-#include "op_instance_engine.hpp"
-#include "reference_conv_fwd.hpp"
-#include "tensor_layout.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_conv_fwd.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/fill.hpp"
+#include "ck/library/utility/op_instance_engine.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -402,8 +405,8 @@ template <typename InDataType,
           typename InElementwiseOp  = ck::tensor_operation::element_wise::PassThrough,
           typename WeiElementwiseOp = ck::tensor_operation::element_wise::PassThrough,
           typename OutElementwiseOp = ck::tensor_operation::element_wise::PassThrough,
-          typename InputInitFun     = FillUniform<InDataType>,
-          typename WeightsInitFun   = FillUniform<WeiDataType>>
+          typename InputInitFun     = FillUniformDistribution<InDataType>,
+          typename WeightsInitFun   = FillUniformDistribution<WeiDataType>>
 class ConvFwdOpInstance : public ck::utils::OpInstance<OutDataType, InDataType, WeiDataType>
 {
     using DeviceConvFwdOp = tensor_operation::device::
@@ -422,8 +425,8 @@ class ConvFwdOpInstance : public ck::utils::OpInstance<OutDataType, InDataType, 
 
     ConvFwdOpInstance(const ConvParams& params,
                       bool do_init                         = true,
-                      const InputInitFun& input_init_f     = InputInitFun{},
-                      const WeightsInitFun& weights_init_f = WeightsInitFun{})
+                      const InputInitFun& input_init_f     = InputInitFun(),
+                      const WeightsInitFun& weights_init_f = WeightsInitFun())
         : BaseType(),
           params_{params},
           output_spatial_lengths_{params.GetOutputSpatialLengths()},
@@ -560,8 +563,8 @@ class ConvFwdOpInstance : public ck::utils::OpInstance<OutDataType, InDataType, 
     const ConvParams& params_;
     const std::vector<ck::index_t> output_spatial_lengths_;
     const bool do_init_;
-    const InputInitFun& input_init_f_;
-    const WeightsInitFun& weights_init_f_;
+    InputInitFun input_init_f_;
+    WeightsInitFun weights_init_f_;
 };
 
 } // namespace conv

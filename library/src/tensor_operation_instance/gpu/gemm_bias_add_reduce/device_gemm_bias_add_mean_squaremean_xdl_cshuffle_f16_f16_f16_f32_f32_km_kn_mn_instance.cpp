@@ -1,9 +1,15 @@
-#include <stdlib.h>
-#include "config.hpp"
-#include "device_gemm_bias_add_reduce_xdl_cshuffle.hpp"
-#include "element_wise_operation.hpp"
-#include "reduction_operator.hpp"
-#include "device_operation_instance.hpp"
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#include <cstdlib>
+
+#include "ck/ck.hpp"
+#include "ck/utility/reduction_operator.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_bias_add_reduce_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/library/tensor_operation_instance/device_operation_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -62,8 +68,9 @@ using device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_
         // clang-format on
         >;
 
-void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_kn_mn_instances(
-    std::vector<DeviceGemmReducePtr<1, ReduceOps::Size()>>& instances)
+void
+    add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_kn_mn_instances(
+        std::vector<DeviceGemmReducePtr<1, ReduceOps::Size()>>& instances)
 {
     add_device_operation_instances(
         instances,

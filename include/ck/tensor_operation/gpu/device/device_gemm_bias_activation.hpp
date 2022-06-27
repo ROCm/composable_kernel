@@ -1,8 +1,11 @@
-#ifndef DEVICE_GEMM_BIAS_ACTIVATION_HPP
-#define DEVICE_GEMM_BIAS_ACTIVATION_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <iostream>
-#include "device_base.hpp"
+
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -40,4 +43,3 @@ using DeviceGemmBiasActivationPtr = std::unique_ptr<
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

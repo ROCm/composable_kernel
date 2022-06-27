@@ -1,16 +1,20 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
-#include "config.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "host_conv.hpp"
-#include "tensor_layout.hpp"
-#include "device_tensor.hpp"
-#include "element_wise_operation.hpp"
-#include "reduction_operator.hpp"
-#include "device_gemm_reduce.hpp"
-#include "reference_batched_gemm.hpp"
+#include "ck/ck.hpp"
+#include "ck/utility/reduction_operator.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_batched_gemm_reduce.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/conv_util.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -29,16 +33,16 @@ using DeviceGemmReduceNoOpPtr =
     ck::tensor_operation::device::DeviceGemmReducePtr<0, ReducePtrsGlobal::Size()>;
 
 void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gmk_gkn_gmn_instances(
-    std::vector<DeviceGemmReduceNoOpPtr>&);
+    std::vector<DeviceBatchedGemmReduceNoOpPtr>&);
 
 void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gmk_gnk_gmn_instances(
-    std::vector<DeviceGemmReduceNoOpPtr>&);
+    std::vector<DeviceBatchedGemmReduceNoOpPtr>&);
 
 void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gkm_gkn_gmn_instances(
-    std::vector<DeviceGemmReduceNoOpPtr>&);
+    std::vector<DeviceBatchedGemmReduceNoOpPtr>&);
 
 void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gkm_gnk_gmn_instances(
-    std::vector<DeviceGemmReduceNoOpPtr>&);
+    std::vector<DeviceBatchedGemmReduceNoOpPtr>&);
 
 } // namespace device_gemm_instance
 } // namespace device
@@ -204,7 +208,7 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
     b_device_buf.ToDevice(b_g_k_n.mData.data());
 
     // add device GEMM instances
-    std::vector<ck::tensor_operation::device::device_gemm_instance::DeviceGemmReduceNoOpPtr>
+    std::vector<ck::tensor_operation::device::device_gemm_instance::DeviceBatchedGemmReduceNoOpPtr>
         gemm_ptrs;
 
     if constexpr(is_same<ADataType, half_t>::value && is_same<BDataType, half_t>::value &&

@@ -1,8 +1,10 @@
-#ifndef CK_MULTI_INDEX_TRANSFORM_HPP
-#define CK_MULTI_INDEX_TRANSFORM_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "common_header.hpp"
-#include "multi_index.hpp"
+#pragma once
+
+#include "ck/utility/common_header.hpp"
+#include "ck/utility/multi_index.hpp"
 
 namespace ck {
 
@@ -1950,4 +1952,3 @@ struct Modulo
     }
 };
 } // namespace ck
-#endif

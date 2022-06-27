@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #ifndef CK_THREADWISE_TENSOR_SLICE_TRANSFER_V3R3_HPP
 #define CK_THREADWISE_TENSOR_SLICE_TRANSFER_V3R3_HPP
 

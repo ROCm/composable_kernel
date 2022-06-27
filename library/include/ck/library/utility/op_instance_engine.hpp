@@ -1,6 +1,10 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include <cstdlib>
+#include <iostream>
 #include <limits>
 #include <memory>
 #include <stdexcept>
@@ -8,9 +12,12 @@
 #include <utility>
 #include <vector>
 
-#include "check_err.hpp"
-#include "device_base.hpp"
-#include "functional2.hpp"
+#include "ck/utility/functional2.hpp"
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
 
 namespace ck {
 namespace utils {
@@ -78,7 +85,8 @@ class OpInstanceRunEngine
 
     template <typename ReferenceOp = std::function<void()>>
     OpInstanceRunEngine(const OpInstanceT& op_instance,
-                        const ReferenceOp& reference_op = ReferenceOp{})
+                        const ReferenceOp& reference_op = ReferenceOp{},
+                        bool do_verification            = true)
         : op_instance_{op_instance}
     {
         in_tensors_ = op_instance_.GetInputTensors();
@@ -88,8 +96,11 @@ class OpInstanceRunEngine
                                          const Tensor<InArgTypes>&...,
                                          Tensor<OutDataType>&>)
         {
-            ref_output_ = op_instance_.GetOutputTensor();
-            CallRefOpUnpackArgs(reference_op, std::make_index_sequence<kNInArgs_>{});
+            if(do_verification)
+            {
+                ref_output_ = op_instance_.GetOutputTensor();
+                CallRefOpUnpackArgs(reference_op, std::make_index_sequence<kNInArgs_>{});
+            }
         }
         AllocateDeviceInputTensors(std::make_index_sequence<kNInArgs_>{});
         out_device_buffer_ =
@@ -110,6 +121,7 @@ class OpInstanceRunEngine
                 op_ptr.get(), in_device_buffers_, out_device_buffer_);
             if(op_ptr->IsSupportedArgument(argument.get()))
             {
+                std::cout << "Testing instance: " << op_ptr->GetTypeString() << std::endl;
                 invoker->Run(argument.get());
                 out_device_buffer_->FromDevice(out_tensor_->mData.data());
                 if(!ref_output_)
@@ -119,8 +131,15 @@ class OpInstanceRunEngine
                         " You have to provide reference function.");
                 }
                 // TODO: enable flexible use of custom check_error functions
-                res = res && check_err(out_tensor_->mData, ref_output_->mData);
+                bool inst_res = CheckErr(out_tensor_->mData, ref_output_->mData);
+                std::cout << (inst_res ? "SUCCESS" : "FAILURE") << std::endl;
+                res = res && inst_res;
                 out_device_buffer_->SetZero();
+            }
+            else
+            {
+                std::cout << "Given conv problem is not supported by instance: \n\t>>>>"
+                          << op_ptr->GetTypeString() << std::endl;
             }
         }
         return res;
@@ -132,7 +151,6 @@ class OpInstanceRunEngine
                               bool do_verification = false,
                               bool do_log          = false)
     {
-        bool res{true};
         ProfileBestConfig best_config;
 
         for(auto& op_ptr : op_ptrs)
@@ -153,7 +171,7 @@ class OpInstanceRunEngine
                 std::cout << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec
                           << " GB/s, " << op_name << std::endl;
 
-                if(tflops < best_config.best_tflops)
+                if(avg_time < best_config.best_avg_time)
                 {
                     best_config.best_op_name    = op_name;
                     best_config.best_tflops     = tflops;
@@ -171,7 +189,7 @@ class OpInstanceRunEngine
                             " You have to provide reference function.");
                     }
                     // TODO: enable flexible use of custom check_error functions
-                    res = res && CheckErr(out_tensor_->mData, ref_output_->mData);
+                    CheckErr(out_tensor_->mData, ref_output_->mData);
 
                     if(do_log) {}
                 }
@@ -223,7 +241,7 @@ class OpInstanceRunEngine
     template <typename T>
     bool CheckErr(const std::vector<T>& dev_out, const std::vector<T>& ref_out) const
     {
-        return ck::utils::check_err(dev_out, ref_out, "Error: incorrect results!", atol_, rtol_);
+        return ck::utils::check_err(dev_out, ref_out, "Error: incorrect results!", rtol_, atol_);
     }
 };
 

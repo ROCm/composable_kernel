@@ -1,10 +1,12 @@
-#ifndef UTILITY_BLOCK_TO_CTILE_MAP
-#define UTILITY_BLOCK_TO_CTILE_MAP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "utility/math.hpp"
-#include "utility/number.hpp"
-#include "tensor_description/tensor_adaptor.hpp"
-#include "tensor_description/multi_index_transform_helper.hpp"
+#pragma once
+
+#include "ck/utility/math.hpp"
+#include "ck/utility/number.hpp"
+#include "ck/tensor_description/tensor_adaptor.hpp"
+#include "ck/tensor_description/multi_index_transform_helper.hpp"
 
 namespace ck {
 
@@ -485,5 +487,3 @@ __host__ __device__ bool DefaultValidCTileIndex(const CTileIdx& c_tile_idx,
 }
 
 } // namespace ck
-
-#endif // UTILITY_BLOCK_TO_CTILE_MAP

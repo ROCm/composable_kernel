@@ -1,10 +1,12 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
-#include <half.hpp>
-#include "profile_grouped_gemm_impl.hpp"
+
+#include "profiler/include/profile_grouped_gemm_impl.hpp"
 
 enum struct GemmMatrixLayout
 {

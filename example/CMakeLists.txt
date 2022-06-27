@@ -1,21 +1,6 @@
 include_directories(BEFORE
-    ${PROJECT_SOURCE_DIR}/include/ck
-    ${PROJECT_SOURCE_DIR}/include/ck/utility
-    ${PROJECT_SOURCE_DIR}/include/ck/host_utility
-    ${PROJECT_SOURCE_DIR}/include/ck/tensor_description
-    ${PROJECT_SOURCE_DIR}/include/ck/tensor
-    ${PROJECT_SOURCE_DIR}/include/ck/problem_transform
-    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/device
-    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/grid
-    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/block
-    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/warp
-    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/thread
-    ${PROJECT_SOURCE_DIR}/include/ck/tensor_operation/gpu/element
-    ${PROJECT_SOURCE_DIR}/library/include/ck/library/host_tensor
-    ${PROJECT_SOURCE_DIR}/library/include/ck/library/reference_tensor_operation/cpu
-    ${PROJECT_SOURCE_DIR}/library/include/ck/library/reference_tensor_operation/gpu
-    ${PROJECT_SOURCE_DIR}/library/include/ck/library/utility
-    ${PROJECT_SOURCE_DIR}/external/include/half
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/library/include
 )
 
 add_custom_target(examples)
@@ -56,3 +41,4 @@ add_subdirectory(19_binary_elementwise)
 add_subdirectory(20_convnd_bwd_weight_xdl)
 add_subdirectory(21_gemm_layernorm)
 add_subdirectory(22_cgemm)
+add_subdirectory(23_softmax)

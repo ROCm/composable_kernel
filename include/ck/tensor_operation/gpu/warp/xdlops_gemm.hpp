@@ -1,9 +1,11 @@
-#ifndef CK_XDLOPS_GEMM_HPP
-#define CK_XDLOPS_GEMM_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "common_header.hpp"
-#include "math.hpp"
-#include "amd_xdlops.hpp"
+#pragma once
+
+#include "ck/utility/common_header.hpp"
+#include "ck/utility/math.hpp"
+#include "ck/utility/amd_xdlops.hpp"
 
 namespace ck {
 
@@ -786,4 +788,3 @@ struct XdlopsGemm
 };
 
 } // namespace ck
-#endif
