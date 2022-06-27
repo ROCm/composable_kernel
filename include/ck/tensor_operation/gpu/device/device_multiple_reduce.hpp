@@ -1,5 +1,7 @@
-#ifndef DEVICE_MULTIPLE_REDUCE_HPP
-#define DEVICE_MULTIPLE_REDUCE_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <vector>
 #include <memory>
@@ -44,4 +46,3 @@ using DeviceMultipleReducePtr = std::unique_ptr<
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

@@ -1,5 +1,7 @@
-#ifndef DEVICE_BATCHNORM_BACKWARD_HPP
-#define DEVICE_BATCHNORM_BACKWARD_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <vector>
 #include <memory>
@@ -38,5 +40,3 @@ using DeviceBatchNormBwdPtr = std::unique_ptr<DeviceBatchNormBwd>;
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-
-#endif

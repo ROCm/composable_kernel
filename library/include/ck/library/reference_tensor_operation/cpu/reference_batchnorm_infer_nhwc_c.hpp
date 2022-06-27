@@ -1,5 +1,7 @@
-#ifndef REFERENCE_BATCHNORM_INFER_NHWC_C_HPP
-#define REFERENCE_BATCHNORM_INFER_NHWC_C_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <iostream>
 #include <sstream>
@@ -186,4 +188,3 @@ struct ReferenceBatchNormInfer_Input_N_H_W_C_Output_C : public device::DeviceBat
 } // namespace host
 } // namespace tensor_operation
 } // namespace ck
-#endif

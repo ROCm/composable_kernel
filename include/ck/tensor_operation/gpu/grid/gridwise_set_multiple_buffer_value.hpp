@@ -1,30 +1,7 @@
-/*******************************************************************************
- *
- * MIT License
- *
- * Copyright (c) 2020 Advanced Micro Devices, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
- *******************************************************************************/
-#ifndef CK_GRIDWISE_SET_MULTIPLE_BUFFER_VALUE_HPP
-#define CK_GRIDWISE_SET_MULTIPLE_BUFFER_VALUE_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
@@ -108,4 +85,3 @@ __global__ void kernel_multiple_buffer_set_value(const Grid1dBufferDescType grid
 };
 
 } // namespace ck
-#endif

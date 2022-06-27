@@ -1,5 +1,7 @@
-#ifndef DEVICE_MULTIPLE_REDUCE_MULTIBLOCK_HPP
-#define DEVICE_MULTIPLE_REDUCE_MULTIBLOCK_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <iostream>
 #include <sstream>
@@ -528,4 +530,3 @@ struct DeviceMultipleReduceMultiBlock : public DeviceMultipleReduce<NumReduction
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

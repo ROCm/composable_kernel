@@ -1,5 +1,5 @@
-#ifndef DEVICE_DUAL_REDUCE_INSTANTCE_HPP
-#define DEVICE_DUAL_REDUCE_INSTANTCE_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/library/tensor_operation_instance/gpu/reduce/device_dual_reduce_instance_blockwise.hpp"
 #include "ck/library/tensor_operation_instance/gpu/reduce/device_dual_reduce_instance_multiblock_atomic_add.hpp"
@@ -33,5 +33,3 @@ ADD_DUAL_REDUCE_MULTIBLOCK_ATOMIC_ADD_INST_REF(float, double, double, double, Su
 } // namespace tensor_operation
 
 } // namespace ck
-
-#endif
