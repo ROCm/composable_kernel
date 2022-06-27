@@ -39,40 +39,40 @@ ck::utils::conv::ConvParams parse_conv_params(int num_dim_spatial, char* argv[],
     // (N, K, C) + num_dim_spatial * 6 (filter, input, strides, dilations, pad left, pad right)
     ck::utils::conv::ConvParams params;
 
-    params.num_dim_spatial = num_dim_spatial;
-    params.N               = std::stoi(argv[arg_idx++]);
-    params.K               = std::stoi(argv[arg_idx++]);
-    params.C               = std::stoi(argv[arg_idx++]);
+    params.num_dim_spatial_ = num_dim_spatial;
+    params.N_               = std::stoi(argv[arg_idx++]);
+    params.K_               = std::stoi(argv[arg_idx++]);
+    params.C_               = std::stoi(argv[arg_idx++]);
 
-    params.filter_spatial_lengths.resize(num_dim_spatial);
+    params.filter_spatial_lengths_.resize(num_dim_spatial);
     for(int i = 0; i < num_dim_spatial; ++i)
     {
-        params.filter_spatial_lengths[i] = std::stoi(argv[arg_idx++]);
+        params.filter_spatial_lengths_[i] = std::stoi(argv[arg_idx++]);
     }
-    params.input_spatial_lengths.resize(num_dim_spatial);
+    params.input_spatial_lengths_.resize(num_dim_spatial);
     for(int i = 0; i < num_dim_spatial; ++i)
     {
-        params.input_spatial_lengths[i] = std::stoi(argv[arg_idx++]);
+        params.input_spatial_lengths_[i] = std::stoi(argv[arg_idx++]);
     }
-    params.conv_filter_strides.resize(num_dim_spatial);
+    params.conv_filter_strides_.resize(num_dim_spatial);
     for(int i = 0; i < num_dim_spatial; ++i)
     {
-        params.conv_filter_strides[i] = std::stoi(argv[arg_idx++]);
+        params.conv_filter_strides_[i] = std::stoi(argv[arg_idx++]);
     }
-    params.conv_filter_dilations.resize(num_dim_spatial);
+    params.conv_filter_dilations_.resize(num_dim_spatial);
     for(int i = 0; i < num_dim_spatial; ++i)
     {
-        params.conv_filter_dilations[i] = std::stoi(argv[arg_idx++]);
+        params.conv_filter_dilations_[i] = std::stoi(argv[arg_idx++]);
     }
-    params.input_left_pads.resize(num_dim_spatial);
+    params.input_left_pads_.resize(num_dim_spatial);
     for(int i = 0; i < num_dim_spatial; ++i)
     {
-        params.input_left_pads[i] = std::stoi(argv[arg_idx++]);
+        params.input_left_pads_[i] = std::stoi(argv[arg_idx++]);
     }
-    params.input_right_pads.resize(num_dim_spatial);
+    params.input_right_pads_.resize(num_dim_spatial);
     for(int i = 0; i < num_dim_spatial; ++i)
     {
-        params.input_right_pads[i] = std::stoi(argv[arg_idx++]);
+        params.input_right_pads_[i] = std::stoi(argv[arg_idx++]);
     }
 
     return params;
@@ -95,7 +95,7 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
         printf("arg6: verification (0: no; 1: yes)\n");
         printf("arg7: initialization (0: no init; 1: integer value; 2: decimal value)\n");
         printf("arg8: print tensor value (0: no; 1: yes)\n");
-        printf("arg9: run kernel # of times (>1)\n");
+        printf("arg9: time kernel (0=n0, 1=yes)\n");
         printf("arg10 to 24: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
                "RightPx\n");
         return 1;
@@ -108,7 +108,7 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
     const bool do_verification = std::stoi(argv[6]);
     const int init_method      = std::stoi(argv[7]);
     const bool do_log          = std::stoi(argv[8]);
-    const int nrepeat          = std::stoi(argv[9]);
+    const bool time_kernel     = std::stoi(argv[9]);
 
     ck::utils::conv::ConvParams params = parse_conv_params(num_dim_spatial, argv, preParams);
 
@@ -132,17 +132,17 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
                 do_verification,
                 init_method,
                 do_log,
-                nrepeat,
-                params.N,
-                params.K,
-                params.C,
-                params.input_spatial_lengths,
-                params.filter_spatial_lengths,
+                time_kernel,
+                params.N_,
+                params.K_,
+                params.C_,
+                params.input_spatial_lengths_,
+                params.filter_spatial_lengths_,
                 params.GetOutputSpatialLengths(),
-                params.conv_filter_strides,
-                params.conv_filter_dilations,
-                params.input_left_pads,
-                params.input_right_pads);
+                params.conv_filter_strides_,
+                params.conv_filter_dilations_,
+                params.input_left_pads_,
+                params.input_right_pads_);
             break;
 
         case 2:
@@ -157,17 +157,17 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
                 do_verification,
                 init_method,
                 do_log,
-                nrepeat,
-                params.N,
-                params.K,
-                params.C,
-                params.input_spatial_lengths,
-                params.filter_spatial_lengths,
+                time_kernel,
+                params.N_,
+                params.K_,
+                params.C_,
+                params.input_spatial_lengths_,
+                params.filter_spatial_lengths_,
                 params.GetOutputSpatialLengths(),
-                params.conv_filter_strides,
-                params.conv_filter_dilations,
-                params.input_left_pads,
-                params.input_right_pads);
+                params.conv_filter_strides_,
+                params.conv_filter_dilations_,
+                params.input_left_pads_,
+                params.input_right_pads_);
             break;
 
         case 3:
@@ -182,17 +182,17 @@ int profile_convnd_bwd_data(int argc, char* argv[], int num_dim_spatial)
                 do_verification,
                 init_method,
                 do_log,
-                nrepeat,
-                params.N,
-                params.K,
-                params.C,
-                params.input_spatial_lengths,
-                params.filter_spatial_lengths,
+                time_kernel,
+                params.N_,
+                params.K_,
+                params.C_,
+                params.input_spatial_lengths_,
+                params.filter_spatial_lengths_,
                 params.GetOutputSpatialLengths(),
-                params.conv_filter_strides,
-                params.conv_filter_dilations,
-                params.input_left_pads,
-                params.input_right_pads);
+                params.conv_filter_strides_,
+                params.conv_filter_dilations_,
+                params.input_left_pads_,
+                params.input_right_pads_);
             break;
 
         default: break;

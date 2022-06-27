@@ -54,8 +54,8 @@ int profile_grouped_gemm(int argc, char* argv[])
         printf("                     3: A[k, m] * B[n, k] = C[m, n])\n");
         printf("arg4: verification (0: no; 1: yes)\n");
         printf("arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n");
-        printf("arg8: print tensor value (0: no; 1: yes)\n");
-        printf("arg7: run kernel # of times (>1)\n");
+        printf("arg6: print tensor value (0: no; 1: yes)\n");
+        printf("arg7: time kernel (0=n0, 1=yes)\n");
         printf("arg8 to 13: Ms, Ns, Ks, StrideAs, StrideBs, StrideCs (e.g., 256,256 128,128 64,64 "
                "64,64 64,64 128,128)\n");
         exit(1);
@@ -66,7 +66,7 @@ int profile_grouped_gemm(int argc, char* argv[])
     const bool do_verification = std::stoi(argv[4]);
     const int init_method      = std::stoi(argv[5]);
     const bool do_log          = std::stoi(argv[6]);
-    const int nrepeat          = std::stoi(argv[7]);
+    const bool time_kernel     = std::stoi(argv[7]);
 
     const auto Ms = argToIntArray(argv[8]);
     const auto Ns = argToIntArray(argv[9]);
@@ -81,12 +81,13 @@ int profile_grouped_gemm(int argc, char* argv[])
         ck::profiler::profile_grouped_gemm_impl<ck::half_t,
                                                 ck::half_t,
                                                 ck::half_t,
+                                                ck::half_t,
                                                 ck::tensor_layout::gemm::RowMajor,
                                                 ck::tensor_layout::gemm::RowMajor,
                                                 ck::tensor_layout::gemm::RowMajor>(do_verification,
                                                                                    init_method,
                                                                                    do_log,
-                                                                                   nrepeat,
+                                                                                   time_kernel,
                                                                                    Ms,
                                                                                    Ns,
                                                                                    Ks,
@@ -99,12 +100,13 @@ int profile_grouped_gemm(int argc, char* argv[])
         ck::profiler::profile_grouped_gemm_impl<ck::half_t,
                                                 ck::half_t,
                                                 ck::half_t,
+                                                ck::half_t,
                                                 ck::tensor_layout::gemm::RowMajor,
                                                 ck::tensor_layout::gemm::ColumnMajor,
                                                 ck::tensor_layout::gemm::RowMajor>(do_verification,
                                                                                    init_method,
                                                                                    do_log,
-                                                                                   nrepeat,
+                                                                                   time_kernel,
                                                                                    Ms,
                                                                                    Ns,
                                                                                    Ks,
@@ -117,12 +119,13 @@ int profile_grouped_gemm(int argc, char* argv[])
         ck::profiler::profile_grouped_gemm_impl<ck::half_t,
                                                 ck::half_t,
                                                 ck::half_t,
+                                                ck::half_t,
                                                 ck::tensor_layout::gemm::ColumnMajor,
                                                 ck::tensor_layout::gemm::RowMajor,
                                                 ck::tensor_layout::gemm::RowMajor>(do_verification,
                                                                                    init_method,
                                                                                    do_log,
-                                                                                   nrepeat,
+                                                                                   time_kernel,
                                                                                    Ms,
                                                                                    Ns,
                                                                                    Ks,
@@ -135,12 +138,13 @@ int profile_grouped_gemm(int argc, char* argv[])
         ck::profiler::profile_grouped_gemm_impl<ck::half_t,
                                                 ck::half_t,
                                                 ck::half_t,
+                                                ck::half_t,
                                                 ck::tensor_layout::gemm::ColumnMajor,
                                                 ck::tensor_layout::gemm::ColumnMajor,
                                                 ck::tensor_layout::gemm::RowMajor>(do_verification,
                                                                                    init_method,
                                                                                    do_log,
-                                                                                   nrepeat,
+                                                                                   time_kernel,
                                                                                    Ms,
                                                                                    Ns,
                                                                                    Ks,
@@ -153,5 +157,5 @@ int profile_grouped_gemm(int argc, char* argv[])
         throw std::runtime_error("wrong! this GEMM data_type & layout is not implemented");
     }
 
-    return 1;
+    return 0;
 }

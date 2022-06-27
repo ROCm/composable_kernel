@@ -107,6 +107,11 @@ struct HostTensorDescriptor
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
     }
 
+    std::size_t GetOffsetFromMultiIndex(std::vector<std::size_t> iss) const
+    {
+        return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
+    }
+
     friend std::ostream& operator<<(std::ostream& os, const HostTensorDescriptor& desc);
 
     private:
@@ -154,7 +159,7 @@ struct ParallelTensorFunctor
     {
         std::array<std::size_t, NDIM> indices;
 
-        for(int idim = 0; idim < NDIM; ++idim)
+        for(std::size_t idim = 0; idim < NDIM; ++idim)
         {
             indices[idim] = i / mStrides[idim];
             i -= indices[idim] * mStrides[idim];
@@ -211,6 +216,54 @@ struct Tensor
     }
 
     Tensor(const HostTensorDescriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpace()) {}
+
+    Tensor(const Tensor& other) : mDesc(other.mDesc), mData(other.mData) {}
+
+    template <typename F>
+    void ForEach_impl(F&& f, std::vector<size_t>& idx, size_t rank)
+    {
+        if(rank == mDesc.GetNumOfDimension())
+        {
+            f(*this, idx);
+            return;
+        }
+        // else
+        for(size_t i = 0; i < mDesc.GetLengths()[rank]; i++)
+        {
+            idx[rank] = i;
+            ForEach_impl(std::forward<F>(f), idx, rank + 1);
+        }
+    }
+
+    template <typename F>
+    void ForEach(F&& f)
+    {
+        std::vector<size_t> idx(mDesc.GetNumOfDimension(), 0);
+        ForEach_impl(std::forward<F>(f), idx, size_t(0));
+    }
+
+    template <typename F>
+    void ForEach_impl(const F&& f, std::vector<size_t>& idx, size_t rank) const
+    {
+        if(rank == mDesc.GetNumOfDimension())
+        {
+            f(*this, idx);
+            return;
+        }
+        // else
+        for(size_t i = 0; i < mDesc.GetLengths()[rank]; i++)
+        {
+            idx[rank] = i;
+            ForEach_impl(std::forward<const F>(f), idx, rank + 1);
+        }
+    }
+
+    template <typename F>
+    void ForEach(const F&& f) const
+    {
+        std::vector<size_t> idx(mDesc.GetNumOfDimension(), 0);
+        ForEach_impl(std::forward<const F>(f), idx, size_t(0));
+    }
 
     template <typename G>
     void GenerateTensorValue(G g, std::size_t num_thread = 1)
@@ -272,6 +325,16 @@ struct Tensor
         return mData[mDesc.GetOffsetFromMultiIndex(is...)];
     }
 
+    T& operator()(std::vector<std::size_t> idx)
+    {
+        return mData[mDesc.GetOffsetFromMultiIndex(idx)];
+    }
+
+    const T& operator()(std::vector<std::size_t> idx) const
+    {
+        return mData[mDesc.GetOffsetFromMultiIndex(idx)];
+    }
+
     typename std::vector<T>::iterator begin() { return mData.begin(); }
 
     typename std::vector<T>::iterator end() { return mData.end(); }
@@ -285,7 +348,8 @@ struct Tensor
 };
 
 template <typename X>
-HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens) : mLens(lens)
+HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens)
+    : mLens(lens.begin(), lens.end())
 {
     this->CalculateStrides();
 }
@@ -293,7 +357,7 @@ HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens) : mLens(l
 template <typename X, typename Y>
 HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens,
                                            const std::vector<Y>& strides)
-    : mLens(lens), mStrides(strides)
+    : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
 {
 }
 
@@ -316,7 +380,7 @@ float check_error(const Tensor<T>& ref, const Tensor<T>& result)
 
     constexpr float eps = 1e-10;
 
-    for(int i = 0; i < ref.mData.size(); ++i)
+    for(std::size_t i = 0; i < ref.mData.size(); ++i)
     {
         float ref_v    = ck::type_convert<float>(ref.mData[i]);
         float result_v = ck::type_convert<float>(result.mData[i]);

@@ -30,20 +30,6 @@ struct ReductionConfiguration_2
     static constexpr int KThreadSliceSize_ = KThreadSliceSize;
 };
 
-using reduce_configuration_1_instances = std::tuple<
-    // clang-format off
-    // BlockSize | MThreadClusterSize | KThreadClusterSize
-    ReductionConfiguration_1<256, 128, 2>,
-    ReductionConfiguration_1<256, 64, 4>,
-    ReductionConfiguration_1<256, 32, 8>,
-    ReductionConfiguration_1<256, 16, 16>,
-    ReductionConfiguration_1<256, 8, 32>,
-    ReductionConfiguration_1<256, 4, 64>,
-    ReductionConfiguration_1<256, 2, 128>,
-    ReductionConfiguration_1<256, 1, 256>
-    // clang-format on
-    >;
-
 #define QUICK_REDUCE_TEST 1
 
 } // namespace device_reduce_instance

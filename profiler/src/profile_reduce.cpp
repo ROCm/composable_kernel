@@ -1,27 +1,19 @@
 #include <iostream>
 #include <fstream>
-#include <numeric>
-#include <initializer_list>
 #include <cstdlib>
 #include <vector>
 #include <stdexcept>
 #include <sstream>
 #include <getopt.h>
 
-#include "config.hpp"
-#include "print.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "device_tensor.hpp"
+#include "data_type_enum.hpp"
 #include "reduction_enums.hpp"
 
+#include "host_common_util.hpp"
 #include "profile_reduce_impl.hpp"
 
 using namespace std;
 
-using ck::NanPropagation;
-using ck::ReduceTensorIndices;
 using ck::ReduceTensorOp;
 
 static struct option long_options[] = {{"inLengths", required_argument, nullptr, 'D'},
@@ -38,62 +30,8 @@ static struct option long_options[] = {{"inLengths", required_argument, nullptr,
                                        {"bf16", no_argument, nullptr, '?'},
                                        {"dumpout", required_argument, nullptr, 'o'},
                                        {"verify", required_argument, nullptr, 'v'},
-                                       {"log", required_argument, nullptr, 'l'},
                                        {"help", no_argument, nullptr, '?'},
                                        {nullptr, 0, nullptr, 0}};
-
-template <typename T>
-static T getSingleValueFromString(const string& valueStr)
-{
-    std::istringstream iss(valueStr);
-
-    T val;
-
-    iss >> val;
-
-    return (val);
-};
-
-template <typename T>
-static std::vector<T> getTypeValuesFromString(const char* cstr_values)
-{
-    std::string valuesStr(cstr_values);
-
-    std::vector<T> values;
-    std::size_t pos = 0;
-    std::size_t new_pos;
-
-    new_pos = valuesStr.find(',', pos);
-    while(new_pos != std::string::npos)
-    {
-        const std::string sliceStr = valuesStr.substr(pos, new_pos - pos);
-
-        T val = getSingleValueFromString<T>(sliceStr);
-
-        values.push_back(val);
-
-        pos     = new_pos + 1;
-        new_pos = valuesStr.find(',', pos);
-    };
-
-    std::string sliceStr = valuesStr.substr(pos);
-    T val                = getSingleValueFromString<T>(sliceStr);
-
-    values.push_back(val);
-
-    return (values);
-}
-
-enum struct AppDataType
-{
-    appHalf     = 0,
-    appFloat    = 1,
-    appInt32    = 2,
-    appInt8     = 3,
-    appInt8x4   = 4,
-    appBFloat16 = 5,
-    appDouble   = 6,
-};
 
 static void check_reduce_dims(const int rank, const std::vector<int>& reduceDims)
 {
@@ -113,7 +51,7 @@ static void check_reduce_dims(const int rank, const std::vector<int>& reduceDims
     };
 };
 
-class AppArgs
+class ReduceProfilerArgs
 {
     private:
     int option_index = 0;
@@ -130,26 +68,23 @@ class AppArgs
 
     std::vector<float> scales;
 
-    ReduceTensorOp reduceOp = ReduceTensorOp::ADD;
-    AppDataType compTypeId  = AppDataType::appFloat;
-    AppDataType outTypeId   = AppDataType::appFloat;
+    ReduceTensorOp reduceOp     = ReduceTensorOp::ADD;
+    ck::DataTypeEnum compTypeId = ck::DataTypeEnum::Float;
+    ck::DataTypeEnum outTypeId  = ck::DataTypeEnum::Float;
 
     bool compType_assigned = false;
     bool outType_assigned  = false;
 
-    NanPropagation nanOpt          = NanPropagation::NOT_PROPAGATE_NAN;
-    ReduceTensorIndices indicesOpt = ReduceTensorIndices::NO_INDICES;
-    bool do_log                    = false;
-    bool do_verification           = false;
-    bool do_dumpout                = false;
+    int nanOpt           = 0;
+    int indicesOpt       = 0;
+    bool do_verification = false;
+    bool do_dumpout      = false;
 
     int init_method;
-    int nrepeat;
+    bool time_kernel;
 
-    bool need_indices = false;
-
-    AppArgs()  = default;
-    ~AppArgs() = default;
+    ReduceProfilerArgs()  = default;
+    ~ReduceProfilerArgs() = default;
 
     void show_usage(const char* cmd)
     {
@@ -166,8 +101,11 @@ class AppArgs
         std::cout << "--outType or -W, optional enum value indicating the type of the reduced "
                      "output, which could be float when the input data is half"
                   << std::endl;
-        std::cout << "--nanOpt or -N, enum value indicates the selection for NanOpt" << std::endl;
-        std::cout << "--indicesOpt or -I, enum value indicates the selection for IndicesOpt"
+        std::cout
+            << "--nanOpt or -N, 1/0 value indicates the selection to use or not use Nan-Propagation"
+            << std::endl;
+        std::cout << "--indicesOpt or -I, 1/0 value indicates the selection to use or not use "
+                     "index in reduction"
                   << std::endl;
         std::cout << "--scales or -S, comma separated two float values for alpha and beta"
                   << std::endl;
@@ -181,18 +119,19 @@ class AppArgs
         std::cout << "--dumpout or -o, 1/0 to indicate where to save the reduction result to files "
                      "for further analysis"
                   << std::endl;
-        std::cout << "--log or -l, 1/0 to indicate whether to log some information" << std::endl;
     };
 
     int processArgs(int argc, char* argv[])
     {
-        unsigned int ch;
+        using ck::host_common::getTypeValuesFromString;
+
+        int ch;
 
         optind++; // to skip the "reduce" module name
 
         while(1)
         {
-            ch = getopt_long(argc, argv, "D:R:O:C:W:N:I:S:v:o:l:", long_options, &option_index);
+            ch = getopt_long(argc, argv, "D:R:O:C:W:N:I:S:v:o:", long_options, &option_index);
             if(ch == -1)
                 break;
             switch(ch)
@@ -219,27 +158,27 @@ class AppArgs
                 if(!optarg)
                     throw std::runtime_error("Invalid option format!");
 
-                compTypeId        = static_cast<AppDataType>(std::atoi(optarg));
+                compTypeId        = static_cast<ck::DataTypeEnum>(std::atoi(optarg));
                 compType_assigned = true;
                 break;
             case 'W':
                 if(!optarg)
                     throw std::runtime_error("Invalid option format!");
 
-                outTypeId        = static_cast<AppDataType>(std::atoi(optarg));
+                outTypeId        = static_cast<ck::DataTypeEnum>(std::atoi(optarg));
                 outType_assigned = true;
                 break;
             case 'N':
                 if(!optarg)
                     throw std::runtime_error("Invalid option format!");
 
-                nanOpt = static_cast<NanPropagation>(std::atoi(optarg));
+                nanOpt = std::atoi(optarg);
                 break;
             case 'I':
                 if(!optarg)
                     throw std::runtime_error("Invalid option format!");
 
-                indicesOpt = static_cast<ReduceTensorIndices>(std::atoi(optarg));
+                indicesOpt = std::atoi(optarg);
                 break;
             case 'S':
                 if(!optarg)
@@ -261,12 +200,6 @@ class AppArgs
                     throw std::runtime_error("Invalid option format!");
 
                 do_dumpout = static_cast<bool>(std::atoi(optarg));
-                break;
-            case 'l':
-                if(!optarg)
-                    throw std::runtime_error("Invalid option format!");
-
-                do_log = static_cast<bool>(std::atoi(optarg));
                 break;
             case '?':
                 if(std::string(long_options[option_index].name) == "half")
@@ -295,7 +228,7 @@ class AppArgs
             throw std::runtime_error("Invalid cmd-line arguments, more argumetns are needed!");
 
         init_method = std::atoi(argv[optind++]);
-        nrepeat     = std::atoi(argv[optind]);
+        time_kernel = static_cast<bool>(std::atoi(argv[optind]));
 
         if(scales.empty())
         {
@@ -306,9 +239,6 @@ class AppArgs
         if(reduceOp == ReduceTensorOp::MIN || reduceOp == ReduceTensorOp::MAX ||
            reduceOp == ReduceTensorOp::AMAX)
         {
-            if(indicesOpt != ReduceTensorIndices::NO_INDICES)
-                need_indices = true;
-
             // for indexable operations, no need to assign compType and outType, just let them be
             // same as inType
             compType_assigned = false;
@@ -322,9 +252,10 @@ class AppArgs
 
 int profile_reduce(int argc, char* argv[])
 {
-    using namespace ck::profiler;
+    using ck::DataTypeEnum;
+    using ck::profiler::profile_reduce_impl;
 
-    AppArgs args;
+    ReduceProfilerArgs args;
 
     if(args.processArgs(argc, argv) < 0)
         return (-1);
@@ -339,42 +270,41 @@ int profile_reduce(int argc, char* argv[])
     if(args.use_half)
     {
         if(!args.compType_assigned)
-            args.compTypeId = AppDataType::appHalf;
+            args.compTypeId = DataTypeEnum::Half;
 
         if(args.outType_assigned &&
-           (args.outTypeId != AppDataType::appHalf && args.outTypeId != AppDataType::appFloat))
-            args.outTypeId = AppDataType::appFloat;
+           (args.outTypeId != DataTypeEnum::Half && args.outTypeId != DataTypeEnum::Float))
+            args.outTypeId = DataTypeEnum::Float;
 
         if(!args.outType_assigned)
-            args.outTypeId = AppDataType::appHalf;
+            args.outTypeId = DataTypeEnum::Half;
 
-        if(args.compTypeId == AppDataType::appHalf)
+        if(args.compTypeId == DataTypeEnum::Half)
         {
-            profile_reduce_impl<ck::half_t, ck::half_t, ck::half_t>(args.do_verification,
-                                                                    args.init_method,
-                                                                    args.do_log,
-                                                                    args.do_dumpout,
-                                                                    args.nrepeat,
-                                                                    args.inLengths,
-                                                                    args.reduceDims,
-                                                                    args.reduceOp,
-                                                                    args.nanOpt,
-                                                                    args.indicesOpt,
-                                                                    args.scales[0],
-                                                                    args.scales[1]);
+            profile_reduce_impl<ck::half_t, ck::half_t, ck::half_t>(
+                args.do_verification,
+                args.init_method,
+                args.do_dumpout,
+                args.time_kernel,
+                args.inLengths,
+                args.reduceDims,
+                args.reduceOp,
+                static_cast<bool>(args.nanOpt),
+                static_cast<bool>(args.indicesOpt),
+                args.scales[0],
+                args.scales[1]);
         }
-        else if(args.compTypeId == AppDataType::appFloat)
+        else if(args.compTypeId == DataTypeEnum::Float)
         {
             profile_reduce_impl<ck::half_t, float, ck::half_t>(args.do_verification,
                                                                args.init_method,
-                                                               args.do_log,
                                                                args.do_dumpout,
-                                                               args.nrepeat,
+                                                               args.time_kernel,
                                                                args.inLengths,
                                                                args.reduceDims,
                                                                args.reduceOp,
-                                                               args.nanOpt,
-                                                               args.indicesOpt,
+                                                               static_cast<bool>(args.nanOpt),
+                                                               static_cast<bool>(args.indicesOpt),
                                                                args.scales[0],
                                                                args.scales[1]);
         }
@@ -385,56 +315,53 @@ int profile_reduce(int argc, char* argv[])
     {
         profile_reduce_impl<double, double, double>(args.do_verification,
                                                     args.init_method,
-                                                    args.do_log,
                                                     args.do_dumpout,
-                                                    args.nrepeat,
+                                                    args.time_kernel,
                                                     args.inLengths,
                                                     args.reduceDims,
                                                     args.reduceOp,
-                                                    args.nanOpt,
-                                                    args.indicesOpt,
+                                                    static_cast<bool>(args.nanOpt),
+                                                    static_cast<bool>(args.indicesOpt),
                                                     args.scales[0],
                                                     args.scales[1]);
     }
     else if(args.use_int8)
     {
         if(!args.compType_assigned)
-            args.compTypeId = AppDataType::appInt8;
+            args.compTypeId = DataTypeEnum::Int8;
 
         if(args.outType_assigned &&
-           (args.outTypeId != AppDataType::appInt8 && args.outTypeId != AppDataType::appInt32))
-            args.outTypeId = AppDataType::appInt32;
+           (args.outTypeId != DataTypeEnum::Int8 && args.outTypeId != DataTypeEnum::Int32))
+            args.outTypeId = DataTypeEnum::Int32;
 
         if(!args.outType_assigned)
-            args.outTypeId = AppDataType::appInt8;
+            args.outTypeId = DataTypeEnum::Int8;
 
-        if(args.compTypeId == AppDataType::appInt8)
+        if(args.compTypeId == DataTypeEnum::Int8)
         {
             profile_reduce_impl<int8_t, int8_t, int8_t>(args.do_verification,
                                                         args.init_method,
-                                                        args.do_log,
                                                         args.do_dumpout,
-                                                        args.nrepeat,
+                                                        args.time_kernel,
                                                         args.inLengths,
                                                         args.reduceDims,
                                                         args.reduceOp,
-                                                        args.nanOpt,
-                                                        args.indicesOpt,
+                                                        static_cast<bool>(args.nanOpt),
+                                                        static_cast<bool>(args.indicesOpt),
                                                         args.scales[0],
                                                         args.scales[1]);
         }
-        else if(args.compTypeId == AppDataType::appInt32)
+        else if(args.compTypeId == DataTypeEnum::Int32)
         {
             profile_reduce_impl<int8_t, int32_t, int8_t>(args.do_verification,
                                                          args.init_method,
-                                                         args.do_log,
                                                          args.do_dumpout,
-                                                         args.nrepeat,
+                                                         args.time_kernel,
                                                          args.inLengths,
                                                          args.reduceDims,
                                                          args.reduceOp,
-                                                         args.nanOpt,
-                                                         args.indicesOpt,
+                                                         static_cast<bool>(args.nanOpt),
+                                                         static_cast<bool>(args.indicesOpt),
                                                          args.scales[0],
                                                          args.scales[1]);
         }
@@ -444,54 +371,51 @@ int profile_reduce(int argc, char* argv[])
     else if(args.use_bf16)
     {
         if(args.outType_assigned &&
-           (args.outTypeId != AppDataType::appBFloat16 && args.outTypeId != AppDataType::appFloat))
-            args.outTypeId = AppDataType::appFloat;
+           (args.outTypeId != DataTypeEnum::BFloat16 && args.outTypeId != DataTypeEnum::Float))
+            args.outTypeId = DataTypeEnum::Float;
 
         if(!args.outType_assigned)
-            args.outTypeId = AppDataType::appBFloat16;
+            args.outTypeId = DataTypeEnum::BFloat16;
 
         profile_reduce_impl<ck::bhalf_t, float, ck::bhalf_t>(args.do_verification,
                                                              args.init_method,
-                                                             args.do_log,
                                                              args.do_dumpout,
-                                                             args.nrepeat,
+                                                             args.time_kernel,
                                                              args.inLengths,
                                                              args.reduceDims,
                                                              args.reduceOp,
-                                                             args.nanOpt,
-                                                             args.indicesOpt,
+                                                             static_cast<bool>(args.nanOpt),
+                                                             static_cast<bool>(args.indicesOpt),
                                                              args.scales[0],
                                                              args.scales[1]);
     }
     else
     {
-        if(args.compTypeId == AppDataType::appFloat)
+        if(args.compTypeId == DataTypeEnum::Float)
         {
             profile_reduce_impl<float, float, float>(args.do_verification,
                                                      args.init_method,
-                                                     args.do_log,
                                                      args.do_dumpout,
-                                                     args.nrepeat,
+                                                     args.time_kernel,
                                                      args.inLengths,
                                                      args.reduceDims,
                                                      args.reduceOp,
-                                                     args.nanOpt,
-                                                     args.indicesOpt,
+                                                     static_cast<bool>(args.nanOpt),
+                                                     static_cast<bool>(args.indicesOpt),
                                                      args.scales[0],
                                                      args.scales[1]);
         }
-        else if(args.compTypeId == AppDataType::appDouble)
+        else if(args.compTypeId == DataTypeEnum::Double)
         {
             profile_reduce_impl<float, double, float>(args.do_verification,
                                                       args.init_method,
-                                                      args.do_log,
                                                       args.do_dumpout,
-                                                      args.nrepeat,
+                                                      args.time_kernel,
                                                       args.inLengths,
                                                       args.reduceDims,
                                                       args.reduceOp,
-                                                      args.nanOpt,
-                                                      args.indicesOpt,
+                                                      static_cast<bool>(args.nanOpt),
+                                                      static_cast<bool>(args.indicesOpt),
                                                       args.scales[0],
                                                       args.scales[1]);
         }

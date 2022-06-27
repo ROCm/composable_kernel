@@ -1,6 +1,4 @@
-#ifndef CK_TENSOR_DESCRIPTOR_HELPER_HPP
-#define CK_TENSOR_DESCRIPTOR_HELPER_HPP
-
+#pragma once
 #include "common_header.hpp"
 #include "tensor_descriptor.hpp"
 #include "multi_index_transform_helper.hpp"
@@ -35,6 +33,12 @@ __host__ __device__ constexpr auto calculate_element_space_size_impl(const Lengt
 }
 #endif
 
+// Lengths..., Strides... could be:
+//   1) index_t, which is known at run-time, or
+//   2) Number<>, which is known at compile-time
+// element_space_size could be:
+//   1) long_index_t, or
+//   2) LongNumber<>
 template <typename... Lengths,
           typename... Strides,
           typename enable_if<sizeof...(Lengths) == sizeof...(Strides), bool>::type = false>
@@ -68,10 +72,10 @@ __host__ __device__ constexpr auto make_naive_tensor_descriptor(const Tuple<Leng
         }
     };
 
-    const auto element_space_size = f(f, Number<0>{}, Number<1>{});
+    const auto element_space_size = f(f, Number<0>{}, LongNumber<1>{});
 #else
     const auto element_space_size =
-        calculate_element_space_size_impl(lengths, strides, Number<0>{}, Number<1>{});
+        calculate_element_space_size_impl(lengths, strides, Number<0>{}, LongNumber<1>{});
 #endif
 
     return TensorDescriptor<remove_cv_t<decltype(transforms)>,
@@ -82,9 +86,12 @@ __host__ __device__ constexpr auto make_naive_tensor_descriptor(const Tuple<Leng
                                                                        element_space_size};
 }
 
-// Lengths... can be:
-//   1) index_t, which is known at run-time
+// Lengths... could be:
+//   1) index_t, which is known at run-time, or
 //   2) Number<>, which is known at compile-time
+// element_space_size could be:
+//   1) long_index_t, or
+//   2) LongNumber<>
 template <typename... Lengths>
 __host__ __device__ constexpr auto
 make_naive_tensor_descriptor_packed(const Tuple<Lengths...>& lengths)
@@ -100,7 +107,7 @@ make_naive_tensor_descriptor_packed(const Tuple<Lengths...>& lengths)
 
     constexpr auto visible_dim_hidden_ids = typename arithmetic_sequence_gen<1, N + 1, 1>::type{};
 
-    const auto element_space_size = container_reduce(lengths, math::multiplies{}, Number<1>{});
+    const auto element_space_size = container_reduce(lengths, math::multiplies{}, LongNumber<1>{});
 
     return TensorDescriptor<remove_cv_t<decltype(transforms)>,
                             remove_cv_t<decltype(low_dim_hidden_idss)>,
@@ -110,6 +117,12 @@ make_naive_tensor_descriptor_packed(const Tuple<Lengths...>& lengths)
                                                                        element_space_size};
 }
 
+// Lengths... could be:
+//   1) index_t, which is known at run-time, or
+//   2) Number<>, which is known at compile-time
+// align could be:
+//   1) index_t, or
+//   2) Number<>
 template <typename... Lengths, typename Align>
 __host__ __device__ constexpr auto
 make_naive_tensor_descriptor_aligned(const Tuple<Lengths...>& lengths, Align align)
@@ -146,4 +159,3 @@ make_naive_tensor_descriptor_aligned(const Tuple<Lengths...>& lengths, Align ali
 }
 
 } // namespace ck
-#endif

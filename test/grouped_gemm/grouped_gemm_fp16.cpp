@@ -104,7 +104,7 @@ bool TestGroupedGemm(DeviceGroupedGemmPtr_& groupedGemmPtr)
     b_tensors_device.reserve(group_count);
     c_tensors_device.reserve(group_count);
 
-    for(int i = 0; i < gemm_shapes.size(); i++)
+    for(std::size_t i = 0; i < gemm_shapes.size(); i++)
     {
         a_tensors.emplace_back(Tensor<ADataType>(f_host_tensor_descriptor(
             gemm_shapes[i].M, gemm_shapes[i].K, gemm_shapes[i].StrideA, ALayout{})));
@@ -119,7 +119,7 @@ bool TestGroupedGemm(DeviceGroupedGemmPtr_& groupedGemmPtr)
         b_tensors[i].GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
     }
 
-    for(int i = 0; i < gemm_shapes.size(); i++)
+    for(std::size_t i = 0; i < gemm_shapes.size(); i++)
     {
         a_tensors_device.emplace_back(
             std::make_unique<DeviceMem>(sizeof(ADataType) * a_tensors[i].mDesc.GetElementSize()));
@@ -141,18 +141,28 @@ bool TestGroupedGemm(DeviceGroupedGemmPtr_& groupedGemmPtr)
     auto c_element_op = PassThrough{};
 
     // do GEMM
-    auto invoker_ptr  = groupedGemmPtr->MakeInvokerPointer();
+    auto invoker_ptr = groupedGemmPtr->MakeInvokerPointer();
+
     auto argument_ptr = groupedGemmPtr->MakeArgumentPointer(
         p_a, p_b, p_c, gemm_shapes, a_element_op, b_element_op, c_element_op);
 
+    DeviceMem gemm_desc_workspace(groupedGemmPtr->GetWorkSpaceSize(argument_ptr.get()));
+
+    groupedGemmPtr->SetWorkSpacePointer(argument_ptr.get(), gemm_desc_workspace.GetDeviceBuffer());
+
     invoker_ptr->Run(argument_ptr.get());
 
-    for(int i = 0; i < gemm_shapes.size(); i++)
+    for(std::size_t i = 0; i < gemm_shapes.size(); i++)
     {
         c_tensors_device[i]->FromDevice(c_device_tensors[i].mData.data());
 
-        using ReferenceGemmInstance = ck::tensor_operation::host::
-            ReferenceGemm<ADataType, BDataType, CDataType, PassThrough, PassThrough, PassThrough>;
+        using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                                BDataType,
+                                                                                CDataType,
+                                                                                AccDataType,
+                                                                                PassThrough,
+                                                                                PassThrough,
+                                                                                PassThrough>;
 
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
