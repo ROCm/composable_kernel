@@ -6,7 +6,7 @@ PRECISION=
 ##PRECISION=--int8
 ##PRECISION=--bf16
 
-driver="./bin/ckProfiler"
+DRIVER="../build/bin/ckProfiler"
 
 VERIFY="-v $1"
 INIT=$2
