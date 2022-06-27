@@ -69,7 +69,7 @@ using device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_
         >;
 
 void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_nk_mn_instances(
-        std::vector<DeviceGemmReducePtr<1, ReduceOps::Size()>>& instances)
+    std::vector<DeviceGemmReducePtr<1, ReduceOps::Size()>>& instances)
 {
     add_device_operation_instances(
         instances,
