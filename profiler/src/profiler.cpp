@@ -20,8 +20,6 @@ int profile_conv_fwd_bias_relu_add(int, char*[]);
 int profile_convnd_fwd(int argc, char* argv[]);
 int profile_convnd_bwd_data(int, char*[], int);
 int profile_conv_bwd_weight(int, char*[]);
-int profile_batched_gemm_reduce(int, char*[]);
-int profile_gemm_add_add_fastgelu(int, char*[]);
 int profile_normalization(int, char*[]);
 int profile_reduce(int, char*[]);
 

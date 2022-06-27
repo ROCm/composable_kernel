@@ -24,8 +24,6 @@ add_subdirectory(conv2d_fwd_bias_relu_add)
 add_subdirectory(conv2d_bwd_data)
 add_subdirectory(convnd_bwd_data)
 add_subdirectory(conv2d_bwd_weight)
-add_subdirectory(batched_gemm_reduce)
-add_subdirectory(gemm_add_add_fastgelu)
 add_subdirectory(normalization)
 add_subdirectory(reduce)
 
