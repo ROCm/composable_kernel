@@ -38,10 +38,12 @@ void add_device_gemm_xdl_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNo
 void add_device_gemm_xdl_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_f32_f32_f32_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 
+#if 0
 void add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+#endif
 
 void add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
 void add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
@@ -67,8 +69,10 @@ int main()
     std::vector<DeviceGemmNoOpPtr> gemmPtrs;
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_f32_f32_f32_km_kn_mn_instances(gemmPtrs);
+#if 0
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(gemmPtrs);
+#endif
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_kn_mn_instances(gemmPtrs);
 
@@ -90,8 +94,10 @@ int main()
     gemmPtrs.clear();
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_f32_f32_f32_km_nk_mn_instances(gemmPtrs);
+#if 0
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(gemmPtrs);
+#endif
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_c_shuffle_f32_f32_f32_km_nk_mn_instances(gemmPtrs);
 
@@ -113,8 +119,10 @@ int main()
     gemmPtrs.clear();
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_f32_f32_f32_mk_kn_mn_instances(gemmPtrs);
+#if 0
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(gemmPtrs);
+#endif
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_c_shuffle_f32_f32_f32_mk_kn_mn_instances(gemmPtrs);
 
@@ -136,8 +144,10 @@ int main()
     gemmPtrs.clear();
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_f32_f32_f32_mk_nk_mn_instances(gemmPtrs);
+#if 0
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(gemmPtrs);
+#endif
     ck::tensor_operation::device::device_gemm_instance::
         add_device_gemm_xdl_c_shuffle_f32_f32_f32_mk_nk_mn_instances(gemmPtrs);
 

@@ -10,7 +10,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_splitk.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r4r2.hpp"
 #include "ck/device_utility/device_prop.hpp"
@@ -59,7 +59,7 @@ template <typename ADataType,
           typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CBlockTransferScalarPerVector_NWaveNPerXDL>
 struct DeviceGemmXdlSplitKCShuffle
-    : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
+    : public DeviceGemmSplitK<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -420,21 +420,22 @@ struct DeviceGemmXdlSplitKCShuffle
                     arg.c_grid_desc_mblock_mperblock_nblock_nperblock_.GetElementSpaceSize() *
                         sizeof(CDataType)));
 
-                launch_and_time_kernel(stream_config,
-                                       kernel,
-                                       dim3(grid_size),
-                                       dim3(BlockSize),
-                                       0,
-                                       arg.p_a_grid_,
-                                       arg.p_b_grid_,
-                                       arg.p_c_grid_,
-                                       arg.a_grid_desc_kbatch_k0_m_k1_,
-                                       arg.b_grid_desc_kbatch_k0_n_k1_,
-                                       arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                       arg.a_element_op_,
-                                       arg.b_element_op_,
-                                       arg.c_element_op_,
-                                       arg.block_2_ctile_map_);
+                ave_time =
+                    launch_and_time_kernel(stream_config,
+                                           kernel,
+                                           dim3(grid_size),
+                                           dim3(BlockSize),
+                                           0,
+                                           arg.p_a_grid_,
+                                           arg.p_b_grid_,
+                                           arg.p_c_grid_,
+                                           arg.a_grid_desc_kbatch_k0_m_k1_,
+                                           arg.b_grid_desc_kbatch_k0_n_k1_,
+                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_,
+                                           arg.block_2_ctile_map_);
             };
 
             if(has_main_k0_block_loop)

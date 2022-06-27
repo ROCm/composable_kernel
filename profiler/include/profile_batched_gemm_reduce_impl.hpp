@@ -6,7 +6,7 @@
 #include "ck/ck.hpp"
 #include "ck/utility/reduction_operator.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_reduce.hpp"
+#include "ck/tensor_operation/gpu/device/device_batched_gemm_reduce.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -29,7 +29,7 @@ using Square         = ck::tensor_operation::element_wise::UnarySquare;
 using DInElementOps  = ck::Tuple<Identity, Square>;
 using DOutElementOps = ck::Tuple<Identity, Identity>;
 
-using DeviceGemmReduceNoOpPtr = ck::tensor_operation::device::DeviceGemmReducePtr<
+using DeviceBatchedGemmReduceNoOpPtr = ck::tensor_operation::device::DeviceBatchedGemmReducePtr<
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
@@ -37,16 +37,16 @@ using DeviceGemmReduceNoOpPtr = ck::tensor_operation::device::DeviceGemmReducePt
     DOutElementOps>;
 
 void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gmk_gkn_gmn_instances(
-    std::vector<DeviceGemmReduceNoOpPtr>&);
+    std::vector<DeviceBatchedGemmReduceNoOpPtr>&);
 
 void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gmk_gnk_gmn_instances(
-    std::vector<DeviceGemmReduceNoOpPtr>&);
+    std::vector<DeviceBatchedGemmReduceNoOpPtr>&);
 
 void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gkm_gkn_gmn_instances(
-    std::vector<DeviceGemmReduceNoOpPtr>&);
+    std::vector<DeviceBatchedGemmReduceNoOpPtr>&);
 
 void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gkm_gnk_gmn_instances(
-    std::vector<DeviceGemmReduceNoOpPtr>&);
+    std::vector<DeviceBatchedGemmReduceNoOpPtr>&);
 
 } // namespace device_gemm_instance
 } // namespace device
@@ -204,7 +204,7 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
     b_device_buf.ToDevice(b_g_k_n.mData.data());
 
     // add device GEMM instances
-    std::vector<ck::tensor_operation::device::device_gemm_instance::DeviceGemmReduceNoOpPtr>
+    std::vector<ck::tensor_operation::device::device_gemm_instance::DeviceBatchedGemmReduceNoOpPtr>
         gemm_ptrs;
 
     if constexpr(is_same<ADataType, half_t>::value && is_same<BDataType, half_t>::value &&

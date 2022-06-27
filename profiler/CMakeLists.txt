@@ -6,6 +6,7 @@ include_directories(BEFORE
 set(PROFILER_SOURCE
     src/profiler.cpp
     src/profile_gemm.cpp
+    src/profile_gemm_splitk.cpp
     src/profile_gemm_bias_2d.cpp
     src/profile_gemm_bias_relu.cpp
     src/profile_gemm_bias_relu_add.cpp
@@ -30,22 +31,25 @@ target_link_libraries(profile_normalization PRIVATE host_tensor device_normaliza
 
 target_link_libraries(ckProfiler PRIVATE host_tensor)
 target_link_libraries(ckProfiler PRIVATE conv_util)
-target_link_libraries(ckProfiler PRIVATE device_gemm_reduce_instance)
-target_link_libraries(ckProfiler PRIVATE device_gemm_bias_add_reduce_instance)
 target_link_libraries(ckProfiler PRIVATE device_gemm_instance)
+target_link_libraries(ckProfiler PRIVATE device_gemm_splitk_instance)
 target_link_libraries(ckProfiler PRIVATE device_gemm_bias2d_instance)
 target_link_libraries(ckProfiler PRIVATE device_gemm_bias_relu_instance)
 target_link_libraries(ckProfiler PRIVATE device_gemm_bias_relu_add_instance)
+target_link_libraries(ckProfiler PRIVATE device_gemm_reduce_instance)
+target_link_libraries(ckProfiler PRIVATE device_gemm_bias_add_reduce_instance)
+target_link_libraries(ckProfiler PRIVATE device_gemm_add_add_fastgelu_instance)
 target_link_libraries(ckProfiler PRIVATE device_batched_gemm_instance)
+target_link_libraries(ckProfiler PRIVATE device_batched_gemm_reduce_instance)
+target_link_libraries(ckProfiler PRIVATE device_grouped_gemm_instance)
 target_link_libraries(ckProfiler PRIVATE device_conv1d_fwd_instance)
 target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_instance)
 target_link_libraries(ckProfiler PRIVATE device_conv3d_fwd_instance)
 target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_bias_relu_instance)
 target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_bias_relu_add_instance)
 target_link_libraries(ckProfiler PRIVATE device_convnd_bwd_data_instance)
-target_link_libraries(ckProfiler PRIVATE device_reduce_instance)
-target_link_libraries(ckProfiler PRIVATE device_grouped_gemm_instance)
 target_link_libraries(ckProfiler PRIVATE device_conv2d_bwd_weight_instance)
 target_link_libraries(ckProfiler PRIVATE device_batched_gemm_reduce_instance)
 target_link_libraries(ckProfiler PRIVATE device_gemm_add_add_fastgelu_instance)
 target_link_libraries(ckProfiler PRIVATE device_normalization_instance)
+target_link_libraries(ckProfiler PRIVATE device_reduce_instance)

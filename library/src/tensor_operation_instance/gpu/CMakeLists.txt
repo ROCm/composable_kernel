@@ -6,44 +6,48 @@ function(add_instance_library INSTANCE_NAME)
 endfunction(add_instance_library INSTANCE_NAME)
 
 add_subdirectory(gemm)
+add_subdirectory(gemm_splitk)
 add_subdirectory(gemm_bias2d)
 add_subdirectory(gemm_bias_relu)
 add_subdirectory(gemm_bias_relu_add)
 add_subdirectory(gemm_reduce)
 add_subdirectory(gemm_bias_add_reduce)
+add_subdirectory(gemm_add_add_fastgelu)
 add_subdirectory(batched_gemm)
+add_subdirectory(batched_gemm_reduce)
+add_subdirectory(grouped_gemm)
 add_subdirectory(conv1d_fwd)
 add_subdirectory(conv2d_fwd)
 add_subdirectory(conv3d_fwd)
 add_subdirectory(conv2d_fwd_bias_relu)
 add_subdirectory(conv2d_fwd_bias_relu_add)
 add_subdirectory(conv2d_bwd_data)
-add_subdirectory(reduce)
 add_subdirectory(convnd_bwd_data)
-add_subdirectory(grouped_gemm)
 add_subdirectory(conv2d_bwd_weight)
 add_subdirectory(batched_gemm_reduce)
 add_subdirectory(gemm_add_add_fastgelu)
 add_subdirectory(normalization)
+add_subdirectory(reduce)
 
 add_library(device_operations STATIC
-    $<TARGET_OBJECTS:device_conv1d_fwd_instance>
-    $<TARGET_OBJECTS:device_batched_gemm_instance>
-    $<TARGET_OBJECTS:device_conv2d_bwd_data_instance>
-    $<TARGET_OBJECTS:device_conv2d_fwd_instance>
-    $<TARGET_OBJECTS:device_conv2d_fwd_bias_relu_instance>
-    $<TARGET_OBJECTS:device_conv2d_fwd_bias_relu_add_instance>
     $<TARGET_OBJECTS:device_gemm_instance>
+    $<TARGET_OBJECTS:device_gemm_splitk_instance>
     $<TARGET_OBJECTS:device_gemm_bias_relu_instance>
     $<TARGET_OBJECTS:device_gemm_bias_relu_add_instance>
     $<TARGET_OBJECTS:device_gemm_bias2d_instance>
-    $<TARGET_OBJECTS:device_reduce_instance>
-    $<TARGET_OBJECTS:device_convnd_bwd_data_instance>
-    $<TARGET_OBJECTS:device_grouped_gemm_instance>
-    $<TARGET_OBJECTS:device_conv2d_bwd_weight_instance>
-    $<TARGET_OBJECTS:device_batched_gemm_reduce_instance>
-    $<TARGET_OBJECTS:device_conv3d_fwd_instance>
     $<TARGET_OBJECTS:device_gemm_add_add_fastgelu_instance>
+    $<TARGET_OBJECTS:device_batched_gemm_instance>
+    $<TARGET_OBJECTS:device_batched_gemm_reduce_instance>
+    $<TARGET_OBJECTS:device_grouped_gemm_instance>
+    $<TARGET_OBJECTS:device_conv1d_fwd_instance>
+    $<TARGET_OBJECTS:device_conv2d_fwd_instance>
+    $<TARGET_OBJECTS:device_conv3d_fwd_instance>
+    $<TARGET_OBJECTS:device_conv2d_fwd_bias_relu_instance>
+    $<TARGET_OBJECTS:device_conv2d_fwd_bias_relu_add_instance>
+    $<TARGET_OBJECTS:device_conv2d_bwd_data_instance>
+    $<TARGET_OBJECTS:device_convnd_bwd_data_instance>
+    $<TARGET_OBJECTS:device_conv2d_bwd_weight_instance>
+    $<TARGET_OBJECTS:device_reduce_instance>
 )
 add_library(composablekernels::device_operations ALIAS device_operations)
 
@@ -68,8 +72,8 @@ target_include_directories(device_operations PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/thread>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/element>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/host_tensor>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/host>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/reduce>
 )
 
