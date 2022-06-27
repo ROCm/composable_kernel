@@ -32,7 +32,7 @@ struct DeviceBatchedGemmCPermute : public BaseOperator
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
                         CElementwiseOperation c_element_op,
-                        ck::index_t BatchCount = 1) = 0;
+                        ck::index_t BatchCount) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
