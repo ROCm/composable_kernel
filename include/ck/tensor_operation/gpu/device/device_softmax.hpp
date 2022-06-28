@@ -201,6 +201,13 @@ struct DeviceSoftmax : public DeviceNormalization
         return true;
     };
 
+    // inLengths: input tensor extent(s) from high to low dimension
+    // inStrides: input tensor stride(s) from high to low dimension
+    // reduceDims: the dimension(s) the softmax normalization operate on
+    // alpha: typeless pointer in host memory storing the alpha scaling value as type AccDataType
+    // beta: typeless pointer in host memory storing the beta scaling value as type AccDataType
+    // in_dev: typeless const pointer in device memory storing the input tensor
+    // out_dev: typeless pointer in device memory storing the output tensor
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<index_t> inLengths,
                                                       const std::vector<index_t> inStrides,
                                                       const std::vector<int> reduceDims,

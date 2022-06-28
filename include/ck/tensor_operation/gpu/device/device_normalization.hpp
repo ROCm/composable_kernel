@@ -14,6 +14,15 @@ namespace device {
 
 struct DeviceNormalization : public BaseOperator
 {
+    // inLengths: input tensor extent(s) from high to low dimension
+    // inStrides: input tensor stride(s) from high to low dimension
+    // reduceDims: the dimension(s) the normalization operation is applied
+    // alpha: typeless pointer in host memory storing the alpha scaling value
+    //        for FP16/FP32 instances, the value should be of float type
+    // beta: typeless pointer in host memory storing the beta scaling value
+    //       for FP16/FP32 instances, the value should be of float type
+    // in_dev: typeless const pointer in device memory storing the input tensor
+    // out_dev: typeless pointer in device memory storing the output tensor
     virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<index_t> inLengths,
                                                               const std::vector<index_t> inStrides,
                                                               const std::vector<int> reduceDims,
