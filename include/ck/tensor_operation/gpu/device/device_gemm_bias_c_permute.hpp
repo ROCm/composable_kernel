@@ -11,6 +11,12 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+struct GemmBiasCPermuteDesc
+{
+    ck::index_t M0_, M1_, M2, N0_, N1_;
+    ck::index_t stride_M0_, stride_M1_, stride_M2_, stride_N0_, stride_N1_;
+};
+
 // input : A[M, K], B[K, N],
 // input : D[M, N], ...
 // output : E[M, N]
@@ -40,14 +46,11 @@ struct DeviceGemmBiasCPermute : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <ck::index_t NumDTensor,
-          typename AElementwiseOperation,
+template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
-using DeviceGemmBiasCPermutePtr = std::unique_ptr<DeviceGemmBiasCPermute<
-                                                                   AElementwiseOperation,
-                                                                   BElementwiseOperation,
-                                                                   CElementwiseOperation>>;
+using DeviceGemmBiasCPermutePtr = std::unique_ptr<
+    DeviceGemmBiasCPermute<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation
