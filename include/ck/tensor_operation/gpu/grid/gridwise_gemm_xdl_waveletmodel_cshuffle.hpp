@@ -683,12 +683,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
 
             constexpr index_t num_access = sfc_c_vgpr.GetNumOfAccess();
 
+
             static_assert(num_access == sfc_c_global.GetNumOfAccess(), "wrong!");
 
 	    //TODO  
-	    //      1. writing in f32 elements and reading back for /f16/bf16 overutilizing LDS BW
-	    //      change pipeline f32-f16 conversion first before write to reduce 50% LDS BW
-	    //      2. we do not need to do LDS swizzle to align global writes writing cache lines
+	    //      1. we do not need to do LDS swizzle to align global writes writing cache lines
 	    //         v_mfma  cmat, amat, bmat, cmat   - c-mat register layout   are 1xN elments  (N is vertical or strided dimension)
 	    //         v_mfma  cmat, bmat, amat, cmat   - c-mat register layout   are Mx1 elments  (M is coalescing dimension)
 	    //         by enumerating M index in amat, bmat you can align cmat register(s) to contiguous M elements 
@@ -698,7 +697,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
 	    //              3rd mfma instruction  output space : 2 6 10 14 18 ....
 	    //              4th mfma instruction  output space : 3 7 11 15 19 ....
 	    //              you can pack 4 registers output space into 2WORD and do global write (no LDS swizzling required)
-	    //     3. avoid using s_barrier 
+	    //     2. avoid using s_barrier in this case where not all 256 threads required to swizzle c layout 
 
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
