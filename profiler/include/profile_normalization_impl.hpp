@@ -72,7 +72,7 @@ void profile_normalization_impl(int do_verification,
 {
     Tensor<InDataType> in = in_strides.empty() ? Tensor<InDataType>(in_length)
                                                : Tensor<InDataType>(in_length, in_strides);
-    Tensor<OutDataType> out(in);
+    Tensor<OutDataType> out(in.mDesc);
 
     switch(init_method)
     {
