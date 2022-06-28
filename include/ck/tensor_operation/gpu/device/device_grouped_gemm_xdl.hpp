@@ -46,17 +46,22 @@ __global__ void
     const auto gemm_desc_ptr =
         reinterpret_cast<const GemmDesc*>(cast_pointer_to_generic_address_space(gemm_descs_const));
 
-    index_t left = 0;
-    index_t right = group_count;
-    index_t group_id = index_t((left + right)/2);
-    while((!(block_id >= gemm_desc_ptr[group_id].BlockStart_ && block_id < gemm_desc_ptr[group_id].BlockEnd_)) && left <= right ){
-        if(block_id < gemm_desc_ptr[group_id].BlockStart_){
+    index_t left     = 0;
+    index_t right    = group_count;
+    index_t group_id = index_t((left + right) / 2);
+    while((!(block_id >= gemm_desc_ptr[group_id].BlockStart_ &&
+             block_id < gemm_desc_ptr[group_id].BlockEnd_)) &&
+          left <= right)
+    {
+        if(block_id < gemm_desc_ptr[group_id].BlockStart_)
+        {
             right = group_id;
         }
-        else{
+        else
+        {
             left = group_id;
         }
-        group_id = index_t((left + right)/2);
+        group_id = index_t((left + right) / 2);
     }
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(
