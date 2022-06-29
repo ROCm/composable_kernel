@@ -36,19 +36,19 @@ __global__ void
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
         kernel_gemm_bias_c_permute(const FloatAB* __restrict__ p_a_grid,
-                                            const FloatAB* __restrict__ p_b_grid,
-                                            FloatDsPointer p_ds_grid,
-                                            FloatE* __restrict__ p_e_grid,
-                                            const AElementwiseOperation a_element_op,
-                                            const BElementwiseOperation b_element_op,
-                                            const CDEElementwiseOperation cde_element_op,
-                                            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-                                            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-                                            const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                                                ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                                            const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                                                e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                            const Block2ETileMap block_2_etile_map)
+                                   const FloatAB* __restrict__ p_b_grid,
+                                   FloatDsPointer p_ds_grid,
+                                   FloatE* __restrict__ p_e_grid,
+                                   const AElementwiseOperation a_element_op,
+                                   const BElementwiseOperation b_element_op,
+                                   const CDEElementwiseOperation cde_element_op,
+                                   const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+                                   const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+                                   const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                                       ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                   const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                                       e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                   const Block2ETileMap block_2_etile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -137,10 +137,9 @@ template <typename ALayout,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
-struct DeviceGemmBiasCPermute_Xdl : public DeviceGemmBiasCPermute<
-                                                                     AElementwiseOperation,
-                                                                     BElementwiseOperation,
-                                                                     CDEElementwiseOperation>
+struct DeviceGemmBiasCPermute_Xdl : public DeviceGemmBiasCPermute<AElementwiseOperation,
+                                                                  BElementwiseOperation,
+                                                                  CDEElementwiseOperation>
 {
     using DeviceOp = DeviceGemmBiasCPermute_Xdl;
 
@@ -357,19 +356,34 @@ struct DeviceGemmBiasCPermute_Xdl : public DeviceGemmBiasCPermute<
         }
     }
 
-    static auto MakeCGridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t StrideE)
+    static auto MakeEGridDescriptor_M_N(DEGridDesc_M0_M1_M2_N0_N1 d_e_grid_desc)
     {
+        index_t M0 = d_e_grid_desc.M0_;
+        index_t M1 = d_e_grid_desc.M1_;
+        index_t M2 = d_e_grid_desc.M2_;
+        index_t N0 = d_e_grid_desc.N0_;
+        index_t N1 = d_e_grid_desc.N1_;
+
+        index_t stride_M0 = d_e_grid_desc.stride_M0_;
+        index_t stride_M1 = d_e_grid_desc.stride_M1_;
+        index_t stride_M2 = d_e_grid_desc.stride_M2_;
+        index_t stride_N0 = d_e_grid_desc.stride_N0_;
+        index_t stride_N1 = d_e_grid_desc.stride_N1_;
+
+        const auto MRaw = M0 * M1 * M2;
+        const auto NRaw = N0 * N1;
+
         const auto c_grid_desc_mraw_nraw = [&]() {
-            if constexpr(is_same<tensor_layout::gemm::RowMajor, CDELayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
-                                                    make_tuple(StrideE, I1));
-            }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CDELayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
-                                                    make_tuple(I1, StrideE));
-            }
+            const auto c_grid_desc_m0_m1_m2_n0_n1 = make_naive_tensor_descriptor(
+                make_tuple(M0, M1, M2, N0, N1),
+                make_tuple(stride_M0, stride_M1, stride_M2, stride_N0, stride_N1));
+
+            return transform_tensor_descriptor(
+                c_grid_desc_m0_m1_m2_n0_n1,
+                make_tuple(make_merge_transform(make_tuple(M0, M1, M2)),
+                           make_merge_transform(make_tuple(N0, N1))),
+                make_tuple(Sequence<0, 1, 2>{}, Sequence<3, 4>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
         }();
 
         const auto M = math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
@@ -417,7 +431,7 @@ struct DeviceGemmBiasCPermute_Xdl : public DeviceGemmBiasCPermute<
 
     using AGridDesc_AK0_M_AK1 = decltype(MakeAGridDescriptor_AK0_M_AK1(1, 1, 1));
     using BGridDesc_BK0_N_BK1 = decltype(MakeBGridDescriptor_BK0_N_BK1(1, 1, 1));
-    using EGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
+    using EGridDesc_M_N       = decltype(MakeEGridDescriptor_M_N(DEGridDesc_M0_M1_M2_N0_N1{}));
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle<
@@ -478,8 +492,8 @@ struct DeviceGemmBiasCPermute_Xdl : public DeviceGemmBiasCPermute<
                  index_t KRaw,
                  index_t StrideA,
                  index_t StrideB,
-                 index_t StrideD,
-                 index_t StrideE,
+                 DEGridDesc_M0_M1_M2_N0_N1 d_grid_desc,
+                 DEGridDesc_M0_M1_M2_N0_N1 e_grid_desc,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CDEElementwiseOperation cde_element_op)
@@ -490,13 +504,23 @@ struct DeviceGemmBiasCPermute_Xdl : public DeviceGemmBiasCPermute<
               a_grid_desc_ak0_m_ak1_{DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, KRaw, StrideA)},
               b_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1(KRaw, NRaw, StrideB)},
               ds_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              e_grid_desc_m_n_{DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideE)},
+              e_grid_desc_m_n_{DeviceOp::MakeEGridDescriptor_M_N(e_grid_desc)},
               e_grid_desc_mblock_mperblock_nblock_nperblock_{},
               block_2_etile_map_{GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op}
         {
+
+            if(MRaw != d_grid_desc.M0_ * d_grid_desc.M1_ * d_grid_desc.M2_)
+            {
+                throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
+            }
+
+            if(NRaw != d_grid_desc.N0_ * d_grid_desc.N1_)
+            {
+                throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
+            }
 
             if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
                                            b_grid_desc_bk0_n_bk1_,
@@ -507,15 +531,13 @@ struct DeviceGemmBiasCPermute_Xdl : public DeviceGemmBiasCPermute<
                     GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         e_grid_desc_m_n_);
 
+                p_ds_grid_(I0) = static_cast<const DDataType*>(p_d_grid);
 
-                    p_ds_grid_(I0) = static_cast<const DDataType*>(p_d_grid);
+                const auto d_grid_desc_m_n = DeviceOp::MakeEGridDescriptor_M_N(d_grid_desc);
 
-                    const auto d_grid_desc_m_n =
-                        DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideD);
-
-                    ds_grid_desc_mblock_mperblock_nblock_nperblock_(I0) =
-                        GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                            d_grid_desc_m_n);
+                ds_grid_desc_mblock_mperblock_nblock_nperblock_(I0) =
+                    GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                        d_grid_desc_m_n);
             }
         }
 
@@ -650,8 +672,8 @@ struct DeviceGemmBiasCPermute_Xdl : public DeviceGemmBiasCPermute<
                              index_t KRaw,
                              index_t StrideA,
                              index_t StrideB,
-                             index_t StrideD,
-                             index_t StrideE,
+                             DEGridDesc_M0_M1_M2_N0_N1 d_grid_desc,
+                             DEGridDesc_M0_M1_M2_N0_N1 e_grid_desc,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CDEElementwiseOperation cde_element_op)
@@ -665,8 +687,8 @@ struct DeviceGemmBiasCPermute_Xdl : public DeviceGemmBiasCPermute<
                         KRaw,
                         StrideA,
                         StrideB,
-                        StrideD,
-                        StrideE,
+                        d_grid_desc,
+                        e_grid_desc,
                         a_element_op,
                         b_element_op,
                         cde_element_op};
@@ -685,8 +707,8 @@ struct DeviceGemmBiasCPermute_Xdl : public DeviceGemmBiasCPermute<
                         index_t KRaw,
                         index_t StrideA,
                         index_t StrideB,
-                        index_t StrideD,
-                        index_t StrideE,
+                        DEGridDesc_M0_M1_M2_N0_N1 d_grid_desc,
+                        DEGridDesc_M0_M1_M2_N0_N1 e_grid_desc,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
                         CDEElementwiseOperation cde_element_op) override
@@ -700,8 +722,8 @@ struct DeviceGemmBiasCPermute_Xdl : public DeviceGemmBiasCPermute<
                                           KRaw,
                                           StrideA,
                                           StrideB,
-                                          StrideD,
-                                          StrideE,
+                                          d_grid_desc,
+                                          e_grid_desc,
                                           a_element_op,
                                           b_element_op,
                                           cde_element_op);

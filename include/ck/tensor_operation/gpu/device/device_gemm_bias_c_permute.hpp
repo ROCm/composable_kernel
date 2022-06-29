@@ -11,9 +11,9 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-struct GemmBiasCPermuteDesc
+struct DEGridDesc_M0_M1_M2_N0_N1
 {
-    ck::index_t M0_, M1_, M2, N0_, N1_;
+    ck::index_t M0_, M1_, M2_, N0_, N1_;
     ck::index_t stride_M0_, stride_M1_, stride_M2_, stride_N0_, stride_N1_;
 };
 
@@ -37,8 +37,8 @@ struct DeviceGemmBiasCPermute : public BaseOperator
                         ck::index_t K,
                         ck::index_t StrideA,
                         ck::index_t StrideB,
-                        ck::index_t StrideD,
-                        ck::index_t StrideE,
+                        DEGridDesc_M0_M1_M2_N0_N1 d_gride_desc,
+                        DEGridDesc_M0_M1_M2_N0_N1 e_gride_desc,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
                         CDEElementwiseOperation cde_element_op) = 0;
