@@ -118,11 +118,5 @@ python3 parse_perf_data.py $fusion_log
 export reduction_log="perf_reduction.log"
 print_log_header $reduction_log $env_type
 ./profile_reduce_with_index.sh 0 2 10 --half | tee -a $reduction_log
-./profile_reduce_with_index.sh 0 2 10 --double | tee -a $reduction_log
-./profile_reduce_with_index.sh 0 2 10 --int8 | tee -a $reduction_log
-./profile_reduce_with_index.sh 0 2 10 --bf16 | tee -a $reduction_log
 ./profile_reduce_no_index.sh 0 2 10 --half | tee -a $reduction_log
-./profile_reduce_no_index.sh 0 2 10 --double | tee -a $reduction_log
-./profile_reduce_no_index.sh 0 2 10 --int8 | tee -a $reduction_log
-./profile_reduce_no_index.sh 0 2 10 --bf16 | tee -a $reduction_log
 python3 parse_perf_data.py $reduction_log
