@@ -11,12 +11,6 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-struct GemmShape
-{
-    ck::index_t M, N, K;
-    ck::index_t StrideA, StrideB, StrideC;
-};
-
 template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>

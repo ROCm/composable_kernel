@@ -48,11 +48,11 @@ static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecializa
 
 // clang-format off
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemmXdl
-//######| AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C|          GEMM| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer|      Num|
-//######|  Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|Spacialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| SrcDstVectorDim|       DstScalar| Prefetch|
-//######|      |      |      |        |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |                |       PerVector|         |
-//######|      |      |      |        |        |        |        |            |            |            |              |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |                |                |         |
-        <   F16,   F16,   F16,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,   256,   128,     4,  8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,               7,               1,        1>;
+//######| ALayout| BLayout| CLayout| AData| BData| CData| AccData|           A|           B|           C|          GEMM|      Num| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|     CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
+//######|        |        |        |  Type|  Type|  Type|    Type| Elementwise| Elementwise| Elementwise|Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|  MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
+//######|        |        |        |      |      |      |        |   Operation|   Operation|   Operation|              |         |      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |   PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
+//######|        |        |        |      |      |      |        |            |            |            |              |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |             |            |                             |                |
+        <     Row,     Col,     Row,   F16,   F16,   F16,     F32, PassThrough, PassThrough, PassThrough,   GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,            1,           1,               S<1, 32, 1, 8>,               8>;
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
@@ -81,11 +81,11 @@ int main(int argc, char* argv[])
     int group_count = rand() % 16 + 1;
 
     // GEMM shape
-    std::vector<ck::tensor_operation::device::GemmShape> gemm_shapes;
+    std::vector<ck::tensor_operation::device::GemmDesc> gemm_descs;
     std::vector<const void*> p_a, p_b;
     std::vector<void*> p_c;
 
-    gemm_shapes.reserve(group_count);
+    gemm_descs.reserve(group_count);
 
     for(int i = 0; i < group_count; i++)
     {
@@ -93,7 +93,7 @@ int main(int argc, char* argv[])
         int N = 128 + 128 * i;
         int K = 64 + 64 * i;
 
-        gemm_shapes.push_back({M, N, K, K, K, N});
+        gemm_descs.push_back({M, N, K, K, K, N});
     }
 
     auto f_host_tensor_descriptor =
@@ -131,22 +131,22 @@ int main(int argc, char* argv[])
 
     std::size_t flop = 0, num_btype = 0;
 
-    for(std::size_t i = 0; i < gemm_shapes.size(); i++)
+    for(std::size_t i = 0; i < gemm_descs.size(); i++)
     {
         a_tensors.push_back(Tensor<ADataType>(f_host_tensor_descriptor(
-            gemm_shapes[i].M, gemm_shapes[i].K, gemm_shapes[i].StrideA, ALayout{})));
+            gemm_descs[i].M_, gemm_descs[i].K_, gemm_descs[i].stride_A_, ALayout{})));
         b_tensors.push_back(Tensor<BDataType>(f_host_tensor_descriptor(
-            gemm_shapes[i].K, gemm_shapes[i].N, gemm_shapes[i].StrideB, BLayout{})));
+            gemm_descs[i].K_, gemm_descs[i].N_, gemm_descs[i].stride_B_, BLayout{})));
         c_host_tensors.push_back(Tensor<CDataType>(f_host_tensor_descriptor(
-            gemm_shapes[i].M, gemm_shapes[i].N, gemm_shapes[i].StrideC, CLayout{})));
+            gemm_descs[i].M_, gemm_descs[i].N_, gemm_descs[i].stride_C_, CLayout{})));
         c_device_tensors.push_back(Tensor<CDataType>(f_host_tensor_descriptor(
-            gemm_shapes[i].M, gemm_shapes[i].N, gemm_shapes[i].StrideC, CLayout{})));
+            gemm_descs[i].M_, gemm_descs[i].N_, gemm_descs[i].stride_C_, CLayout{})));
 
         std::cout << "gemm[" << i << "] a_m_k: " << a_tensors[i].mDesc
                   << " b_k_n: " << b_tensors[i].mDesc << " c_m_n: " << c_device_tensors[i].mDesc
                   << std::endl;
 
-        flop += std::size_t(2) * gemm_shapes[i].M * gemm_shapes[i].K * gemm_shapes[i].N;
+        flop += std::size_t(2) * gemm_descs[i].M_ * gemm_descs[i].K_ * gemm_descs[i].N_;
         num_btype += sizeof(ADataType) * a_tensors[i].mDesc.GetElementSize() +
                      sizeof(BDataType) * b_tensors[i].mDesc.GetElementSize() +
                      sizeof(CDataType) * c_device_tensors[i].mDesc.GetElementSize();
@@ -168,7 +168,7 @@ int main(int argc, char* argv[])
         }
     }
 
-    for(std::size_t i = 0; i < gemm_shapes.size(); i++)
+    for(std::size_t i = 0; i < gemm_descs.size(); i++)
     {
         a_tensors_device.emplace_back(
             std::make_unique<DeviceMem>(sizeof(ADataType) * a_tensors[i].mDesc.GetElementSpace()));
@@ -194,7 +194,7 @@ int main(int argc, char* argv[])
 
     // do GEMM
     auto argument =
-        gemm.MakeArgument(p_a, p_b, p_c, gemm_shapes, a_element_op, b_element_op, c_element_op);
+        gemm.MakeArgument(p_a, p_b, p_c, gemm_descs, a_element_op, b_element_op, c_element_op);
 
     DeviceMem gemm_desc_workspace(gemm.GetWorkSpaceSize(&argument));
 
@@ -219,7 +219,7 @@ int main(int argc, char* argv[])
     bool pass = true;
     if(do_verification)
     {
-        for(std::size_t i = 0; i < gemm_shapes.size(); i++)
+        for(std::size_t i = 0; i < gemm_descs.size(); i++)
         {
             c_tensors_device[i]->FromDevice(c_device_tensors[i].mData.data());
             auto ref_gemm    = ReferenceGemmInstance{};
