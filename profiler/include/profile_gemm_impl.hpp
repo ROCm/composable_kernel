@@ -12,7 +12,7 @@
 #include "ck/tensor_operation/gpu/device/device_gemm.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/device_gemm_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/gemm.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/host_tensor/device_memory.hpp"
@@ -95,13 +95,21 @@ int profile_gemm_impl(int do_verification,
     c_device_buf.ToDevice(c_m_n_device_result.mData.data());
 
     // add device op instances
-    const auto op_ptrs = ck::tensor_operation::device::device_gemm_instance::
-        get_device_gemm_instances<ADataType, BDataType, CDataType, ALayout, BLayout, CLayout>();
+    using DeviceOp = ck::tensor_operation::device::DeviceGemm<ALayout,
+                                                              BLayout,
+                                                              CLayout,
+                                                              ADataType,
+                                                              BDataType,
+                                                              CDataType,
+                                                              AElementOp,
+                                                              BElementOp,
+                                                              CElementOp>;
 
-    if(op_ptrs.size() <= 0)
-    {
-        throw std::runtime_error("wrong! no device GEMM instance found");
-    }
+    // get device op instances
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
+
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     // Run reference GEMM
     if(do_verification)
@@ -132,27 +140,28 @@ int profile_gemm_impl(int do_verification,
     for(auto& op_ptr : op_ptrs)
     {
         auto argument_ptr =
-            op_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                                        static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-                                        static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                        M,
-                                        N,
-                                        K,
-                                        StrideA,
-                                        StrideB,
-                                        StrideC,
-                                        ck::tensor_operation::element_wise::PassThrough{},
-                                        ck::tensor_operation::element_wise::PassThrough{},
-                                        ck::tensor_operation::element_wise::PassThrough{});
+            dynamic_cast<DeviceOp*>(op_ptr.get())
+                ->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+                                      static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
+                                      static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+                                      M,
+                                      N,
+                                      K,
+                                      StrideA,
+                                      StrideB,
+                                      StrideC,
+                                      a_element_op,
+                                      b_element_op,
+                                      c_element_op);
 
-        auto invoker_ptr = op_ptr->MakeInvokerPointer();
+        auto invoker_ptr = dynamic_cast<DeviceOp*>(op_ptr.get())->MakeInvokerPointer();
 
-        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
+        if(dynamic_cast<DeviceOp*>(op_ptr.get())->IsSupportedArgument(argument_ptr.get()))
         {
             // re-init C to zero before profiling next kernel
             c_device_buf.SetZero();
 
-            std::string op_name = op_ptr->GetTypeString();
+            std::string op_name = dynamic_cast<DeviceOp*>(op_ptr.get())->GetTypeString();
 
             float ave_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
@@ -197,7 +206,8 @@ int profile_gemm_impl(int do_verification,
         }
         else
         {
-            std::cout << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
+            std::cout << dynamic_cast<DeviceOp*>(op_ptr.get())->GetTypeString()
+                      << " does not support this problem" << std::endl;
         }
     }
 
