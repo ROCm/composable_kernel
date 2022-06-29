@@ -211,16 +211,16 @@ struct DeviceSoftmax : public DeviceNormalization
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<index_t> inLengths,
                                                       const std::vector<index_t> inStrides,
                                                       const std::vector<int> reduceDims,
-                                                      void* alpha,
-                                                      void* beta,
+                                                      const void* alpha,
+                                                      const void* beta,
                                                       const void* in_dev,
                                                       void* out_dev) override
     {
         return std::make_unique<Argument>(inLengths,
                                           inStrides,
                                           reduceDims,
-                                          *static_cast<AccDataType*>(alpha),
-                                          *static_cast<AccDataType*>(beta),
+                                          *static_cast<const AccDataType*>(alpha),
+                                          *static_cast<const AccDataType*>(beta),
                                           static_cast<const InDataType*>(in_dev),
                                           static_cast<OutDataType*>(out_dev));
     };

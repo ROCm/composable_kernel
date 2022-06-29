@@ -24,8 +24,8 @@ struct DeviceNormalization : public BaseOperator
     virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<index_t> inLengths,
                                                               const std::vector<index_t> inStrides,
                                                               const std::vector<int> reduceDims,
-                                                              void* alpha,
-                                                              void* beta,
+                                                              const void* alpha,
+                                                              const void* beta,
                                                               const void* in_dev,
                                                               void* out_dev) = 0;
 
