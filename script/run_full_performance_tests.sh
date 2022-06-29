@@ -81,28 +81,28 @@ python3 parse_perf_data.py $batched_gemm_log
 #run grouped_gemm tests
 export grouped_gemm_log="perf_grouped_gemm.log"
 print_log_header $grouped_gemm_log $env_type
-./profile_grouped_gemm.sh batched_gemm 1 0 0 2 0 5 | tee -a $grouped_gemm_log
-./profile_grouped_gemm.sh batched_gemm 1 1 0 2 0 5 | tee -a $grouped_gemm_log
-./profile_grouped_gemm.sh batched_gemm 1 2 0 2 0 5 | tee -a $grouped_gemm_log
-./profile_grouped_gemm.sh batched_gemm 1 3 0 2 0 5 | tee -a $grouped_gemm_log
+./profile_grouped_gemm.sh grouped_gemm 1 0 0 2 0 5 | tee -a $grouped_gemm_log
+./profile_grouped_gemm.sh grouped_gemm 1 1 0 2 0 5 | tee -a $grouped_gemm_log
+./profile_grouped_gemm.sh grouped_gemm 1 2 0 2 0 5 | tee -a $grouped_gemm_log
+./profile_grouped_gemm.sh grouped_gemm 1 3 0 2 0 5 | tee -a $grouped_gemm_log
 python3 parse_perf_data.py $grouped_gemm_log
 
 #run fwd_conv tests
 export fwd_conv_log="perf_fwd_conv.log"
 print_log_header $fwd_conv_log $env_type
-./profile_conv.sh conv_fwd 0 1 1 1 0 2 0 5 256 | tee -a $fwd_conv_log
-./profile_conv.sh conv_fwd 1 1 1 1 0 2 0 5 256 | tee -a $fwd_conv_log
-./profile_conv.sh conv_fwd 2 1 1 1 0 2 0 5 256 | tee -a $fwd_conv_log
-./profile_conv.sh conv_fwd 3 1 1 1 0 2 0 5 256 | tee -a $fwd_conv_log
+./profile_conv.sh conv_fwd 0 1 0 2 0 5 2 256 | tee -a $fwd_conv_log
+./profile_conv.sh conv_fwd 1 1 0 2 0 5 2 256 | tee -a $fwd_conv_log
+./profile_conv.sh conv_fwd 2 1 0 2 0 5 2 256 | tee -a $fwd_conv_log
+./profile_conv.sh conv_fwd 3 1 0 2 0 5 2 256 | tee -a $fwd_conv_log
 python3 parse_perf_data.py $fwd_conv_log
 
 #run bwd_conv tests
 export bwd_conv_log="perf_bwd_conv.log"
 print_log_header $bwd_conv_log $env_type
-./profile_conv.sh conv_bwd 0 1 1 1 0 2 0 5 128 | tee -a $bwd_conv_log
-./profile_conv.sh conv_bwd 1 1 1 1 0 2 0 5 128 | tee -a $bwd_conv_log
-./profile_conv.sh conv_bwd 2 1 1 1 0 2 0 5 128 | tee -a $bwd_conv_log
-./profile_conv.sh conv_bwd 3 1 1 1 0 2 0 5 128 | tee -a $bwd_conv_log
+./profile_conv.sh conv2d_bwd_data 0 1 1 1 0 2 0 5 128 | tee -a $bwd_conv_log
+./profile_conv.sh conv2d_bwd_data 1 1 1 1 0 2 0 5 128 | tee -a $bwd_conv_log
+./profile_conv.sh conv2d_bwd_data 2 1 1 1 0 2 0 5 128 | tee -a $bwd_conv_log
+./profile_conv.sh conv2d_bwd_data 3 1 1 1 0 2 0 5 128 | tee -a $bwd_conv_log
 python3 parse_perf_data.py $bwd_conv_log
 
 #run fusion tests
@@ -117,6 +117,12 @@ python3 parse_perf_data.py $fusion_log
 #run reduction tests
 export reduction_log="perf_reduction.log"
 print_log_header $reduction_log $env_type
-./profile_reduce_with_index.sh 0 1 10 | tee -a $reduction_log
-./profile_reduce_no_index.sh 0 1 10 | tee -a $reduction_log
+./profile_reduce_with_index.sh 0 2 10 --half | tee -a $reduction_log
+./profile_reduce_with_index.sh 0 2 10 --double | tee -a $reduction_log
+./profile_reduce_with_index.sh 0 2 10 --int8 | tee -a $reduction_log
+./profile_reduce_with_index.sh 0 2 10 --bf16 | tee -a $reduction_log
+./profile_reduce_no_index.sh 0 2 10 --half | tee -a $reduction_log
+./profile_reduce_no_index.sh 0 2 10 --double | tee -a $reduction_log
+./profile_reduce_no_index.sh 0 2 10 --int8 | tee -a $reduction_log
+./profile_reduce_no_index.sh 0 2 10 --bf16 | tee -a $reduction_log
 python3 parse_perf_data.py $reduction_log

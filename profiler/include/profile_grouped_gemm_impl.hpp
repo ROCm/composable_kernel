@@ -228,6 +228,10 @@ void profile_grouped_gemm_impl(int do_verification,
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
 
+        DeviceMem gemm_desc_workspace(gemm.GetWorkSpaceSize(argument_ptr.get()));
+
+        gemm_ptr->SetWorkSpacePointer(argument_ptr.get(), gemm_desc_workspace.GetDeviceBuffer());
+
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             std::string gemm_name = gemm_ptr->GetTypeString();

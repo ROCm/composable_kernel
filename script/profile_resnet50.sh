@@ -1,12 +1,8 @@
 #!/bin/bash
 
 ## GPU visibility
- export HIP_VISIBLE_DEVICES=0
-
-# make -j ckProfiler
-
- DRIVER="../build/bin/ckProfiler"
-
+export HIP_VISIBLE_DEVICES=0
+DRIVER="../build/bin/ckProfiler"
 OP=$1
 DATATYPE=$2
 IN_LAYOUT=$3
@@ -16,6 +12,7 @@ VERIFY=$6
 INIT=$7
 LOG=$8
 REPEAT=$9
+N=${10}
 
 # test
 ########  op  datatype  in_layout   wei_layout  out_layout  verify  init  log  repeat  N__ K___ C___ Y X Hi__ Wi__ Strides Dilations LeftPads RightPads  Desired_grid_size__
@@ -23,8 +20,6 @@ REPEAT=$9
 #$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT  128  256  256 3 3   30   30    2  2      1  1     0  0      0  0   $DESIRED_GRID_SIZE
 #$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT  128  256  256 3 3   28   28    2  2      1  1     1  1      1  1   $DESIRED_GRID_SIZE
 #$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT  128 1024  256 1 1   14   14    1  1      1  1     0  0      0  0   $DESIRED_GRID_SIZE
-
- N=${10}
 
 # Resnet50 (no duplicated layer)
 ########  op  datatype  in_layout   wei_layout  out_layout  verify  init  log  repeat  N__ K___ C___ Y X Hi__ Wi__ Strides Dilations LeftPads RightPads
@@ -48,7 +43,6 @@ REPEAT=$9
 #$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N   64   64 1 1   56   56     1 1       1 1      0 0       0 0
 #$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N   64   64 3 3   56   56     1 1       1 1      1 1       1 1
 #$DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N   64    3 7 7  224  224     2 2       1 1      3 3       3 3
-
 
 # Resnet50 fusion
 ####### op_________________    datatype  in_layout   wei_layout  out_layout  verify  init  log  repeat    N__  K___ C_ Y X  Hi_ Wi__ Strides Dilations LeftPads RightPads
