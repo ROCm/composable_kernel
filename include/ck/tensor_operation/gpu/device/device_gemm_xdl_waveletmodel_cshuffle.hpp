@@ -10,7 +10,6 @@
 #include "gridwise_gemm_xdl_waveletmodel_cshuffle.hpp"
 #include "gemm_specialization.hpp"
 
-
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -438,7 +437,7 @@ struct DeviceGemm_Xdl_WaveletModel_CShuffle
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, const StreamConfig& stream_config= StreamConfig{})
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
 #if 0
             {
@@ -485,11 +484,11 @@ struct DeviceGemm_Xdl_WaveletModel_CShuffle
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     true>;
 
-                ave_time = 
-		    launch_and_time_kernel(stream_config,
+                ave_time =
+                    launch_and_time_kernel(stream_config,
                                            kernel,
-                        		   dim3(grid_size),
-                        		   dim3(TileLoadThreadGroupSize + TileMathThreadGroupSize),
+                                           dim3(grid_size),
+                                           dim3(TileLoadThreadGroupSize + TileMathThreadGroupSize),
                                            0,
                                            arg.p_a_grid_,
                                            arg.p_b_grid_,
@@ -516,8 +515,8 @@ struct DeviceGemm_Xdl_WaveletModel_CShuffle
                     typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     false>;
-                ave_time = 
-		    launch_and_time_kernel(stream_config,
+                ave_time =
+                    launch_and_time_kernel(stream_config,
                                            kernel,
                                            dim3(grid_size),
                                            dim3(TileLoadThreadGroupSize + TileMathThreadGroupSize),
@@ -539,7 +538,7 @@ struct DeviceGemm_Xdl_WaveletModel_CShuffle
 
         // polymorphic
         float Run(const BaseArgument* p_arg,
-	          const StreamConfig& stream_config = StreamConfig{}) override
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
