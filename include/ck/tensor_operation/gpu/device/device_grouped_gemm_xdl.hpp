@@ -76,7 +76,7 @@ __global__ void
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = c_element_op;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif
 }
 
 template <typename ALayout,
@@ -84,8 +84,9 @@ template <typename ALayout,
           typename CLayout,
           typename ADataType,
           typename BDataType,
-          typename CDataType,
           typename AccDataType,
+          typename CShuffleDataType,
+          typename EDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
@@ -399,9 +400,9 @@ struct DeviceGroupedGemmXdl
     using GridwiseGemm = GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle<
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
-        CDataType,
+        CShuffleDataType,
         ck::Tuple<>,
-        CDataType,
+        EDataType,
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
@@ -497,7 +498,7 @@ struct DeviceGroupedGemmXdl
 
         const ADataType* a_ptr_;
         const BDataType* b_ptr_;
-        CDataType* c_ptr_;
+        EDataType* c_ptr_;
 
         ck::index_t BlockStart_, BlockEnd_;
     };
@@ -576,7 +577,7 @@ struct DeviceGroupedGemmXdl
                                                block_2_ctile_map_,
                                                static_cast<const ADataType*>(p_As[i]),
                                                static_cast<const BDataType*>(p_Bs[i]),
-                                               static_cast<CDataType*>(p_Es[i]),
+                                               static_cast<EDataType*>(p_Es[i]),
                                                BlockStart,
                                                BlockEnd});
                 }

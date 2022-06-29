@@ -145,9 +145,9 @@ void profile_grouped_gemm_impl(int do_verification,
     p_b.reserve(group_count);
     p_c.reserve(group_count);
 
-    std::vector<ck::tensor_operation::device::GemmShape> gemm_shapes;
+    std::vector<ck::tensor_operation::device::GemmDesc> gemm_descs;
 
-    gemm_shapes.reserve(group_count);
+    gemm_descs.reserve(group_count);
 
     for(std::size_t i = 0; i < group_count; i++)
     {
@@ -163,7 +163,7 @@ void profile_grouped_gemm_impl(int do_verification,
         b_device_buf[i]->ToDevice(b_k_n[i].mData.data());
         c_device_buf[i]->ToDevice(c_m_n_device_results[i].mData.data());
 
-        gemm_shapes.push_back({Ms[i], Ns[i], Ks[i], StrideAs[i], StrideBs[i], StrideCs[i]});
+        gemm_descs.push_back({Ms[i], Ns[i], Ks[i], StrideAs[i], StrideBs[i], StrideCs[i]});
 
         p_a.push_back(a_device_buf[i]->GetDeviceBuffer());
         p_b.push_back(b_device_buf[i]->GetDeviceBuffer());
@@ -225,10 +225,14 @@ void profile_grouped_gemm_impl(int do_verification,
             gemm_ptr->MakeArgumentPointer(p_a,
                                           p_b,
                                           p_c,
-                                          gemm_shapes,
+                                          gemm_descs,
                                           ck::tensor_operation::element_wise::PassThrough{},
                                           ck::tensor_operation::element_wise::PassThrough{},
                                           ck::tensor_operation::element_wise::PassThrough{});
+
+        DeviceMem gemm_desc_workspace(gemm_ptr->GetWorkSpaceSize(argument_ptr.get()));
+
+        gemm_ptr->SetWorkSpacePointer(argument_ptr.get(), gemm_desc_workspace.GetDeviceBuffer());
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
 
@@ -240,7 +244,7 @@ void profile_grouped_gemm_impl(int do_verification,
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
             std::size_t flop = 0, num_btype = 0;
-            for(std::size_t i = 0; i < gemm_shapes.size(); i++)
+            for(std::size_t i = 0; i < gemm_descs.size(); i++)
             {
                 flop += std::size_t(2) * Ms[i] * Ns[i] * Ks[i];
 
@@ -264,7 +268,7 @@ void profile_grouped_gemm_impl(int do_verification,
 
             if(do_verification)
             {
-                for(std::size_t i = 0; i < gemm_shapes.size(); i++)
+                for(std::size_t i = 0; i < gemm_descs.size(); i++)
                 {
 
                     c_device_buf[i]->FromDevice(c_m_n_device_results[i].mData.data());

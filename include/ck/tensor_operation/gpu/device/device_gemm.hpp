@@ -39,29 +39,6 @@ template <typename AElementwiseOperation,
 using DeviceGemmPtr = std::unique_ptr<
     DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>>;
 
-template <typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation>
-struct DeviceGroupedGemm : public BaseOperator
-{
-    virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(std::vector<const void*>& p_a,
-                                                              std::vector<const void*>& p_b,
-                                                              std::vector<void*>& p_c,
-                                                              std::vector<GemmShape>& gemm_shapes,
-                                                              AElementwiseOperation a_element_op,
-                                                              BElementwiseOperation b_element_op,
-                                                              CElementwiseOperation c_element_op,
-                                                              ck::index_t KBatch = 1) = 0;
-
-    virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
-};
-
-template <typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation>
-using DeviceGroupedGemmPtr = std::unique_ptr<
-    DeviceGroupedGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>>;
-
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
