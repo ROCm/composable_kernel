@@ -7,12 +7,12 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_xdl_c_shuffle_bias_2d.hpp"
-#include "ck/library/tensor_operation_instance/device_operation_instance.hpp"
+#include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_gemm_instance {
+namespace instance {
 
 using F32 = float;
 
@@ -55,7 +55,7 @@ void add_device_gemm_xdl_c_shuffle_bias_2d_f32_f32_f32_mk_nk_mn_instances(
         instances, device_gemm_xdl_c_shuffle_bias_2d_f32_f32_f32_mk_nk_mn_instances{});
 }
 
-} // namespace device_gemm_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

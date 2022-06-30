@@ -31,15 +31,15 @@ namespace device {
 using DeviceConvFwdNoOpPtr = DeviceConvFwdPtr<element_wise::PassThrough,
                                               element_wise::PassThrough,
                                               element_wise::PassThrough>;
-namespace device_conv1d_fwd_instance {
+namespace instance {
 
 void add_device_conv1d_fwd_xdl_nwc_kxc_nwk_bf16_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 void add_device_conv1d_fwd_xdl_nwc_kxc_nwk_f16_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 void add_device_conv1d_fwd_xdl_nwc_kxc_nwk_f32_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 void add_device_conv1d_fwd_xdl_nwc_kxc_nwk_int8_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 
-} // namespace device_conv1d_fwd_instance
-namespace device_conv2d_fwd_instance {
+} // namespace instance
+namespace instance {
 
 void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances(std::vector<DeviceConvFwdNoOpPtr>&);
@@ -48,15 +48,15 @@ void add_device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances(
 void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 
-} // namespace device_conv2d_fwd_instance
-namespace device_conv3d_fwd_instance {
+} // namespace instance
+namespace instance {
 
 void add_device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_bf16_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 void add_device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_f16_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 void add_device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_f32_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 void add_device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_int8_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 
-} // namespace device_conv3d_fwd_instance
+} // namespace instance
 
 } // namespace device
 } // namespace tensor_operation
@@ -295,17 +295,17 @@ struct ConvolutionFwdInstances<float, float, float>
         std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
         if constexpr(NumDimSpatial == 1)
         {
-            ck::tensor_operation::device::device_conv1d_fwd_instance::
+            ck::tensor_operation::device::instance::
                 add_device_conv1d_fwd_xdl_nwc_kxc_nwk_f32_instances(conv_ptrs);
         }
         else if constexpr(NumDimSpatial == 2)
         {
-            ck::tensor_operation::device::device_conv2d_fwd_instance::
+            ck::tensor_operation::device::instance::
                 add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances(conv_ptrs);
         }
         else if constexpr(NumDimSpatial == 3)
         {
-            ck::tensor_operation::device::device_conv3d_fwd_instance::
+            ck::tensor_operation::device::instance::
                 add_device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_f32_instances(conv_ptrs);
         }
         return conv_ptrs;
@@ -322,20 +322,20 @@ struct ConvolutionFwdInstances<half_t, half_t, half_t>
         std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
         if constexpr(NumDimSpatial == 1)
         {
-            ck::tensor_operation::device::device_conv1d_fwd_instance::
+            ck::tensor_operation::device::instance::
                 add_device_conv1d_fwd_xdl_nwc_kxc_nwk_f16_instances(conv_ptrs);
             return conv_ptrs;
         }
         else if constexpr(NumDimSpatial == 2)
         {
-            ck::tensor_operation::device::device_conv2d_fwd_instance::
+            ck::tensor_operation::device::instance::
                 add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
-            ck::tensor_operation::device::device_conv2d_fwd_instance::
+            ck::tensor_operation::device::instance::
                 add_device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
         }
         else if constexpr(NumDimSpatial == 3)
         {
-            ck::tensor_operation::device::device_conv3d_fwd_instance::
+            ck::tensor_operation::device::instance::
                 add_device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_f16_instances(conv_ptrs);
         }
         return conv_ptrs;
@@ -352,17 +352,17 @@ struct ConvolutionFwdInstances<bhalf_t, bhalf_t, bhalf_t>
         std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
         if constexpr(NumDimSpatial == 1)
         {
-            ck::tensor_operation::device::device_conv1d_fwd_instance::
+            ck::tensor_operation::device::instance::
                 add_device_conv1d_fwd_xdl_nwc_kxc_nwk_bf16_instances(conv_ptrs);
         }
         else if constexpr(NumDimSpatial == 2)
         {
-            ck::tensor_operation::device::device_conv2d_fwd_instance::
+            ck::tensor_operation::device::instance::
                 add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
         }
         else if constexpr(NumDimSpatial == 3)
         {
-            ck::tensor_operation::device::device_conv3d_fwd_instance::
+            ck::tensor_operation::device::instance::
                 add_device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_bf16_instances(conv_ptrs);
         }
         return conv_ptrs;
@@ -379,17 +379,17 @@ struct ConvolutionFwdInstances<int8_t, int8_t, int8_t>
         std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
         if constexpr(NumDimSpatial == 1)
         {
-            ck::tensor_operation::device::device_conv1d_fwd_instance::
+            ck::tensor_operation::device::instance::
                 add_device_conv1d_fwd_xdl_nwc_kxc_nwk_int8_instances(conv_ptrs);
         }
         else if constexpr(NumDimSpatial == 2)
         {
-            ck::tensor_operation::device::device_conv2d_fwd_instance::
+            ck::tensor_operation::device::instance::
                 add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(conv_ptrs);
         }
         else if constexpr(NumDimSpatial == 3)
         {
-            ck::tensor_operation::device::device_conv3d_fwd_instance::
+            ck::tensor_operation::device::instance::
                 add_device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_int8_instances(conv_ptrs);
         }
         return conv_ptrs;

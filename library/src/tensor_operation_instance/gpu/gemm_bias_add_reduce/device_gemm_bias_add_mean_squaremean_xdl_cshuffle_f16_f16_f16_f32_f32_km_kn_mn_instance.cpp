@@ -9,12 +9,12 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_bias_add_reduce_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/library/tensor_operation_instance/device_operation_instance.hpp"
+#include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_gemm_instance {
+namespace instance {
 
 using F16              = ck::half_t;
 using F32              = float;
@@ -76,7 +76,7 @@ void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f
         device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_kn_mn_instances{});
 }
 
-} // namespace device_gemm_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

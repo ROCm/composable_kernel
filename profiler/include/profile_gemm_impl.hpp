@@ -94,7 +94,6 @@ int profile_gemm_impl(int do_verification,
     b_device_buf.ToDevice(b_k_n.mData.data());
     c_device_buf.ToDevice(c_m_n_device_result.mData.data());
 
-    // add device op instances
     using DeviceOp = ck::tensor_operation::device::DeviceGemm<ALayout,
                                                               BLayout,
                                                               CLayout,
@@ -140,28 +139,27 @@ int profile_gemm_impl(int do_verification,
     for(auto& op_ptr : op_ptrs)
     {
         auto argument_ptr =
-            dynamic_cast<DeviceOp*>(op_ptr.get())
-                ->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                                      static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-                                      static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                      M,
-                                      N,
-                                      K,
-                                      StrideA,
-                                      StrideB,
-                                      StrideC,
-                                      a_element_op,
-                                      b_element_op,
-                                      c_element_op);
+            op_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+                                        static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
+                                        static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+                                        M,
+                                        N,
+                                        K,
+                                        StrideA,
+                                        StrideB,
+                                        StrideC,
+                                        a_element_op,
+                                        b_element_op,
+                                        c_element_op);
 
-        auto invoker_ptr = dynamic_cast<DeviceOp*>(op_ptr.get())->MakeInvokerPointer();
+        auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-        if(dynamic_cast<DeviceOp*>(op_ptr.get())->IsSupportedArgument(argument_ptr.get()))
+        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             // re-init C to zero before profiling next kernel
             c_device_buf.SetZero();
 
-            std::string op_name = dynamic_cast<DeviceOp*>(op_ptr.get())->GetTypeString();
+            std::string op_name = op_ptr->GetTypeString();
 
             float ave_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
@@ -206,8 +204,7 @@ int profile_gemm_impl(int do_verification,
         }
         else
         {
-            std::cout << dynamic_cast<DeviceOp*>(op_ptr.get())->GetTypeString()
-                      << " does not support this problem" << std::endl;
+            std::cout << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
         }
     }
 

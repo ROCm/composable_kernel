@@ -35,7 +35,7 @@ using DeviceGemmSplitKNoOpPtr = ck::tensor_operation::device::DeviceGemmSplitKPt
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_gemm_instance {
+namespace instance {
 
 void add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(
     std::vector<DeviceGemmSplitKNoOpPtr>&);
@@ -46,7 +46,7 @@ void add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(
 void add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(
     std::vector<DeviceGemmSplitKNoOpPtr>&);
 
-} // namespace device_gemm_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
@@ -157,22 +157,22 @@ int test_gemm(const gemmArgs& args)
 
     if(args.layout == GemmMatrixLayout::MK_KN_MN)
     {
-        ck::tensor_operation::device::device_gemm_instance::
+        ck::tensor_operation::device::instance::
             add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(gemm_ptrs);
     }
     else if(args.layout == GemmMatrixLayout::MK_NK_MN)
     {
-        ck::tensor_operation::device::device_gemm_instance::
+        ck::tensor_operation::device::instance::
             add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(gemm_ptrs);
     }
     else if(args.layout == GemmMatrixLayout::KM_KN_MN)
     {
-        ck::tensor_operation::device::device_gemm_instance::
+        ck::tensor_operation::device::instance::
             add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(gemm_ptrs);
     }
     else
     {
-        ck::tensor_operation::device::device_gemm_instance::
+        ck::tensor_operation::device::instance::
             add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(gemm_ptrs);
     }
 

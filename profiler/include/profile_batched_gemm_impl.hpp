@@ -117,13 +117,13 @@ bool profile_batched_gemm_impl(int do_verification,
     c_device_buf.ToDevice(c_g_m_n_device_result.mData.data());
 
     // add device op instances
-    const auto op_ptrs = ck::tensor_operation::device::device_batched_gemm_instance::
-        get_device_batched_gemm_instances<ADataType,
-                                          BDataType,
-                                          CDataType,
-                                          ALayout,
-                                          BLayout,
-                                          CLayout>();
+    const auto op_ptrs =
+        ck::tensor_operation::device::instance::get_device_batched_gemm_instances<ADataType,
+                                                                                  BDataType,
+                                                                                  CDataType,
+                                                                                  ALayout,
+                                                                                  BLayout,
+                                                                                  CLayout>();
 
     if(op_ptrs.size() <= 0)
     {

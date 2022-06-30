@@ -10,12 +10,12 @@
 #include "ck/tensor_operation/gpu/device/device_batched_gemm.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/device_operation_instance.hpp"
+#include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_batched_gemm_instance {
+namespace instance {
 
 using DeviceBatchedGemmNoOpPtr = ck::tensor_operation::device::DeviceBatchedGemmPtr<
     ck::tensor_operation::element_wise::PassThrough,
@@ -72,28 +72,28 @@ auto get_device_batched_gemm_instances()
                      is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                      is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_batched_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_batched_gemm_xdl_f32_f32_f32_gmk_gkn_gmn_instances(op_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_batched_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_batched_gemm_xdl_f32_f32_f32_gmk_gnk_gmn_instances(op_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_batched_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_batched_gemm_xdl_f32_f32_f32_gkm_gkn_gmn_instances(op_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_batched_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_batched_gemm_xdl_f32_f32_f32_gkm_gnk_gmn_instances(op_ptrs);
         }
     }
@@ -104,28 +104,28 @@ auto get_device_batched_gemm_instances()
                      is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                      is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_batched_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_batched_gemm_xdl_f16_f16_f16_gmk_gkn_gmn_instances(op_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_batched_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_batched_gemm_xdl_f16_f16_f16_gmk_gnk_gmn_instances(op_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_batched_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_batched_gemm_xdl_f16_f16_f16_gkm_gkn_gmn_instances(op_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_batched_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_batched_gemm_xdl_f16_f16_f16_gkm_gnk_gmn_instances(op_ptrs);
         }
     }
@@ -136,28 +136,28 @@ auto get_device_batched_gemm_instances()
                      is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                      is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_batched_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_batched_gemm_xdl_bf16_bf16_bf16_gmk_gkn_gmn_instances(op_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_batched_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_batched_gemm_xdl_bf16_bf16_bf16_gmk_gnk_gmn_instances(op_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_batched_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_batched_gemm_xdl_bf16_bf16_bf16_gkm_gkn_gmn_instances(op_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_batched_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_batched_gemm_xdl_bf16_bf16_bf16_gkm_gnk_gmn_instances(op_ptrs);
         }
     }
@@ -168,28 +168,28 @@ auto get_device_batched_gemm_instances()
                      is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                      is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_batched_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_batched_gemm_xdl_int8_int8_int8_gmk_gkn_gmn_instances(op_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_batched_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_batched_gemm_xdl_int8_int8_int8_gmk_gnk_gmn_instances(op_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_batched_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_batched_gemm_xdl_int8_int8_int8_gkm_gkn_gmn_instances(op_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_batched_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_batched_gemm_xdl_int8_int8_int8_gkm_gnk_gmn_instances(op_ptrs);
         }
     }
@@ -197,7 +197,7 @@ auto get_device_batched_gemm_instances()
     return op_ptrs;
 }
 
-} // namespace device_batched_gemm_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

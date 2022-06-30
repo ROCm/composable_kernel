@@ -10,7 +10,7 @@
 #include "ck/tensor_operation/gpu/device/device_gemm_reduce.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/device_operation_instance.hpp"
+#include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -45,7 +45,7 @@ auto get_device_gemm_add_add_mean_squaremean_instances()
                      is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                      is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_kn_mn_instances(
                     op_ptrs);
         }
@@ -53,7 +53,7 @@ auto get_device_gemm_add_add_mean_squaremean_instances()
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_nk_mn_instances(
                     op_ptrs);
         }
@@ -61,7 +61,7 @@ auto get_device_gemm_add_add_mean_squaremean_instances()
                           is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_kn_mn_instances(
                     op_ptrs);
         }
@@ -69,7 +69,7 @@ auto get_device_gemm_add_add_mean_squaremean_instances()
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_nk_mn_instances(
                     op_ptrs);
         }

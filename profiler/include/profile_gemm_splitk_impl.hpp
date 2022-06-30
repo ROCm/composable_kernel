@@ -97,13 +97,12 @@ bool profile_gemm_splitk_impl(int do_verification,
 
     // add device op instances
     const auto op_ptrs =
-        ck::tensor_operation::device::device_gemm_instance::get_device_gemm_splitk_instances<
-            ADataType,
-            BDataType,
-            CDataType,
-            ALayout,
-            BLayout,
-            CLayout>();
+        ck::tensor_operation::device::instance::get_device_gemm_splitk_instances<ADataType,
+                                                                                 BDataType,
+                                                                                 CDataType,
+                                                                                 ALayout,
+                                                                                 BLayout,
+                                                                                 CLayout>();
 
     if(op_ptrs.size() <= 0)
     {
