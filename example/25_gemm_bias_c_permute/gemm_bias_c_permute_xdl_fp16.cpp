@@ -54,7 +54,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmBiasCPermute_Xd
 //######|        |        |        |      Type|      Type|        Type|         DataType|       Type|      Type| Elementwise| Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
 //######|        |        |        |          |          |            |                 |           |          |   Operation|   Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
 //######|        |        |        |          |          |            |                 |           |          |            |            |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
-        < ALayout, BLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType,  DDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8>;
+        < ALayout, BLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType,  DDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               1>;
 // clang-format on
 
 int main(int argc, char* argv[])
@@ -64,33 +64,33 @@ int main(int argc, char* argv[])
     bool time_kernel     = false;
 
     ck::index_t M0 = 4;
-    ck::index_t M1 = 16;
-    ck::index_t M2 = 16;
+    ck::index_t M1 = 32;
+    ck::index_t M2 = 128;
     ck::index_t N0 = 16;
-    ck::index_t N1 = 16;
+    ck::index_t N1 = 256;
 
     // GEMM shape
     ck::index_t M = M0 * M1 * M2;
     ck::index_t N = N0 * N1;
-    ck::index_t K = 4096;
+    ck::index_t K = 128;
 
     ck::index_t stride_A = K;
     ck::index_t stride_B = K;
 
-#if 0
-    // D = [0, N0, 0, N1, 0]
-    ck::index_t stride_D_M0 = 0;
-    ck::index_t stride_D_M1 = 0;
-    ck::index_t stride_D_M2 = 0;
-    ck::index_t stride_D_N0 = N1;
-    ck::index_t stride_D_N1 = 1;
-
+#if 1
     // E = [M0, N0, M1, N1, M2]
     ck::index_t stride_E_M0 = N0 * M1 * N1 * M2;
     ck::index_t stride_E_M1 = N1 * M2;
     ck::index_t stride_E_M2 = 1;
     ck::index_t stride_E_N0 = M1 * N1 * M2;
     ck::index_t stride_E_N1 = M2;
+
+    // D = [0, N0, 0, N1, 0]
+    ck::index_t stride_D_M0 = 0;
+    ck::index_t stride_D_M1 = 0;
+    ck::index_t stride_D_M2 = 0;
+    ck::index_t stride_D_N0 = N1;
+    ck::index_t stride_D_N1 = 1;
 #else
     // D = [0, 0, 0, N0, N1]
     ck::index_t stride_D_M0 = 0;
