@@ -1,14 +1,15 @@
 #pragma once
+
 #include <iostream>
 #include <sstream>
-#include "device.hpp"
-#include "device_gemm.hpp"
-#include "common_header.hpp"
-#include "tensor_layout.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdl_producer_consumer_cshuffle.hpp"
-#include "gemm_specialization.hpp"
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_producer_consumer_cshuffle.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -437,7 +438,7 @@ struct DeviceGemm_Xdl_ProducerConsumer_CShuffle
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
 #if 0
             {
@@ -484,42 +485,22 @@ struct DeviceGemm_Xdl_ProducerConsumer_CShuffle
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     true>;
 
-                if(nrepeat == 0)
-                {
-                    launch_kernel(kernel,
-                                  dim3(grid_size),
-                                  dim3(ABBlockTransferThreadGroupSize + BlockGemmThreadGroupSize),
-                                  0,
-                                  arg.p_a_grid_,
-                                  arg.p_b_grid_,
-                                  arg.p_c_grid_,
-                                  arg.a_element_op_,
-                                  arg.b_element_op_,
-                                  arg.c_element_op_,
-                                  arg.a_grid_desc_ak0_m_ak1_,
-                                  arg.b_grid_desc_bk0_n_bk1_,
-                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                  arg.block_2_ctile_map_);
-                }
-                else
-                {
-                    ave_time = launch_and_time_kernel(
-                        kernel,
-                        nrepeat,
-                        dim3(grid_size),
-                        dim3(ABBlockTransferThreadGroupSize + BlockGemmThreadGroupSize),
-                        0,
-                        arg.p_a_grid_,
-                        arg.p_b_grid_,
-                        arg.p_c_grid_,
-                        arg.a_element_op_,
-                        arg.b_element_op_,
-                        arg.c_element_op_,
-                        arg.a_grid_desc_ak0_m_ak1_,
-                        arg.b_grid_desc_bk0_n_bk1_,
-                        arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                        arg.block_2_ctile_map_);
-                }
+                ave_time =
+                    launch_and_time_kernel(stream_config,
+                                           kernel,
+                                           dim3(grid_size),
+                                           dim3(ABBlockTransferThreadGroupSize + BlockGemmThreadGroupSize),
+                                           0,
+                                           arg.p_a_grid_,
+                                           arg.p_b_grid_,
+                                           arg.p_c_grid_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_,
+                                           arg.a_grid_desc_ak0_m_ak1_,
+                                           arg.b_grid_desc_bk0_n_bk1_,
+                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.block_2_ctile_map_);
             }
             else
             {
@@ -536,51 +517,32 @@ struct DeviceGemm_Xdl_ProducerConsumer_CShuffle
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     false>;
 
-                if(nrepeat == 0)
-                {
-                    launch_kernel(kernel,
-                                  dim3(grid_size),
-                                  dim3(ABBlockTransferThreadGroupSize + BlockGemmThreadGroupSize),
-                                  0,
-                                  arg.p_a_grid_,
-                                  arg.p_b_grid_,
-                                  arg.p_c_grid_,
-                                  arg.a_element_op_,
-                                  arg.b_element_op_,
-                                  arg.c_element_op_,
-                                  arg.a_grid_desc_ak0_m_ak1_,
-                                  arg.b_grid_desc_bk0_n_bk1_,
-                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                  arg.block_2_ctile_map_);
-                }
-                else
-                {
-                    ave_time = launch_and_time_kernel(
-                        kernel,
-                        nrepeat,
-                        dim3(grid_size),
-                        dim3(ABBlockTransferThreadGroupSize + BlockGemmThreadGroupSize),
-                        0,
-                        arg.p_a_grid_,
-                        arg.p_b_grid_,
-                        arg.p_c_grid_,
-                        arg.a_element_op_,
-                        arg.b_element_op_,
-                        arg.c_element_op_,
-                        arg.a_grid_desc_ak0_m_ak1_,
-                        arg.b_grid_desc_bk0_n_bk1_,
-                        arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                        arg.block_2_ctile_map_);
-                }
+                ave_time =
+                    launch_and_time_kernel(stream_config,
+                                           kernel,
+                                           dim3(grid_size),
+                                           dim3(ABBlockTransferThreadGroupSize + BlockGemmThreadGroupSize),
+                                           0,
+                                           arg.p_a_grid_,
+                                           arg.p_b_grid_,
+                                           arg.p_c_grid_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_,
+                                           arg.a_grid_desc_ak0_m_ak1_,
+                                           arg.b_grid_desc_bk0_n_bk1_,
+                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.block_2_ctile_map_);
             }
 
             return ave_time;
         }
 
         // polymorphic
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 

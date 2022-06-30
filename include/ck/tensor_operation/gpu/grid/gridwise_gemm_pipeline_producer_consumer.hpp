@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common_header.hpp"
+#include "ck/utility/common_header.hpp"
 
 namespace ck {
 
