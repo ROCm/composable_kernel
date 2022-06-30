@@ -1,5 +1,9 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <cassert>
-#include "host_tensor.hpp"
+
+#include "ck/library/host_tensor/host_tensor.hpp"
 
 void HostTensorDescriptor::CalculateStrides()
 {
@@ -50,25 +54,3 @@ std::ostream& operator<<(std::ostream& os, const HostTensorDescriptor& desc)
 
     return os;
 }
-
-void ostream_HostTensorDescriptor(const HostTensorDescriptor& desc, std::ostream& os)
-{
-    os << "dim " << desc.GetNumOfDimension() << ", ";
-
-    os << "lengths {";
-    LogRange(os, desc.GetLengths(), ", ");
-    os << "}, ";
-
-    os << "strides {";
-    LogRange(os, desc.GetStrides(), ", ");
-    os << "}" << std::endl;
-}
-
-#if 1
-// FIXME: remove
-void bf16_to_f32_(const Tensor<ck::bhalf_t>& src, Tensor<float>& dst)
-{
-    for(std::size_t i = 0; i < src.mData.size(); ++i)
-        dst.mData[i] = ck::type_convert<float>(src.mData[i]);
-}
-#endif

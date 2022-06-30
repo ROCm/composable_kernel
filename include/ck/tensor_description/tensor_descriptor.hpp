@@ -1,8 +1,10 @@
-#ifndef CK_TENSOR_DESCRIPTOR_HPP
-#define CK_TENSOR_DESCRIPTOR_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "common_header.hpp"
-#include "multi_index_transform.hpp"
+#pragma once
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/multi_index_transform.hpp"
 
 namespace ck {
 
@@ -604,4 +606,3 @@ using TensorCoordinateStep_t = decltype(make_tensor_coordinate_step(
     TensorDesc{}, MultiIndex<remove_cvref_t<TensorDesc>::GetNumOfDimension()>{}));
 
 } // namespace ck
-#endif

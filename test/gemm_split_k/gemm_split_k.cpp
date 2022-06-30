@@ -1,16 +1,23 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
-#include "config.hpp"
-#include "print.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "device_tensor.hpp"
-#include "host_gemm.hpp"
-#include "tensor_layout.hpp"
-#include "device_gemm_xdl_splitk.hpp"
+
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_xdl_splitk.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+
+#include "ck/library/host_tensor/host_gemm.hpp"
 
 enum struct GemmMatrixLayout
 {
@@ -20,20 +27,24 @@ enum struct GemmMatrixLayout
     KM_NK_MN, // 3
 };
 
-using DeviceGemmNoOpPtr =
-    ck::tensor_operation::device::DeviceGemmPtr<ck::tensor_operation::element_wise::PassThrough,
-                                                ck::tensor_operation::element_wise::PassThrough,
-                                                ck::tensor_operation::element_wise::PassThrough>;
+using DeviceGemmSplitKNoOpPtr = ck::tensor_operation::device::DeviceGemmSplitKPtr<
+    ck::tensor_operation::element_wise::PassThrough,
+    ck::tensor_operation::element_wise::PassThrough,
+    ck::tensor_operation::element_wise::PassThrough>;
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace device_gemm_instance {
 
-void add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(std::vector<DeviceGemmNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(
+    std::vector<DeviceGemmSplitKNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(
+    std::vector<DeviceGemmSplitKNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(
+    std::vector<DeviceGemmSplitKNoOpPtr>&);
+void add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(
+    std::vector<DeviceGemmSplitKNoOpPtr>&);
 
 } // namespace device_gemm_instance
 } // namespace device
@@ -142,7 +153,7 @@ int test_gemm(const gemmArgs& args)
     c_device_buf.ToDevice(c_m_n_device_result.mData.data());
 
     // add device GEMM instances
-    std::vector<DeviceGemmNoOpPtr> gemm_ptrs;
+    std::vector<DeviceGemmSplitKNoOpPtr> gemm_ptrs;
 
     if(args.layout == GemmMatrixLayout::MK_KN_MN)
     {

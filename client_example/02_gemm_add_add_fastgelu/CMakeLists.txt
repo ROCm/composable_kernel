@@ -1,0 +1,2 @@
+add_executable(client_gemm_add_add_fastgelu gemm_add_add_fastgelu.cpp)
+target_link_libraries(client_gemm_add_add_fastgelu PRIVATE composable_kernel::device_operations)

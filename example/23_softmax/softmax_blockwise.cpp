@@ -1,23 +1,21 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
 #include <getopt.h>
 
-#include "check_err.hpp"
-#include "config.hpp"
-#include "print.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "device_tensor.hpp"
-#include "device_base.hpp"
-#include "device_softmax.hpp"
-#include "host_common_util.hpp"
-#include "reference_softmax.hpp"
+#include "ck/ck.hpp"
+#include "ck/utility/reduction_enums.hpp"
+#include "ck/tensor_operation/gpu/device/device_softmax.hpp"
+#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 
-#include "reduction_enums.hpp"
-#include "reduction_operator_mapping.hpp"
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_common_util.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
 
 using namespace ck;
 using namespace ck::tensor_operation::device;

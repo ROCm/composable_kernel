@@ -1,7 +1,9 @@
-#ifndef CK_MATH_HPP
-#define CK_MATH_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "config.hpp"
+#pragma once
+
+#include "ck/ck.hpp"
 #include "integral_constant.hpp"
 #include "number.hpp"
 #include "type.hpp"
@@ -228,5 +230,3 @@ struct less
 
 } // namespace math
 } // namespace ck
-
-#endif
