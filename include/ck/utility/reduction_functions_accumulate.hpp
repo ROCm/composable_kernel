@@ -17,7 +17,7 @@ struct AccumulateWithNanIgnore
 {
     __device__ static inline void Calculate(AccDataType& accuVal, AccDataType currVal)
     {
-        if(!isnan(currVal))
+        if(!ck::math::isnan(currVal))
         {
             ReduceOperation{}(accuVal, currVal);
         }

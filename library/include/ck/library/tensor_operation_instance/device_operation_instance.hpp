@@ -4,6 +4,7 @@
 #pragma once
 
 #include <vector>
+#include "ck/utility/functional2.hpp"
 
 namespace ck {
 namespace tensor_operation {
