@@ -49,7 +49,9 @@ using device_batched_gemm_xdl_bf16_bf16_bf16_gmk_gnk_gmn_instances = std::tuple<
     >;
 
 void add_device_batched_gemm_xdl_bf16_bf16_bf16_gmk_gnk_gmn_instances(
-    std::vector<DeviceBatchedGemmPtr<PassThrough, PassThrough, PassThrough>>& instances)
+    std::vector<std::unique_ptr<
+        DeviceBatchedGemm<Row, Col, Row, BF16, BF16, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances)
 {
     add_device_operation_instances(instances,
                                    device_batched_gemm_xdl_bf16_bf16_bf16_gmk_gnk_gmn_instances{});

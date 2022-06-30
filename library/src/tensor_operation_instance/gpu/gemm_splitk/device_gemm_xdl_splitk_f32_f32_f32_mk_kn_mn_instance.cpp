@@ -7,6 +7,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_xdl_splitk.hpp"
+
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
 namespace ck {
@@ -51,7 +52,9 @@ using device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances = std::tuple<
     >;
 
 void add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(
-    std::vector<DeviceGemmSplitKPtr<PassThrough, PassThrough, PassThrough>>& instances)
+    std::vector<std::unique_ptr<
+        DeviceGemmSplitK<Row, Row, Row, F32, F32, F32, PassThrough, PassThrough, PassThrough>>>&
+        instances)
 {
     add_device_operation_instances(instances,
                                    device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances{});
