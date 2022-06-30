@@ -25,6 +25,7 @@ add_subdirectory(conv2d_fwd_bias_relu_add)
 add_subdirectory(conv2d_bwd_data)
 add_subdirectory(convnd_bwd_data)
 add_subdirectory(conv2d_bwd_weight)
+add_subdirectory(normalization)
 add_subdirectory(reduce)
 
 add_library(device_operations STATIC
