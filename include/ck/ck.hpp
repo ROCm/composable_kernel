@@ -19,7 +19,9 @@
 
 #ifdef CK_USE_LAUNCH_BOUNDS
 #define CK_MAX_THREAD_PER_BLOCK 256
+#define CK_WAVELET_MAX_THREAD_PER_BLOCK 512
 #define CK_MIN_BLOCK_PER_CU 2
+#define CK_WAVELET_MIN_BLOCK_PER_CU 2
 #endif
 
 // check GPU target

@@ -61,8 +61,8 @@ struct ThreadGroupTensorSliceTransfer_v6r1
             is_same<SliceLengths, decltype(thread_slice_lengths * ThreadClusterLengths{})>{},
             "wrong! threads should be mapped to cover entire slicing window");
 
-        static_assert(ThreadGroup::GetNumOfThread() >= thread_cluster_desc_.GetElementSize(),
-                      "wrong! ThreadGroup::GetNumOfThread() too small");
+        // static_assert(ThreadGroup::GetNumOfThread() >= thread_cluster_desc_.GetElementSize(),
+        //              "wrong! ThreadGroup::GetNumOfThread() too small");
 
         if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
