@@ -71,13 +71,6 @@ if( DEFINED CK_OVERRIDE_HIP_VERSION_PATCH )
 endif()
 message(STATUS "Build with HIP ${HIP_VERSION}")
 
-rocm_create_package(
-    NAME composablekernel
-    DESCRIPTION "High Performance Composable Kernel for AMD GPUs"
-    MAINTAINER "MIOpen Kernels Dev Team <dl.MIOpen@amd.com>"
-    LDCONFIG
-)
-
 ## tidy
 include(EnableCompilerWarnings)
 set(CK_TIDY_ERRORS ERRORS * -readability-inconsistent-declaration-parameter-name)
