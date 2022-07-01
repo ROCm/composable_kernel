@@ -40,9 +40,11 @@ using DeviceInstance = ck::tensor_operation::device::DeviceLayernorm<XDataType,
                                                                      1,   // SliceM
                                                                      8,   // SliceK
                                                                      1,   // SrcVecDim (0=M, 1=K)
-                                                                     1,   // SrcScalarPerVector
-                                                                     1,   // AffineVecDim (0=M, 1=K)
-                                                                     1,   // AffineScalarPerVector
+                                                                     8,   // SrcScalarPerVector
+                                                                     1,   // GammaVecDim (0=M, 1=K)
+                                                                     8,   // GammaScalarPerVector
+                                                                     1,   // BetaVecDim (0=M, 1=K)
+                                                                     8,   // BetaScalarPerVector
                                                                      1>;  // OutScalarPerVector
 
 template <typename XDataType,
@@ -128,6 +130,7 @@ int main()
     auto device_instance = DeviceInstance{};
     auto argument_ptr    = device_instance.MakeArgumentPointer({M, N},
                                                             {Stride, 1},
+                                                            {0, 1},
                                                             {0, 1},
                                                             {1},
                                                             1e-4,
