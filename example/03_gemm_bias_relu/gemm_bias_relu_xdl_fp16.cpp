@@ -58,7 +58,7 @@ using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
 using CDEElementOp = AddRelu;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
 using DeviceOpInstance =
     ck::tensor_operation::device::DeviceGemmMultipleD_Xdl_CShuffle<ALayout,

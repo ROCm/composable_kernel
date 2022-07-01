@@ -112,7 +112,7 @@ struct AlphaBetaAdd
     __host__ __device__ constexpr void
     operator()<double>(double& y, const double& x0, const double& x1) const
     {
-        y = static_cast<double>(alpha_) * x0 + static_cast<double>(beta_) * x1;
+        y = type_convert<double>(alpha_) * x0 + type_convert<double>(beta_) * x1;
     };
 
     // Question: should half_t be supported ?
@@ -120,7 +120,8 @@ struct AlphaBetaAdd
     __host__ __device__ constexpr void
     operator()<half_t>(half_t& y, const half_t& x0, const half_t& x1) const
     {
-        y = static_cast<half_t>(alpha_ * static_cast<float>(x0) + beta_ * static_cast<float>(x1));
+        y = type_convert<half_t>(alpha_ * type_convert<float>(x0) +
+                                 beta_ * type_convert<float>(x1));
     };
 
     float alpha_;
@@ -154,7 +155,7 @@ struct AddRelu
     operator()<half_t>(half_t& y, const half_t& x0, const half_t& x1) const
     {
         const half_t a = x0 + x1;
-        y              = a > static_cast<half_t>(0.0f) ? a : static_cast<half_t>(0.0f);
+        y              = a > type_convert<half_t>(0.0f) ? a : type_convert<half_t>(0.0f);
     };
 };
 
