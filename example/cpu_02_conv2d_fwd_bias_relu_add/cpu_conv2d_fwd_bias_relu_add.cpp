@@ -276,13 +276,13 @@ int main(int argc, char* argv[])
 
     if(ck::getenv_int("CK_USE_XDNN_DESC", 0) == 1)
     {
-        assert(argc == 4);
+        assert(argc == 4 || argc == 5);
         data_type   = std::stoi(argv[1]);
         init_method = std::stoi(argv[2]);
 
         ck::desc_t xdnn_desc;
 
-        if(str2desc(&xdnn_desc, argv[3]) == XDNN_OK)
+        if(str2desc(&xdnn_desc, argv[argc - 1]) == XDNN_OK)
         {
             N               = xdnn_desc.mb;
             K               = xdnn_desc.oc;
@@ -302,8 +302,11 @@ int main(int argc, char* argv[])
         }
         else
         {
-            printf("fail to parse xdnn arg:%s\n", argv[3]);
+            printf("fail to parse xdnn arg:%s\n", argv[argc - 1]);
+            exit(1);
         }
+        if(argc == 5)
+            N = std::stoi(argv[3]);
     }
     else
     {
