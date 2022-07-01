@@ -12,6 +12,7 @@
 #include "element_wise_operation_cpu.hpp"
 #include "dynamic_buffer_cpu.hpp"
 #include "envvar.hpp"
+#include "xdnn_desc.hpp"
 #include <omp.h>
 
 #define AVX2_DATA_ALIGNMENT 32
@@ -237,44 +238,78 @@ int main(int argc, char* argv[])
     ck::index_t in_right_pad_h  = 1;
     ck::index_t in_right_pad_w  = 1;
 
-    if(argc == 1)
+    if(ck::getenv_int("CK_USE_XDNN_DESC", 0) == 1)
     {
-        data_type   = 0;
-        init_method = 1;
-    }
-    else if(argc == 3)
-    {
-        data_type   = std::stoi(argv[1]);
-        init_method = std::stoi(argv[2]);
-    }
-    else if(argc == 18)
-    {
+        assert(argc == 4);
         data_type   = std::stoi(argv[1]);
         init_method = std::stoi(argv[2]);
 
-        N               = std::stoi(argv[3]);
-        K               = std::stoi(argv[4]);
-        C               = std::stoi(argv[5]);
-        Y               = std::stoi(argv[6]);
-        X               = std::stoi(argv[7]);
-        Hi              = std::stoi(argv[8]);
-        Wi              = std::stoi(argv[9]);
-        conv_stride_h   = std::stoi(argv[10]);
-        conv_stride_w   = std::stoi(argv[11]);
-        conv_dilation_h = std::stoi(argv[12]);
-        conv_dilation_w = std::stoi(argv[13]);
-        in_left_pad_h   = std::stoi(argv[14]);
-        in_left_pad_w   = std::stoi(argv[15]);
-        in_right_pad_h  = std::stoi(argv[16]);
-        in_right_pad_w  = std::stoi(argv[17]);
+        ck::desc_t xdnn_desc;
+
+        if(str2desc(&xdnn_desc, argv[3]) == XDNN_OK)
+        {
+            N               = xdnn_desc.mb;
+            K               = xdnn_desc.oc;
+            C               = xdnn_desc.ic;
+            Y               = xdnn_desc.kh;
+            X               = xdnn_desc.kw;
+            Hi              = xdnn_desc.ih;
+            Wi              = xdnn_desc.iw;
+            conv_stride_h   = xdnn_desc.sh;
+            conv_stride_w   = xdnn_desc.sw;
+            conv_dilation_h = xdnn_desc.dh;
+            conv_dilation_w = xdnn_desc.dw;
+            in_left_pad_h   = xdnn_desc.ph;
+            in_left_pad_w   = xdnn_desc.pw;
+            in_right_pad_h  = xdnn_desc.ph;
+            in_right_pad_w  = xdnn_desc.pw;
+        }
+        else
+        {
+            printf("fail to parse xdnn arg:%s\n", argv[3]);
+        }
     }
     else
     {
-        printf("arg1: data type (0=fp32, 1=fp16)\n");
-        printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3 to 17: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
-               "RightPx\n");
-        exit(1);
+        if(argc == 1)
+        {
+            data_type   = 0;
+            init_method = 1;
+        }
+        else if(argc == 3)
+        {
+            data_type   = std::stoi(argv[1]);
+            init_method = std::stoi(argv[2]);
+        }
+        else if(argc == 18)
+        {
+            data_type   = std::stoi(argv[1]);
+            init_method = std::stoi(argv[2]);
+
+            N               = std::stoi(argv[3]);
+            K               = std::stoi(argv[4]);
+            C               = std::stoi(argv[5]);
+            Y               = std::stoi(argv[6]);
+            X               = std::stoi(argv[7]);
+            Hi              = std::stoi(argv[8]);
+            Wi              = std::stoi(argv[9]);
+            conv_stride_h   = std::stoi(argv[10]);
+            conv_stride_w   = std::stoi(argv[11]);
+            conv_dilation_h = std::stoi(argv[12]);
+            conv_dilation_w = std::stoi(argv[13]);
+            in_left_pad_h   = std::stoi(argv[14]);
+            in_left_pad_w   = std::stoi(argv[15]);
+            in_right_pad_h  = std::stoi(argv[16]);
+            in_right_pad_w  = std::stoi(argv[17]);
+        }
+        else
+        {
+            printf("arg1: data type (0=fp32, 1=fp16)\n");
+            printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
+            printf("arg3 to 17: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
+                   "RightPx\n");
+            exit(1);
+        }
     }
 
     auto Run = [&](auto input_type, auto wei_type, auto out_type) {
@@ -332,6 +367,8 @@ int main(int argc, char* argv[])
                   << ", Stride(H, W):" << conv_stride_h << ", " << conv_stride_w
                   << ", Dilation(H, W):" << conv_dilation_h << ", " << conv_dilation_w
                   << ", Threads:" << omp_get_max_threads() << std::endl;
+
+        fflush(stdout);
 
         int per_pixel_check = 0;
         switch(init_method)
