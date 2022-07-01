@@ -64,8 +64,16 @@ template <
             is_same_v<BElementwiseOperation, ck::tensor_operation::element_wise::PassThrough> &&
             is_same_v<CElementwiseOperation, ck::tensor_operation::element_wise::PassThrough>,
         bool> = false>
-struct DeviceGemmDl
-    : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
+struct DeviceGemmDl : public DeviceGemm<ALayout,
+                                        BLayout,
+                                        CLayout,
+                                        ADataType,
+                                        BDataType,
+                                        CDataType,
+                                        AElementwiseOperation,
+                                        BElementwiseOperation,
+                                        CElementwiseOperation>
+
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -534,8 +542,7 @@ struct DeviceGemmDl
                                                       index_t StrideC,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op,
-                                                      index_t /* KBatch */ = 1) override
+                                                      CElementwiseOperation c_element_op) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),

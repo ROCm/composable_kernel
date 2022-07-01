@@ -159,7 +159,7 @@ struct TestGemm
         return std::make_tuple(a_m_k, b_k_n, c_m_n_host_result, c_m_n_device_result);
     }
 
-    auto operator()(DeviceGemmPtr_& gemmPtr)
+    auto operator()(const DeviceGemmPtr_& gemmPtr)
     {
         std::cout << "ALayout = " << ALayout{}.name << ", BLayout = " << BLayout{}.name
                   << ", CLayout = " << CLayout{}.name << std::endl;

@@ -10,13 +10,12 @@
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_d.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/device_gemm_add_add_fastgelu_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/gemm_add_add_fastgelu.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/host_tensor/device_memory.hpp"
 #include "ck/library/host_tensor/host_tensor.hpp"
 #include "ck/library/host_tensor/host_tensor_generator.hpp"
-#include "ck/library/host_tensor/host_conv.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 namespace ck {
@@ -30,9 +29,7 @@ template <typename ADataType,
           typename EDataType,
           typename ALayout,
           typename BLayout,
-          typename D0Layout,
-          typename D1Layout,
-          typename ELayout>
+          typename DELayout> // assume Ds and E have same layout
 bool profile_gemm_add_add_fastgelu_impl(int do_verification,
                                         int init_method,
                                         bool /*do_log*/,
@@ -62,10 +59,10 @@ bool profile_gemm_add_add_fastgelu_impl(int do_verification,
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-    Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor(M, N, StrideD0, D0Layout{}));
-    Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor(M, N, StrideD1, D1Layout{}));
-    Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
-    Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
+    Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor(M, N, StrideD0, DELayout{}));
+    Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor(M, N, StrideD1, DELayout{}));
+    Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, DELayout{}));
+    Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, DELayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
@@ -100,19 +97,21 @@ bool profile_gemm_add_add_fastgelu_impl(int do_verification,
     const auto b_element_op   = BElementOp{};
     const auto cde_element_op = CDEElementOp{};
 
-    // add device op instances
-    const auto op_ptrs = ck::tensor_operation::device::device_gemm_instance::
-        get_device_gemm_add_add_fastgelu_instances<ADataType,
-                                                   BDataType,
-                                                   AccDataType,
-                                                   D0DataType,
-                                                   D1DataType,
-                                                   EDataType,
-                                                   ALayout,
-                                                   BLayout,
-                                                   D0Layout,
-                                                   D1Layout,
-                                                   ELayout>();
+    using DeviceOp = ck::tensor_operation::device::DeviceGemmMultipleD<
+        ALayout,
+        BLayout,
+        DELayout,
+        ADataType,
+        BDataType,
+        ck::Tuple<D0DataType, D1DataType>,
+        EDataType,
+        ck::tensor_operation::element_wise::PassThrough,
+        ck::tensor_operation::element_wise::PassThrough,
+        ck::tensor_operation::element_wise::AddAddFastGelu>;
+
+    // get device op instances
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
 
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 

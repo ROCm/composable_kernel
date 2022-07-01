@@ -7,11 +7,12 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/device_5ary_elementwise.hpp"
-#include "ck/library/tensor_operation_instance/device_operation_instance.hpp"
+#include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
+namespace instance {
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -44,6 +45,7 @@ void add_device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances(
         instances, device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances{});
 }
 
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

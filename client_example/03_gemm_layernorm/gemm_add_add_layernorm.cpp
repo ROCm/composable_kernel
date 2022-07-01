@@ -160,16 +160,17 @@ int main()
     ck::index_t StrideC  = 1024;
     ck::index_t StrideD0 = 1024;
 
-    const auto gemm_reduce_ptrs = ck::tensor_operation::device::device_gemm_instance::
-        get_device_gemm_add_add_mean_squaremean_instances<ADataType,
-                                                          BDataType,
-                                                          CDataType,
-                                                          ALayout,
-                                                          BLayout,
-                                                          CLayout>();
+    const auto gemm_reduce_ptrs =
+        ck::tensor_operation::device::instance::get_device_gemm_add_add_mean_squaremean_instances<
+            ADataType,
+            BDataType,
+            CDataType,
+            ALayout,
+            BLayout,
+            CLayout>();
 
     const auto normalize_ptrs =
-        ck::tensor_operation::device::get_device_normalize_from_mean_meansquare_instances<
+        ck::tensor_operation::device::instance::get_device_normalize_from_mean_meansquare_instances<
             CDataType,
             ReduceDataType,
             ReduceDataType,
