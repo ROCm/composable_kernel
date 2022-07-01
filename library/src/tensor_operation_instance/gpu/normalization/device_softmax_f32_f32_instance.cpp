@@ -2,14 +2,14 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/ck.hpp"
-#include "ck/library/tensor_operation_instance/device_operation_instance.hpp"
+#include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 #include "ck/tensor_operation/gpu/device/device_softmax.hpp"
 #include "ck/utility/data_type.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_normalization_instance {
+namespace instance {
 
 using F32 = float;
 
@@ -42,7 +42,7 @@ void add_device_softmax_f32_f32_rank4_instances(std::vector<DeviceNormalizationP
     add_device_operation_instances(instances, device_softmax_f32_f32_instances<4, 3>{});
 }
 
-} // namespace device_normalization_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

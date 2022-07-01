@@ -10,11 +10,12 @@
 #include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/device_operation_instance.hpp"
+#include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
+namespace instance {
 
 using Normalize = ck::tensor_operation::element_wise::Normalize;
 using DeviceNormalizeFromMeanMeanSquarePtr =
@@ -37,13 +38,14 @@ auto get_device_normalize_from_mean_meansquare_instances()
                  is_same<MeanSquareType, float>::value && is_same<GammaDataType, half_t>::value &&
                  is_same<BetaDataType, half_t>::value && is_same<OutputType, half_t>::value)
     {
-        ck::tensor_operation::device::
+        ck::tensor_operation::device::instance::
             add_device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances(op_ptrs);
     }
 
     return op_ptrs;
 }
 
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
