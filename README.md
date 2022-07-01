@@ -26,6 +26,7 @@ cmake                                                                 \
 -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 --offload-arch=gfx90a -O3" \
 -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                             \
 -D CMAKE_PREFIX_PATH=/opt/rocm                                        \
+-D CMAKE_INSTALL_PREFIX=${PATH_TO_CK_INSTALL_DIRECTORY}               \
 ..
 ```
 
@@ -47,6 +48,12 @@ Instructions for running each individual examples are under ```example/```
 ```
 Instructions for running ckProfiler are under ```profiler/```
 
+## Install CK
+```bash
+make install
+```
+
+## Using CK as pre-built kernel library
 
 ## Caveat
 ### Kernel Timing and Verification

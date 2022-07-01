@@ -6,12 +6,13 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/library/tensor_operation_instance/device_operation_instance.hpp"
+
+#include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_gemm_instance {
+namespace instance {
 
 using F16     = ck::half_t;
 using F32     = float;
@@ -57,13 +58,22 @@ using device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances 
     >;
 
 void add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(
-    std::vector<DeviceGemmMultipleDPtr<2, PassThrough, PassThrough, AddAddFastGelu>>& instances)
+    std::vector<std::unique_ptr<DeviceGemmMultipleD<Col,
+                                                    Col,
+                                                    Row,
+                                                    F16,
+                                                    F16,
+                                                    F16_F16,
+                                                    F16,
+                                                    PassThrough,
+                                                    PassThrough,
+                                                    AddAddFastGelu>>>& instances)
 {
     add_device_operation_instances(
         instances, device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances{});
 }
 
-} // namespace device_gemm_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

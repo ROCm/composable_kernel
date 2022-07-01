@@ -150,6 +150,9 @@ int main(int argc, char* argv[])
     AccDataType alpha = args.scales[0];
     AccDataType beta  = args.scales[1];
 
+    std::cout << "in: " << in.mDesc << std::endl;
+    std::cout << "out: " << out.mDesc << std::endl;
+
     std::size_t num_thread = 1;
 
     if(args.do_verification)
@@ -195,7 +198,7 @@ int main(int argc, char* argv[])
         using ReferenceInstance =
             tensor_operation::host::ReferenceSoftmax<InDataType, OutDataType, AccDataType>;
         ReferenceInstance ref;
-        auto ref_arg = ref.MakeArgument(in, out_ref, alpha, beta, Rank, reduceDims);
+        auto ref_arg = ref.MakeArgument(in, out_ref, alpha, beta, reduceDims);
         auto invoker = ref.MakeInvoker();
         invoker.Run(ref_arg);
         // LogRangeAsType<float>(std::cout << "tensor out_ref: ", out_ref.mData, ",") << std::endl;
@@ -214,8 +217,8 @@ int main(int argc, char* argv[])
     auto argument_ptr = device_instance.MakeArgumentPointer(i_inLengths,
                                                             i_inStrides,
                                                             reduceDims,
-                                                            alpha,
-                                                            beta,
+                                                            &alpha,
+                                                            &beta,
                                                             in_dev.GetDeviceBuffer(),
                                                             out_dev.GetDeviceBuffer());
 
