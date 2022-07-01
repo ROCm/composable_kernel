@@ -382,13 +382,8 @@ HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens,
 {
 }
 
-void ostream_HostTensorDescriptor(const HostTensorDescriptor& desc, std::ostream& os = std::cout);
-
 #if 1
 // FIXME: remove
-void bf16_to_f32_(const Tensor<ck::bhalf_t>& src, Tensor<float>& dst);
-#endif
-
 template <typename T>
 float check_error(const Tensor<T>& ref, const Tensor<T>& result)
 {
@@ -434,3 +429,4 @@ float check_error(const Tensor<T>& ref, const Tensor<T>& result)
 
     return linf_error;
 }
+#endif
