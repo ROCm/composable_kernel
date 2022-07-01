@@ -34,6 +34,9 @@ bool profile_batched_gemm_impl(int do_verification,
                                int M,
                                int N,
                                int K,
+                               int BatchStrideA,
+                               int BatchStrideB,
+                               int BatchStrideC,
                                int StrideA,
                                int StrideB,
                                int StrideC,
@@ -45,25 +48,28 @@ bool profile_batched_gemm_impl(int do_verification,
                                        std::size_t row,
                                        std::size_t col,
                                        std::size_t stride,
+                                       std::size_t batch_stride,
                                        auto layout) {
         if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
         {
             return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({row * stride, stride, 1}));
+                                        std::vector<std::size_t>({batch_stride, stride, 1}));
         }
         else
         {
             return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({col * stride, 1, stride}));
+                                        std::vector<std::size_t>({batch_stride, 1, stride}));
         }
     };
 
-    Tensor<ADataType> a_g_m_k(f_host_tensor_descriptor(BatchCount, M, K, StrideA, ALayout{}));
-    Tensor<BDataType> b_g_k_n(f_host_tensor_descriptor(BatchCount, K, N, StrideB, BLayout{}));
+    Tensor<ADataType> a_g_m_k(
+        f_host_tensor_descriptor(BatchCount, M, K, StrideA, BatchStrideA, ALayout{}));
+    Tensor<BDataType> b_g_k_n(
+        f_host_tensor_descriptor(BatchCount, K, N, StrideB, BatchStrideB, BLayout{}));
     Tensor<CDataType> c_g_m_n_host_result(
-        f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
+        f_host_tensor_descriptor(BatchCount, M, N, StrideC, BatchStrideC, CLayout{}));
     Tensor<CDataType> c_g_m_n_device_result(
-        f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
+        f_host_tensor_descriptor(BatchCount, M, N, StrideC, BatchStrideC, CLayout{}));
 
     std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
     std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;
@@ -148,6 +154,9 @@ bool profile_batched_gemm_impl(int do_verification,
                                         StrideA,
                                         StrideB,
                                         StrideC,
+                                        BatchStrideA,
+                                        BatchStrideB,
+                                        BatchStrideC,
                                         ck::tensor_operation::element_wise::PassThrough{},
                                         ck::tensor_operation::element_wise::PassThrough{},
                                         ck::tensor_operation::element_wise::PassThrough{},
