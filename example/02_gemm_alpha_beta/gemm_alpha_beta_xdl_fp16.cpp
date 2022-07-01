@@ -28,7 +28,7 @@ struct AlphaBetaAdd
     __host__ __device__ constexpr void operator()<ck::half_t, float, ck::half_t>(
         ck::half_t& e, const float& c, const ck::half_t& d) const
     {
-        e = ck::type_convert<ck::half_t>(alpha_ * c; beta_ * ck::type_convert<float>(d));
+        e = ck::type_convert<ck::half_t>(alpha_ * c + beta_ * ck::type_convert<float>(d));
     };
 
     float alpha_;
