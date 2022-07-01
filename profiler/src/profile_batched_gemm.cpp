@@ -86,6 +86,14 @@ int profile_batched_gemm(int argc, char* argv[])
         const int DefaultStrideB = ck::is_same_v<BLayout, Row> ? N : K;
         const int DefaultStrideC = ck::is_same_v<CLayout, Row> ? N : M;
 
+        const int StrideA_ = (StrideA < 0) ? DefaultStrideA : StrideA;
+        const int StrideB_ = (StrideB < 0) ? DefaultStrideB : StrideB;
+        const int StrideC_ = (StrideC < 0) ? DefaultStrideC : StrideC;
+
+        const int BatchStrideA = (ck::is_same_v<ALayout, Row> ? M : K) * StrideA_;
+        const int BatchStrideB = (ck::is_same_v<BLayout, Row> ? K : N) * StrideB_;
+        const int BatchStrideC = (ck::is_same_v<CLayout, Row> ? M : N) * StrideC_;
+
         bool pass = ck::profiler::
             profile_batched_gemm_impl<ADataType, BDataType, CDataType, ALayout, BLayout, CLayout>(
                 do_verification,
@@ -95,9 +103,12 @@ int profile_batched_gemm(int argc, char* argv[])
                 M,
                 N,
                 K,
-                (StrideA < 0) ? DefaultStrideA : StrideA,
-                (StrideB < 0) ? DefaultStrideB : StrideB,
-                (StrideC < 0) ? DefaultStrideC : StrideC,
+                BatchStrideA,
+                BatchStrideB,
+                BatchStrideC,
+                StrideA_,
+                StrideB_,
+                StrideC_,
                 BatchCount);
 
         return pass ? 0 : 1;

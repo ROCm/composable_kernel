@@ -220,12 +220,24 @@ struct Tensor
 
     Tensor(const HostTensorDescriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpace()) {}
 
+    template <typename OutT>
+    Tensor<OutT> CopyAsType()
+    {
+        Tensor<OutT> ret(mDesc);
+        for(size_t i = 0; i < mData.size(); i++)
+        {
+            ret.mData[i] = static_cast<OutT>(mData[i]);
+        }
+        return ret;
+    }
+
     Tensor(const Tensor& other) : mDesc(other.mDesc), mData(other.mData) {}
 
     Tensor& operator=(const Tensor& other)
     {
         mDesc = other.mDesc;
         mData = other.mData;
+        return *this;
     }
 
     template <typename F>
