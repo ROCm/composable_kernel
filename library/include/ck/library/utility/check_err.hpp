@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include <algorithm>
@@ -156,7 +159,7 @@ check_err(const std::vector<T>& out,
           const std::vector<T>& ref,
           const std::string& msg = "Error: Incorrect results!",
           double                 = 0,
-          double                 = 0)
+          double atol            = 0)
 {
     if(out.size() != ref.size())
     {
@@ -176,7 +179,7 @@ check_err(const std::vector<T>& out,
         int64_t r = ref[i];
         err       = std::abs(o - r);
 
-        if(err > 0)
+        if(err > atol)
         {
             max_err = err > max_err ? err : max_err;
             err_count++;

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <cstdlib>
 
 #include "ck/ck.hpp"
@@ -41,7 +44,7 @@ using device_batched_gemm_xdl_f32_f32_f32_gkm_gkn_gmn_instances = std::tuple<
     >;
 
 void add_device_batched_gemm_xdl_f32_f32_f32_gkm_gkn_gmn_instances(
-    std::vector<DeviceGemmPtr<PassThrough, PassThrough, PassThrough>>& instances)
+    std::vector<DeviceBatchedGemmPtr<PassThrough, PassThrough, PassThrough>>& instances)
 {
     add_device_operation_instances(instances,
                                    device_batched_gemm_xdl_f32_f32_f32_gkm_gkn_gmn_instances{});

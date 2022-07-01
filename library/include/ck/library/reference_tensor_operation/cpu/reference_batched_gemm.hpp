@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include <iostream>
@@ -59,20 +62,20 @@ struct ReferenceBatchedGemm : public device::BaseOperator
 
                 for(int k = 0; k < K; ++k)
                 {
-                    float v_a;
-                    float v_b;
+                    ADataType v_a;
+                    BDataType v_b;
 
-                    arg.a_element_op_(v_a, static_cast<const float>(arg.a_g_m_k_(g, m, k)));
-                    arg.b_element_op_(v_b, static_cast<const float>(arg.b_g_k_n_(g, k, n)));
+                    arg.a_element_op_(v_a, arg.a_g_m_k_(g, m, k));
+                    arg.b_element_op_(v_b, arg.b_g_k_n_(g, k, n));
 
-                    v_acc += v_a * v_b;
+                    v_acc += ck::type_convert<float>(v_a) * ck::type_convert<float>(v_b);
                 }
 
                 float v_c;
 
                 arg.c_element_op_(v_c, v_acc);
 
-                arg.c_g_m_n_(g, m, n) = v_c;
+                arg.c_g_m_n_(g, m, n) = ck::type_convert<CDataType>(v_c);
             };
 
             make_ParallelTensorFunctor(f_gmk_gkn_gmn,

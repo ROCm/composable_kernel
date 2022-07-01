@@ -1,6 +1,10 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include <vector>
+#include "ck/utility/functional2.hpp"
 
 namespace ck {
 namespace tensor_operation {

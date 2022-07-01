@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
@@ -13,10 +16,6 @@ int profile_gemm_add_add_fastgelu(int argc, char* argv[])
         MK_NK_MN_MN_MN, // 1
         KM_KN_MN_MN_MN, // 2
         KM_NK_MN_MN_MN, // 3
-        MK_KN_NM_MN_MN, // 4
-        MK_NK_NM_MN_MN, // 5
-        KM_KN_NM_MN_MN, // 6
-        KM_NK_NM_MN_MN, // 7
     };
 
     enum struct MatrixDataType
@@ -98,17 +97,17 @@ int profile_gemm_add_add_fastgelu(int argc, char* argv[])
         const int DefaultStrideD1 = ck::is_same_v<D1Layout, Row> ? N : M;
         const int DefaultStrideE  = ck::is_same_v<ELayout, Row> ? N : M;
 
-        return ck::profiler::profile_gemm_add_add_fastgelu_impl<ADataType,
-                                                                BDataType,
-                                                                AccDataType,
-                                                                D0DataType,
-                                                                D1DataType,
-                                                                EDataType,
-                                                                ALayout,
-                                                                BLayout,
-                                                                D0Layout,
-                                                                D1Layout,
-                                                                ELayout>(
+        bool pass = ck::profiler::profile_gemm_add_add_fastgelu_impl<ADataType,
+                                                                     BDataType,
+                                                                     AccDataType,
+                                                                     D0DataType,
+                                                                     D1DataType,
+                                                                     EDataType,
+                                                                     ALayout,
+                                                                     BLayout,
+                                                                     D0Layout,
+                                                                     D1Layout,
+                                                                     ELayout>(
             do_verification,
             init_method,
             do_log,
@@ -121,6 +120,8 @@ int profile_gemm_add_add_fastgelu(int argc, char* argv[])
             (StrideD0 < 0) ? DefaultStrideD0 : StrideD0,
             (StrideD1 < 0) ? DefaultStrideD1 : StrideD1,
             (StrideE < 0) ? DefaultStrideE : StrideE);
+
+        return pass ? 0 : 1;
     };
 
     if(data_type == MatrixDataType::F16_F16_F16_F16_F16 && layout == MatrixLayout::MK_KN_MN_MN_MN)
@@ -146,6 +147,6 @@ int profile_gemm_add_add_fastgelu(int argc, char* argv[])
     {
         std::cout << "this data_type & layout is not implemented" << std::endl;
 
-        return 0;
+        return 1;
     }
 }

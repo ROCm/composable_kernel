@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include <thread>
@@ -219,6 +222,12 @@ struct Tensor
 
     Tensor(const Tensor& other) : mDesc(other.mDesc), mData(other.mData) {}
 
+    Tensor& operator=(const Tensor& other)
+    {
+        mDesc = other.mDesc;
+        mData = other.mData;
+    }
+
     template <typename F>
     void ForEach_impl(F&& f, std::vector<size_t>& idx, size_t rank)
     {
@@ -361,13 +370,8 @@ HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens,
 {
 }
 
-void ostream_HostTensorDescriptor(const HostTensorDescriptor& desc, std::ostream& os = std::cout);
-
 #if 1
 // FIXME: remove
-void bf16_to_f32_(const Tensor<ck::bhalf_t>& src, Tensor<float>& dst);
-#endif
-
 template <typename T>
 float check_error(const Tensor<T>& ref, const Tensor<T>& result)
 {
@@ -413,3 +417,4 @@ float check_error(const Tensor<T>& ref, const Tensor<T>& result)
 
     return linf_error;
 }
+#endif

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <cstdlib>
 
@@ -76,15 +79,17 @@ int main()
     a_m_device_buf.ToDevice(a_m.mData.data());
     b_m_device_buf.ToDevice(b_m.mData.data());
 
+    std::array<const void*, 2> input = {a_m_device_buf.GetDeviceBuffer(),
+                                        b_m_device_buf.GetDeviceBuffer()};
+    std::array<void*, 1> output      = {c_m_device_buf.GetDeviceBuffer()};
+
+    std::vector<ck::index_t> a_strides = {1};
+    std::vector<ck::index_t> b_strides = {1};
+    std::vector<ck::index_t> c_strides = {1};
+
     auto broadcastAdd = DeviceElementwiseAddInstance{};
-    auto argument     = broadcastAdd.MakeArgumentPointer(a_m_device_buf.GetDeviceBuffer(),
-                                                     b_m_device_buf.GetDeviceBuffer(),
-                                                     c_m_device_buf.GetDeviceBuffer(),
-                                                     {M},
-                                                     {1},
-                                                     {1},
-                                                     {1},
-                                                     Add{});
+    auto argument     = broadcastAdd.MakeArgumentPointer(
+        input, output, {M}, {{a_strides}, b_strides}, {c_strides}, Add{});
 
     if(!broadcastAdd.IsSupportedArgument(argument.get()))
     {

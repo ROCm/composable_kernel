@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include <iostream>
@@ -6,6 +9,7 @@
 #include "ck/utility/reduction_operator.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce.hpp"
+#include "ck/tensor_operation/gpu/device/device_normalization.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce_multiblock.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce_common.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_softmax.hpp"
@@ -30,8 +34,15 @@ template <typename InDataType,
           index_t InSrcVectorDim,
           index_t InSrcVectorSize,
           index_t OutDstVectorSize>
-struct DeviceSoftmax : public BaseOperator
+struct DeviceSoftmax : public DeviceNormalization
 {
+    static constexpr index_t kRank         = Rank;
+    static constexpr index_t kNumReduceDim = NumReduceDim;
+
+    virtual index_t GetRank() const override { return kRank; }
+
+    virtual index_t GetNumReduceDim() const override { return kNumReduceDim; }
+
     using PassThrough = tensor_operation::element_wise::PassThrough;
 
     // Used for freeloading of some handy functions from DeviceReduceMultiBlock
@@ -58,18 +69,33 @@ struct DeviceSoftmax : public BaseOperator
 
     using GridDesc_M_K = decltype(Reduction::MakeSrc2dDescriptor({1}, {1}, 1, 1));
 
-    using GridwiseReduce = GridwiseSoftmax_mk_to_mk<InDataType,
-                                                    OutDataType,
-                                                    AccDataType,
-                                                    GridDesc_M_K,
-                                                    BlockSize,
-                                                    MThreadClusterSize,
-                                                    KThreadClusterSize,
-                                                    MThreadSliceSize,
-                                                    KThreadSliceSize,
-                                                    InSrcVectorDim,
-                                                    InSrcVectorSize,
-                                                    OutDstVectorSize>;
+    using GridwiseSoftmaxGeneric = GridwiseSoftmax_mk_to_mk<InDataType,
+                                                            OutDataType,
+                                                            AccDataType,
+                                                            GridDesc_M_K,
+                                                            BlockSize,
+                                                            MThreadClusterSize,
+                                                            KThreadClusterSize,
+                                                            MThreadSliceSize,
+                                                            KThreadSliceSize,
+                                                            InSrcVectorDim,
+                                                            InSrcVectorSize,
+                                                            OutDstVectorSize,
+                                                            false>;
+
+    using GridwiseSoftmaxSweepOnce = GridwiseSoftmax_mk_to_mk<InDataType,
+                                                              OutDataType,
+                                                              AccDataType,
+                                                              GridDesc_M_K,
+                                                              BlockSize,
+                                                              MThreadClusterSize,
+                                                              KThreadClusterSize,
+                                                              MThreadSliceSize,
+                                                              KThreadSliceSize,
+                                                              InSrcVectorDim,
+                                                              InSrcVectorSize,
+                                                              OutDstVectorSize,
+                                                              true>;
 
     struct Argument : public Reduction::Argument
     {
@@ -118,8 +144,19 @@ struct DeviceSoftmax : public BaseOperator
             const auto out_grid_desc_m_k = Reduction::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
 
-            const auto kernel_main =
-                kernel_softmax<GridwiseReduce, InDataType, OutDataType, AccDataType, GridDesc_M_K>;
+            bool sweep_once =
+                in_grid_desc_m_k.GetLength(Number<1>{}) <= KThreadClusterSize * KThreadSliceSize;
+
+            const auto kernel_main = sweep_once ? kernel_softmax<GridwiseSoftmaxSweepOnce,
+                                                                 InDataType,
+                                                                 OutDataType,
+                                                                 AccDataType,
+                                                                 GridDesc_M_K>
+                                                : kernel_softmax<GridwiseSoftmaxGeneric,
+                                                                 InDataType,
+                                                                 OutDataType,
+                                                                 AccDataType,
+                                                                 GridDesc_M_K>;
 
             float avg_time = 0;
 
@@ -164,24 +201,34 @@ struct DeviceSoftmax : public BaseOperator
         return true;
     };
 
+    // inLengths: input tensor extent(s) from high to low dimension
+    // inStrides: input tensor stride(s) from high to low dimension
+    // reduceDims: the dimension(s) the softmax normalization operate on
+    // alpha: typeless pointer in host memory storing the alpha scaling value as type AccDataType
+    // beta: typeless pointer in host memory storing the beta scaling value as type AccDataType
+    // in_dev: typeless const pointer in device memory storing the input tensor
+    // out_dev: typeless pointer in device memory storing the output tensor
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<index_t> inLengths,
                                                       const std::vector<index_t> inStrides,
                                                       const std::vector<int> reduceDims,
-                                                      AccDataType alpha,
-                                                      AccDataType beta,
+                                                      const void* alpha,
+                                                      const void* beta,
                                                       const void* in_dev,
-                                                      void* out_dev)
+                                                      void* out_dev) override
     {
         return std::make_unique<Argument>(inLengths,
                                           inStrides,
                                           reduceDims,
-                                          alpha,
-                                          beta,
+                                          *static_cast<const AccDataType*>(alpha),
+                                          *static_cast<const AccDataType*>(beta),
                                           static_cast<const InDataType*>(in_dev),
                                           static_cast<OutDataType*>(out_dev));
     };
 
-    std::unique_ptr<BaseInvoker> MakeInvokerPointer() { return std::make_unique<Invoker>(); };
+    std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
+    {
+        return std::make_unique<Invoker>();
+    };
 
     std::string GetTypeString() const override
     {

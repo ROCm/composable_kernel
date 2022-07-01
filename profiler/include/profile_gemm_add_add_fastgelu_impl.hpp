@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include <iomanip>
@@ -6,37 +9,15 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_d.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+#include "ck/library/tensor_operation_instance/gpu/device_gemm_add_add_fastgelu_instance.hpp"
+
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/host_tensor/device_memory.hpp"
 #include "ck/library/host_tensor/host_tensor.hpp"
 #include "ck/library/host_tensor/host_tensor_generator.hpp"
 #include "ck/library/host_tensor/host_conv.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
-
-namespace ck {
-namespace tensor_operation {
-namespace device {
-namespace device_gemm_instance {
-
-using DeviceGemmAddAddFastGeluPtr = ck::tensor_operation::device::DeviceGemmMultipleDPtr<
-    2,
-    ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::AddAddFastGelu>;
-
-void add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances(
-    std::vector<DeviceGemmAddAddFastGeluPtr>&);
-void add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(
-    std::vector<DeviceGemmAddAddFastGeluPtr>&);
-void add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances(
-    std::vector<DeviceGemmAddAddFastGeluPtr>&);
-void add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(
-    std::vector<DeviceGemmAddAddFastGeluPtr>&);
-
-} // namespace device_gemm_instance
-} // namespace device
-} // namespace tensor_operation
-} // namespace ck
 
 namespace ck {
 namespace profiler {
@@ -52,18 +33,18 @@ template <typename ADataType,
           typename D0Layout,
           typename D1Layout,
           typename ELayout>
-int profile_gemm_add_add_fastgelu_impl(int do_verification,
-                                       int init_method,
-                                       bool /*do_log*/,
-                                       bool time_kernel,
-                                       int M,
-                                       int N,
-                                       int K,
-                                       int StrideA,
-                                       int StrideB,
-                                       int StrideD0,
-                                       int StrideD1,
-                                       int StrideE)
+bool profile_gemm_add_add_fastgelu_impl(int do_verification,
+                                        int init_method,
+                                        bool /*do_log*/,
+                                        bool time_kernel,
+                                        int M,
+                                        int N,
+                                        int K,
+                                        int StrideA,
+                                        int StrideB,
+                                        int StrideD0,
+                                        int StrideD1,
+                                        int StrideE)
 {
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
@@ -119,48 +100,21 @@ int profile_gemm_add_add_fastgelu_impl(int do_verification,
     const auto b_element_op   = BElementOp{};
     const auto cde_element_op = CDEElementOp{};
 
-    // add device GEMM instances
-    std::vector<ck::tensor_operation::device::device_gemm_instance::DeviceGemmAddAddFastGeluPtr>
-        device_op_ptrs;
+    // add device op instances
+    const auto op_ptrs = ck::tensor_operation::device::device_gemm_instance::
+        get_device_gemm_add_add_fastgelu_instances<ADataType,
+                                                   BDataType,
+                                                   AccDataType,
+                                                   D0DataType,
+                                                   D1DataType,
+                                                   EDataType,
+                                                   ALayout,
+                                                   BLayout,
+                                                   D0Layout,
+                                                   D1Layout,
+                                                   ELayout>();
 
-    if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
-                 is_same_v<EDataType, half_t>)
-    {
-        if constexpr(is_same_v<ALayout, tensor_layout::gemm::RowMajor> &&
-                     is_same_v<BLayout, tensor_layout::gemm::RowMajor> &&
-                     is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
-        {
-            ck::tensor_operation::device::device_gemm_instance::
-                add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances(
-                    device_op_ptrs);
-        }
-        else if constexpr(is_same_v<ALayout, tensor_layout::gemm::RowMajor> &&
-                          is_same_v<BLayout, tensor_layout::gemm::ColumnMajor> &&
-                          is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
-        {
-            ck::tensor_operation::device::device_gemm_instance::
-                add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(
-                    device_op_ptrs);
-        }
-        else if constexpr(is_same_v<ALayout, tensor_layout::gemm::ColumnMajor> &&
-                          is_same_v<BLayout, tensor_layout::gemm::RowMajor> &&
-                          is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
-        {
-            ck::tensor_operation::device::device_gemm_instance::
-                add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances(
-                    device_op_ptrs);
-        }
-        else if constexpr(is_same_v<ALayout, tensor_layout::gemm::ColumnMajor> &&
-                          is_same_v<BLayout, tensor_layout::gemm::ColumnMajor> &&
-                          is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
-        {
-            ck::tensor_operation::device::device_gemm_instance::
-                add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(
-                    device_op_ptrs);
-        }
-    }
-
-    std::cout << "found " << device_op_ptrs.size() << " instances" << std::endl;
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     // run reference
     if(do_verification)
@@ -204,7 +158,7 @@ int profile_gemm_add_add_fastgelu_impl(int do_verification,
     d0_m_n_device_buf.ToDevice(d0_m_n.mData.data());
     d1_m_n_device_buf.ToDevice(d1_m_n.mData.data());
 
-    std::string best_device_op_name;
+    std::string best_op_name;
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
@@ -212,14 +166,14 @@ int profile_gemm_add_add_fastgelu_impl(int do_verification,
     bool pass = true;
 
     // profile device operation instances
-    for(auto& device_op_ptr : device_op_ptrs)
+    for(auto& op_ptr : op_ptrs)
     {
-        auto argument_ptr = device_op_ptr->MakeArgumentPointer(
+        auto argument_ptr = op_ptr->MakeArgumentPointer(
             a_device_buf.GetDeviceBuffer(),
             b_device_buf.GetDeviceBuffer(),
             std::array<const void*, 2>{d0_m_n_device_buf.GetDeviceBuffer(),
                                        d1_m_n_device_buf.GetDeviceBuffer()},
-            static_cast<EDataType*>(e_device_buf.GetDeviceBuffer()),
+            e_device_buf.GetDeviceBuffer(),
             M,
             N,
             K,
@@ -231,11 +185,11 @@ int profile_gemm_add_add_fastgelu_impl(int do_verification,
             b_element_op,
             cde_element_op);
 
-        auto invoker_ptr = device_op_ptr->MakeInvokerPointer();
+        auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-        std::string device_op_name = device_op_ptr->GetTypeString();
+        std::string op_name = op_ptr->GetTypeString();
 
-        if(device_op_ptr->IsSupportedArgument(argument_ptr.get()))
+        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             // re-init E to zero before profiling a kernel
             e_device_buf.SetZero();
@@ -253,14 +207,14 @@ int profile_gemm_add_add_fastgelu_impl(int do_verification,
             float gb_per_sec = num_btype / 1.E6 / ave_time;
 
             std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops << " TFlops, "
-                      << gb_per_sec << " GB/s, " << device_op_name << std::endl;
+                      << gb_per_sec << " GB/s, " << op_name << std::endl;
 
             if(tflops > best_tflops)
             {
-                best_device_op_name = device_op_name;
-                best_tflops         = tflops;
-                best_ave_time       = ave_time;
-                best_gb_per_sec     = gb_per_sec;
+                best_op_name    = op_name;
+                best_tflops     = tflops;
+                best_ave_time   = ave_time;
+                best_gb_per_sec = gb_per_sec;
             }
 
             if(do_verification)
@@ -273,14 +227,14 @@ int profile_gemm_add_add_fastgelu_impl(int do_verification,
         }
         else
         {
-            std::cout << device_op_name << " does not support this problem" << std::endl;
+            std::cout << op_name << " does not support this problem" << std::endl;
         }
     }
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
-              << best_gb_per_sec << " GB/s, " << best_device_op_name << std::endl;
+              << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
 
-    return pass ? 0 : 1;
+    return pass;
 }
 
 } // namespace profiler

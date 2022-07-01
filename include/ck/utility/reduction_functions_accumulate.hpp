@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include "ck/utility/data_type.hpp"
@@ -14,7 +17,7 @@ struct AccumulateWithNanIgnore
 {
     __device__ static inline void Calculate(AccDataType& accuVal, AccDataType currVal)
     {
-        if(!isnan(currVal))
+        if(!ck::math::isnan(currVal))
         {
             ReduceOperation{}(accuVal, currVal);
         }

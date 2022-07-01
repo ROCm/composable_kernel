@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include <iomanip>
@@ -228,6 +231,10 @@ void profile_grouped_gemm_impl(int do_verification,
                                           ck::tensor_operation::element_wise::PassThrough{});
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
+
+        DeviceMem gemm_desc_workspace(gemm_ptr->GetWorkSpaceSize(argument_ptr.get()));
+
+        gemm_ptr->SetWorkSpacePointer(argument_ptr.get(), gemm_desc_workspace.GetDeviceBuffer());
 
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
