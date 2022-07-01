@@ -58,6 +58,33 @@ struct Add
     }
 };
 
+struct SquaredAdd
+{
+    template <class T>
+    __host__ __device__ static constexpr T GetIdentityValue()
+    {
+        return type_convert<T>(0.0f);
+    };
+
+    __host__ __device__ static constexpr bool
+    IsCompatibleInMemoryDataOperation(InMemoryDataOperationEnum operation)
+    {
+        return operation == InMemoryDataOperationEnum::AtomicAdd ||
+               operation == InMemoryDataOperationEnum::Set;
+    };
+
+    template <class T>
+    __host__ __device__ inline constexpr void operator()(T& a, T b) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, half_t>::value || is_same<T, int32_t>::value ||
+                          is_same<T, int8_t>::value,
+                      "The data type is not supported by the Max accumulator!");
+
+        a = a + b * b;
+    }
+};
+
 struct Mul
 {
     template <typename T>
