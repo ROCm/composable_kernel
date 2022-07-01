@@ -19,7 +19,7 @@
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_gemm_instance {
+namespace instance {
 
 using F32                 = float;
 using F16                 = ck::half_t;
@@ -45,7 +45,7 @@ void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f
 void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_nk_mn_instances(
     std::vector<DeviceGemmBiasAddReduceNoOpPtr>&);
 
-} // namespace device_gemm_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
@@ -236,8 +236,7 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
     d0_device_buf.ToDevice(d0_m_n.mData.data());
 
     // add device GEMM instances
-    std::vector<ck::tensor_operation::device::device_gemm_instance::DeviceGemmBiasAddReduceNoOpPtr>
-        gemm_ptrs;
+    std::vector<ck::tensor_operation::device::instance::DeviceGemmBiasAddReduceNoOpPtr> gemm_ptrs;
 
     if constexpr(is_same<ADataType, half_t>::value && is_same<BDataType, half_t>::value &&
                  is_same<CDataType, half_t>::value)
@@ -246,7 +245,7 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
                      is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                      is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_kn_mn_instances(
                     gemm_ptrs);
         }
@@ -254,7 +253,7 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_nk_mn_instances(
                     gemm_ptrs);
         }
@@ -262,7 +261,7 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
                           is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_kn_mn_instances(
                     gemm_ptrs);
         }
@@ -270,7 +269,7 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_nk_mn_instances(
                     gemm_ptrs);
         }

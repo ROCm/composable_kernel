@@ -10,7 +10,7 @@
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_reduce_instance {
+namespace instance {
 
 #ifdef QUICK_REDUCE_TEST
 using reduce_configuration_2_instances_threadwise = std::tuple<
@@ -151,7 +151,7 @@ void add_device_reduce_instance_threadwise(
                                     Rank,                                    \
                                     NumReduceDim)
 
-} // namespace device_reduce_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

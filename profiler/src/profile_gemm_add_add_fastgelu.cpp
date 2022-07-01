@@ -75,9 +75,7 @@ int profile_gemm_add_add_fastgelu(int argc, char* argv[])
                        auto e_type,
                        auto a_layout,
                        auto b_layout,
-                       auto d0_layout,
-                       auto d1_layout,
-                       auto e_layout) {
+                       auto de_layout) {
         using ADataType   = decltype(a_type);
         using BDataType   = decltype(b_type);
         using AccDataType = decltype(acc_type);
@@ -87,15 +85,13 @@ int profile_gemm_add_add_fastgelu(int argc, char* argv[])
 
         using ALayout  = decltype(a_layout);
         using BLayout  = decltype(b_layout);
-        using D0Layout = decltype(d0_layout);
-        using D1Layout = decltype(d1_layout);
-        using ELayout  = decltype(e_layout);
+        using DELayout = decltype(de_layout);
 
         const int DefaultStrideA  = ck::is_same_v<ALayout, Row> ? K : M;
         const int DefaultStrideB  = ck::is_same_v<BLayout, Row> ? N : K;
-        const int DefaultStrideD0 = ck::is_same_v<D0Layout, Row> ? N : M;
-        const int DefaultStrideD1 = ck::is_same_v<D1Layout, Row> ? N : M;
-        const int DefaultStrideE  = ck::is_same_v<ELayout, Row> ? N : M;
+        const int DefaultStrideD0 = ck::is_same_v<DELayout, Row> ? N : M;
+        const int DefaultStrideD1 = ck::is_same_v<DELayout, Row> ? N : M;
+        const int DefaultStrideE  = ck::is_same_v<DELayout, Row> ? N : M;
 
         bool pass = ck::profiler::profile_gemm_add_add_fastgelu_impl<ADataType,
                                                                      BDataType,
@@ -105,9 +101,7 @@ int profile_gemm_add_add_fastgelu(int argc, char* argv[])
                                                                      EDataType,
                                                                      ALayout,
                                                                      BLayout,
-                                                                     D0Layout,
-                                                                     D1Layout,
-                                                                     ELayout>(
+                                                                     DELayout>(
             do_verification,
             init_method,
             do_log,
@@ -126,22 +120,22 @@ int profile_gemm_add_add_fastgelu(int argc, char* argv[])
 
     if(data_type == MatrixDataType::F16_F16_F16_F16_F16 && layout == MatrixLayout::MK_KN_MN_MN_MN)
     {
-        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, F16{}, Row{}, Row{}, Row{}, Row{}, Row{});
+        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, F16{}, Row{}, Row{}, Row{});
     }
     else if(data_type == MatrixDataType::F16_F16_F16_F16_F16 &&
             layout == MatrixLayout::MK_NK_MN_MN_MN)
     {
-        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, F16{}, Row{}, Col{}, Row{}, Row{}, Row{});
+        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, F16{}, Row{}, Col{}, Row{});
     }
     else if(data_type == MatrixDataType::F16_F16_F16_F16_F16 &&
             layout == MatrixLayout::KM_KN_MN_MN_MN)
     {
-        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, F16{}, Col{}, Row{}, Row{}, Row{}, Row{});
+        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, F16{}, Col{}, Row{}, Row{});
     }
     else if(data_type == MatrixDataType::F16_F16_F16_F16_F16 &&
             layout == MatrixLayout::KM_NK_MN_MN_MN)
     {
-        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, F16{}, Col{}, Col{}, Row{}, Row{}, Row{});
+        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, F16{}, Col{}, Col{}, Row{});
     }
     else
     {

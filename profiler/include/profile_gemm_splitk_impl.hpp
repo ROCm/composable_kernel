@@ -12,7 +12,7 @@
 #include "ck/tensor_operation/gpu/device/device_gemm_splitk.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/device_gemm_splitk_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/gemm_splitk.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/host_tensor/device_memory.hpp"
@@ -95,20 +95,21 @@ bool profile_gemm_splitk_impl(int do_verification,
     b_device_buf.ToDevice(b_k_n.mData.data());
     c_device_buf.ToDevice(c_m_n_device_result.mData.data());
 
-    // add device op instances
-    const auto op_ptrs =
-        ck::tensor_operation::device::device_gemm_instance::get_device_gemm_splitk_instances<
-            ADataType,
-            BDataType,
-            CDataType,
-            ALayout,
-            BLayout,
-            CLayout>();
+    using DeviceOp = ck::tensor_operation::device::DeviceGemmSplitK<ALayout,
+                                                                    BLayout,
+                                                                    CLayout,
+                                                                    ADataType,
+                                                                    BDataType,
+                                                                    CDataType,
+                                                                    AElementOp,
+                                                                    BElementOp,
+                                                                    CElementOp>;
 
-    if(op_ptrs.size() <= 0)
-    {
-        throw std::runtime_error("wrong! no device operation instance found");
-    }
+    // get device op instances
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
+
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     // Run reference GEMM
     if(do_verification)

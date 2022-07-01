@@ -19,14 +19,14 @@ namespace device {
 using DeviceConvFwdNoOpPtr = DeviceConvFwdPtr<element_wise::PassThrough,
                                               element_wise::PassThrough,
                                               element_wise::PassThrough>;
-namespace device_conv2d_fwd_instance {
+namespace instance {
 
 void add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 void add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 void add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 void add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 
-} // namespace device_conv2d_fwd_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
@@ -118,7 +118,7 @@ struct ConvolutionNDFwdInstances<float, float, float>
         std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
         if(num_dim_spatial == 2)
         {
-            ck::tensor_operation::device::device_conv2d_fwd_instance::
+            ck::tensor_operation::device::instance::
                 add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances(conv_ptrs);
         }
         return conv_ptrs;
@@ -133,7 +133,7 @@ struct ConvolutionNDFwdInstances<ck::half_t, ck::half_t, ck::half_t>
         std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
         if(num_dim_spatial == 2)
         {
-            ck::tensor_operation::device::device_conv2d_fwd_instance::
+            ck::tensor_operation::device::instance::
                 add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
         }
         return conv_ptrs;
@@ -148,7 +148,7 @@ struct ConvolutionNDFwdInstances<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t>
         std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
         if(num_dim_spatial == 2)
         {
-            ck::tensor_operation::device::device_conv2d_fwd_instance::
+            ck::tensor_operation::device::instance::
                 add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
         }
         return conv_ptrs;
@@ -163,7 +163,7 @@ struct ConvolutionNDFwdInstances<int8_t, int8_t, int8_t>
         std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
         if(num_dim_spatial == 2)
         {
-            ck::tensor_operation::device::device_conv2d_fwd_instance::
+            ck::tensor_operation::device::instance::
                 add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(conv_ptrs);
         }
         return conv_ptrs;

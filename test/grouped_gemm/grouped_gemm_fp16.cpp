@@ -28,7 +28,7 @@ using DeviceGroupedGemmPtr_ = ck::tensor_operation::device::DeviceGroupedGemmPtr
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_grouped_gemm_instance {
+namespace instance {
 void add_device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(
     std::vector<DeviceGroupedGemmPtr_>&);
 }
@@ -197,7 +197,7 @@ bool TestGroupedGemm(DeviceGroupedGemmPtr_& groupedGemmPtr)
 int main()
 {
     std::vector<DeviceGroupedGemmPtr_> groupedGemmPtrs;
-    ck::tensor_operation::device::device_grouped_gemm_instance::
+    ck::tensor_operation::device::instance::
         add_device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(groupedGemmPtrs);
 
     bool res = true;

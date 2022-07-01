@@ -2,6 +2,7 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
+
 #include <iostream>
 #include <vector>
 
@@ -11,7 +12,13 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename AElementwiseOperation,
+template <typename ALayout,
+          typename BLayout,
+          typename CLayout,
+          typename ADataType,
+          typename BDataType,
+          typename CDataType,
+          typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
 struct DeviceGemmSplitK : public BaseOperator
@@ -33,11 +40,24 @@ struct DeviceGemmSplitK : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <typename AElementwiseOperation,
+template <typename ALayout,
+          typename BLayout,
+          typename CLayout,
+          typename ADataType,
+          typename BDataType,
+          typename CDataType,
+          typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
-using DeviceGemmSplitKPtr = std::unique_ptr<
-    DeviceGemmSplitK<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>>;
+using DeviceGemmSplitKPtr = std::unique_ptr<DeviceGemmSplitK<ALayout,
+                                                             BLayout,
+                                                             CLayout,
+                                                             ADataType,
+                                                             BDataType,
+                                                             CDataType,
+                                                             AElementwiseOperation,
+                                                             BElementwiseOperation,
+                                                             CElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation

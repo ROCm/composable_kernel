@@ -56,8 +56,15 @@ template <typename ADataType,
           bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
           ck::index_t CThreadTransferDstScalarPerVector>
-struct DeviceGemmXdlSplitK
-    : public DeviceGemmSplitK<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
+struct DeviceGemmXdlSplitK : public DeviceGemmSplitK<ALayout,
+                                                     BLayout,
+                                                     CLayout,
+                                                     ADataType,
+                                                     BDataType,
+                                                     CDataType,
+                                                     AElementwiseOperation,
+                                                     BElementwiseOperation,
+                                                     CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};

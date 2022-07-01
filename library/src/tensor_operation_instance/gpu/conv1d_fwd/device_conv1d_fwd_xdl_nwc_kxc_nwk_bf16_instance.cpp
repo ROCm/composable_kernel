@@ -8,12 +8,12 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/device_convnd_fwd_xdl_nhwc_kyxc_nhwk.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/library/tensor_operation_instance/device_operation_instance.hpp"
+#include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_conv1d_fwd_instance {
+namespace instance {
 
 using F32  = float;
 using BF16 = bhalf_t;
@@ -109,7 +109,7 @@ void add_device_conv1d_fwd_xdl_nwc_kxc_nwk_bf16_instances(
                                    device_conv1d_fwd_xdl_nwc_kxc_nwk_1x1_s1_p0_bf16_instances{});
 }
 
-} // namespace device_conv1d_fwd_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
