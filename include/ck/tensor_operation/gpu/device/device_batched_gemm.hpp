@@ -12,7 +12,13 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename AElementwiseOperation,
+template <typename ALayout,
+          typename BLayout,
+          typename CLayout,
+          typename ADataType,
+          typename BDataType,
+          typename CDataType,
+          typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
 struct DeviceBatchedGemm : public BaseOperator
@@ -37,11 +43,24 @@ struct DeviceBatchedGemm : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <typename AElementwiseOperation,
+template <typename ALayout,
+          typename BLayout,
+          typename CLayout,
+          typename ADataType,
+          typename BDataType,
+          typename CDataType,
+          typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
-using DeviceBatchedGemmPtr = std::unique_ptr<
-    DeviceBatchedGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>>;
+using DeviceBatchedGemmPtr = std::unique_ptr<DeviceBatchedGemm<ALayout,
+                                                               BLayout,
+                                                               CLayout,
+                                                               ADataType,
+                                                               BDataType,
+                                                               CDataType,
+                                                               AElementwiseOperation,
+                                                               BElementwiseOperation,
+                                                               CElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation

@@ -10,7 +10,7 @@
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_reduce_instance {
+namespace instance {
 
 using reduce_configuration_1_instances_blockwise = std::tuple<
     // clang-format off
@@ -174,7 +174,7 @@ void add_device_reduce_instance_blockwise(
                                    Rank,                                    \
                                    NumReduceDim)
 
-} // namespace device_reduce_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

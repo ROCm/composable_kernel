@@ -17,7 +17,7 @@
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_conv2d_fwd_bias_activation_add_instance {
+namespace instance {
 
 using DeviceConvFwdBiasReluAddPtr =
     DeviceConvFwdBiasActivationAddPtr<ck::tensor_operation::element_wise::PassThrough,
@@ -27,7 +27,7 @@ using DeviceConvFwdBiasReluAddPtr =
 void add_device_conv2d_fwd_xdl_c_shuffle_bias_relu_add_nhwc_kyxc_nhwk_f16_instances(
     std::vector<DeviceConvFwdBiasReluAddPtr>&);
 
-} // namespace device_conv2d_fwd_bias_activation_add_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
@@ -179,7 +179,7 @@ void profile_conv_fwd_bias_relu_add_impl(int do_verification,
                  ck::is_same_v<ck::remove_cv_t<WeiDataType>, ck::half_t> &&
                  ck::is_same_v<ck::remove_cv_t<OutDataType>, ck::half_t>)
     {
-        ck::tensor_operation::device::device_conv2d_fwd_bias_activation_add_instance::
+        ck::tensor_operation::device::instance::
             add_device_conv2d_fwd_xdl_c_shuffle_bias_relu_add_nhwc_kyxc_nhwk_f16_instances(op_ptrs);
     }
 

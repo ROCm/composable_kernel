@@ -10,7 +10,7 @@
 #include "ck/tensor_operation/gpu/device/device_batched_gemm.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/device_batched_gemm_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/batched_gemm.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/host_tensor/device_memory.hpp"
@@ -122,19 +122,21 @@ bool profile_batched_gemm_impl(int do_verification,
     b_device_buf.ToDevice(b_g_k_n.mData.data());
     c_device_buf.ToDevice(c_g_m_n_device_result.mData.data());
 
-    // add device op instances
-    const auto op_ptrs = ck::tensor_operation::device::device_batched_gemm_instance::
-        get_device_batched_gemm_instances<ADataType,
-                                          BDataType,
-                                          CDataType,
-                                          ALayout,
-                                          BLayout,
-                                          CLayout>();
+    using DeviceOp = ck::tensor_operation::device::DeviceBatchedGemm<ALayout,
+                                                                     BLayout,
+                                                                     CLayout,
+                                                                     ADataType,
+                                                                     BDataType,
+                                                                     CDataType,
+                                                                     AElementOp,
+                                                                     BElementOp,
+                                                                     CElementOp>;
 
-    if(op_ptrs.size() <= 0)
-    {
-        throw std::runtime_error("wrong! no device GEMM instance found");
-    }
+    // get device op instances
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
+
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     std::string best_op_name;
     float best_ave_time   = 0;

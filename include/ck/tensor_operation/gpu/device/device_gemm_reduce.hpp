@@ -2,13 +2,16 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
+
 #include <iostream>
+
 #include "device_base.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 
+// FIXME: DeviceGemmReduce type need to well define the problem
 template <ck::index_t NumDTensor, ck::index_t NumReduce>
 struct DeviceGemmReduce : public BaseOperator
 {
