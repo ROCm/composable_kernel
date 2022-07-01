@@ -11,8 +11,8 @@ namespace element_wise {
 
 struct Add
 {
-    template <typename T>
-    __host__ __device__ constexpr void operator()(T& y, const T& x0, const T& x1) const;
+    template <typename Y, typename X0, typename X1>
+    __host__ __device__ constexpr void operator()(Y& y, const X0& x0, const X1& x1) const;
 
     template <>
     __host__ __device__ constexpr void
@@ -26,6 +26,13 @@ struct Add
     operator()<double>(double& y, const double& x0, const double& x1) const
     {
         y = x0 + x1;
+    };
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<half_t>(half_t& y, const float& x0, const half_t& x1) const
+    {
+        y = type_convert<half_t>(x0) + x1;
     };
 
     // Question: should half_t be supported ?
