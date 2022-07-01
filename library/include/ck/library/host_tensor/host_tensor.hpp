@@ -222,6 +222,12 @@ struct Tensor
 
     Tensor(const Tensor& other) : mDesc(other.mDesc), mData(other.mData) {}
 
+    Tensor& operator=(const Tensor& other)
+    {
+        mDesc = other.mDesc;
+        mData = other.mData;
+    }
+
     template <typename F>
     void ForEach_impl(F&& f, std::vector<size_t>& idx, size_t rank)
     {

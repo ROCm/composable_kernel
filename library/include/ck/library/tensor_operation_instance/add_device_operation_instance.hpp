@@ -6,6 +6,8 @@
 #include <vector>
 #include <type_traits>
 
+#include "ck/utility/functional2.hpp"
+
 namespace ck {
 namespace tensor_operation {
 namespace device {

@@ -20,6 +20,7 @@ int profile_conv_fwd_bias_relu_add(int, char*[]);
 int profile_convnd_fwd(int argc, char* argv[]);
 int profile_convnd_bwd_data(int, char*[], int);
 int profile_conv_bwd_weight(int, char*[]);
+int profile_normalization(int, char*[]);
 int profile_reduce(int, char*[]);
 
 static void print_helper_message()
@@ -129,6 +130,11 @@ int main(int argc, char* argv[])
     else if(strcmp(argv[1], "gemm_add_add_fastgelu") == 0)
     {
         return profile_gemm_add_add_fastgelu(argc, argv);
+    }
+    else if(strcmp(argv[1], "batchnorm") == 0 || strcmp(argv[1], "layernorm") == 0 ||
+            strcmp(argv[1], "softmax") == 0)
+    {
+        return profile_normalization(argc, argv);
     }
     else
     {
