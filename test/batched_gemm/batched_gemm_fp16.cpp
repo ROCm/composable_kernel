@@ -25,19 +25,19 @@ int main()
 
     pass = pass &&
            ck::profiler::profile_batched_gemm_impl<ADataType, BDataType, CDataType, Row, Row, Row>(
-               true, 1, false, 1, M, N, K, K, N, N, BatchCount);
+               true, 1, false, 1, M, N, K, K, N, N, M * K, K * N, M * N, BatchCount);
 
     pass = pass &&
            ck::profiler::profile_batched_gemm_impl<ADataType, BDataType, CDataType, Row, Col, Row>(
-               true, 1, false, 1, M, N, K, K, K, N, BatchCount);
+               true, 1, false, 1, M, N, K, K, K, N, M * K, K * N, M * N, BatchCount);
 
     pass = pass &&
            ck::profiler::profile_batched_gemm_impl<ADataType, BDataType, CDataType, Col, Row, Row>(
-               true, 1, false, 1, M, N, K, M, N, N, BatchCount);
+               true, 1, false, 1, M, N, K, M, N, N, M * K, K * N, M * N, BatchCount);
 
     pass = pass &&
            ck::profiler::profile_batched_gemm_impl<ADataType, BDataType, CDataType, Col, Col, Row>(
-               true, 1, false, 1, M, N, K, M, K, N, BatchCount);
+               true, 1, false, 1, M, N, K, M, K, N, M * K, K * N, M * N, BatchCount);
 
     std::cout << "test BatchedGEMM fp16: " << (pass ? "Pass" : "Fail") << std::endl;
     return pass ? 0 : 1;
