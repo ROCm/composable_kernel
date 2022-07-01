@@ -273,12 +273,13 @@ static inline int str2desc(desc_t* desc, const char* str, bool is_deconv = false
         return XDNN_FAIL;
 
     d.init_pad_r(is_deconv);
-    *desc = d;
 
     // TODO: this is difference CK~OneDNN
     d.dh++;
     d.dw++;
     d.dd++;
+
+    *desc = d;
 
     return XDNN_OK;
 }
