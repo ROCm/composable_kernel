@@ -94,10 +94,11 @@ struct Subtract
     }
 };
 
-struct AlphaBetaAdd
+struct Bilinear
 {
-    AlphaBetaAdd(float alpha, float beta) : alpha_(alpha), beta_(beta){};
+    Bilinear(float alpha, float beta) : alpha_(alpha), beta_(beta){};
 
+#if 0
     template <typename T>
     __host__ __device__ constexpr void operator()(T& y, const T& x0, const T& x1) const;
 
@@ -115,7 +116,6 @@ struct AlphaBetaAdd
         y = type_convert<double>(alpha_) * x0 + type_convert<double>(beta_) * x1;
     };
 
-    // Question: should half_t be supported ?
     template <>
     __host__ __device__ constexpr void
     operator()<half_t>(half_t& y, const half_t& x0, const half_t& x1) const
@@ -123,6 +123,24 @@ struct AlphaBetaAdd
         y = type_convert<half_t>(alpha_ * type_convert<float>(x0) +
                                  beta_ * type_convert<float>(x1));
     };
+#else
+    template <typename Y, typename X0, typename X1>
+    __host__ __device__ constexpr void operator()(Y&, const X0&, const X1&) const;
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<float, float, float>(float& y, const float& x0, const float& x1) const
+    {
+        y = alpha_ * x0 + beta_ * x1;
+    };
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<half_t, float, half_t>(half_t& y, const float& x0, const half_t& x1) const
+    {
+        y = type_convert<half_t>(alpha_ * x0 + beta_ * ck::type_convert<float>(x1));
+    };
+#endif
 
     float alpha_;
     float beta_;

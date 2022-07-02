@@ -6,7 +6,8 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_xdl_c_shuffle_bias_2d.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_xdl_cshuffle.hpp"
+
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
 namespace ck {
@@ -14,6 +15,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
+using F16 = ck::half_t;
 using F32 = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
@@ -22,11 +24,11 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using PassThrough  = ck::tensor_operation::element_wise::PassThrough;
-using AlphaBetaAdd = ck::tensor_operation::element_wise::AlphaBetaAdd;
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+using Bilinear    = ck::tensor_operation::element_wise::Bilinear;
 
 // Compilation parameters for a[m, k] * b[k, n] = c[m, n]
-using device_gemm_xdl_c_shuffle_bias_2d_f32_f32_f32_mk_nk_mn_instances = std::tuple<
+using device_gemm_bilinear_xdl_c_shuffle_f32_f32_f32_mk_nk_mn_instances = std::tuple<
     // clang-format off
         //#############################|AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|            C| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|
         //#############################| Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise|  Elementwise|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave| _MBlock_MXdlPerWave_MWaveMPerXdl| ScalarPerVector|
@@ -48,11 +50,11 @@ using device_gemm_xdl_c_shuffle_bias_2d_f32_f32_f32_mk_nk_mn_instances = std::tu
     // clang-format on
     >;
 
-void add_device_gemm_xdl_c_shuffle_bias_2d_f32_f32_f32_mk_nk_mn_instances(
+void add_device_gemm_bilinear_xdl_c_shuffle_f32_f32_f32_mk_nk_mn_instances(
     std::vector<DeviceGemmBiasPtr<PassThrough, PassThrough, AlphaBetaAdd>>& instances)
 {
     add_device_operation_instances(
-        instances, device_gemm_xdl_c_shuffle_bias_2d_f32_f32_f32_mk_nk_mn_instances{});
+        instances, device_gemm_bilinear_xdl_c_shuffle_f32_f32_f32_mk_nk_mn_instances{});
 }
 
 } // namespace instance
