@@ -93,7 +93,7 @@ struct DeviceGemmXdlSplitK : public DeviceGemmSplitK<ALayout,
 
         const auto a_grid_desc_m_kpad = transform_tensor_descriptor(
             a_grid_desc_m_k,
-            make_tuple(make_right_pad_transform(K, KPad - K), make_pass_through_transform(M)),
+            make_tuple(make_pass_through_transform(M), make_right_pad_transform(K, KPad - K)),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}));
 
