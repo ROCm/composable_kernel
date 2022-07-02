@@ -16,12 +16,14 @@ using F32  = float;
 using F16  = ck::half_t;
 using BF16 = ck::bhalf_t;
 
-using F16_F16 = ck::Tuple<F16, F16>;
+using F16_TUPLE     = ck::Tuple<F16>;
+using F16_F16_TUPLE = ck::Tuple<F16, F16>;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough    = ck::tensor_operation::element_wise::PassThrough;
+using Bilinear       = ck::tensor_operation::element_wise::Bilinear;
 using AddAddFastGelu = ck::tensor_operation::element_wise::AddAddFastGelu;
 
 template <typename DeviceOp>
