@@ -31,6 +31,42 @@ void add_device_gemm_bilinear_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances(
                                                     PassThrough,
                                                     Bilinear>>>& instances);
 
+void add_device_gemm_bilinear_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleD<Col,
+                                                    Col,
+                                                    Row,
+                                                    F16,
+                                                    F16,
+                                                    F16_TUPLE,
+                                                    F16,
+                                                    PassThrough,
+                                                    PassThrough,
+                                                    Bilinear>>>& instances);
+
+void add_device_gemm_bilinear_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
+                                                    Row,
+                                                    Row,
+                                                    F16,
+                                                    F16,
+                                                    F16_TUPLE,
+                                                    F16,
+                                                    PassThrough,
+                                                    PassThrough,
+                                                    Bilinear>>>& instances);
+
+void add_device_gemm_bilinear_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
+                                                    Col,
+                                                    Row,
+                                                    F16,
+                                                    F16,
+                                                    F16_TUPLE,
+                                                    F16,
+                                                    PassThrough,
+                                                    PassThrough,
+                                                    Bilinear>>>& instances);
+
 // GEMM + Bilinear
 template <typename ALayout,
           typename BLayout,
@@ -71,10 +107,13 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<DELayout, Row>)
-            {}
+            {
+                add_device_gemm_bilinear_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances(op_ptrs);
+            }
             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
                               is_same_v<DELayout, Row>)
             {
+                add_device_gemm_bilinear_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
                               is_same_v<DELayout, Row>)
@@ -84,6 +123,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
                               is_same_v<DELayout, Row>)
             {
+                add_device_gemm_bilinear_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(op_ptrs);
             }
         }
 
