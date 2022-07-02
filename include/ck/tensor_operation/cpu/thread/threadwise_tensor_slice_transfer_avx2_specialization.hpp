@@ -1054,7 +1054,7 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXC
             float* p_dst       = reinterpret_cast<float*>(dst_buf.p_data_);
 
             // n * k -> n0 * k * n1, n1 = 8, n0 = n/8
-            for(index_t i_n_itr = 0; i_n_itr < n_per_block; i_n_itr += 8)
+            for(intptr_t i_n_itr = 0; i_n_itr < n_per_block; i_n_itr += 8)
             {
                 intptr_t current_n_8 = ck::math::min(GemmN - (i_n_itr + i_gemm_n), (intptr_t)8);
                 intptr_t i_k_itr     = k_per_block;
@@ -1150,9 +1150,9 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXC
                     const float* p_src_k = p_src;
                     float* p_dst_k       = p_dst;
 
-                    for(index_t i_sub_n = 0; i_sub_n < 8; i_sub_n++)
+                    for(intptr_t i_sub_n = 0; i_sub_n < 8; i_sub_n++)
                     {
-                        for(index_t i_sub_k = 0; i_sub_k < k_per_block; i_sub_k++)
+                        for(intptr_t i_sub_k = 0; i_sub_k < k_per_block; i_sub_k++)
                         {
                             intptr_t i_current_n_itr = i_n_itr + i_sub_n + i_gemm_n;
 
@@ -1269,7 +1269,7 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXCK8
             float* p_dst       = reinterpret_cast<float*>(dst_buf.p_data_);
 
             // n0 * k * n1
-            index_t i_n0_itr = n0_per_block;
+            intptr_t i_n0_itr = n0_per_block;
             while(i_n0_itr >= 8)
             {
                 avx2_util::memcpy32_avx2(p_dst + 0 * k_n1_per_block,
@@ -1440,7 +1440,7 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_YXCK
             float* p_dst       = reinterpret_cast<float*>(dst_buf.p_data_);
 
             // k * n
-            index_t i_k_itr = k_per_block;
+            intptr_t i_k_itr = k_per_block;
             while(i_k_itr >= 8)
             {
                 avx2_util::memcpy32_avx2(
