@@ -116,19 +116,19 @@ using OutElementOp = ck::tensor_operation::cpu::element_wise::Relu;
 
 template <typename T>
 static bool
-check_out(const Tensor<T>& ref, const Tensor<T>& result, double nrms, int per_pixel_check = 0)
+check_out(const T* ref, const T* result, std::size_t len, double nrms, int per_pixel_check = 0)
 {
-    int error_count = 0;
-    float max_diff  = 1e-5;
+    std::size_t error_count = 0;
+    float max_diff          = 1e-5;
 
     double square_difference = .0;
     double mag1              = .0;
     double mag2              = .0;
 
-    for(int i = 0; i < ref.mData.size(); ++i)
+    for(std::size_t i = 0; i < len; ++i)
     {
-        double ri = (double)ref.mData[i];
-        double pi = (double)result.mData[i];
+        double ri = (double)ref[i];
+        double pi = (double)result[i];
         double d  = ri - pi;
 
         if(per_pixel_check)
@@ -136,11 +136,8 @@ check_out(const Tensor<T>& ref, const Tensor<T>& result, double nrms, int per_pi
             if(max_diff < std::abs(d))
             {
                 error_count++;
-                printf("idx:%3d, ref:%f, res:%f (diff:%f)\n",
-                       i,
-                       double(ref.mData[i]),
-                       double(result.mData[i]),
-                       d);
+                printf(
+                    "idx:%3d, ref:%f, res:%f (diff:%f)\n", i, double(ref[i]), double(result[i]), d);
             }
         }
 
@@ -152,7 +149,7 @@ check_out(const Tensor<T>& ref, const Tensor<T>& result, double nrms, int per_pi
     }
 
     double mag = std::max({std::fabs(mag1), std::fabs(mag2), std::numeric_limits<double>::min()});
-    double computed_nrms = std::sqrt(square_difference) / (std::sqrt(ref.mData.size()) * mag);
+    double computed_nrms = std::sqrt(square_difference) / (std::sqrt(len) * mag);
 
     if(computed_nrms >= nrms)
         printf("nrms:%lf, mag1:%lf, mag2:%lf, expected_nrms is %1f\n",
@@ -360,7 +357,6 @@ int main(int argc, char* argv[])
             f_host_tensor_descriptor(K, C, Y, X)); // TODO: This is only to hold data
 #endif
         Tensor<OutDataType> out_n_k_ho_wo_host_result(f_host_tensor_descriptor(N, K, Ho, Wo));
-        Tensor<OutDataType> out_n_k_ho_wo_device_result(f_host_tensor_descriptor(N, K, Ho, Wo));
 
         std::cout << "in (N, C, Hi, Wi): " << in_n_c_hi_wi.mDesc << std::endl;
         std::cout << "wei(K, C,  Y,  X): " << wei_k_c_y_x.mDesc << std::endl;
@@ -651,12 +647,12 @@ int main(int argc, char* argv[])
 
                 double gflops = (total_flop * 1e-6) / time;
 
-                out_device_buf.FromDevice(out_n_k_ho_wo_device_result.mData.data());
-
-                if(cpu_validation && !check_out(out_n_k_ho_wo_host_result,
-                                                out_n_k_ho_wo_device_result,
-                                                1e-6,
-                                                per_pixel_check))
+                if(cpu_validation &&
+                   !check_out(out_n_k_ho_wo_host_result.mData.data(),
+                              reinterpret_cast<OutDataType*>(out_device_buf.mpDeviceBuf),
+                              out_n_k_ho_wo_host_result.mData.size(),
+                              1e-6,
+                              per_pixel_check))
                 {
                     std::cout << "Fail Info: " << conv_ptr->GetTypeString() << std::endl;
                     success = false;

@@ -1,6 +1,7 @@
 #include <chrono>
 #include <assert.h>
 #include <string.h>
+#include <stdlib.h>
 #include "device.hpp"
 
 #ifndef CK_NOGPU
@@ -85,15 +86,10 @@ DeviceAlignedMemCPU::DeviceAlignedMemCPU(std::size_t mem_size, std::size_t align
     {
         assert(!(alignment == 0 || (alignment & (alignment - 1)))); // check pow of 2
 
-        void* p1;
-        void** p2;
-        int offset = alignment - 1 + sizeof(void*);
-        p1         = malloc(mem_size + offset);
-        assert(p1 != nullptr);
+        // TODO: posix only
+        int rtn = posix_memalign(&mpDeviceBuf, alignment, mem_size);
 
-        p2 = reinterpret_cast<void**>((reinterpret_cast<size_t>(p1) + offset) & ~(alignment - 1));
-        p2[-1]      = p1;
-        mpDeviceBuf = reinterpret_cast<void*>(p2);
+        assert(rtn == 0);
     }
 }
 
@@ -110,7 +106,7 @@ void DeviceAlignedMemCPU::SetZero() { memset(mpDeviceBuf, 0, mMemSize); }
 DeviceAlignedMemCPU::~DeviceAlignedMemCPU()
 {
     if(mpDeviceBuf != nullptr)
-        free((reinterpret_cast<void**>(mpDeviceBuf))[-1]);
+        free(mpDeviceBuf);
 }
 
 struct WallTimerImpl

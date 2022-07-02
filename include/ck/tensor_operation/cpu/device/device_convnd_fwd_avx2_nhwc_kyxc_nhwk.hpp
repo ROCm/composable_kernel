@@ -712,7 +712,7 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                 throw std::runtime_error("wrong! GridwiseGemmAvx2_MxN has invalid setting");
             }
 
-            memset(arg.p_c_grid_, 0, arg.c_grid_desc_.GetElementSpaceSize());
+            // memset(arg.p_c_grid_, 0, arg.c_grid_desc_.GetElementSpaceSize());
 
             const auto kernel = ck::cpu::kernel_gemm_avx_mxn<GridwiseGemm,
                                                              InDataType,
@@ -743,7 +743,7 @@ struct DeviceConvNDFwdAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
 
             // TODO: this is for benchmark purpose, so last time we clear c buffer and calculate the
             // result
-            memset(arg.p_c_grid_, 0, arg.c_grid_desc_.GetElementSpaceSize());
+            // memset(arg.p_c_grid_, 0, arg.c_grid_desc_.GetElementSpaceSize());
 
             launch_cpu_kernel(kernel,
                               gridwise_gemm,

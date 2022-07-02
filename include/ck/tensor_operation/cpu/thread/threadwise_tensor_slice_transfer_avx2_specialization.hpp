@@ -18,12 +18,15 @@ namespace cpu {
 namespace avx2_util {
 
 template <typename ElementwiseOp>
-void memcpy32_avx2(void* dst, const void* src, const ck::index_t n, const ElementwiseOp& element_op)
+void memcpy32_avx2(void* dst,
+                   const void* src,
+                   const ck::long_index_t n,
+                   const ElementwiseOp& element_op)
 {
     // 16-8-4-2-1 pattern
-    ck::index_t i_n    = n;
-    float* p_dst       = reinterpret_cast<float*>(dst);
-    const float* p_src = reinterpret_cast<const float*>(src);
+    ck::long_index_t i_n = n;
+    float* p_dst         = reinterpret_cast<float*>(dst);
+    const float* p_src   = reinterpret_cast<const float*>(src);
     while(i_n >= 16)
     {
         _mm256_storeu_ps(p_dst + 0, element_op.Apply(_mm256_loadu_ps(p_src + 0)));
@@ -67,15 +70,15 @@ void memcpy32_avx2_with_extra_2src(void* dst,
                                    const void* src,
                                    const void* src1,
                                    const void* src2,
-                                   const ck::index_t n,
+                                   const ck::long_index_t n,
                                    const ElementwiseOp& element_op)
 {
     // 16-8-4-2-1 pattern
-    ck::index_t i_n     = n;
-    float* p_dst        = reinterpret_cast<float*>(dst);
-    const float* p_src  = reinterpret_cast<const float*>(src);
-    const float* p_src1 = reinterpret_cast<const float*>(src1);
-    const float* p_src2 = reinterpret_cast<const float*>(src2);
+    ck::long_index_t i_n = n;
+    float* p_dst         = reinterpret_cast<float*>(dst);
+    const float* p_src   = reinterpret_cast<const float*>(src);
+    const float* p_src1  = reinterpret_cast<const float*>(src1);
+    const float* p_src2  = reinterpret_cast<const float*>(src2);
     while(i_n >= 16)
     {
         _mm256_storeu_ps(p_dst + 0,
@@ -146,14 +149,14 @@ void memcpy32_avx2_with_extra_2src(void* dst,
                                    const void* src,
                                    float v_src1,
                                    const void* src2,
-                                   const ck::index_t n,
+                                   const ck::long_index_t n,
                                    const ElementwiseOp& element_op)
 {
     // 16-8-4-2-1 pattern
-    ck::index_t i_n     = n;
-    float* p_dst        = reinterpret_cast<float*>(dst);
-    const float* p_src  = reinterpret_cast<const float*>(src);
-    const float* p_src2 = reinterpret_cast<const float*>(src2);
+    ck::long_index_t i_n = n;
+    float* p_dst         = reinterpret_cast<float*>(dst);
+    const float* p_src   = reinterpret_cast<const float*>(src);
+    const float* p_src2  = reinterpret_cast<const float*>(src2);
 
     __m256 ymm_src1 = _mm256_set1_ps(*reinterpret_cast<const float*>(&v_src1));
     __m128 xmm_src1 = _mm_set1_ps(*reinterpret_cast<const float*>(&v_src1));
@@ -214,11 +217,11 @@ template <typename ElementwiseOp>
 void memcpy32_avx2_with_extra_1src(void* dst,
                                    const void* src,
                                    const void* src_aux,
-                                   const ck::index_t n,
+                                   const ck::long_index_t n,
                                    const ElementwiseOp& element_op)
 {
     // 16-8-4-2-1 pattern
-    ck::index_t i_n        = n;
+    ck::long_index_t i_n   = n;
     float* p_dst           = reinterpret_cast<float*>(dst);
     const float* p_src     = reinterpret_cast<const float*>(src);
     const float* p_src_aux = reinterpret_cast<const float*>(src_aux);
@@ -277,13 +280,13 @@ template <typename ElementwiseOp>
 void memcpy32_avx2_with_extra_1src(void* dst,
                                    const void* src,
                                    const float v_src_aux,
-                                   const ck::index_t n,
+                                   const ck::long_index_t n,
                                    const ElementwiseOp& element_op)
 {
     // 16-8-4-2-1 pattern
-    ck::index_t i_n    = n;
-    float* p_dst       = reinterpret_cast<float*>(dst);
-    const float* p_src = reinterpret_cast<const float*>(src);
+    ck::long_index_t i_n = n;
+    float* p_dst         = reinterpret_cast<float*>(dst);
+    const float* p_src   = reinterpret_cast<const float*>(src);
 
     __m256 ymm_src_aux = _mm256_set1_ps(*reinterpret_cast<const float*>(&v_src_aux));
     __m128 xmm_src_aux = _mm_set1_ps(*reinterpret_cast<const float*>(&v_src_aux));
@@ -320,13 +323,13 @@ void memcpy32_avx2_with_extra_1src(void* dst,
     }
 }
 
-inline void memset32_avx2(void* dst, const int32_t value, const ck::index_t n)
+inline void memset32_avx2(void* dst, const int32_t value, const ck::long_index_t n)
 {
     // 16-8-4-2-1 pattern
-    ck::index_t i_n = n;
-    float* p_dst    = reinterpret_cast<float*>(dst);
-    __m256 ymm      = _mm256_set1_ps(*reinterpret_cast<const float*>(&value));
-    __m128 xmm      = _mm_set1_ps(*reinterpret_cast<const float*>(&value));
+    ck::long_index_t i_n = n;
+    float* p_dst         = reinterpret_cast<float*>(dst);
+    __m256 ymm           = _mm256_set1_ps(*reinterpret_cast<const float*>(&value));
+    __m128 xmm           = _mm_set1_ps(*reinterpret_cast<const float*>(&value));
     while(i_n >= 16)
     {
         _mm256_storeu_ps(p_dst + 0, ymm);
@@ -361,9 +364,9 @@ inline void memset32_avx2(void* dst, const int32_t value, const ck::index_t n)
 
 template <typename ElementwiseOp>
 void transpose8x8_avx2(void* dst,
-                       ck::index_t stride_dst,
+                       ck::long_index_t stride_dst,
                        const void* src,
-                       ck::index_t stride_src,
+                       ck::long_index_t stride_src,
                        const ElementwiseOp& element_op)
 {
     // TODO: use vinsertf128 for better port usage. vpermf128 is slow
@@ -560,8 +563,8 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
 
     void SetSrcSliceOrigin(const SrcDesc&, const Index& src_slice_origin_idx)
     {
-        ck::index_t idx_m = src_slice_origin_idx[Number<0>{}];
-        ck::index_t idx_k = src_slice_origin_idx[Number<1>{}];
+        intptr_t idx_m = src_slice_origin_idx[Number<0>{}];
+        intptr_t idx_k = src_slice_origin_idx[Number<1>{}];
 
         if constexpr(ConvForwardSpecialization ==
                      ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
@@ -640,19 +643,19 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
         }
         else
         {
-            const ck::index_t m_per_block = slice_length[Number<0>{}];
-            const ck::index_t k_per_block = slice_length[Number<1>{}];
+            const intptr_t m_per_block = slice_length[Number<0>{}];
+            const intptr_t k_per_block = slice_length[Number<1>{}];
 
             const float* p_src = reinterpret_cast<const float*>(src_buf.p_data_) + src_offset;
             float* p_dst       = reinterpret_cast<float*>(dst_buf.p_data_);
 
-            // printf("src offset:%d, k_per_block:%d, m_per_block:%d\n", src_offset, k_per_block,
-            // m_per_block);
+            // printf("src offset:%llu, k_per_block:%d, m_per_block:%d\n", src_offset, k_per_block,
+            //    m_per_block); fflush(stdout);
 
             if constexpr(ConvForwardSpecialization ==
                          ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
             {
-                ck::index_t i_m_itr = m_per_block;
+                intptr_t i_m_itr = m_per_block;
                 // standard 8-4-2-1 pattern
                 while(i_m_itr >= 8)
                 {
@@ -712,9 +715,9 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
             else if constexpr(ConvForwardSpecialization ==
                               ConvolutionForwardSpecialization_t::Filter1x1Pad0)
             {
-                ck::index_t i_m_itr  = m_per_block;
-                ck::index_t i_wo_itr = i_wo;
-                ck::index_t i_ho_itr = i_ho;
+                intptr_t i_m_itr  = m_per_block;
+                intptr_t i_wo_itr = i_wo;
+                intptr_t i_ho_itr = i_ho;
                 while(i_m_itr > 0)
                 {
                     avx2_util::memcpy32_avx2(p_dst, p_src, k_per_block, element_op_);
@@ -743,11 +746,11 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
                 if(gemm_k_spec_ == ConvolutionForwardGemmKSpecialization_t::NHWC_GemmKLoopOverC)
                 {
                     // c % k_per_block == 0, so every time k_per_block here is the same
-                    ck::index_t i_m_itr  = m_per_block;
-                    ck::index_t i_wo_itr = i_wo;
-                    ck::index_t i_ho_itr = i_ho;
-                    ck::index_t i_wi_itr = i_wi;
-                    ck::index_t i_hi_itr = i_hi;
+                    intptr_t i_m_itr  = m_per_block;
+                    intptr_t i_wo_itr = i_wo;
+                    intptr_t i_ho_itr = i_ho;
+                    intptr_t i_wi_itr = i_wi;
+                    intptr_t i_hi_itr = i_hi;
 
                     while(i_m_itr > 0)
                     {
@@ -785,28 +788,28 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
                 }
                 else
                 {
-                    ck::index_t i_m_itr  = m_per_block;
-                    ck::index_t i_wo_itr = i_wo;
-                    ck::index_t i_ho_itr = i_ho;
-                    ck::index_t i_wi_itr = i_wi;
-                    ck::index_t i_hi_itr = i_hi;
+                    intptr_t i_m_itr  = m_per_block;
+                    intptr_t i_wo_itr = i_wo;
+                    intptr_t i_ho_itr = i_ho;
+                    intptr_t i_wi_itr = i_wi;
+                    intptr_t i_hi_itr = i_hi;
                     // ihi = iho * s_stride_h + iy * s_dilation_h - s_pad_h
                     // iwi = iwo * s_stride_w + ix * s_dilation_w - s_pad_w
                     while(i_m_itr > 0)
                     {
                         /*** go along Gemm K ***/
-                        const float* p_src_k   = p_src;
-                        float* p_dst_k         = p_dst;
-                        ck::index_t i_wi_itr_k = i_wi_itr;
-                        ck::index_t i_hi_itr_k = i_hi_itr;
-                        ck::index_t i_c_itr_k  = i_c;
-                        // ck::index_t i_y_itr_k  = i_y;
-                        ck::index_t i_x_itr_k = i_x;
+                        const float* p_src_k = p_src;
+                        float* p_dst_k       = p_dst;
+                        intptr_t i_wi_itr_k  = i_wi_itr;
+                        intptr_t i_hi_itr_k  = i_hi_itr;
+                        intptr_t i_c_itr_k   = i_c;
+                        // intptr_t i_y_itr_k  = i_y;
+                        intptr_t i_x_itr_k = i_x;
 
-                        ck::index_t i_k_itr = k_per_block;
+                        intptr_t i_k_itr = k_per_block;
                         while(i_k_itr > 0)
                         {
-                            ck::index_t current_k_block_along_c =
+                            intptr_t current_k_block_along_c =
                                 ck::math::min(C - i_c_itr_k, i_k_itr);
 
                             // printf("current_k_block_along_c:%d, i_c_itr_k:%d, k_per_block:%d\n",
@@ -875,7 +878,7 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
 
     void MoveSrcSliceWindow(const SrcDesc& src_desc, const Index& src_slice_origin_step_idx)
     {
-        ck::index_t move_k = src_slice_origin_step_idx[Number<1>{}];
+        intptr_t move_k = src_slice_origin_step_idx[Number<1>{}];
         if constexpr(ConvForwardSpecialization ==
                      ConvolutionForwardSpecialization_t::Filter1x1Stride1Pad0)
         {
@@ -937,35 +940,35 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_In_NHWC
     const ElementwiseOperation element_op_;
     const ConvolutionForwardGemmKSpecialization_t gemm_k_spec_;
 
-    ck::index_t i_n;
-    ck::index_t i_c;
-    ck::index_t i_hi;
-    ck::index_t i_wi;
-    ck::index_t i_ho;
-    ck::index_t i_wo;
-    ck::index_t i_y;
-    ck::index_t i_x;
-    ck::index_t i_gemm_k;
+    intptr_t i_n;
+    intptr_t i_c;
+    intptr_t i_hi;
+    intptr_t i_wi;
+    intptr_t i_ho;
+    intptr_t i_wo;
+    intptr_t i_y;
+    intptr_t i_x;
+    intptr_t i_gemm_k;
 
-    ck::index_t N;
-    // ck::index_t K;
-    ck::index_t C;
-    ck::index_t Hi;
-    ck::index_t Wi;
-    ck::index_t Ho;
-    ck::index_t Wo;
+    intptr_t N;
+    // intptr_t K;
+    intptr_t C;
+    intptr_t Hi;
+    intptr_t Wi;
+    intptr_t Ho;
+    intptr_t Wo;
 
-    ck::index_t Sy;
-    ck::index_t Sx;
+    intptr_t Sy;
+    intptr_t Sx;
 
-    ck::index_t Dy;
-    ck::index_t Dx;
+    intptr_t Dy;
+    intptr_t Dx;
 
-    ck::index_t Py;
-    ck::index_t Px;
+    intptr_t Py;
+    intptr_t Px;
 
-    ck::index_t Fy;
-    ck::index_t Fx;
+    intptr_t Fy;
+    intptr_t Fx;
 
     intptr_t input_offset_acc_wi;
     intptr_t input_offset_ovf_wi_acc_hi;
@@ -1008,9 +1011,9 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXC
 
     void SetSrcSliceOrigin(const SrcDesc&, const Index& src_slice_origin_idx)
     {
-        ck::index_t idx_n0 = src_slice_origin_idx[Number<0>{}];
-        ck::index_t idx_k  = src_slice_origin_idx[Number<1>{}];
-        ck::index_t idx_n1 = src_slice_origin_idx[Number<2>{}];
+        intptr_t idx_n0 = src_slice_origin_idx[Number<0>{}];
+        intptr_t idx_k  = src_slice_origin_idx[Number<1>{}];
+        intptr_t idx_n1 = src_slice_origin_idx[Number<2>{}];
 
         i_gemm_n = idx_n0 * GemmN1 + idx_n1;
         // i_gemm_k = idx_k;
@@ -1037,8 +1040,8 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXC
         }
         else
         {
-            const ck::index_t n_per_block = slice_length[Number<0>{}] * slice_length[Number<2>{}];
-            const ck::index_t k_per_block = slice_length[Number<1>{}];
+            const intptr_t n_per_block = slice_length[Number<0>{}] * slice_length[Number<2>{}];
+            const intptr_t k_per_block = slice_length[Number<1>{}];
 
             // printf(" >>>> %d, %d, %d -> %d(%dx%d), %d\n", GemmN, GemmK, GemmN1, n_per_block,
             //     dst_desc.GetTransforms()[Number<0>{}]
@@ -1053,8 +1056,8 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXC
             // n * k -> n0 * k * n1, n1 = 8, n0 = n/8
             for(index_t i_n_itr = 0; i_n_itr < n_per_block; i_n_itr += 8)
             {
-                ck::index_t current_n_8 = ck::math::min(GemmN - (i_n_itr + i_gemm_n), 8);
-                ck::index_t i_k_itr     = k_per_block;
+                intptr_t current_n_8 = ck::math::min(GemmN - (i_n_itr + i_gemm_n), (intptr_t)8);
+                intptr_t i_k_itr     = k_per_block;
                 if(current_n_8 == 8)
                 {
                     const float* p_src_k = p_src;
@@ -1151,7 +1154,7 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXC
                     {
                         for(index_t i_sub_k = 0; i_sub_k < k_per_block; i_sub_k++)
                         {
-                            ck::index_t i_current_n_itr = i_n_itr + i_sub_n + i_gemm_n;
+                            intptr_t i_current_n_itr = i_n_itr + i_sub_n + i_gemm_n;
 
                             float v = i_current_n_itr < GemmN
                                           ? element_op_.Apply(p_src_k[i_sub_n * GemmK + i_sub_k])
@@ -1171,8 +1174,8 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXC
     // src_slice_origin_step_idx need to be known at compile-time, for performance reason
     void MoveSrcSliceWindow(const SrcDesc& src_desc, const Index& src_slice_origin_step_idx)
     {
-        ck::index_t move_k  = src_slice_origin_step_idx[Number<1>{}];
-        ck::index_t move_n0 = src_slice_origin_step_idx[Number<0>{}];
+        intptr_t move_k  = src_slice_origin_step_idx[Number<1>{}];
+        intptr_t move_n0 = src_slice_origin_step_idx[Number<0>{}];
 
         // i_gemm_k += move_k;
 
@@ -1187,13 +1190,13 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXC
     private:
     const ElementwiseOperation element_op_;
 
-    ck::index_t i_gemm_n;
-    // ck::index_t i_gemm_k;
+    intptr_t i_gemm_n;
+    // intptr_t i_gemm_k;
 
-    // ck::index_t GemmN0;
-    ck::index_t GemmN1;
-    ck::index_t GemmN;
-    ck::index_t GemmK;
+    // intptr_t GemmN0;
+    intptr_t GemmN1;
+    intptr_t GemmN;
+    intptr_t GemmK;
 
     intptr_t src_offset;
 };
@@ -1226,9 +1229,9 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXCK8
 
     void SetSrcSliceOrigin(const SrcDesc&, const Index& src_slice_origin_idx)
     {
-        ck::index_t idx_n0 = src_slice_origin_idx[Number<0>{}];
-        ck::index_t idx_k  = src_slice_origin_idx[Number<1>{}];
-        ck::index_t idx_n1 = src_slice_origin_idx[Number<2>{}];
+        intptr_t idx_n0 = src_slice_origin_idx[Number<0>{}];
+        intptr_t idx_k  = src_slice_origin_idx[Number<1>{}];
+        intptr_t idx_n1 = src_slice_origin_idx[Number<2>{}];
 
         src_offset = idx_n0 * GemmK * GemmN1 + idx_k * GemmN1 + idx_n1;
 
@@ -1251,10 +1254,9 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXCK8
         }
         else
         {
-            const ck::index_t n0_per_block = slice_length[Number<0>{}];
-            const ck::index_t k_n1_per_block =
-                slice_length[Number<1>{}] * slice_length[Number<2>{}];
-            const ck::index_t SrcStride_K_N1 = GemmK * slice_length[Number<2>{}];
+            const intptr_t n0_per_block   = slice_length[Number<0>{}];
+            const intptr_t k_n1_per_block = slice_length[Number<1>{}] * slice_length[Number<2>{}];
+            const intptr_t SrcStride_K_N1 = GemmK * slice_length[Number<2>{}];
 
             // printf(" >>>> %d, %d, %d -> %d(%dx%d), %d\n", GemmN, GemmK, GemmN1, n_per_block,
             //     dst_desc.GetTransforms()[Number<0>{}]
@@ -1356,9 +1358,9 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXCK8
     // src_slice_origin_step_idx need to be known at compile-time, for performance reason
     void MoveSrcSliceWindow(const SrcDesc& src_desc, const Index& src_slice_origin_step_idx)
     {
-        ck::index_t move_n0 = src_slice_origin_step_idx[Number<0>{}];
-        ck::index_t move_k  = src_slice_origin_step_idx[Number<1>{}];
-        ck::index_t move_n1 = src_slice_origin_step_idx[Number<2>{}];
+        intptr_t move_n0 = src_slice_origin_step_idx[Number<0>{}];
+        intptr_t move_k  = src_slice_origin_step_idx[Number<1>{}];
+        intptr_t move_n1 = src_slice_origin_step_idx[Number<2>{}];
 
         // i_gemm_k += move_k;
 
@@ -1373,13 +1375,13 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_KYXCK8
     private:
     const ElementwiseOperation element_op_;
 
-    ck::index_t i_gemm_n;
-    // ck::index_t i_gemm_k;
+    intptr_t i_gemm_n;
+    // intptr_t i_gemm_k;
 
-    // ck::index_t GemmN0;
-    ck::index_t GemmN1;
-    ck::index_t GemmN;
-    ck::index_t GemmK;
+    // intptr_t GemmN0;
+    intptr_t GemmN1;
+    intptr_t GemmN;
+    intptr_t GemmK;
 
     intptr_t src_offset;
 };
@@ -1410,8 +1412,8 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_YXCK
 
     void SetSrcSliceOrigin(const SrcDesc&, const Index& src_slice_origin_idx)
     {
-        ck::index_t idx_k = src_slice_origin_idx[Number<0>{}];
-        ck::index_t idx_n = src_slice_origin_idx[Number<1>{}];
+        intptr_t idx_k = src_slice_origin_idx[Number<0>{}];
+        intptr_t idx_n = src_slice_origin_idx[Number<1>{}];
 
         src_offset = idx_k * GemmN + idx_n;
     }
@@ -1431,8 +1433,8 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_YXCK
         }
         else
         {
-            const ck::index_t k_per_block = slice_length[Number<0>{}];
-            const ck::index_t n_per_block = slice_length[Number<1>{}];
+            const intptr_t k_per_block = slice_length[Number<0>{}];
+            const intptr_t n_per_block = slice_length[Number<1>{}];
 
             const float* p_src = reinterpret_cast<const float*>(src_buf.p_data_) + src_offset;
             float* p_dst       = reinterpret_cast<float*>(dst_buf.p_data_);
@@ -1497,8 +1499,8 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_YXCK
     // src_slice_origin_step_idx need to be known at compile-time, for performance reason
     void MoveSrcSliceWindow(const SrcDesc& src_desc, const Index& src_slice_origin_step_idx)
     {
-        ck::index_t move_k = src_slice_origin_step_idx[Number<0>{}];
-        ck::index_t move_n = src_slice_origin_step_idx[Number<1>{}];
+        intptr_t move_k = src_slice_origin_step_idx[Number<0>{}];
+        intptr_t move_n = src_slice_origin_step_idx[Number<1>{}];
 
         src_offset += move_k * GemmN + move_n;
     }
@@ -1509,8 +1511,8 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_ConvFwd_Wei_YXCK
     private:
     const ElementwiseOperation element_op_;
 
-    ck::index_t GemmN;
-    ck::index_t GemmK;
+    intptr_t GemmN;
+    intptr_t GemmK;
 
     intptr_t src_offset;
 };
@@ -1587,14 +1589,14 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_MxN
             if constexpr(!std::is_same<ElementwiseOperation,
                                        ck::tensor_operation::cpu::element_wise::PassThrough>::value)
             {
-                const ck::index_t m_per_block = slice_length[Number<0>{}];
-                const ck::index_t n_per_block = slice_length[Number<1>{}];
+                const intptr_t m_per_block = slice_length[Number<0>{}];
+                const intptr_t n_per_block = slice_length[Number<1>{}];
 
-                const ck::index_t current_n = ck::math::min(DstGemmN - i_dst_gemm_n, n_per_block);
+                const intptr_t current_n = ck::math::min(DstGemmN - i_dst_gemm_n, n_per_block);
 
                 float* p_dst = reinterpret_cast<float*>(dst_buf.p_data_) + dst_offset;
 
-                ck::index_t i_m_itr = m_per_block;
+                intptr_t i_m_itr = m_per_block;
 
                 // printf("xxxx %d, current_n:%d, DstGemmN:%d, n_per_block:%d,
                 // dst_offset:%d\n",__LINE__, current_n,
@@ -1657,15 +1659,15 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_MxN
         }
         else
         {
-            const ck::index_t m_per_block = slice_length[Number<0>{}];
-            const ck::index_t n_per_block = slice_length[Number<1>{}];
+            const intptr_t m_per_block = slice_length[Number<0>{}];
+            const intptr_t n_per_block = slice_length[Number<1>{}];
 
-            const ck::index_t current_n = ck::math::min(DstGemmN - i_dst_gemm_n, n_per_block);
+            const intptr_t current_n = ck::math::min(DstGemmN - i_dst_gemm_n, n_per_block);
 
             const float* p_src = reinterpret_cast<float*>(src_buf.p_data_) + src_offset;
             float* p_dst       = reinterpret_cast<float*>(dst_buf.p_data_) + dst_offset;
 
-            ck::index_t i_m_itr = m_per_block;
+            intptr_t i_m_itr = m_per_block;
 
             // printf("xxxx %d, current_n:%d, DstGemmN:%d, n_per_block:%d\n",__LINE__, current_n,
             // DstGemmN, n_per_block);fflush(stdout);
@@ -1740,11 +1742,11 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_MxN
     private:
     const ElementwiseOperation element_op_;
 
-    ck::index_t i_dst_gemm_m;
-    ck::index_t i_dst_gemm_n;
+    intptr_t i_dst_gemm_m;
+    intptr_t i_dst_gemm_n;
 
-    ck::index_t DstGemmM;
-    ck::index_t DstGemmN;
+    intptr_t DstGemmM;
+    intptr_t DstGemmN;
 
     intptr_t src_offset;
     intptr_t dst_offset;
@@ -1868,10 +1870,10 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_Bias_Residual_
             if constexpr(!std::is_same<ElementwiseOperation,
                                        ck::tensor_operation::cpu::element_wise::PassThrough>::value)
             {
-                const ck::index_t m_per_block = slice_length[Number<0>{}];
-                const ck::index_t n_per_block = slice_length[Number<1>{}];
+                const intptr_t m_per_block = slice_length[Number<0>{}];
+                const intptr_t n_per_block = slice_length[Number<1>{}];
 
-                const ck::index_t current_n = ck::math::min(DstGemmN - i_dst_gemm_n, n_per_block);
+                const intptr_t current_n = ck::math::min(DstGemmN - i_dst_gemm_n, n_per_block);
 
                 float* p_dst = reinterpret_cast<float*>(dst_buf.p_data_) + dst_offset;
                 const float* p_src1 =
@@ -1879,7 +1881,7 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_Bias_Residual_
                 const float* p_src2 =
                     reinterpret_cast<const float*>(src2_buf.p_data_) + src2_offset;
 
-                ck::index_t i_m_itr = m_per_block;
+                intptr_t i_m_itr = m_per_block;
 
                 // printf("xxxx %d, current_n:%d, DstGemmN:%d, n_per_block:%d,
                 // dst_offset:%d\n",__LINE__, current_n,
@@ -2129,17 +2131,17 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_Bias_Residual_
         }
         else
         {
-            const ck::index_t m_per_block = slice_length[Number<0>{}];
-            const ck::index_t n_per_block = slice_length[Number<1>{}];
+            const intptr_t m_per_block = slice_length[Number<0>{}];
+            const intptr_t n_per_block = slice_length[Number<1>{}];
 
-            const ck::index_t current_n = ck::math::min(DstGemmN - i_dst_gemm_n, n_per_block);
+            const intptr_t current_n = ck::math::min(DstGemmN - i_dst_gemm_n, n_per_block);
 
             const float* p_src  = reinterpret_cast<const float*>(src_buf.p_data_) + src_offset;
             float* p_dst        = reinterpret_cast<float*>(dst_buf.p_data_) + dst_offset;
             const float* p_src1 = reinterpret_cast<const float*>(src1_buf.p_data_) + src1_offset;
             const float* p_src2 = reinterpret_cast<const float*>(src2_buf.p_data_) + src2_offset;
 
-            ck::index_t i_m_itr = m_per_block;
+            intptr_t i_m_itr = m_per_block;
 
             // printf("xxxx %d, current_n:%d, DstGemmN:%d, n_per_block:%d\n",__LINE__, current_n,
             // DstGemmN, n_per_block);fflush(stdout);
@@ -2404,11 +2406,11 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_Bias_Residual_
     private:
     const ElementwiseOperation element_op_;
 
-    ck::index_t i_dst_gemm_m;
-    ck::index_t i_dst_gemm_n;
+    intptr_t i_dst_gemm_m;
+    intptr_t i_dst_gemm_n;
 
-    ck::index_t DstGemmM;
-    ck::index_t DstGemmN;
+    intptr_t DstGemmM;
+    intptr_t DstGemmN;
 
     intptr_t src_offset;
     intptr_t src1_offset;
@@ -2526,16 +2528,16 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_Bias_MxN
             if constexpr(!std::is_same<ElementwiseOperation,
                                        ck::tensor_operation::cpu::element_wise::PassThrough>::value)
             {
-                const ck::index_t m_per_block = slice_length[Number<0>{}];
-                const ck::index_t n_per_block = slice_length[Number<1>{}];
+                const intptr_t m_per_block = slice_length[Number<0>{}];
+                const intptr_t n_per_block = slice_length[Number<1>{}];
 
-                const ck::index_t current_n = ck::math::min(DstGemmN - i_dst_gemm_n, n_per_block);
+                const intptr_t current_n = ck::math::min(DstGemmN - i_dst_gemm_n, n_per_block);
 
                 float* p_dst = reinterpret_cast<float*>(dst_buf.p_data_) + dst_offset;
                 const float* p_src1 =
                     reinterpret_cast<const float*>(src1_buf.p_data_) + src1_offset;
 
-                ck::index_t i_m_itr = m_per_block;
+                intptr_t i_m_itr = m_per_block;
 
                 // standard 8-4-2-1 pattern
                 if constexpr(Src1AlongDim0)
@@ -2745,16 +2747,16 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_Bias_MxN
         }
         else
         {
-            const ck::index_t m_per_block = slice_length[Number<0>{}];
-            const ck::index_t n_per_block = slice_length[Number<1>{}];
+            const intptr_t m_per_block = slice_length[Number<0>{}];
+            const intptr_t n_per_block = slice_length[Number<1>{}];
 
-            const ck::index_t current_n = ck::math::min(DstGemmN - i_dst_gemm_n, n_per_block);
+            const intptr_t current_n = ck::math::min(DstGemmN - i_dst_gemm_n, n_per_block);
 
             const float* p_src  = reinterpret_cast<const float*>(src_buf.p_data_) + src_offset;
             float* p_dst        = reinterpret_cast<float*>(dst_buf.p_data_) + dst_offset;
             const float* p_src1 = reinterpret_cast<const float*>(src1_buf.p_data_) + src1_offset;
 
-            ck::index_t i_m_itr = m_per_block;
+            intptr_t i_m_itr = m_per_block;
 
             // printf("xxxx %d, current_n:%d, DstGemmN:%d, n_per_block:%d\n",__LINE__, current_n,
             // DstGemmN, n_per_block);fflush(stdout);
@@ -2981,11 +2983,11 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_Bias_MxN
     private:
     const ElementwiseOperation element_op_;
 
-    ck::index_t i_dst_gemm_m;
-    ck::index_t i_dst_gemm_n;
+    intptr_t i_dst_gemm_m;
+    intptr_t i_dst_gemm_n;
 
-    ck::index_t DstGemmM;
-    ck::index_t DstGemmN;
+    intptr_t DstGemmM;
+    intptr_t DstGemmN;
 
     intptr_t src_offset;
     intptr_t src1_offset;
