@@ -159,7 +159,7 @@ struct Normalize
         using ck::math::sqrt;
 
         float variance = mean_square - (mean * mean);
-        y = ((x - mean) / sqrt(variance + static_cast<float>(epsilon_))) * gamma + beta;
+        y = ((x - mean) / sqrt(variance + type_convert<float>(epsilon_))) * gamma + beta;
     };
 
     template <>

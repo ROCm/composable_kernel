@@ -7,7 +7,6 @@
 #include <cstdlib>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
@@ -17,6 +16,24 @@
 #include "ck/library/host_tensor/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
+
+struct AlphaBetaAdd
+{
+    AlphaBetaAdd(float alpha, float beta) : alpha_(alpha), beta_(beta){};
+
+    template <typename E, typename C, typename D>
+    __host__ __device__ constexpr void operator()(E& e, const C& c, const D& d) const;
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::half_t, float, ck::half_t>(
+        ck::half_t& e, const float& c, const ck::half_t& d) const
+    {
+        e = ck::type_convert<ck::half_t>(alpha_ * c + beta_ * ck::type_convert<float>(d));
+    };
+
+    float alpha_;
+    float beta_;
+};
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -29,41 +46,28 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-// C = A * B
-// E = Relu(C + D);
-struct AddRelu
-{
-    __host__ __device__ void
-    operator()(ck::half_t& e, const ck::half_t& c, const ck::half_t& d) const
-    {
-        const ck::half_t x = c + d;
-
-        e = x > 0 ? x : 0;
-    }
-};
-
 using ADataType        = F16;
 using BDataType        = F16;
 using AccDataType      = F32;
-using CShuffleDataType = F16;
+using CShuffleDataType = F32;
 using DDataType        = F16;
 using DsDataType       = ck::Tuple<DDataType>;
 using EDataType        = F16;
 
-using ALayout = Row;
-using BLayout = Col;
-using ELayout = Row;
+using ALayout  = Row;
+using BLayout  = Col;
+using DELayout = Row;
 
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
-using CDEElementOp = AddRelu;
+using CDEElementOp = AlphaBetaAdd;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
 using DeviceOpInstance =
     ck::tensor_operation::device::DeviceGemmMultipleD_Xdl_CShuffle<ALayout,
                                                                    BLayout,
-                                                                   ELayout,
+                                                                   DELayout,
                                                                    ADataType,
                                                                    BDataType,
                                                                    AccDataType,
@@ -117,7 +121,11 @@ int main(int argc, char* argv[])
 
     ck::index_t StrideA = 4096;
     ck::index_t StrideB = 4096;
+    ck::index_t StrideD = 4096;
     ck::index_t StrideE = 4096;
+
+    float alpha = 1.0f;
+    float beta  = 1.0f;
 
     if(argc == 1)
     {
@@ -129,7 +137,16 @@ int main(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
     }
-    else if(argc == 10)
+    else if(argc == 6)
+    {
+        do_verification = std::stoi(argv[1]);
+        init_method     = std::stoi(argv[2]);
+        time_kernel     = std::stoi(argv[3]);
+
+        alpha = std::stof(argv[4]);
+        beta  = std::stof(argv[5]);
+    }
+    else if(argc == 13)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
@@ -141,14 +158,19 @@ int main(int argc, char* argv[])
 
         StrideA = std::stoi(argv[7]);
         StrideB = std::stoi(argv[8]);
-        StrideE = std::stoi(argv[9]);
+        StrideD = std::stoi(argv[9]);
+        StrideE = std::stoi(argv[10]);
+
+        alpha = std::stof(argv[11]);
+        beta  = std::stof(argv[12]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideE\n");
+        printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideD, StrideE, alpha, "
+               "beta\n");
         exit(0);
     }
 
@@ -168,9 +190,9 @@ int main(int argc, char* argv[])
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-    Tensor<DDataType> d_m_n(f_host_tensor_descriptor(M, N, 0, ELayout{}));
-    Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
-    Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
+    Tensor<DDataType> d_m_n(f_host_tensor_descriptor(M, N, StrideD, DELayout{}));
+    Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, DELayout{}));
+    Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, DELayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
@@ -188,7 +210,7 @@ int main(int argc, char* argv[])
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
-        d_m_n.GenerateTensorValue(GeneratorTensor_3<DDataType>{0.0, 1.0});
+        d_m_n.GenerateTensorValue(GeneratorTensor_3<DDataType>{-0.5, 0.5});
     }
 
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
@@ -199,16 +221,15 @@ int main(int argc, char* argv[])
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
     d_m_n_device_buf.ToDevice(d_m_n.mData.data());
+    e_m_n_device_buf.ToDevice(e_m_n_device_result.mData.data());
 
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
-    auto cde_element_op = CDEElementOp{};
+    auto cde_element_op = CDEElementOp{alpha, beta};
 
     // do GEMM
     auto device_op = DeviceOpInstance{};
-
-    auto invoker = device_op.MakeInvoker();
-
+    auto invoker   = device_op.MakeInvoker();
     auto argument =
         device_op.MakeArgument(a_m_k_device_buf.GetDeviceBuffer(),
                                b_k_n_device_buf.GetDeviceBuffer(),
@@ -219,7 +240,7 @@ int main(int argc, char* argv[])
                                K,
                                StrideA,
                                StrideB,
-                               std::array<ck::index_t, 1>{0},
+                               std::array<ck::index_t, 1>{StrideD},
                                StrideE,
                                a_element_op,
                                b_element_op,
@@ -227,15 +248,16 @@ int main(int argc, char* argv[])
 
     if(!device_op.IsSupportedArgument(argument))
     {
-        throw std::runtime_error("wrong! this device_op instance does not support this problem");
+        throw std::runtime_error(
+            "wrong! device_gemm with the specified compilation parameters does "
+            "not support this GEMM problem");
     }
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     std::size_t flop = std::size_t(2) * M * N * K;
-
-    std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
-                            sizeof(EDataType) * M * N + sizeof(EDataType) * N;
+    std::size_t num_btype =
+        sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(EDataType) * M * N;
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
@@ -244,22 +266,22 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
               << std::endl;
 
+    e_m_n_device_buf.FromDevice(e_m_n_device_result.mData.data());
+
     if(do_verification)
     {
-        e_m_n_device_buf.FromDevice(e_m_n_device_result.mData.data());
-
-        Tensor<AccDataType> c_m_n(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
+        Tensor<CShuffleDataType> c_m_n(HostTensorDescriptor(
+            std::vector<std::size_t>{static_cast<std::size_t>(M), static_cast<std::size_t>(N)}));
 
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                                 BDataType,
-                                                                                AccDataType,
+                                                                                CShuffleDataType,
                                                                                 AccDataType,
                                                                                 AElementOp,
                                                                                 BElementOp,
                                                                                 PassThrough>;
-
-        auto ref_gemm    = ReferenceGemmInstance{};
-        auto ref_invoker = ref_gemm.MakeInvoker();
+        auto ref_gemm               = ReferenceGemmInstance{};
+        auto ref_invoker            = ref_gemm.MakeInvoker();
 
         auto ref_argument =
             ref_gemm.MakeArgument(a_m_k, b_k_n, c_m_n, a_element_op, b_element_op, PassThrough{});
@@ -273,6 +295,8 @@ int main(int argc, char* argv[])
                 cde_element_op(e_m_n_host_result(m, n), c_m_n(m, n), d_m_n(m, n));
             }
         }
+
+        e_m_n_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
         return ck::utils::check_err(e_m_n_device_result.mData, e_m_n_host_result.mData) ? 0 : 1;
     }

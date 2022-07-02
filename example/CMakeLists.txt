@@ -22,7 +22,7 @@ function(add_example_executable_no_testing EXAMPLE_NAME FILE_NAME)
 endfunction(add_example_executable_no_testing EXAMPLE_NAME)
 
 add_subdirectory(01_gemm)
-add_subdirectory(02_gemm_alpha_beta)
+add_subdirectory(02_gemm_bilinear)
 add_subdirectory(03_gemm_bias_relu)
 add_subdirectory(04_gemm_add_add_fastgelu)
 add_subdirectory(06_conv2d_fwd_bias_relu)
