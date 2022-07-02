@@ -30,18 +30,18 @@ template <typename ADataType,
           typename BLayout,
           typename DELayout> // assume Ds and E have same layout
 bool profile_gemm_bilinear_impl(int do_verification,
-                               int init_method,
-                               bool /*do_log*/,
-                               bool time_kernel,
-                               int M,
-                               int N,
-                               int K,
-                               int StrideA,
-                               int StrideB,
-                               int StrideD,
-                               int StrideE,
-                               float alpha,
-                               float beta)
+                                int init_method,
+                                bool /*do_log*/,
+                                bool time_kernel,
+                                int M,
+                                int N,
+                                int K,
+                                int StrideA,
+                                int StrideB,
+                                int StrideD,
+                                int StrideE,
+                                float alpha,
+                                float beta)
 {
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {

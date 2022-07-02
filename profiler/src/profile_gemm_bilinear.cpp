@@ -29,7 +29,7 @@ int profile_gemm_bilinear(int argc, char* argv[])
     if(argc != 17)
     {
         // clang-format off
-        printf("arg1: tensor operation (gemm_add_add_fastgelu: GEMM+Add+Add+GeLU)\n");
+        printf("arg1: tensor operation (gemm_bilinear: GEMM+Bilinear)\n");
         printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8)\n");
         printf("arg3: matrix layout (0: E[m, n] = alpha * A[m, k] * B[k, n] + beta * D[m, n];\n");
         printf("                     1: E[m, n] = alpha * A[m, k] * B[n, k] + beta * D[m, n];\n");
@@ -94,13 +94,13 @@ int profile_gemm_bilinear(int argc, char* argv[])
         const int DefaultStrideE = ck::is_same_v<DELayout, Row> ? N : M;
 
         bool pass = ck::profiler::profile_gemm_bilinear_impl<ADataType,
-                                                                     BDataType,
-                                                                     AccDataType,
-                                                                     DDataType,
-                                                                     EDataType,
-                                                                     ALayout,
-                                                                     BLayout,
-                                                                     DELayout>(
+                                                             BDataType,
+                                                             AccDataType,
+                                                             DDataType,
+                                                             EDataType,
+                                                             ALayout,
+                                                             BLayout,
+                                                             DELayout>(
             do_verification,
             init_method,
             do_log,

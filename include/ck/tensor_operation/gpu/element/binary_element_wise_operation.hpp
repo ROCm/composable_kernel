@@ -35,7 +35,6 @@ struct Add
         y = type_convert<half_t>(x0) + x1;
     };
 
-    // Question: should half_t be supported ?
     template <>
     __host__ __device__ constexpr void
     operator()<half_t>(half_t& y, const half_t& x0, const half_t& x1) const
@@ -43,7 +42,6 @@ struct Add
         y = x0 + x1;
     };
 
-    // Question: should bhalf_t be supported ?
     template <>
     __host__ __device__ constexpr void
     operator()<bhalf_t>(bhalf_t& y, const bhalf_t& x0, const bhalf_t& x1) const
@@ -74,7 +72,6 @@ struct Subtract
         y = x0 - x1;
     };
 
-    // Question: should half_t be supported ?
     template <>
     __host__ __device__ constexpr void
     operator()<half_t>(half_t& y, const half_t& x0, const half_t& x1) const
@@ -82,7 +79,6 @@ struct Subtract
         y = x0 - x1;
     };
 
-    // Question: should bhalf_t be supported ?
     template <>
     __host__ __device__ constexpr void
     operator()<bhalf_t>(bhalf_t& y, const bhalf_t& x0, const bhalf_t& x1) const
@@ -98,32 +94,6 @@ struct Bilinear
 {
     Bilinear(float alpha, float beta) : alpha_(alpha), beta_(beta){};
 
-#if 0
-    template <typename T>
-    __host__ __device__ constexpr void operator()(T& y, const T& x0, const T& x1) const;
-
-    template <>
-    __host__ __device__ constexpr void
-    operator()<float>(float& y, const float& x0, const float& x1) const
-    {
-        y = alpha_ * x0 + beta_ * x1;
-    };
-
-    template <>
-    __host__ __device__ constexpr void
-    operator()<double>(double& y, const double& x0, const double& x1) const
-    {
-        y = type_convert<double>(alpha_) * x0 + type_convert<double>(beta_) * x1;
-    };
-
-    template <>
-    __host__ __device__ constexpr void
-    operator()<half_t>(half_t& y, const half_t& x0, const half_t& x1) const
-    {
-        y = type_convert<half_t>(alpha_ * type_convert<float>(x0) +
-                                 beta_ * type_convert<float>(x1));
-    };
-#else
     template <typename Y, typename X0, typename X1>
     __host__ __device__ constexpr void operator()(Y&, const X0&, const X1&) const;
 
@@ -140,7 +110,6 @@ struct Bilinear
     {
         y = type_convert<half_t>(alpha_ * x0 + beta_ * ck::type_convert<float>(x1));
     };
-#endif
 
     float alpha_;
     float beta_;
@@ -167,7 +136,6 @@ struct AddRelu
         y              = a > 0.0 ? a : 0.0;
     };
 
-    // Question: should half_t be supported ?
     template <>
     __host__ __device__ constexpr void
     operator()<half_t>(half_t& y, const half_t& x0, const half_t& x1) const
@@ -202,7 +170,6 @@ struct AddHardswish
         y        = c;
     };
 
-    // Question: should half_t be supported ?
     template <>
     __host__ __device__ constexpr void
     operator()<half_t>(half_t& y, const half_t& x0, const half_t& x1) const
