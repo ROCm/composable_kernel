@@ -1,21 +1,22 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
-#include <half.hpp>
 
-#include "config.hpp"
-#include "conv_util.hpp"
-#include "print.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "device_tensor.hpp"
-#include "tensor_layout.hpp"
-#include "element_wise_operation.hpp"
-#include "device_convnd_bwd_data_xdl_ndhwc_kzyxc_ndhwk.hpp"
-#include "reference_conv_bwd_data.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_convnd_bwd_data_xdl_ndhwc_kzyxc_ndhwk.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/conv_util.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_data.hpp"
 
 using InDataType  = ck::half_t;
 using WeiDataType = ck::half_t;
@@ -87,7 +88,7 @@ void print_use_msg()
 {
     std::cout << "arg1: verification (0=no, 1=yes)\n"
               << "arg2: initialization (0=no init, 1=random value, 2= init to 1 )\n"
-              << "arg3: run kernel # of times (>1)\n"
+              << "arg3: time kernel (0=n0, 1=yes)\n"
               << "arg4: N spatial dimensions (default 2)\n"
               << "Following arguments (depending on number of spatial dims):\n"
               << " N, K, C, \n"
@@ -165,9 +166,9 @@ DeviceConvBwdDataBasePtr get_conv_instance(int num_dim_spatial)
 
 int main(int argc, char* argv[])
 {
-    bool do_verification = 0;
-    int init_method      = 0;
-    int nrepeat          = 5;
+    bool do_verification = true;
+    int init_method      = 1;
+    bool time_kernel     = false;
     int num_dim_spatial  = 2;
 
     ck::utils::conv::ConvParams params;
@@ -177,13 +178,13 @@ int main(int argc, char* argv[])
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
     }
     else if(argc > 4)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
         num_dim_spatial = std::stoi(argv[4]);
         // check args number
         int conv_args     = 3 + num_dim_spatial * 6;
@@ -284,7 +285,7 @@ int main(int argc, char* argv[])
             "not support this Conv problem");
     }
 
-    float ave_time = invoker->Run(argument.get(), nrepeat);
+    float ave_time = invoker->Run(argument.get(), StreamConfig{nullptr, time_kernel});
 
     std::size_t flop = ck::utils::conv::get_flops(
         params.N_, params.C_, params.K_, params.filter_spatial_lengths_, output_spatial_lengths);
@@ -322,29 +323,30 @@ int main(int argc, char* argv[])
 
             in_device_buf.FromDevice(in_n_c_hi_wi_device_result.mData.data());
 
-            check_error(in_n_c_hi_wi_host_result, in_n_c_hi_wi_device_result);
+            return ck::utils::check_err(in_n_c_hi_wi_device_result.mData,
+                                        in_n_c_hi_wi_host_result.mData)
+                       ? 0
+                       : 1;
         };
 
         switch(num_dim_spatial)
         {
         case 3: {
             auto ref_conv = ReferenceConvBwdDataInstance<3>();
-            verify_f(ref_conv);
-            break;
+            return verify_f(ref_conv);
         }
         case 2: {
             auto ref_conv = ReferenceConvBwdDataInstance<2>();
-            verify_f(ref_conv);
-            break;
+            return verify_f(ref_conv);
         }
         case 1: {
             auto ref_conv = ReferenceConvBwdDataInstance<1>();
-            verify_f(ref_conv);
-            break;
+            return verify_f(ref_conv);
         }
         default: {
             throw std::runtime_error("Unsupported number of spatial dimensions provided!");
         }
         }
     }
+    return 0;
 }

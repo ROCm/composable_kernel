@@ -1,7 +1,9 @@
-#ifndef CK_TRANSPOSE_VECTORS_AMD_HPP
-#define CK_TRANSPOSE_VECTORS_AMD_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "config.hpp"
+#pragma once
+
+#include "ck/ck.hpp"
 #include "statically_indexed_array.hpp"
 #include "data_type.hpp"
 
@@ -165,4 +167,3 @@ struct transpose_vectors<int8_t, NX, NY>
 };
 
 } // namespace ck
-#endif

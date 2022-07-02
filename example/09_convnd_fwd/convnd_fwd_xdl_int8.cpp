@@ -1,19 +1,22 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <cstdlib>
 #include <iostream>
 #include <numeric>
 #include <type_traits>
 
-#include "check_err.hpp"
-#include "config.hpp"
-#include "conv_util.hpp"
-#include "device.hpp"
-#include "device_tensor.hpp"
-#include "device_convnd_fwd_xdl_nhwc_kyxc_nhwk.hpp"
-#include "element_wise_operation.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "reference_conv_fwd.hpp"
-#include "tensor_layout.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_convnd_fwd_xdl_nhwc_kyxc_nhwk.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/conv_util.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 
 namespace {
 
@@ -45,10 +48,10 @@ template <ck::index_t NumDimSpatial>
 using DeviceConvNDFwdInstance = ck::tensor_operation::device::
     DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
         // clang-format off
-        InDataType,         // 
+        InDataType,         //
         WeiDataType,        //
         OutDataType,        //
-        AccDataType,        // 
+        AccDataType,        //
         InElementOp,        // Input Elementwise Operation
         WeiElementOp,       // Weights Elementwise Operation
         OutElementOp,       // Output Elementwise Operation
@@ -112,7 +115,7 @@ void print_use_msg()
 {
     std::cout << "arg1: verification (0=no, 1=yes)\n"
               << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
-              << "arg3: run kernel # of times (>1)\n"
+              << "arg3: time kernel (0=n0, 1=yes)\n"
               << "arg4: N spatial dimensions (default 2)\n"
               << "Following arguments (depending on number of spatial dims):\n"
               << " N, K, C, \n"
@@ -184,9 +187,9 @@ int main(int argc, char* argv[])
 {
     using namespace ck::utils::conv;
 
-    bool do_verification = 0;
-    int init_method      = 0;
-    int nrepeat          = 5;
+    bool do_verification = true;
+    int init_method      = 1;
+    bool time_kernel     = false;
     int num_dim_spatial  = 2;
 
     ck::utils::conv::ConvParams params;
@@ -195,7 +198,7 @@ int main(int argc, char* argv[])
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
         num_dim_spatial = std::stoi(argv[4]);
     }
 
@@ -279,7 +282,7 @@ int main(int argc, char* argv[])
             "not support this Conv problem");
     }
 
-    float ave_time = invoker->Run(argument.get(), nrepeat);
+    float ave_time = invoker->Run(argument.get(), StreamConfig{nullptr, time_kernel});
 
     std::size_t flop = get_flops(
         params.N_, params.C_, params.K_, params.filter_spatial_lengths_, output_spatial_lengths);
@@ -314,30 +317,28 @@ int main(int argc, char* argv[])
 
             ref_invoker.Run(ref_argument);
             out_device_buf.FromDevice(device_output.mData.data());
-            ck::utils::check_err(
-                host_output.mData, device_output.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
+            return ck::utils::check_err(
+                host_output.mData, device_output.mData, "Error: incorrect results!", 1e-5f, 1e-4f) ? 0 : 1;
         };
 
         switch(num_dim_spatial)
         {
         case 3: {
             auto ref_conv = ReferenceConvNDFwdInstance<3>();
-            verify_f(ref_conv);
-            break;
+            return verify_f(ref_conv);
         }
         case 2: {
             auto ref_conv = ReferenceConvNDFwdInstance<2>();
-            verify_f(ref_conv);
-            break;
+            return verify_f(ref_conv);
         }
         case 1: {
             auto ref_conv = ReferenceConvNDFwdInstance<1>();
-            verify_f(ref_conv);
-            break;
+            return verify_f(ref_conv);
         }
         default: {
             throw std::runtime_error("Unsupported number of spatial dimensions provided!");
         }
         }
     }
+    return 0;
 }

@@ -1,17 +1,20 @@
-#ifndef DEVICE_CONV2D_BWD_DATA_XDL_NHWC_KYXC_NHWK_HPP
-#define DEVICE_CONV2D_BWD_DATA_XDL_NHWC_KYXC_NHWK_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <iostream>
 #include <sstream>
-#include "device.hpp"
-#include "device_base.hpp"
-#include "device_conv_bwd_data.hpp"
-#include "convolution_backward_data_specialization.hpp"
-#include "common_header.hpp"
-#include "tensor_layout.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdlops_v2r3.hpp"
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_conv_bwd_data.hpp"
+#include "ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r3.hpp"
+#include "ck/device_utility/device_prop.hpp"
+#include "ck/device_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -486,13 +489,16 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                     b_grid_desc_k0_n_k1_container_.push_back(descs[I1]);
                     c_grid_desc_m_n_container_.push_back(descs[I2]);
 
-                    if(GridwiseGemm::CheckValidity(descs[I0], descs[I1], descs[I2], M01_, N01_))
+                    auto block_2_ctile_map =
+                        GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2], M01, N01);
+
+                    if(GridwiseGemm::CheckValidity(
+                           descs[I0], descs[I1], descs[I2], block_2_ctile_map))
                     {
                         c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_.push_back(
                             GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(descs[I2]));
 
-                        block_2_ctile_map_container_.push_back(
-                            GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2], M01, N01));
+                        block_2_ctile_map_container_.push_back(block_2_ctile_map);
                     }
                 }
             }
@@ -531,7 +537,7 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             float ave_time = 0;
             for(size_t i = 0; i < arg.a_grid_desc_k0_m_k1_container_.size(); i++)
@@ -572,15 +578,14 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                 if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
                                                 arg.b_grid_desc_k0_n_k1_container_[i],
                                                 arg.c_grid_desc_m_n_container_[i],
-                                                arg.M01_,
-                                                arg.N01_))
+                                                arg.block_2_ctile_map_container_[i]))
                 {
                     throw std::runtime_error(
                         "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v3r1 has invalid setting");
                 }
 
-                const index_t grid_size =
-                    GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_container_[i]);
+                const index_t grid_size = arg.block_2_ctile_map_container_[i].CalculateGridSize(
+                    arg.c_grid_desc_m_n_container_[i]);
 
                 const auto K = arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I0) *
                                arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I2);
@@ -602,8 +607,8 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                         true>;
 
                     ave_time += launch_and_time_kernel(
+                        stream_config,
                         kernel,
-                        nrepeat,
                         dim3(grid_size),
                         dim3(BlockSize),
                         0,
@@ -635,8 +640,8 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                         false>;
 
                     ave_time += launch_and_time_kernel(
+                        stream_config,
                         kernel,
-                        nrepeat,
                         dim3(grid_size),
                         dim3(BlockSize),
                         0,
@@ -655,9 +660,10 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             return ave_time;
         }
 
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 
@@ -702,8 +708,7 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
                                             arg.b_grid_desc_k0_n_k1_container_[i],
                                             arg.c_grid_desc_m_n_container_[i],
-                                            arg.M01_,
-                                            arg.N01_))
+                                            arg.block_2_ctile_map_container_[i]))
             {
                 return false;
             }
@@ -819,4 +824,3 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

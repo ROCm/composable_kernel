@@ -1,10 +1,12 @@
-#ifndef DEVICE_REDUCE_INSTANCE_IMPL_COMMON_HPP
-#define DEVICE_REDUCE_INSTANCE_IMPL_COMMON_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_reduce_instance {
+namespace instance {
 
 template <int BlockSize, int MThreadClusterSize, int KThreadClusterSize>
 struct ReductionConfiguration_1
@@ -30,26 +32,9 @@ struct ReductionConfiguration_2
     static constexpr int KThreadSliceSize_ = KThreadSliceSize;
 };
 
-using reduce_configuration_1_instances = std::tuple<
-    // clang-format off
-    // BlockSize | MThreadClusterSize | KThreadClusterSize
-    ReductionConfiguration_1<256, 128, 2>,
-    ReductionConfiguration_1<256, 64, 4>,
-    ReductionConfiguration_1<256, 32, 8>,
-    ReductionConfiguration_1<256, 16, 16>,
-    ReductionConfiguration_1<256, 8, 32>,
-    ReductionConfiguration_1<256, 4, 64>,
-    ReductionConfiguration_1<256, 2, 128>,
-    ReductionConfiguration_1<256, 1, 256>
-    // clang-format on
-    >;
-
 #define QUICK_REDUCE_TEST 1
 
-} // namespace device_reduce_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
-
 } // namespace ck
-
-#endif

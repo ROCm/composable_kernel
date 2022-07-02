@@ -1,7 +1,9 @@
-#ifndef CK_TYPE_HPP
-#define CK_TYPE_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "config.hpp"
+#pragma once
+
+#include "ck/ck.hpp"
 #include "integral_constant.hpp"
 #include "enable_if.hpp"
 
@@ -30,6 +32,9 @@ template <typename T>
 using remove_cvref_t = remove_cv_t<std::remove_reference_t<T>>;
 
 template <typename T>
+using remove_pointer_t = typename std::remove_pointer<T>::type;
+
+template <typename T>
 inline constexpr bool is_pointer_v = std::is_pointer<T>::value;
 
 template <typename Y, typename X, typename enable_if<sizeof(X) == sizeof(Y), bool>::type = false>
@@ -53,4 +58,3 @@ __host__ __device__ constexpr Y bit_cast(const X& x)
 }
 
 } // namespace ck
-#endif

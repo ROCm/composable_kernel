@@ -1,0 +1,11 @@
+add_custom_target(test_softmax)
+
+add_gtest_executable(test_softmax_fp32 test_softmax_fp32.cpp)
+add_gtest_executable(test_softmax_fp16 test_softmax_fp16.cpp)
+add_gtest_executable(test_softmax_int8 test_softmax_int8.cpp)
+target_link_libraries(test_softmax_fp32 PRIVATE host_tensor)
+target_link_libraries(test_softmax_fp16 PRIVATE host_tensor)
+target_link_libraries(test_softmax_int8 PRIVATE host_tensor)
+add_dependencies(test_softmax test_softmax_fp32)
+add_dependencies(test_softmax test_softmax_fp16)
+add_dependencies(test_softmax test_softmax_int8)

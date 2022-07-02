@@ -1,12 +1,13 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
-#include <half.hpp>
 #include <vector>
 
-#include "profile_convnd_bwd_data_impl.hpp"
+#include "profiler/include/profile_convnd_bwd_data_impl.hpp"
 
 int main()
 {
@@ -27,10 +28,10 @@ int main()
                                                            ck::tensor_layout::convolution::NWC,
                                                            ck::tensor_layout::convolution::KXC,
                                                            ck::tensor_layout::convolution::NWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
             param.N_,
             param.K_,
             param.C_,
@@ -50,10 +51,10 @@ int main()
                                                            ck::tensor_layout::convolution::NWC,
                                                            ck::tensor_layout::convolution::KXC,
                                                            ck::tensor_layout::convolution::NWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
             param.N_,
             param.K_,
             param.C_,
@@ -73,10 +74,10 @@ int main()
                                                            ck::tensor_layout::convolution::NWC,
                                                            ck::tensor_layout::convolution::KXC,
                                                            ck::tensor_layout::convolution::NWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
             param.N_,
             param.K_,
             param.C_,
@@ -96,10 +97,10 @@ int main()
                                                            ck::tensor_layout::convolution::NWC,
                                                            ck::tensor_layout::convolution::KXC,
                                                            ck::tensor_layout::convolution::NWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
             param.N_,
             param.K_,
             param.C_,
@@ -128,10 +129,10 @@ int main()
                                                            ck::tensor_layout::convolution::NHWC,
                                                            ck::tensor_layout::convolution::KYXC,
                                                            ck::tensor_layout::convolution::NHWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
             param.N_,
             param.K_,
             param.C_,
@@ -151,10 +152,10 @@ int main()
                                                            ck::tensor_layout::convolution::NHWC,
                                                            ck::tensor_layout::convolution::KYXC,
                                                            ck::tensor_layout::convolution::NHWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
             param.N_,
             param.K_,
             param.C_,
@@ -174,10 +175,10 @@ int main()
                                                            ck::tensor_layout::convolution::NHWC,
                                                            ck::tensor_layout::convolution::KYXC,
                                                            ck::tensor_layout::convolution::NHWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
             param.N_,
             param.K_,
             param.C_,
@@ -197,10 +198,10 @@ int main()
                                                            ck::tensor_layout::convolution::NHWC,
                                                            ck::tensor_layout::convolution::KYXC,
                                                            ck::tensor_layout::convolution::NHWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
             param.N_,
             param.K_,
             param.C_,
@@ -232,10 +233,10 @@ int main()
                                                            ck::tensor_layout::convolution::NDHWC,
                                                            ck::tensor_layout::convolution::KZYXC,
                                                            ck::tensor_layout::convolution::NDHWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
             param.N_,
             param.K_,
             param.C_,
@@ -255,10 +256,10 @@ int main()
                                                            ck::tensor_layout::convolution::NDHWC,
                                                            ck::tensor_layout::convolution::KZYXC,
                                                            ck::tensor_layout::convolution::NDHWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
             param.N_,
             param.K_,
             param.C_,
@@ -278,10 +279,10 @@ int main()
                                                            ck::tensor_layout::convolution::NDHWC,
                                                            ck::tensor_layout::convolution::KZYXC,
                                                            ck::tensor_layout::convolution::NDHWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
             param.N_,
             param.K_,
             param.C_,
@@ -301,10 +302,10 @@ int main()
                                                            ck::tensor_layout::convolution::NDHWC,
                                                            ck::tensor_layout::convolution::KZYXC,
                                                            ck::tensor_layout::convolution::NDHWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
             param.N_,
             param.K_,
             param.C_,

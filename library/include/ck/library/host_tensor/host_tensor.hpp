@@ -1,5 +1,7 @@
-#ifndef HOST_TENSOR_HPP
-#define HOST_TENSOR_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <thread>
 #include <vector>
@@ -8,7 +10,8 @@
 #include <utility>
 #include <cassert>
 #include <iostream>
-#include "data_type.hpp"
+
+#include "ck/utility/data_type.hpp"
 
 template <typename Range>
 std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
@@ -104,6 +107,11 @@ struct HostTensorDescriptor
     {
         assert(sizeof...(Is) == this->GetNumOfDimension());
         std::initializer_list<std::size_t> iss{static_cast<std::size_t>(is)...};
+        return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
+    }
+
+    std::size_t GetOffsetFromMultiIndex(std::vector<std::size_t> iss) const
+    {
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
     }
 
@@ -212,6 +220,72 @@ struct Tensor
 
     Tensor(const HostTensorDescriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpace()) {}
 
+    template <typename OutT>
+    Tensor<OutT> CopyAsType()
+    {
+        Tensor<OutT> ret(mDesc);
+        for(size_t i = 0; i < mData.size(); i++)
+        {
+            ret.mData[i] = static_cast<OutT>(mData[i]);
+        }
+        return ret;
+    }
+
+    Tensor(const Tensor& other) : mDesc(other.mDesc), mData(other.mData) {}
+
+    Tensor& operator=(const Tensor& other)
+    {
+        mDesc = other.mDesc;
+        mData = other.mData;
+        return *this;
+    }
+
+    template <typename F>
+    void ForEach_impl(F&& f, std::vector<size_t>& idx, size_t rank)
+    {
+        if(rank == mDesc.GetNumOfDimension())
+        {
+            f(*this, idx);
+            return;
+        }
+        // else
+        for(size_t i = 0; i < mDesc.GetLengths()[rank]; i++)
+        {
+            idx[rank] = i;
+            ForEach_impl(std::forward<F>(f), idx, rank + 1);
+        }
+    }
+
+    template <typename F>
+    void ForEach(F&& f)
+    {
+        std::vector<size_t> idx(mDesc.GetNumOfDimension(), 0);
+        ForEach_impl(std::forward<F>(f), idx, size_t(0));
+    }
+
+    template <typename F>
+    void ForEach_impl(const F&& f, std::vector<size_t>& idx, size_t rank) const
+    {
+        if(rank == mDesc.GetNumOfDimension())
+        {
+            f(*this, idx);
+            return;
+        }
+        // else
+        for(size_t i = 0; i < mDesc.GetLengths()[rank]; i++)
+        {
+            idx[rank] = i;
+            ForEach_impl(std::forward<const F>(f), idx, rank + 1);
+        }
+    }
+
+    template <typename F>
+    void ForEach(const F&& f) const
+    {
+        std::vector<size_t> idx(mDesc.GetNumOfDimension(), 0);
+        ForEach_impl(std::forward<const F>(f), idx, size_t(0));
+    }
+
     template <typename G>
     void GenerateTensorValue(G g, std::size_t num_thread = 1)
     {
@@ -272,6 +346,16 @@ struct Tensor
         return mData[mDesc.GetOffsetFromMultiIndex(is...)];
     }
 
+    T& operator()(std::vector<std::size_t> idx)
+    {
+        return mData[mDesc.GetOffsetFromMultiIndex(idx)];
+    }
+
+    const T& operator()(std::vector<std::size_t> idx) const
+    {
+        return mData[mDesc.GetOffsetFromMultiIndex(idx)];
+    }
+
     typename std::vector<T>::iterator begin() { return mData.begin(); }
 
     typename std::vector<T>::iterator end() { return mData.end(); }
@@ -285,7 +369,8 @@ struct Tensor
 };
 
 template <typename X>
-HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens) : mLens(lens)
+HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens)
+    : mLens(lens.begin(), lens.end())
 {
     this->CalculateStrides();
 }
@@ -293,17 +378,12 @@ HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens) : mLens(l
 template <typename X, typename Y>
 HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens,
                                            const std::vector<Y>& strides)
-    : mLens(lens), mStrides(strides)
+    : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
 {
 }
 
-void ostream_HostTensorDescriptor(const HostTensorDescriptor& desc, std::ostream& os = std::cout);
-
 #if 1
 // FIXME: remove
-void bf16_to_f32_(const Tensor<ck::bhalf_t>& src, Tensor<float>& dst);
-#endif
-
 template <typename T>
 float check_error(const Tensor<T>& ref, const Tensor<T>& result)
 {
@@ -349,5 +429,4 @@ float check_error(const Tensor<T>& ref, const Tensor<T>& result)
 
     return linf_error;
 }
-
 #endif

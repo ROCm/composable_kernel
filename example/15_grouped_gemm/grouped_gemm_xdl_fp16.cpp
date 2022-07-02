@@ -1,22 +1,22 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
-#include <half.hpp>
 
-#include "check_err.hpp"
-#include "config.hpp"
-#include "print.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "host_gemm.hpp"
-#include "device_tensor.hpp"
-#include "device_grouped_gemm_xdl.hpp"
-#include "element_wise_operation.hpp"
-#include "reference_gemm.hpp"
-#include "gemm_specialization.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_gemm_xdl.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -56,29 +56,29 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemmXdl
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, CDataType, AElementOp, BElementOp, CElementOp>;
+    ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
 
 int main(int argc, char* argv[])
 {
-    bool do_verification = 0;
-    int init_method      = 0;
-    int nrepeat          = 5;
+    bool do_verification = true;
+    int init_method      = 1;
+    bool time_kernel     = false;
 
     if(argc == 4)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
-        nrepeat         = std::stoi(argv[3]);
+        time_kernel     = std::stoi(argv[3]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: run kernel # of times (>1)\n");
+        printf("arg3: time kernel (0=n0, 1=yes)\n");
         exit(0);
     }
 
-    int group_count = 4;
+    int group_count = rand() % 16 + 1;
 
     // GEMM shape
     std::vector<ck::tensor_operation::device::GemmShape> gemm_shapes;
@@ -189,11 +189,16 @@ int main(int argc, char* argv[])
     auto b_element_op = BElementOp{};
     auto c_element_op = CElementOp{};
 
-    // do GEMM
     auto gemm    = DeviceGemmInstance{};
     auto invoker = gemm.MakeInvoker();
+
+    // do GEMM
     auto argument =
         gemm.MakeArgument(p_a, p_b, p_c, gemm_shapes, a_element_op, b_element_op, c_element_op);
+
+    DeviceMem gemm_desc_workspace(gemm.GetWorkSpaceSize(&argument));
+
+    gemm.SetWorkSpacePointer(&argument, gemm_desc_workspace.GetDeviceBuffer());
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -202,7 +207,7 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    float ave_time = invoker.Run(argument, nrepeat);
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
@@ -211,6 +216,7 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
+    bool pass = true;
     if(do_verification)
     {
         for(std::size_t i = 0; i < gemm_shapes.size(); i++)
@@ -227,9 +233,9 @@ int main(int argc, char* argv[])
                                                       c_element_op);
 
             ref_invoker.Run(ref_argument);
-            ck::utils::check_err(c_device_tensors[i].mData, c_host_tensors[i].mData);
+            pass &= ck::utils::check_err(c_device_tensors[i].mData, c_host_tensors[i].mData);
         }
     }
 
-    return 0;
+    return pass ? 0 : 1;
 }

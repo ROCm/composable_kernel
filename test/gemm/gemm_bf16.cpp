@@ -1,116 +1,79 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <algorithm>
 #include <cstdlib>
-#include <half.hpp>
 #include <iostream>
 #include <numeric>
 #include <tuple>
 #include <vector>
 
-#include "gemm_util.hpp"
-#include "config.hpp"
-#include "print.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "host_gemm.hpp"
-#include "device_tensor.hpp"
-#include "device_gemm_xdl.hpp"
-#include "device_gemm_xdl_cshuffle.hpp"
-#include "element_wise_operation.hpp"
-#include "reference_gemm.hpp"
-#include "gemm_specialization.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+#include "ck/library/tensor_operation_instance/gpu/gemm.hpp"
 
-using DeviceGemmNoOpPtr =
-    ck::tensor_operation::device::DeviceGemmPtr<ck::tensor_operation::element_wise::PassThrough,
-                                                ck::tensor_operation::element_wise::PassThrough,
-                                                ck::tensor_operation::element_wise::PassThrough>;
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
-namespace ck {
-namespace tensor_operation {
-namespace device {
-namespace device_gemm_instance {
-void add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_km_kn_mn_instances(
-    std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_km_nk_mn_instances(
-    std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_mk_nk_mn_instances(
-    std::vector<DeviceGemmNoOpPtr>&);
-void add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_mk_kn_mn_instances(
-    std::vector<DeviceGemmNoOpPtr>&);
-} // namespace device_gemm_instance
-} // namespace device
-} // namespace tensor_operation
-} // namespace ck
+#include "test/gemm/gemm_util.hpp"
 
 int main()
 {
-    using RowMajor    = ck::tensor_layout::gemm::RowMajor;
-    using ColumnMajor = ck::tensor_layout::gemm::ColumnMajor;
+    using ADataType   = ck::bhalf_t;
+    using BDataType   = ck::bhalf_t;
+    using CDataType   = ck::bhalf_t;
+    using AccDataType = float;
 
-    bool res = true;
-    std::vector<DeviceGemmNoOpPtr> gemmPtrs;
+    using Row = ck::tensor_layout::gemm::RowMajor;
+    using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-    ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_km_kn_mn_instances(gemmPtrs);
+    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-    for(auto& gemmPtr : gemmPtrs)
-    {
-        res &= ck::gemm_util::TestGemmBF16<DeviceGemmNoOpPtr,
-                                           ColumnMajor,
-                                           RowMajor,
-                                           RowMajor,
-                                           PassThrough,
-                                           PassThrough,
-                                           PassThrough>{}(gemmPtr);
-    }
+    auto test = [&](auto a_layout, auto b_layout, auto c_layout) {
+        bool pass = true;
 
-    gemmPtrs.clear();
-    ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_km_nk_mn_instances(gemmPtrs);
+        using DeviceOp = ck::tensor_operation::device::DeviceGemm<decltype(a_layout),
+                                                                  decltype(b_layout),
+                                                                  decltype(c_layout),
+                                                                  ADataType,
+                                                                  BDataType,
+                                                                  CDataType,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>;
 
-    for(auto& gemmPtr : gemmPtrs)
-    {
-        res &= ck::gemm_util::TestGemmBF16<DeviceGemmNoOpPtr,
-                                           ColumnMajor,
-                                           ColumnMajor,
-                                           RowMajor,
-                                           PassThrough,
-                                           PassThrough,
-                                           PassThrough>{}(gemmPtr);
-    }
+        const auto gemmPtrs =
+            ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+                DeviceOp>::GetInstances();
 
-    gemmPtrs.clear();
-    ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_mk_kn_mn_instances(gemmPtrs);
+        for(auto& gemmPtr : gemmPtrs)
+        {
+            pass &= ck::gemm_util::TestGemm<std::unique_ptr<DeviceOp>,
+                                            ADataType,
+                                            BDataType,
+                                            CDataType,
+                                            AccDataType,
+                                            decltype(a_layout),
+                                            decltype(b_layout),
+                                            decltype(c_layout),
+                                            PassThrough,
+                                            PassThrough,
+                                            PassThrough>{}(gemmPtr);
+        }
 
-    for(auto& gemmPtr : gemmPtrs)
-    {
-        res &= ck::gemm_util::TestGemmBF16<DeviceGemmNoOpPtr,
-                                           RowMajor,
-                                           RowMajor,
-                                           RowMajor,
-                                           PassThrough,
-                                           PassThrough,
-                                           PassThrough>{}(gemmPtr);
-    }
+        return pass;
+    };
 
-    gemmPtrs.clear();
-    ck::tensor_operation::device::device_gemm_instance::
-        add_device_gemm_xdl_c_shuffle_bf16_bf16_bf16_mk_nk_mn_instances(gemmPtrs);
+    bool pass = test(Row{}, Row{}, Row{}) && test(Row{}, Col{}, Row{}) &&
+                test(Col{}, Row{}, Row{}) && test(Col{}, Col{}, Row{});
 
-    for(auto& gemmPtr : gemmPtrs)
-    {
-        res &= ck::gemm_util::TestGemmBF16<DeviceGemmNoOpPtr,
-                                           RowMajor,
-                                           ColumnMajor,
-                                           RowMajor,
-                                           PassThrough,
-                                           PassThrough,
-                                           PassThrough>{}(gemmPtr);
-    }
-
-    std::cout << "TestGemm ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
-    return res ? 0 : 1;
+    std::cout << "TestGemm ..... " << (pass ? "SUCCESS" : "FAILURE") << std::endl;
+    return pass ? 0 : 1;
 }

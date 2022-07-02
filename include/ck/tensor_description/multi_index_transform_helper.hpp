@@ -1,8 +1,10 @@
-#ifndef CK_MULTI_INDEX_TRANSFORM_HELPER_HPP
-#define CK_MULTI_INDEX_TRANSFORM_HELPER_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "common_header.hpp"
-#include "multi_index_transform.hpp"
+#pragma once
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/multi_index_transform.hpp"
 
 namespace ck {
 
@@ -126,4 +128,3 @@ __host__ __device__ constexpr auto make_modulo_transform(const Modulus& modulus,
     return Modulo<Modulus, UpLength>{modulus, up_length};
 }
 } // namespace ck
-#endif

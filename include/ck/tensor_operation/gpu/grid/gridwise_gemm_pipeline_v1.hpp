@@ -1,6 +1,10 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
-#include "common_header.hpp"
-#include "tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
 
 namespace ck {
 

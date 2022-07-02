@@ -1,13 +1,18 @@
-#include <stdlib.h>
-#include "config.hpp"
-#include "device_conv2d_backward_weight_xdl_c_shuffle_nhwc_kyxc_nhwk.hpp"
-#include "element_wise_operation.hpp"
-#include "device_operation_instance.hpp"
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#include <cstdlib>
+
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_conv2d_backward_weight_xdl_c_shuffle_nhwc_kyxc_nhwk.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_conv2d_bwd_weight_instance {
+namespace instance {
 
 using F32 = float;
 
@@ -46,7 +51,7 @@ void add_device_conv2d_bwd_weight_xdl_nhwc_kyxc_nhwk_f32_instances(
                                    device_conv2d_bwd_weight_xdl_nhwc_kyxc_nhwk_f32_instances{});
 }
 
-} // namespace device_conv2d_bwd_weight_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

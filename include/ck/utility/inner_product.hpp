@@ -1,6 +1,7 @@
-#ifndef CK_INNER_PRODUCT_HPP
-#define CK_INNER_PRODUCT_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
+#pragma once
 #include "data_type.hpp"
 
 namespace ck {
@@ -138,7 +139,7 @@ template <>
 __device__ void
 inner_product<int8x4_t, int8x4_t, int32_t>(const int8x4_t& a, const int8x4_t& b, int32_t& c)
 {
-#if defined(CK_USE_DOT4_I32_I8)
+#if defined(CK_USE_AMD_V_DOT4_I32_I8)
 #if CK_USE_AMD_INNER_PRODUCT_INLINE_ASM
     asm volatile("\n \
             v_dot4_i32_i8 %0, %1, %2, %0\n \
@@ -202,4 +203,3 @@ inner_product<int8x16_t, int8x16_t, int32_t>(const int8x16_t& a, const int8x16_t
 }
 
 } // namespace ck
-#endif

@@ -1,6 +1,9 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 
-#include "profile_gemm_reduce_impl.hpp"
+#include "profiler/include/profile_gemm_reduce_impl.hpp"
 
 int main()
 {
@@ -16,22 +19,22 @@ int main()
     pass = pass &&
            ck::profiler::
                profile_gemm_reduce_impl<ck::half_t, ck::half_t, ck::half_t, float, Row, Row, Row>(
-                   true, 1, false, 1, M, N, K, K, N, N);
+                   true, 1, false, false, M, N, K, K, N, N);
 
     pass = pass &&
            ck::profiler::
                profile_gemm_reduce_impl<ck::half_t, ck::half_t, ck::half_t, float, Row, Col, Row>(
-                   true, 1, false, 1, M, N, K, K, K, N);
+                   true, 1, false, false, M, N, K, K, K, N);
 
     pass = pass &&
            ck::profiler::
                profile_gemm_reduce_impl<ck::half_t, ck::half_t, ck::half_t, float, Col, Row, Row>(
-                   true, 1, false, 1, M, N, K, M, N, N);
+                   true, 1, false, false, M, N, K, M, N, N);
 
     pass = pass &&
            ck::profiler::
                profile_gemm_reduce_impl<ck::half_t, ck::half_t, ck::half_t, float, Col, Col, Row>(
-                   true, 1, false, 1, M, N, K, M, K, N);
+                   true, 1, false, false, M, N, K, M, K, N);
 
     if(pass)
     {

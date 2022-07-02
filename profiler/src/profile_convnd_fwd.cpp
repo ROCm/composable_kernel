@@ -1,15 +1,18 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <cstdlib>
+#include <functional>
 #include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
-#include <half.hpp>
 
-#include "conv_util.hpp"
-#include "element_wise_operation.hpp"
-#include "fill.hpp"
-#include "profile_convnd_fwd.hpp"
-#include "tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+#include "ck/library/utility/conv_util.hpp"
+#include "ck/library/utility/fill.hpp"
 
 namespace {
 
@@ -119,7 +122,7 @@ template <int NDim,
 void profile_convnd_instances_impl(const ck::utils::conv::ConvParams& params,
                                    bool do_verification,
                                    bool do_log,
-                                   int nrepeat,
+                                   bool time_kernel,
                                    int init_method,
                                    ConvLayouts)
 {
@@ -150,9 +153,12 @@ void profile_convnd_instances_impl(const ck::utils::conv::ConvParams& params,
                                     ck::tensor_operation::element_wise::PassThrough,
                                     ck::tensor_operation::element_wise::PassThrough,
                                     ck::tensor_operation::element_wise::PassThrough,
-                                    ck::utils::FillUniform<int>,
-                                    ck::utils::FillUniform<int>>>(
-            params, true, ck::utils::FillUniform<int>{}, ck::utils::FillUniform<int>{});
+                                    ck::utils::FillUniformDistributionIntegerValue<int>,
+                                    ck::utils::FillUniformDistributionIntegerValue<int>>>(
+            params,
+            true,
+            ck::utils::FillUniformDistributionIntegerValue<int>{},
+            ck::utils::FillUniformDistributionIntegerValue<int>{});
         break;
     case 2:
         conv_instance = std::make_unique<
@@ -165,12 +171,12 @@ void profile_convnd_instances_impl(const ck::utils::conv::ConvParams& params,
                                     ck::tensor_operation::element_wise::PassThrough,
                                     ck::tensor_operation::element_wise::PassThrough,
                                     ck::tensor_operation::element_wise::PassThrough,
-                                    ck::utils::FillUniform<InDataType>,
-                                    ck::utils::FillUniform<WeiDataType>>>(
+                                    ck::utils::FillUniformDistribution<InDataType>,
+                                    ck::utils::FillUniformDistribution<WeiDataType>>>(
             params,
             true,
-            ck::utils::FillUniform<InDataType>{},
-            ck::utils::FillUniform<WeiDataType>{});
+            ck::utils::FillUniformDistribution<InDataType>{},
+            ck::utils::FillUniformDistribution<WeiDataType>{});
         break;
     default: throw std::runtime_error("Unsupported init method!");
     }
@@ -181,11 +187,13 @@ void profile_convnd_instances_impl(const ck::utils::conv::ConvParams& params,
         _1,
         _2,
         _3);
-    OpInstanceRunEngine<InDataType, WeiDataType, OutDataType> run_engine(*conv_instance,
-                                                                         reference_conv_fwd_fun);
+
+    OpInstanceRunEngine<InDataType, WeiDataType, OutDataType> run_engine(
+        *conv_instance, reference_conv_fwd_fun, do_verification);
+
     auto best_conf = run_engine.Profile(
         conv::ConvolutionFwdInstances<InDataType, WeiDataType, OutDataType>::template Get<NDim>(),
-        nrepeat,
+        time_kernel,
         do_verification,
         do_log);
 
@@ -201,7 +209,7 @@ void profile_convnd_instances(ConvDataType data_type,
                               const ck::utils::conv::ConvParams& params,
                               bool do_verification,
                               bool do_log,
-                              int nrepeat,
+                              bool time_kernel,
                               int init_method)
 {
     switch(data_layout)
@@ -214,7 +222,7 @@ void profile_convnd_instances(ConvDataType data_type,
                 params,
                 do_verification,
                 do_log,
-                nrepeat,
+                time_kernel,
                 init_method,
                 ConvolutionLayouts<NDim, ConvDataLayout::NHWC>{});
             break;
@@ -223,7 +231,7 @@ void profile_convnd_instances(ConvDataType data_type,
                 params,
                 do_verification,
                 do_log,
-                nrepeat,
+                time_kernel,
                 init_method,
                 ConvolutionLayouts<NDim, ConvDataLayout::NHWC>{});
             break;
@@ -232,7 +240,7 @@ void profile_convnd_instances(ConvDataType data_type,
                 params,
                 do_verification,
                 do_log,
-                nrepeat,
+                time_kernel,
                 init_method,
                 ConvolutionLayouts<NDim, ConvDataLayout::NHWC>{});
             break;
@@ -241,7 +249,7 @@ void profile_convnd_instances(ConvDataType data_type,
                 params,
                 do_verification,
                 do_log,
-                nrepeat,
+                time_kernel,
                 init_method,
                 ConvolutionLayouts<NDim, ConvDataLayout::NHWC>{});
             break;
@@ -256,7 +264,7 @@ void profile_convnd_instances(ConvDataType data_type,
                 params,
                 do_verification,
                 do_log,
-                nrepeat,
+                time_kernel,
                 init_method,
                 ConvolutionLayouts<NDim, ConvDataLayout::NCHW>{});
             break;
@@ -265,7 +273,7 @@ void profile_convnd_instances(ConvDataType data_type,
                 params,
                 do_verification,
                 do_log,
-                nrepeat,
+                time_kernel,
                 init_method,
                 ConvolutionLayouts<NDim, ConvDataLayout::NCHW>{});
             break;
@@ -274,7 +282,7 @@ void profile_convnd_instances(ConvDataType data_type,
                 params,
                 do_verification,
                 do_log,
-                nrepeat,
+                time_kernel,
                 init_method,
                 ConvolutionLayouts<NDim, ConvDataLayout::NCHW>{});
             break;
@@ -283,7 +291,7 @@ void profile_convnd_instances(ConvDataType data_type,
                 params,
                 do_verification,
                 do_log,
-                nrepeat,
+                time_kernel,
                 init_method,
                 ConvolutionLayouts<NDim, ConvDataLayout::NCHW>{});
             break;
@@ -295,7 +303,7 @@ void profile_convnd_instances(ConvDataType data_type,
 
 } // namespace
 
-int ck::profiler::profile_convnd_fwd(int argc, char* argv[])
+int profile_convnd_fwd(int argc, char* argv[])
 {
     using namespace ck::utils::conv;
 
@@ -304,7 +312,7 @@ int ck::profiler::profile_convnd_fwd(int argc, char* argv[])
     bool do_verification{true};
     int init_method{2};
     bool do_log{false};
-    int nrepeat{100};
+    bool time_kernel{false};
     int num_dim_spatial{2};
     ConvParams params;
 
@@ -318,7 +326,7 @@ int ck::profiler::profile_convnd_fwd(int argc, char* argv[])
         do_verification = std::stoi(argv[4]);
         init_method     = std::stoi(argv[5]);
         do_log          = std::stoi(argv[6]);
-        nrepeat         = std::stoi(argv[7]);
+        time_kernel     = std::stoi(argv[7]);
         num_dim_spatial = std::stoi(argv[8]);
     }
     if(argc >= 10)
@@ -332,20 +340,20 @@ int ck::profiler::profile_convnd_fwd(int argc, char* argv[])
     {
     case 1:
         profile_convnd_instances<1>(
-            data_type, data_layout, params, do_verification, do_log, nrepeat, init_method);
+            data_type, data_layout, params, do_verification, do_log, time_kernel, init_method);
         break;
     case 2:
         profile_convnd_instances<2>(
-            data_type, data_layout, params, do_verification, do_log, nrepeat, init_method);
+            data_type, data_layout, params, do_verification, do_log, time_kernel, init_method);
         break;
     case 3:
         profile_convnd_instances<3>(
-            data_type, data_layout, params, do_verification, do_log, nrepeat, init_method);
+            data_type, data_layout, params, do_verification, do_log, time_kernel, init_method);
         break;
     default:
         throw std::runtime_error("profile_conv_fwd: unsupported num_dim_spatial value: " +
                                  std::to_string(num_dim_spatial));
     }
 
-    return 1;
+    return 0;
 }

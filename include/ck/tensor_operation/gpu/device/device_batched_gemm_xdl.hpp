@@ -1,16 +1,20 @@
-#ifndef DEVICE_BATCHED_GEMM_XDL_HPP
-#define DEVICE_BATCHED_GEMM_XDL_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <iostream>
 #include <sstream>
-#include "device.hpp"
-#include "device_base.hpp"
-#include "device_gemm.hpp"
-#include "common_header.hpp"
-#include "tensor_layout.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdlops_v2r3.hpp"
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_batched_gemm.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r3.hpp"
+#include "ck/device_utility/device_prop.hpp"
+#include "ck/device_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -109,7 +113,7 @@ __global__ void
     ignore = c_element_op;
     ignore = compute_ptr_offset_of_batch;
     ignore = block_2_ctile_map;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif
 }
 
 template <typename ADataType,
@@ -147,8 +151,15 @@ template <typename ADataType,
           bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
           ck::index_t CThreadTransferDstScalarPerVector>
-struct DeviceBatchedGemmXdl
-    : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
+struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
+                                                       BLayout,
+                                                       CLayout,
+                                                       ADataType,
+                                                       BDataType,
+                                                       CDataType,
+                                                       AElementwiseOperation,
+                                                       BElementwiseOperation,
+                                                       CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -243,44 +254,6 @@ struct DeviceBatchedGemmXdl
     using BGridDesc_K0_N_K1 = decltype(MakeBGridDescriptor_K0_N_K1(1, 1, 1));
     using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
-    static constexpr auto MakeBlock2CTileMap(index_t batch_count,
-                                             const CGridDesc_M_N& c_grid_desc_m_n,
-                                             index_t M01,
-                                             index_t N01)
-    {
-        const auto M = c_grid_desc_m_n.GetLength(I0);
-        const auto N = c_grid_desc_m_n.GetLength(I1);
-
-        constexpr auto M1 = Number<MPerBlock>{};
-        constexpr auto N1 = Number<NPerBlock>{};
-
-        const auto M0 = M / M1;
-        const auto N0 = N / N1;
-
-        const auto M00 = M0 / M01;
-        const auto N00 = N0 / N01;
-
-        const auto g_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor =
-            make_single_stage_tensor_adaptor(
-                make_tuple(make_insert_transform(batch_count),
-                           make_unmerge_transform(make_tuple(M00, M01)),
-                           make_unmerge_transform(make_tuple(N00, N01))),
-                make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0>{}, Sequence<1, 3>{}, Sequence<2, 4>{}));
-
-        const auto globalblockid_to_m00_m01_n00_n01_block_cluster_adaptor =
-            make_single_stage_tensor_adaptor(
-                make_tuple(make_merge_transform(make_tuple(batch_count, M00, N00, M01, N01))),
-                make_tuple(Sequence<0, 1, 2, 3, 4>{}),
-                make_tuple(Sequence<0>{}));
-
-        const auto globalblockid_to_m0_n0_block_cluster_adaptor =
-            chain_tensor_adaptors(g_m00_m01_n00_n01_to_m0_n0_block_cluster_adaptor,
-                                  globalblockid_to_m00_m01_n00_n01_block_cluster_adaptor);
-
-        return globalblockid_to_m0_n0_block_cluster_adaptor;
-    }
-
     struct ComputePtrOffsetOfStridedBatch
     {
         ComputePtrOffsetOfStridedBatch(index_t BatchStrideA,
@@ -354,7 +327,7 @@ struct DeviceBatchedGemmXdl
 
     using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
         decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
-    using Block2CTileMap = decltype(MakeBlock2CTileMap(1, CGridDesc_M_N{}, 1, 1));
+    using Block2CTileMap = typename GridwiseGemm::DefaultBlock2CTileMap;
 
     // Argument
     struct Argument : public BaseArgument
@@ -368,40 +341,41 @@ struct DeviceBatchedGemmXdl
                  index_t StrideA,
                  index_t StrideB,
                  index_t StrideC,
+                 index_t BatchStrideA,
+                 index_t BatchStrideB,
+                 index_t BatchStrideC,
+                 index_t Batch,
                  index_t M01,
                  index_t N01,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
-                 CElementwiseOperation c_element_op,
-                 index_t BatchCount)
+                 CElementwiseOperation c_element_op)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
-              BatchCount_(BatchCount),
+              Batch_(Batch),
               a_grid_desc_k0_m_k1_{
                   DeviceBatchedGemmXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA)},
               b_grid_desc_k0_n_k1_{
                   DeviceBatchedGemmXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB)},
               c_grid_desc_m_n_{DeviceBatchedGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC)},
               c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
-              compute_ptr_offset_of_batch_{
-                  type_convert<index_t>(a_grid_desc_k0_m_k1_.GetElementSpaceSize()),
-                  type_convert<index_t>(b_grid_desc_k0_n_k1_.GetElementSpaceSize()),
-                  type_convert<index_t>(c_grid_desc_m_n_.GetElementSpaceSize())},
-              block_2_ctile_map_{},
+              compute_ptr_offset_of_batch_{BatchStrideA, BatchStrideB, BatchStrideC},
+              block_2_ctile_map_{
+                  GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01)},
               M01_{M01},
               N01_{N01},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op}
         {
-            if(GridwiseGemm::CheckValidity(
-                   a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
+            if(GridwiseGemm::CheckValidity(a_grid_desc_k0_m_k1_,
+                                           b_grid_desc_k0_n_k1_,
+                                           c_grid_desc_m_n_,
+                                           block_2_ctile_map_))
             {
                 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
                     GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
-
-                block_2_ctile_map_ = MakeBlock2CTileMap(BatchCount, c_grid_desc_m_n_, M01, N01);
             }
         }
 
@@ -409,7 +383,7 @@ struct DeviceBatchedGemmXdl
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
-        index_t BatchCount_;
+        index_t Batch_;
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
@@ -428,7 +402,7 @@ struct DeviceBatchedGemmXdl
     {
         using Argument = DeviceBatchedGemmXdl::Argument;
 
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             {
                 std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
@@ -446,15 +420,14 @@ struct DeviceBatchedGemmXdl
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                             arg.b_grid_desc_k0_n_k1_,
                                             arg.c_grid_desc_m_n_,
-                                            arg.M01_,
-                                            arg.N01_))
+                                            arg.block_2_ctile_map_))
             {
                 throw std::runtime_error(
                     "wrong! GridwiseBatchedGemm_km_kn_m0m1n0n1_xdlops_v2r3 has invalid setting");
             }
 
             const index_t grid_size =
-                GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_) * arg.BatchCount_;
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_) * arg.Batch_;
 
             const auto K =
                 arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
@@ -477,15 +450,15 @@ struct DeviceBatchedGemmXdl
                     remove_reference_t<Block2CTileMap>,
                     true>;
 
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
                                                   dim3(grid_size),
                                                   dim3(BlockSize),
                                                   0,
                                                   arg.p_a_grid_,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
-                                                  arg.BatchCount_,
+                                                  arg.Batch_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
@@ -511,15 +484,15 @@ struct DeviceBatchedGemmXdl
                     remove_reference_t<Block2CTileMap>,
                     false>;
 
-                ave_time = launch_and_time_kernel(kernel,
-                                                  nrepeat,
+                ave_time = launch_and_time_kernel(stream_config,
+                                                  kernel,
                                                   dim3(grid_size),
                                                   dim3(BlockSize),
                                                   0,
                                                   arg.p_a_grid_,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
-                                                  arg.BatchCount_,
+                                                  arg.Batch_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
@@ -534,9 +507,10 @@ struct DeviceBatchedGemmXdl
         }
 
         // polymorphic
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 
@@ -551,8 +525,7 @@ struct DeviceBatchedGemmXdl
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
                                            arg.b_grid_desc_k0_n_k1_,
                                            arg.c_grid_desc_m_n_,
-                                           arg.M01_,
-                                           arg.N01_);
+                                           arg.block_2_ctile_map_);
     }
 
     // polymorphic
@@ -570,10 +543,13 @@ struct DeviceBatchedGemmXdl
                              index_t StrideA,
                              index_t StrideB,
                              index_t StrideC,
+                             index_t BatchStrideA,
+                             index_t BatchStrideB,
+                             index_t BatchStrideC,
+                             index_t Batch,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
-                             CElementwiseOperation c_element_op,
-                             index_t BatchCount)
+                             CElementwiseOperation c_element_op)
     {
         return Argument{p_a,
                         p_b,
@@ -584,12 +560,15 @@ struct DeviceBatchedGemmXdl
                         StrideA,
                         StrideB,
                         StrideC,
+                        BatchStrideA,
+                        BatchStrideB,
+                        BatchStrideC,
+                        Batch,
                         1,
                         1,
                         a_element_op,
                         b_element_op,
-                        c_element_op,
-                        BatchCount};
+                        c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -604,10 +583,13 @@ struct DeviceBatchedGemmXdl
                                                       index_t StrideA,
                                                       index_t StrideB,
                                                       index_t StrideC,
+                                                      index_t BatchStrideA,
+                                                      index_t BatchStrideB,
+                                                      index_t BatchStrideC,
+                                                      index_t Batch,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op,
-                                                      index_t BatchCount) override
+                                                      CElementwiseOperation c_element_op) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
@@ -618,12 +600,15 @@ struct DeviceBatchedGemmXdl
                                           StrideA,
                                           StrideB,
                                           StrideC,
+                                          BatchStrideA,
+                                          BatchStrideB,
+                                          BatchStrideC,
+                                          Batch,
                                           1,
                                           1,
                                           a_element_op,
                                           b_element_op,
-                                          c_element_op,
-                                          BatchCount);
+                                          c_element_op);
     }
 
     // polymorphic
@@ -654,4 +639,3 @@ struct DeviceBatchedGemmXdl
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

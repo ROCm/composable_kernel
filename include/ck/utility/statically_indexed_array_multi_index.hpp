@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #ifndef CK_STATICALLY_INDEXED_ARRAY_MULTI_INDEX_HPP
 #define CK_STATICALLY_INDEXED_ARRAY_MULTI_INDEX_HPP
 
@@ -91,6 +94,13 @@ __host__ __device__ constexpr auto operator*(index_t a, const Tuple<Xs...>& x)
     Tuple<Xs...> r;
     static_for<0, NSize, 1>{}([&](auto i) { r(i) = a * x[i]; });
     return r;
+}
+
+// MultiIndex = MultiIndex * index_t
+template <typename... Xs>
+__host__ __device__ constexpr auto operator*(const Tuple<Xs...>& x, index_t a)
+{
+    return a * x;
 }
 
 template <typename... Xs>

@@ -1,13 +1,18 @@
-#ifndef DEVICE_POOL2D_FWD_NHWC_NHWC_HPP
-#define DEVICE_POOL2D_FWD_NHWC_NHWC_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <iostream>
 #include <sstream>
-#include "device_pool2d_fwd.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "reduction_operator_mapping.hpp"
-#include "gridwise_2d_reduction_threadwise.hpp"
+
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
+#include "ck/tensor_operation/gpu/device/device_pool2d_fwd.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_2d_reduction_threadwise.hpp"
+#include "ck/device_utility/device_prop.hpp"
+#include "ck/device_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -17,7 +22,7 @@ template <typename InDataType,
           typename OutDataType,
           typename AccDataType,
           ck::ReduceTensorOp ReduceOpId,
-          bool NeedIndices,
+          bool OuputIndex,
           ck::index_t BlockSize,
           ck::index_t ReduceMThreadClusterSize,
           ck::index_t ReduceKThreadClusterSize,
@@ -35,16 +40,13 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
 
     using IndexDataType = int32_t;
 
-    using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
+    using ReduceOperation = typename reduce_binary_operator<ReduceOpId>::opType;
 
     using InElementwiseOperation =
-        typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::InElementwiseOperation;
+        typename reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation;
 
     using AccElementwiseOperation =
-        typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::
-            AccElementwiseOperation;
-
-    static constexpr bool BetaIsZero = true;
+        typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation;
 
     static constexpr index_t InSrcOutDstVectorDim =
         0; // for NHWC, the dim C is the vector Dim for both input and output in memory, which is
@@ -180,13 +182,10 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
             invariant_lowest_length_ = C;
             reduce_lowest_length_    = window_spatial_lengths[1];
 
-            // TODO: is this correct?
-            if constexpr(ReduceOpId == ck::ReduceTensorOp::AVG)
-            {
-                ck::index_t divider = window_spatial_lengths[0] * window_spatial_lengths[1];
-                in_element_op_      = InElementwiseOperation{divider};
-                acc_element_op_     = AccElementwiseOperation{divider};
-            }
+            int32_t reduceLength = window_spatial_lengths[0] * window_spatial_lengths[1];
+
+            std::tie(in_element_op_, acc_element_op_) =
+                reduce_unary_operator<ReduceOpId, true, true>::GetElementwiseOperator(reduceLength);
         }
 
         const InDataType* p_in_dev_;
@@ -204,30 +203,30 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
 
     struct Invoker : public BaseInvoker
     {
-        float Run(const Argument& arg, int nrepeat = 1)
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            using gridwise_reduce = GridwiseReduction_mk_to_m_threadwise<InDataType,
-                                                                         OutDataType,
-                                                                         AccDataType,
-                                                                         IndexDataType,
-                                                                         AGridDesc_M_K,
-                                                                         BGridDesc_M,
-                                                                         ReduceOperation,
-                                                                         InElementwiseOperation,
-                                                                         AccElementwiseOperation,
-                                                                         false, // propagate_nan
-                                                                         BetaIsZero,
-                                                                         BlockSize,
-                                                                         ReduceMThreadClusterSize,
-                                                                         ReduceKThreadClusterSize,
-                                                                         ReduceMThreadSliceSize,
-                                                                         ReduceKThreadSliceSize,
-                                                                         InSrcOutDstVectorDim,
-                                                                         InSrcOutDstVectorSize,
-                                                                         InSrcOutDstVectorSize>;
+            using gridwise_reduce =
+                GridwiseReduction_mk_to_m_threadwise<InDataType,
+                                                     OutDataType,
+                                                     AccDataType,
+                                                     IndexDataType,
+                                                     AGridDesc_M_K,
+                                                     BGridDesc_M,
+                                                     ReduceOperation,
+                                                     InElementwiseOperation,
+                                                     AccElementwiseOperation,
+                                                     InMemoryDataOperationEnum::Set,
+                                                     false, // propagate_nan
+                                                     BlockSize,
+                                                     ReduceMThreadSliceSize,
+                                                     ReduceKThreadSliceSize,
+                                                     InSrcOutDstVectorDim,
+                                                     InSrcOutDstVectorSize,
+                                                     InSrcOutDstVectorSize>;
 
             const auto kernel = kernel_reduce_threadwise<gridwise_reduce,
-                                                         NeedIndices,
+                                                         OuputIndex,
+                                                         false, // don't have index input
                                                          InDataType,
                                                          OutDataType,
                                                          AccDataType,
@@ -241,8 +240,8 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
 
             const index_t grid_size = (ReduceM / ReduceM_BlockTileSize);
 
-            return launch_and_time_kernel(kernel,
-                                          nrepeat,
+            return launch_and_time_kernel(stream_config,
+                                          kernel,
                                           dim3(grid_size),
                                           dim3(BlockSize),
                                           0,
@@ -252,14 +251,16 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
                                           arg.acc_element_op_,
                                           float(1),
                                           arg.p_in_dev_,
+                                          nullptr,
                                           float(0),
                                           arg.p_out_dev_,
                                           arg.p_out_indices_dev_);
         }
 
-        float Run(const BaseArgument* p_arg, int nrepeat = 1) override
+        float Run(const BaseArgument* p_arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override
         {
-            return Run(*dynamic_cast<const Argument*>(p_arg), nrepeat);
+            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 
@@ -319,9 +320,8 @@ struct DevicePool2dFwd_Input_N_Hi_Wi_C_Output_N_Ho_Wo_C : public DevicePool2dFwd
 
         return str.str();
     }
-}; // namespace device
+};
 
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

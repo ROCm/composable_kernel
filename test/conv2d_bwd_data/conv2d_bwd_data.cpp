@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include "config.hpp"
 #include "device.hpp"
 #include "host_tensor.hpp"
@@ -17,7 +20,7 @@ using INT8 = int8_t;
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_conv2d_bwd_data_instance {
+namespace instance {
 
 using DeviceConvBwdDataNoOpPtr =
     DeviceConvBwdDataPtr<ck::tensor_operation::element_wise::PassThrough,
@@ -33,7 +36,7 @@ void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instances(
 void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instances(
     std::vector<DeviceConvBwdDataNoOpPtr>&);
 
-} // namespace device_conv2d_bwd_data_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
@@ -217,28 +220,28 @@ int main(int argc, char* argv[])
                      ck::is_same_v<ck::remove_cv_t<WeiDataType>, float> &&
                      ck::is_same_v<ck::remove_cv_t<OutDataType>, float>)
         {
-            ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+            ck::tensor_operation::device::instance::
                 add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f32_instances(conv_ptrs);
         }
         else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, ck::half_t> &&
                           ck::is_same_v<ck::remove_cv_t<WeiDataType>, ck::half_t> &&
                           ck::is_same_v<ck::remove_cv_t<OutDataType>, ck::half_t>)
         {
-            ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+            ck::tensor_operation::device::instance::
                 add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
         }
         else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, ck::bhalf_t> &&
                           ck::is_same_v<ck::remove_cv_t<WeiDataType>, ck::bhalf_t> &&
                           ck::is_same_v<ck::remove_cv_t<OutDataType>, ck::bhalf_t>)
         {
-            ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+            ck::tensor_operation::device::instance::
                 add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
         }
         else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, int8_t> &&
                           ck::is_same_v<ck::remove_cv_t<WeiDataType>, int8_t> &&
                           ck::is_same_v<ck::remove_cv_t<OutDataType>, int8_t>)
         {
-            ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+            ck::tensor_operation::device::instance::
                 add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instances(conv_ptrs);
         }
 

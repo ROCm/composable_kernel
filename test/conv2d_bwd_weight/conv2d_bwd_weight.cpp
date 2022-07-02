@@ -1,13 +1,14 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
-#include <half.hpp>
 #include <vector>
 
-#include "conv_util.hpp"
-#include "profile_conv_bwd_weight_impl.hpp"
+#include "test/convnd_fwd/conv_util.hpp"
+#include "profiler/include/profile_conv_bwd_weight_impl.hpp"
 
 int test_self()
 {
@@ -28,10 +29,10 @@ int test_self()
                                                            ck::tensor_layout::convolution::NHWC,
                                                            ck::tensor_layout::convolution::KYXC,
                                                            ck::tensor_layout::convolution::NHWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
             param.N_,
             param.K_,
             param.C_,
@@ -52,10 +53,10 @@ int test_self()
                                                            ck::tensor_layout::convolution::NHWC,
                                                            ck::tensor_layout::convolution::KYXC,
                                                            ck::tensor_layout::convolution::NHWK>(
-            1, // do_verification,
-            1, // init_method,
-            0, // do_log,
-            1, // nrepeat,
+            true,  // do_verification
+            1,     // init_method
+            false, // do_log
+            false, // time_kernel
             param.N_,
             param.K_,
             param.C_,
@@ -72,8 +73,8 @@ int test_self()
 }
 int main(int argc, char* argv[])
 {
-    int data_type   = 0;
-    int init_method = 0;
+    int data_type   = 1;
+    int init_method = 1;
 
     // Conv shape
     ck::index_t N               = 128;
@@ -155,10 +156,10 @@ int main(int argc, char* argv[])
                                                               ck::tensor_layout::convolution::NHWC,
                                                               ck::tensor_layout::convolution::KYXC,
                                                               ck::tensor_layout::convolution::NHWK>(
-                1,
+                true, // do_verification
                 init_method,
-                0,
-                1,
+                false, // do_log
+                false, // time_kernel
                 param.N_,
                 param.K_,
                 param.C_,
@@ -180,10 +181,10 @@ int main(int argc, char* argv[])
                                                               ck::tensor_layout::convolution::NHWC,
                                                               ck::tensor_layout::convolution::KYXC,
                                                               ck::tensor_layout::convolution::NHWK>(
-                1,
+                true, // do_verification
                 init_method,
-                0,
-                1,
+                false, // do_log
+                false, // time_kernel
                 param.N_,
                 param.K_,
                 param.C_,

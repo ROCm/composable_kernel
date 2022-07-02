@@ -1,11 +1,13 @@
-#ifndef CK_BLOCKWISE_TENSOR_SLICE_TRANSFER_V5R1_HPP
-#define CK_BLOCKWISE_TENSOR_SLICE_TRANSFER_V5R1_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "common_header.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "cluster_descriptor.hpp"
-#include "threadwise_tensor_slice_transfer_v5r1.hpp"
+#pragma once
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_description/cluster_descriptor.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer_v5r1.hpp"
 
 namespace ck {
 
@@ -75,14 +77,13 @@ struct BlockwiseTensorSliceTransfer_v5r1
         }
     }
 
-    template <typename SrcBuffer, typename SrcStepHacks>
-    __device__ void
-    RunRead(const SrcDesc& src_desc, const SrcBuffer& src_buf, const SrcStepHacks& src_step_hacks)
+    template <typename SrcBuffer>
+    __device__ void RunRead(const SrcDesc& src_desc, const SrcBuffer& src_buf)
     {
         if(BlockSize == thread_cluster_desc_.GetElementSize() or
            get_thread_local_1d_id() < thread_cluster_desc_.GetElementSize())
         {
-            threadwise_transfer_.RunRead(src_desc, src_buf, src_step_hacks);
+            threadwise_transfer_.RunRead(src_desc, src_buf);
         }
     }
 
@@ -153,4 +154,3 @@ struct BlockwiseTensorSliceTransfer_v5r1
 };
 
 } // namespace ck
-#endif

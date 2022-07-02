@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #ifndef CK_STATIC_BUFFER_HPP
 #define CK_STATIC_BUFFER_HPP
 
@@ -35,6 +38,11 @@ struct StaticBuffer : public StaticallyIndexedArray<T, N>
     __host__ __device__ constexpr T& operator()(Number<I> i)
     {
         return base::operator()(i);
+    }
+
+    __host__ __device__ void Clear()
+    {
+        static_for<0, N, 1>{}([&](auto i) { operator()(i) = T{0}; });
     }
 };
 
@@ -146,9 +154,9 @@ struct StaticBufferTupleOfVector
 
     __host__ __device__ void Clear()
     {
-        const index_t numScalars = NumOfVector * ScalarPerVector;
+        constexpr index_t NumScalars = NumOfVector * ScalarPerVector;
 
-        static_for<0, Number<numScalars>{}, 1>{}([&](auto i) { SetAsType(i, S{0}); });
+        static_for<0, NumScalars, 1>{}([&](auto i) { SetAsType(i, S{0}); });
     }
 };
 
