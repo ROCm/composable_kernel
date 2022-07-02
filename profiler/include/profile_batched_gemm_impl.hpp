@@ -159,10 +159,10 @@ bool profile_batched_gemm_impl(int do_verification,
                                         BatchStrideA,
                                         BatchStrideB,
                                         BatchStrideC,
+                                        BatchCount,
                                         ck::tensor_operation::element_wise::PassThrough{},
                                         ck::tensor_operation::element_wise::PassThrough{},
-                                        ck::tensor_operation::element_wise::PassThrough{},
-                                        BatchCount);
+                                        ck::tensor_operation::element_wise::PassThrough{});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 

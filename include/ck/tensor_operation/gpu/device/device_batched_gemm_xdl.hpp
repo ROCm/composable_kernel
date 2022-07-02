@@ -344,12 +344,12 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
                  index_t BatchStrideA,
                  index_t BatchStrideB,
                  index_t BatchStrideC,
+                 index_t Batch,
                  index_t M01,
                  index_t N01,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
-                 CElementwiseOperation c_element_op,
-                 index_t Batch)
+                 CElementwiseOperation c_element_op)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
@@ -546,10 +546,10 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
                              index_t BatchStrideA,
                              index_t BatchStrideB,
                              index_t BatchStrideC,
+                             index_t Batch,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
-                             CElementwiseOperation c_element_op,
-                             index_t Batch)
+                             CElementwiseOperation c_element_op)
     {
         return Argument{p_a,
                         p_b,
@@ -563,12 +563,12 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
                         BatchStrideA,
                         BatchStrideB,
                         BatchStrideC,
+                        Batch,
                         1,
                         1,
                         a_element_op,
                         b_element_op,
-                        c_element_op,
-                        Batch};
+                        c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -586,10 +586,10 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
                                                       index_t BatchStrideA,
                                                       index_t BatchStrideB,
                                                       index_t BatchStrideC,
+                                                      index_t Batch,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op,
-                                                      index_t Batch) override
+                                                      CElementwiseOperation c_element_op) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
@@ -603,12 +603,12 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
                                           BatchStrideA,
                                           BatchStrideB,
                                           BatchStrideC,
+                                          Batch,
                                           1,
                                           1,
                                           a_element_op,
                                           b_element_op,
-                                          c_element_op,
-                                          Batch);
+                                          c_element_op);
     }
 
     // polymorphic

@@ -19,6 +19,22 @@ enum struct GemmSpecialization
     MNKPadding,
 };
 
+inline std::string getGemmSpecializationString(const GemmSpecialization& s)
+{
+    switch(s)
+    {
+    case GemmSpecialization::Default: return "Default";
+    case GemmSpecialization::MPadding: return "MPadding";
+    case GemmSpecialization::NPadding: return "NPadding";
+    case GemmSpecialization::KPadding: return "KPadding";
+    case GemmSpecialization::MNPadding: return "MNPadding";
+    case GemmSpecialization::MKPadding: return "MKPadding";
+    case GemmSpecialization::NKPadding: return "NKPadding";
+    case GemmSpecialization::MNKPadding: return "MNKPadding";
+    default: return "Unrecognized specialization!";
+    }
+}
+
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

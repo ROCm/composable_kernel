@@ -871,7 +871,7 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
             << MPerBlock << ", "
             << NPerBlock << ", "
             << K0PerBlock << ", "
-            << getConvFwdSpecializationStr(ConvForwardSpecialization)
+            << getConvForwardSpecializationString(ConvForwardSpecialization)
             << ">";
         // clang-format on
 
