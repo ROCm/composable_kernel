@@ -97,6 +97,26 @@ struct DeviceLayernorm : public BaseOperator
                                                                       YDstVectorSize,
                                                                       false>;
 
+    using GridwiseReduceLayernormSweepOnce = GridwiseLayernorm_mk_to_mk<XDataType,
+                                                                        GammaDataType,
+                                                                        BetaDataType,
+                                                                        YDataType,
+                                                                        AccDataType,
+                                                                        GridDesc_M_K,
+                                                                        BlockSize,
+                                                                        MThreadClusterSize,
+                                                                        KThreadClusterSize,
+                                                                        MThreadSliceSize,
+                                                                        KThreadSliceSize,
+                                                                        XSrcVectorDim,
+                                                                        XSrcVectorSize,
+                                                                        GammaSrcVectorDim,
+                                                                        GammaSrcVectorSize,
+                                                                        BetaSrcVectorDim,
+                                                                        BetaSrcVectorSize,
+                                                                        YDstVectorSize,
+                                                                        true>;
+
     struct Argument : public Reduction::Argument
     {
         Argument(const std::vector<index_t> lengths,
@@ -151,16 +171,25 @@ struct DeviceLayernorm : public BaseOperator
             const auto y_grid_desc_m_k = Reduction::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
 
-            const auto kernel_main = kernel_layernorm<GridwiseReduceLayernormGeneric,
-                                                      XDataType,
-                                                      GammaDataType,
-                                                      BetaDataType,
-                                                      YDataType,
-                                                      AccDataType,
-                                                      GridDesc_M_K>;
+            bool sweep_once =
+                x_grid_desc_m_k.GetLength(Number<1>{}) <= KThreadClusterSize * KThreadSliceSize;
+
+            const auto kernel_main = sweep_once ? kernel_layernorm<GridwiseReduceLayernormSweepOnce,
+                                                                   XDataType,
+                                                                   GammaDataType,
+                                                                   BetaDataType,
+                                                                   YDataType,
+                                                                   AccDataType,
+                                                                   GridDesc_M_K>
+                                                : kernel_layernorm<GridwiseReduceLayernormGeneric,
+                                                                   XDataType,
+                                                                   GammaDataType,
+                                                                   BetaDataType,
+                                                                   YDataType,
+                                                                   AccDataType,
+                                                                   GridDesc_M_K>;
 
             float avg_time = 0;
-
             avg_time += launch_and_time_kernel(stream_config,
                                                kernel_main,
                                                dim3(arg.gridSize),
