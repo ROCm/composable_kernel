@@ -109,7 +109,7 @@ int main(int argc, char* argv[])
     // GEMM shape
 #if 1
     ck::index_t M = 16;
-    ck::index_t N = 64 * 720;
+    ck::index_t N = 64 * 120;
     ck::index_t K = 4096;
 
     ck::index_t StrideA = K;
