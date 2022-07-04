@@ -60,8 +60,16 @@ template <typename ALayout,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock>
-struct DeviceGemm_Xdl_ProducerConsumer_CShuffle
-    : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
+struct DeviceGemm_Xdl_ProducerConsumer_CShuffle : public DeviceGemm<ALayout,
+                                                                    BLayout,
+                                                                    CLayout,
+                                                                    ADataType,
+                                                                    BDataType,
+                                                                    CDataType,
+                                                                    AElementwiseOperation,
+                                                                    BElementwiseOperation,
+                                                                    CElementwiseOperation>
+
 {
     using DeviceOp = DeviceGemm_Xdl_ProducerConsumer_CShuffle;
 
