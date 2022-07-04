@@ -47,3 +47,32 @@
 #ifdef CK_USE_AMD_MFMA
 #include "amd_xdlops.hpp"
 #endif
+
+#define USEING_STATIC_KERNEL 1
+
+#define MNKB_16_1152_5120_8 0
+#define MNKB_16_5120_384_3 1
+#define MNKB_16_1280_5120_8 1
+#define MNKB_16_5120_1280_5 1
+
+#if MNKB_16_1152_5120_8
+#define M_matrix 16
+#define N_matrix 1152
+#define K_matrix 5120
+#define K_batch 8
+#elif MNKB_16_5120_384_3
+#define M_matrix 16
+#define N_matrix 5120
+#define K_matrix 384
+#define K_batch 4
+#elif MNKB_16_1280_5120_8
+#define M_matrix 16
+#define N_matrix 1280
+#define K_matrix 5120
+#define K_batch 8
+#elif MNKB_16_5120_1280_5
+#define M_matrix 16
+#define N_matrix 5120
+#define K_matrix 1280
+#define K_batch 5
+#endif

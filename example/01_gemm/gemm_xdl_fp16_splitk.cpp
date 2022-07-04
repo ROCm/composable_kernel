@@ -12,6 +12,7 @@
 #include "device_tensor.hpp"
 #include "device_gemm_xdl.hpp"
 #include "device_gemm_xdl_splitk_c_shuffle.hpp"
+#include "device_gemm_xdl_splitk_c_shuffle_static.hpp"
 #include "device_gemm_xdl_cshuffle.hpp"
 #include "element_wise_operation.hpp"
 #include "reference_gemm.hpp"
@@ -44,6 +45,19 @@ using CElementOp = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
+
+#if USEING_STATIC_KERNEL
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdlSplitKCShuffleStatic
+//######| ALayout| BLayout| CLayout| AData| BData| CData| AccData| CShuffle|           A|           B|           C|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
+//######|        |        |        |  Type|  Type|  Type|    Type| DataType| Elementwise| Elementwise| Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
+//######|        |        |        |      |      |      |        |         |   Operation|   Operation|   Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
+//######|        |        |        |      |      |      |        |         |            |            |            |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
+            //<Row,      Row,     Row,   F16,   F16,   F16,     F32,      F16,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        3,   256,    16,   128,    32,   8,   2,   16,   16,    1,    2,  S<1, 4, 16, 4>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              2,              2,         1,  S<1, 8, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              2,         8,           1,           2,              S<1, 4, 1, 64>,               2>;
+            <Row,      Row,     Row,   F16,   F16,   F16,     F32,      F16,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        2,   256,    16,   128,    32,   8,   2,   16,   16,    1,    2,  S<1, 4, 16, 4>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              2,              2,         1,  S<1, 8, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              2,         8,           1,           2,              S<1, 4, 1, 64>,               2>;
+            //<Row,      Col,     Row,   F16,   F16,   F16,     F32,      F16,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        1,   256,    16,   128,    128,   8,   8,   16,   16,    1,    2,  S<1, 16, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,         1,  S<1, 16, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,              8,              8,         1,           1,           2,              S<1, 4, 1, 64>,               2>;
+            //<Row,      Row,     Row,   F16,   F16,   F16,     F32,      F16,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        4,   256,    16,   128,    32,   8,   2,   16,   16,    1,    2,  S<1, 4, 16, 4>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              2,              2,         1,  S<1, 8, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              2,         8,           1,           2,              S<1, 4, 1, 64>,               2>;
+
+#else
 // clang-format off
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdlSplitKCShuffle
 //######| ALayout| BLayout| CLayout| AData| BData| CData| AccData| CShuffle|           A|           B|           C|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
@@ -52,8 +66,10 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdlSplitKCShu
 //######|        |        |        |      |      |      |        |         |            |            |            |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
             <Row,      Row,     Row,   F16,   F16,   F16,     F32,      F16,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        3,   256,    16,   128,    32,   8,   2,   16,   16,    1,    2,  S<1, 4, 16, 4>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              2,              2,         1,  S<1, 8, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              2,         8,           1,           1,              S<1, 16, 1, 16>,               2>;
             //<Row,      Row,     Row,   F16,   F16,   F16,     F32,      F16,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        4,   256,    16,   128,    32,   8,   2,   16,   16,    1,    2,  S<1, 4, 16, 4>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              2,              2,         1,  S<1, 8, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              2,         8,           1,           1,              S<1, 16, 1, 16>,               2>;
-                           
+                     
 // clang-format on
+
+#endif  
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
     ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
