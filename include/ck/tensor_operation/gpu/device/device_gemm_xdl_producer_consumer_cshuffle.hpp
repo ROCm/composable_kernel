@@ -488,22 +488,22 @@ struct DeviceGemm_Xdl_ProducerConsumer_CShuffle
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     true>;
 
-                ave_time =
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(ABBlockTransferThreadGroupSize + BlockGemmThreadGroupSize),
-                                           0,
-                                           arg.p_a_grid_,
-                                           arg.p_b_grid_,
-                                           arg.p_c_grid_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.c_element_op_,
-                                           arg.a_grid_desc_ak0_m_ak1_,
-                                           arg.b_grid_desc_bk0_n_bk1_,
-                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.block_2_ctile_map_);
+                ave_time = launch_and_time_kernel(
+                    stream_config,
+                    kernel,
+                    dim3(grid_size),
+                    dim3(ABBlockTransferThreadGroupSize + BlockGemmThreadGroupSize),
+                    0,
+                    arg.p_a_grid_,
+                    arg.p_b_grid_,
+                    arg.p_c_grid_,
+                    arg.a_element_op_,
+                    arg.b_element_op_,
+                    arg.c_element_op_,
+                    arg.a_grid_desc_ak0_m_ak1_,
+                    arg.b_grid_desc_bk0_n_bk1_,
+                    arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                    arg.block_2_ctile_map_);
             }
             else
             {
@@ -520,22 +520,22 @@ struct DeviceGemm_Xdl_ProducerConsumer_CShuffle
                     typename GridwiseGemm::DefaultBlock2CTileMap,
                     false>;
 
-                ave_time =
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(ABBlockTransferThreadGroupSize + BlockGemmThreadGroupSize),
-                                           0,
-                                           arg.p_a_grid_,
-                                           arg.p_b_grid_,
-                                           arg.p_c_grid_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.c_element_op_,
-                                           arg.a_grid_desc_ak0_m_ak1_,
-                                           arg.b_grid_desc_bk0_n_bk1_,
-                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.block_2_ctile_map_);
+                ave_time = launch_and_time_kernel(
+                    stream_config,
+                    kernel,
+                    dim3(grid_size),
+                    dim3(ABBlockTransferThreadGroupSize + BlockGemmThreadGroupSize),
+                    0,
+                    arg.p_a_grid_,
+                    arg.p_b_grid_,
+                    arg.p_c_grid_,
+                    arg.a_element_op_,
+                    arg.b_element_op_,
+                    arg.c_element_op_,
+                    arg.a_grid_desc_ak0_m_ak1_,
+                    arg.b_grid_desc_bk0_n_bk1_,
+                    arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                    arg.block_2_ctile_map_);
             }
 
             return ave_time;
