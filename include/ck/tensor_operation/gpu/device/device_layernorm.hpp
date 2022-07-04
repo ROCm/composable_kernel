@@ -32,13 +32,13 @@ template <typename XDataType,
           index_t KThreadClusterSize,
           index_t MThreadSliceSize,
           index_t KThreadSliceSize,
-          index_t InSrcVectorDim,
-          index_t InSrcVectorSize,
+          index_t XSrcVectorDim,
+          index_t XSrcVectorSize,
           index_t GammaSrcVectorDim,
           index_t GammaSrcVectorSize,
           index_t BetaSrcVectorDim,
           index_t BetaSrcVectorSize,
-          index_t OutDstVectorSize>
+          index_t YDstVectorSize>
 struct DeviceLayernorm : public BaseOperator
 {
     static_assert(
@@ -71,36 +71,36 @@ struct DeviceLayernorm : public BaseOperator
                                              KThreadClusterSize,
                                              MThreadSliceSize,
                                              KThreadSliceSize,
-                                             InSrcVectorDim,
-                                             InSrcVectorSize,
-                                             1>; // OutDstVectorSize
+                                             XSrcVectorDim,
+                                             XSrcVectorSize,
+                                             1>; // YDstVectorSize
 
     using GridDesc_M_K = decltype(Reduction::MakeSrc2dDescriptor({1}, {1}, 1, 1));
 
-    using GridwiseReduce = GridwiseLayernorm_mk_to_mk<XDataType,
-                                                      GammaDataType,
-                                                      BetaDataType,
-                                                      YDataType,
-                                                      AccDataType,
-                                                      GridDesc_M_K,
-                                                      BlockSize,
-                                                      MThreadClusterSize,
-                                                      KThreadClusterSize,
-                                                      MThreadSliceSize,
-                                                      KThreadSliceSize,
-                                                      InSrcVectorDim,
-                                                      InSrcVectorSize,
-                                                      GammaSrcVectorDim,
-                                                      GammaSrcVectorSize,
-                                                      BetaSrcVectorDim,
-                                                      BetaSrcVectorSize,
-                                                      OutDstVectorSize,
-                                                      false>;
+    using GridwiseReduceLayernormGeneric = GridwiseLayernorm_mk_to_mk<XDataType,
+                                                                      GammaDataType,
+                                                                      BetaDataType,
+                                                                      YDataType,
+                                                                      AccDataType,
+                                                                      GridDesc_M_K,
+                                                                      BlockSize,
+                                                                      MThreadClusterSize,
+                                                                      KThreadClusterSize,
+                                                                      MThreadSliceSize,
+                                                                      KThreadSliceSize,
+                                                                      XSrcVectorDim,
+                                                                      XSrcVectorSize,
+                                                                      GammaSrcVectorDim,
+                                                                      GammaSrcVectorSize,
+                                                                      BetaSrcVectorDim,
+                                                                      BetaSrcVectorSize,
+                                                                      YDstVectorSize,
+                                                                      false>;
 
     struct Argument : public Reduction::Argument
     {
-        Argument(const std::vector<index_t> inLengths,
-                 const std::vector<index_t> inStrides,
+        Argument(const std::vector<index_t> lengths,
+                 const std::vector<index_t> xStrides,
                  const std::vector<index_t> gammaStrides,
                  const std::vector<index_t> betaStrides,
                  const std::vector<index_t> reduceDims,
@@ -109,8 +109,8 @@ struct DeviceLayernorm : public BaseOperator
                  const GammaDataType* p_gamma,
                  const BetaDataType* p_beta,
                  YDataType* p_y)
-            : Reduction::Argument(inLengths,
-                                  inStrides,
+            : Reduction::Argument(lengths,
+                                  xStrides,
                                   {},
                                   {},
                                   reduceDims,
@@ -142,16 +142,16 @@ struct DeviceLayernorm : public BaseOperator
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            const auto in_grid_desc_m_k = Reduction::MakeSrc2dDescriptor(
+            const auto x_grid_desc_m_k = Reduction::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
             const auto gamma_grid_desc_m_k = Reduction::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.gammaStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
             const auto beta_grid_desc_m_k = Reduction::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.betaStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
-            const auto out_grid_desc_m_k = Reduction::MakeSrc2dDescriptor(
+            const auto y_grid_desc_m_k = Reduction::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
 
-            const auto kernel_main = kernel_layernorm<GridwiseReduce,
+            const auto kernel_main = kernel_layernorm<GridwiseReduceLayernormGeneric,
                                                       XDataType,
                                                       GammaDataType,
                                                       BetaDataType,
@@ -166,10 +166,10 @@ struct DeviceLayernorm : public BaseOperator
                                                dim3(arg.gridSize),
                                                dim3(BlockSize),
                                                0,
-                                               in_grid_desc_m_k,
+                                               x_grid_desc_m_k,
                                                gamma_grid_desc_m_k,
                                                beta_grid_desc_m_k,
-                                               out_grid_desc_m_k,
+                                               y_grid_desc_m_k,
                                                arg.blkGroupSize,
                                                arg.numBlockTileIteration,
                                                arg.epsilon_,
@@ -197,7 +197,7 @@ struct DeviceLayernorm : public BaseOperator
             return false;
         }
 
-        if(p_arg_->inLengths_[Rank - 1] % OutDstVectorSize != 0)
+        if(p_arg_->inLengths_[Rank - 1] % YDstVectorSize != 0)
         {
             return false;
         }
@@ -241,19 +241,19 @@ struct DeviceLayernorm : public BaseOperator
         return true;
     };
 
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<index_t> inLengths,
-                                                      const std::vector<index_t> inStrides,
+    std::unique_ptr<BaseArgument> MakeArgumentPointer(const std::vector<index_t> lengths,
+                                                      const std::vector<index_t> xStrides,
                                                       const std::vector<index_t> gammaStrides,
                                                       const std::vector<index_t> betaStrides,
-                                                      const std::vector<int> reduceDims,
+                                                      const std::vector<index_t> reduceDims,
                                                       AccDataType epsilon,
                                                       const void* p_x,
                                                       const void* p_gamma,
                                                       const void* p_beta,
                                                       void* p_y)
     {
-        return std::make_unique<Argument>(inLengths,
-                                          inStrides,
+        return std::make_unique<Argument>(lengths,
+                                          xStrides,
                                           gammaStrides,
                                           betaStrides,
                                           reduceDims,
@@ -274,7 +274,7 @@ struct DeviceLayernorm : public BaseOperator
         str << "DeviceLayernorm<" << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
         str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
-        str << "InSrcVectorDim_" << InSrcVectorDim << "_InSrcVectorSize_" << InSrcVectorSize << "_OutDstVectorSize_" << OutDstVectorSize << ">";
+        str << "XSrcVectorDim_" << XSrcVectorDim << "_XSrcVectorSize_" << XSrcVectorSize << "_YDstVectorSize_" << YDstVectorSize << ">";
         // clang-format on
 
         return str.str();
