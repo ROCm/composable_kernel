@@ -16,7 +16,7 @@
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_reduce_instance {
+namespace instance {
 
 template <int Rank, int NumReduceDim, int ReduceOpId, bool PropagateNan, bool UseIndex>
 struct ReduceDescription
@@ -91,7 +91,7 @@ bool description_match(const DescriptionType& description,
     return (result);
 };
 
-} // namespace device_reduce_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
@@ -142,7 +142,7 @@ bool profile_reduce_impl_impl(bool do_verification,
                               float beta)
 {
     using namespace ck::tensor_operation::device;
-    using namespace ck::tensor_operation::device::device_reduce_instance;
+    using namespace ck::tensor_operation::device::instance;
     using ck::host_common::dumpBufferToFile;
 
     constexpr bool op_support_indices =
@@ -464,7 +464,7 @@ bool profile_reduce_impl(bool do_verification,
     bool pass    = true;
 
     using tuple_of_description_instances =
-        tensor_operation::device::device_reduce_instance::reduce_description_instances;
+        tensor_operation::device::instance::reduce_description_instances;
 
     const auto tuple_object = tuple_of_description_instances{};
 

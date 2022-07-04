@@ -30,6 +30,8 @@ struct ThreadwiseReduction
 
     static_assert(src_length_m == dst_length_m, "lengths of source and dst buffer must match!");
 
+    using Op = OpReduce;
+
     template <typename SrcBufferType, typename DstBufferType>
     __device__ static void Reduce(const SrcBufferType& src_buf, DstBufferType& dst_buf)
     {

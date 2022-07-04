@@ -18,7 +18,7 @@ enum struct ConvolutionForwardSpecialization
     OddC,
 };
 
-inline std::string getConvFwdSpecializationStr(const ConvolutionForwardSpecialization& s)
+inline std::string getConvForwardSpecializationString(const ConvolutionForwardSpecialization& s)
 {
     switch(s)
     {

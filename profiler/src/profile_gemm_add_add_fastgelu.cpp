@@ -29,7 +29,7 @@ int profile_gemm_add_add_fastgelu(int argc, char* argv[])
     if(argc != 16)
     {
         // clang-format off
-        printf("arg1: tensor operation (gemm_add_add_fastgelu: GEMM+Add+Add+GeLU)\n");
+        printf("arg1: tensor operation (gemm_add_add_fastgelu: GEMM+Add+Add+FastGeLU)\n");
         printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8)\n");
         printf("arg3: matrix layout (0: E[m, n] = FastGeLU(A[m, k] * B[k, n] + D0[m, n] + D1[m, n]);\n");
         printf("                     1: E[m, n] = FastGeLU(A[m, k] * B[n, k] + D0[m, n] + D1[m, n]);\n");
@@ -39,7 +39,7 @@ int profile_gemm_add_add_fastgelu(int argc, char* argv[])
         printf("arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n");
         printf("arg6: print tensor value (0: no; 1: yes)\n");
         printf("arg7: time kernel (0=no, 1=yes)\n");
-        printf("arg8 to 13: M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE\n");
+        printf("arg8 to 15: M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE\n");
         // clang-format on
         exit(1);
     }
@@ -75,9 +75,7 @@ int profile_gemm_add_add_fastgelu(int argc, char* argv[])
                        auto e_type,
                        auto a_layout,
                        auto b_layout,
-                       auto d0_layout,
-                       auto d1_layout,
-                       auto e_layout) {
+                       auto de_layout) {
         using ADataType   = decltype(a_type);
         using BDataType   = decltype(b_type);
         using AccDataType = decltype(acc_type);
@@ -87,15 +85,13 @@ int profile_gemm_add_add_fastgelu(int argc, char* argv[])
 
         using ALayout  = decltype(a_layout);
         using BLayout  = decltype(b_layout);
-        using D0Layout = decltype(d0_layout);
-        using D1Layout = decltype(d1_layout);
-        using ELayout  = decltype(e_layout);
+        using DELayout = decltype(de_layout);
 
         const int DefaultStrideA  = ck::is_same_v<ALayout, Row> ? K : M;
         const int DefaultStrideB  = ck::is_same_v<BLayout, Row> ? N : K;
-        const int DefaultStrideD0 = ck::is_same_v<D0Layout, Row> ? N : M;
-        const int DefaultStrideD1 = ck::is_same_v<D1Layout, Row> ? N : M;
-        const int DefaultStrideE  = ck::is_same_v<ELayout, Row> ? N : M;
+        const int DefaultStrideD0 = ck::is_same_v<DELayout, Row> ? N : M;
+        const int DefaultStrideD1 = ck::is_same_v<DELayout, Row> ? N : M;
+        const int DefaultStrideE  = ck::is_same_v<DELayout, Row> ? N : M;
 
         bool pass = ck::profiler::profile_gemm_add_add_fastgelu_impl<ADataType,
                                                                      BDataType,
@@ -105,9 +101,7 @@ int profile_gemm_add_add_fastgelu(int argc, char* argv[])
                                                                      EDataType,
                                                                      ALayout,
                                                                      BLayout,
-                                                                     D0Layout,
-                                                                     D1Layout,
-                                                                     ELayout>(
+                                                                     DELayout>(
             do_verification,
             init_method,
             do_log,
@@ -126,22 +120,22 @@ int profile_gemm_add_add_fastgelu(int argc, char* argv[])
 
     if(data_type == MatrixDataType::F16_F16_F16_F16_F16 && layout == MatrixLayout::MK_KN_MN_MN_MN)
     {
-        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, F16{}, Row{}, Row{}, Row{}, Row{}, Row{});
+        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, F16{}, Row{}, Row{}, Row{});
     }
     else if(data_type == MatrixDataType::F16_F16_F16_F16_F16 &&
             layout == MatrixLayout::MK_NK_MN_MN_MN)
     {
-        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, F16{}, Row{}, Col{}, Row{}, Row{}, Row{});
+        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, F16{}, Row{}, Col{}, Row{});
     }
     else if(data_type == MatrixDataType::F16_F16_F16_F16_F16 &&
             layout == MatrixLayout::KM_KN_MN_MN_MN)
     {
-        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, F16{}, Col{}, Row{}, Row{}, Row{}, Row{});
+        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, F16{}, Col{}, Row{}, Row{});
     }
     else if(data_type == MatrixDataType::F16_F16_F16_F16_F16 &&
             layout == MatrixLayout::KM_NK_MN_MN_MN)
     {
-        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, F16{}, Col{}, Col{}, Row{}, Row{}, Row{});
+        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, F16{}, Col{}, Col{}, Row{});
     }
     else
     {
