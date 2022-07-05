@@ -96,7 +96,7 @@ namespace device {
 // E = cde_op(C, D0, D1, ...)
 template <typename ALayout,
           typename BLayout,
-          typename CDELayout,
+          typename DELayout,
           typename ADataType,
           typename BDataType,
           typename GemmAccDataType,
@@ -137,7 +137,13 @@ template <typename ALayout,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
-struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<DsDataType::Size(),
+struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
+                                                                     BLayout,
+                                                                     DELayout,
+                                                                     ADataType,
+                                                                     BDataType,
+                                                                     DsDataType,
+                                                                     EDataType,
                                                                      AElementwiseOperation,
                                                                      BElementwiseOperation,
                                                                      CDEElementwiseOperation>
@@ -360,12 +366,12 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<DsDataType:
     static auto MakeCGridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t StrideE)
     {
         const auto c_grid_desc_mraw_nraw = [&]() {
-            if constexpr(is_same<tensor_layout::gemm::RowMajor, CDELayout>::value)
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, DELayout>::value)
             {
                 return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
                                                     make_tuple(StrideE, I1));
             }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CDELayout>::value)
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, DELayout>::value)
             {
                 return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
                                                     make_tuple(I1, StrideE));
@@ -740,7 +746,8 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<DsDataType:
             << NPerBlock << ", "
             << KPerBlock << ", "
             << AK1 << ", "
-            << BK1
+            << BK1 << ", "
+            << getGemmSpecializationString(GemmSpec)
             << ">";
         // clang-format on
 
