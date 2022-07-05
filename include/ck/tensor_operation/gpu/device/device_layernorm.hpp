@@ -34,21 +34,17 @@ template <typename XDataType,
           index_t KThreadSliceSize,
           index_t XSrcVectorDim,
           index_t XSrcVectorSize,
-          index_t GammaSrcVectorDim,
           index_t GammaSrcVectorSize,
-          index_t BetaSrcVectorDim,
           index_t BetaSrcVectorSize,
           index_t YDstVectorSize>
 struct DeviceLayernorm : public BaseOperator
 {
     static_assert(
-        ((GammaSrcVectorDim == 0 && MThreadSliceSize % GammaSrcVectorSize == 0) ||
-         (GammaSrcVectorDim == 1 && KThreadSliceSize % GammaSrcVectorSize == 0)),
+        (KThreadSliceSize % GammaSrcVectorSize == 0),
         "Invalid thread slice sizes and/or gamma vector sizes configuration, please check!");
 
     static_assert(
-        ((BetaSrcVectorDim == 0 && MThreadSliceSize % BetaSrcVectorSize == 0) ||
-         (BetaSrcVectorDim == 1 && KThreadSliceSize % BetaSrcVectorSize == 0)),
+        (KThreadSliceSize % BetaSrcVectorSize == 0),
         "Invalid thread slice sizes and/or beta vector sizes configuration, please check!");
 
     using PassThrough = tensor_operation::element_wise::PassThrough;
@@ -75,7 +71,38 @@ struct DeviceLayernorm : public BaseOperator
                                              XSrcVectorSize,
                                              1>; // YDstVectorSize
 
+    static auto MakeAffine1dDescriptor(const std::vector<index_t>& Lengths,
+                                       const std::vector<index_t>& Strides,
+                                       int blkGroupSize,
+                                       int numBlockTileIteration)
+    {
+        const auto tupleLengths = make_tuple_from_array(Lengths, Number<NumReduceDim>{});
+        const auto tupleStrides = make_tuple_from_array(Strides, Number<NumReduceDim>{});
+
+        auto desc = make_naive_tensor_descriptor(tupleLengths, tupleStrides);
+
+        auto grid_desc_k = transform_tensor_descriptor(
+            desc,
+            make_tuple(make_merge_transform(tupleLengths)),
+            make_tuple(typename arithmetic_sequence_gen<0, NumReduceDim, 1>::type{}),
+            make_tuple(Sequence<0>{}));
+
+        const auto reduceTotalLength = grid_desc_k.GetLength(Number<0>{});
+        const int reduceSizePerBlock = Reduction::K_BlockTileSize * numBlockTileIteration;
+
+        const auto Pad_K = reduceSizePerBlock * blkGroupSize - reduceTotalLength;
+
+        auto grid_desc_k_padded = transform_tensor_descriptor(
+            grid_desc_k,
+            make_tuple(make_right_pad_transform(reduceTotalLength, Pad_K)),
+            make_tuple(Sequence<0>{}),
+            make_tuple(Sequence<0>{}));
+
+        return (grid_desc_k_padded);
+    };
+
     using GridDesc_M_K = decltype(Reduction::MakeSrc2dDescriptor({1}, {1}, 1, 1));
+    using GridDesc_K   = decltype(MakeAffine1dDescriptor({1}, {1}, 1, 1));
 
     using GridwiseReduceLayernormGeneric = GridwiseLayernorm_mk_to_mk<XDataType,
                                                                       GammaDataType,
@@ -83,6 +110,7 @@ struct DeviceLayernorm : public BaseOperator
                                                                       YDataType,
                                                                       AccDataType,
                                                                       GridDesc_M_K,
+                                                                      GridDesc_K,
                                                                       BlockSize,
                                                                       MThreadClusterSize,
                                                                       KThreadClusterSize,
@@ -90,9 +118,7 @@ struct DeviceLayernorm : public BaseOperator
                                                                       KThreadSliceSize,
                                                                       XSrcVectorDim,
                                                                       XSrcVectorSize,
-                                                                      GammaSrcVectorDim,
                                                                       GammaSrcVectorSize,
-                                                                      BetaSrcVectorDim,
                                                                       BetaSrcVectorSize,
                                                                       YDstVectorSize,
                                                                       false>;
@@ -103,6 +129,7 @@ struct DeviceLayernorm : public BaseOperator
                                                                         YDataType,
                                                                         AccDataType,
                                                                         GridDesc_M_K,
+                                                                        GridDesc_K,
                                                                         BlockSize,
                                                                         MThreadClusterSize,
                                                                         KThreadClusterSize,
@@ -110,9 +137,7 @@ struct DeviceLayernorm : public BaseOperator
                                                                         KThreadSliceSize,
                                                                         XSrcVectorDim,
                                                                         XSrcVectorSize,
-                                                                        GammaSrcVectorDim,
                                                                         GammaSrcVectorSize,
-                                                                        BetaSrcVectorDim,
                                                                         BetaSrcVectorSize,
                                                                         YDstVectorSize,
                                                                         true>;
@@ -144,16 +169,22 @@ struct DeviceLayernorm : public BaseOperator
                                   PassThrough{}),
               epsilon_(epsilon),
               p_gamma_(p_gamma),
-              p_beta_(p_beta)
+              p_beta_(p_beta),
+              gammaStrides_(gammaStrides),
+              betaStrides_(betaStrides)
         {
-            gammaStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(gammaStrides, reduceDims);
+            reduceLength_.resize(NumReduceDim);
 
-            betaStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(betaStrides, reduceDims);
+            for(int i = 0; i < NumReduceDim; ++i)
+            {
+                reduceLength_[i] = lengths[reduceDims[i]];
+            }
         }
 
         AccDataType epsilon_;
         const GammaDataType* p_gamma_;
         const BetaDataType* p_beta_;
+        std::vector<index_t> reduceLength_;
         std::vector<index_t> gammaStrides_;
         std::vector<index_t> betaStrides_;
     };
@@ -164,10 +195,10 @@ struct DeviceLayernorm : public BaseOperator
         {
             const auto x_grid_desc_m_k = Reduction::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
-            const auto gamma_grid_desc_m_k = Reduction::MakeSrc2dDescriptor(
-                arg.inLengths_, arg.gammaStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
-            const auto beta_grid_desc_m_k = Reduction::MakeSrc2dDescriptor(
-                arg.inLengths_, arg.betaStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
+            const auto gamma_grid_desc_k = MakeAffine1dDescriptor(
+                arg.reduceLength_, arg.gammaStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
+            const auto beta_grid_desc_k = MakeAffine1dDescriptor(
+                arg.reduceLength_, arg.betaStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
             const auto y_grid_desc_m_k = Reduction::MakeSrc2dDescriptor(
                 arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
 
@@ -180,14 +211,16 @@ struct DeviceLayernorm : public BaseOperator
                                                                    BetaDataType,
                                                                    YDataType,
                                                                    AccDataType,
-                                                                   GridDesc_M_K>
+                                                                   GridDesc_M_K,
+                                                                   GridDesc_K>
                                                 : kernel_layernorm<GridwiseReduceLayernormGeneric,
                                                                    XDataType,
                                                                    GammaDataType,
                                                                    BetaDataType,
                                                                    YDataType,
                                                                    AccDataType,
-                                                                   GridDesc_M_K>;
+                                                                   GridDesc_M_K,
+                                                                   GridDesc_K>;
 
             float avg_time = 0;
             avg_time += launch_and_time_kernel(stream_config,
@@ -196,8 +229,8 @@ struct DeviceLayernorm : public BaseOperator
                                                dim3(BlockSize),
                                                0,
                                                x_grid_desc_m_k,
-                                               gamma_grid_desc_m_k,
-                                               beta_grid_desc_m_k,
+                                               gamma_grid_desc_k,
+                                               beta_grid_desc_k,
                                                y_grid_desc_m_k,
                                                arg.numBlockTileIteration,
                                                arg.epsilon_,
@@ -230,41 +263,26 @@ struct DeviceLayernorm : public BaseOperator
             return false;
         }
 
-        // if fastest dim is not reduced
-        if constexpr(GammaSrcVectorDim == 0)
-        {
-            if(p_arg_->gammaStrides_[Reduction::NumInvariantDim - 1] != 1)
-                return (false);
+        if(p_arg_->gammaStrides_.size() != NumReduceDim ||
+           p_arg_->betaStrides_.size() != NumReduceDim)
+            return false;
 
-            if(p_arg_->invariant_lowest_length % GammaSrcVectorSize != 0)
-                return (false);
-        }
-        else // if fastest dim is reduced
-        {
-            if(p_arg_->gammaStrides_[Rank - 1] != 1)
-                return (false);
+        auto IsScalarPerVectorValid = [](bool isLastDimensionCoalesced, int scalarPerVector) {
+            bool ret = true;
 
-            if(p_arg_->reduce_lowest_length % GammaSrcVectorSize != 0)
-                return (false);
-        }
+            if(!isLastDimensionCoalesced)
+                ret = scalarPerVector == 1;
+            else
+                ret = KThreadSliceSize % scalarPerVector == 0;
 
-        // if fastest dim is not reduced
-        if constexpr(BetaSrcVectorDim == 0)
-        {
-            if(p_arg_->betaStrides_[Reduction::NumInvariantDim - 1] != 1)
-                return (false);
+            return ret;
+        };
 
-            if(p_arg_->invariant_lowest_length % BetaSrcVectorSize != 0)
-                return (false);
-        }
-        else // if fastest dim is reduced
-        {
-            if(p_arg_->betaStrides_[Rank - 1] != 1)
-                return (false);
+        if(!IsScalarPerVectorValid(p_arg_->gammaStrides_.back() == 1, GammaSrcVectorSize))
+            return false;
 
-            if(p_arg_->reduce_lowest_length % BetaSrcVectorSize != 0)
-                return (false);
-        }
+        if(!IsScalarPerVectorValid(p_arg_->betaStrides_.back() == 1, BetaSrcVectorSize))
+            return false;
 
         return true;
     };

@@ -41,9 +41,7 @@ using DeviceInstance = ck::tensor_operation::device::DeviceLayernorm<XDataType,
                                                                      8,   // SliceK
                                                                      1,   // SrcVecDim (0=M, 1=K)
                                                                      8,   // SrcScalarPerVector
-                                                                     1,   // GammaVecDim (0=M, 1=K)
                                                                      8,   // GammaScalarPerVector
-                                                                     1,   // BetaVecDim (0=M, 1=K)
                                                                      8,   // BetaScalarPerVector
                                                                      1>;  // OutScalarPerVector
 
@@ -97,7 +95,7 @@ int main()
 
     ck::index_t M      = 1024;
     ck::index_t N      = 1024;
-    ck::index_t Stride = 1024;
+    ck::index_t Stride = N;
 
     auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
         return HostTensorDescriptor(std::vector<std::size_t>({len}),
@@ -128,16 +126,17 @@ int main()
     beta_dev.ToDevice(beta.mData.data());
 
     auto device_instance = DeviceInstance{};
-    auto argument_ptr    = device_instance.MakeArgumentPointer({M, N},
-                                                            {Stride, 1},
-                                                            {0, 1},
-                                                            {0, 1},
-                                                            {1},
-                                                            1e-4,
-                                                            x_dev.GetDeviceBuffer(),
-                                                            gamma_dev.GetDeviceBuffer(),
-                                                            beta_dev.GetDeviceBuffer(),
-                                                            y_dev.GetDeviceBuffer());
+    auto argument_ptr    = device_instance.MakeArgumentPointer(
+        {M, N},
+        std::vector<ck::index_t>{x.mDesc.GetStrides().begin(), x.mDesc.GetStrides().end()},
+        std::vector<ck::index_t>{gamma.mDesc.GetStrides().begin(), gamma.mDesc.GetStrides().end()},
+        std::vector<ck::index_t>{beta.mDesc.GetStrides().begin(), beta.mDesc.GetStrides().end()},
+        {1},
+        1e-4,
+        x_dev.GetDeviceBuffer(),
+        gamma_dev.GetDeviceBuffer(),
+        beta_dev.GetDeviceBuffer(),
+        y_dev.GetDeviceBuffer());
 
     if(!device_instance.IsSupportedArgument(argument_ptr.get()))
     {
