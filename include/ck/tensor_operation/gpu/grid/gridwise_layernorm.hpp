@@ -251,10 +251,8 @@ struct GridwiseLayernorm_mk_to_mk
 
         // Copy x from Cache
         // one pass: fwd, second pass: bwd
-        constexpr auto thread_copy_fwd_step =
-            make_multi_index(0, SweepOnce ? 0 : K_BlockTileSize);
-        constexpr auto thread_copy_bwd_step =
-            make_multi_index(0, SweepOnce ? 0 : -K_BlockTileSize);
+        constexpr auto thread_copy_fwd_step = make_multi_index(0, SweepOnce ? 0 : K_BlockTileSize);
+        constexpr auto thread_copy_bwd_step = make_multi_index(0, SweepOnce ? 0 : -K_BlockTileSize);
 
         const auto x_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_x_global, x_grid_desc_m_k.GetElementSpaceSize());
@@ -266,7 +264,8 @@ struct GridwiseLayernorm_mk_to_mk
             p_beta_global, beta_grid_desc_m_k.GetElementSpaceSize());
 
         // E(x), E[x^2], var(x)
-        int reduce_length    = x_grid_desc_m_k.GetLength(I1);
+        int reduce_length = x_grid_desc_m_k.GetTransforms()[I0].GetUpperLengths()[I1];
+
         index_t reducedTiles = 0;
         do
         {
