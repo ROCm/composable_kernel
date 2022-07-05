@@ -199,7 +199,6 @@ struct DeviceLayernorm : public BaseOperator
                                                gamma_grid_desc_m_k,
                                                beta_grid_desc_m_k,
                                                y_grid_desc_m_k,
-                                               arg.blkGroupSize,
                                                arg.numBlockTileIteration,
                                                arg.epsilon_,
                                                arg.in_dev_,
