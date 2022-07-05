@@ -18,5 +18,15 @@ __device__ void block_sync_lds()
     __syncthreads();
 #endif
 }
+__device__ void block_lds()
+{
+#if CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM
+    asm volatile("\
+    s_waitcnt lgkmcnt(0) \
+    " ::);
+#else
+    __syncthreads();
+#endif
+}
 
 } // namespace ck

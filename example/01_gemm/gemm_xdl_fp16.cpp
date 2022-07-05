@@ -6,19 +6,18 @@
 #include <initializer_list>
 #include <cstdlib>
 #include <stdlib.h>
-#include <half.hpp>
-#include "check_err.hpp"
-#include "config.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "device_tensor.hpp"
-#include "device_gemm_xdl.hpp"
-#include "device_gemm_xdl_cshuffle.hpp"
-#include "device_gemm_xdl_waveletmodel_cshuffle.hpp"
-#include "element_wise_operation.hpp"
-#include "reference_gemm.hpp"
-#include "gemm_specialization.hpp"
+
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_xdl_waveletmodel_cshuffle.hpp"
+
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+#include "ck/library/utility/check_err.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -165,8 +164,8 @@ int main(int argc, char* argv[])
     auto c_element_op = CElementOp{};
 
     // do GEMM
-    //replace DeviceGemmInstance_WaveletModel for wavelet gemm pipeline
-    //auto gemm     = DeviceGemmInstance_WaveletModel{};
+    // replace DeviceGemmInstance_WaveletModel for wavelet gemm pipeline
+    // auto gemm     = DeviceGemmInstance_WaveletModel{};
     auto gemm     = DeviceGemmInstance{};
     auto invoker  = gemm.MakeInvoker();
     auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),

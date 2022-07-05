@@ -1,13 +1,17 @@
 #pragma once
-#include "common_header.hpp"
-#include "multi_index_transform_helper.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "blockwise_gemm_xdlops.hpp"
-#include "thread_group_tensor_slice_transfer_v4r1.hpp"
-#include "thread_group_tensor_slice_transfer_v6r1.hpp"
-#include "threadwise_tensor_slice_transfer.hpp"
-#include "gridwise_gemm_waveletmodel.hpp"
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/multi_index_transform_helper.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
+#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
+#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_waveletmodel.hpp"
 namespace ck {
 
 template <typename GridwiseGemm,
@@ -689,8 +693,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
                 //              4th mfma instruction  output space : 3 7 11 15 19 ....
                 //              you can pack 4 registers output space into 2WORD and do global write
                 //              (no LDS swizzling required)
-                //     2. avoid using s_barrier in this case where not all 256 threads required to
-                //     swizzle c layout
 
                 static_for<0, num_access, 1>{}([&](auto access_id) {
                     // make sure it's safe to write to LDS
