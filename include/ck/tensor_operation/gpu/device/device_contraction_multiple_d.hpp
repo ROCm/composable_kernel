@@ -12,27 +12,48 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+// Tensor Contraction:
+//   input : A
+//   input : B
+//   input : D0, D1, ...
+//   output : E
+//   C = a_op(A) * b_op(B)
+//   E = cde_op(C, D0, D1, ...)
+// Assume:
+//   A[M0, M1, M2, ..., K0, K1, K2...]
+//   B[K0, K1, K2, ..., N0, N1, N2...]
+//   D[M0, M1, M2, ..., N0, N1, N2...]
+//   E[M0, M1, M2, ..., N0, N1, N2...]
 template <index_t NumDimM,
           index_t NumDimN,
           index_t NumDimK,
+          typename ADataType,
+          typename BDataType,
+          typename DsDataType,
+          typename EDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename CElementwiseOperation>
-struct DeviceContraction : public BaseOperator
+          typename CDEElementwiseOperation>
+struct DeviceContractionMultipleD : public BaseOperator
 {
+    static constexpr index_t NumDTensor = DsDataType::Size();
+
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
-                        void* p_c,
+                        std::array<const void*, NumDTensor> p_ds,
+                        void* p_e,
                         std::vector<index_t> a_lengths,
                         std::vector<index_t> a_strides,
                         std::vector<index_t> b_lengths,
                         std::vector<index_t> b_strides,
-                        std::vector<index_t> c_lengths,
-                        std::vector<index_t> c_strides,
+                        std::array<std::vector<index_t>, NumDTensor> ds_lengths,
+                        std::array<std::vector<index_t>, NumDTensor> ds_strides,
+                        std::vector<index_t> e_lengths,
+                        std::vector<index_t> e_strides,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
-                        CElementwiseOperation c_element_op) = 0;
+                        CDEElementwiseOperation cde_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
