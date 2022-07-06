@@ -16,11 +16,15 @@ __device__ void block_sync_lds()
     __syncthreads();
 #endif
 }
-__device__ void s_nop()
+__device__ void sched_barrier()
 {
+#if 1
     asm volatile("\
     s_nop 0 \n \
     " ::);
+#else
+    __builtin_amdgcn_sched_barrier(0);
+#endif
 }
 
 __device__ void s_barrier()
