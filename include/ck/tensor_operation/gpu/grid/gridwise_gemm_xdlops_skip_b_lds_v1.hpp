@@ -112,7 +112,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
     static constexpr auto I6 = Number<6>{};
     static constexpr auto I7 = Number<7>{};
 
-    static constexpr auto BaseMultK0 = 16;
+    static constexpr auto BaseMultK0 = 8;
 
     // K1 should be Number<...>
     static constexpr auto K1 = Number<K1Value>{};
@@ -531,7 +531,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
             a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1, a_block_slice_copy_step);
 
             auto read_b_first_half_data = [&]() {
-                static_for<0, BaseMultK0 / 2, 1>{}([&](auto ii) {
+                static_for<0, BaseMultK0 , 1>{}([&](auto ii) {
                     b_threadwise_copy.Run(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                                           b_grid_buf,
                                           b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3,
@@ -561,18 +561,19 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
                     block_sync_lds();
 
                     static_for<0, BaseMultK0, 1>{}([&](auto ii) {
+                        blockwise_gemm.Run(a_block_buf, b_thread_buf(Number<ii>{}), c_thread_buf);
+                        blockwise_gemm.MoveABlockSliceWindow();
+                        s_nop();
+                        
                         b_threadwise_copy.Run(
                             b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                             b_grid_buf,
                             b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3,
                             make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                            b_thread_buf(Number<(BaseMultK0 / 2 + ii) % BaseMultK0>{}));
+                            b_thread_buf(Number<ii>{}));
                         b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
-                                                             b_thread_slice_copy_step);
-
-                        __builtin_amdgcn_sched_barrier(0);
-                        blockwise_gemm.Run(a_block_buf, b_thread_buf(Number<ii>{}), c_thread_buf);
-                        blockwise_gemm.MoveABlockSliceWindow();
+                                                             b_thread_slice_copy_step); 
+                        
                     });
 
                     block_sync_lds();
@@ -592,22 +593,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
                 blockwise_gemm.ResetABlockStartWindow();
 
                 static_for<0, BaseMultK0, 1>{}([&](auto ii) {
-                    if constexpr(ii < BaseMultK0 / 2)
-                    {
-                        b_threadwise_copy.Run(
-                            b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
-                            b_grid_buf,
-                            b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3,
-                            make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                            b_thread_buf(Number<(BaseMultK0 / 2 + ii) % BaseMultK0>{}));
-                        b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
-                                                             b_thread_slice_copy_step);
-                        __builtin_amdgcn_sched_barrier(0);
-                    }
-
                     
                     blockwise_gemm.Run(a_block_buf, b_thread_buf(Number<ii>{}), c_thread_buf);
-                    blockwise_gemm.MoveABlockSliceWindow();
+                    blockwise_gemm.MoveABlockSliceWindow();  
+                    
                 });
             }
         }
