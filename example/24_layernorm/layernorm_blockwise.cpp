@@ -23,6 +23,7 @@ using GammaDataType = ck::half_t;
 using BetaDataType  = ck::half_t;
 using YDataType     = ck::half_t;
 using AccDataType   = float;
+using PassThrough   = ck::tensor_operation::element_wise::PassThrough;
 
 constexpr int Rank         = 2;
 constexpr int NumReduceDim = 1;
@@ -32,6 +33,7 @@ using DeviceInstance = ck::tensor_operation::device::DeviceLayernorm<XDataType,
                                                                      BetaDataType,
                                                                      AccDataType,
                                                                      YDataType,
+                                                                     PassThrough,
                                                                      Rank,
                                                                      NumReduceDim,
                                                                      256, // BlockSize
@@ -136,7 +138,8 @@ int main()
         x_dev.GetDeviceBuffer(),
         gamma_dev.GetDeviceBuffer(),
         beta_dev.GetDeviceBuffer(),
-        y_dev.GetDeviceBuffer());
+        y_dev.GetDeviceBuffer(),
+        PassThrough{});
 
     if(!device_instance.IsSupportedArgument(argument_ptr.get()))
     {

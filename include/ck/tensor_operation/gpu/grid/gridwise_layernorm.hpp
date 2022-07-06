@@ -20,6 +20,7 @@ template <typename GridwiseReduction,
           typename BetaDataType,
           typename YDataType,
           typename AccDataType,
+          typename AccElementwiseOperation,
           typename GridDesc_M_K,
           typename GridDesc_K>
 __global__ void kernel_layernorm(const GridDesc_M_K x_grid_desc_m_k,
@@ -31,7 +32,8 @@ __global__ void kernel_layernorm(const GridDesc_M_K x_grid_desc_m_k,
                                  const XDataType* const __restrict__ p_x_global,
                                  const GammaDataType* const __restrict__ p_gamma_global,
                                  const BetaDataType* const __restrict__ p_beta_global,
-                                 YDataType* const __restrict__ p_y_global)
+                                 YDataType* const __restrict__ p_y_global,
+                                 const AccElementwiseOperation acc_elementwise_op)
 {
     GridwiseReduction::Run(x_grid_desc_m_k,
                            gamma_grid_desc_k,
@@ -42,7 +44,8 @@ __global__ void kernel_layernorm(const GridDesc_M_K x_grid_desc_m_k,
                            p_x_global,
                            p_gamma_global,
                            p_beta_global,
-                           p_y_global);
+                           p_y_global,
+                           acc_elementwise_op);
 };
 
 template <typename XDataType,
@@ -50,6 +53,7 @@ template <typename XDataType,
           typename BetaDataType,
           typename YDataType,
           typename AccDataType,
+          typename AccElementwiseOperation,
           typename GridDesc_M_K,
           typename GridDesc_K,
           index_t BlockSize,
@@ -105,8 +109,6 @@ struct GridwiseLayernorm_mk_to_mk
                             false, // ignored
                             detail::AccumulateWithNanIgnore<reduce::Add, AccDataType>>;
 
-    using PassThroughOp = tensor_operation::element_wise::PassThrough;
-
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
 
@@ -122,7 +124,8 @@ struct GridwiseLayernorm_mk_to_mk
                                const XDataType* const __restrict__ p_x_global,
                                const GammaDataType* const __restrict__ p_gamma_global,
                                const BetaDataType* const __restrict__ p_beta_global,
-                               YDataType* const __restrict__ p_y_global)
+                               YDataType* const __restrict__ p_y_global,
+                               const AccElementwiseOperation acc_elementwise_op)
     {
         if constexpr(SweepOnce)
         {
@@ -225,7 +228,7 @@ struct GridwiseLayernorm_mk_to_mk
                                                YDataType,
                                                decltype(thread_buffer_desc_m_k),
                                                GridDesc_M_K,
-                                               PassThroughOp,
+                                               AccElementwiseOperation,
                                                ThreadBufferLengths_M_K,
                                                ThreadBufferDimAccessOrder,
                                                XSrcVectorDim,
@@ -237,7 +240,7 @@ struct GridwiseLayernorm_mk_to_mk
                 make_multi_index(block_global_id * M_BlockTileSize +
                                      thread_m_cluster_id * MThreadSliceSize,
                                  thread_k_cluster_id * KThreadSliceSize),
-                PassThroughOp{});
+                acc_elementwise_op);
 
         // Copy x from Cache
         // one pass: fwd, second pass: bwd

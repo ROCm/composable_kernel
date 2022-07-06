@@ -25,6 +25,7 @@ template <typename XDataType,
           typename BetaDataType,
           typename AccDataType,
           typename YDataType,
+          typename AccElementwiseOperation,
           index_t Rank,
           index_t NumReduceDim,
           index_t BlockSize,
@@ -56,8 +57,8 @@ struct DeviceLayernorm : public BaseOperator
                                              Rank,
                                              NumReduceDim,
                                              reduce::Add,
-                                             PassThrough, // InElementwiseOperation
-                                             PassThrough, // AccElementwiseOperation
+                                             PassThrough,             // InElementwiseOperation
+                                             AccElementwiseOperation, // AccElementwiseOperation
                                              InMemoryDataOperationEnum::Set,
                                              false, // PropagateNan
                                              false, // OutputIndex
@@ -109,6 +110,7 @@ struct DeviceLayernorm : public BaseOperator
                                                                       BetaDataType,
                                                                       YDataType,
                                                                       AccDataType,
+                                                                      AccElementwiseOperation,
                                                                       GridDesc_M_K,
                                                                       GridDesc_K,
                                                                       BlockSize,
@@ -128,6 +130,7 @@ struct DeviceLayernorm : public BaseOperator
                                                                         BetaDataType,
                                                                         YDataType,
                                                                         AccDataType,
+                                                                        AccElementwiseOperation,
                                                                         GridDesc_M_K,
                                                                         GridDesc_K,
                                                                         BlockSize,
@@ -149,6 +152,7 @@ struct DeviceLayernorm : public BaseOperator
                  const std::vector<index_t> gammaStrides,
                  const std::vector<index_t> betaStrides,
                  const std::vector<index_t> reduceDims,
+                 AccElementwiseOperation acc_elementwise_op,
                  AccDataType epsilon,
                  const XDataType* p_x,
                  const GammaDataType* p_gamma,
@@ -165,7 +169,7 @@ struct DeviceLayernorm : public BaseOperator
                                   nullptr,
                                   p_y,
                                   nullptr,
-                                  PassThrough{},
+                                  acc_elementwise_op,
                                   PassThrough{}),
               epsilon_(epsilon),
               p_gamma_(p_gamma),
@@ -211,6 +215,7 @@ struct DeviceLayernorm : public BaseOperator
                                                                    BetaDataType,
                                                                    YDataType,
                                                                    AccDataType,
+                                                                   AccElementwiseOperation,
                                                                    GridDesc_M_K,
                                                                    GridDesc_K>
                                                 : kernel_layernorm<GridwiseReduceLayernormGeneric,
@@ -219,6 +224,7 @@ struct DeviceLayernorm : public BaseOperator
                                                                    BetaDataType,
                                                                    YDataType,
                                                                    AccDataType,
+                                                                   AccElementwiseOperation,
                                                                    GridDesc_M_K,
                                                                    GridDesc_K>;
 
@@ -237,7 +243,8 @@ struct DeviceLayernorm : public BaseOperator
                                                arg.in_dev_,
                                                arg.p_gamma_,
                                                arg.p_beta_,
-                                               arg.out_dev_);
+                                               arg.out_dev_,
+                                               arg.acc_elementwise_op_);
 
             return (avg_time);
         };
@@ -296,13 +303,15 @@ struct DeviceLayernorm : public BaseOperator
                                                       const void* p_x,
                                                       const void* p_gamma,
                                                       const void* p_beta,
-                                                      void* p_y)
+                                                      void* p_y,
+                                                      AccElementwiseOperation acc_elementwise_op)
     {
         return std::make_unique<Argument>(lengths,
                                           xStrides,
                                           gammaStrides,
                                           betaStrides,
                                           reduceDims,
+                                          acc_elementwise_op,
                                           epsilon,
                                           static_cast<const XDataType*>(p_x),
                                           static_cast<const GammaDataType*>(p_gamma),
