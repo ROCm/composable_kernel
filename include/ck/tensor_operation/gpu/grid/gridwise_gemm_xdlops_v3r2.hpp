@@ -16,8 +16,6 @@
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include <tuple>
-
 namespace ck {
 
 template <typename GridwiseGemm,
@@ -143,12 +141,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r2
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    static constexpr std::size_t GridwiseGemmPipelineVersion = 2;
-
-    using GridwiseGemmPipe = typename std::tuple_element<
-        GridwiseGemmPipelineVersion,
-        std::tuple<char, GridwiseGemmPipeline_v1<NumGemmKPrefetchStage>, GridwiseGemmPipeline_v2>>::
-        type;
+    using GridwiseGemmPipe = GridwiseGemmPipeline_v1<NumGemmKPrefetchStage>;
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_K0PerBlock_MPerBlock_K1()
     {
