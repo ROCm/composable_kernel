@@ -122,6 +122,7 @@ struct DeviceLayernorm : public BaseOperator
                                                                       XSrcVectorSize,
                                                                       GammaSrcVectorSize,
                                                                       BetaSrcVectorSize,
+                                                                      XSrcVectorDim,
                                                                       YDstVectorSize,
                                                                       false>;
 
@@ -142,6 +143,7 @@ struct DeviceLayernorm : public BaseOperator
                                                                         XSrcVectorSize,
                                                                         GammaSrcVectorSize,
                                                                         BetaSrcVectorSize,
+                                                                        XSrcVectorDim,
                                                                         YDstVectorSize,
                                                                         true>;
 
