@@ -17,6 +17,7 @@
 #include "ck/library/host_tensor/host_common_util.hpp"
 #include "ck/library/host_tensor/host_tensor.hpp"
 #include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
 
 using XDataType     = ck::half_t;
 using GammaDataType = ck::half_t;
@@ -46,50 +47,6 @@ using DeviceInstance = ck::tensor_operation::device::DeviceLayernorm<XDataType,
                                                                      8,   // GammaScalarPerVector
                                                                      8,   // BetaScalarPerVector
                                                                      1>;  // OutScalarPerVector
-
-template <typename XDataType,
-          typename GammaDataType,
-          typename BetaDataType,
-          typename YDataType,
-          typename AccDataType>
-void host_layernorm2d(const Tensor<XDataType>& x_m_n,
-                      const Tensor<GammaDataType>& gamma_n,
-                      const Tensor<BetaDataType>& beta_n,
-                      Tensor<YDataType>& y_m_n,
-                      int M,
-                      int N,
-                      AccDataType epislon = 1e-4)
-{
-    Tensor<AccDataType> mean({M});
-    Tensor<AccDataType> var({M});
-
-    for(int m = 0; m < M; ++m)
-    {
-        mean(m) = 0;
-        var(m)  = 0;
-
-        for(int n = 0; n < N; ++n)
-        {
-            auto x_val = ck::type_convert<AccDataType>(x_m_n(m, n));
-            mean(m) += x_val;
-            var(m) += x_val * x_val;
-        }
-
-        mean(m) = mean(m) / N;
-        var(m)  = (var(m) / N) - (mean(m) * mean(m));
-    }
-
-    for(int m = 0; m < M; ++m)
-    {
-        for(int n = 0; n < N; ++n)
-        {
-            auto x_val  = ck::type_convert<AccDataType>(x_m_n(m, n));
-            auto y_val  = (x_val - mean(m)) / sqrt(var(m) + epislon);
-            y_val       = (y_val * gamma_n(n)) + beta_n(n);
-            y_m_n(m, n) = ck::type_convert<YDataType>(y_val);
-        }
-    }
-}
 
 int main()
 {
@@ -153,8 +110,20 @@ int main()
     bool pass = true;
     {
         Tensor<YDataType> host_y(f_host_tensor_descriptor2d(M, N, Stride));
-        host_layernorm2d<XDataType, GammaDataType, BetaDataType, YDataType, AccDataType>(
-            x, gamma, beta, host_y, M, N);
+        using ReferenceInstance = ck::tensor_operation::host::ReferenceLayernorm<XDataType,
+                                                                                 GammaDataType,
+                                                                                 BetaDataType,
+                                                                                 YDataType,
+                                                                                 AccDataType,
+                                                                                 PassThrough,
+                                                                                 Rank,
+                                                                                 NumReduceDim>;
+
+        ReferenceInstance ref;
+        auto ref_argument =
+            ref.MakeArgument(x, gamma, beta, host_y, PassThrough{}, {M, N}, {1}, 1e-4);
+        auto ref_invoker = ref.MakeInvoker();
+        ref_invoker.Run(ref_argument);
 
         y_dev.FromDevice(y.mData.data());
         pass &=
