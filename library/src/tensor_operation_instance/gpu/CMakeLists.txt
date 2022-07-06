@@ -14,6 +14,7 @@ add_subdirectory(gemm_bias_add_reduce)
 add_subdirectory(batched_gemm)
 add_subdirectory(batched_gemm_reduce)
 add_subdirectory(grouped_gemm)
+add_subdirectory(contraction_scale)
 add_subdirectory(contraction_bilinear)
 add_subdirectory(conv1d_fwd)
 add_subdirectory(conv2d_fwd)
@@ -36,6 +37,7 @@ add_library(device_operations STATIC
     $<TARGET_OBJECTS:device_batched_gemm_instance>
     $<TARGET_OBJECTS:device_batched_gemm_reduce_instance>
     $<TARGET_OBJECTS:device_grouped_gemm_instance>
+    $<TARGET_OBJECTS:device_contraction_scale_instance>
     $<TARGET_OBJECTS:device_contraction_bilinear_instance>
     $<TARGET_OBJECTS:device_conv1d_fwd_instance>
     $<TARGET_OBJECTS:device_conv2d_fwd_instance>
