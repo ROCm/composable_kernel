@@ -19,6 +19,8 @@ using BF16 = ck::bhalf_t;
 using F16_TUPLE     = ck::Tuple<F16>;
 using F16_F16_TUPLE = ck::Tuple<F16, F16>;
 
+using F32_TUPLE = ck::Tuple<F32>;
+
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 

@@ -69,13 +69,13 @@ struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::Base
     struct Argument : public ck::tensor_operation::device::BaseArgument
     {
         Argument(const Tensor<ADataType>& a_ms_ks,
-                 const Tensor<BDataType>& b_ks_ns,
+                 const Tensor<BDataType>& b_ns_ks,
                  Tensor<EDataType>& e_ms_ns,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CDEElementwiseOperation cde_element_op)
             : a_ms_ks_{a_ms_ks},
-              b_ks_ns_{b_ks_ns},
+              b_ns_ks_{b_ns_ks},
               e_ms_ns_{e_ms_ns},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
@@ -84,7 +84,7 @@ struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::Base
         }
 
         const Tensor<ADataType>& a_ms_ks_;
-        const Tensor<BDataType>& b_ks_ns_;
+        const Tensor<BDataType>& b_ns_ks_;
         Tensor<EDataType>& e_ms_ns_;
 
         AElementwiseOperation a_element_op_;
@@ -115,7 +115,7 @@ struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::Base
                         arg.a_element_op_(
                             v_a, static_cast<const AccDataType>(arg.a_ms_ks_(m0, m1, k0, k1)));
                         arg.b_element_op_(
-                            v_b, static_cast<const AccDataType>(arg.b_ks_ns_(k0, k1, n0, n1)));
+                            v_b, static_cast<const AccDataType>(arg.b_ns_ks_(n0, n1, k0, k1)));
 
                         v_acc += v_a * v_b;
                     }
@@ -157,13 +157,13 @@ struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::Base
     }
 
     static auto MakeArgument(const Tensor<ADataType>& a_ms_ks,
-                             const Tensor<BDataType>& b_ks_ns,
+                             const Tensor<BDataType>& b_ns_ks,
                              Tensor<EDataType>& e_ms_ns,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CDEElementwiseOperation cde_element_op)
     {
-        return Argument{a_ms_ks, b_ks_ns, e_ms_ns, a_element_op, b_element_op, cde_element_op};
+        return Argument{a_ms_ks, b_ns_ks, e_ms_ns, a_element_op, b_element_op, cde_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -192,29 +192,12 @@ int main(int argc, char* argv[])
     int init_method      = 1;
     bool time_kernel     = false;
 
-    if(argc == 4)
-    {
-        do_verification = std::stoi(argv[1]);
-        init_method     = std::stoi(argv[2]);
-        time_kernel     = std::stoi(argv[3]);
-    }
-    else
-    {
-        printf("arg1: verification (0=no, 1=yes)\n");
-        printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: time kernel (0=no, 1=yes)\n");
-        exit(0);
-    }
-
-    const float alpha = 1;
-    const float beta  = 1;
-
     // A[M0, M1, K0, K1]
     std::vector<ck::index_t> a_ms_ks_lengths{30, 128, 32, 64};
     std::vector<ck::index_t> a_ms_ks_strides{524288, 4096, 128, 1};
-    // B[K0, K1, N0, N1]
-    std::vector<ck::index_t> b_ks_ns_lengths{32, 64, 32, 64};
-    std::vector<ck::index_t> b_ks_ns_strides{128, 1, 524288, 4096};
+    // B[N0, N1, K0, K1]
+    std::vector<ck::index_t> b_ns_ks_lengths{32, 64, 32, 64};
+    std::vector<ck::index_t> b_ns_ks_strides{524288, 4096, 128, 1};
     // D[M0, M1, N0, N1]
     std::vector<ck::index_t> d_ms_ns_lengths{30, 128, 32, 64};
     std::vector<ck::index_t> d_ms_ns_strides{524288, 4096, 128, 1};
@@ -222,12 +205,73 @@ int main(int argc, char* argv[])
     std::vector<ck::index_t> e_ms_ns_lengths{30, 128, 32, 64};
     std::vector<ck::index_t> e_ms_ns_strides{524288, 4096, 128, 1};
 
+    float alpha = 1.f;
+    float beta  = 1.f;
+
+    if(argc == 1)
+    {
+        // use default case
+    }
+    else if(argc == 4)
+    {
+        do_verification = std::stoi(argv[1]);
+        init_method     = std::stoi(argv[2]);
+        time_kernel     = std::stoi(argv[3]);
+    }
+    else if(argc == 28)
+    {
+        do_verification = std::stoi(argv[1]);
+        init_method     = std::stoi(argv[2]);
+        time_kernel     = std::stoi(argv[3]);
+
+        const ck::index_t M0 = std::stoi(argv[4]);
+        const ck::index_t M1 = std::stoi(argv[5]);
+
+        const ck::index_t N0 = std::stoi(argv[6]);
+        const ck::index_t N1 = std::stoi(argv[7]);
+
+        const ck::index_t K0 = std::stoi(argv[8]);
+        const ck::index_t K1 = std::stoi(argv[9]);
+
+        a_ms_ks_lengths = {M0, M1, K0, K1};
+        a_ms_ks_strides = {
+            std::stoi(argv[10]), std::stoi(argv[11]), std::stoi(argv[12]), std::stoi(argv[13])};
+
+        b_ns_ks_lengths = {N0, N1, K0, K1};
+        b_ns_ks_strides = {
+            std::stoi(argv[14]), std::stoi(argv[15]), std::stoi(argv[16]), std::stoi(argv[17])};
+
+        d_ms_ns_lengths = {M0, M1, N0, N1};
+        d_ms_ns_strides = {
+            std::stoi(argv[18]), std::stoi(argv[19]), std::stoi(argv[20]), std::stoi(argv[21])};
+
+        e_ms_ns_lengths = {M0, M1, N0, N1};
+        e_ms_ns_strides = {
+            std::stoi(argv[22]), std::stoi(argv[23]), std::stoi(argv[24]), std::stoi(argv[25])};
+
+        alpha = std::stof(argv[26]);
+        beta  = std::stof(argv[27]);
+    }
+    else
+    {
+        printf("arg1: verification (0=no, 1=yes)\n");
+        printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
+        printf("arg3: time kernel (0=no, 1=yes)\n");
+        printf("arg4 to 7: M0, M1, N0, N1, K0, K1\n");
+        printf("arg10 to 13: Stride_A_M0, Stride_A_M1, Stride_A_K0, Stride_A_K1\n");
+        printf("arg14 to 17: Stride_B_N0, Stride_B_N1, Stride_B_K0, Stride_B_K1\n");
+        printf("arg18 to 21: Stride_D_M0, Stride_D_M1, Stride_D_N0, Stride_D_N1\n");
+        printf("arg22 to 25: Stride_E_M0, Stride_E_M1, Stride_E_N0, Stride_E_N1\n");
+        printf("arg26 to 27: alpha, beta\n");
+        exit(0);
+    }
+
     Tensor<ADataType> a_ms_ks(
         std::vector<std::size_t>(a_ms_ks_lengths.begin(), a_ms_ks_lengths.end()),
         std::vector<std::size_t>(a_ms_ks_strides.begin(), a_ms_ks_strides.end()));
-    Tensor<BDataType> b_ks_ns(
-        std::vector<std::size_t>(b_ks_ns_lengths.begin(), b_ks_ns_lengths.end()),
-        std::vector<std::size_t>(b_ks_ns_strides.begin(), b_ks_ns_strides.end()));
+    Tensor<BDataType> b_ns_ks(
+        std::vector<std::size_t>(b_ns_ks_lengths.begin(), b_ns_ks_lengths.end()),
+        std::vector<std::size_t>(b_ns_ks_strides.begin(), b_ns_ks_strides.end()));
     Tensor<EDataType> d_ms_ns(
         std::vector<std::size_t>(d_ms_ns_lengths.begin(), d_ms_ns_lengths.end()),
         std::vector<std::size_t>(d_ms_ns_strides.begin(), d_ms_ns_strides.end()));
@@ -239,7 +283,7 @@ int main(int argc, char* argv[])
         std::vector<std::size_t>(e_ms_ns_strides.begin(), e_ms_ns_strides.end()));
 
     std::cout << "a_ms_ks: " << a_ms_ks.mDesc << std::endl;
-    std::cout << "b_ks_ns: " << b_ks_ns.mDesc << std::endl;
+    std::cout << "b_ns_ks: " << b_ns_ks.mDesc << std::endl;
     std::cout << "d_ms_ns: " << d_ms_ns.mDesc << std::endl;
     std::cout << "e_ms_ns: " << e_ms_ns_host_result.mDesc << std::endl;
 
@@ -248,55 +292,50 @@ int main(int argc, char* argv[])
     case 0: break;
     case 1:
         a_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b_ks_ns.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        b_ns_ks.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
         d_ms_ns.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
         break;
-    case 2:
+    default:
         a_ms_ks.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b_ks_ns.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        b_ns_ks.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
         d_ms_ns.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
         break;
-    default:
-        a_ms_ks.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
-        b_ks_ns.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
-        d_ms_ns.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
     }
 
-    DeviceMem a_ms_ks_device_buf(sizeof(ADataType) * a_ms_ks.mDesc.GetElementSpace());
-    DeviceMem b_ks_ns_device_buf(sizeof(BDataType) * b_ks_ns.mDesc.GetElementSpace());
-    DeviceMem d_ms_ns_device_buf(sizeof(DDataType) * d_ms_ns.mDesc.GetElementSpace());
-    DeviceMem e_ms_ns_device_buf(sizeof(EDataType) * e_ms_ns_device_result.mDesc.GetElementSpace());
+    DeviceMem a_device_buf(sizeof(ADataType) * a_ms_ks.mDesc.GetElementSpace());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_ns_ks.mDesc.GetElementSpace());
+    DeviceMem d_device_buf(sizeof(DDataType) * d_ms_ns.mDesc.GetElementSpace());
+    DeviceMem e_device_buf(sizeof(EDataType) * e_ms_ns_device_result.mDesc.GetElementSpace());
 
-    a_ms_ks_device_buf.ToDevice(a_ms_ks.mData.data());
-    b_ks_ns_device_buf.ToDevice(b_ks_ns.mData.data());
-    d_ms_ns_device_buf.ToDevice(d_ms_ns.mData.data());
+    a_device_buf.ToDevice(a_ms_ks.mData.data());
+    b_device_buf.ToDevice(b_ns_ks.mData.data());
+    d_device_buf.ToDevice(d_ms_ns.mData.data());
 
     // set zero
-    e_ms_ns_device_buf.SetZero();
+    e_device_buf.SetZero();
 
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{alpha, beta};
 
     // device operation
-    auto op      = DeviceOpInstance{};
-    auto invoker = op.MakeInvoker();
-    auto argument =
-        op.MakeArgument(a_ms_ks_device_buf.GetDeviceBuffer(),
-                        b_ks_ns_device_buf.GetDeviceBuffer(),
-                        std::array<const void*, 1>{d_ms_ns_device_buf.GetDeviceBuffer()},
-                        e_ms_ns_device_buf.GetDeviceBuffer(),
-                        a_ms_ks_lengths,
-                        a_ms_ks_strides,
-                        b_ks_ns_lengths,
-                        b_ks_ns_strides,
-                        std::array<std::vector<ck::index_t>, 1>{d_ms_ns_lengths},
-                        std::array<std::vector<ck::index_t>, 1>{d_ms_ns_strides},
-                        e_ms_ns_lengths,
-                        e_ms_ns_strides,
-                        a_element_op,
-                        b_element_op,
-                        cde_element_op);
+    auto op       = DeviceOpInstance{};
+    auto invoker  = op.MakeInvoker();
+    auto argument = op.MakeArgument(a_device_buf.GetDeviceBuffer(),
+                                    b_device_buf.GetDeviceBuffer(),
+                                    std::array<const void*, 1>{d_device_buf.GetDeviceBuffer()},
+                                    e_device_buf.GetDeviceBuffer(),
+                                    a_ms_ks_lengths,
+                                    a_ms_ks_strides,
+                                    b_ns_ks_lengths,
+                                    b_ns_ks_strides,
+                                    std::array<std::vector<ck::index_t>, 1>{d_ms_ns_lengths},
+                                    std::array<std::vector<ck::index_t>, 1>{d_ms_ns_strides},
+                                    e_ms_ns_lengths,
+                                    e_ms_ns_strides,
+                                    a_element_op,
+                                    b_element_op,
+                                    cde_element_op);
 
     if(!op.IsSupportedArgument(argument))
     {
@@ -333,7 +372,7 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << op.GetTypeString() << std::endl;
 
-    e_ms_ns_device_buf.FromDevice(e_ms_ns_device_result.mData.data());
+    e_device_buf.FromDevice(e_ms_ns_device_result.mData.data());
 
     if(do_verification)
     {
@@ -356,7 +395,7 @@ int main(int argc, char* argv[])
         auto ref_invoker = ref_gemm.MakeInvoker();
 
         auto ref_argument = ref_gemm.MakeArgument(
-            a_ms_ks, b_ks_ns, c_ms_ns_host_result, a_element_op, b_element_op, PassThrough{});
+            a_ms_ks, b_ns_ks, c_ms_ns_host_result, a_element_op, b_element_op, PassThrough{});
 
         ref_invoker.Run(ref_argument);
 

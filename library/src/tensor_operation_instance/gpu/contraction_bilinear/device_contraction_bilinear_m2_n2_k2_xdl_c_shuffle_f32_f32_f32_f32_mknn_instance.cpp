@@ -32,8 +32,8 @@ using Bilinear    = ck::tensor_operation::element_wise::Bilinear;
 
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
-// Compilation parameters for A[m0, m1, k0, k1] * B[n0, n1, k0, k1] + D[m0, m1, n0, n1] = E[m0, m1,
-// n0, n1] m/k/n/n are the fast changing dimension for A/B/D/E
+// A[m0, m1, k0, k1] * B[n0, n1, k0, k1] + D[m0, m1, n0, n1] = E[m0, m1, n0, n1]
+// m/k/n/n are the fast changing dimension for A/B/D/E
 using device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_mknn_instance = std::tuple<
     // clang-format off
         //#####################################| NumDimM| NumDimN| NumDimK| AData| BData| AccData| CShuffle|    DsData| EData|            A|           B|         CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|  CBlockTransferClusterLengths|  CBlockTransfer|

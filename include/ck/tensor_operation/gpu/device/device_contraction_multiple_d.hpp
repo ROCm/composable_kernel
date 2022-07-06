@@ -20,10 +20,10 @@ namespace device {
 //   C = a_op(A) * b_op(B)
 //   E = cde_op(C, D0, D1, ...)
 // Assume:
-//   A[M0, M1, M2, ..., K0, K1, K2...]
-//   B[K0, K1, K2, ..., N0, N1, N2...]
-//   D[M0, M1, M2, ..., N0, N1, N2...]
-//   E[M0, M1, M2, ..., N0, N1, N2...]
+//   A[M0, M1, M2, ..., K0, K1, K2, ...]
+//   B[N0, N1, N2, ..., K0, K1, K2, ...]
+//   D[M0, M1, M2, ..., N0, N1, N2, ...]
+//   E[M0, M1, M2, ..., N0, N1, N2, ...]
 template <index_t NumDimM,
           index_t NumDimN,
           index_t NumDimK,
@@ -43,14 +43,14 @@ struct DeviceContractionMultipleD : public BaseOperator
                         const void* p_b,
                         std::array<const void*, NumDTensor> p_ds,
                         void* p_e,
-                        std::vector<index_t> a_lengths,
-                        std::vector<index_t> a_strides,
-                        std::vector<index_t> b_lengths,
-                        std::vector<index_t> b_strides,
-                        std::array<std::vector<index_t>, NumDTensor> ds_lengths,
-                        std::array<std::vector<index_t>, NumDTensor> ds_strides,
-                        std::vector<index_t> e_lengths,
-                        std::vector<index_t> e_strides,
+                        std::vector<index_t> a_ms_ks_lengths,
+                        std::vector<index_t> a_ms_ks_strides,
+                        std::vector<index_t> b_ns_ks_lengths,
+                        std::vector<index_t> b_ns_ks_strides,
+                        std::array<std::vector<index_t>, NumDTensor> ds_ms_ns_lengths,
+                        std::array<std::vector<index_t>, NumDTensor> ds_ms_ns_strides,
+                        std::vector<index_t> e_ms_ns_lengths,
+                        std::vector<index_t> e_ms_ns_strides,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
                         CDEElementwiseOperation cde_element_op) = 0;

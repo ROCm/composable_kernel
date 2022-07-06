@@ -97,10 +97,10 @@ namespace device {
 //   C = a_op(A) * b_op(B)
 //   E = cde_op(C, D0, D1, ...)
 // Assume:
-//   A[M0, M1, M2, ..., K0, K1, K2...]
-//   B[K0, K1, K2, ..., N0, N1, N2...]
-//   D[M0, M1, M2, ..., N0, N1, N2...]
-//   E[M0, M1, M2, ..., N0, N1, N2...]
+//   A[M0, M1, M2, ..., K0, K1, K2, ...]
+//   B[N0, N1, N2, ..., K0, K1, K2, ...]
+//   D[M0, M1, M2, ..., N0, N1, N2, ...]
+//   E[M0, M1, M2, ..., N0, N1, N2, ...]
 template <index_t NumDimM,
           index_t NumDimN,
           index_t NumDimK,
@@ -164,19 +164,19 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
-    // assume A[M0, M1, M2, ..., K0, K1, K2...]
-    static auto MakeAGridDescriptor_AK0_M_AK1(const std::vector<index_t>& a_lengths_vec,
-                                              const std::vector<index_t>& a_strides_vec)
+    // Assume: A[M0, M1, M2, ..., K0, K1, K2, ...]
+    static auto MakeAGridDescriptor_AK0_M_AK1(const std::vector<index_t>& a_ms_ks_lengths_vec,
+                                              const std::vector<index_t>& a_ms_ks_strides_vec)
     {
-        assert(a_lengths_vec.size() == NumDimM + NumDimK &&
-               a_strides_vec.size() == NumDimM + NumDimK);
+        assert(a_ms_ks_lengths_vec.size() == NumDimM + NumDimK &&
+               a_ms_ks_strides_vec.size() == NumDimM + NumDimK);
 
         const auto to_tuple = [&](auto& vec, auto Num) {
             return generate_tuple([&](auto i) { return vec[i]; }, Num);
         };
 
-        const auto a_lengths = to_tuple(a_lengths_vec, Number<NumDimM + NumDimK>{});
-        const auto a_strides = to_tuple(a_strides_vec, Number<NumDimM + NumDimK>{});
+        const auto a_ms_ns_lengths = to_tuple(a_ms_ks_lengths_vec, Number<NumDimM + NumDimK>{});
+        const auto a_ms_ks_strides = to_tuple(a_ms_ks_strides_vec, Number<NumDimM + NumDimK>{});
 
         // dimension Ids for M0, M1, ...
         constexpr auto mDimIds = typename arithmetic_sequence_gen<0, NumDimM, 1>::type{};
@@ -186,13 +186,14 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
             typename arithmetic_sequence_gen<NumDimM, NumDimM + NumDimK, 1>::type{};
 
         // lengths for M0, M1, ...
-        const auto mLengths = get_container_subset(a_lengths, mDimIds);
+        const auto mLengths = get_container_subset(a_ms_ns_lengths, mDimIds);
 
         // lengths for K0, K1, ...
-        const auto kLengths = get_container_subset(a_lengths, kDimIds);
+        const auto kLengths = get_container_subset(a_ms_ns_lengths, kDimIds);
 
         // naive tensor A[M0, M1, M2, ..., K0, K1, K2...]
-        const auto a_grid_desc_ms_ks = make_naive_tensor_descriptor(a_lengths, a_strides);
+        const auto a_grid_desc_ms_ks =
+            make_naive_tensor_descriptor(a_ms_ns_lengths, a_ms_ks_strides);
 
         // transformed tensor A[MRaw = M0 * M1 * M2 * ... , KRaw = K0 * K1 * K2 * ...]
         const auto a_grid_desc_mraw_kraw = transform_tensor_descriptor(
@@ -292,42 +293,43 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
         }
     }
 
-    // assume B[K0, K1, K2, ..., N0, N1, N2...]
-    static auto MakeBGridDescriptor_BK0_N_BK1(const std::vector<index_t>& b_lengths_vec,
-                                              const std::vector<index_t>& b_strides_vec)
+    // Assume: B[N0, N1, N2, ..., K0, K1, K2, ...]
+    static auto MakeBGridDescriptor_BK0_N_BK1(const std::vector<index_t>& b_ns_ks_lengths_vec,
+                                              const std::vector<index_t>& b_ns_ks_strides_vec)
     {
-        assert(b_lengths_vec.size() == NumDimN + NumDimK &&
-               b_strides_vec.size() == NumDimN + NumDimK);
+        assert(b_ns_ks_lengths_vec.size() == NumDimN + NumDimK &&
+               b_ns_ks_strides_vec.size() == NumDimN + NumDimK);
 
         const auto to_tuple = [&](auto& vec, auto Num) {
             return generate_tuple([&](auto i) { return vec[i]; }, Num);
         };
 
-        const auto b_lengths = to_tuple(b_lengths_vec, Number<NumDimN + NumDimK>{});
-        const auto b_strides = to_tuple(b_strides_vec, Number<NumDimN + NumDimK>{});
-
-        // dimension Ids for K0, K1, ...
-        constexpr auto kDimIds = typename arithmetic_sequence_gen<0, NumDimK, 1>::type{};
+        const auto b_ns_ks_lengths = to_tuple(b_ns_ks_lengths_vec, Number<NumDimN + NumDimK>{});
+        const auto b_ns_ks_strides = to_tuple(b_ns_ks_strides_vec, Number<NumDimN + NumDimK>{});
 
         // dimension Ids for N0, N1, ...
-        constexpr auto nDimIds =
-            typename arithmetic_sequence_gen<NumDimK, NumDimK + NumDimN, 1>::type{};
+        constexpr auto nDimIds = typename arithmetic_sequence_gen<0, NumDimN, 1>::type{};
+
+        // dimension Ids for K0, K1, ...
+        constexpr auto kDimIds =
+            typename arithmetic_sequence_gen<NumDimN, NumDimN + NumDimK, 1>::type{};
 
         // lengths for K0, K1, ...
-        const auto kLengths = get_container_subset(b_lengths, kDimIds);
+        const auto kLengths = get_container_subset(b_ns_ks_lengths, kDimIds);
 
         // lengths for N0, N1, ...
-        const auto nLengths = get_container_subset(b_lengths, nDimIds);
+        const auto nLengths = get_container_subset(b_ns_ks_lengths, nDimIds);
 
-        // naive tensor B[K0, K1, K2..., N0, N1, N2, ...]
-        const auto b_grid_desc_ks_ns = make_naive_tensor_descriptor(b_lengths, b_strides);
+        // naive tensor B[N0, N1, N2, ..., K0, K1, K2, ...]
+        const auto b_grid_desc_ns_ks =
+            make_naive_tensor_descriptor(b_ns_ks_lengths, b_ns_ks_strides);
 
-        // transformed tensor B[KRaw = K0 * K1 * K2 * ... , NRaw = N0 * N1 * N2 * ... ]
+        // transformed tensor B[NRaw = N0 * N1 * N2 * ..., KRaw = K0 * K1 * K2 * ...]
         const auto b_grid_desc_nraw_kraw = transform_tensor_descriptor(
-            b_grid_desc_ks_ns,
-            make_tuple(make_merge_transform(kLengths), make_merge_transform(nLengths)),
-            make_tuple(kDimIds, nDimIds),
-            make_tuple(Sequence<1>{}, Sequence<0>{}));
+            b_grid_desc_ns_ks,
+            make_tuple(make_merge_transform(nLengths), make_merge_transform(kLengths)),
+            make_tuple(nDimIds, kDimIds),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
 
         const auto NRaw = b_grid_desc_nraw_kraw.GetLength(I0);
         const auto KRaw = b_grid_desc_nraw_kraw.GetLength(I1);
@@ -421,18 +423,18 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
     }
 
     // assume E[M0, M1, M2, ..., N0, N1, N2...]
-    static auto MakeEGridDescriptor_M_N(const std::vector<index_t>& e_lengths_vec,
-                                        const std::vector<index_t>& e_strides_vec)
+    static auto MakeEGridDescriptor_M_N(const std::vector<index_t>& e_ms_ns_lengths_vec,
+                                        const std::vector<index_t>& e_ms_ns_strides_vec)
     {
-        assert(e_lengths_vec.size() == NumDimM + NumDimN &&
-               e_strides_vec.size() == NumDimM + NumDimN);
+        assert(e_ms_ns_lengths_vec.size() == NumDimM + NumDimN &&
+               e_ms_ns_strides_vec.size() == NumDimM + NumDimN);
 
         const auto to_tuple = [&](auto& vec, auto Num) {
             return generate_tuple([&](auto i) { return vec[i]; }, Num);
         };
 
-        const auto e_lengths = to_tuple(e_lengths_vec, Number<NumDimM + NumDimN>{});
-        const auto e_strides = to_tuple(e_strides_vec, Number<NumDimM + NumDimN>{});
+        const auto e_ms_ns_lengths = to_tuple(e_ms_ns_lengths_vec, Number<NumDimM + NumDimN>{});
+        const auto e_ms_ns_strides = to_tuple(e_ms_ns_strides_vec, Number<NumDimM + NumDimN>{});
 
         // dimension Ids for M0, M1, ...
         constexpr auto mDimIds = typename arithmetic_sequence_gen<0, NumDimM, 1>::type{};
@@ -442,13 +444,14 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
             typename arithmetic_sequence_gen<NumDimM, NumDimM + NumDimN, 1>::type{};
 
         // lengths for M0, M1, ...
-        const auto mLengths = get_container_subset(e_lengths, mDimIds);
+        const auto mLengths = get_container_subset(e_ms_ns_lengths, mDimIds);
 
         // lengths for K0, K1, ...
-        const auto nLengths = get_container_subset(e_lengths, nDimIds);
+        const auto nLengths = get_container_subset(e_ms_ns_lengths, nDimIds);
 
         // naive tensor E[M0, M1, M2, ..., N0, N1, N2...]
-        const auto e_grid_desc_ms_ns = make_naive_tensor_descriptor(e_lengths, e_strides);
+        const auto e_grid_desc_ms_ns =
+            make_naive_tensor_descriptor(e_ms_ns_lengths, e_ms_ns_strides);
 
         // transformed tensor E[MRaw = M0 * M1 * M2 * ... , NRaw = N0 * N1 * N2 * ...]
         const auto e_grid_desc_mraw_nraw = transform_tensor_descriptor(
@@ -564,14 +567,14 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                  const void* p_b_grid,
                  std::array<const void*, NumDTensor> p_ds_grid,
                  void* p_e_grid,
-                 std::vector<index_t> a_lengths,
-                 std::vector<index_t> a_strides,
-                 std::vector<index_t> b_lengths,
-                 std::vector<index_t> b_strides,
-                 std::array<std::vector<index_t>, NumDTensor> ds_lengths,
-                 std::array<std::vector<index_t>, NumDTensor> ds_strides,
-                 std::vector<index_t> e_lengths,
-                 std::vector<index_t> e_strides,
+                 std::vector<index_t> a_ms_ns_lengths,
+                 std::vector<index_t> a_ms_ks_strides,
+                 std::vector<index_t> b_ns_ks_lengths,
+                 std::vector<index_t> b_ns_ks_strides,
+                 std::array<std::vector<index_t>, NumDTensor> ds_ms_ns_lengths,
+                 std::array<std::vector<index_t>, NumDTensor> ds_ms_ns_strides,
+                 std::vector<index_t> e_ms_ns_lengths,
+                 std::vector<index_t> e_ms_ns_strides,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CDEElementwiseOperation cde_element_op)
@@ -579,10 +582,12 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
               p_b_grid_{static_cast<const BDataType*>(p_b_grid)},
               p_ds_grid_{}, // FIXME
               p_e_grid_{static_cast<EDataType*>(p_e_grid)},
-              a_grid_desc_ak0_m_ak1_{DeviceOp::MakeAGridDescriptor_AK0_M_AK1(a_lengths, a_strides)},
-              b_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1(b_lengths, b_strides)},
+              a_grid_desc_ak0_m_ak1_{
+                  DeviceOp::MakeAGridDescriptor_AK0_M_AK1(a_ms_ns_lengths, a_ms_ks_strides)},
+              b_grid_desc_bk0_n_bk1_{
+                  DeviceOp::MakeBGridDescriptor_BK0_N_BK1(b_ns_ks_lengths, b_ns_ks_strides)},
               ds_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              e_grid_desc_m_n_{DeviceOp::MakeEGridDescriptor_M_N(e_lengths, e_strides)},
+              e_grid_desc_m_n_{DeviceOp::MakeEGridDescriptor_M_N(e_ms_ns_lengths, e_ms_ns_strides)},
               e_grid_desc_mblock_mperblock_nblock_nperblock_{},
               block_2_etile_map_{GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_)},
               a_element_op_{a_element_op},
@@ -616,7 +621,7 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                     p_ds_grid_(i) = static_cast<const DDataType*>(p_ds_grid[i]);
 
                     const auto d_grid_desc_m_n =
-                        DeviceOp::MakeEGridDescriptor_M_N(ds_lengths[i], ds_strides[i]);
+                        DeviceOp::MakeEGridDescriptor_M_N(ds_ms_ns_lengths[i], ds_ms_ns_strides[i]);
 
                     ds_grid_desc_mblock_mperblock_nblock_nperblock_(i) =
                         GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
@@ -624,24 +629,33 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                 });
             }
 
-            // for sanity check of vector load/store
-            a_mz_length_ = a_lengths[NumDimM - 1];
-            a_mz_stride_ = a_strides[NumDimM - 1];
+            // for sanity check of vector memory access
+            a_mz_length_ = a_ms_ns_lengths[NumDimM - 1];
+            a_mz_stride_ = a_ms_ks_strides[NumDimM - 1];
 
-            a_kz_length_ = a_lengths[NumDimM + NumDimK - 1];
-            a_kz_stride_ = a_strides[NumDimM + NumDimK - 1];
+            a_kz_length_ = a_ms_ns_lengths[NumDimM + NumDimK - 1];
+            a_kz_stride_ = a_ms_ks_strides[NumDimM + NumDimK - 1];
 
-            b_nz_length_ = b_lengths[NumDimK - 1];
-            b_nz_stride_ = b_strides[NumDimK - 1];
+            b_nz_length_ = b_ns_ks_lengths[NumDimN - 1];
+            b_nz_stride_ = b_ns_ks_strides[NumDimN - 1];
 
-            b_kz_length_ = b_lengths[NumDimK + NumDimN - 1];
-            b_kz_stride_ = b_strides[NumDimK + NumDimN - 1];
+            b_kz_length_ = b_ns_ks_lengths[NumDimN + NumDimK - 1];
+            b_kz_stride_ = b_ns_ks_strides[NumDimN + NumDimK - 1];
 
-            e_mz_length_ = b_lengths[NumDimM - 1];
-            e_mz_stride_ = b_strides[NumDimM - 1];
+            for(index_t i = 0; i < NumDTensor; ++i)
+            {
+                ds_mz_length_[i] = ds_ms_ns_lengths[i][NumDimM - 1];
+                ds_mz_stride_[i] = ds_ms_ns_strides[i][NumDimM - 1];
 
-            e_nz_length_ = b_lengths[NumDimM + NumDimN - 1];
-            e_nz_stride_ = b_strides[NumDimM + NumDimN - 1];
+                ds_nz_length_[i] = ds_ms_ns_lengths[i][NumDimM + NumDimN - 1];
+                ds_nz_stride_[i] = ds_ms_ns_strides[i][NumDimM + NumDimN - 1];
+            }
+
+            e_mz_length_ = e_ms_ns_lengths[NumDimM - 1];
+            e_mz_stride_ = e_ms_ns_strides[NumDimM - 1];
+
+            e_nz_length_ = e_ms_ns_lengths[NumDimM + NumDimN - 1];
+            e_nz_stride_ = e_ms_ns_strides[NumDimM + NumDimN - 1];
         }
 
         //  private:
@@ -682,6 +696,10 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
         index_t b_nz_stride_;
         index_t b_kz_length_;
         index_t b_kz_stride_;
+        std::array<index_t, NumDTensor> ds_mz_length_;
+        std::array<index_t, NumDTensor> ds_mz_stride_;
+        std::array<index_t, NumDTensor> ds_nz_length_;
+        std::array<index_t, NumDTensor> ds_nz_stride_;
         index_t e_mz_length_;
         index_t e_mz_stride_;
         index_t e_nz_length_;
@@ -823,14 +841,14 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                              const void* p_b,
                              std::array<const void*, NumDTensor> p_ds,
                              void* p_e,
-                             std::vector<index_t> a_lengths,
-                             std::vector<index_t> a_strides,
-                             std::vector<index_t> b_lengths,
-                             std::vector<index_t> b_strides,
-                             std::array<std::vector<index_t>, NumDTensor> ds_lengths,
-                             std::array<std::vector<index_t>, NumDTensor> ds_strides,
-                             std::vector<index_t> e_lengths,
-                             std::vector<index_t> e_strides,
+                             std::vector<index_t> a_ms_ns_lengths,
+                             std::vector<index_t> a_ms_ks_strides,
+                             std::vector<index_t> b_ns_ks_lengths,
+                             std::vector<index_t> b_ns_ks_strides,
+                             std::array<std::vector<index_t>, NumDTensor> ds_ms_ns_lengths,
+                             std::array<std::vector<index_t>, NumDTensor> ds_ms_ns_strides,
+                             std::vector<index_t> e_ms_ns_lengths,
+                             std::vector<index_t> e_ms_ns_strides,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CDEElementwiseOperation cde_element_op)
@@ -839,14 +857,14 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                         p_b,
                         p_ds,
                         p_e,
-                        a_lengths,
-                        a_strides,
-                        b_lengths,
-                        b_strides,
-                        ds_lengths,
-                        ds_strides,
-                        e_lengths,
-                        e_strides,
+                        a_ms_ns_lengths,
+                        a_ms_ks_strides,
+                        b_ns_ks_lengths,
+                        b_ns_ks_strides,
+                        ds_ms_ns_lengths,
+                        ds_ms_ns_strides,
+                        e_ms_ns_lengths,
+                        e_ms_ns_strides,
                         a_element_op,
                         b_element_op,
                         cde_element_op};
@@ -860,14 +878,14 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                         const void* p_b,
                         std::array<const void*, NumDTensor> p_ds,
                         void* p_e,
-                        std::vector<index_t> a_lengths,
-                        std::vector<index_t> a_strides,
-                        std::vector<index_t> b_lengths,
-                        std::vector<index_t> b_strides,
-                        std::array<std::vector<index_t>, NumDTensor> ds_lengths,
-                        std::array<std::vector<index_t>, NumDTensor> ds_strides,
-                        std::vector<index_t> e_lengths,
-                        std::vector<index_t> e_strides,
+                        std::vector<index_t> a_ms_ns_lengths,
+                        std::vector<index_t> a_ms_ks_strides,
+                        std::vector<index_t> b_ns_ks_lengths,
+                        std::vector<index_t> b_ns_ks_strides,
+                        std::array<std::vector<index_t>, NumDTensor> ds_ms_ns_lengths,
+                        std::array<std::vector<index_t>, NumDTensor> ds_ms_ns_strides,
+                        std::vector<index_t> e_ms_ns_lengths,
+                        std::vector<index_t> e_ms_ns_strides,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
                         CDEElementwiseOperation cde_element_op) override
@@ -876,14 +894,14 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                                           p_b,
                                           p_ds,
                                           p_e,
-                                          a_lengths,
-                                          a_strides,
-                                          b_lengths,
-                                          b_strides,
-                                          ds_lengths,
-                                          ds_strides,
-                                          e_lengths,
-                                          e_strides,
+                                          a_ms_ns_lengths,
+                                          a_ms_ks_strides,
+                                          b_ns_ks_lengths,
+                                          b_ns_ks_strides,
+                                          ds_ms_ns_lengths,
+                                          ds_ms_ns_strides,
+                                          e_ms_ns_lengths,
+                                          e_ms_ns_strides,
                                           a_element_op,
                                           b_element_op,
                                           cde_element_op);
