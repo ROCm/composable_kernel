@@ -33,7 +33,7 @@ template <typename XDataType,
           index_t KThreadClusterSize,
           index_t MThreadSliceSize,
           index_t KThreadSliceSize,
-          index_t XSrcVectorDim,
+          index_t XYSrcVectorDim,
           index_t XSrcVectorSize,
           index_t GammaSrcVectorSize,
           index_t BetaSrcVectorSize,
@@ -68,7 +68,7 @@ struct DeviceLayernorm : public BaseOperator
                                              KThreadClusterSize,
                                              MThreadSliceSize,
                                              KThreadSliceSize,
-                                             XSrcVectorDim,
+                                             XYSrcVectorDim,
                                              XSrcVectorSize,
                                              1>; // YDstVectorSize
 
@@ -118,11 +118,11 @@ struct DeviceLayernorm : public BaseOperator
                                                                       KThreadClusterSize,
                                                                       MThreadSliceSize,
                                                                       KThreadSliceSize,
-                                                                      XSrcVectorDim,
+                                                                      XYSrcVectorDim,
                                                                       XSrcVectorSize,
                                                                       GammaSrcVectorSize,
                                                                       BetaSrcVectorSize,
-                                                                      XSrcVectorDim,
+                                                                      XYSrcVectorDim,
                                                                       YDstVectorSize,
                                                                       false>;
 
@@ -139,11 +139,11 @@ struct DeviceLayernorm : public BaseOperator
                                                                         KThreadClusterSize,
                                                                         MThreadSliceSize,
                                                                         KThreadSliceSize,
-                                                                        XSrcVectorDim,
+                                                                        XYSrcVectorDim,
                                                                         XSrcVectorSize,
                                                                         GammaSrcVectorSize,
                                                                         BetaSrcVectorSize,
-                                                                        XSrcVectorDim,
+                                                                        XYSrcVectorDim,
                                                                         YDstVectorSize,
                                                                         true>;
 
@@ -331,7 +331,9 @@ struct DeviceLayernorm : public BaseOperator
         str << "DeviceLayernorm<" << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
         str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
-        str << "XSrcVectorDim_" << XSrcVectorDim << "_XSrcVectorSize_" << XSrcVectorSize << "_YDstVectorSize_" << YDstVectorSize << ">";
+        str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
+        str << "XYSrcVectorDim_" << XYSrcVectorDim  << ",";
+        str << "VectorSize_X" << XSrcVectorSize << "_Gamma" << GammaSrcVectorSize << "_Beta" << BetaSrcVectorSize << "_Y" << YDstVectorSize << ">";
         // clang-format on
 
         return str.str();
