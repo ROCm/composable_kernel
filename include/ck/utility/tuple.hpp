@@ -3,10 +3,10 @@
 
 #pragma once
 
-#include "integral_constant.hpp"
-#include "sequence.hpp"
-#include "type.hpp"
-#include "enable_if.hpp"
+#include "ck/utility/integral_constant.hpp"
+#include "ck/utility/sequence.hpp"
+#include "ck/utility/type.hpp"
+#include "ck/utility/enable_if.hpp"
 
 namespace ck {
 

@@ -17,12 +17,15 @@
 
 namespace ck {
 
-// input : A[AK0, M, AK1]
-// input : B[AK0, N, AK1]
-// input : D0[M, N], D1[M, N], ...
-// output : E[M, N]
-// C = a_op(A) * b_op(B)
-// E = cde_op(C, D0, D1, ...)
+// GEMM:
+//   input : A[AK0, M, AK1]
+//   input : B[AK0, N, AK1]
+//   input : D0[M, N], D1[M, N], ...
+//   output : E[M, N]
+//   C = a_op(A) * b_op(B)
+//   E = cde_op(C, D0, D1, ...)
+// Assume:
+//   D0, D1, ... and E have the same layout
 template <typename FloatAB,
           typename FloatGemmAcc,
           typename FloatCShuffle,

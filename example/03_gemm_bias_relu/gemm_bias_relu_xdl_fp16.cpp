@@ -191,14 +191,14 @@ int main(int argc, char* argv[])
         d_m_n.GenerateTensorValue(GeneratorTensor_3<DDataType>{0.0, 1.0});
     }
 
-    DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
-    DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
-    DeviceMem d_m_n_device_buf(sizeof(DDataType) * d_m_n.mDesc.GetElementSpace());
-    DeviceMem e_m_n_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpace());
+    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
+    DeviceMem d_device_buf(sizeof(DDataType) * d_m_n.mDesc.GetElementSpace());
+    DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpace());
 
-    a_m_k_device_buf.ToDevice(a_m_k.mData.data());
-    b_k_n_device_buf.ToDevice(b_k_n.mData.data());
-    d_m_n_device_buf.ToDevice(d_m_n.mData.data());
+    a_device_buf.ToDevice(a_m_k.mData.data());
+    b_device_buf.ToDevice(b_k_n.mData.data());
+    d_device_buf.ToDevice(d_m_n.mData.data());
 
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
@@ -210,10 +210,10 @@ int main(int argc, char* argv[])
     auto invoker = device_op.MakeInvoker();
 
     auto argument =
-        device_op.MakeArgument(a_m_k_device_buf.GetDeviceBuffer(),
-                               b_k_n_device_buf.GetDeviceBuffer(),
-                               std::array<const void*, 1>{d_m_n_device_buf.GetDeviceBuffer()},
-                               e_m_n_device_buf.GetDeviceBuffer(),
+        device_op.MakeArgument(a_device_buf.GetDeviceBuffer(),
+                               b_device_buf.GetDeviceBuffer(),
+                               std::array<const void*, 1>{d_device_buf.GetDeviceBuffer()},
+                               e_device_buf.GetDeviceBuffer(),
                                M,
                                N,
                                K,
@@ -246,7 +246,7 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        e_m_n_device_buf.FromDevice(e_m_n_device_result.mData.data());
+        e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
         Tensor<AccDataType> c_m_n(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
 

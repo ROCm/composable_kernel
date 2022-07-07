@@ -166,15 +166,15 @@ void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
     for(int m = 0; m < M; ++m)
         for(int n = 0; n < N; ++n)
         {
-            AccDataType acc =
-                static_cast<AccDataType>(c_m_n(m, n)) + static_cast<AccDataType>(bias_n(n));
+            AccDataType acc = ck::type_convert<AccDataType>(c_m_n(m, n)) +
+                              ck::type_convert<AccDataType>(bias_n(n));
 
-            AccDataType c1 = static_cast<AccDataType>(c1_m_n(m, n));
+            AccDataType c1 = ck::type_convert<AccDataType>(c1_m_n(m, n));
 
             c_element_op(acc, acc);
             c1_element_op(c1, c1);
             acc += c1;
-            c_m_n(m, n) = static_cast<CDataType>(acc);
+            c_m_n(m, n) = ck::type_convert<CDataType>(acc);
         }
 
     // reduce_mean and reduce_square_mean
@@ -208,12 +208,12 @@ void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
         {
             AccDataType out_acc = 0;
             layerNormInst(out_acc,
-                          static_cast<AccDataType>(c_m_n(m, n)),
-                          static_cast<AccDataType>(mean_m(m)),
-                          static_cast<AccDataType>(meanSquare_m(m)),
-                          static_cast<AccDataType>(gamma_n(n)),
-                          static_cast<AccDataType>(beta_n(n)));
-            out_m_n(m, n) = static_cast<ReduceDataType>(out_acc);
+                          ck::type_convert<AccDataType>(c_m_n(m, n)),
+                          ck::type_convert<AccDataType>(mean_m(m)),
+                          ck::type_convert<AccDataType>(meanSquare_m(m)),
+                          ck::type_convert<AccDataType>(gamma_n(n)),
+                          ck::type_convert<AccDataType>(beta_n(n)));
+            out_m_n(m, n) = ck::type_convert<ReduceDataType>(out_acc);
         }
     }
 }
