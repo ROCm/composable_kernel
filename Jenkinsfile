@@ -95,58 +95,35 @@ def buildHipClangJob(Map conf=[:]){
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1"
         }
-        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' "
+        if (params.USE_9110){
+            def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='9110'"
+        }
+        else{
+            def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='release'"
+        }
 
         def variant = env.STAGE_NAME
 
         def retimage
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
-            if (params.USE_9110){
-                try {
-                    retimage = docker.build("${image}", dockerArgs + '.')
-                    withDockerContainer(image: image, args: dockerOpts) {
-                        timeout(time: 5, unit: 'MINUTES')
-                        {
-                            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
-                        }
-                    }
-                }
-                catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
-                    echo "The job was cancelled or aborted"
-                    throw e
-                }
-                catch(Exception ex) {
-                    retimage = docker.build("${image}", dockerArgs + "--build-arg compiler_version=9110 --no-cache .")
-                    withDockerContainer(image: image, args: dockerOpts) {
-                        timeout(time: 5, unit: 'MINUTES')
-                        {
-                            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
-                        }
+            try {
+                retimage = docker.build("${image}", dockerArgs + '.')
+                withDockerContainer(image: image, args: dockerOpts) {
+                    timeout(time: 5, unit: 'MINUTES'){
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
                     }
                 }
             }
-            else{
-                try {
-                    retimage = docker.build("${image}", dockerArgs + '.')
-                    withDockerContainer(image: image, args: dockerOpts) {
-                        timeout(time: 5, unit: 'MINUTES')
-                        {
-                            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
-                        }
-                    }
-                }
-                catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
-                    echo "The job was cancelled or aborted"
-                    throw e
-                }
-                catch(Exception ex) {
-                    retimage = docker.build("${image}", dockerArgs + "--build-arg compiler_version=release --no-cache .")
-                    withDockerContainer(image: image, args: dockerOpts) {
-                        timeout(time: 5, unit: 'MINUTES')
-                        {
-                            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
-                        }
+            catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                echo "The job was cancelled or aborted"
+                throw e
+            }
+            catch(Exception ex) {
+                retimage = docker.build("${image}", dockerArgs + " --no-cache .")
+                withDockerContainer(image: image, args: dockerOpts) {
+                    timeout(time: 5, unit: 'MINUTES'){
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
                     }
                 }
             }
@@ -165,9 +142,6 @@ def buildHipClangJob(Map conf=[:]){
 def reboot(){
     build job: 'reboot-slaves', propagate: false , parameters: [string(name: 'server', value: "${env.NODE_NAME}"),]
 }
-
-
-
 
 
 def buildHipClangJobAndReboot(Map conf=[:]){
@@ -203,58 +177,35 @@ def runCKProfiler(Map conf=[:]){
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1"
         }
-        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' "
+        if (params.USE_9110){
+            def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='9110'"
+        }
+        else{
+            def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='release'"
+        }
 
         def variant = env.STAGE_NAME
 
         def retimage
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
-            if (params.USE_9110){
-                try {
-                    retimage = docker.build("${image}", dockerArgs + '.')
-                    withDockerContainer(image: image, args: dockerOpts) {
-                        timeout(time: 5, unit: 'MINUTES')
-                        {
-                            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
-                        }
-                    }
-                }
-                catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
-                    echo "The job was cancelled or aborted"
-                    throw e
-                }
-                catch(Exception ex) {
-                    retimage = docker.build("${image}", dockerArgs + "--build-arg compiler_version=9110 --no-cache .")
-                    withDockerContainer(image: image, args: dockerOpts) {
-                        timeout(time: 5, unit: 'MINUTES')
-                        {
-                            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
-                        }
+            try {
+                retimage = docker.build("${image}", dockerArgs + '.')
+                withDockerContainer(image: image, args: dockerOpts) {
+                    timeout(time: 5, unit: 'MINUTES'){
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
                     }
                 }
             }
-            else{
-                try {
-                    retimage = docker.build("${image}", dockerArgs + '.')
-                    withDockerContainer(image: image, args: dockerOpts) {
-                        timeout(time: 5, unit: 'MINUTES')
-                        {
-                            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
-                        }
-                    }
-                }
-                catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
-                    echo "The job was cancelled or aborted"
-                    throw e
-                }
-                catch(Exception ex) {
-                    retimage = docker.build("${image}", dockerArgs + "--build-arg compiler_version=release --no-cache .")
-                    withDockerContainer(image: image, args: dockerOpts) {
-                        timeout(time: 5, unit: 'MINUTES')
-                        {
-                            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
-                        }
+            catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                echo "The job was cancelled or aborted"
+                throw e
+            }
+            catch(Exception ex) {
+                retimage = docker.build("${image}", dockerArgs + "--build-arg compiler_version=9110 --no-cache .")
+                withDockerContainer(image: image, args: dockerOpts) {
+                    timeout(time: 5, unit: 'MINUTES'){
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
                     }
                 }
             }
