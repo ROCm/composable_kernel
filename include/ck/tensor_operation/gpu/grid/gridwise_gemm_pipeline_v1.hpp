@@ -357,13 +357,10 @@ constexpr auto GridwiseGemmPipeline_v1_Selector()
 {
     if constexpr(LoopSched == LoopScheduler::Default)
     {
-        static_assert(std::is_default_constructible_v<GridwiseGemmPipeline_v1<NumPrefetch>>);
         return GridwiseGemmPipeline_v1<NumPrefetch>{};
     }
     else if constexpr(LoopSched == LoopScheduler::Interwave)
     {
-        static_assert(
-            std::is_default_constructible_v<GridwiseGemmPipelineInterwave_v1<NumPrefetch>>);
         return GridwiseGemmPipelineInterwave_v1<NumPrefetch>{};
     }
 }
