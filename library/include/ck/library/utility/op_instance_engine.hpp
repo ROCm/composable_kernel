@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include <cstdlib>
@@ -9,9 +12,12 @@
 #include <utility>
 #include <vector>
 
-#include "check_err.hpp"
-#include "device_base.hpp"
-#include "functional2.hpp"
+#include "ck/utility/functional2.hpp"
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
 
 namespace ck {
 namespace utils {

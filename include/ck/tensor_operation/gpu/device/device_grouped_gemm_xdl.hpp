@@ -1,17 +1,20 @@
-#ifndef DEVICE_GROUPED_GEMM_XDL_HPP
-#define DEVICE_GROUPED_GEMM_XDL_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <iostream>
 #include <sstream>
-#include "device.hpp"
-#include "device_base.hpp"
-#include "device_gemm.hpp"
-#include "common_header.hpp"
-#include "tensor_layout.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdlops_v2r3.hpp"
-#include "gemm_specialization.hpp"
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r3.hpp"
+#include "ck/device_utility/device_prop.hpp"
+#include "ck/device_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -43,13 +46,22 @@ __global__ void
     const auto gemm_desc_ptr =
         reinterpret_cast<const GemmDesc*>(cast_pointer_to_generic_address_space(gemm_descs_const));
 
-    index_t group_id = 0;
-    for(index_t i = 0; i < group_count; i++)
+    index_t left     = 0;
+    index_t right    = group_count;
+    index_t group_id = index_t((left + right) / 2);
+    while((!(block_id >= gemm_desc_ptr[group_id].BlockStart_ &&
+             block_id < gemm_desc_ptr[group_id].BlockEnd_)) &&
+          left <= right)
     {
-        group_id =
-            (block_id >= gemm_desc_ptr[i].BlockStart_ && block_id < gemm_desc_ptr[i].BlockEnd_)
-                ? i
-                : group_id;
+        if(block_id < gemm_desc_ptr[group_id].BlockStart_)
+        {
+            right = group_id;
+        }
+        else
+        {
+            left = group_id;
+        }
+        group_id = index_t((left + right) / 2);
     }
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(
@@ -638,4 +650,3 @@ struct DeviceGroupedGemmXdl
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

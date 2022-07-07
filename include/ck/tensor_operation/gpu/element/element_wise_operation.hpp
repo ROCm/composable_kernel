@@ -1,9 +1,12 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
-#include "data_type.hpp"
-#include "math_v2.hpp"
-#include "unary_element_wise_operation.hpp"
-#include "binary_element_wise_operation.hpp"
+#include "ck/utility/data_type.hpp"
+#include "ck/utility/math_v2.hpp"
+#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -156,7 +159,7 @@ struct Normalize
         using ck::math::sqrt;
 
         float variance = mean_square - (mean * mean);
-        y = ((x - mean) / sqrt(variance + static_cast<float>(epsilon_))) * gamma + beta;
+        y = ((x - mean) / sqrt(variance + type_convert<float>(epsilon_))) * gamma + beta;
     };
 
     template <>

@@ -1,16 +1,20 @@
-#ifndef DEVICE_BATCHED_GEMM_XDL_HPP
-#define DEVICE_BATCHED_GEMM_XDL_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <iostream>
 #include <sstream>
-#include "device.hpp"
-#include "device_base.hpp"
-#include "device_gemm.hpp"
-#include "common_header.hpp"
-#include "tensor_layout.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdlops_v2r3.hpp"
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_batched_gemm.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r3.hpp"
+#include "ck/device_utility/device_prop.hpp"
+#include "ck/device_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -109,7 +113,7 @@ __global__ void
     ignore = c_element_op;
     ignore = compute_ptr_offset_of_batch;
     ignore = block_2_ctile_map;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif
 }
 
 template <typename ADataType,
@@ -147,8 +151,15 @@ template <typename ADataType,
           bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
           ck::index_t CThreadTransferDstScalarPerVector>
-struct DeviceBatchedGemmXdl
-    : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
+struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
+                                                       BLayout,
+                                                       CLayout,
+                                                       ADataType,
+                                                       BDataType,
+                                                       CDataType,
+                                                       AElementwiseOperation,
+                                                       BElementwiseOperation,
+                                                       CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -330,26 +341,26 @@ struct DeviceBatchedGemmXdl
                  index_t StrideA,
                  index_t StrideB,
                  index_t StrideC,
+                 index_t BatchStrideA,
+                 index_t BatchStrideB,
+                 index_t BatchStrideC,
+                 index_t Batch,
                  index_t M01,
                  index_t N01,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
-                 CElementwiseOperation c_element_op,
-                 index_t BatchCount)
+                 CElementwiseOperation c_element_op)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
-              BatchCount_(BatchCount),
+              Batch_(Batch),
               a_grid_desc_k0_m_k1_{
                   DeviceBatchedGemmXdl::MakeAGridDescriptor_K0_M_K1(M, K, StrideA)},
               b_grid_desc_k0_n_k1_{
                   DeviceBatchedGemmXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB)},
               c_grid_desc_m_n_{DeviceBatchedGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC)},
               c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
-              compute_ptr_offset_of_batch_{
-                  type_convert<index_t>(a_grid_desc_k0_m_k1_.GetElementSpaceSize()),
-                  type_convert<index_t>(b_grid_desc_k0_n_k1_.GetElementSpaceSize()),
-                  type_convert<index_t>(c_grid_desc_m_n_.GetElementSpaceSize())},
+              compute_ptr_offset_of_batch_{BatchStrideA, BatchStrideB, BatchStrideC},
               block_2_ctile_map_{
                   GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01)},
               M01_{M01},
@@ -372,7 +383,7 @@ struct DeviceBatchedGemmXdl
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
-        index_t BatchCount_;
+        index_t Batch_;
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
@@ -416,7 +427,7 @@ struct DeviceBatchedGemmXdl
             }
 
             const index_t grid_size =
-                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_) * arg.BatchCount_;
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_) * arg.Batch_;
 
             const auto K =
                 arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
@@ -447,7 +458,7 @@ struct DeviceBatchedGemmXdl
                                                   arg.p_a_grid_,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
-                                                  arg.BatchCount_,
+                                                  arg.Batch_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
@@ -481,7 +492,7 @@ struct DeviceBatchedGemmXdl
                                                   arg.p_a_grid_,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
-                                                  arg.BatchCount_,
+                                                  arg.Batch_,
                                                   arg.a_grid_desc_k0_m_k1_,
                                                   arg.b_grid_desc_k0_n_k1_,
                                                   arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
@@ -532,10 +543,13 @@ struct DeviceBatchedGemmXdl
                              index_t StrideA,
                              index_t StrideB,
                              index_t StrideC,
+                             index_t BatchStrideA,
+                             index_t BatchStrideB,
+                             index_t BatchStrideC,
+                             index_t Batch,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
-                             CElementwiseOperation c_element_op,
-                             index_t BatchCount)
+                             CElementwiseOperation c_element_op)
     {
         return Argument{p_a,
                         p_b,
@@ -546,12 +560,15 @@ struct DeviceBatchedGemmXdl
                         StrideA,
                         StrideB,
                         StrideC,
+                        BatchStrideA,
+                        BatchStrideB,
+                        BatchStrideC,
+                        Batch,
                         1,
                         1,
                         a_element_op,
                         b_element_op,
-                        c_element_op,
-                        BatchCount};
+                        c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -566,10 +583,13 @@ struct DeviceBatchedGemmXdl
                                                       index_t StrideA,
                                                       index_t StrideB,
                                                       index_t StrideC,
+                                                      index_t BatchStrideA,
+                                                      index_t BatchStrideB,
+                                                      index_t BatchStrideC,
+                                                      index_t Batch,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op,
-                                                      index_t BatchCount) override
+                                                      CElementwiseOperation c_element_op) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
@@ -580,12 +600,15 @@ struct DeviceBatchedGemmXdl
                                           StrideA,
                                           StrideB,
                                           StrideC,
+                                          BatchStrideA,
+                                          BatchStrideB,
+                                          BatchStrideC,
+                                          Batch,
                                           1,
                                           1,
                                           a_element_op,
                                           b_element_op,
-                                          c_element_op,
-                                          BatchCount);
+                                          c_element_op);
     }
 
     // polymorphic
@@ -616,4 +639,3 @@ struct DeviceBatchedGemmXdl
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

@@ -1,10 +1,12 @@
-#ifndef DEVICE_REDUCE_INSTANCE_IMPL_COMMON_HPP
-#define DEVICE_REDUCE_INSTANCE_IMPL_COMMON_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_reduce_instance {
+namespace instance {
 
 template <int BlockSize, int MThreadClusterSize, int KThreadClusterSize>
 struct ReductionConfiguration_1
@@ -32,10 +34,7 @@ struct ReductionConfiguration_2
 
 #define QUICK_REDUCE_TEST 1
 
-} // namespace device_reduce_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
-
 } // namespace ck
-
-#endif

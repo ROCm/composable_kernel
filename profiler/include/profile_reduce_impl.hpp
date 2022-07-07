@@ -1,17 +1,22 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
-#include "check_err.hpp"
-#include "device_reduce.hpp"
-#include "device_reduce_instance.hpp"
-#include "reduction_enums.hpp"
-#include "host_reduction.hpp"
-#include "host_common_util.hpp"
-#include "host_tensor_generator.hpp"
+#include "ck/utility/reduction_enums.hpp"
+#include "ck/tensor_operation/gpu/device/device_reduce.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_reduction.hpp"
+#include "ck/library/host_tensor/host_common_util.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_reduce_instance {
+namespace instance {
 
 template <int Rank, int NumReduceDim, int ReduceOpId, bool PropagateNan, bool UseIndex>
 struct ReduceDescription
@@ -86,7 +91,7 @@ bool description_match(const DescriptionType& description,
     return (result);
 };
 
-} // namespace device_reduce_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
@@ -137,7 +142,7 @@ bool profile_reduce_impl_impl(bool do_verification,
                               float beta)
 {
     using namespace ck::tensor_operation::device;
-    using namespace ck::tensor_operation::device::device_reduce_instance;
+    using namespace ck::tensor_operation::device::instance;
     using ck::host_common::dumpBufferToFile;
 
     constexpr bool op_support_indices =
@@ -459,7 +464,7 @@ bool profile_reduce_impl(bool do_verification,
     bool pass    = true;
 
     using tuple_of_description_instances =
-        tensor_operation::device::device_reduce_instance::reduce_description_instances;
+        tensor_operation::device::instance::reduce_description_instances;
 
     const auto tuple_object = tuple_of_description_instances{};
 

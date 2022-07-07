@@ -1,21 +1,20 @@
-#ifndef DEVICE_GEMM_XDL_SPLITK_C_SHUFFLE_HPP
-#define DEVICE_GEMM_XDL_SPLITK_C_SHUFFLE_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <iostream>
 #include <sstream>
-#include "device.hpp"
-#include "device_base.hpp"
-#include "device_gemm.hpp"
-#include "common_header.hpp"
-#include "tensor_layout.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdlops_v2r4r2.hpp"
-#include "gemm_specialization.hpp"
 
-#ifndef CK_RUN_KERNEL_AND_TIME
-#define CK_RUN_KERNEL_AND_TIME 1
-#endif
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_splitk.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r4r2.hpp"
+#include "ck/device_utility/device_prop.hpp"
+#include "ck/device_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -59,8 +58,15 @@ template <typename ADataType,
           index_t CShuffleNRepeatPerShuffle,
           typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CBlockTransferScalarPerVector_NWaveNPerXDL>
-struct DeviceGemmXdlSplitKCShuffle
-    : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
+struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
+                                                             BLayout,
+                                                             CLayout,
+                                                             ADataType,
+                                                             BDataType,
+                                                             CDataType,
+                                                             AElementwiseOperation,
+                                                             BElementwiseOperation,
+                                                             CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -421,21 +427,22 @@ struct DeviceGemmXdlSplitKCShuffle
                     arg.c_grid_desc_mblock_mperblock_nblock_nperblock_.GetElementSpaceSize() *
                         sizeof(CDataType)));
 
-                launch_and_time_kernel(stream_config,
-                                       kernel,
-                                       dim3(grid_size),
-                                       dim3(BlockSize),
-                                       0,
-                                       arg.p_a_grid_,
-                                       arg.p_b_grid_,
-                                       arg.p_c_grid_,
-                                       arg.a_grid_desc_kbatch_k0_m_k1_,
-                                       arg.b_grid_desc_kbatch_k0_n_k1_,
-                                       arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                       arg.a_element_op_,
-                                       arg.b_element_op_,
-                                       arg.c_element_op_,
-                                       arg.block_2_ctile_map_);
+                ave_time =
+                    launch_and_time_kernel(stream_config,
+                                           kernel,
+                                           dim3(grid_size),
+                                           dim3(BlockSize),
+                                           0,
+                                           arg.p_a_grid_,
+                                           arg.p_b_grid_,
+                                           arg.p_c_grid_,
+                                           arg.a_grid_desc_kbatch_k0_m_k1_,
+                                           arg.b_grid_desc_kbatch_k0_n_k1_,
+                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_,
+                                           arg.block_2_ctile_map_);
             };
 
             if(has_main_k0_block_loop)
@@ -641,4 +648,3 @@ struct DeviceGemmXdlSplitKCShuffle
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

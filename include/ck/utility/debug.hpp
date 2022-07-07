@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #ifndef UTILITY_DEBUG_HPP
 #define UTILITY_DEBUG_HPP
 
@@ -9,21 +12,27 @@ template <typename T, typename Enable = void>
 struct PrintAsType;
 
 template <typename T>
-struct PrintAsType<T, typename std::enable_if<std::is_floating_point<T>::value>::value>
+struct PrintAsType<T, typename std::enable_if<std::is_floating_point<T>::value>::type>
 {
     using type = float;
+    __host__ __device__ static void Print(const T& p) { printf("%.3f ", static_cast<type>(p)); }
 };
 
 template <>
 struct PrintAsType<ck::half_t, void>
 {
     using type = float;
+    __host__ __device__ static void Print(const ck::half_t& p)
+    {
+        printf("%.3f ", static_cast<type>(p));
+    }
 };
 
 template <typename T>
-struct PrintAsType<T, typename std::enable_if<std::is_integral<T>::value>::value>
+struct PrintAsType<T, typename std::enable_if<std::is_integral<T>::value>::type>
 {
     using type = int;
+    __host__ __device__ static void Print(const T& p) { printf("%d ", static_cast<type>(p)); }
 };
 } // namespace detail
 
@@ -38,7 +47,6 @@ struct PrintAsType<T, typename std::enable_if<std::is_integral<T>::value>::value
 template <typename T, index_t element_stride = 1, index_t row_bytes = 128>
 __device__ void print_shared(T const* p_shared, index_t num_elements)
 {
-    using PrintType                = typename detail::PrintAsType<T>::type;
     constexpr index_t row_elements = row_bytes / sizeof(T);
     static_assert((element_stride >= 1 && element_stride <= row_elements),
                   "element_stride should between [1, row_elements]");
@@ -60,7 +68,7 @@ __device__ void print_shared(T const* p_shared, index_t num_elements)
             printf("elem %5d: ", i);
             for(index_t j = 0; j < row_elements; j += element_stride)
             {
-                printf("%.0f ", static_cast<PrintType>(p_shared[i + j]));
+                detail::PrintAsType<T>::Print(p_shared[i + j]);
             }
 
             printf("\n");

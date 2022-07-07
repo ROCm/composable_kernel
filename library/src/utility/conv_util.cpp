@@ -1,5 +1,7 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "conv_util.hpp"
+#include "ck/library/utility/conv_util.hpp"
 
 namespace ck {
 namespace utils {

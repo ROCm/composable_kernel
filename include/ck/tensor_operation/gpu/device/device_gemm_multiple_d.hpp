@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include <array>
@@ -13,12 +16,20 @@ namespace device {
 // output : E[M, N]
 // C = a_op(A) * b_op(B)
 // E = cde_op(C, D0, D1, ...)
-template <ck::index_t NumDTensor,
+template <typename ALayout,
+          typename BLayout,
+          typename DELayout,
+          typename ADataType,
+          typename BDataType,
+          typename DsDataType,
+          typename EDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation>
 struct DeviceGemmMultipleD : public BaseOperator
 {
+    static constexpr index_t NumDTensor = DsDataType::Size();
+
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
@@ -38,14 +49,26 @@ struct DeviceGemmMultipleD : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <ck::index_t NumDTensor,
+template <typename ALayout,
+          typename BLayout,
+          typename DELayout,
+          typename ADataType,
+          typename BDataType,
+          typename DsDataType,
+          typename EDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename CElementwiseOperation>
-using DeviceGemmMultipleDPtr = std::unique_ptr<DeviceGemmMultipleD<NumDTensor,
+          typename CDEElementwiseOperation>
+using DeviceGemmMultipleDPtr = std::unique_ptr<DeviceGemmMultipleD<ALayout,
+                                                                   BLayout,
+                                                                   DELayout,
+                                                                   ADataType,
+                                                                   BDataType,
+                                                                   DsDataType,
+                                                                   EDataType,
                                                                    AElementwiseOperation,
                                                                    BElementwiseOperation,
-                                                                   CElementwiseOperation>>;
+                                                                   CDEElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation

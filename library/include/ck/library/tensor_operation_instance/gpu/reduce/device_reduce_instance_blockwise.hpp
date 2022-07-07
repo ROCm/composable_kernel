@@ -1,14 +1,16 @@
-#ifndef DEVICE_REDUCE_INSTANCE_BLOCKWISE_HPP
-#define DEVICE_REDUCE_INSTANCE_BLOCKWISE_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "reduction_operator_mapping.hpp"
-#include "device_reduce_instance_impl_common.hpp"
-#include "device_reduce_multiblock.hpp"
+#pragma once
+
+#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
+#include "ck/tensor_operation/gpu/device/device_reduce_multiblock.hpp"
+#include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance_impl_common.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_reduce_instance {
+namespace instance {
 
 using reduce_configuration_1_instances_blockwise = std::tuple<
     // clang-format off
@@ -172,10 +174,7 @@ void add_device_reduce_instance_blockwise(
                                    Rank,                                    \
                                    NumReduceDim)
 
-} // namespace device_reduce_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
-
 } // namespace ck
-
-#endif

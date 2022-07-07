@@ -1,10 +1,12 @@
-#ifndef CK_THREADWISE_TENSOR_SLICE_TRANSFER_HPP
-#define CK_THREADWISE_TENSOR_SLICE_TRANSFER_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "common_header.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "tensor_space_filling_curve.hpp"
+#pragma once
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_space_filling_curve.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
 
 namespace ck {
 
@@ -234,9 +236,14 @@ template <typename SrcData,
           index_t SrcScalarPerVector,
           index_t SrcScalarStrideInVector,
           bool SrcResetCoordinateAfterRun,
+          bool InvalidElementAsNaN                                        = false,
           typename enable_if<DstDesc::IsKnownAtCompileTime(), bool>::type = false>
 struct ThreadwiseTensorSliceTransfer_v2
 {
+    static_assert((InvalidElementAsNaN && !std::is_integral<DstData>::value) ||
+                      (!InvalidElementAsNaN),
+                  "Filling invalid element as NaN is only for floating point types");
+
     static constexpr index_t nDim = SliceLengths::Size();
 
     using Index = MultiIndex<nDim>;
@@ -316,8 +323,18 @@ struct ThreadwiseTensorSliceTransfer_v2
                     dst_desc.CalculateOffset(to_multi_index(dst_slice_origin_idx) + src_data_idx +
                                              i * src_scalar_step_in_vector);
 
-                dst_buf(Number<dst_offset>{}) =
-                    type_convert<DstData>(src_vector.template AsType<SrcData>()[i]);
+                if constexpr(InvalidElementAsNaN)
+                {
+                    dst_buf(Number<dst_offset>{}) =
+                        is_src_valid
+                            ? type_convert<DstData>(src_vector.template AsType<SrcData>()[i])
+                            : NumericLimits<DstData>::QuietNaN();
+                }
+                else
+                {
+                    dst_buf(Number<dst_offset>{}) =
+                        type_convert<DstData>(src_vector.template AsType<SrcData>()[i]);
+                }
             });
 
             if constexpr(idx_1d.value != num_access - 1)
@@ -1168,4 +1185,3 @@ struct ThreadwiseTensorSliceTransfer_v4
 };
 
 } // namespace ck
-#endif

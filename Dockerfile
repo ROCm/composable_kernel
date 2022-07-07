@@ -2,6 +2,7 @@ FROM ubuntu:18.04
 
 ARG ROCMVERSION=5.1
 ARG OSDB_BKC_VERSION
+ARG compiler_version
 
 RUN set -xe
 
@@ -88,3 +89,20 @@ ADD rbuild.ini /rbuild.ini
 ADD dev-requirements.txt dev-requirements.txt
 RUN rbuild prepare -s develop -d $PREFIX
 RUN groupadd -f render
+
+# Install the new rocm-cmake version
+RUN git clone -b master https://github.com/RadeonOpenCompute/rocm-cmake.git  && \
+  cd rocm-cmake && mkdir build && cd build && \
+  cmake  .. && cmake --build . && cmake --build . --target install
+
+WORKDIR /
+
+RUN if [ "$compiler_version" = "9110" ] ; \
+        then git clone -b ck-9110 https://github.com/RadeonOpenCompute/llvm-project.git && \
+        cd llvm-project && mkdir build && cd build && \
+        cmake -DCMAKE_INSTALL_PREFIX=/opt/rocm/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=1 -DLLVM_TARGETS_TO_BUILD="AMDGPU;X86" -DLLVM_ENABLE_PROJECTS="clang;lld;compiler-rt" ../llvm && \
+        make -j && \
+        export HIP_CLANG_PATH='/llvm-project/build/bin';\
+    fi
+
+

@@ -1,13 +1,16 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include <tuple>
 
-#include "config.hpp"
-#include "data_type.hpp"
-#include "device_convnd_fwd_xdl_nhwc_kyxc_nhwk.hpp"
-#include "element_wise_operation.hpp"
-#include "host_tensor.hpp"
-#include "sequence.hpp"
+#include "ck/ck.hpp"
+#include "ck/utility/sequence.hpp"
+#include "ck/utility/data_type.hpp"
+#include "ck/tensor_operation/gpu/device/device_convnd_fwd_xdl_nhwc_kyxc_nhwk.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -16,14 +19,14 @@ namespace device {
 using DeviceConvFwdNoOpPtr = DeviceConvFwdPtr<element_wise::PassThrough,
                                               element_wise::PassThrough,
                                               element_wise::PassThrough>;
-namespace device_conv2d_fwd_instance {
+namespace instance {
 
 void add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 void add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 void add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 void add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(std::vector<DeviceConvFwdNoOpPtr>&);
 
-} // namespace device_conv2d_fwd_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
@@ -115,7 +118,7 @@ struct ConvolutionNDFwdInstances<float, float, float>
         std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
         if(num_dim_spatial == 2)
         {
-            ck::tensor_operation::device::device_conv2d_fwd_instance::
+            ck::tensor_operation::device::instance::
                 add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances(conv_ptrs);
         }
         return conv_ptrs;
@@ -130,7 +133,7 @@ struct ConvolutionNDFwdInstances<ck::half_t, ck::half_t, ck::half_t>
         std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
         if(num_dim_spatial == 2)
         {
-            ck::tensor_operation::device::device_conv2d_fwd_instance::
+            ck::tensor_operation::device::instance::
                 add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
         }
         return conv_ptrs;
@@ -145,7 +148,7 @@ struct ConvolutionNDFwdInstances<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t>
         std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
         if(num_dim_spatial == 2)
         {
-            ck::tensor_operation::device::device_conv2d_fwd_instance::
+            ck::tensor_operation::device::instance::
                 add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
         }
         return conv_ptrs;
@@ -160,7 +163,7 @@ struct ConvolutionNDFwdInstances<int8_t, int8_t, int8_t>
         std::vector<DeviceConvFwdNoOpPtr> conv_ptrs;
         if(num_dim_spatial == 2)
         {
-            ck::tensor_operation::device::device_conv2d_fwd_instance::
+            ck::tensor_operation::device::instance::
                 add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(conv_ptrs);
         }
         return conv_ptrs;

@@ -1,11 +1,16 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
+
 #include <iostream>
 #include <sstream>
 #include <vector>
 #include <algorithm>
-#include "device_base.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
+
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -21,12 +26,11 @@ struct ReferenceSoftmax : public device::BaseOperator
                  Tensor<OutDataType>& out,
                  AccDataType alpha,
                  AccDataType beta,
-                 const index_t rank,
                  const std::vector<index_t> sm_reduce_dims)
             : in_(in), out_(out), alpha_(alpha), beta_(beta), sm_reduce_dims_(sm_reduce_dims)
         {
             // std::cout << "debug: scalar dims: ";
-            for(int i = 0; i < rank; i++)
+            for(size_t i = 0; i < in.mDesc.GetNumOfDimension(); i++)
             {
                 if(std::find(sm_reduce_dims.begin(), sm_reduce_dims.end(), i) ==
                    sm_reduce_dims.end())
@@ -42,7 +46,6 @@ struct ReferenceSoftmax : public device::BaseOperator
         Tensor<OutDataType>& out_;
         AccDataType alpha_;
         AccDataType beta_;
-        index_t rank_;
         std::vector<index_t> sm_reduce_dims_;
         std::vector<index_t> sm_scalar_dims_; // dim after internal max/sum reduction
     };
@@ -131,10 +134,9 @@ struct ReferenceSoftmax : public device::BaseOperator
                              Tensor<OutDataType>& out,
                              AccDataType alpha,
                              AccDataType beta,
-                             const index_t rank,
                              const std::vector<index_t> sm_reduce_dims)
     {
-        return Argument{in, out, alpha, beta, rank, sm_reduce_dims};
+        return Argument{in, out, alpha, beta, sm_reduce_dims};
     }
 
     static auto MakeInvoker() { return Invoker{}; }

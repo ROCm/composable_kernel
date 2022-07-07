@@ -102,7 +102,7 @@ def buildHipClangJob(Map conf=[:]){
         def retimage
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
-            if (params.USE_DOCKERFILE){
+            if (params.USE_9110){
                 try {
                     retimage = docker.build("${image}", dockerArgs + '.')
                     withDockerContainer(image: image, args: dockerOpts) {
@@ -117,7 +117,7 @@ def buildHipClangJob(Map conf=[:]){
                     throw e
                 }
                 catch(Exception ex) {
-                    retimage = docker.build("${image}", dockerArgs + "--no-cache .")
+                    retimage = docker.build("${image}", dockerArgs + "--build-arg compiler_version=9110 --no-cache .")
                     withDockerContainer(image: image, args: dockerOpts) {
                         timeout(time: 5, unit: 'MINUTES')
                         {
@@ -127,10 +127,27 @@ def buildHipClangJob(Map conf=[:]){
                 }
             }
             else{
-                timeout(time: 3, unit: 'HOURS'){
-                    retimage = docker.image('compute-artifactory.amd.com:5000/rocm-plus-docker/framework/compute-rocm-dkms-no-npi-hipclang:9110_ubuntu18.04_py3.6_pytorch_rocm5.0_internal_testing_7ff5b54').pull()
-                    image="b56f8ac0d6ea"
-                    sh "docker images"
+                try {
+                    retimage = docker.build("${image}", dockerArgs + '.')
+                    withDockerContainer(image: image, args: dockerOpts) {
+                        timeout(time: 5, unit: 'MINUTES')
+                        {
+                            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                        }
+                    }
+                }
+                catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                    echo "The job was cancelled or aborted"
+                    throw e
+                }
+                catch(Exception ex) {
+                    retimage = docker.build("${image}", dockerArgs + "--build-arg compiler_version=release --no-cache .")
+                    withDockerContainer(image: image, args: dockerOpts) {
+                        timeout(time: 5, unit: 'MINUTES')
+                        {
+                            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                        }
+                    }
                 }
             }
 
@@ -193,7 +210,7 @@ def runCKProfiler(Map conf=[:]){
         def retimage
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
-            if (params.USE_DOCKERFILE){
+            if (params.USE_9110){
                 try {
                     retimage = docker.build("${image}", dockerArgs + '.')
                     withDockerContainer(image: image, args: dockerOpts) {
@@ -208,7 +225,7 @@ def runCKProfiler(Map conf=[:]){
                     throw e
                 }
                 catch(Exception ex) {
-                    retimage = docker.build("${image}", dockerArgs + "--no-cache .")
+                    retimage = docker.build("${image}", dockerArgs + "--build-arg compiler_version=9110 --no-cache .")
                     withDockerContainer(image: image, args: dockerOpts) {
                         timeout(time: 5, unit: 'MINUTES')
                         {
@@ -218,10 +235,27 @@ def runCKProfiler(Map conf=[:]){
                 }
             }
             else{
-                timeout(time: 3, unit: 'HOURS'){
-                    retimage = docker.image('compute-artifactory.amd.com:5000/rocm-plus-docker/framework/compute-rocm-dkms-no-npi-hipclang:9110_ubuntu18.04_py3.6_pytorch_rocm5.0_internal_testing_7ff5b54').pull()
-                    image="b56f8ac0d6ea"
-                    sh "docker images"
+                try {
+                    retimage = docker.build("${image}", dockerArgs + '.')
+                    withDockerContainer(image: image, args: dockerOpts) {
+                        timeout(time: 5, unit: 'MINUTES')
+                        {
+                            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                        }
+                    }
+                }
+                catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                    echo "The job was cancelled or aborted"
+                    throw e
+                }
+                catch(Exception ex) {
+                    retimage = docker.build("${image}", dockerArgs + "--build-arg compiler_version=release --no-cache .")
+                    withDockerContainer(image: image, args: dockerOpts) {
+                        timeout(time: 5, unit: 'MINUTES')
+                        {
+                            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                        }
+                    }
                 }
             }
 
@@ -238,7 +272,12 @@ def runCKProfiler(Map conf=[:]){
                         sh "echo GPU_arch name: ${gpu_arch}  >> ${gemm_log}"
                         sh "rocminfo | grep 'Compute Unit:' >> ${gemm_log} "
                         sh "hipcc --version | grep -e 'HIP version'  >> ${gemm_log}"
-                        sh "echo Environment type: CI  >> ${gemm_log}"
+                        if (params.USE_9110){
+                            sh "echo Environment type: CI+9110  >> ${gemm_log}"
+                        }
+                        else{
+                            sh "echo Environment type: CI+release  >> ${gemm_log}"
+                        }
                         sh "/opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> ${gemm_log}"
                         sh "./profile_gemm.sh gemm 0 0 0 1 0 5 | tee -a ${gemm_log}"
                         sh "./profile_gemm.sh gemm 1 0 0 1 0 5 | tee -a ${gemm_log}"
@@ -309,7 +348,7 @@ pipeline {
     }
     parameters {
         booleanParam(
-            name: "USE_DOCKERFILE",
+            name: "USE_9110",
             defaultValue: true,
             description: "")
     }
@@ -390,7 +429,7 @@ pipeline {
                     agent{ label rocmnode("gfx908")}
                     environment{
                         setup_args = """ -D  -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " """
-                        execute_args = """ cd ../test/client_app && rm -rf build && mkdir build && cd build && cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" .. && make  """ 
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc .. && make -j """ 
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')

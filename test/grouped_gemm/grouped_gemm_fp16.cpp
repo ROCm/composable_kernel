@@ -1,22 +1,22 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
-#include <half.hpp>
 
-#include "check_err.hpp"
-#include "config.hpp"
-#include "print.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "host_gemm.hpp"
-#include "device_tensor.hpp"
-#include "device_grouped_gemm_xdl.hpp"
-#include "element_wise_operation.hpp"
-#include "reference_gemm.hpp"
-#include "gemm_specialization.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_gemm_xdl.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -28,7 +28,7 @@ using DeviceGroupedGemmPtr_ = ck::tensor_operation::device::DeviceGroupedGemmPtr
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_grouped_gemm_instance {
+namespace instance {
 void add_device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(
     std::vector<DeviceGroupedGemmPtr_>&);
 }
@@ -197,7 +197,7 @@ bool TestGroupedGemm(DeviceGroupedGemmPtr_& groupedGemmPtr)
 int main()
 {
     std::vector<DeviceGroupedGemmPtr_> groupedGemmPtrs;
-    ck::tensor_operation::device::device_grouped_gemm_instance::
+    ck::tensor_operation::device::instance::
         add_device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(groupedGemmPtrs);
 
     bool res = true;

@@ -1,34 +1,11 @@
-/*******************************************************************************
- *
- * MIT License
- *
- * Copyright (c) 2020 Advanced Micro Devices, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
- *******************************************************************************/
-#ifndef CK_REDUCTION_OPERATOR_HPP
-#define CK_REDUCTION_OPERATOR_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "config.hpp"
-#include "data_type.hpp"
-#include "type.hpp"
+#pragma once
+
+#include "ck/ck.hpp"
+#include "ck/utility/data_type.hpp"
+#include "ck/utility/type.hpp"
 
 namespace ck {
 
@@ -78,6 +55,33 @@ struct Add
                       "The data type is not supported by the Add accumulator!");
 
         a = a + b;
+    }
+};
+
+struct SquaredAdd
+{
+    template <class T>
+    __host__ __device__ static constexpr T GetIdentityValue()
+    {
+        return type_convert<T>(0.0f);
+    };
+
+    __host__ __device__ static constexpr bool
+    IsCompatibleInMemoryDataOperation(InMemoryDataOperationEnum operation)
+    {
+        return operation == InMemoryDataOperationEnum::AtomicAdd ||
+               operation == InMemoryDataOperationEnum::Set;
+    };
+
+    template <class T>
+    __host__ __device__ inline constexpr void operator()(T& a, T b) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, half_t>::value || is_same<T, int32_t>::value ||
+                          is_same<T, int8_t>::value,
+                      "The data type is not supported by the Max accumulator!");
+
+        a = a + b * b;
     }
 };
 
@@ -284,8 +288,5 @@ struct InMemoryDataOperatonSupportedOnDataType<InMemoryDataOperationEnum::Add, D
         is_same<DataType, int32_t>::value;
 };
 
-}; // end of namespace reduce
-
-} // end of namespace ck
-
-#endif
+} // namespace reduce
+} // namespace ck

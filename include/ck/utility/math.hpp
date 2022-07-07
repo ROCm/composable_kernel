@@ -1,7 +1,9 @@
-#ifndef CK_MATH_HPP
-#define CK_MATH_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "config.hpp"
+#pragma once
+
+#include "ck/ck.hpp"
 #include "integral_constant.hpp"
 #include "number.hpp"
 #include "type.hpp"
@@ -146,6 +148,8 @@ __host__ __device__ constexpr auto min(X x, Ys... ys)
 template <typename T>
 __device__ T exp(T x);
 
+// TODO: add f16 support using v_exp_f16
+
 template <>
 __device__ float exp<float>(float x)
 {
@@ -228,5 +232,3 @@ struct less
 
 } // namespace math
 } // namespace ck
-
-#endif
