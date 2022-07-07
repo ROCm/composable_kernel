@@ -11,11 +11,14 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-// input : A[M, K], B[K, N],
-// input : D0[M, N], D1[M, N], ...
-// output : E[M, N]
-// C = a_op(A) * b_op(B)
-// E = cde_op(C, D0, D1, ...)
+// GEMM:
+//   input : A[M, K], B[K, N],
+//   input : D0[M, N], D1[M, N], ...
+//   output : E[M, N]
+//   C = a_op(A) * b_op(B)
+//   E = cde_op(C, D0, D1, ...)
+// Assume:
+//   D0, D1, ... and E have the same layout
 template <typename ALayout,
           typename BLayout,
           typename DELayout,

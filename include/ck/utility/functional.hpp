@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#ifndef CK_FUNCTIONAL_HPP
-#define CK_FUNCTIONAL_HPP
+#pragma once
 
-#include "integral_constant.hpp"
-#include "type.hpp"
+#include "ck/utility/integral_constant.hpp"
+#include "ck/utility/type.hpp"
 
 namespace ck {
 
@@ -116,4 +115,3 @@ template <bool predicate, class X, class Y>
 using conditional_t = typename conditional<predicate, X, Y>::type;
 
 } // namespace ck
-#endif
