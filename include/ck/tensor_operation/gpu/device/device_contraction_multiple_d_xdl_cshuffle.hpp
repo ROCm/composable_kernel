@@ -172,8 +172,8 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
         assert(a_ms_ks_lengths_vec.size() == NumDimM + NumDimK &&
                a_ms_ks_strides_vec.size() == NumDimM + NumDimK);
 
-        const auto to_tuple = [&](auto& vec, auto Num) {
-            return generate_tuple([&](auto i) { return vec[i]; }, Num);
+        const auto to_tuple = [&](auto& vec, auto num) {
+            return generate_tuple([&](auto i) { return vec[i]; }, num);
         };
 
         const auto a_ms_ns_lengths = to_tuple(a_ms_ks_lengths_vec, Number<NumDimM + NumDimK>{});
@@ -301,8 +301,8 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
         assert(b_ns_ks_lengths_vec.size() == NumDimN + NumDimK &&
                b_ns_ks_strides_vec.size() == NumDimN + NumDimK);
 
-        const auto to_tuple = [&](auto& vec, auto Num) {
-            return generate_tuple([&](auto i) { return vec[i]; }, Num);
+        const auto to_tuple = [&](auto& vec, auto num) {
+            return generate_tuple([&](auto i) { return vec[i]; }, num);
         };
 
         const auto b_ns_ks_lengths = to_tuple(b_ns_ks_lengths_vec, Number<NumDimN + NumDimK>{});
@@ -430,8 +430,8 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
         assert(e_ms_ns_lengths_vec.size() == NumDimM + NumDimN &&
                e_ms_ns_strides_vec.size() == NumDimM + NumDimN);
 
-        const auto to_tuple = [&](auto& vec, auto Num) {
-            return generate_tuple([&](auto i) { return vec[i]; }, Num);
+        const auto to_tuple = [&](auto& vec, auto num) {
+            return generate_tuple([&](auto i) { return vec[i]; }, num);
         };
 
         const auto e_ms_ns_lengths = to_tuple(e_ms_ns_lengths_vec, Number<NumDimM + NumDimN>{});
