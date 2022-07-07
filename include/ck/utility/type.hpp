@@ -4,8 +4,8 @@
 #pragma once
 
 #include "ck/ck.hpp"
-#include "integral_constant.hpp"
-#include "enable_if.hpp"
+#include "ck/utility/integral_constant.hpp"
+#include "ck/utility/enable_if.hpp"
 
 namespace ck {
 
