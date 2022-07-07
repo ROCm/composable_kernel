@@ -18,6 +18,7 @@ set(PROFILER_SOURCE
     src/profile_conv_fwd_bias_relu_add.cpp
     src/profile_convnd_fwd.cpp
     src/profile_convnd_bwd_data.cpp
+    src/profile_conv_bwd_weight.cpp
     src/profile_convnd_bwd_weight.cpp
     src/profile_reduce.cpp
     src/profile_normalization.cpp

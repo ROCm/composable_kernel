@@ -118,15 +118,15 @@ int main(int argc, char* argv[])
     {
         return profile_conv_bwd_weight(argc, argv);
     }
-    else if(strcmp(argv[1], "conv1d_bwd_weight") == 0)
+    else if(strcmp(argv[1], "convnd1d_bwd_weight") == 0)
     {
         return profile_convnd_bwd_weight(argc, argv, 1);
     }
-    else if(strcmp(argv[1], "conv2d_bwd_weight") == 0)
+    else if(strcmp(argv[1], "convnd2d_bwd_weight") == 0)
     {
         return profile_convnd_bwd_weight(argc, argv, 2);
     }
-    else if(strcmp(argv[1], "conv3d_bwd_weight") == 0)
+    else if(strcmp(argv[1], "convnd3d_bwd_weight") == 0)
     {
         return profile_convnd_bwd_weight(argc, argv, 3);
     }
