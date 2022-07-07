@@ -24,9 +24,25 @@ struct PassThrough
     };
 };
 
+struct Scale
+{
+    __host__ __device__ Scale(float scale) : scale_(scale) {}
+
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const;
+
+    template <>
+    __host__ __device__ void operator()<float, float>(float& y, const float& x) const
+    {
+        y = scale_ * x;
+    };
+
+    float scale_;
+};
+
 struct UnaryDivide
 {
-    __host__ __device__ UnaryDivide(const int32_t divider = 1) : divider_(divider){};
+    __host__ __device__ UnaryDivide(const int32_t divider = 1) : divider_(divider) {}
 
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const

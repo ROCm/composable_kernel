@@ -16,13 +16,18 @@ using F32  = float;
 using F16  = ck::half_t;
 using BF16 = ck::bhalf_t;
 
+using EMPTY_TUPLE = ck::Tuple<>;
+
 using F16_TUPLE     = ck::Tuple<F16>;
 using F16_F16_TUPLE = ck::Tuple<F16, F16>;
+
+using F32_TUPLE = ck::Tuple<F32>;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough    = ck::tensor_operation::element_wise::PassThrough;
+using Scale          = ck::tensor_operation::element_wise::Scale;
 using Bilinear       = ck::tensor_operation::element_wise::Bilinear;
 using AddAddFastGelu = ck::tensor_operation::element_wise::AddAddFastGelu;
 

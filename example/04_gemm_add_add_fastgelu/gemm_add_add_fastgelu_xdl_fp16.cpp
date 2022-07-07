@@ -156,16 +156,16 @@ int main(int argc, char* argv[])
         d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
     }
 
-    DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
-    DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
-    DeviceMem d0_m_n_device_buf(sizeof(D0DataType) * d0_m_n.mDesc.GetElementSpace());
-    DeviceMem d1_m_n_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpace());
-    DeviceMem e_m_n_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpace());
+    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
+    DeviceMem d0_device_buf(sizeof(D0DataType) * d0_m_n.mDesc.GetElementSpace());
+    DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpace());
+    DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpace());
 
-    a_m_k_device_buf.ToDevice(a_m_k.mData.data());
-    b_k_n_device_buf.ToDevice(b_k_n.mData.data());
-    d0_m_n_device_buf.ToDevice(d0_m_n.mData.data());
-    d1_m_n_device_buf.ToDevice(d1_m_n.mData.data());
+    a_device_buf.ToDevice(a_m_k.mData.data());
+    b_device_buf.ToDevice(b_k_n.mData.data());
+    d0_device_buf.ToDevice(d0_m_n.mData.data());
+    d1_device_buf.ToDevice(d1_m_n.mData.data());
 
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
@@ -175,11 +175,11 @@ int main(int argc, char* argv[])
     auto device_op = DeviceOpInstance{};
     auto invoker   = device_op.MakeInvoker();
     auto argument =
-        device_op.MakeArgument(a_m_k_device_buf.GetDeviceBuffer(),
-                               b_k_n_device_buf.GetDeviceBuffer(),
-                               std::array<const void*, 2>{d0_m_n_device_buf.GetDeviceBuffer(),
-                                                          d1_m_n_device_buf.GetDeviceBuffer()},
-                               e_m_n_device_buf.GetDeviceBuffer(),
+        device_op.MakeArgument(a_device_buf.GetDeviceBuffer(),
+                               b_device_buf.GetDeviceBuffer(),
+                               std::array<const void*, 2>{d0_device_buf.GetDeviceBuffer(),
+                                                          d1_device_buf.GetDeviceBuffer()},
+                               e_device_buf.GetDeviceBuffer(),
                                M,
                                N,
                                K,
@@ -239,7 +239,7 @@ int main(int argc, char* argv[])
             }
         }
 
-        e_m_n_device_buf.FromDevice(e_m_n_device_result.mData.data());
+        e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
         return ck::utils::check_err(e_m_n_device_result.mData, e_m_n_host_result.mData) ? 0 : 1;
     }
