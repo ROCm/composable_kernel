@@ -202,7 +202,7 @@ def runCKProfiler(Map conf=[:]){
                 throw e
             }
             catch(Exception ex) {
-                retimage = docker.build("${image}", dockerArgs + "--build-arg compiler_version=9110 --no-cache .")
+                retimage = docker.build("${image}", dockerArgs + " --no-cache .")
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
