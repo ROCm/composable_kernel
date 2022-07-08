@@ -996,22 +996,46 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                     0,
                     arg.c_grid_desc_mblock_mperblock_nblock_nperblock_.GetElementSpaceSize() *
                         sizeof(CDataType)));
+                float elapsed_time =
+                    launch_and_time_kernel(stream_config,
+                                           kernel,
+                                           dim3(grid_size),
+                                           dim3(BlockSize),
+                                           0,
+                                           arg.p_a_grid_,
+                                           arg.p_b_grid_,
+                                           arg.p_c_grid_,
+                                           arg.a_grid_desc_kbatch_k0_m_k1_,
+                                           arg.b_grid_desc_kbatch_k0_n_k1_,
+                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_,
+                                           arg.block_2_ctile_map_);
 
-                return launch_and_time_kernel(stream_config,
-                                              kernel,
-                                              dim3(grid_size),
-                                              dim3(BlockSize),
-                                              0,
-                                              arg.p_a_grid_,
-                                              arg.p_b_grid_,
-                                              arg.p_c_grid_,
-                                              arg.a_grid_desc_kbatch_k0_m_k1_,
-                                              arg.b_grid_desc_kbatch_k0_n_k1_,
-                                              arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                              arg.a_element_op_,
-                                              arg.b_element_op_,
-                                              arg.c_element_op_,
-                                              arg.block_2_ctile_map_);
+                hipGetErrorString(hipMemset(
+                    arg.p_c_grid_,
+                    0,
+                    arg.c_grid_desc_mblock_mperblock_nblock_nperblock_.GetElementSpaceSize() *
+                        sizeof(CDataType)));
+
+                launch_and_time_kernel(StreamConfig{nullptr, false},
+                                       kernel,
+                                       dim3(grid_size),
+                                       dim3(BlockSize),
+                                       0,
+                                       arg.p_a_grid_,
+                                       arg.p_b_grid_,
+                                       arg.p_c_grid_,
+                                       arg.a_grid_desc_kbatch_k0_m_k1_,
+                                       arg.b_grid_desc_kbatch_k0_n_k1_,
+                                       arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                       arg.a_element_op_,
+                                       arg.b_element_op_,
+                                       arg.c_element_op_,
+                                       arg.block_2_ctile_map_);
+
+                return elapsed_time;
             };
 
             // run kernel for bf16 with splitk
@@ -1022,21 +1046,46 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
                     arg.c_grid_desc_mblock_mperblock_nblock_nperblock_.GetElementSpaceSize() *
                         sizeof(AccDataType)));
 
-                return launch_and_time_kernel(stream_config,
-                                              kernel,
-                                              dim3(grid_size),
-                                              dim3(BlockSize),
-                                              0,
-                                              arg.p_a_grid_,
-                                              arg.p_b_grid_,
-                                              static_cast<AccDataType*>(arg.p_workspace_),
-                                              arg.a_grid_desc_kbatch_k0_m_k1_,
-                                              arg.b_grid_desc_kbatch_k0_n_k1_,
-                                              arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                              arg.a_element_op_,
-                                              arg.b_element_op_,
-                                              arg.c_element_op_,
-                                              arg.block_2_ctile_map_);
+                float elapsed_time =
+                    launch_and_time_kernel(stream_config,
+                                           kernel,
+                                           dim3(grid_size),
+                                           dim3(BlockSize),
+                                           0,
+                                           arg.p_a_grid_,
+                                           arg.p_b_grid_,
+                                           static_cast<AccDataType*>(arg.p_workspace_),
+                                           arg.a_grid_desc_kbatch_k0_m_k1_,
+                                           arg.b_grid_desc_kbatch_k0_n_k1_,
+                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_,
+                                           arg.block_2_ctile_map_);
+
+                hipGetErrorString(hipMemset(
+                    arg.p_workspace_,
+                    0,
+                    arg.c_grid_desc_mblock_mperblock_nblock_nperblock_.GetElementSpaceSize() *
+                        sizeof(AccDataType)));
+
+                launch_and_time_kernel(StreamConfig{nullptr, false},
+                                       kernel,
+                                       dim3(grid_size),
+                                       dim3(BlockSize),
+                                       0,
+                                       arg.p_a_grid_,
+                                       arg.p_b_grid_,
+                                       static_cast<AccDataType*>(arg.p_workspace_),
+                                       arg.a_grid_desc_kbatch_k0_m_k1_,
+                                       arg.b_grid_desc_kbatch_k0_n_k1_,
+                                       arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                       arg.a_element_op_,
+                                       arg.b_element_op_,
+                                       arg.c_element_op_,
+                                       arg.block_2_ctile_map_);
+
+                return elapsed_time;
             };
 
             // kernel for type conversion
@@ -1210,6 +1259,20 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if constexpr(ConvBackwardWeightSpecialization ==
+                     ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0)
+        {
+            // check if it's 1x1, stride=1 pad = 0 conv
+            for(int i = 0; i < NumDimSpatial; i++)
+            {
+                if(!(arg.filter_spatial_lengths_[i] == 1 && arg.conv_filter_strides_[i] == 1 &&
+                     arg.input_left_pads_[i] == 0 && arg.input_right_pads_[i] == 0))
+                {
+                    return false;
+                }
+            }
+        }
+
         // vector load A/B matrix from global memory
         if(!(ABlockTransferSrcVectorDim == 2 && BBlockTransferSrcVectorDim == 2 &&
              arg.Conv_K_ % ABlockTransferSrcScalarPerVector == 0 &&
@@ -1334,6 +1397,12 @@ struct DeviceConvndBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
             << NPerBlock << ", "
             << K0PerBlock
             << ">";
+        if constexpr(ConvBackwardWeightSpecialization ==
+                     ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0){
+
+            str << " Filter1x1Stride1Pad0";
+        }
+
         // clang-format on
 
         return str.str();
