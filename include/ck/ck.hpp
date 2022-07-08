@@ -103,8 +103,8 @@
 
 // experimental feature: buffer load/store/atomic-add/ OOB trick
 // This (ifndef) is a hack to use customized behavior for buffer load rather than using default
-// setting Don't use this hack unless absolutely necessary!
-// FIXME: make the behavior of buffer load a configurable (template) parameter of each device op
+// setting. Don't use this hack unless absolutely necessary!
+// FIXME: make the behavior of buffer load a configurable (template) parameter for each usage
 #ifndef CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK
 #define CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK 0
 #endif
@@ -171,16 +171,6 @@ struct InMemoryDataOperationEnumSequence
         return mData[I];
     }
 };
-
-#if 0
-// TODO: no longer needed, remove this
-enum struct ActivTypeEnum
-{
-    None,
-    LeakyRelu,
-    Sigmoid
-};
-#endif
 
 // index type
 using index_t      = int32_t;
