@@ -48,6 +48,7 @@ __global__ void kernel_layernorm(const GridDesc_M_K x_grid_desc_m_k,
                            acc_elementwise_op);
 };
 
+// Y = LayerNorm(X, Beta, Gamma)
 template <typename XDataType,
           typename GammaDataType,
           typename BetaDataType,
