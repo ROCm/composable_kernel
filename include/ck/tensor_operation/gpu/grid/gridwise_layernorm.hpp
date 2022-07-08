@@ -150,7 +150,8 @@ struct GridwiseLayernorm_mk_to_mk
 
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, KThreadSliceSize, true> gamma_thread_buf;
 
-        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, KThreadSliceSize, true> beta_thread_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, KThreadSliceSize, true>& beta_thread_buf =
+            gamma_thread_buf;
 
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
             y_thread_buf;
@@ -333,6 +334,24 @@ struct GridwiseLayernorm_mk_to_mk
                                       make_tuple(I0),
                                       gamma_thread_buf);
 
+            static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
+                static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
+                    constexpr auto offset_m_k =
+                        thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK));
+
+                    constexpr auto offset_k = thread_buffer_desc_k.CalculateOffset(make_tuple(iK));
+
+                    // normalize
+                    y_thread_buf(Number<offset_m_k>{}) =
+                        (x_thread_buf(Number<offset_m_k>{}) - mean_thread_buf(iM)) /
+                        sqrt(var_value_buf(iM) + epsilon);
+
+                    // gamma
+                    y_thread_buf(Number<offset_m_k>{}) =
+                        y_thread_buf(Number<offset_m_k>{}) * gamma_thread_buf(Number<offset_k>{});
+                });
+            });
+
             threadwise_beta_load.Run(beta_grid_desc_k,
                                      beta_global_val_buf,
                                      thread_buffer_desc_k,
@@ -345,15 +364,10 @@ struct GridwiseLayernorm_mk_to_mk
                         thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK));
 
                     constexpr auto offset_k = thread_buffer_desc_k.CalculateOffset(make_tuple(iK));
-                    // normalize
-                    y_thread_buf(Number<offset_m_k>{}) =
-                        (x_thread_buf(Number<offset_m_k>{}) - mean_thread_buf(iM)) /
-                        sqrt(var_value_buf(iM) + epsilon);
 
-                    // affine
+                    // beta
                     y_thread_buf(Number<offset_m_k>{}) =
-                        y_thread_buf(Number<offset_m_k>{}) * gamma_thread_buf(Number<offset_k>{}) +
-                        beta_thread_buf(Number<offset_k>{});
+                        y_thread_buf(Number<offset_m_k>{}) + beta_thread_buf(Number<offset_k>{});
                 });
             });
 
