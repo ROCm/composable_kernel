@@ -100,12 +100,13 @@ WORKDIR /
 ENV compiler_version=$compiler_version
 RUN sh -c "echo compiler version = $compiler_version"
 
-RUN if[compiler_version = "9110"] ; \
+RUN if[compiler_version='9110'] ; \
         then git clone -b ck-9110 https://github.com/RadeonOpenCompute/llvm-project.git && \
         cd llvm-project && mkdir build && cd build && \
         cmake -DCMAKE_INSTALL_PREFIX=/opt/rocm/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=1 -DLLVM_TARGETS_TO_BUILD="AMDGPU;X86" -DLLVM_ENABLE_PROJECTS="clang;lld;compiler-rt" ../llvm && \
         make -j && \
-        export HIP_CLANG_PATH='/llvm-project/build/bin';\
+        export HIP_CLANG_PATH='/llvm-project/build/bin'; \
+        else echo "using the release compiler"; \
     fi
 
 
