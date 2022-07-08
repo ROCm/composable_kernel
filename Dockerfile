@@ -108,5 +108,5 @@ RUN if [ "$compiler_version" = "9110" ]; then \
     else echo "using the release compiler"; \
     fi
 
-ENV HIP_CLANG_PATH=${["$compiler_version"="9110"]:-'/llvm-project/build/bin'}
-RUN sh -c "echo HIP_CLANG_PATH = '$HIP_CLANG_PATH'"
+#ENV HIP_CLANG_PATH='/llvm-project/build/bin'
+#RUN sh -c "echo HIP_CLANG_PATH = '$HIP_CLANG_PATH'"
