@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <numeric>
+#include <random>
 
 #include "ck/ck.hpp"
 
@@ -123,6 +124,23 @@ struct GeneratorTensor_3<ck::bhalf_t>
         float fp32_tmp = min_value + tmp * (max_value - min_value);
 
         return ck::type_convert<ck::bhalf_t>(fp32_tmp);
+    }
+};
+
+template <typename T>
+struct GeneratorTensor_4
+{
+    std::default_random_engine generator;
+    std::normal_distribution<float> distribution;
+
+    GeneratorTensor_4(float mean, float stddev) : generator(1), distribution(mean, stddev){};
+
+    template <typename... Is>
+    T operator()(Is...)
+    {
+        float tmp = distribution(generator);
+
+        return ck::type_convert<T>(tmp);
     }
 };
 
