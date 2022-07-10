@@ -14,12 +14,12 @@ struct GridwiseGemmPipeline_v2<1>
     __host__ __device__ static constexpr bool IsSupported(index_t num_loop)
     {
         // TODO: improve applicability
-        return num_loop > 2;
+        return num_loop >= 2;
     }
 
     __host__ __device__ static constexpr bool CalculateHasMainLoop(index_t num_loop)
     {
-        return (num_loop / 2) > 1;
+        return num_loop > 2;
     }
 
     template <bool HasMainLoop,
