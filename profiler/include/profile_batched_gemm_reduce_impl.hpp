@@ -171,8 +171,8 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
         {
             for(int m = 0; m < M; ++m)
             {
-                float d0_acc = d0_reduce_op.GetReductionZeroVal();
-                float d1_acc = d1_reduce_op.GetReductionZeroVal();
+                float d0_acc = d0_reduce_op.GetIdentityValue();
+                float d1_acc = d1_reduce_op.GetIdentityValue();
 
                 for(int n = 0; n < N; ++n)
                 {
