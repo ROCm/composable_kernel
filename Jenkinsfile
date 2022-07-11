@@ -271,7 +271,7 @@ def runCKProfiler(Map conf=[:]){
                         }
                         sh "/opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> ${resnet256_log}"
                         //first run tests with N=256
-                        sh "./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 0 2 0 1 256 | tee -a ${resne256t_log}"
+                        sh "./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 0 2 0 1 256 | tee -a ${resnet256_log}"
                         archiveArtifacts  "${resnet256_log}"
                         sh "python3 process_perf_data.py ${resnet256_log} "
                         //then run with N=4
