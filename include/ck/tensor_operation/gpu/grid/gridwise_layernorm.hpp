@@ -97,22 +97,18 @@ struct GridwiseLayernorm_mk_to_mk
     using ThreadReduceDstDesc_M =
         decltype(make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{})));
 
-    using BlockwiseSumReduce =
-        PartitionedBlockwiseReduction<AccDataType,
-                                      BlockSize,
-                                      ThreadClusterLengths_M_K,
-                                      ThreadClusterArrangeOrder,
-                                      reduce::Add,
-                                      false, // ignored
-                                      detail::AccumulateWithNanIgnore<reduce::Add, AccDataType>>;
+    using BlockwiseSumReduce = PartitionedBlockwiseReduction<AccDataType,
+                                                             BlockSize,
+                                                             ThreadClusterLengths_M_K,
+                                                             ThreadClusterArrangeOrder,
+                                                             reduce::Add,
+                                                             true>;
 
-    using ThreadwiseSumReduce =
-        ThreadwiseReduction<AccDataType,
-                            ThreadReduceSrcDesc_M_K,
-                            ThreadReduceDstDesc_M,
-                            reduce::Add,
-                            false, // ignored
-                            detail::AccumulateWithNanIgnore<reduce::Add, AccDataType>>;
+    using ThreadwiseSumReduce = ThreadwiseReduction<AccDataType,
+                                                    ThreadReduceSrcDesc_M_K,
+                                                    ThreadReduceDstDesc_M,
+                                                    reduce::Add,
+                                                    true>;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
