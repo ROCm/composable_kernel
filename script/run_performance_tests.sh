@@ -46,12 +46,14 @@ print_log_header $gemm_log $env_type
 ./profile_gemm.sh gemm 1 3 0 1 0 5 | tee -a $gemm_log
 ./profile_gemm.sh gemm 2 3 0 1 0 5 | tee -a $gemm_log
 ./profile_gemm.sh gemm 3 3 0 1 0 5 | tee -a $gemm_log
-python3 parse_perf_data.py $gemm_log
+python3 process_perf_data.py $gemm_log
 
 #run resnet50 test
-export resnet_log="perf_resnet50.log"
-print_log_header $resnet_log $env_type
-./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 0 2 0 1 256 | tee -a $resnet_log
-./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 0 2 0 1 4 | tee -a $resnet_log
-#the script will put the results from N=256 and N=4 runs into separate tables
-python3 parse_perf_data.py $resnet_log
+export resnet256_log="perf_resnet50_N256.log"
+print_log_header $resnet256_log $env_type
+./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 0 2 0 1 256 | tee -a $resnet256_log
+python3 process_perf_data.py $resnet256_log
+export resnet4_log="perf_resnet50_N4.log"
+print_log_header $resnet4_log $env_type
+./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 0 2 0 1 4 | tee -a $resnet4_log
+python3 process_perf_data.py $resnet4_log

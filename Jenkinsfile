@@ -228,10 +228,10 @@ def runCKProfiler(Map conf=[:]){
                         sh "rocminfo | grep 'Compute Unit:' >> ${gemm_log} "
                         sh "hipcc --version | grep -e 'HIP version'  >> ${gemm_log}"
                         if (params.USE_9110){
-                            sh "echo Environment type: CI+9110  >> ${gemm_log}"
+                            sh "echo Environment type: CI_9110  >> ${gemm_log}"
                         }
                         else{
-                            sh "echo Environment type: CI+release  >> ${gemm_log}"
+                            sh "echo Environment type: CI_release  >> ${gemm_log}"
                         }
                         sh "/opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> ${gemm_log}"
                         sh "./profile_gemm.sh gemm 0 0 0 1 0 5 | tee -a ${gemm_log}"
@@ -254,24 +254,44 @@ def runCKProfiler(Map conf=[:]){
                         //the script will return 0 if the performance criteria are met
                         //or return 1 if the criteria are not met
                         archiveArtifacts  "${gemm_log}"
-                        sh "python3 parse_perf_data.py ${gemm_log} "
+                        sh "python3 process_perf_data.py ${gemm_log} "
                         //run resnet50 test
-                        def resnet_log = "perf_resnet50_${gpu_arch}.log"
-                        sh "rm -f ${resnet_log}"
-                        sh "echo Branch name: ${env.BRANCH_NAME} > ${resnet_log}"
-                        sh "echo Node name: ${NODE_NAME} >> ${resnet_log}"
-                        sh "echo GPU_arch name: ${gpu_arch}  >> ${resnet_log}"
-                        sh "rocminfo | grep 'Compute Unit:' >> ${resnet_log} "
-                        sh "hipcc --version | grep -e 'HIP version'  >> ${resnet_log}"
-                        sh "echo Environment type: CI  >> ${resnet_log}"
-                        sh "/opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> ${resnet_log}"
+                        def resnet256_log = "perf_resnet50_N256_${gpu_arch}.log"
+                        sh "rm -f ${resnet256_log}"
+                        sh "echo Branch name: ${env.BRANCH_NAME} > ${resnet256_log}"
+                        sh "echo Node name: ${NODE_NAME} >> ${resnet256_log}"
+                        sh "echo GPU_arch name: ${gpu_arch}  >> ${resnet256_log}"
+                        sh "rocminfo | grep 'Compute Unit:' >> ${resnet256_log} "
+                        sh "hipcc --version | grep -e 'HIP version'  >> ${resnet256_log}"
+                        if (params.USE_9110){
+                            sh "echo Environment type: CI_9110  >> ${resnet256_log}"
+                        }
+                        else{
+                            sh "echo Environment type: CI_release  >> ${resnet256_log}"
+                        }
+                        sh "/opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> ${resnet256_log}"
                         //first run tests with N=256
-                        sh "./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 0 2 0 1 256 | tee -a ${resnet_log}"
+                        sh "./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 0 2 0 1 256 | tee -a ${resne256t_log}"
+                        archiveArtifacts  "${resnet256_log}"
+                        sh "python3 process_perf_data.py ${resnet256_log} "
                         //then run with N=4
-                        sh "./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 0 2 0 1 4 | tee -a ${resnet_log}"
-                        archiveArtifacts  "${resnet_log}"
-                        //the script will put the results from N=256 and N=4 runs into separate tables
-                        sh "python3 parse_perf_data.py ${resnet_log} "
+                        def resnet4_log = "perf_resnet50_N4_${gpu_arch}.log"
+                        sh "rm -f ${resnet4_log}"
+                        sh "echo Branch name: ${env.BRANCH_NAME} > ${resnet4_log}"
+                        sh "echo Node name: ${NODE_NAME} >> ${resnet4_log}"
+                        sh "echo GPU_arch name: ${gpu_arch}  >> ${resnet4_log}"
+                        sh "rocminfo | grep 'Compute Unit:' >> ${resnet4_log} "
+                        sh "hipcc --version | grep -e 'HIP version'  >> ${resnet4_log}"
+                        if (params.USE_9110){
+                            sh "echo Environment type: CI_9110  >> ${resnet4_log}"
+                        }
+                        else{
+                            sh "echo Environment type: CI_release  >> ${resnet4_log}"
+                        }
+                        sh "/opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> ${resnet4_log}"
+                        sh "./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 0 2 0 1 4 | tee -a ${resnet4_log}"
+                        archiveArtifacts  "${resnet4_log}"
+                        sh "python3 process_perf_data.py ${resnet4_log} "
 					}
                 }
             }
