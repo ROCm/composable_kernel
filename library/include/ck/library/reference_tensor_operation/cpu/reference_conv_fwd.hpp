@@ -8,7 +8,7 @@
 #include <sstream>
 
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/utility/host_tensor.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -267,7 +267,10 @@ struct ReferenceConvFwd : public device::BaseOperator
         return true;
     }
 
-    bool IsSupportedArgument(const device::BaseArgument*) override { return true; }
+    bool IsSupportedArgument(const device::BaseArgument*) override
+    {
+        return NumDimSpatial >= 1 && NumDimSpatial <= 3;
+    }
 
     static auto MakeArgument(const Tensor<InDataType>& input,
                              const Tensor<WeiDataType>& weight,

@@ -46,25 +46,6 @@ struct DeviceGemm : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <typename ALayout,
-          typename BLayout,
-          typename CLayout,
-          typename ADataType,
-          typename BDataType,
-          typename CDataType,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation>
-using DeviceGemmPtr = std::unique_ptr<DeviceGemm<ALayout,
-                                                 BLayout,
-                                                 CLayout,
-                                                 ADataType,
-                                                 BDataType,
-                                                 CDataType,
-                                                 AElementwiseOperation,
-                                                 BElementwiseOperation,
-                                                 CElementwiseOperation>>;
-
 template <typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>

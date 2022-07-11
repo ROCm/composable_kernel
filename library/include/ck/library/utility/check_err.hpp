@@ -13,7 +13,10 @@
 #include <type_traits>
 #include <vector>
 
+#include "ck/ck.hpp"
 #include "ck/utility/data_type.hpp"
+
+#include "ck/library/utility/io.hpp"
 
 namespace ck {
 namespace utils {
@@ -201,10 +204,3 @@ check_err(const std::vector<T>& out,
 
 } // namespace utils
 } // namespace ck
-
-template <typename T>
-std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
-{
-    std::copy(std::begin(v), std::end(v), std::ostream_iterator<T>(os, " "));
-    return os;
-}

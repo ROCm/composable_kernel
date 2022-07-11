@@ -27,10 +27,10 @@ namespace device {
 // @brief      Device Convolution operation.
 //
 // Supports:
-//  @li         Inputs with up to 3 spatial dimentions
-//  @li         Input tensor in NHWC data format
-//  @li         Weight tensor in KYXC data format
-//  @li         Output tensor in NHWK data format
+//  @li         Forward convolution with up to 3 spatial dimentions
+//  @li         Input tensor in NWC data format
+//  @li         Weight tensor in KXC data format
+//  @li         Output tensor in NWK data format
 //
 // 1D:
 // out[N, Wo, K] = in[N, Wi, C] * wei[K, X, C]
@@ -73,10 +73,28 @@ template <typename InDataType,
           bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
           ck::index_t CThreadTransferDstScalarPerVector>
-struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
-    : public DeviceConvFwd<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>
+struct DeviceConvNdFwdNwcKxcNwk_Xdl
+    : public DeviceConvFwd<NumDimSpatial,
+                           ck::tuple_element_t<NumDimSpatial - 1,
+                                               ck::Tuple<ck::tensor_layout::convolution::NWC,
+                                                         ck::tensor_layout::convolution::NHWC,
+                                                         ck::tensor_layout::convolution::NDHWC>>,
+                           ck::tuple_element_t<NumDimSpatial - 1,
+                                               ck::Tuple<ck::tensor_layout::convolution::KXC,
+                                                         ck::tensor_layout::convolution::KYXC,
+                                                         ck::tensor_layout::convolution::KZYXC>>,
+                           ck::tuple_element_t<NumDimSpatial - 1,
+                                               ck::Tuple<ck::tensor_layout::convolution::NWC,
+                                                         ck::tensor_layout::convolution::NHWC,
+                                                         ck::tensor_layout::convolution::NDHWC>>,
+                           InDataType,
+                           WeiDataType,
+                           OutDataType,
+                           InElementwiseOperation,
+                           WeiElementwiseOperation,
+                           OutElementwiseOperation>
 {
-    using DeviceOp = DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K;
+    using DeviceOp = DeviceConvNdFwdNwcKxcNwk_Xdl;
 
     using ADataType = InDataType;
     using BDataType = WeiDataType;
@@ -1027,7 +1045,7 @@ struct DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceConvNDFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K"
+        str << "DeviceConvNdFwdNwcKxcNwk_Xdl"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

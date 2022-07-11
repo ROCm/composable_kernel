@@ -3,7 +3,7 @@
 
 #include <cassert>
 
-#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/utility/host_tensor.hpp"
 
 void HostTensorDescriptor::CalculateStrides()
 {

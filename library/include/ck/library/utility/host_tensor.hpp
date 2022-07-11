@@ -122,6 +122,22 @@ struct HostTensorDescriptor
     std::vector<std::size_t> mStrides;
 };
 
+template <typename New2Old>
+HostTensorDescriptor transpose_host_tensor_descriptor_given_new2old(const HostTensorDescriptor& a,
+                                                                    const New2Old& new2old)
+{
+    std::vector<std::size_t> new_lengths(a.GetNumOfDimension());
+    std::vector<std::size_t> new_strides(a.GetNumOfDimension());
+
+    for(std::size_t i = 0; i < a.GetNumOfDimension(); i++)
+    {
+        new_lengths[i] = a.GetLengths()[new2old[i]];
+        new_strides[i] = a.GetStrides()[new2old[i]];
+    }
+
+    return HostTensorDescriptor(new_lengths, new_strides);
+}
+
 struct joinable_thread : std::thread
 {
     template <typename... Xs>
