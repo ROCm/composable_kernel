@@ -297,8 +297,13 @@ struct GridwiseLayernorm_mk_to_mk
         } while(reducedTiles < num_k_block_tile_iteration);
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
+            if constexpr(I > 0)
+                block_sync_lds();
+
             BlockwiseSumReduce::Reduce(reduce_work_buf, mean_thread_buf(I));
             mean_thread_buf(I) = mean_thread_buf(I) / reduce_length;
+
+            block_sync_lds();
 
             BlockwiseSumReduce::Reduce(reduce_work_buf, mean_square_thread_buf(I));
             mean_square_thread_buf(I) = mean_square_thread_buf(I) / reduce_length;

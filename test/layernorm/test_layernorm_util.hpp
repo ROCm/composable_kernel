@@ -169,7 +169,7 @@ class TestLayernorm : public ::testing::Test
     }
 
     std::vector<std::vector<index_t>> lengths_ = {
-        {4, 256}, {8, 511}, {9, 1032}, {4, 2048}, {1, 8192}};
+        {4, 256}, {8, 511}, {9, 1032}, {4, 2048}, {1, 8192}, {4000, 2000}};
 
     std::vector<std::vector<index_t>> reduceDims_ = {{1}};
 
