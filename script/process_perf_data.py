@@ -118,8 +118,6 @@ def parse_logfile(logfile):
                     print("warning: incomplete line=",lst)
         #sort results
         #sorted_tests = sorted(tests)
-        #print("sorted tests:",sorted_tests)
-        print("number of tests:",len(tests))
         res = [x for _,x in sorted(zip(tests,tflops))]
         #sorted_kernels = [x for _,x in sorted(zip(tests,kernels))]
         test_list=list(range(1,len(tests)+1))
@@ -148,7 +146,7 @@ def store_new_test_result(table_name, test_results, testlist, branch_name, node_
     df_add=pd.DataFrame(data=[test_results],columns=testlist)
     df=pd.concat([df,df_add],axis=1)
     print("new test results dataframe:",df)
-    #df.to_sql("ck_gemm_tflops",conn,if_exists='append',index=False)
+    df.to_sql(table_name,connection,if_exists='append',index=False)
     return 0
 
 def compare_test_to_baseline(baseline,test,testlist):
@@ -223,7 +221,6 @@ def main():
     print("Environment:",environment)
     #parse results, get the Tflops value for "Best Perf" kernels
     results=parse_logfile(filename)
-    print("new test results:",results)
 
     print("Number of tests:",len(results))
     sql_hostname = '127.0.0.1'
