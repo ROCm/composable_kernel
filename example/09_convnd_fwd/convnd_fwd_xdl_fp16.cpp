@@ -11,10 +11,6 @@ using AccDataType = float;
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using InLayout  = ck::tensor_layout::convolution::NHWC;
-using WeiLayout = ck::tensor_layout::convolution::KYXC;
-using OutLayout = ck::tensor_layout::convolution::NHWK;
-
 using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -106,9 +102,6 @@ int main(int argc, char* argv[])
                             WeiDataType,
                             OutDataType,
                             AccDataType,
-                            InLayout,
-                            WeiLayout,
-                            OutLayout,
                             InElementOp,
                             WeiElementOp,
                             OutElementOp,
@@ -123,9 +116,6 @@ int main(int argc, char* argv[])
                             WeiDataType,
                             OutDataType,
                             AccDataType,
-                            InLayout,
-                            WeiLayout,
-                            OutLayout,
                             InElementOp,
                             WeiElementOp,
                             OutElementOp,
@@ -140,9 +130,6 @@ int main(int argc, char* argv[])
                             WeiDataType,
                             OutDataType,
                             AccDataType,
-                            InLayout,
-                            WeiLayout,
-                            OutLayout,
                             InElementOp,
                             WeiElementOp,
                             OutElementOp,
@@ -150,4 +137,6 @@ int main(int argc, char* argv[])
                             ReferenceConvNDFwdInstance<3>>(
             params, do_verification, init_method, time_kernel);
     }
+
+    return 0;
 }
