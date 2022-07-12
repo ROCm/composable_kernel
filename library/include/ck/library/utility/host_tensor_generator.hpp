@@ -151,3 +151,20 @@ struct GeneratorTensor_Sequential
         return dims[Dim];
     }
 };
+
+template <typename T>
+struct GeneratorTensor_Diagonal
+{
+    T value{1};
+
+    template <typename... Ts>
+    T operator()(Ts... Xs) const
+    {
+        std::array<ck::index_t, sizeof...(Ts)> dims = {{static_cast<ck::index_t>(Xs)...}};
+        bool pred = true;
+        for (size_t i = 1; i < dims.size(); i++) {
+            pred &= (dims[0] == dims[i]);
+        }
+        return pred ? value : T{0};
+    }
+};

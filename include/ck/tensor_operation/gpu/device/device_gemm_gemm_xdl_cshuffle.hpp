@@ -12,7 +12,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v1.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_gemm_xdl_cshuffle_v1.hpp"
 #include "ck/device_utility/device_prop.hpp"
 #include "ck/device_utility/kernel_launch.hpp"
 
@@ -23,6 +23,7 @@ namespace device {
 // Note: inter-wave loop scheduler is rolled out to c-shuffle version first. Becuase non c-shuffle
 // version currently has compiler issues with register spill which further causes validation
 // failures.
+// Computes C = A * B0 * B1
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
@@ -65,7 +66,7 @@ template <typename ALayout,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
-struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
+struct DeviceGemmGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                                                    BLayout,
                                                    CLayout,
                                                    ADataType,
@@ -75,7 +76,7 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                                                    BElementwiseOperation,
                                                    CElementwiseOperation>
 {
-    using DeviceOp = DeviceGemm_Xdl_CShuffle;
+    using DeviceOp = DeviceGemmGemm_Xdl_CShuffle;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -350,7 +351,7 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
     using CGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1<
+    using GridwiseGemm = GridwiseGemmGemm_xdl_cshuffle_v1<
         ADataType, // TODO: distinguish A/B datatype
         GemmAccDataType,
         CShuffleDataType,
@@ -490,7 +491,7 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
-                const auto kernel = kernel_gemm_xdl_cshuffle_v1<
+                const auto kernel = kernel_gemm_gemm_xdl_cshuffle_v1<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
@@ -522,7 +523,7 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
             }
             else
             {
-                const auto kernel = kernel_gemm_xdl_cshuffle_v1<
+                const auto kernel = kernel_gemm_gemm_xdl_cshuffle_v1<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
