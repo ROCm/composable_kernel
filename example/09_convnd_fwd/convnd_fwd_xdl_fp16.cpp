@@ -25,7 +25,8 @@ using DeviceConvNDFwdInstance = ck::tensor_operation::device::DeviceConvNdFwdNwc
     OutDataType,    //
     AccDataType,    //
     InElementOp,    // Input Elementwise Operation
-    WeiElementOp,   // Weights Elementwise Operation
+    WeiElementOp,   // Weights Elementwise Operation                          =
+                    // ck::tensor_layout::convolution::NKHW,
     OutElementOp,   // Output Elementwise Operation
     ConvFwdDefault, // ConvForwardSpecialization
     NumDimSpatial,  // NumDimSpatial
@@ -56,13 +57,16 @@ using DeviceConvNDFwdInstance = ck::tensor_operation::device::DeviceConvNdFwdNwc
     1>;             // CThreadTransferDstScalarPerVector
 
 template <ck::index_t NumDimSpatial>
-using ReferenceConvNDFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<InDataType,
+using ReferenceConvNDFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<NumDimSpatial,
+                                                                                InLayout,
+                                                                                WeiLayout,
+                                                                                OutLayout,
+                                                                                InDataType,
                                                                                 WeiDataType,
                                                                                 OutDataType,
                                                                                 InElementOp,
                                                                                 WeiElementOp,
-                                                                                OutElementOp,
-                                                                                NumDimSpatial>;
+                                                                                OutElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -97,44 +101,44 @@ int main(int argc, char* argv[])
 
     if(num_dim_spatial == 1)
     {
-        return run_conv_fwd<1,
-                            InDataType,
-                            WeiDataType,
-                            OutDataType,
-                            AccDataType,
-                            InElementOp,
-                            WeiElementOp,
-                            OutElementOp,
-                            DeviceConvNDFwdInstance<1>,
-                            ReferenceConvNDFwdInstance<1>>(
+        return run_conv_fwd_nhwc<1,
+                                 InDataType,
+                                 WeiDataType,
+                                 OutDataType,
+                                 AccDataType,
+                                 InElementOp,
+                                 WeiElementOp,
+                                 OutElementOp,
+                                 DeviceConvNDFwdInstance<1>,
+                                 ReferenceConvNDFwdInstance<1>>(
             params, do_verification, init_method, time_kernel);
     }
     else if(num_dim_spatial == 2)
     {
-        return run_conv_fwd<2,
-                            InDataType,
-                            WeiDataType,
-                            OutDataType,
-                            AccDataType,
-                            InElementOp,
-                            WeiElementOp,
-                            OutElementOp,
-                            DeviceConvNDFwdInstance<2>,
-                            ReferenceConvNDFwdInstance<2>>(
+        return run_conv_fwd_nhwc<2,
+                                 InDataType,
+                                 WeiDataType,
+                                 OutDataType,
+                                 AccDataType,
+                                 InElementOp,
+                                 WeiElementOp,
+                                 OutElementOp,
+                                 DeviceConvNDFwdInstance<2>,
+                                 ReferenceConvNDFwdInstance<2>>(
             params, do_verification, init_method, time_kernel);
     }
     else if(num_dim_spatial == 3)
     {
-        return run_conv_fwd<3,
-                            InDataType,
-                            WeiDataType,
-                            OutDataType,
-                            AccDataType,
-                            InElementOp,
-                            WeiElementOp,
-                            OutElementOp,
-                            DeviceConvNDFwdInstance<3>,
-                            ReferenceConvNDFwdInstance<3>>(
+        return run_conv_fwd_nhwc<3,
+                                 InDataType,
+                                 WeiDataType,
+                                 OutDataType,
+                                 AccDataType,
+                                 InElementOp,
+                                 WeiElementOp,
+                                 OutElementOp,
+                                 DeviceConvNDFwdInstance<3>,
+                                 ReferenceConvNDFwdInstance<3>>(
             params, do_verification, init_method, time_kernel);
     }
 

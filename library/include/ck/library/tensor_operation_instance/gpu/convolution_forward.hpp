@@ -96,18 +96,18 @@ template <ck::index_t NumDimSpatial,
           typename OutLayout,
           typename InDataType,
           typename WeiDataType,
-          typename OutDataType,
-          struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceConvFwd<
-              NumDimSpatial,
-              InLayout,
-              WeiLayout,
-              OutLayout,
-              InDataType,
-              WeiDataType,
-              OutDataType,
-              ck::tensor_operation::element_wise::PassThrough,
-              ck::tensor_operation::element_wise::PassThrough,
-              ck::tensor_operation::element_wise::PassThrough>>
+          typename OutDataType>
+struct DeviceOperationInstanceFactory<
+    ck::tensor_operation::device::DeviceConvFwd<NumDimSpatial,
+                                                InLayout,
+                                                WeiLayout,
+                                                OutLayout,
+                                                InDataType,
+                                                WeiDataType,
+                                                OutDataType,
+                                                ck::tensor_operation::element_wise::PassThrough,
+                                                ck::tensor_operation::element_wise::PassThrough,
+                                                ck::tensor_operation::element_wise::PassThrough>>
 {
     using DeviceOp = DeviceConvFwd<NumDimSpatial,
                                    InLayout,

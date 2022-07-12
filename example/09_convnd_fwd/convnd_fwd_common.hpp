@@ -91,30 +91,29 @@ template <ck::index_t NDimSpatial,
           typename OutElementOp,
           typename DeviceConvNDFwdInstance,
           typename ReferenceConvNDFwdInstance>
-int run_conv_fwd(const ck::tensor_operation::device::ConvParams& params,
-                 bool do_verification,
-                 int init_method,
-                 bool time_kernel)
+int run_conv_fwd_nhwc(const ck::tensor_operation::device::ConvParams& params,
+                      bool do_verification,
+                      int init_method,
+                      bool time_kernel)
 {
-    auto f_nchw_host_tensor_descriptor =
+    auto f_nhwc_host_tensor_descriptor =
         [](ck::index_t n, ck::index_t c, std::vector<ck::index_t> spatial_lengths) {
             std::vector<std::size_t> nhwc_lengths{static_cast<std::size_t>(n),
                                                   static_cast<std::size_t>(c)};
             nhwc_lengths.insert(
                 nhwc_lengths.begin() + 1, spatial_lengths.begin(), spatial_lengths.end());
 
-            return transpose_host_tensor_descriptor_given_new2old(
-                HostTensorDescriptor(nhwc_lengths), std::vector<std::size_t>({0, 3, 1, 2}));
+            return HostTensorDescriptor(nhwc_lengths);
         };
 
     Tensor<InDataType> input(
-        f_nchw_host_tensor_descriptor(params.N_, params.C_, params.input_spatial_lengths_));
-    Tensor<InDataType> weights(
-        f_nchw_host_tensor_descriptor(params.K_, params.C_, params.filter_spatial_lengths_));
-    Tensor<InDataType> host_output(
-        f_nchw_host_tensor_descriptor(params.N_, params.K_, params.GetOutputSpatialLengths()));
-    Tensor<InDataType> device_output(
-        f_nchw_host_tensor_descriptor(params.N_, params.K_, params.GetOutputSpatialLengths()));
+        f_nhwc_host_tensor_descriptor(params.N_, params.C_, params.input_spatial_lengths_));
+    Tensor<WeiDataType> weights(
+        f_nhwc_host_tensor_descriptor(params.K_, params.C_, params.filter_spatial_lengths_));
+    Tensor<OutDataType> host_output(
+        f_nhwc_host_tensor_descriptor(params.N_, params.K_, params.GetOutputSpatialLengths()));
+    Tensor<OutDataType> device_output(
+        f_nhwc_host_tensor_descriptor(params.N_, params.K_, params.GetOutputSpatialLengths()));
 
     std::cout << "input: " << input.mDesc << std::endl;
     std::cout << "weights: " << weights.mDesc << std::endl;

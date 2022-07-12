@@ -30,13 +30,16 @@ namespace host {
 //                                      operation.
 // @tparam     NumDimSpatial  Number of spatial dimensions.
 //
-template <typename InDataType,
+template <ck::index_t NumDimSpatial,
+          typename InLayout,
+          typename WeiLayout,
+          typename OutLayout,
+          typename InDataType,
           typename WeiDataType,
           typename OutDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
-          ck::index_t NumDimSpatial                                                     = 2,
           typename std::enable_if<NumDimSpatial >= 1 && NumDimSpatial <= 3, bool>::type = false>
 struct ReferenceConvFwd : public device::BaseOperator
 {
@@ -86,21 +89,80 @@ struct ReferenceConvFwd : public device::BaseOperator
 
         float Run(const Argument& arg)
         {
+            // tensor descriptor in NCHW/KXYC/NKHW dimensional order
+            HostTensorDescriptor in_desc   = arg.input_.mDesc;
+            HostTensorDescriptor wei_desc  = arg.weight_.mDesc;
+            HostTensorDescriptor oout_desc = arg.output_.mDesc;
+
+            // input
+            if constexpr(is_same_v<InLayout,ck::tensor_layout::convolution::NWC>)
+            {
+                in_desc = transpose_host_tensor_descriptor_given_new2old(
+                    input_.mDesc, std::vector<std::size_t>{0, 2, 1});
+            }
+            else if constexpr(is_same_v<InLayout,ck::tensor_layout::convolution::NHWC>)
+            {
+                in_desc = transpose_host_tensor_descriptor_given_new2old(
+                    input_.mDesc, std::vector<std::size_t>{0, 3, 1, 2});
+            }
+            else if constexpr(is_same_v<InLayout,ck::tensor_layout::convolution::NDHWC>)
+            {
+                in_desc = transpose_host_tensor_descriptor_given_new2old(
+                    input_.mDesc, std::vector<std::size_t>{0, 4, 1, 2, 3});
+            }
+
+            // weight
+            if constexpr(is_same_v<WeiLayout, ck::tensor_layout::convolution::KXC>)
+            {
+                wei_desc = transpose_host_tensor_descriptor_given_new2old(
+                    weight_.mDesc, std::vector<std::size_t>{0, 2, 1});
+            }
+            if constexpr(is_same_v<WeiLayout, ck::tensor_layout::convolution::KXC>)
+            {
+                wei_desc = transpose_host_tensor_descriptor_given_new2old(
+                    weight_.mDesc, std::vector<std::size_t>{0, 3, 1, 2});
+            }
+            else if constexpr(NumDimSpatial == 2 &&
+                              WeiLayout == ck::tensor_layout::convolution::KYXC)
+            {
+                wei_desc = transpose_host_tensor_descriptor_given_new2old(
+                    weight_.mDesc, std::vector<std::size_t>{0, 3, 1, 2});
+            }
+
+            // output
+            if constexpr(NumDimSpatial == 1 && OutLayout == ck::tensor_layout::convolution::NWK)
+            {
+                out_desc = transpose_host_tensor_descriptor_given_new2old(
+                    output_.mDesc, std::vector<std::size_t>{0, 2, 1});
+            }
+            else if constexpr(NumDimSpatial == 2 &&
+                              OutLayout == ck::tensor_layout::convolution::NHWK)
+            {
+                out_desc = transpose_host_tensor_descriptor_given_new2old(
+                    output_.mDesc, std::vector<std::size_t>{0, 3, 1, 2});
+            }
+            else if constexpr(NumDimSpatial == 3 &&
+                              OutLayout == ck::tensor_layout::convolution::NDHWK)
+            {
+                out_desc = transpose_host_tensor_descriptor_given_new2old(
+                    output_.mDesc, std::vector<std::size_t>{0, 4, 1, 2, 3});
+            }
+
             if constexpr(NumDimSpatial == 1)
             {
                 auto f_ncw = [&](auto n, auto k, auto wo) {
                     float v_acc = 0;
 
-                    for(std::size_t c = 0; c < arg.weight_.mDesc.GetLengths()[1]; ++c)
+                    for(std::size_t c = 0; c < wei_desc.GetLengths()[1]; ++c)
                     {
-                        for(std::size_t x = 0; x < arg.weight_.mDesc.GetLengths()[2]; ++x)
+                        for(std::size_t x = 0; x < wei_desc.GetLengths()[2]; ++x)
                         {
                             auto wi =
                                 ck::type_convert<ck::long_index_t>(wo * arg.conv_strides_[0]) +
                                 ck::type_convert<ck::long_index_t>(x * arg.conv_dilations_[0]) -
                                 ck::type_convert<ck::long_index_t>(arg.in_left_pads_[0]);
                             if(wi >= 0 &&
-                               ck::type_convert<std::size_t>(wi) < arg.input_.mDesc.GetLengths()[2])
+                               ck::type_convert<std::size_t>(wi) < in_desc.GetLengths()[2])
                             {
                                 float v_in;
                                 float v_wei;
@@ -122,9 +184,9 @@ struct ReferenceConvFwd : public device::BaseOperator
                 };
 
                 make_ParallelTensorFunctor(f_ncw,
-                                           arg.output_.mDesc.GetLengths()[0],
-                                           arg.output_.mDesc.GetLengths()[1],
-                                           arg.output_.mDesc.GetLengths()[2])(
+                                           out_desc.GetLengths()[0],
+                                           out_desc.GetLengths()[1],
+                                           out_desc.GetLengths()[2])(
                     std::thread::hardware_concurrency());
 
                 return 0;
@@ -134,26 +196,24 @@ struct ReferenceConvFwd : public device::BaseOperator
                 auto f_nchw = [&](auto n, auto k, auto ho, auto wo) {
                     float v_acc = 0;
 
-                    for(std::size_t c = 0; c < arg.weight_.mDesc.GetLengths()[1]; ++c)
+                    for(std::size_t c = 0; c < wei_desc.GetLengths()[1]; ++c)
                     {
-                        for(std::size_t y = 0; y < arg.weight_.mDesc.GetLengths()[2]; ++y)
+                        for(std::size_t y = 0; y < wei_desc.GetLengths()[2]; ++y)
                         {
                             auto hi =
                                 ck::type_convert<ck::long_index_t>(ho * arg.conv_strides_[0]) +
                                 ck::type_convert<ck::long_index_t>(y * arg.conv_dilations_[0]) -
                                 ck::type_convert<ck::long_index_t>(arg.in_left_pads_[0]);
-                            for(std::size_t x = 0; x < arg.weight_.mDesc.GetLengths()[3]; ++x)
+                            for(std::size_t x = 0; x < wei_desc.GetLengths()[3]; ++x)
                             {
                                 auto wi =
                                     ck::type_convert<ck::long_index_t>(wo * arg.conv_strides_[1]) +
                                     ck::type_convert<ck::long_index_t>(x * arg.conv_dilations_[1]) -
                                     ck::type_convert<ck::long_index_t>(arg.in_left_pads_[1]);
                                 if(hi >= 0 &&
-                                   ck::type_convert<std::size_t>(hi) <
-                                       arg.input_.mDesc.GetLengths()[2] &&
+                                   ck::type_convert<std::size_t>(hi) < in_desc.GetLengths()[2] &&
                                    wi >= 0 &&
-                                   ck::type_convert<std::size_t>(wi) <
-                                       arg.input_.mDesc.GetLengths()[3])
+                                   ck::type_convert<std::size_t>(wi) < in_desc.GetLengths()[3])
                                 {
                                     float v_in;
                                     float v_wei;
@@ -175,10 +235,10 @@ struct ReferenceConvFwd : public device::BaseOperator
                 };
 
                 make_ParallelTensorFunctor(f_nchw,
-                                           arg.output_.mDesc.GetLengths()[0],
-                                           arg.output_.mDesc.GetLengths()[1],
-                                           arg.output_.mDesc.GetLengths()[2],
-                                           arg.output_.mDesc.GetLengths()[3])(
+                                           out_desc.GetLengths()[0],
+                                           out_desc.GetLengths()[1],
+                                           out_desc.GetLengths()[2],
+                                           out_desc.GetLengths()[3])(
                     std::thread::hardware_concurrency());
 
                 return 0;
@@ -188,21 +248,21 @@ struct ReferenceConvFwd : public device::BaseOperator
                 auto f_nchw = [&](auto n, auto k, auto d_o, auto ho, auto wo) {
                     float v_acc = 0;
 
-                    for(std::size_t c = 0; c < arg.weight_.mDesc.GetLengths()[1]; ++c)
+                    for(std::size_t c = 0; c < wei_desc.GetLengths()[1]; ++c)
                     {
-                        for(std::size_t z = 0; z < arg.weight_.mDesc.GetLengths()[2]; ++z)
+                        for(std::size_t z = 0; z < wei_desc.GetLengths()[2]; ++z)
                         {
                             auto di =
                                 ck::type_convert<ck::long_index_t>(d_o * arg.conv_strides_[0]) +
                                 ck::type_convert<ck::long_index_t>(z * arg.conv_dilations_[0]) -
                                 ck::type_convert<ck::long_index_t>(arg.in_left_pads_[0]);
-                            for(std::size_t y = 0; y < arg.weight_.mDesc.GetLengths()[3]; ++y)
+                            for(std::size_t y = 0; y < wei_desc.GetLengths()[3]; ++y)
                             {
                                 auto hi =
                                     ck::type_convert<ck::long_index_t>(ho * arg.conv_strides_[1]) +
                                     ck::type_convert<ck::long_index_t>(y * arg.conv_dilations_[1]) -
                                     ck::type_convert<ck::long_index_t>(arg.in_left_pads_[1]);
-                                for(std::size_t x = 0; x < arg.weight_.mDesc.GetLengths()[4]; ++x)
+                                for(std::size_t x = 0; x < wei_desc.GetLengths()[4]; ++x)
                                 {
                                     auto wi =
                                         ck::type_convert<ck::long_index_t>(wo *
@@ -212,13 +272,12 @@ struct ReferenceConvFwd : public device::BaseOperator
                                         ck::type_convert<ck::long_index_t>(arg.in_left_pads_[2]);
                                     if(di >= 0 &&
                                        ck::type_convert<std::size_t>(di) <
-                                           arg.input_.mDesc.GetLengths()[2] &&
+                                           in_desc.GetLengths()[2] &&
                                        hi >= 0 &&
                                        ck::type_convert<std::size_t>(hi) <
-                                           arg.input_.mDesc.GetLengths()[3] &&
+                                           in_desc.GetLengths()[3] &&
                                        wi >= 0 &&
-                                       ck::type_convert<std::size_t>(wi) <
-                                           arg.input_.mDesc.GetLengths()[4])
+                                       ck::type_convert<std::size_t>(wi) < in_desc.GetLengths()[4])
                                     {
                                         float v_in;
                                         float v_wei;
@@ -243,11 +302,11 @@ struct ReferenceConvFwd : public device::BaseOperator
                 };
 
                 make_ParallelTensorFunctor(f_nchw,
-                                           arg.output_.mDesc.GetLengths()[0],
-                                           arg.output_.mDesc.GetLengths()[1],
-                                           arg.output_.mDesc.GetLengths()[2],
-                                           arg.output_.mDesc.GetLengths()[3],
-                                           arg.output_.mDesc.GetLengths()[4])(
+                                           out_desc.GetLengths()[0],
+                                           out_desc.GetLengths()[1],
+                                           out_desc.GetLengths()[2],
+                                           out_desc.GetLengths()[3],
+                                           out_desc.GetLengths()[4])(
                     std::thread::hardware_concurrency());
 
                 return 0;

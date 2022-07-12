@@ -45,29 +45,6 @@ struct DeviceConvFwd : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-#if 0
-template <ck::index_t NumDimSpatial,
-          typename InLayout,
-          typename WeiLayout,
-          typename OutLayout,
-          typename InDataType,
-          typename WeiDataType,
-          typename OutDataType,
-          typename InElementwiseOperation,
-          typename WeiElementwiseOperation,
-          typename OutElementwiseOperation>
-using DeviceConvFwdPtr = std::unique_ptr<DeviceConvFwd<NumDimSpatial,
-                                                       InLayout,
-                                                       WeiLayout,
-                                                       OutLayout,
-                                                       InDataType,
-                                                       WeiDataType,
-                                                       OutDataType,
-                                                       InElementwiseOperation,
-                                                       WeiElementwiseOperation,
-                                                       OutElementwiseOperation>>;
-#endif
-
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

@@ -73,7 +73,7 @@ auto construct_f_unpack_args(F, T args)
 
 struct HostTensorDescriptor
 {
-    HostTensorDescriptor() = delete;
+    HostTensorDescriptor() = default;
 
     template <typename X>
     HostTensorDescriptor(const std::vector<X>& lens);
