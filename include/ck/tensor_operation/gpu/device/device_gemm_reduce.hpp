@@ -21,7 +21,7 @@ struct DeviceGemmReduce : public BaseOperator
                         const void* p_bias,
                         std::array<const void*, NumDTensor> p_ds,
                         void* p_c,
-                        std::array<void*, NumReduce> p_reduces,
+                        std::array<void*, NumReduce> p_rs,
                         ck::index_t M,
                         ck::index_t N,
                         ck::index_t K,
@@ -31,8 +31,8 @@ struct DeviceGemmReduce : public BaseOperator
                         std::array<ck::index_t, NumDTensor> StrideDs,
                         std::array<void*, 3> gemm_element_ops,
                         std::array<void*, NumDTensor> d_element_ops,
-                        std::array<void*, NumReduce> reduce_in_element_ops,
-                        std::array<void*, NumReduce> reduce_out_element_ops,
+                        std::array<void*, NumReduce> r_in_element_ops,
+                        std::array<void*, NumReduce> r_out_element_ops,
                         ck::index_t BatchCount = 1) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;

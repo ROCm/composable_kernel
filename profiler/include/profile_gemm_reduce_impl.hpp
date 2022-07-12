@@ -23,7 +23,7 @@ namespace instance {
 
 using F32                 = float;
 using F16                 = ck::half_t;
-using ReducePtrsGlobal    = ck::Tuple<F32*, F32*>;
+using RPtrsGlobal         = ck::Tuple<F32*, F32*>;
 using Div                 = ck::tensor_operation::element_wise::UnaryDivide;
 using Identity            = ck::tensor_operation::element_wise::PassThrough;
 using Square              = ck::tensor_operation::element_wise::UnarySquare;
@@ -31,7 +31,7 @@ using ReduceInElementOps  = ck::Tuple<Identity, Square>;
 using ReduceOutElementOps = ck::Tuple<Div, Div>;
 
 using DeviceGemmReduceNoOpPtr =
-    ck::tensor_operation::device::DeviceGemmReducePtr<0, ReducePtrsGlobal::Size()>;
+    ck::tensor_operation::device::DeviceGemmReducePtr<0, RPtrsGlobal::Size()>;
 
 void add_device_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_mk_kn_mn_instances(
     std::vector<DeviceGemmReduceNoOpPtr>&);
@@ -56,7 +56,7 @@ namespace profiler {
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
-          typename ReduceDataType,
+          typename RDataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
@@ -91,15 +91,15 @@ bool profile_gemm_reduce_impl(int do_verification,
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
 
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> reduce0_m_host_result(
+    Tensor<RDataType> reduce0_m_host_result(
         HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(M)})));
-    Tensor<ReduceDataType> reduce1_m_host_result(
+    Tensor<RDataType> reduce1_m_host_result(
         HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(M)})));
 
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> reduce0_m_device_result(
+    Tensor<RDataType> reduce0_m_device_result(
         HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(M)})));
-    Tensor<ReduceDataType> reduce1_m_device_result(
+    Tensor<RDataType> reduce1_m_device_result(
         HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(M)})));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
@@ -151,12 +151,12 @@ bool profile_gemm_reduce_impl(int do_verification,
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                                 BDataType,
                                                                                 CDataType,
-                                                                                ReduceDataType,
+                                                                                RDataType,
                                                                                 AElementOp,
                                                                                 BElementOp,
                                                                                 CElementOp>;
 
-        using ReduceAccDataType = ReduceDataType;
+        using RAccDataType = RDataType;
 
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
@@ -168,14 +168,13 @@ bool profile_gemm_reduce_impl(int do_verification,
 
         for(int m = 0; m < M; ++m)
         {
-            auto reduce0_acc = reduce0_op.GetIdentityValue<ReduceAccDataType>();
-            auto reduce1_acc = reduce1_op.GetIdentityValue<ReduceAccDataType>();
+            auto reduce0_acc = reduce0_op.GetIdentityValue<RAccDataType>();
+            auto reduce1_acc = reduce1_op.GetIdentityValue<RAccDataType>();
 
             for(int n = 0; n < N; ++n)
             {
-                ReduceAccDataType d0_val =
-                    ck::type_convert<ReduceAccDataType>(c_m_n_host_result(m, n));
-                ReduceAccDataType d1_val;
+                RAccDataType d0_val = ck::type_convert<RAccDataType>(c_m_n_host_result(m, n));
+                RAccDataType d1_val;
 
                 square(d1_val, d0_val);
                 reduce0_op(reduce0_acc, d0_val);
@@ -184,17 +183,17 @@ bool profile_gemm_reduce_impl(int do_verification,
 
             div(reduce0_acc, reduce0_acc);
             div(reduce1_acc, reduce1_acc);
-            reduce0_m_host_result(m) = ck::type_convert<ReduceDataType>(reduce0_acc);
-            reduce1_m_host_result(m) = ck::type_convert<ReduceDataType>(reduce1_acc);
+            reduce0_m_host_result(m) = ck::type_convert<RDataType>(reduce0_acc);
+            reduce1_m_host_result(m) = ck::type_convert<RDataType>(reduce1_acc);
         }
     }
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
     DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
     DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpace());
-    DeviceMem reduce0_device_buf(sizeof(ReduceDataType) *
+    DeviceMem reduce0_device_buf(sizeof(RDataType) *
                                  reduce0_m_device_result.mDesc.GetElementSpace());
-    DeviceMem reduce1_device_buf(sizeof(ReduceDataType) *
+    DeviceMem reduce1_device_buf(sizeof(RDataType) *
                                  reduce1_m_device_result.mDesc.GetElementSpace());
 
     std::array<void*, 2> p_reduces = {reduce0_device_buf.GetDeviceBuffer(),

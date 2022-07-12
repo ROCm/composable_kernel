@@ -21,16 +21,16 @@ namespace ck {
 template <typename GridwiseGemm,
           typename FloatAB,
           typename FloatC,
-          typename ReducePtrsGlobal,
+          typename RPtrsGlobal,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          typename ReduceInElementwiseOperations,
-          typename ReduceAccElementwiseOperations,
+          typename RInElementwiseOperations,
+          typename RAccElementwiseOperations,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
           typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-          typename ReduceGridDescriptor_MBlock_MPerBlock,
+          typename RGridDescriptor_MBlock_MPerBlock,
           typename Block2CTileMap,
           bool HasMainKBlockLoop>
 __global__ void
@@ -41,17 +41,17 @@ __global__ void
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
-            ReducePtrsGlobal p_reduces_grid,
+            RPtrsGlobal p_rs_grid,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
             const CElementwiseOperation c_element_op,
-            const ReduceInElementwiseOperations reduce_in_element_ops,
-            const ReduceAccElementwiseOperations reduce_out_element_ops,
+            const RInElementwiseOperations r_in_element_ops,
+            const RAccElementwiseOperations r_out_element_ops,
             const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
             const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
                 c_grid_desc_mblock_mperblock_nblock_nperblock,
-            const ReduceGridDescriptor_MBlock_MPerBlock reduce_grid_desc_mblock_mperblock,
+            const RGridDescriptor_MBlock_MPerBlock r_grid_desc_mblock_mperblock,
             const Block2CTileMap block_2_ctile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
@@ -60,32 +60,32 @@ __global__ void
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
                                                   p_b_grid,
                                                   p_c_grid,
-                                                  p_reduces_grid,
+                                                  p_rs_grid,
                                                   p_shared,
                                                   a_element_op,
                                                   b_element_op,
                                                   c_element_op,
-                                                  reduce_in_element_ops,
-                                                  reduce_out_element_ops,
+                                                  r_in_element_ops,
+                                                  r_out_element_ops,
                                                   a_grid_desc_ak0_m_ak1,
                                                   b_grid_desc_bk0_n_bk1,
                                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  reduce_grid_desc_mblock_mperblock,
+                                                  r_grid_desc_mblock_mperblock,
                                                   block_2_ctile_map);
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
     ignore = p_c_grid;
-    ignore = p_reduces_grid;
+    ignore = p_rs_grid;
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = c_element_op;
-    ignore = reduce_in_element_ops;
-    ignore = reduce_out_element_ops;
+    ignore = r_in_element_ops;
+    ignore = r_out_element_ops;
     ignore = a_grid_desc_ak0_m_ak1;
     ignore = b_grid_desc_bk0_n_bk1;
     ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
-    ignore = reduce_grid_desc_mblock_mperblock;
+    ignore = r_grid_desc_mblock_mperblock;
     ignore = block_2_ctile_map;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
@@ -94,20 +94,20 @@ template <typename FloatAB,
           typename FloatGemmAcc,
           typename FloatCShuffle,
           typename FloatC,
-          typename FloatReduceAcc,
-          typename ReducePtrsGlobal,
+          typename FloatRAcc,
+          typename RPtrsGlobal,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename ReduceOperations,
-          typename ReduceInElementwiseOperations,
-          typename ReduceAccElementwiseOperations,
+          typename RInElementwiseOperations,
+          typename RAccElementwiseOperations,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-          typename ReduceGlobalMemoryDataOperation,
+          typename RGlobalMemoryDataOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
           typename CGridDesc_M_N,
-          typename ReduceGridDesc_M,
+          typename RGridDesc_M,
           index_t NumGemmKPrefetchStage,
           index_t BlockSize,
           index_t MPerBlock,
@@ -293,18 +293,18 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     }
 
     __host__ __device__ static constexpr auto
-    MakeReduceGridDescriptor_MBlock_MPerBlock(const ReduceGridDesc_M& d_grid_desc_m)
+    MakeRGridDescriptor_MBlock_MPerBlock(const RGridDesc_M& d_grid_desc_m)
     {
         const auto M      = d_grid_desc_m.GetLength(I0);
         const auto MBlock = M / MPerBlock;
 
-        const auto reduce_grid_desc_mblock_mperblock = transform_tensor_descriptor(
+        const auto r_grid_desc_mblock_mperblock = transform_tensor_descriptor(
             d_grid_desc_m,
             make_tuple(make_unmerge_transform(make_tuple(MBlock, Number<MPerBlock>{}))),
             make_tuple(Sequence<0>{}),
             make_tuple(Sequence<0, 1>{}));
 
-        return reduce_grid_desc_mblock_mperblock;
+        return r_grid_desc_mblock_mperblock;
     }
 
     // return block_id to C matrix tile idx (m0, n0) mapping
@@ -318,30 +318,29 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     using CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
         MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}))>;
 
-    using ReduceGridDescriptor_MBlock_MPerBlock =
-        remove_cvref_t<decltype(MakeReduceGridDescriptor_MBlock_MPerBlock(ReduceGridDesc_M{}))>;
+    using RGridDescriptor_MBlock_MPerBlock =
+        remove_cvref_t<decltype(MakeRGridDescriptor_MBlock_MPerBlock(RGridDesc_M{}))>;
 
     using DefaultBlock2CTileMap =
         remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}))>;
 
     template <bool HasMainKBlockLoop, typename Block2CTileMap>
-    __device__ static void
-    Run(const FloatAB* __restrict__ p_a_grid,
-        const FloatAB* __restrict__ p_b_grid,
-        FloatC* __restrict__ p_c_grid,
-        ReducePtrsGlobal p_reduces_grid,
-        void* __restrict__ p_shared,
-        const AElementwiseOperation& a_element_op,
-        const BElementwiseOperation& b_element_op,
-        const CElementwiseOperation& c_element_op,
-        const ReduceInElementwiseOperations& reduce_in_element_ops,
-        const ReduceAccElementwiseOperations& reduce_out_element_ops,
-        const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
-        const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
-        const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
-            c_grid_desc_mblock_mperblock_nblock_nperblock,
-        const ReduceGridDescriptor_MBlock_MPerBlock& reduce_grid_desc_mblock_mperblock,
-        const Block2CTileMap& block_2_ctile_map)
+    __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
+                               const FloatAB* __restrict__ p_b_grid,
+                               FloatC* __restrict__ p_c_grid,
+                               RPtrsGlobal p_rs_grid,
+                               void* __restrict__ p_shared,
+                               const AElementwiseOperation& a_element_op,
+                               const BElementwiseOperation& b_element_op,
+                               const CElementwiseOperation& c_element_op,
+                               const RInElementwiseOperations& r_in_element_ops,
+                               const RAccElementwiseOperations& r_out_element_ops,
+                               const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
+                               const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
+                               const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
+                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
+                               const RGridDescriptor_MBlock_MPerBlock& r_grid_desc_mblock_mperblock,
+                               const Block2CTileMap& block_2_ctile_map)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
@@ -715,7 +714,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             constexpr auto reduce_thread_desc_mblock_mperblock =
                 make_naive_tensor_descriptor_packed(make_tuple(I1, Number<mreduce_per_thread>{}));
 
-            auto c_reduce_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatReduceAcc>(
+            auto c_reduce_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatRAcc>(
                 c_reduce_thread_desc_mperblock_nperblock.GetElementSpaceSize());
 
             // reduce: threadwise copy from LDS to VGPR
@@ -731,7 +730,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
             auto c_reduce_thread_copy_lds_to_vgpr = ThreadwiseTensorSliceTransfer_v2<
                 FloatCShuffle,
-                FloatReduceAcc,
+                FloatRAcc,
                 decltype(c_reduce_block_desc_mperblock_nperblock),
                 decltype(c_reduce_thread_desc_mperblock_nperblock),
                 decltype(c_reduce_thread_lengths_mperblock_nperblock),
@@ -743,27 +742,27 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
             auto reduce_tuple_thread_copy_vgpr_to_global = generate_tuple(
                 [&](auto I) {
-                    auto p_reduce_grid         = p_reduces_grid[I];
-                    auto reduce_acc_element_op = reduce_out_element_ops[I];
+                    auto p_reduce_grid         = p_rs_grid[I];
+                    auto reduce_acc_element_op = r_out_element_ops[I];
 
                     return ThreadwiseTensorSliceTransfer_v1r3<
-                        FloatReduceAcc,
+                        FloatRAcc,
                         remove_pointer_t<decltype(p_reduce_grid)>,
                         decltype(reduce_thread_desc_mblock_mperblock),
-                        decltype(reduce_grid_desc_mblock_mperblock),
+                        decltype(r_grid_desc_mblock_mperblock),
                         decltype(reduce_acc_element_op),
                         Sequence<1, mreduce_per_thread>,
                         Sequence<0, 1>,
                         1,
                         CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock,
-                        ReduceGlobalMemoryDataOperation::At(I),
+                        RGlobalMemoryDataOperation::At(I),
                         1,
-                        false>{reduce_grid_desc_mblock_mperblock,
+                        false>{r_grid_desc_mblock_mperblock,
                                make_multi_index(block_work_idx[I0],                  // mblock
                                                 c_reduce_thread_data_idx_begin[I0]), // mperblock
                                reduce_acc_element_op};
                 },
-                Number<p_reduces_grid.Size()>{});
+                Number<p_rs_grid.Size()>{});
 
             constexpr index_t num_access = sfc_c_vgpr.GetNumOfAccess();
 
@@ -798,24 +797,24 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                                          make_tuple(I0, I0),
                                                          c_reduce_thread_buf);
 
-                    static_for<0, p_reduces_grid.Size(), 1>{}([&](auto In) {
-                        auto& p_reduce_grid = p_reduces_grid[In];
+                    static_for<0, p_rs_grid.Size(), 1>{}([&](auto In) {
+                        auto& p_reduce_grid = p_rs_grid[In];
 
                         auto reduce_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                            p_reduce_grid, reduce_grid_desc_mblock_mperblock.GetElementSpaceSize());
+                            p_reduce_grid, r_grid_desc_mblock_mperblock.GetElementSpaceSize());
 
                         auto reduce_thread_buf =
-                            make_static_buffer<AddressSpaceEnum::Vgpr, FloatReduceAcc>(
+                            make_static_buffer<AddressSpaceEnum::Vgpr, FloatRAcc>(
                                 reduce_thread_desc_mperblock.GetElementSpaceSize());
 
-                        auto& reduce_in_element_op = reduce_in_element_ops[In];
+                        auto& reduce_in_element_op = r_in_element_ops[In];
 
                         auto& reduce_thread_copy_vgpr_to_global =
                             reduce_tuple_thread_copy_vgpr_to_global(In);
 
                         using ReduceOperation = remove_cvref_t<decltype(ReduceOperations{}[In])>;
                         using ThreadwiseReduce =
-                            ThreadwiseReduction<FloatReduceAcc,
+                            ThreadwiseReduction<FloatRAcc,
                                                 decltype(c_reduce_thread_desc_mperblock_nperblock),
                                                 decltype(reduce_thread_desc_mperblock),
                                                 ReduceOperation,
@@ -823,7 +822,7 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
                         // Global write Gemm shuffle + reduction
                         const auto reduce_identityVal =
-                            ReduceOperation::template GetIdentityValue<FloatReduceAcc>();
+                            ReduceOperation::template GetIdentityValue<FloatRAcc>();
 
                         static_for<0, mreduce_per_thread, 1>{}(
                             [&](auto I) { reduce_thread_buf(I) = reduce_identityVal; });
@@ -846,14 +845,14 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                         reduce_thread_copy_vgpr_to_global.Run(reduce_thread_desc_mblock_mperblock,
                                                               make_tuple(I0, I0),
                                                               reduce_thread_buf,
-                                                              reduce_grid_desc_mblock_mperblock,
+                                                              r_grid_desc_mblock_mperblock,
                                                               reduce_grid_buf);
 
                         if constexpr(access_id < num_access - 1)
                         {
                             constexpr auto c_global_step = sfc_c_global.GetForwardStep(access_id);
                             reduce_thread_copy_vgpr_to_global.MoveDstSliceWindow(
-                                reduce_grid_desc_mblock_mperblock,
+                                r_grid_desc_mblock_mperblock,
                                 make_tuple(c_global_step[I0], c_global_step[I1]));
                         }
                     });

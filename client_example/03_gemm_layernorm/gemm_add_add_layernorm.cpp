@@ -22,7 +22,7 @@ using BDataType            = F16;
 using BiasDataType         = F32;
 using CDataType            = F16;
 using D0DataType           = F16;
-using ReduceDataType       = F32;
+using RDataType            = F32;
 using GammaDataType        = F16;
 using BetaDataType         = F16;
 using LayerNormOutDataType = F16;
@@ -172,8 +172,8 @@ int main()
     const auto normalize_ptrs =
         ck::tensor_operation::device::instance::get_device_normalize_from_mean_meansquare_instances<
             CDataType,
-            ReduceDataType,
-            ReduceDataType,
+            RDataType,
+            RDataType,
             GammaDataType,
             BetaDataType,
             LayerNormOutDataType>();
@@ -203,8 +203,8 @@ int main()
     SimpleDeviceMem c_device_buf(sizeof(CDataType) * f_matrix_space_size(M, N, StrideC, CLayout{}));
     SimpleDeviceMem d0_device_buf(sizeof(D0DataType) *
                                   f_matrix_space_size(M, N, StrideD0, CLayout{}));
-    SimpleDeviceMem reduceMean_device_buf(sizeof(ReduceDataType) * M);
-    SimpleDeviceMem reduceMeanSquare_device_buf(sizeof(ReduceDataType) * M);
+    SimpleDeviceMem reduceMean_device_buf(sizeof(RDataType) * M);
+    SimpleDeviceMem reduceMeanSquare_device_buf(sizeof(RDataType) * M);
     SimpleDeviceMem gamma_device_buf(sizeof(GammaDataType) * N);
     SimpleDeviceMem beta_device_buf(sizeof(BetaDataType) * N);
     SimpleDeviceMem layerNorm_device_buf(sizeof(LayerNormOutDataType) * M * N);

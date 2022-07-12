@@ -23,14 +23,14 @@ namespace instance {
 
 using F32                 = float;
 using F16                 = ck::half_t;
-using ReducePtrsGlobal    = ck::Tuple<F32*, F32*>;
+using RPtrsGlobal         = ck::Tuple<F32*, F32*>;
 using Identity            = ck::tensor_operation::element_wise::PassThrough;
 using Square              = ck::tensor_operation::element_wise::UnarySquare;
 using ReduceInElementOps  = ck::Tuple<Identity, Square>;
 using ReduceOutElementOps = ck::Tuple<Identity, Identity>;
 
 using DeviceGemmReduceNoOpPtr =
-    ck::tensor_operation::device::DeviceGemmReducePtr<0, ReducePtrsGlobal::Size()>;
+    ck::tensor_operation::device::DeviceGemmReducePtr<0, RPtrsGlobal::Size()>;
 
 void add_device_batched_gemm_reduce_xdl_cshuffle_f16_f16_f16_f32_f32_gmk_gkn_gmn_instances(
     std::vector<DeviceGemmReduceNoOpPtr>&);
@@ -55,7 +55,7 @@ namespace profiler {
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
-          typename ReduceDataType,
+          typename RDataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
@@ -95,16 +95,16 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
 
     Tensor<CDataType> c_g_m_n_host_result(
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> d0_g_m_host_result(HostTensorDescriptor(std::vector<std::size_t>(
+    Tensor<RDataType> d0_g_m_host_result(HostTensorDescriptor(std::vector<std::size_t>(
         {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
-    Tensor<ReduceDataType> d1_g_m_host_result(HostTensorDescriptor(std::vector<std::size_t>(
+    Tensor<RDataType> d1_g_m_host_result(HostTensorDescriptor(std::vector<std::size_t>(
         {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
 
     Tensor<CDataType> c_g_m_n_device_result(
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> d0_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
+    Tensor<RDataType> d0_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
         {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
-    Tensor<ReduceDataType> d1_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
+    Tensor<RDataType> d1_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
         {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
 
     std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
@@ -159,7 +159,7 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
                                                              BElementOp,
                                                              CElementOp>;
 
-        using ReduceAccDataType = ReduceDataType;
+        using RAccDataType = RDataType;
 
         auto ref_batched_gemm = ReferenceBatchedGemmInstance{};
         auto ref_invoker      = ref_batched_gemm.MakeInvoker();
@@ -173,22 +173,22 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
         {
             for(int m = 0; m < M; ++m)
             {
-                auto reduce0_acc = reduce0_op.GetIdentityValue<ReduceAccDataType>();
-                auto reduce1_acc = reduce1_op.GetIdentityValue<ReduceAccDataType>();
+                auto reduce0_acc = reduce0_op.GetIdentityValue<RAccDataType>();
+                auto reduce1_acc = reduce1_op.GetIdentityValue<RAccDataType>();
 
                 for(int n = 0; n < N; ++n)
                 {
-                    ReduceAccDataType d0_val =
-                        ck::type_convert<ReduceAccDataType>(c_g_m_n_host_result(batch, m, n));
-                    ReduceAccDataType d1_val;
+                    RAccDataType d0_val =
+                        ck::type_convert<RAccDataType>(c_g_m_n_host_result(batch, m, n));
+                    RAccDataType d1_val;
 
                     square(d1_val, d0_val);
                     reduce0_op(reduce0_acc, d0_val);
                     reduce1_op(reduce1_acc, d1_val);
                 }
 
-                d0_g_m_host_result(batch, m) = ck::type_convert<ReduceDataType>(reduce0_acc);
-                d1_g_m_host_result(batch, m) = ck::type_convert<ReduceDataType>(reduce1_acc);
+                d0_g_m_host_result(batch, m) = ck::type_convert<RDataType>(reduce0_acc);
+                d1_g_m_host_result(batch, m) = ck::type_convert<RDataType>(reduce1_acc);
             }
         }
     }
@@ -196,10 +196,8 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
     DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpace());
     DeviceMem b_device_buf(sizeof(BDataType) * b_g_k_n.mDesc.GetElementSpace());
     DeviceMem c_device_buf(sizeof(CDataType) * c_g_m_n_device_result.mDesc.GetElementSpace());
-    DeviceMem reduce0_device_buf(sizeof(ReduceDataType) *
-                                 d0_g_m_device_result.mDesc.GetElementSpace());
-    DeviceMem reduce1_device_buf(sizeof(ReduceDataType) *
-                                 d1_g_m_device_result.mDesc.GetElementSpace());
+    DeviceMem reduce0_device_buf(sizeof(RDataType) * d0_g_m_device_result.mDesc.GetElementSpace());
+    DeviceMem reduce1_device_buf(sizeof(RDataType) * d1_g_m_device_result.mDesc.GetElementSpace());
 
     std::array<void*, 2> p_reduces = {reduce0_device_buf.GetDeviceBuffer(),
                                       reduce1_device_buf.GetDeviceBuffer()};
