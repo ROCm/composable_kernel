@@ -1,22 +1,26 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
+
 #include <iomanip>
 
-#include "check_err.hpp"
-#include "config.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "host_conv.hpp"
-#include "tensor_layout.hpp"
-#include "device_tensor.hpp"
-#include "element_wise_operation.hpp"
-#include "device_gemm.hpp"
-#include "reference_gemm.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/conv_util.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_grouped_gemm_instance {
+namespace instance {
 
 using DeviceGroupedGemmNoOpPtr = ck::tensor_operation::device::DeviceGroupedGemmPtr<
     ck::tensor_operation::element_wise::PassThrough,
@@ -32,7 +36,7 @@ void add_device_grouped_gemm_xdl_f16_f16_f16_km_kn_mn_instances(
 void add_device_grouped_gemm_xdl_f16_f16_f16_km_nk_mn_instances(
     std::vector<DeviceGroupedGemmNoOpPtr>&);
 
-} // namespace device_grouped_gemm_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
@@ -167,9 +171,7 @@ void profile_grouped_gemm_impl(int do_verification,
     }
 
     // add device GEMM instances
-    std::vector<
-        ck::tensor_operation::device::device_grouped_gemm_instance::DeviceGroupedGemmNoOpPtr>
-        gemm_ptrs;
+    std::vector<ck::tensor_operation::device::instance::DeviceGroupedGemmNoOpPtr> gemm_ptrs;
 
     if constexpr(is_same<ADataType, half_t>::value && is_same<BDataType, half_t>::value &&
                  is_same<CDataType, half_t>::value)
@@ -178,28 +180,28 @@ void profile_grouped_gemm_impl(int do_verification,
                      is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                      is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_grouped_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_grouped_gemm_xdl_f16_f16_f16_mk_kn_mn_instances(gemm_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_grouped_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(gemm_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_grouped_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_grouped_gemm_xdl_f16_f16_f16_km_kn_mn_instances(gemm_ptrs);
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
-            ck::tensor_operation::device::device_grouped_gemm_instance::
+            ck::tensor_operation::device::instance::
                 add_device_grouped_gemm_xdl_f16_f16_f16_km_nk_mn_instances(gemm_ptrs);
         }
     }
@@ -227,6 +229,10 @@ void profile_grouped_gemm_impl(int do_verification,
                                           ck::tensor_operation::element_wise::PassThrough{});
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
+
+        DeviceMem gemm_desc_workspace(gemm_ptr->GetWorkSpaceSize(argument_ptr.get()));
+
+        gemm_ptr->SetWorkSpacePointer(argument_ptr.get(), gemm_desc_workspace.GetDeviceBuffer());
 
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {

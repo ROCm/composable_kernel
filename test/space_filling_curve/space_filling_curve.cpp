@@ -1,9 +1,14 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <vector>
 #include <iostream>
 #include <numeric>
 #include <cassert>
 
-#include "tensor_space_filling_curve.hpp"
+#include "ck/ck.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_space_filling_curve.hpp"
 
 using namespace ck;
 

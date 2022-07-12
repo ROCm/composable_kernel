@@ -1,5 +1,7 @@
-#ifndef CK_INTEGRAL_CONSTANT_HPP
-#define CK_INTEGRAL_CONSTANT_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 namespace ck {
 
@@ -47,4 +49,3 @@ __host__ __device__ constexpr auto operator%(integral_constant<TX, X>, integral_
 }
 
 } // namespace ck
-#endif

@@ -1,8 +1,12 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
-#include "common_header.hpp"
-#include "tensor_adaptor.hpp"
-#include "threadwise_tensor_slice_transfer_v4r1.hpp"
-#include "threadwise_contraction_dl.hpp"
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_adaptor.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer_v4r1.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_contraction_dl.hpp"
 
 namespace ck {
 

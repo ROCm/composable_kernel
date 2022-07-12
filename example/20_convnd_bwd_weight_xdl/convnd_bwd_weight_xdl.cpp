@@ -1,22 +1,22 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
-#include <half.hpp>
 
-#include "check_err.hpp"
-#include "conv_util.hpp"
-#include "config.hpp"
-#include "print.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "device_tensor.hpp"
-#include "tensor_layout.hpp"
-#include "element_wise_operation.hpp"
-#include "device_convnd_backward_weight_xdl_c_shuffle_nhwc_kyxc_nhwk.hpp"
-#include "reference_conv_backward_weight.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_convnd_backward_weight_xdl_c_shuffle_nhwc_kyxc_nhwk.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/conv_util.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_backward_weight.hpp"
 
 using InDataType  = ck::half_t;
 using WeiDataType = ck::half_t;
@@ -297,52 +297,15 @@ int main(int argc, char* argv[])
                                   split_k);
 
     // alloc work space
-    size_t bwd_weight_workspace_size = conv->GetWorkSpaceSize(argument.get());
-    float ave_time                   = 0.f;
-    if(std::is_same<InDataType, ck::bhalf_t>::value && split_k > 1)
+    float ave_time = 0.f;
+    if(!conv->IsSupportedArgument(argument.get()))
     {
-        DeviceMem wei_work_space_device_buf(bwd_weight_workspace_size);
-        wei_work_space_device_buf.SetZero();
-        argument = conv->MakeArgumentPointer(
-            static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-            static_cast<AccDataType*>(wei_work_space_device_buf.GetDeviceBuffer()),
-            static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-            params.N_,
-            params.K_,
-            params.C_,
-            params.input_spatial_lengths_,
-            params.filter_spatial_lengths_,
-            output_spatial_lengths,
-            params.conv_filter_strides_,
-            params.conv_filter_dilations_,
-            params.input_left_pads_,
-            params.input_right_pads_,
-            InElementOp{},
-            WeiElementOp{},
-            OutElementOp{},
-            split_k);
-
-        if(!conv->IsSupportedArgument(argument.get()))
-        {
-            std::cout << "wrong! device_conv with the specified compilation parameters does "
-                         "not support this Conv problem"
-                      << std::endl;
-            return 1;
-        }
-
-        ave_time = invoker->Run(argument.get(), StreamConfig{nullptr, time_kernel});
+        std::cout << "wrong! device_conv with the specified compilation parameters does "
+                     "not support this Conv problem"
+                  << std::endl;
+        return 1;
     }
-    else
-    {
-        if(!conv->IsSupportedArgument(argument.get()))
-        {
-            std::cout << "wrong! device_conv with the specified compilation parameters does "
-                         "not support this Conv problem"
-                      << std::endl;
-            return 1;
-        }
-        ave_time = invoker->Run(argument.get(), StreamConfig{nullptr, time_kernel});
-    }
+    ave_time = invoker->Run(argument.get(), StreamConfig{nullptr, time_kernel});
 
     std::size_t flop = ck::utils::conv::get_flops(
         params.N_, params.C_, params.K_, params.filter_spatial_lengths_, output_spatial_lengths);

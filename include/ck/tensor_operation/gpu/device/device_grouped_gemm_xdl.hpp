@@ -1,17 +1,20 @@
-#ifndef DEVICE_GROUPED_GEMM_XDL_HPP
-#define DEVICE_GROUPED_GEMM_XDL_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <iostream>
 #include <sstream>
-#include "device.hpp"
-#include "device_base.hpp"
-#include "device_gemm.hpp"
-#include "common_header.hpp"
-#include "tensor_layout.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdlops_v2r3.hpp"
-#include "gemm_specialization.hpp"
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r3.hpp"
+#include "ck/device_utility/device_prop.hpp"
+#include "ck/device_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -43,13 +46,22 @@ __global__ void
     const auto gemm_desc_ptr =
         reinterpret_cast<const GemmDesc*>(cast_pointer_to_generic_address_space(gemm_descs_const));
 
-    index_t group_id = 0;
-    for(index_t i = 0; i < group_count; i++)
+    index_t left     = 0;
+    index_t right    = group_count;
+    index_t group_id = index_t((left + right) / 2);
+    while((!(block_id >= gemm_desc_ptr[group_id].BlockStart_ &&
+             block_id < gemm_desc_ptr[group_id].BlockEnd_)) &&
+          left <= right)
     {
-        group_id =
-            (block_id >= gemm_desc_ptr[i].BlockStart_ && block_id < gemm_desc_ptr[i].BlockEnd_)
-                ? i
-                : group_id;
+        if(block_id < gemm_desc_ptr[group_id].BlockStart_)
+        {
+            right = group_id;
+        }
+        else
+        {
+            left = group_id;
+        }
+        group_id = index_t((left + right) / 2);
     }
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(
@@ -362,7 +374,7 @@ struct DeviceGroupedGemmXdl
         {
             grid_size_ = 0;
 
-            gemm_descs_args_workspace_ = nullptr;
+            p_workspace_ = nullptr;
 
             group_count_ = ck::type_convert<ck::index_t>(gemm_shapes.size());
 
@@ -437,8 +449,6 @@ struct DeviceGroupedGemmXdl
 
         std::vector<GemmDescKernelArg> gemm_desc_kernel_arg_;
 
-        void* gemm_descs_args_workspace_;
-
         index_t grid_size_;
     };
 
@@ -488,7 +498,7 @@ struct DeviceGroupedGemmXdl
             }
 
             hipGetErrorString(
-                hipMemcpy(arg.gemm_descs_args_workspace_,
+                hipMemcpy(arg.p_workspace_,
                           arg.gemm_desc_kernel_arg_.data(),
                           arg.gemm_desc_kernel_arg_.size() * sizeof(GemmDescKernelArg),
                           hipMemcpyHostToDevice));
@@ -507,17 +517,17 @@ struct DeviceGroupedGemmXdl
                                                     CElementwiseOperation,
                                                     true>;
 
-                ave_time = launch_and_time_kernel(
-                    stream_config,
-                    kernel,
-                    dim3(arg.grid_size_),
-                    dim3(BlockSize),
-                    0,
-                    cast_pointer_to_constant_address_space(arg.gemm_descs_args_workspace_),
-                    arg.gemm_desc_kernel_arg_.size(),
-                    arg.a_element_op_,
-                    arg.b_element_op_,
-                    arg.c_element_op_);
+                ave_time =
+                    launch_and_time_kernel(stream_config,
+                                           kernel,
+                                           dim3(arg.grid_size_),
+                                           dim3(BlockSize),
+                                           0,
+                                           cast_pointer_to_constant_address_space(arg.p_workspace_),
+                                           arg.gemm_desc_kernel_arg_.size(),
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_);
             }
             else
             {
@@ -531,17 +541,17 @@ struct DeviceGroupedGemmXdl
                                                     CElementwiseOperation,
                                                     false>;
 
-                ave_time = launch_and_time_kernel(
-                    stream_config,
-                    kernel,
-                    dim3(arg.grid_size_),
-                    dim3(BlockSize),
-                    0,
-                    cast_pointer_to_constant_address_space(arg.gemm_descs_args_workspace_),
-                    arg.gemm_desc_kernel_arg_.size(),
-                    arg.a_element_op_,
-                    arg.b_element_op_,
-                    arg.c_element_op_);
+                ave_time =
+                    launch_and_time_kernel(stream_config,
+                                           kernel,
+                                           dim3(arg.grid_size_),
+                                           dim3(BlockSize),
+                                           0,
+                                           cast_pointer_to_constant_address_space(arg.p_workspace_),
+                                           arg.gemm_desc_kernel_arg_.size(),
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.c_element_op_);
             }
 
             return ave_time;
@@ -635,14 +645,8 @@ struct DeviceGroupedGemmXdl
     {
         return dynamic_cast<const Argument*>(p_arg)->group_count_ * sizeof(GemmDescKernelArg);
     }
-
-    void SetWorkSpacePointer(BaseArgument* p_arg, void* workspace_ptr) const override
-    {
-        dynamic_cast<Argument*>(p_arg)->gemm_descs_args_workspace_ = workspace_ptr;
-    }
 };
 
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

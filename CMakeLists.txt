@@ -13,7 +13,8 @@ add_definitions(-DCK_NOGPU)
 endif()
 
 if(NOT CK_NOGPU)
-find_package(ROCM REQUIRED PATHS /opt/rocm)
+set(ROCM_SYMLINK_LIBS OFF)
+find_package(ROCM 0.8 REQUIRED PATHS /opt/rocm)
 
 include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
@@ -22,7 +23,7 @@ include(ROCMInstallSymlinks)
 include(ROCMCreatePackage)
 include(CheckCXXCompilerFlag)
 
-rocm_setup_version(VERSION 1.0.0)
+rocm_setup_version(VERSION 0.2.0)
 include(TargetFlags)
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip)
 endif()
@@ -83,19 +84,6 @@ if( DEFINED CK_OVERRIDE_HIP_VERSION_PATCH )
     message(STATUS "CK_HIP_VERSION_PATCH overriden with ${CK_OVERRIDE_HIP_VERSION_PATCH}")
 endif()
 message(STATUS "Build with HIP ${HIP_VERSION}")
-
-
-rocm_create_package(
-    NAME composablekernel
-    DESCRIPTION "High Performance Composable Kernel for AMD GPUs"
-    MAINTAINER "MIOpen Kernels Dev Team <dl.MIOpen@amd.com>"
-    LDCONFIG
-)
-endif()
-
-## half
-set(HALF_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/external/include/half")
-message("HALF_INCLUDE_DIR: ${HALF_INCLUDE_DIR}")
 
 ## tidy
 include(EnableCompilerWarnings)
@@ -250,7 +238,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 
 include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_BINARY_DIR}/include
     ${PROJECT_SOURCE_DIR}/library/include
 )
 
@@ -263,6 +250,11 @@ endif()
 message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
+
+rocm_package_setup_component(tests
+        LIBRARY_NAME composablekernel
+        PACKAGE_NAME tests # Prevent -static suffix on package name
+)
 
 add_subdirectory(library)
 add_subdirectory(example)
@@ -285,8 +277,19 @@ configure_package_config_file(${CMAKE_CURRENT_SOURCE_DIR}/Config.cmake.in
         NO_CHECK_REQUIRED_COMPONENTS_MACRO
 )
 
-install(FILES
+rocm_install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfigVersion.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
+)
+
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_RPM_PACKAGE_LICENSE "MIT")
+
+rocm_create_package(
+    NAME composablekernel
+    DESCRIPTION "High Performance Composable Kernel for AMD GPUs"
+    MAINTAINER "MIOpen Kernels Dev Team <dl.MIOpen@amd.com>"
+    LDCONFIG
+    HEADER_ONLY
 )

@@ -1,19 +1,23 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
-#include "check_err.hpp"
-#include "config.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "tensor_layout.hpp"
-#include "device_tensor.hpp"
-#include "element_wise_operation.hpp"
-#include "device_conv_fwd_bias_activation.hpp"
-#include "reference_conv_fwd_bias_activation.hpp"
+
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_conv_fwd_bias_activation.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd_bias_activation.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_conv2d_fwd_bias_activation_instance {
+namespace instance {
 
 using DeviceConvFwdBiasReluPtr =
     DeviceConvFwdBiasActivationPtr<ck::tensor_operation::element_wise::PassThrough,
@@ -23,7 +27,7 @@ using DeviceConvFwdBiasReluPtr =
 void add_device_conv2d_fwd_xdl_c_shuffle_bias_relu_nhwc_kyxc_nhwk_f16_instances(
     std::vector<DeviceConvFwdBiasReluPtr>&);
 
-} // namespace device_conv2d_fwd_bias_activation_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
@@ -165,7 +169,7 @@ void profile_conv_fwd_bias_relu_impl(int do_verification,
                  ck::is_same_v<ck::remove_cv_t<WeiDataType>, ck::half_t> &&
                  ck::is_same_v<ck::remove_cv_t<OutDataType>, ck::half_t>)
     {
-        ck::tensor_operation::device::device_conv2d_fwd_bias_activation_instance::
+        ck::tensor_operation::device::instance::
             add_device_conv2d_fwd_xdl_c_shuffle_bias_relu_nhwc_kyxc_nhwk_f16_instances(op_ptrs);
     }
 

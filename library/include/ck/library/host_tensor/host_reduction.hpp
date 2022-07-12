@@ -1,42 +1,18 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-/*******************************************************************************
- *
- * MIT License
- *
- * Copyright (c) 2020 Advanced Micro Devices, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
- *******************************************************************************/
-#ifndef HOST_REDUCTION_HPP_
-#define HOST_REDUCTION_HPP_
+#pragma once
 
 #include <vector>
 #include <array>
 #include <functional>
 
-#include "reduction_enums.hpp"
-#include "reduction_common.hpp"
-#include "host_common_util.hpp"
-#include "host_tensor.hpp"
-#include "data_type.hpp"
-#include "reduction_functions_accumulate.hpp"
+#include "ck/utility/data_type.hpp"
+#include "ck/utility/reduction_enums.hpp"
+#include "ck/utility/reduction_common.hpp"
+#include "ck/utility/reduction_functions_accumulate.hpp"
+#include "ck/library/host_tensor/host_common_util.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
 
 template <int NDim>
 static void get_all_indexes(const std::array<size_t, NDim>& dimLengths,
@@ -174,15 +150,18 @@ struct ReductionHost
              const InDataType* in_data,
              float beta,
              OutDataType* out_data,
-             IndexDataType* out_indices)
+             IndexDataType* out_indices,
+             InElementwiseOperation in_elementwise_op,
+             AccElementwiseOperation acc_elementwise_op)
     {
         if constexpr(OutputIndex)
         {
-            RunImpl_with_index(alpha, in_data, beta, out_data, out_indices);
+            RunImpl_with_index(
+                alpha, in_data, beta, out_data, out_indices, in_elementwise_op, acc_elementwise_op);
         }
         else
         {
-            RunImpl_no_index(alpha, in_data, beta, out_data);
+            RunImpl_no_index(alpha, in_data, beta, out_data, in_elementwise_op, acc_elementwise_op);
         };
     };
 
@@ -190,7 +169,9 @@ struct ReductionHost
                             const InDataType* in_data,
                             float beta,
                             OutDataType* out_data,
-                            IndexDataType* out_indices)
+                            IndexDataType* out_indices,
+                            InElementwiseOperation in_elementwise_op,
+                            AccElementwiseOperation acc_elementwise_op)
     {
         using ck::float_equal_one;
         using ck::float_equal_zero;
@@ -200,12 +181,10 @@ struct ReductionHost
                                                                         ReduceOperation,
                                                                         AccDataType,
                                                                         IndexDataType>;
-        InElementwiseOperation in_elementwise_op(divider);
-        AccElementwiseOperation acc_elementwise_op(divider);
 
         if constexpr(NumInvariantDim == 0)
         {
-            AccDataType accuVal     = ReduceOperation::GetIdentityValue();
+            AccDataType accuVal     = ReduceOperation::template GetIdentityValue<AccDataType>();
             IndexDataType accuIndex = 0;
 
             for(std::size_t i = 0; i < reduce_dim_indexes.size(); i++)
@@ -236,7 +215,7 @@ struct ReductionHost
         else
         {
             auto thread_reduce_func = [&](auto invariant_index) {
-                AccDataType accuVal     = ReduceOperation::GetIdentityValue();
+                AccDataType accuVal     = ReduceOperation::template GetIdentityValue<AccDataType>();
                 IndexDataType accuIndex = 0;
 
                 auto offset_invariant =
@@ -297,7 +276,12 @@ struct ReductionHost
         };
     };
 
-    void RunImpl_no_index(float alpha, const InDataType* in_data, float beta, OutDataType* out_data)
+    void RunImpl_no_index(float alpha,
+                          const InDataType* in_data,
+                          float beta,
+                          OutDataType* out_data,
+                          InElementwiseOperation in_elementwise_op,
+                          AccElementwiseOperation acc_elementwise_op)
     {
         using ck::float_equal_one;
         using ck::float_equal_zero;
@@ -306,12 +290,9 @@ struct ReductionHost
         using Accumulation =
             ck::detail::AccumulateWithNanCheck<PropagateNan, ReduceOperation, AccDataType>;
 
-        InElementwiseOperation in_elementwise_op(divider);
-        AccElementwiseOperation acc_elementwise_op(divider);
-
         if constexpr(NumInvariantDim == 0)
         {
-            AccDataType accuVal = ReduceOperation::GetIdentityValue();
+            AccDataType accuVal = ReduceOperation::template GetIdentityValue<AccDataType>();
 
             for(const auto& reduce_index : reduce_dim_indexes)
             {
@@ -338,7 +319,7 @@ struct ReductionHost
         else
         {
             auto thread_reduce_func = [&](auto invariant_index) {
-                AccDataType accuVal = ReduceOperation::GetIdentityValue();
+                AccDataType accuVal = ReduceOperation::template GetIdentityValue<AccDataType>();
 
                 auto offset_invariant =
                     get_offset_from_index<NumInvariantDim>(invariantStrides, invariant_index);
@@ -395,5 +376,3 @@ struct ReductionHost
         };
     };
 };
-
-#endif

@@ -1,32 +1,9 @@
-/*******************************************************************************
- *
- * MIT License
- *
- * Copyright (c) 2020 Advanced Micro Devices, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
- *******************************************************************************/
-#ifndef CK_REDUCTION_FUNCTIONS_THREADWISE_HPP
-#define CK_REDUCTION_FUNCTIONS_THREADWISE_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "reduction_functions_accumulate.hpp"
+#pragma once
+
+#include "ck/utility/reduction_functions_accumulate.hpp"
 
 namespace ck {
 
@@ -39,7 +16,9 @@ template <typename AccDataType,
           typename SrcThreadDesc_M_K,
           typename DstThreadDesc_M,
           typename OpReduce,
-          bool PropagateNan>
+          bool PropagateNan,
+          typename Accumulation =
+              detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>>
 struct ThreadwiseReduction
 {
     static constexpr auto src_thread_desc_m_k = SrcThreadDesc_M_K{};
@@ -51,7 +30,7 @@ struct ThreadwiseReduction
 
     static_assert(src_length_m == dst_length_m, "lengths of source and dst buffer must match!");
 
-    using Accumulation = detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>;
+    using Op = OpReduce;
 
     template <typename SrcBufferType, typename DstBufferType>
     __device__ static void Reduce(const SrcBufferType& src_buf, DstBufferType& dst_buf)
@@ -73,12 +52,15 @@ struct ThreadwiseReduction
 //  2) DstDesc is known at compile-time
 //  3) SrcBuffer is static buffer
 //  4) DstBuffer is static buffer
-template <typename AccDataType,
-          typename IndexDataType,
-          typename SrcThreadDesc_M_K,
-          typename DstThreadDesc_M,
-          typename OpReduce,
-          bool PropagateNan>
+template <
+    typename AccDataType,
+    typename IndexDataType,
+    typename SrcThreadDesc_M_K,
+    typename DstThreadDesc_M,
+    typename OpReduce,
+    bool PropagateNan,
+    typename Accumulation =
+        detail::AccumulateWithIndexAndNanCheck<PropagateNan, OpReduce, AccDataType, IndexDataType>>
 struct ThreadwiseReductionWithIndex
 {
     static constexpr auto src_thread_desc_m_k = SrcThreadDesc_M_K{};
@@ -89,9 +71,6 @@ struct ThreadwiseReductionWithIndex
     static constexpr auto dst_length_m = dst_thread_desc_m.GetLength(Number<0>{});
 
     static_assert(src_length_m == dst_length_m, "lengths of source and dst buffer must match!");
-
-    using Accumulation =
-        detail::AccumulateWithIndexAndNanCheck<PropagateNan, OpReduce, AccDataType, IndexDataType>;
 
     template <typename SrcValueBufferType,
               typename SrcIndexBufferType,
@@ -117,6 +96,4 @@ struct ThreadwiseReductionWithIndex
     };
 };
 
-}; // end of namespace ck
-
-#endif
+} // namespace ck

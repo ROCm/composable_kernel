@@ -1,7 +1,9 @@
-#ifndef CK_AMD_ADDRESS_SPACE_HPP
-#define CK_AMD_ADDRESS_SPACE_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "config.hpp"
+#pragma once
+
+#include "ck/ck.hpp"
 #include "c_style_pointer_cast.hpp"
 
 // Address Space for AMDGCN
@@ -41,4 +43,3 @@ __host__ __device__ T CK_CONSTANT_ADDRESS_SPACE* cast_pointer_to_constant_addres
 }
 
 } // namespace ck
-#endif

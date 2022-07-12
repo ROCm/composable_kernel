@@ -1,7 +1,9 @@
-#ifndef CONV_COMMON_HPP
-#define CONV_COMMON_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "tensor_descriptor.hpp"
+#pragma once
+
+#include "ck/tensor_description/tensor_descriptor.hpp"
 
 template <typename... InDesc,
           typename... WeiDesc,
@@ -73,18 +75,3 @@ calculate_convolution_flops(const InDesc&, const WeiDesc& wei_desc, const OutDes
 
     return std::size_t(2) * N * K * Ho * Wo * C * Y * X;
 }
-
-template <typename T>
-inline auto activ(T v, const ck::ActivTypeEnum activ_type)
-{
-    const T alpha = 0.3;
-    switch(activ_type)
-    {
-    case ck::ActivTypeEnum::None: return v;
-    case ck::ActivTypeEnum::LeakyRelu: return (v >= 0 ? v : alpha * v);
-    case ck::ActivTypeEnum::Sigmoid: return (1 / (1 + exp(-v)));
-    default: throw std::runtime_error("unsupported activ type"); break;
-    }
-}
-
-#endif

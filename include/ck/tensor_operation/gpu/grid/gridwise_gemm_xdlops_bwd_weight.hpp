@@ -1,15 +1,19 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
-#include "common_header.hpp"
-#include "multi_index_transform_helper.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "tensor_operation/gpu/grid/block_to_ctile_map.hpp"
-#include "blockwise_gemm_xdlops.hpp"
-#include "thread_group_tensor_slice_transfer_v4r1.hpp"
-#include "thread_group_tensor_slice_transfer_v6r1.hpp"
-#include "threadwise_tensor_slice_transfer.hpp"
-#include "gridwise_gemm_pipeline_v1.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/multi_index_transform_helper.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
+#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
+#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 namespace ck {
 
@@ -791,8 +795,10 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
             constexpr auto c_block_desc_mblock_mperblock_nblock_nperblock =
                 GetCBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
 
+            void* p_shared = static_cast<void*>(p_shared_block);
+
             auto c_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-                static_cast<FloatC*>(p_shared_block),
+                static_cast<FloatC*>(p_shared),
                 c_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
             static_assert(M1 == MWave, "");

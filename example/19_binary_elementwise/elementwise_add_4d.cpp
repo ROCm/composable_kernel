@@ -1,39 +1,17 @@
-/*******************************************************************************
- *
- * MIT License
- *
- * Copyright (c) 2020 Advanced Micro Devices, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
- *******************************************************************************/
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <cstdlib>
-#include "check_err.hpp"
-#include "config.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
 
-#include "device_tensor.hpp"
-#include "binary_element_wise_operation.hpp"
-#include "device_binary_elementwise.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/device/device_binary_elementwise.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -42,8 +20,7 @@ using ABDataType             = F16;
 using CDataType              = F16;
 using EltwiseComputeDataType = F32;
 
-using Add = ck::tensor_operation::binary_element_wise::
-    Add<EltwiseComputeDataType, EltwiseComputeDataType, EltwiseComputeDataType>;
+using Add = ck::tensor_operation::element_wise::Add;
 
 using DeviceElementwiseAddInstance =
     ck::tensor_operation::device::DeviceBinaryElementwise<ABDataType,
@@ -104,16 +81,22 @@ int main()
     a_device_buf.ToDevice(a.mData.data());
     b_device_buf.ToDevice(b.mData.data());
 
+    std::array<const void*, 2> input = {a_device_buf.GetDeviceBuffer(),
+                                        b_device_buf.GetDeviceBuffer()};
+    std::array<void*, 1> output      = {c_device_buf.GetDeviceBuffer()};
+
+    std::vector<ck::index_t> a_strides{a.mDesc.GetStrides().begin(), a.mDesc.GetStrides().end()};
+    std::vector<ck::index_t> b_strides{b.mDesc.GetStrides().begin(), b.mDesc.GetStrides().end()};
+    std::vector<ck::index_t> c_strides{c.mDesc.GetStrides().begin(), c.mDesc.GetStrides().end()};
+
     auto broadcastAdd = DeviceElementwiseAddInstance{};
-    auto argument     = broadcastAdd.MakeArgumentPointer(
-        a_device_buf.GetDeviceBuffer(),
-        b_device_buf.GetDeviceBuffer(),
-        c_device_buf.GetDeviceBuffer(),
-        std::vector<ck::index_t>{nchw.begin(), nchw.end()},
-        std::vector<ck::index_t>{a.mDesc.GetStrides().begin(), a.mDesc.GetStrides().end()},
-        std::vector<ck::index_t>{b.mDesc.GetStrides().begin(), b.mDesc.GetStrides().end()},
-        std::vector<ck::index_t>{c.mDesc.GetStrides().begin(), c.mDesc.GetStrides().end()},
-        Add{});
+    auto argument =
+        broadcastAdd.MakeArgumentPointer(input,
+                                         output,
+                                         std::vector<ck::index_t>{nchw.begin(), nchw.end()},
+                                         {{a_strides}, b_strides},
+                                         {c_strides},
+                                         Add{});
 
     if(!broadcastAdd.IsSupportedArgument(argument.get()))
     {

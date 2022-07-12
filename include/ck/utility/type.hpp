@@ -1,9 +1,11 @@
-#ifndef CK_TYPE_HPP
-#define CK_TYPE_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "config.hpp"
-#include "integral_constant.hpp"
-#include "enable_if.hpp"
+#pragma once
+
+#include "ck/ck.hpp"
+#include "ck/utility/integral_constant.hpp"
+#include "ck/utility/enable_if.hpp"
 
 namespace ck {
 
@@ -56,4 +58,3 @@ __host__ __device__ constexpr Y bit_cast(const X& x)
 }
 
 } // namespace ck
-#endif

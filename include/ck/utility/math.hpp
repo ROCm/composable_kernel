@@ -1,7 +1,9 @@
-#ifndef CK_MATH_HPP
-#define CK_MATH_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "config.hpp"
+#pragma once
+
+#include "ck/ck.hpp"
 #include "integral_constant.hpp"
 #include "number.hpp"
 #include "type.hpp"
@@ -142,6 +144,24 @@ __host__ __device__ constexpr auto min(X x, Ys... ys)
     return min(x, min(ys...));
 }
 
+// disallow implicit type casting
+template <typename T>
+__device__ T exp(T x);
+
+// TODO: add f16 support using v_exp_f16
+
+template <>
+__device__ float exp<float>(float x)
+{
+    return __expf(x);
+}
+
+template <>
+__device__ double exp<double>(double x)
+{
+    return exp(x);
+}
+
 // greatest common divisor, aka highest common factor
 __host__ __device__ constexpr index_t gcd(index_t x, index_t y)
 {
@@ -212,5 +232,3 @@ struct less
 
 } // namespace math
 } // namespace ck
-
-#endif

@@ -1,11 +1,13 @@
-#ifndef CK_BLOCKWISE_TENSOR_SLICE_TRANSFER_V5R1_HPP
-#define CK_BLOCKWISE_TENSOR_SLICE_TRANSFER_V5R1_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "common_header.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "cluster_descriptor.hpp"
-#include "threadwise_tensor_slice_transfer_v5r1.hpp"
+#pragma once
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_description/cluster_descriptor.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer_v5r1.hpp"
 
 namespace ck {
 
@@ -152,4 +154,3 @@ struct BlockwiseTensorSliceTransfer_v5r1
 };
 
 } // namespace ck
-#endif

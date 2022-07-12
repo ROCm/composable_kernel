@@ -1,9 +1,11 @@
-#ifndef CK_TENSOR_ADAPTOR_HPP
-#define CK_TENSOR_ADAPTOR_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "common_header.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
+#pragma once
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
 
 namespace ck {
 
@@ -136,7 +138,11 @@ struct TensorAdaptor
     using ElementSize = remove_cv_t<decltype(InitializeElementSize(Transforms{}))>;
 
     public:
+#if 0 // workaround compiler complaint about constexpr
     __host__ __device__ constexpr TensorAdaptor() = default;
+#else
+    __host__ __device__ constexpr TensorAdaptor() : transforms_{}, element_size_{} {}
+#endif
 
     __host__ __device__ constexpr TensorAdaptor(const Transforms& transforms)
         : transforms_{transforms}, element_size_{InitializeElementSize(transforms)}
@@ -474,4 +480,3 @@ __host__ __device__ constexpr auto chain_tensor_adaptors(const X& x, const Xs&..
 }
 
 } // namespace ck
-#endif
