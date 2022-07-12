@@ -58,7 +58,16 @@ template <
     typename CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
     index_t CBlockTransferScalarPerVector_NWaveNPerXdl>
 struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
-    : public DeviceConvFwd<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>
+    : public DeviceConvFwd<2,
+                           ck::tensor_layout::convolution::NHWC,
+                           ck::tensor_layout::convolution::KYXC,
+                           ck::tensor_layout::convolution::NHWK,
+                           InDataType,
+                           WeiDataType,
+                           OutDataType,
+                           InElementwiseOperation,
+                           WeiElementwiseOperation,
+                           OutElementwiseOperation>
 {
     using DeviceOp = DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K;
 
