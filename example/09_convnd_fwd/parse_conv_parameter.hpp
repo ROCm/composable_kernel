@@ -52,7 +52,7 @@ parse_conv_params(int num_dim_spatial, int arg_idx, char* const argv[])
     return params;
 }
 
-void print_use_msg()
+void print_helper_msg()
 {
     std::cout << "arg1: verification (0=no, 1=yes)\n"
               << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
