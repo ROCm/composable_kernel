@@ -1,11 +1,11 @@
 #ifndef CK_BLOCKWISE_GEMM_AVX2_HPP
 #define CK_BLOCKWISE_GEMM_AVX2_HPP
 
-#include "common_header.hpp"
-#include "multi_index_transform_helper.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "threadwise_gemm_avx2.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/multi_index_transform_helper.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/cpu/thread/threadwise_gemm_avx2.hpp"
 
 namespace ck {
 namespace cpu {

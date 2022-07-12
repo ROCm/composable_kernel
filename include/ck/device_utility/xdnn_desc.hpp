@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <string.h>
 
 #define XDNN_OK 0
 #define XDNN_FAIL 1

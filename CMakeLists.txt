@@ -84,6 +84,7 @@ if( DEFINED CK_OVERRIDE_HIP_VERSION_PATCH )
     message(STATUS "CK_HIP_VERSION_PATCH overriden with ${CK_OVERRIDE_HIP_VERSION_PATCH}")
 endif()
 message(STATUS "Build with HIP ${HIP_VERSION}")
+endif()
 
 ## tidy
 include(EnableCompilerWarnings)
@@ -251,10 +252,12 @@ message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
 
+if(NOT CK_NOGPU)
 rocm_package_setup_component(tests
         LIBRARY_NAME composablekernel
         PACKAGE_NAME tests # Prevent -static suffix on package name
 )
+endif()
 
 add_subdirectory(library)
 add_subdirectory(example)
@@ -277,6 +280,7 @@ configure_package_config_file(${CMAKE_CURRENT_SOURCE_DIR}/Config.cmake.in
         NO_CHECK_REQUIRED_COMPONENTS_MACRO
 )
 
+if(NOT CK_NOGPU)
 rocm_install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfigVersion.cmake"
@@ -293,3 +297,4 @@ rocm_create_package(
     LDCONFIG
     HEADER_ONLY
 )
+endif()

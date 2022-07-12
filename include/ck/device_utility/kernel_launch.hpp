@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <chrono>
+
+#ifndef CK_NOGPU
 #include <hip/hip_runtime.h>
 
 #include "ck/ck.hpp"
@@ -71,4 +74,33 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
 
     return 0;
 #endif
+}
+#endif
+
+template <typename... Args, typename F>
+void launch_cpu_kernel(F kernel, Args... args)
+{
+    kernel(args...);
+}
+
+template <typename... Args, typename F>
+float launch_and_time_cpu_kernel(F kernel, int nrepeat, Args... args)
+{
+    int nwarmup = 3;
+
+    for(int i = 0; i < nwarmup; i++)
+        kernel(args...);
+
+    auto mStart = std::chrono::high_resolution_clock::now();
+    for(int i = 0; i < nrepeat; i++)
+    {
+        kernel(args...);
+    }
+    auto mStop = std::chrono::high_resolution_clock::now();
+
+    float ms = static_cast<float>(
+                   std::chrono::duration_cast<std::chrono::microseconds>(mStop - mStart).count()) *
+               1e-3;
+
+    return ms / nrepeat;
 }

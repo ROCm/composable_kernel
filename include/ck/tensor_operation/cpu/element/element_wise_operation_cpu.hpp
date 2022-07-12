@@ -1,5 +1,5 @@
 #pragma once
-#include "data_type_cpu.hpp"
+#include "ck/utility/data_type_cpu.hpp"
 
 namespace ck {
 namespace tensor_operation {

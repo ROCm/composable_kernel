@@ -2,6 +2,7 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
+#ifndef CK_NOGPU
 
 #include <hip/hip_runtime.h>
 
@@ -15,3 +16,4 @@ inline void hip_check_error(hipError_t x)
         throw std::runtime_error(ss.str());
     }
 }
+#endif

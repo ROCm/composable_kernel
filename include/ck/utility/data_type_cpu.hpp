@@ -1,7 +1,6 @@
 #pragma once
 
 #include <immintrin.h>
-#include "half.hpp"
 
 namespace ck {
 

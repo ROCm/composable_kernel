@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <cstddef>
+#ifndef CK_NOGPU
 #include <hip/hip_runtime.h>
 
 template <typename T>
@@ -37,4 +39,21 @@ struct DeviceMem
 
     void* mpDeviceBuf;
     std::size_t mMemSize;
+};
+#endif
+
+struct DeviceAlignedMemCPU
+{
+    DeviceAlignedMemCPU() = delete;
+    DeviceAlignedMemCPU(std::size_t mem_size, std::size_t alignment);
+    void* GetDeviceBuffer();
+    std::size_t GetBufferSize();
+    void ToDevice(const void* p);
+    void FromDevice(void* p);
+    void SetZero();
+    ~DeviceAlignedMemCPU();
+
+    void* mpDeviceBuf;
+    std::size_t mMemSize;
+    std::size_t mAlignment;
 };

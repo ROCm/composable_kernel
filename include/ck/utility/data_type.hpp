@@ -4,9 +4,6 @@
 #pragma once
 
 #include "ck/utility/statically_indexed_array.hpp"
-#ifdef CK_NOGPU
-#include "half.hpp"
-#endif
 
 namespace ck {
 

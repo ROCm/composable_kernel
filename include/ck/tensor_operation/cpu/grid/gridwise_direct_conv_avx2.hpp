@@ -1,15 +1,15 @@
 #ifndef CK_GRIDWISE_DIRECT_CONV_AVX2_HPP
 #define CK_GRIDWISE_DIRECT_CONV_AVX2_HPP
 
-#include "common_header.hpp"
-#include "multi_index_transform_helper.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "blockwise_gemm_avx2.hpp"
-#include "threadwise_tensor_slice_transfer_avx2.hpp"
-#include "threadwise_tensor_slice_transfer_avx2_specialization.hpp"
-#include "dynamic_buffer_cpu.hpp"
-#include "envvar.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/multi_index_transform_helper.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/cpu/block/blockwise_gemm_avx2.hpp"
+#include "ck/tensor_operation/cpu/thread/threadwise_tensor_slice_transfer_avx2.hpp"
+#include "ck/tensor_operation/cpu/thread/threadwise_tensor_slice_transfer_avx2_specialization.hpp"
+#include "ck/utility/dynamic_buffer_cpu.hpp"
+#include "ck/utility/envvar.hpp"
 #include <utility>
 #include <unistd.h>
 #include <omp.h>

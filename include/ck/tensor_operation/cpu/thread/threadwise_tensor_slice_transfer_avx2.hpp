@@ -1,13 +1,13 @@
 #ifndef CK_THREADWISE_TENSOR_SLICE_TRANSFER_AVX2_HPP
 #define CK_THREADWISE_TENSOR_SLICE_TRANSFER_AVX2_HPP
 
-#include "common_header.hpp"
-#include "data_type_cpu.hpp"
-#include "../../gpu/thread/threadwise_tensor_slice_transfer.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "tensor_space_filling_curve.hpp"
-#include "dynamic_buffer_cpu.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/utility/data_type_cpu.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_description/tensor_space_filling_curve.hpp"
+#include "ck/utility/dynamic_buffer_cpu.hpp"
 #include <immintrin.h>
 
 namespace ck {

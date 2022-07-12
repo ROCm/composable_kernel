@@ -13,7 +13,9 @@ function(add_test_executable TEST_NAME)
     add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> )
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
+if(NOT CK_NOGPU)
     rocm_install(TARGETS ${TEST_NAME} COMPONENT tests)
+endif()
 endfunction(add_test_executable TEST_NAME)
 
 include(GoogleTest)
@@ -27,7 +29,9 @@ function(add_gtest_executable TEST_NAME)
     target_compile_options(${TEST_NAME} PRIVATE -Wno-global-constructors -Wno-undef)
     target_link_libraries(${TEST_NAME} PRIVATE gtest_main)
     gtest_discover_tests(${TEST_NAME})
+if(NOT CK_NOGPU)
     rocm_install(TARGETS ${TEST_NAME} COMPONENT tests)
+endif()
 endfunction(add_gtest_executable TEST_NAME)
 
 
@@ -47,9 +51,5 @@ add_subdirectory(conv2d_bwd_weight)
 add_subdirectory(convnd_bwd_weight)
 add_subdirectory(convnd_bwd_data)
 add_subdirectory(block_to_ctile_map)
-<<<<<<< HEAD
-add_subdirectory(cpu_ukernel)
-# DONOT add client_app, that is tested via CI independently
-=======
 add_subdirectory(softmax)
->>>>>>> origin/develop
+add_subdirectory(cpu_ukernel)

@@ -2,8 +2,10 @@
 #define DEVICE_CONV_FWD_CPU_HPP
 
 #include <iostream>
-#include "device_base_cpu.hpp"
-#include "convolution_forward_specialization_cpu.hpp"
+#include <memory>
+#include <vector>
+#include "ck/tensor_operation/cpu/device/device_base_cpu.hpp"
+#include "ck/tensor_operation/cpu/device/convolution_forward_specialization_cpu.hpp"
 
 namespace ck {
 namespace tensor_operation {

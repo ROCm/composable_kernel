@@ -2,6 +2,7 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
+#ifndef CK_NOGPU
 
 #include <string>
 #include <map>
@@ -52,3 +53,4 @@ inline std::string get_device_name()
 }
 
 } // namespace ck
+#endif

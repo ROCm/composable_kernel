@@ -17,6 +17,7 @@ target_include_directories(host_tensor PUBLIC
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/host_tensor>"
 )
 
+if(NOT CK_NOGPU)
 rocm_install(
     TARGETS host_tensor
     EXPORT host_tensorTargets
@@ -28,5 +29,19 @@ rocm_install(
     NAMESPACE composable_kernel::
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
 )
+else()
+install(TARGETS host_tensor 
+        EXPORT host_tensorTargets
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
 
+install(EXPORT host_tensorTargets
+    FILE composable_kernelhost_tensorTargets.cmake 
+    NAMESPACE composable_kernel::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
+)
+endif()
 clang_tidy_check(host_tensor)

@@ -5,10 +5,10 @@
 #if CK_USE_X86_INLINE_ASM == 0
 #include <immintrin.h>
 #endif
-#include "common_header.hpp"
-#include "../../gpu/device/tensor_layout.hpp"
-#include "math.hpp"
-#include "threadwise_gemm_param.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/utility/math.hpp"
+#include "ck/tensor_operation/cpu/thread/threadwise_gemm_param.hpp"
 
 namespace ck {
 namespace cpu {

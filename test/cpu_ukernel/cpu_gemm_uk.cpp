@@ -6,14 +6,16 @@
 #include <sstream>
 #include <tuple>
 #include <memory>
-#include <half.hpp>
 #include <omp.h>
-#include "host_tensor.hpp"
-#include "device.hpp"
-#include "config.hpp"
-#include "print.hpp"
-#include "cpuid.hpp"
-#include "threadwise_gemm_avx2.hpp"
+#include <string.h>
+#include <chrono>
+#include "ck/ck.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/device_utility/kernel_launch.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/utility/print.hpp"
+#include "ck/utility/cpuid.hpp"
+#include "ck/tensor_operation/cpu/thread/threadwise_gemm_avx2.hpp"
 
 #define ITERATE_THREAD_GEMM_AVX2_MXN_6X16_INSTANCE(FA, FB, FC, TA, TB, NT)   \
     ck::cpu::ThreadwiseGemmAvx2_MxN_6x16<FA, FB, FC, 6, 16, TA, TB, NT>,     \
@@ -294,16 +296,16 @@ void test_ukernel(ukenrel_t uk,
             invoke_uk(param, private_c);
         }
 
-        WallTimer timer;
 
-        timer.Start();
+        auto mStart = std::chrono::high_resolution_clock::now();
         for(int i = 0; i < repeat; i++)
         {
             invoke_uk(param, private_c);
         }
-        timer.End();
+        auto mStop = std::chrono::high_resolution_clock::now();
 
-        us += timer.GetElapsedTime() * 1e3 / repeat;
+        us += static_cast<float>(
+                   std::chrono::duration_cast<std::chrono::microseconds>(mStop - mStart).count()) / repeat;
 
         memset(private_c, 0, m * n * sizeof(float));
         invoke_uk(param, private_c);

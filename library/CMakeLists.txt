@@ -1,4 +1,6 @@
+if(NOT CK_NOGPU)
 add_subdirectory(src/tensor_operation_instance/gpu)
+endif()
 add_subdirectory(src/host_tensor)
 add_subdirectory(src/utility)
 add_subdirectory(src/tensor_operation_instance/cpu)

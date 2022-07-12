@@ -1,8 +1,8 @@
 #ifndef CK_THREADWISE_GEMM_PARAM_HPP
 #define CK_THREADWISE_GEMM_PARAM_HPP
 
-#include "common_header.hpp"
-#include "math.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/utility/math.hpp"
 
 namespace ck {
 namespace cpu {

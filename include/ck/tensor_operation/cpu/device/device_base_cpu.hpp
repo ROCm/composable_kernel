@@ -2,7 +2,7 @@
 #define DEVICE_BASE_CPU_HPP
 
 #include <string>
-#include "stream_config.hpp"
+#include "ck/stream_config.hpp"
 
 namespace ck {
 namespace tensor_operation {

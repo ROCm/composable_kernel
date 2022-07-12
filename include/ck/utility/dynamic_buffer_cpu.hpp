@@ -1,7 +1,7 @@
 #ifndef CK_BUFFER_CPU_HPP
 #define CK_BUFFER_CPU_HPP
 
-#include "config.hpp"
+#include "ck/ck.hpp"
 #include "enable_if.hpp"
 #include "data_type_cpu.hpp"
 

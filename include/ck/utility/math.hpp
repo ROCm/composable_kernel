@@ -9,6 +9,10 @@
 #include "type.hpp"
 #include "enable_if.hpp"
 
+#ifndef CK_NOCPU
+#include <math.h>
+#endif
+
 namespace ck {
 namespace math {
 
@@ -144,6 +148,7 @@ __host__ __device__ constexpr auto min(X x, Ys... ys)
     return min(x, min(ys...));
 }
 
+#ifndef CK_NOGPU
 // disallow implicit type casting
 template <typename T>
 __device__ T exp(T x);
@@ -161,6 +166,7 @@ __device__ double exp<double>(double x)
 {
     return exp(x);
 }
+#endif
 
 // greatest common divisor, aka highest common factor
 __host__ __device__ constexpr index_t gcd(index_t x, index_t y)

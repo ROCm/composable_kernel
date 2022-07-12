@@ -1,10 +1,11 @@
 #include <stdlib.h>
 #include <utility>
-#include "config.hpp"
-#include "convolution_forward_specialization_cpu.hpp"
-#include "device_convnd_fwd_avx2_nhwc_kyxck8_nhwk.hpp"
-#include "element_wise_operation_cpu.hpp"
-#include "device_operation_instance.hpp"
+#include <memory>
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/cpu/device/convolution_forward_specialization_cpu.hpp"
+#include "ck/tensor_operation/cpu/device/device_convnd_fwd_avx2_nhwc_kyxck8_nhwk.hpp"
+#include "ck/tensor_operation/cpu/element/element_wise_operation_cpu.hpp"
+#include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -58,7 +59,7 @@ static constexpr auto LoopOver_MKN = ck::tensor_operation::cpu::device::LoopOver
 void add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk(
     std::vector<DeviceConvFwdPtr<PT, PT, PT>>& instances)
 {
-    ck::tensor_operation::device::add_device_operation_instances(
+    ck::tensor_operation::device::instance::add_device_operation_instances(
         instances,
         std::make_tuple(
             // clang-format off
@@ -79,7 +80,7 @@ void add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk(
 void add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_local_c(
     std::vector<DeviceConvFwdPtr<PT, PT, PT>>& instances)
 {
-    ck::tensor_operation::device::add_device_operation_instances(
+    ck::tensor_operation::device::instance::add_device_operation_instances(
         instances,
         std::make_tuple(
             // clang-format off
@@ -100,7 +101,7 @@ void add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_local_c(
 void add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_mt(
     std::vector<DeviceConvFwdPtr<PT, PT, PT>>& instances)
 {
-    ck::tensor_operation::device::add_device_operation_instances(
+    ck::tensor_operation::device::instance::add_device_operation_instances(
         instances,
         std::make_tuple(
             // clang-format off
@@ -137,7 +138,7 @@ void add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_mt(
 void add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_relu(
     std::vector<DeviceConvFwdPtr<PT, PT, Relu>>& instances)
 {
-    ck::tensor_operation::device::add_device_operation_instances(
+    ck::tensor_operation::device::instance::add_device_operation_instances(
         instances,
         std::make_tuple(
             // clang-format off
@@ -158,7 +159,7 @@ void add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_relu(
 void add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_local_c_relu(
     std::vector<DeviceConvFwdPtr<PT, PT, Relu>>& instances)
 {
-    ck::tensor_operation::device::add_device_operation_instances(
+    ck::tensor_operation::device::instance::add_device_operation_instances(
         instances,
         std::make_tuple(
             // clang-format off
@@ -179,7 +180,7 @@ void add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_local_c_relu(
 void add_device_conv2d_fwd_avx2_nhwc_kyxck8_nhwk_mt_relu(
     std::vector<DeviceConvFwdPtr<PT, PT, Relu>>& instances)
 {
-    ck::tensor_operation::device::add_device_operation_instances(
+    ck::tensor_operation::device::instance::add_device_operation_instances(
         instances,
         std::make_tuple(
             // clang-format off

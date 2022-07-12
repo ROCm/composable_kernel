@@ -4,17 +4,20 @@
 #include <iostream>
 #include <sstream>
 #include <numeric>
-#include "device.hpp"
-#include "device_base_cpu.hpp"
-#include "device_conv_fwd_cpu.hpp"
-#include "convolution_forward_specialization_cpu.hpp"
-#include "common_header.hpp"
-#include "../../gpu/device/tensor_layout.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_avx2.hpp"
-#include "threadwise_gemm_avx2.hpp"
-#include "threadwise_tensor_slice_transfer_avx2_specialization.hpp"
+#include <memory>
+#include <vector>
+#include "ck/device_utility/kernel_launch.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/tensor_operation/cpu/device/device_base_cpu.hpp"
+#include "ck/tensor_operation/cpu/device/device_conv_fwd_cpu.hpp"
+#include "ck/tensor_operation/cpu/device/convolution_forward_specialization_cpu.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/cpu/grid/gridwise_gemm_avx2.hpp"
+#include "ck/tensor_operation/cpu/thread/threadwise_gemm_avx2.hpp"
+#include "ck/tensor_operation/cpu/thread/threadwise_tensor_slice_transfer_avx2_specialization.hpp"
 
 namespace ck {
 namespace tensor_operation {

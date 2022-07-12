@@ -3,11 +3,10 @@
 
 #pragma once
 
-#include "ck/options.hpp"
-
 #ifdef CK_NOGPU
 #define __host__
 #define __device__
+#include <stdint.h>
 #else
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
