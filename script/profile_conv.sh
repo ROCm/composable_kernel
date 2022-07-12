@@ -14,7 +14,6 @@ LOG=$8
 REPEAT=$9
 N=${10}
  
-# Resnet50 from Bing
 ########  op  datatype  in_layout   wei_layout  out_layout  verify  init  log  repeat  N__ K___ C___ Y X Hi__ Wi__ Strides Dilations LeftPads RightPads
 $DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  256 1024 1 1   14   14     1 1       1 1      0 0       0 0
 $DRIVER $OP $DATATYPE $IN_LAYOUT  $WEI_LAYOUT $OUT_LAYOUT $VERIFY $INIT $LOG $REPEAT   $N  512 1024 1 1   14   14     1 1       1 1      0 0       0 0
