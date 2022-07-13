@@ -623,6 +623,10 @@ struct GridwiseGemmBiasActivationAddAvx2_MxN
                             c_threadwise_copy.SetSrc2SliceOrigin(c_block_desc,
                                                                  GetCIndex(i_mc, i_nc));
 
+                            _mm_prefetch(reinterpret_cast<const float*>(c1_grid_buf.p_data_) +
+                                             c_threadwise_copy.src2_offset,
+                                         _MM_HINT_T1);
+
                             if constexpr(!UseCLocalBuffer)
                             {
                                 c_threadwise_copy.SetSrcSliceOrigin(c_block_desc,

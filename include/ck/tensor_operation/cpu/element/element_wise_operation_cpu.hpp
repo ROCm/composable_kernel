@@ -172,6 +172,51 @@ struct AddReluAdd
     static constexpr char* Name() { return "AddReluAdd"; }
 };
 
+struct AddAddRelu
+{
+    void operator()(float& y, const float& x0, const float& x1, const float& x2) const
+    {
+        float a = x0 + x1 + x2;
+        y       = a > 0 ? a : 0;
+    }
+
+    void operator()(float4_t& y, const float4_t& x0, const float4_t& x1, const float4_t& x2) const
+    {
+        float4_t a = _mm_add_ps(x0, x1);
+        float4_t b = _mm_add_ps(a, x2);
+        y          = _mm_max_ps(b, _mm_setzero_ps());
+    }
+
+    void operator()(float8_t& y, const float8_t& x0, const float8_t& x1, const float8_t& x2) const
+    {
+        float8_t a = _mm256_add_ps(x0, x1);
+        float8_t b = _mm256_add_ps(a, x2);
+        y          = _mm256_max_ps(b, _mm256_setzero_ps());
+    }
+
+    float Apply(const float& x0, const float& x1, const float& x2) const
+    {
+        float a = x0 + x1 + x2;
+        return a > 0 ? a : 0;
+    }
+
+    float4_t Apply(const float4_t& x0, const float4_t& x1, const float4_t& x2) const
+    {
+        float4_t a = _mm_add_ps(x0, x1);
+        float4_t b = _mm_add_ps(a, x2);
+        return _mm_max_ps(b, _mm_setzero_ps());
+    }
+
+    float8_t Apply(const float8_t& x0, const float8_t& x1, const float8_t& x2) const
+    {
+        float8_t a = _mm256_add_ps(x0, x1);
+        float8_t b = _mm256_add_ps(a, x2);
+        return _mm256_max_ps(b, _mm256_setzero_ps());
+    }
+
+    static constexpr char* Name() { return "AddAddRelu"; }
+};
+
 // Unary operators are usually called element-wisely before/after the reduction is executed on the
 // elements. They are needed for easy implementation of reduction types of AVG, NRM1, NRM2
 

@@ -2403,7 +2403,7 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_Bias_Residual_
     // dst_slice_origin_step_idx need to be known at compile-time, for performance reason
     void MoveDstSliceWindow(const DstDesc&, const Index&) {}
 
-    private:
+    // private:
     const ElementwiseOperation element_op_;
 
     intptr_t i_dst_gemm_m;

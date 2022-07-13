@@ -25,6 +25,7 @@ using PT         = ck::tensor_operation::cpu::element_wise::PassThrough;
 using AddReluAdd = ck::tensor_operation::cpu::element_wise::AddReluAdd;
 using AddRelu    = ck::tensor_operation::cpu::element_wise::AddRelu;
 using Add        = ck::tensor_operation::cpu::element_wise::Add;
+using AddAddRelu = ck::tensor_operation::cpu::element_wise::AddAddRelu;
 
 static constexpr auto ConvFwdDefault =
     ck::tensor_operation::cpu::device::ConvolutionForwardSpecialization_t::Default;
@@ -295,6 +296,86 @@ void add_device_conv2d_fwd_bias_avx2_nhwc_kyxc_nhwk_mt(
             DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Add,  768, 320, 128,  6, 16, true, true, false, false),
             DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Add,  896, 352, 128,  6, 16, true, true, false, false),
             DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, Add, 1024, 416, 128,  6, 16, true, true, false, false)
+            // clang-format on
+            ));
+}
+
+/****************************************************************************************************/
+void add_device_conv2d_fwd_bias_add_relu_avx2_nhwc_kyxc_nhwk(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PT, PT, AddAddRelu>>& instances)
+{
+    ck::tensor_operation::device::instance::add_device_operation_instances(
+        instances,
+        std::make_tuple(
+            // clang-format off
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  256, 128,  64,  6, 16, false, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  256, 128, 128,  6, 16, false, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  128, 256, 128,  6, 16, false, true, true, false),
+
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  512, 240, 128,  4, 24, false, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  512, 256, 128,  6, 16, false, true, true, false),
+
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  768, 320, 128,  6, 16, false, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  896, 352, 128,  6, 16, false, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu, 1024, 416, 128,  6, 16, false, true, true, false)
+            // clang-format on
+            ));
+}
+
+void add_device_conv2d_fwd_bias_add_relu_avx2_nhwc_kyxc_nhwk_local_c(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PT, PT, AddAddRelu>>& instances)
+{
+    ck::tensor_operation::device::instance::add_device_operation_instances(
+        instances,
+        std::make_tuple(
+            // clang-format off
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  256, 128,  64,  6, 16, true, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  256, 128, 128,  6, 16, true, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  128, 256, 128,  6, 16, true, true, true, false),
+
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  512, 240, 128,  4, 24, true, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  512, 256, 128,  6, 16, true, true, true, false),
+
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  768, 320, 128,  6, 16, true, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  896, 352, 128,  6, 16, true, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu, 1024, 416, 128,  6, 16, true, true, true, false)
+            // clang-format on
+            ));
+}
+
+void add_device_conv2d_fwd_bias_add_relu_avx2_nhwc_kyxc_nhwk_mt(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PT, PT, AddAddRelu>>& instances)
+{
+    ck::tensor_operation::device::instance::add_device_operation_instances(
+        instances,
+        std::make_tuple(
+            // clang-format off
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  24,  24, 256,  4, 24, false, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  32,  24, 256,  4, 24, false, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  40,  24, 256,  4, 24, false, true, true, false),
+
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  48,  24, 256,  4, 24, false, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  48,  48, 256,  4, 24, false, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  56,  24, 256,  4, 24, false, true, true, false),
+
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  72,  16, 128,  6, 16, false, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  72,  16, 256,  6, 16, false, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  72,  32, 128,  6, 16, false, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  72,  32, 256,  6, 16, false, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  96,  32, 128,  6, 16, false, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  96,  64, 128,  6, 16, false, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  120, 32, 128,  6, 16, false, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  120, 64, 128,  6, 16, false, true, true, false),
+
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  256, 128, 128,  6, 16, true, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  128, 256, 128,  6, 16, true, true, true, false),
+
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  512, 240, 128,  4, 24, true, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  512, 256, 128,  6, 16, true, true, true, false),
+
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  768, 320, 128,  6, 16, true, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu,  896, 352, 128,  6, 16, true, true, true, false),
+            DEVICE_CONV2D_FWD_BAA_AVX2_NHWC_KYXC_NHWK_F32(PT, PT, AddAddRelu, 1024, 416, 128,  6, 16, true, true, true, false)
             // clang-format on
             ));
 }
