@@ -87,65 +87,63 @@ struct ReferenceConvFwd : public device::BaseOperator
     {
         using Argument = ReferenceConvFwd::Argument;
 
+        // FIXME: properly implement "TensorView" for doing transpose or refer to dimension by name
         float Run(const Argument& arg)
         {
             // tensor descriptor in NCHW/KXYC/NKHW dimensional order
-            HostTensorDescriptor in_desc   = arg.input_.mDesc;
-            HostTensorDescriptor wei_desc  = arg.weight_.mDesc;
-            HostTensorDescriptor oout_desc = arg.output_.mDesc;
+            HostTensorDescriptor in_desc  = arg.input_.mDesc;
+            HostTensorDescriptor wei_desc = arg.weight_.mDesc;
+            HostTensorDescriptor out_desc = arg.output_.mDesc;
 
             // input
-            if constexpr(is_same_v<InLayout,ck::tensor_layout::convolution::NWC>)
+            if constexpr(is_same_v<InLayout, ck::tensor_layout::convolution::NWC>)
             {
                 in_desc = transpose_host_tensor_descriptor_given_new2old(
-                    input_.mDesc, std::vector<std::size_t>{0, 2, 1});
+                    arg.input_.mDesc, std::vector<std::size_t>{0, 2, 1});
             }
-            else if constexpr(is_same_v<InLayout,ck::tensor_layout::convolution::NHWC>)
+            else if constexpr(is_same_v<InLayout, ck::tensor_layout::convolution::NHWC>)
             {
                 in_desc = transpose_host_tensor_descriptor_given_new2old(
-                    input_.mDesc, std::vector<std::size_t>{0, 3, 1, 2});
+                    arg.input_.mDesc, std::vector<std::size_t>{0, 3, 1, 2});
             }
-            else if constexpr(is_same_v<InLayout,ck::tensor_layout::convolution::NDHWC>)
+            else if constexpr(is_same_v<InLayout, ck::tensor_layout::convolution::NDHWC>)
             {
                 in_desc = transpose_host_tensor_descriptor_given_new2old(
-                    input_.mDesc, std::vector<std::size_t>{0, 4, 1, 2, 3});
+                    arg.input_.mDesc, std::vector<std::size_t>{0, 4, 1, 2, 3});
             }
 
             // weight
             if constexpr(is_same_v<WeiLayout, ck::tensor_layout::convolution::KXC>)
             {
                 wei_desc = transpose_host_tensor_descriptor_given_new2old(
-                    weight_.mDesc, std::vector<std::size_t>{0, 2, 1});
+                    arg.weight_.mDesc, std::vector<std::size_t>{0, 2, 1});
             }
-            if constexpr(is_same_v<WeiLayout, ck::tensor_layout::convolution::KXC>)
+            else if constexpr(is_same_v<WeiLayout, ck::tensor_layout::convolution::KYXC>)
             {
                 wei_desc = transpose_host_tensor_descriptor_given_new2old(
-                    weight_.mDesc, std::vector<std::size_t>{0, 3, 1, 2});
+                    arg.weight_.mDesc, std::vector<std::size_t>{0, 3, 1, 2});
             }
-            else if constexpr(NumDimSpatial == 2 &&
-                              WeiLayout == ck::tensor_layout::convolution::KYXC)
+            else if constexpr(is_same_v<WeiLayout, ck::tensor_layout::convolution::KZYXC>)
             {
                 wei_desc = transpose_host_tensor_descriptor_given_new2old(
-                    weight_.mDesc, std::vector<std::size_t>{0, 3, 1, 2});
+                    arg.weight_.mDesc, std::vector<std::size_t>{0, 4, 1, 2, 3});
             }
 
             // output
-            if constexpr(NumDimSpatial == 1 && OutLayout == ck::tensor_layout::convolution::NWK)
+            if constexpr(is_same_v<OutLayout, ck::tensor_layout::convolution::NWK>)
             {
                 out_desc = transpose_host_tensor_descriptor_given_new2old(
-                    output_.mDesc, std::vector<std::size_t>{0, 2, 1});
+                    arg.output_.mDesc, std::vector<std::size_t>{0, 2, 1});
             }
-            else if constexpr(NumDimSpatial == 2 &&
-                              OutLayout == ck::tensor_layout::convolution::NHWK)
+            else if constexpr(is_same_v<OutLayout, ck::tensor_layout::convolution::NHWK>)
             {
                 out_desc = transpose_host_tensor_descriptor_given_new2old(
-                    output_.mDesc, std::vector<std::size_t>{0, 3, 1, 2});
+                    arg.output_.mDesc, std::vector<std::size_t>{0, 3, 1, 2});
             }
-            else if constexpr(NumDimSpatial == 3 &&
-                              OutLayout == ck::tensor_layout::convolution::NDHWK)
+            else if constexpr(is_same_v<OutLayout, ck::tensor_layout::convolution::NDHWK>)
             {
                 out_desc = transpose_host_tensor_descriptor_given_new2old(
-                    output_.mDesc, std::vector<std::size_t>{0, 4, 1, 2, 3});
+                    arg.output_.mDesc, std::vector<std::size_t>{0, 4, 1, 2, 3});
             }
 
             if constexpr(NumDimSpatial == 1)
@@ -161,16 +159,26 @@ struct ReferenceConvFwd : public device::BaseOperator
                                 ck::type_convert<ck::long_index_t>(wo * arg.conv_strides_[0]) +
                                 ck::type_convert<ck::long_index_t>(x * arg.conv_dilations_[0]) -
                                 ck::type_convert<ck::long_index_t>(arg.in_left_pads_[0]);
+
                             if(wi >= 0 &&
                                ck::type_convert<std::size_t>(wi) < in_desc.GetLengths()[2])
                             {
                                 float v_in;
                                 float v_wei;
 
-                                arg.in_element_op_(v_in,
-                                                   ck::type_convert<float>(arg.input_(n, c, wi)));
-                                arg.wei_element_op_(v_wei,
-                                                    ck::type_convert<float>(arg.weight_(k, c, x)));
+                                // FIXME hacky
+                                arg.in_element_op_(
+                                    v_in,
+                                    ck::type_convert<float>(
+                                        arg.input_
+                                            .mData[in_desc.GetOffsetFromMultiIndex(n, c, wi)]));
+
+                                // FIXME hacky
+                                arg.wei_element_op_(
+                                    v_wei,
+                                    ck::type_convert<float>(
+                                        arg.weight_
+                                            .mData[wei_desc.GetOffsetFromMultiIndex(k, c, x)]));
 
                                 v_acc += v_in * v_wei;
                             }
@@ -180,7 +188,10 @@ struct ReferenceConvFwd : public device::BaseOperator
                     float v_out;
 
                     arg.out_element_op_(v_out, v_acc);
-                    arg.output_(n, k, wo) = ck::type_convert<OutDataType>(v_out);
+
+                    // FIXME hacky
+                    arg.output_.mData[out_desc.GetOffsetFromMultiIndex({n, k, wo})] =
+                        ck::type_convert<OutDataType>(v_out);
                 };
 
                 make_ParallelTensorFunctor(f_ncw,
@@ -204,12 +215,14 @@ struct ReferenceConvFwd : public device::BaseOperator
                                 ck::type_convert<ck::long_index_t>(ho * arg.conv_strides_[0]) +
                                 ck::type_convert<ck::long_index_t>(y * arg.conv_dilations_[0]) -
                                 ck::type_convert<ck::long_index_t>(arg.in_left_pads_[0]);
+
                             for(std::size_t x = 0; x < wei_desc.GetLengths()[3]; ++x)
                             {
                                 auto wi =
                                     ck::type_convert<ck::long_index_t>(wo * arg.conv_strides_[1]) +
                                     ck::type_convert<ck::long_index_t>(x * arg.conv_dilations_[1]) -
                                     ck::type_convert<ck::long_index_t>(arg.in_left_pads_[1]);
+
                                 if(hi >= 0 &&
                                    ck::type_convert<std::size_t>(hi) < in_desc.GetLengths()[2] &&
                                    wi >= 0 &&
@@ -218,10 +231,20 @@ struct ReferenceConvFwd : public device::BaseOperator
                                     float v_in;
                                     float v_wei;
 
+                                    // FIXME hacky
                                     arg.in_element_op_(
-                                        v_in, ck::type_convert<float>(arg.input_(n, c, hi, wi)));
+                                        v_in,
+                                        ck::type_convert<float>(
+                                            arg.input_.mData[in_desc.GetOffsetFromMultiIndex(
+                                                n, c, hi, wi)]));
+
+                                    // FIXME hacky
                                     arg.wei_element_op_(
-                                        v_wei, ck::type_convert<float>(arg.weight_(k, c, y, x)));
+                                        v_wei,
+                                        ck::type_convert<float>(
+                                            arg.weight_.mData[wei_desc.GetOffsetFromMultiIndex(
+                                                k, c, y, x)]));
+
                                     v_acc += v_in * v_wei;
                                 }
                             }
@@ -231,7 +254,10 @@ struct ReferenceConvFwd : public device::BaseOperator
                     float v_out;
 
                     arg.out_element_op_(v_out, v_acc);
-                    arg.output_(n, k, ho, wo) = ck::type_convert<OutDataType>(v_out);
+
+                    // FIXME hacky
+                    arg.output_.mData[out_desc.GetOffsetFromMultiIndex({n, k, ho, wo})] =
+                        ck::type_convert<OutDataType>(v_out);
                 };
 
                 make_ParallelTensorFunctor(f_nchw,
@@ -282,12 +308,20 @@ struct ReferenceConvFwd : public device::BaseOperator
                                         float v_in;
                                         float v_wei;
 
+                                        // FIXME hacky
                                         arg.in_element_op_(
                                             v_in,
-                                            ck::type_convert<float>(arg.input_(n, c, di, hi, wi)));
+                                            ck::type_convert<float>(
+                                                arg.input_.mData[in_desc.GetOffsetFromMultiIndex(
+                                                    n, c, di, hi, wi)]));
+
+                                        // FIXME hacky
                                         arg.wei_element_op_(
                                             v_wei,
-                                            ck::type_convert<float>(arg.weight_(k, c, z, y, x)));
+                                            ck::type_convert<float>(
+                                                arg.weight_.mData[wei_desc.GetOffsetFromMultiIndex(
+                                                    k, c, z, y, x)]));
+
                                         v_acc += v_in * v_wei;
                                     }
                                 }
@@ -298,7 +332,10 @@ struct ReferenceConvFwd : public device::BaseOperator
                     float v_out;
 
                     arg.out_element_op_(v_out, v_acc);
-                    arg.output_(n, k, d_o, ho, wo) = ck::type_convert<OutDataType>(v_out);
+
+                    // FIXME hacky
+                    arg.output_.mData[out_desc.GetOffsetFromMultiIndex({n, k, d_o, ho, wo})] =
+                        ck::type_convert<OutDataType>(v_out);
                 };
 
                 make_ParallelTensorFunctor(f_nchw,

@@ -26,7 +26,6 @@ using DeviceConvNDFwdInstance = ck::tensor_operation::device::DeviceConvNdFwdNwc
     AccDataType,    //
     InElementOp,    // Input Elementwise Operation
     WeiElementOp,   // Weights Elementwise Operation                          =
-                    // ck::tensor_layout::convolution::NKHW,
     OutElementOp,   // Output Elementwise Operation
     ConvFwdDefault, // ConvForwardSpecialization
     NumDimSpatial,  // NumDimSpatial
@@ -57,16 +56,17 @@ using DeviceConvNDFwdInstance = ck::tensor_operation::device::DeviceConvNdFwdNwc
     1>;             // CThreadTransferDstScalarPerVector
 
 template <ck::index_t NumDimSpatial>
-using ReferenceConvNDFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<NumDimSpatial,
-                                                                                InLayout,
-                                                                                WeiLayout,
-                                                                                OutLayout,
-                                                                                InDataType,
-                                                                                WeiDataType,
-                                                                                OutDataType,
-                                                                                InElementOp,
-                                                                                WeiElementOp,
-                                                                                OutElementOp>;
+using ReferenceConvNDFwdInstance =
+    ck::tensor_operation::host::ReferenceConvFwd<NumDimSpatial,
+                                                 ck::tensor_layout::convolution::NHWC,
+                                                 ck::tensor_layout::convolution::KYXC,
+                                                 ck::tensor_layout::convolution::NHWK,
+                                                 InDataType,
+                                                 WeiDataType,
+                                                 OutDataType,
+                                                 InElementOp,
+                                                 WeiElementOp,
+                                                 OutElementOp>;
 
 int main(int argc, char* argv[])
 {
