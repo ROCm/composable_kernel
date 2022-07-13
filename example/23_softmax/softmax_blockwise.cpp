@@ -212,6 +212,8 @@ int main(int argc, char* argv[])
 
     auto device_instance = DeviceInstance{};
 
+    std::cout << i_inLengths.size() << ", " << i_inStrides.size() << std::endl;
+
     auto argument_ptr = device_instance.MakeArgumentPointer(i_inLengths,
                                                             i_inStrides,
                                                             reduceDims,
