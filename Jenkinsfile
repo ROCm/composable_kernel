@@ -254,7 +254,6 @@ def runCKProfiler(Map conf=[:]){
                         //the script will return 0 if the performance criteria are met
                         //or return 1 if the criteria are not met
                         archiveArtifacts  "${gemm_log}"
-                        sh "python3 process_perf_data.py ${gemm_log} "
                         //run resnet50 test
                         def resnet256_log = "perf_resnet50_N256_${gpu_arch}.log"
                         sh "rm -f ${resnet256_log}"
@@ -273,7 +272,6 @@ def runCKProfiler(Map conf=[:]){
                         //first run tests with N=256
                         sh "./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 0 2 0 1 256 | tee -a ${resnet256_log}"
                         archiveArtifacts  "${resnet256_log}"
-                        sh "python3 process_perf_data.py ${resnet256_log} "
                         //then run with N=4
                         def resnet4_log = "perf_resnet50_N4_${gpu_arch}.log"
                         sh "rm -f ${resnet4_log}"
@@ -291,6 +289,9 @@ def runCKProfiler(Map conf=[:]){
                         sh "/opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> ${resnet4_log}"
                         sh "./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 0 2 0 1 4 | tee -a ${resnet4_log}"
                         archiveArtifacts  "${resnet4_log}"
+
+                        sh "python3 process_perf_data.py ${gemm_log} "
+                        sh "python3 process_perf_data.py ${resnet256_log} "
                         sh "python3 process_perf_data.py ${resnet4_log} "
 					}
                 }
