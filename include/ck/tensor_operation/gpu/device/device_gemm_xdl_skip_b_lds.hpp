@@ -45,6 +45,7 @@ template <typename ADataType,
           ck::index_t ABlockTransferDstScalarPerVector_K1,
           bool ABlockLdsAddExtraM,
           ck::index_t BBlockTransferSrcScalarPerVector,
+          ck::index_t BBlockBufferSize,
           ck::index_t CThreadTransferSrcDstVectorDim,
           ck::index_t CThreadTransferDstScalarPerVector>
 struct DeviceGemmXdlSkipBLds
@@ -55,6 +56,7 @@ struct DeviceGemmXdlSkipBLds
     static constexpr auto I2 = Number<2>{};
 
     static constexpr auto K1Number = Number<K1>{};
+    static_assert(BBlockBufferSize >= 2);
 
     static auto MakeAGridDescriptor_K0_M_K1(index_t M, index_t K, index_t StrideA)
     {
@@ -203,7 +205,8 @@ struct DeviceGemmXdlSkipBLds
         false, // AThreadTransferSrcResetCoordinateAfterRun,
         ABlockLdsAddExtraM,
         BBlockTransferSrcScalarPerVector,
-        false,                            // BThreadTransferSrcResetCoordinateAfterRun,
+        false, // BThreadTransferSrcResetCoordinateAfterRun,
+        BBlockBufferSize,
         Sequence<0, 2, 4, 5, 6, 1, 3, 7>, // CThreadTransferSrcDstAccessOrder,
         CThreadTransferSrcDstVectorDim,
         CThreadTransferDstScalarPerVector>;
