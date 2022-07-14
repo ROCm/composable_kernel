@@ -1768,6 +1768,9 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_Bias_Residual_
     static constexpr ck::index_t nDim = SrcDesc::GetNumOfDimension();
     using Index                       = MultiIndex<nDim>;
 
+    static constexpr bool FuseBias = true;
+    static constexpr bool FuseAdd  = true;
+
     constexpr ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_Bias_Residual_MxN(
         const SrcDesc& src_desc,
         const Index&,
@@ -2433,6 +2436,9 @@ struct ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_Bias_MxN
 {
     static constexpr ck::index_t nDim = SrcDesc::GetNumOfDimension();
     using Index                       = MultiIndex<nDim>;
+
+    static constexpr bool FuseBias = true;
+    static constexpr bool FuseAdd  = false;
 
     constexpr ThreadwiseTensorSliceTransferAvx2Specialization_MatC_Store_Bias_MxN(
         const SrcDesc& src_desc,

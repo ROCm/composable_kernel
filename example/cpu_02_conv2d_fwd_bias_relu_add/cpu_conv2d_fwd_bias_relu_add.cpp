@@ -20,7 +20,7 @@
 #define TEST_FUSION_BIAS_RELU 1
 #define TEST_FUSION_BIAS 2
 #define TEST_FUSION_BIAS_ADD_RELU 3
-#define TEST_FUSION TEST_FUSION_BIAS_ADD_RELU
+#define TEST_FUSION TEST_FUSION_BIAS_RELU_ADD
 
 #define TEST_LAYOUT_NHWC_KYXC_NHWK 0
 #define TEST_LAYOUT_NHWC_KYXCK8_NHWK 1
@@ -169,6 +169,11 @@ void add_device_conv2d_fwd_bias_add_relu_avx2_nhwc_yxck_nhwk_local_c(
 
 void add_device_conv2d_fwd_bias_add_relu_avx2_nhwc_yxck_nhwk_mt(
     std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddAddRelu>>&
+        instances);
+
+// ------------------ direct-conv nhwc-kcyxk8-nhwk
+void add_device_conv2d_direct_fwd_bias_activation_add_avx2_nhwc_kyxck8_nhwk(
+    std::vector<DeviceConvFwdBiasActivationAddPtr<PassThrough, PassThrough, AddReluAdd>>&
         instances);
 
 } // namespace device_conv2d_fwd_bias_activation_add_avx2_instance
@@ -623,6 +628,8 @@ int main(int argc, char* argv[])
                             add_device_conv2d_fwd_bias_relu_add_avx2_nhwc_kyxck8_nhwk_local_c(
                                 conv_ptrs);
             }
+            ck::tensor_operation::cpu::device::device_conv2d_fwd_bias_activation_add_avx2_instance::
+                add_device_conv2d_direct_fwd_bias_activation_add_avx2_nhwc_kyxck8_nhwk(conv_ptrs);
 #endif
 #if TEST_LAYOUT == TEST_LAYOUT_NHWC_YXCK_NHWK
             if(omp_get_max_threads() > 1)
