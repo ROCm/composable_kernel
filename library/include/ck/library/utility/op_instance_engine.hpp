@@ -16,8 +16,8 @@
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
 
 namespace ck {
 namespace utils {

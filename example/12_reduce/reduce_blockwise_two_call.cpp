@@ -14,11 +14,11 @@
 #include "ck/tensor_operation/gpu/device/device_reduce_multiblock.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
-#include "ck/library/host_tensor/host_common_util.hpp"
-#include "ck/library/host_tensor/host_reduction.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/host_common_util.hpp"
+#include "ck/library/utility/host_reduction.hpp"
 
 using namespace ck;
 using namespace ck::tensor_operation::device;

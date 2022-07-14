@@ -14,12 +14,12 @@
 #include "ck/library/tensor_operation_instance/gpu/gemm_splitk.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
-#include "ck/library/host_tensor/host_gemm.hpp"
+#include "ck/library/utility/host_gemm.hpp"
 
 enum struct GemmMatrixLayout
 {

@@ -15,7 +15,7 @@
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/conv_util.hpp"
 #include "ck/library/utility/fill.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 
 namespace {

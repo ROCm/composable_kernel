@@ -11,8 +11,8 @@
 #include "ck/utility/reduction_enums.hpp"
 #include "ck/utility/reduction_common.hpp"
 #include "ck/utility/reduction_functions_accumulate.hpp"
-#include "ck/library/host_tensor/host_common_util.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/utility/host_common_util.hpp"
+#include "ck/library/utility/host_tensor.hpp"
 
 template <int NDim>
 static void get_all_indexes(const std::array<size_t, NDim>& dimLengths,

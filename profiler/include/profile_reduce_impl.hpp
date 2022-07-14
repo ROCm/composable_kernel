@@ -8,10 +8,10 @@
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_reduction.hpp"
-#include "ck/library/host_tensor/host_common_util.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_reduction.hpp"
+#include "ck/library/utility/host_common_util.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
 
 namespace ck {
 namespace tensor_operation {
