@@ -48,7 +48,7 @@
 #include "amd_xdlops.hpp"
 #endif
 
-#define USEING_STATIC_KERNEL 0
+#define USEING_STATIC_KERNEL 1
 
 #define MNKB_0_8 1
 #define MNKB_1_4 0
