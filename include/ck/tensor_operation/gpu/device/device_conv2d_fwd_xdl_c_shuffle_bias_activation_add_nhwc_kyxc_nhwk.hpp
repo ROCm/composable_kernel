@@ -1,17 +1,20 @@
-#ifndef DEVICE_CONV2D_FWD_XDL_C_SHUFFLE_BIAS_ACTIVATION_ADD_NHWC_KYXC_NHWK_HPP
-#define DEVICE_CONV2D_FWD_XDL_C_SHUFFLE_BIAS_ACTIVATION_ADD_NHWC_KYXC_NHWK_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <iostream>
 #include <sstream>
-#include "device.hpp"
-#include "device_base.hpp"
-#include "device_conv_fwd_bias_activation_add.hpp"
-#include "convolution_forward_specialization.hpp"
-#include "common_header.hpp"
-#include "tensor_layout.hpp"
-#include "tensor_descriptor.hpp"
-#include "tensor_descriptor_helper.hpp"
-#include "gridwise_gemm_xdlops_v3r3.hpp"
+
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_conv_fwd_bias_activation_add.hpp"
+#include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v3r3.hpp"
+#include "ck/device_utility/device_prop.hpp"
+#include "ck/device_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -460,6 +463,8 @@ struct
     using C0GridDesc_M_N    = remove_cvref_t<decltype(GridDescs{}[I3])>;
     using C1GridDesc_M_N    = remove_cvref_t<decltype(GridDescs{}[I4])>;
 
+    using Block2CTileMap = BlockToCTileMap_M00_N0_M01<MPerBlock, NPerBlock, CGridDesc_M_N>;
+
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r3<
         BlockSize,
@@ -522,8 +527,6 @@ struct
                  std::vector<ck::index_t> conv_filter_dilations,
                  std::vector<ck::index_t> input_left_pads,
                  std::vector<ck::index_t> input_right_pads,
-                 ck::index_t M01,
-                 ck::index_t N01,
                  InElementwiseOperation in_element_op,
                  WeiElementwiseOperation wei_element_op,
                  OutElementwiseOperation out_element_op)
@@ -540,10 +543,7 @@ struct
               c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_{},
               c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_{},
               c1_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_{},
-              block_2_ctile_map_{
-                  GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01)},
-              M01_{M01},
-              N01_{N01},
+              block_2_ctile_map_{},
               in_element_op_{in_element_op},
               wei_element_op_{wei_element_op},
               out_element_op_{out_element_op},
@@ -575,6 +575,8 @@ struct
             c_grid_desc_m_n_     = descs[I2];
             c0_grid_desc_m_n_    = descs[I3];
             c1_grid_desc_m_n_    = descs[I4];
+
+            block_2_ctile_map_ = Block2CTileMap{c_grid_desc_m_n_};
 
             if(GridwiseGemm::CheckValidity(a_grid_desc_k0_m_k1_,
                                            b_grid_desc_k0_n_k1_,
@@ -618,9 +620,7 @@ struct
         typename GridwiseGemm::
             C1GridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
                 c1_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_;
-        typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
-        index_t M01_;
-        index_t N01_;
+        Block2CTileMap block_2_ctile_map_;
         InElementwiseOperation in_element_op_;
         WeiElementwiseOperation wei_element_op_;
         OutElementwiseOperation out_element_op_;
@@ -723,7 +723,7 @@ struct
                     InElementwiseOperation,
                     WeiElementwiseOperation,
                     OutElementwiseOperation,
-                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
+                    Block2CTileMap,
                     true>;
 
                 ave_time = launch_and_time_kernel(
@@ -767,7 +767,7 @@ struct
                     InElementwiseOperation,
                     WeiElementwiseOperation,
                     OutElementwiseOperation,
-                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
+                    Block2CTileMap,
                     false>;
 
                 ave_time = launch_and_time_kernel(
@@ -894,8 +894,6 @@ struct
                         conv_filter_dilations,
                         input_left_pads,
                         input_right_pads,
-                        1,
-                        1,
                         in_element_op,
                         wei_element_op,
                         out_element_op};
@@ -938,8 +936,6 @@ struct
                                           conv_filter_dilations,
                                           input_left_pads,
                                           input_right_pads,
-                                          1,
-                                          1,
                                           in_element_op,
                                           wei_element_op,
                                           out_element_op);
@@ -970,4 +966,3 @@ struct
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

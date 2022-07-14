@@ -1,7 +1,9 @@
-#ifndef IS_KNOWN_AT_COMPILE_TIME_HPP
-#define IS_KNOWN_AT_COMPILE_TIME_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "config.hpp"
+#pragma once
+
+#include "ck/ck.hpp"
 #include "integral_constant.hpp"
 #include "sequence.hpp"
 #include "tuple.hpp"
@@ -52,4 +54,3 @@ struct is_known_at_compile_time<Tuple<Ts...>>
 };
 
 } // namespace ck
-#endif

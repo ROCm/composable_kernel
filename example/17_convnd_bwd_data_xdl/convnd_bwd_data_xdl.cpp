@@ -1,21 +1,22 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
-#include <half.hpp>
 
-#include "config.hpp"
-#include "conv_util.hpp"
-#include "print.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "device_tensor.hpp"
-#include "tensor_layout.hpp"
-#include "element_wise_operation.hpp"
-#include "device_convnd_bwd_data_xdl_ndhwc_kzyxc_ndhwk.hpp"
-#include "reference_conv_bwd_data.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_convnd_bwd_data_xdl_ndhwc_kzyxc_ndhwk.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/conv_util.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_data.hpp"
 
 using InDataType  = ck::half_t;
 using WeiDataType = ck::half_t;

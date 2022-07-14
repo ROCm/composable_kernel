@@ -1,20 +1,24 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
-#include "stream_config.hpp"
-#include "config.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "tensor_layout.hpp"
-#include "device_tensor.hpp"
-#include "device_conv_backward_weight.hpp"
-#include "element_wise_operation.hpp"
-#include "reference_conv_backward_weight.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/device_conv_backward_weight.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/conv_util.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_backward_weight.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_conv2d_bwd_weight_instance {
+namespace instance {
 
 using DeviceConvBwdWeightNoOpPtr =
     DeviceConvBwdWeightPtr<ck::tensor_operation::element_wise::PassThrough,
@@ -27,7 +31,7 @@ void add_device_conv2d_bwd_weight_xdl_nhwc_kyxc_nhwk_f16_instances(
 void add_device_conv2d_bwd_weight_xdl_nhwc_kyxc_nhwk_f32_instances(
     std::vector<DeviceConvBwdWeightNoOpPtr>&);
 
-} // namespace device_conv2d_bwd_weight_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
@@ -161,14 +165,14 @@ bool profile_conv_bwd_weight_impl(int do_verification,
                  ck::is_same_v<ck::remove_cv_t<WeiDataType>, float> &&
                  ck::is_same_v<ck::remove_cv_t<OutDataType>, float>)
     {
-        ck::tensor_operation::device::device_conv2d_bwd_weight_instance::
+        ck::tensor_operation::device::instance::
             add_device_conv2d_bwd_weight_xdl_nhwc_kyxc_nhwk_f32_instances(conv_ptrs);
     }
     else if constexpr(ck::is_same_v<ck::remove_cv_t<InDataType>, ck::half_t> &&
                       ck::is_same_v<ck::remove_cv_t<WeiDataType>, ck::half_t> &&
                       ck::is_same_v<ck::remove_cv_t<OutDataType>, ck::half_t>)
     {
-        ck::tensor_operation::device::device_conv2d_bwd_weight_instance::
+        ck::tensor_operation::device::instance::
             add_device_conv2d_bwd_weight_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
     }
 

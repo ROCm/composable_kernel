@@ -1,20 +1,22 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
-#include <half.hpp>
-#include "check_err.hpp"
-#include "config.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "device_tensor.hpp"
-#include "device_batched_gemm_reduce_xdl_cshuffle.hpp"
-#include "element_wise_operation.hpp"
-#include "reduction_operator.hpp"
-#include "reference_batched_gemm.hpp"
-#include "gemm_specialization.hpp"
+
+#include "ck/ck.hpp"
+#include "ck/utility/reduction_operator.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/device/device_batched_gemm_reduce_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -29,28 +31,26 @@ using ADataType         = F16;
 using BDataType         = F16;
 using CDataType         = F16;
 using ReduceAccDataType = F32;
-using DDataType         = F32;
-using DPtrsGlobal       = ck::Tuple<DDataType*, DDataType*>;
+using ReduceDataType    = F32;
+using ReducePtrsGlobal  = ck::Tuple<ReduceDataType*, ReduceDataType*>;
 
 using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
 using CLayout = ck::tensor_layout::gemm::RowMajor;
 
-using AElementOp  = ck::tensor_operation::element_wise::PassThrough;
-using BElementOp  = ck::tensor_operation::element_wise::PassThrough;
-using CElementOp  = ck::tensor_operation::element_wise::PassThrough;
-using D0ReduceOp  = ck::reduce::Add<ReduceAccDataType>;
-using D1ReduceOp  = ck::reduce::Add<ReduceAccDataType>;
-using DxsReduceOp = ck::Tuple<D0ReduceOp, D1ReduceOp>;
+using AElementOp = ck::tensor_operation::element_wise::PassThrough;
+using BElementOp = ck::tensor_operation::element_wise::PassThrough;
+using CElementOp = ck::tensor_operation::element_wise::PassThrough;
+using ReduceOp0  = ck::reduce::Add;
+using ReduceOp1  = ck::reduce::Add;
+using ReduceOps  = ck::Tuple<ReduceOp0, ReduceOp1>;
 
-using UnaryIdenticElementOp =
-    ck::tensor_operation::element_wise::UnaryIdentic<ReduceAccDataType, ReduceAccDataType, false>;
-using UnarySquareElementOp =
-    ck::tensor_operation::element_wise::UnarySquare<ReduceAccDataType, ReduceAccDataType, false>;
-using DxsInElementOp  = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
-using DxsOutElementOp = ck::Tuple<UnaryIdenticElementOp, UnaryIdenticElementOp>;
+using UnaryIdenticElementOp = ck::tensor_operation::element_wise::PassThrough;
+using UnarySquareElementOp  = ck::tensor_operation::element_wise::UnarySquare;
+using ReduceInElementOps    = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
+using ReduceOutElementOps   = ck::Tuple<UnaryIdenticElementOp, UnaryIdenticElementOp>;
 
-using DGlobalMemOp =
+using ReduceGlobalMemOps =
     ck::InMemoryDataOperationEnumSequence<ck::InMemoryDataOperationEnum::AtomicAdd,
                                           ck::InMemoryDataOperationEnum::AtomicAdd>;
 
@@ -63,7 +63,7 @@ using DeviceBatchedGemmReduceInstance = ck::tensor_operation::device::DeviceBatc
 //######|        |        |        | Type|  Type|  Type| DataType| DataType|  DataType|    Type Tuple| Elementwise| Elementwise| Elementwise|      Reduce|               |                |   MemoryData|     Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN| MXdlPerWave| NXdlPerWave|            _MBlock_MPerBlock| ScalarPerVector| ThreadClusterLengths|     SrcDstScalarPerVector|        SrcDstScalarPerVector|
 //######|        |        |        |     |      |      |         |         |          |              |   Operation|   Operation|   Operation|   Operation|               |                |    Operation|                   |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|            _NBlock_NPerBlock|      _NPerBlock| _MPerBlock_NPerBlock|                _NPerBlock|                   _MPerBlock|
 //######|        |        |        |     |      |      |         |         |          |              |            |            |            |            |               |                |             |                   |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |                     |                          |                             |
-        <     Row,     Col,     Row,  F16,   F16,   F16,      F32,      F32,       F32,   DPtrsGlobal,  AElementOp,  BElementOp,  CElementOp, DxsReduceOp, DxsInElementOp, DxsOutElementOp, DGlobalMemOp, GemmSpecialization,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8,             S<64, 4>,                         4,                            1>;
+        <     Row,     Col,     Row,  F16,   F16,   F16,      F32,      F32,       F32,   ReducePtrsGlobal,  AElementOp,  BElementOp,  CElementOp, ReduceOps, ReduceInElementOps, ReduceOutElementOps, ReduceGlobalMemOps, GemmSpecialization,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8,             S<64, 4>,                         4,                            1>;
 // clang-format on
 
 using ReferenceBatchedGemmInstance = ck::tensor_operation::host::
@@ -143,16 +143,16 @@ int main(int argc, char* argv[])
 
     Tensor<CDataType> c_g_m_n_host_result(
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
-    Tensor<DDataType> d0_g_m_host_result(HostTensorDescriptor(std::vector<std::size_t>(
+    Tensor<ReduceDataType> d0_g_m_host_result(HostTensorDescriptor(std::vector<std::size_t>(
         {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
-    Tensor<DDataType> d1_g_m_host_result(HostTensorDescriptor(std::vector<std::size_t>(
+    Tensor<ReduceDataType> d1_g_m_host_result(HostTensorDescriptor(std::vector<std::size_t>(
         {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
 
     Tensor<CDataType> c_g_m_n_device_result(
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
-    Tensor<DDataType> d0_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
+    Tensor<ReduceDataType> d0_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
         {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
-    Tensor<DDataType> d1_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
+    Tensor<ReduceDataType> d1_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
         {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
 
     std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
@@ -177,38 +177,48 @@ int main(int argc, char* argv[])
     DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpace());
     DeviceMem b_device_buf(sizeof(BDataType) * b_g_k_n.mDesc.GetElementSpace());
     DeviceMem c_device_buf(sizeof(CDataType) * c_g_m_n_device_result.mDesc.GetElementSpace());
-    DeviceMem d0_device_buf(sizeof(DDataType) * d0_g_m_device_result.mDesc.GetElementSpace());
-    DeviceMem d1_device_buf(sizeof(DDataType) * d1_g_m_device_result.mDesc.GetElementSpace());
+    DeviceMem reduce0_device_buf(sizeof(ReduceDataType) *
+                                 d0_g_m_device_result.mDesc.GetElementSpace());
+    DeviceMem reduce1_device_buf(sizeof(ReduceDataType) *
+                                 d1_g_m_device_result.mDesc.GetElementSpace());
 
     a_device_buf.ToDevice(a_g_m_k.mData.data());
     b_device_buf.ToDevice(b_g_k_n.mData.data());
 
-    auto a_element_op = AElementOp{};
-    auto b_element_op = BElementOp{};
-    auto c_element_op = CElementOp{};
-    auto dxs_global   = ck::make_tuple(static_cast<DDataType*>(d0_device_buf.GetDeviceBuffer()),
-                                     static_cast<DDataType*>(d1_device_buf.GetDeviceBuffer()));
+    auto a_element_op                     = AElementOp{};
+    auto b_element_op                     = BElementOp{};
+    auto c_element_op                     = CElementOp{};
+    std::array<void*, 3> gemm_element_ops = {&a_element_op, &b_element_op, &c_element_op};
+
+    auto passthrough                            = UnaryIdenticElementOp{};
+    auto square                                 = UnarySquareElementOp{};
+    std::array<void*, 2> reduce_in_element_ops  = {&passthrough, &square};
+    std::array<void*, 2> reduce_out_element_ops = {&passthrough, &passthrough};
+
+    std::array<void*, 2> p_reduces = {reduce0_device_buf.GetDeviceBuffer(),
+                                      reduce1_device_buf.GetDeviceBuffer()};
 
     // do GEMM
     auto batched_gemm = DeviceBatchedGemmReduceInstance{};
     auto invoker      = batched_gemm.MakeInvoker();
-    auto argument =
-        batched_gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                                  static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-                                  static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                  dxs_global,
-                                  M,
-                                  N,
-                                  K,
-                                  StrideA,
-                                  StrideB,
-                                  StrideC,
-                                  a_element_op,
-                                  b_element_op,
-                                  c_element_op,
-                                  DxsInElementOp{},
-                                  DxsOutElementOp{},
-                                  BatchCount);
+    auto argument     = batched_gemm.MakeArgument(a_device_buf.GetDeviceBuffer(),
+                                              b_device_buf.GetDeviceBuffer(),
+                                              nullptr,
+                                              {},
+                                              c_device_buf.GetDeviceBuffer(),
+                                              p_reduces,
+                                              M,
+                                              N,
+                                              K,
+                                              StrideA,
+                                              StrideB,
+                                              StrideC,
+                                              {},
+                                              gemm_element_ops,
+                                              {},
+                                              reduce_in_element_ops,
+                                              reduce_out_element_ops,
+                                              BatchCount);
 
     if(!batched_gemm.IsSupportedArgument(argument))
     {
@@ -218,8 +228,8 @@ int main(int argc, char* argv[])
     }
 
     // init DO, D1 to 0
-    d0_device_buf.SetZero();
-    d1_device_buf.SetZero();
+    reduce0_device_buf.SetZero();
+    reduce1_device_buf.SetZero();
 
     // if time_kernel == true, kernel will run multiple times. This kernel use atomic-add so result
     // will not be correct. need to set time_kernel = false for correctness test
@@ -241,8 +251,8 @@ int main(int argc, char* argv[])
     if(do_verification)
     {
         c_device_buf.FromDevice(c_g_m_n_device_result.mData.data());
-        d0_device_buf.FromDevice(d0_g_m_device_result.mData.data());
-        d1_device_buf.FromDevice(d1_g_m_device_result.mData.data());
+        reduce0_device_buf.FromDevice(d0_g_m_device_result.mData.data());
+        reduce1_device_buf.FromDevice(d1_g_m_device_result.mData.data());
 
         auto ref_batched_gemm = ReferenceBatchedGemmInstance{};
         auto ref_invoker      = ref_batched_gemm.MakeInvoker();
@@ -252,30 +262,31 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
 
-        auto d0_reduce_op = D0ReduceOp{};
-        auto d1_reduce_op = D1ReduceOp{};
+        auto reduce0_op = ReduceOp0{};
+        auto reduce1_op = ReduceOp1{};
 
         for(int batch = 0; batch < BatchCount; ++batch)
         {
             for(int m = 0; m < M; ++m)
             {
-                float d0_acc = d0_reduce_op.GetReductionZeroVal();
-                float d1_acc = d1_reduce_op.GetReductionZeroVal();
+                auto reduce0_acc = reduce0_op.GetIdentityValue<ReduceAccDataType>();
+                auto reduce1_acc = reduce1_op.GetIdentityValue<ReduceAccDataType>();
 
                 for(int n = 0; n < N; ++n)
                 {
-                    float c_val  = ck::type_convert<float>(c_g_m_n_host_result(batch, m, n));
-                    float d0_val = 0;
-                    float d1_val = 0;
+                    auto c_val =
+                        ck::type_convert<ReduceAccDataType>(c_g_m_n_host_result(batch, m, n));
+                    ReduceAccDataType d0_val;
+                    ReduceAccDataType d1_val;
 
                     UnaryIdenticElementOp{}(d0_val, c_val);
                     UnarySquareElementOp{}(d1_val, c_val);
-                    d0_reduce_op(d0_acc, d0_val);
-                    d1_reduce_op(d1_acc, d1_val);
+                    reduce0_op(reduce0_acc, d0_val);
+                    reduce1_op(reduce1_acc, d1_val);
                 }
 
-                d0_g_m_host_result(batch, m) = ck::type_convert<DDataType>(d0_acc);
-                d1_g_m_host_result(batch, m) = ck::type_convert<DDataType>(d1_acc);
+                d0_g_m_host_result(batch, m) = ck::type_convert<ReduceDataType>(reduce0_acc);
+                d1_g_m_host_result(batch, m) = ck::type_convert<ReduceDataType>(reduce1_acc);
             }
         }
 

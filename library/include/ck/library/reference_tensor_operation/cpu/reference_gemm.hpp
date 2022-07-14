@@ -1,8 +1,13 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
+
 #include <iostream>
 #include <sstream>
-#include "device_base.hpp"
-#include "host_tensor.hpp"
+
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -58,20 +63,21 @@ struct ReferenceGemm : public device::BaseOperator
 
                 for(int k = 0; k < K; ++k)
                 {
-                    AccDataType v_a;
-                    AccDataType v_b;
+                    ADataType v_a;
+                    BDataType v_b;
 
-                    arg.a_element_op_(v_a, static_cast<const AccDataType>(arg.a_m_k_(m, k)));
-                    arg.b_element_op_(v_b, static_cast<const AccDataType>(arg.b_k_n_(k, n)));
+                    arg.a_element_op_(v_a, arg.a_m_k_(m, k));
+                    arg.b_element_op_(v_b, arg.b_k_n_(k, n));
 
-                    v_acc += v_a * v_b;
+                    v_acc +=
+                        ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
                 }
 
                 AccDataType v_c;
 
                 arg.c_element_op_(v_c, v_acc);
 
-                arg.c_m_n_(m, n) = v_c;
+                arg.c_m_n_(m, n) = ck::type_convert<CDataType>(v_c);
             };
 
             make_ParallelTensorFunctor(

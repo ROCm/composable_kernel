@@ -1,10 +1,16 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
+
 #include <iostream>
 #include <vector>
 
-#include "device.hpp"
-#include "device_base.hpp"
-#include "gridwise_binary_elementwise_1d.hpp"
+#include "ck/device_utility/device_prop.hpp"
+#include "ck/device_utility/kernel_launch.hpp"
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_binary_elementwise_1d.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -20,7 +26,7 @@ template <typename ADataType,
           index_t AScalarPerVector,
           index_t BScalarPerVector,
           index_t CScalarPerVector>
-struct DeviceBinaryElementwise : public BaseOperator
+struct DeviceBinaryElementwise : public DeviceElementwise<2, 1, NDim, ElementwiseFunctor>
 {
     static constexpr auto I0 = Number<0>{};
 
@@ -193,27 +199,30 @@ struct DeviceBinaryElementwise : public BaseOperator
         return true;
     };
 
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
-                                                      const void* p_b,
-                                                      void* p_c,
-                                                      std::vector<index_t> lengths,
-                                                      std::vector<index_t> a_strides,
-                                                      std::vector<index_t> b_strides,
-                                                      std::vector<index_t> c_strides,
-                                                      ElementwiseFunctor functor)
+    virtual std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(std::array<const void*, 2> p_inputs,
+                        std::array<void*, 1> p_outputs,
+                        std::vector<index_t> lengths,
+                        std::vector<std::vector<index_t>> input_strides,
+                        std::vector<std::vector<index_t>> output_strides,
+                        ElementwiseFunctor functor) override
     {
-        return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
-                                          static_cast<const BDataType*>(p_b),
-                                          static_cast<CDataType*>(p_c),
+        return std::make_unique<Argument>(static_cast<const ADataType*>(p_inputs[0]),
+                                          static_cast<const BDataType*>(p_inputs[1]),
+                                          static_cast<CDataType*>(p_outputs[0]),
                                           lengths,
-                                          a_strides,
-                                          b_strides,
-                                          c_strides,
+                                          input_strides[0],
+                                          input_strides[1],
+                                          output_strides[0],
                                           functor);
     }
 
-    std::unique_ptr<BaseInvoker> MakeInvokerPointer() { return std::make_unique<Invoker>(); }
+    std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
+    {
+        return std::make_unique<Invoker>();
+    }
 
+    // polymorphic
     std::string GetTypeString() const override
     {
         auto str = std::stringstream();
@@ -221,7 +230,11 @@ struct DeviceBinaryElementwise : public BaseOperator
         // clang-format off
         str << "DeviceBinaryElementwise"
             << "<"
+            << "NDim = " << NDim
             << "MPerThread = " << MPerThread
+            << "AScalarPerVector = " << AScalarPerVector
+            << "BScalarPerVector = " << BScalarPerVector
+            << "CScalarPerVector = " << CScalarPerVector
             << ">";
         // clang-format on
 

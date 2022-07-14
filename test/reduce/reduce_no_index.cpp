@@ -1,7 +1,10 @@
-#include "getopt.h"
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "host_common_util.hpp"
-#include "profile_reduce_impl.hpp"
+#include <getopt.h>
+
+#include "ck/library/host_tensor/host_common_util.hpp"
+#include "profiler/include/profile_reduce_impl.hpp"
 
 using namespace ck;
 

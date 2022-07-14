@@ -1,13 +1,18 @@
-#include <stdlib.h>
-#include "config.hpp"
-#include "device_batched_gemm_xdl.hpp"
-#include "element_wise_operation.hpp"
-#include "device_operation_instance.hpp"
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#include <cstdlib>
+
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/device_batched_gemm_xdl.hpp"
+#include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_batched_gemm_instance {
+namespace instance {
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -39,13 +44,15 @@ using device_batched_gemm_xdl_f32_f32_f32_gkm_gkn_gmn_instances = std::tuple<
     >;
 
 void add_device_batched_gemm_xdl_f32_f32_f32_gkm_gkn_gmn_instances(
-    std::vector<DeviceGemmPtr<PassThrough, PassThrough, PassThrough>>& instances)
+    std::vector<std::unique_ptr<
+        DeviceBatchedGemm<Col, Row, Row, F32, F32, F32, PassThrough, PassThrough, PassThrough>>>&
+        instances)
 {
     add_device_operation_instances(instances,
                                    device_batched_gemm_xdl_f32_f32_f32_gkm_gkn_gmn_instances{});
 }
 
-} // namespace device_batched_gemm_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

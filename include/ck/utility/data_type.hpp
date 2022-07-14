@@ -1,5 +1,9 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
-#include "statically_indexed_array.hpp"
+
+#include "ck/utility/statically_indexed_array.hpp"
 
 namespace ck {
 
@@ -928,14 +932,14 @@ using int8x64_t = typename vector_type<int8_t, 64>::type;
 
 // Convert X to Y
 template <typename Y, typename X>
-__host__ __device__ Y type_convert(X x)
+__host__ __device__ constexpr Y type_convert(X x)
 {
     return static_cast<Y>(x);
 }
 
 // convert bfp16 to fp32
 template <>
-inline __host__ __device__ float type_convert<float, bhalf_t>(bhalf_t x)
+inline __host__ __device__ constexpr float type_convert<float, bhalf_t>(bhalf_t x)
 {
     union
     {
@@ -948,7 +952,7 @@ inline __host__ __device__ float type_convert<float, bhalf_t>(bhalf_t x)
 
 // convert fp32 to bfp16
 template <>
-inline __host__ __device__ bhalf_t type_convert<bhalf_t, float>(float x)
+inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float x)
 {
     union
     {
@@ -1000,6 +1004,11 @@ struct NumericLimits
     __host__ __device__ static constexpr T Max() { return std::numeric_limits<T>::max(); }
 
     __host__ __device__ static constexpr T Lowest() { return std::numeric_limits<T>::lowest(); }
+
+    __host__ __device__ static constexpr T QuietNaN()
+    {
+        return std::numeric_limits<T>::quiet_NaN();
+    }
 };
 
 template <>
@@ -1008,12 +1017,15 @@ struct NumericLimits<half_t>
     static constexpr unsigned short binary_min    = 0x0400;
     static constexpr unsigned short binary_max    = 0x7BFF;
     static constexpr unsigned short binary_lowest = 0xFBFF;
+    static constexpr unsigned short binary_qnan   = 0x7FFF;
 
     __host__ __device__ static constexpr half_t Min() { return bit_cast<half_t>(binary_min); }
 
     __host__ __device__ static constexpr half_t Max() { return bit_cast<half_t>(binary_max); }
 
     __host__ __device__ static constexpr half_t Lowest() { return bit_cast<half_t>(binary_lowest); }
+
+    __host__ __device__ static constexpr half_t QuietNaN() { return bit_cast<half_t>(binary_qnan); }
 };
 
 } // namespace ck

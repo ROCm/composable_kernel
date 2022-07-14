@@ -1,23 +1,23 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
 #include <getopt.h>
 
-#include "check_err.hpp"
-#include "config.hpp"
-#include "print.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
-#include "device_tensor.hpp"
-#include "device_base.hpp"
-#include "device_reduce_multiblock.hpp"
-#include "host_common_util.hpp"
-#include "host_reduction.hpp"
+#include "ck/ck.hpp"
+#include "ck/utility/reduction_enums.hpp"
+#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
+#include "ck/tensor_operation/gpu/device/device_reduce_multiblock.hpp"
 
-#include "reduction_enums.hpp"
-#include "reduction_operator_mapping.hpp"
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/host_tensor/host_common_util.hpp"
+#include "ck/library/host_tensor/host_reduction.hpp"
 
 using namespace ck;
 using namespace ck::tensor_operation::device;
@@ -33,11 +33,11 @@ constexpr ReduceTensorOp ReduceOpId = ReduceTensorOp::NORM2;
 constexpr bool PropagateNan         = true;
 constexpr bool OutputIndex          = false;
 
-using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
+using ReduceOperation = typename reduce_binary_operator<ReduceOpId>::opType;
 using InElementwiseOperation =
-    typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::InElementwiseOperation;
+    typename reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation;
 using AccElementwiseOperation =
-    typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::AccElementwiseOperation;
+    typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation;
 
 using DeviceReduceInstance = DeviceReduceMultiBlock<InDataType,
                                                     AccDataType,
@@ -147,8 +147,6 @@ class SimpleAppArgs
 
 int main(int argc, char* argv[])
 {
-    using namespace ck::host_reduce;
-
     const std::vector<int> reduceDims{0, 1, 2};
     const std::vector<int> invariantDims{3};
 
@@ -249,20 +247,34 @@ int main(int argc, char* argv[])
 
     DeviceMem out_index_dev(indicesSizeInBytes);
 
+    InElementwiseOperation in_elementwise_op;
+    AccElementwiseOperation acc_elementwise_op;
+
+    std::tie(in_elementwise_op, acc_elementwise_op) =
+        reduce_unary_operator<ReduceOpId, true, true>::GetElementwiseOperator(
+            static_cast<int32_t>(reduce_total_length));
+
     if(args.do_verification)
     {
         ReductionHost<InDataType,
                       AccDataType,
                       OutDataType,
-                      ReduceOpId,
+                      ReduceOperation,
+                      InElementwiseOperation,
+                      AccElementwiseOperation,
                       Rank,
                       NumReduceDim,
                       PropagateNan,
                       OutputIndex>
             hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
 
-        hostReduce.Run(
-            alpha, in.mData.data(), beta, out_ref.mData.data(), out_indices_ref.mData.data());
+        hostReduce.Run(alpha,
+                       in.mData.data(),
+                       beta,
+                       out_ref.mData.data(),
+                       out_indices_ref.mData.data(),
+                       in_elementwise_op,
+                       acc_elementwise_op);
     };
 
     std::vector<ck::index_t> i_inLengths;
@@ -277,20 +289,19 @@ int main(int argc, char* argv[])
 
     auto reduce = DeviceReduceInstance{};
 
-    auto argument_ptr = reduce.MakeArgumentPointer(
-        i_inLengths,
-        i_inStrides,
-        i_outLengths,
-        i_outStrides,
-        reduceDims,
-        alpha,
-        beta,
-        in_dev.GetDeviceBuffer(),
-        nullptr,
-        out_dev.GetDeviceBuffer(),
-        out_index_dev.GetDeviceBuffer(),
-        InElementwiseOperation{static_cast<int32_t>(reduce_total_length)},
-        AccElementwiseOperation{static_cast<int32_t>(reduce_total_length)});
+    auto argument_ptr = reduce.MakeArgumentPointer(i_inLengths,
+                                                   i_inStrides,
+                                                   i_outLengths,
+                                                   i_outStrides,
+                                                   reduceDims,
+                                                   alpha,
+                                                   beta,
+                                                   in_dev.GetDeviceBuffer(),
+                                                   nullptr,
+                                                   out_dev.GetDeviceBuffer(),
+                                                   out_index_dev.GetDeviceBuffer(),
+                                                   in_elementwise_op,
+                                                   acc_elementwise_op);
 
     if(!reduce.IsSupportedArgument(argument_ptr.get()))
     {

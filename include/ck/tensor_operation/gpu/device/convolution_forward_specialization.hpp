@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #ifndef CONVOLUTION_FORWARD_SPECIALIZATION
 #define CONVOLUTION_FORWARD_SPECIALIZATION
 
@@ -15,7 +18,7 @@ enum struct ConvolutionForwardSpecialization
     OddC,
 };
 
-inline std::string getConvFwdSpecializationStr(const ConvolutionForwardSpecialization& s)
+inline std::string getConvForwardSpecializationString(const ConvolutionForwardSpecialization& s)
 {
     switch(s)
     {

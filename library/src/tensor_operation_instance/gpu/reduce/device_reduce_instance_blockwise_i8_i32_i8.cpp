@@ -1,9 +1,12 @@
-#include "device_reduce_instance_blockwise.hpp"
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance_blockwise.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_reduce_instance {
+namespace instance {
 
 // clang-format off
 // InDataType | AccDataType | OutDataType | ReduceOpId | NanPropaOpt | IndicesOpt | Rank | NumReduceDim
@@ -17,7 +20,7 @@ ADD_BLOCKWISE_INST_BY_ID(int8_t, int32_t, int8_t, 5, 0, 0, 4, 1);
 ADD_BLOCKWISE_INST_BY_ID(int8_t, int32_t, int8_t, 5, 0, 0, 2, 1);
 // clang-format on
 
-} // namespace device_reduce_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 

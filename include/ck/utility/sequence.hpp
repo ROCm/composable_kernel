@@ -1,10 +1,12 @@
-#ifndef CK_SEQUENCE_HPP
-#define CK_SEQUENCE_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "integral_constant.hpp"
-#include "type.hpp"
-#include "functional.hpp"
-#include "math.hpp"
+#pragma once
+
+#include "ck/utility/integral_constant.hpp"
+#include "ck/utility/type.hpp"
+#include "ck/utility/functional.hpp"
+#include "ck/utility/math.hpp"
 
 namespace ck {
 
@@ -241,7 +243,13 @@ struct arithmetic_sequence_gen
         }
     };
 
-    using type = typename sequence_gen<(IEnd - IBegin) / Increment, F>::type;
+    using type0 = typename sequence_gen<(IEnd - IBegin) / Increment, F>::type;
+    using type1 = Sequence<>;
+
+    static constexpr bool kHasContent =
+        (Increment > 0 && IBegin < IEnd) || (Increment < 0 && IBegin > IEnd);
+
+    using type = typename conditional<kHasContent, type0, type1>::type;
 };
 
 // uniform sequence
@@ -882,5 +890,10 @@ __host__ __device__ constexpr bool sequence_all_of(Seq, F f)
     return flag;
 }
 
+template <typename Sx, typename Sy>
+using sequence_merge_t = typename sequence_merge<Sx, Sy>::type;
+
+template <index_t NSize, index_t I>
+using uniform_sequence_gen_t = typename uniform_sequence_gen<NSize, I>::type;
+
 } // namespace ck
-#endif

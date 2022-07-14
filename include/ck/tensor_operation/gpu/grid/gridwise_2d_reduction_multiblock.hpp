@@ -1,39 +1,15 @@
-/*******************************************************************************
- *
- * MIT License
- *
- * Copyright (c) 2020 Advanced Micro Devices, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
- *******************************************************************************/
-#ifndef CK_GRIDWISE_2D_REDUCTION_MULTIBLOCK_HPP
-#define CK_GRIDWISE_2D_REDUCTION_MULTIBLOCK_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "reduction_common.hpp"
-#include "reduction_operator.hpp"
-#include "reduction_functions_accumulate.hpp"
-#include "reduction_functions_blockwise.hpp"
-#include "reduction_functions_threadwise.hpp"
+#pragma once
 
-#include "threadwise_tensor_slice_transfer.hpp"
-#include "element_wise_operation.hpp"
+#include "ck/utility/reduction_common.hpp"
+#include "ck/utility/reduction_operator.hpp"
+#include "ck/utility/reduction_functions_accumulate.hpp"
+#include "ck/tensor_operation/gpu/block/reduction_functions_blockwise.hpp"
+#include "ck/tensor_operation/gpu/thread/reduction_functions_threadwise.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 namespace ck {
 
@@ -171,15 +147,15 @@ struct GridwiseReduction_mk_to_m_multiblock
                                AccDataType beta,
                                OutDataType* const __restrict__ p_out_value_global)
     {
-        const auto zeroVal = ReduceOperation::GetReductionZeroVal();
+        const auto identityVal = ReduceOperation::template GetIdentityValue<AccDataType>();
 
         // LDS
         __shared__ AccDataType p_reduce_work_buffer[BlockSize];
 
-        const auto in_global_val_buf =
-            make_dynamic_buffer<AddressSpaceEnum::Global>(p_in_value_global,
-                                                          in_grid_desc_m_k.GetElementSpaceSize(),
-                                                          type_convert<InDataType>(zeroVal));
+        const auto in_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_in_value_global,
+            in_grid_desc_m_k.GetElementSpaceSize(),
+            ReduceOperation::template GetIdentityValue<InDataType>());
         auto out_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_out_value_global, out_grid_desc_m.GetElementSpaceSize());
 
@@ -191,7 +167,7 @@ struct GridwiseReduction_mk_to_m_multiblock
 
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> accu_value_buf;
 
-        static_for<0, MThreadSliceSize, 1>{}([&](auto I) { accu_value_buf(I) = zeroVal; });
+        static_for<0, MThreadSliceSize, 1>{}([&](auto I) { accu_value_buf(I) = identityVal; });
 
         const index_t thread_local_id = get_thread_local_1d_id();
         const index_t block_global_id = get_block_1d_id();
@@ -358,12 +334,12 @@ struct GridwiseReduction_mk_to_m_multiblock
         __shared__ AccDataType p_reduce_work_val_buffer[BlockSize];
         __shared__ IndexDataType p_reduce_work_idx_buffer[BlockSize];
 
-        const auto zeroVal = ReduceOperation::GetReductionZeroVal();
+        const auto identityVal = ReduceOperation::template GetIdentityValue<AccDataType>();
 
-        const auto in_global_val_buf =
-            make_dynamic_buffer<AddressSpaceEnum::Global>(p_in_value_global,
-                                                          in_grid_desc_m_k.GetElementSpaceSize(),
-                                                          type_convert<InDataType>(zeroVal));
+        const auto in_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_in_value_global,
+            in_grid_desc_m_k.GetElementSpaceSize(),
+            ReduceOperation::template GetIdentityValue<InDataType>());
         const auto in_global_idx_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_in_index_global, in_grid_desc_m_k.GetElementSpaceSize());
         auto out_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -418,7 +394,7 @@ struct GridwiseReduction_mk_to_m_multiblock
                                  thread_k_cluster_id * KThreadSliceSize));
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-            accu_value_buf(I) = zeroVal;
+            accu_value_buf(I) = identityVal;
             accu_index_buf(I) = 0;
         });
 
@@ -459,7 +435,7 @@ struct GridwiseReduction_mk_to_m_multiblock
                                             in_thread_idx_buf);
 
                 static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
-                    AccDataType tmpValue   = zeroVal;
+                    AccDataType tmpValue   = identityVal;
                     IndexDataType tmpIndex = 0;
 
                     static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
@@ -512,7 +488,7 @@ struct GridwiseReduction_mk_to_m_multiblock
                                           in_thread_val_buf(Number<offset>{}));
                     });
 
-                    AccDataType tmpValue   = zeroVal;
+                    AccDataType tmpValue   = identityVal;
                     IndexDataType tmpIndex = 0;
 
                     static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
@@ -635,4 +611,3 @@ struct GridwiseReduction_mk_to_m_multiblock
 };
 
 } // namespace ck
-#endif

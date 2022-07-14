@@ -1,10 +1,13 @@
-#ifndef REFERENCE_CONV2D_FWD_BIAS_ACTIVATION_ADD_HPP
-#define REFERENCE_CONV2D_FWD_BIAS_ACTIVATION_ADD_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <iostream>
 #include <sstream>
-#include "device_base.hpp"
-#include "host_tensor.hpp"
+
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -195,4 +198,3 @@ struct ReferenceConvFwd_Bias_Activation_Add : public device::BaseOperator
 } // namespace host
 } // namespace tensor_operation
 } // namespace ck
-#endif

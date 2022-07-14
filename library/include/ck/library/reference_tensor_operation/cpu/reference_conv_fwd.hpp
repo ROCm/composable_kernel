@@ -1,12 +1,14 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include <iostream>
 #include <type_traits>
 #include <sstream>
 
-#include "stream_config.hpp"
-#include "device_base.hpp"
-#include "host_tensor.hpp"
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
 
 namespace ck {
 namespace tensor_operation {

@@ -1,14 +1,17 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <cstdlib>
-#include "check_err.hpp"
-#include "config.hpp"
-#include "device.hpp"
-#include "host_tensor.hpp"
-#include "host_tensor_generator.hpp"
 
-#include "device_tensor.hpp"
-#include "binary_element_wise_operation.hpp"
-#include "device_binary_elementwise.hpp"
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/device/device_binary_elementwise.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/host_tensor/host_tensor_generator.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -17,7 +20,7 @@ using ABDataType             = F16;
 using CDataType              = F16;
 using EltwiseComputeDataType = F32;
 
-using Add = ck::tensor_operation::binary_element_wise::Add;
+using Add = ck::tensor_operation::element_wise::Add;
 
 using DeviceElementwiseAddInstance =
     ck::tensor_operation::device::DeviceBinaryElementwise<ABDataType,
@@ -46,19 +49,19 @@ void host_broadcast2D(
     {
         for(int n = 0; n < N; ++n)
         {
-            ComputeDataType Amn = static_cast<ComputeDataType>(A(m, n));
+            ComputeDataType Amn = ck::type_convert<ComputeDataType>(A(m, n));
             ComputeDataType Cmn = 0;
             if constexpr(broadcastDim == 0)
             {
-                ComputeDataType Bn = static_cast<ComputeDataType>(B(n));
+                ComputeDataType Bn = ck::type_convert<ComputeDataType>(B(n));
                 functor(Cmn, Amn, Bn);
             }
             else
             {
-                ComputeDataType Bm = static_cast<ComputeDataType>(B(m));
+                ComputeDataType Bm = ck::type_convert<ComputeDataType>(B(m));
                 functor(Cmn, Amn, Bm);
             }
-            C(m, n) = static_cast<ctype>(Cmn);
+            C(m, n) = ck::type_convert<ctype>(Cmn);
         }
     }
 }
@@ -96,15 +99,17 @@ int main()
     a_m_n_device_buf.ToDevice(a_m_n.mData.data());
     b_n_device_buf.ToDevice(b_n.mData.data());
 
+    std::array<const void*, 2> input = {a_m_n_device_buf.GetDeviceBuffer(),
+                                        b_n_device_buf.GetDeviceBuffer()};
+    std::array<void*, 1> output      = {c_m_n_device_buf.GetDeviceBuffer()};
+
+    std::vector<ck::index_t> a_strides = {Stride, 1};
+    std::vector<ck::index_t> b_strides = {0, 1};
+    std::vector<ck::index_t> c_strides = {Stride, 1};
+
     auto broadcastAdd = DeviceElementwiseAddInstance{};
-    auto argument     = broadcastAdd.MakeArgumentPointer(a_m_n_device_buf.GetDeviceBuffer(),
-                                                     b_n_device_buf.GetDeviceBuffer(),
-                                                     c_m_n_device_buf.GetDeviceBuffer(),
-                                                     {M, N},
-                                                     {Stride, 1},
-                                                     {0, 1}, // broadcast in first dimension
-                                                     {Stride, 1},
-                                                     Add{});
+    auto argument     = broadcastAdd.MakeArgumentPointer(
+        input, output, {M, N}, {a_strides, b_strides}, {c_strides}, Add{});
 
     if(!broadcastAdd.IsSupportedArgument(argument.get()))
     {

@@ -1,10 +1,14 @@
-#ifndef REFERENCE_CONV_BWD_DATA_HPP
-#define REFERENCE_CONV_BWD_DATA_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
 
 #include <iostream>
 #include <sstream>
-#include "device_base.hpp"
-#include "host_tensor.hpp"
+
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
+
+#include "ck/library/host_tensor/host_tensor.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -106,9 +110,8 @@ struct ReferenceConvBwdData : public device::BaseOperator
                         }
                     }
 
-                    float v_in;
-                    arg.in_element_op_(v_in, v_acc);
-                    arg.input_(n, c, wi) = ck::type_convert<InDataType>(v_in);
+                    arg.in_element_op_(v_acc, v_acc);
+                    arg.input_(n, c, wi) = ck::type_convert<InDataType>(v_acc);
                 };
 
                 make_ParallelTensorFunctor(f_ncw,
@@ -352,4 +355,3 @@ struct ReferenceConvBwdData : public device::BaseOperator
 } // namespace host
 } // namespace tensor_operation
 } // namespace ck
-#endif

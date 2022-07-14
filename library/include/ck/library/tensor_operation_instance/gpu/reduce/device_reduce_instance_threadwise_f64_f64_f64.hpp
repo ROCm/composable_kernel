@@ -1,12 +1,16 @@
-#ifndef DEVICE_REDUCE_INSTANCE_THREADWISE_F64_F64_F64_HPP
-#define DEVICE_REDUCE_INSTANCE_THREADWISE_F64_F64_F64_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "device_reduce_instance_threadwise.hpp"
+#pragma once
+
+#include "ck/utility/data_type.hpp"
+
+#include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance_threadwise.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_reduce_instance {
+namespace instance {
 
 // clang-format off
 // InDataType | AccDataType | OutDataType | ReduceOpId | NanPropaOpt | IndicesOpt | Rank | NumReduceDim 
@@ -48,10 +52,7 @@ ADD_THREADWISE_INST_REF_BY_ID(double, double, double, 4, 0, 1, 4, 1);
 ADD_THREADWISE_INST_REF_BY_ID(double, double, double, 4, 0, 1, 2, 1);
 // clang-format on
 
-} // namespace device_reduce_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
-
 } // namespace ck
-
-#endif

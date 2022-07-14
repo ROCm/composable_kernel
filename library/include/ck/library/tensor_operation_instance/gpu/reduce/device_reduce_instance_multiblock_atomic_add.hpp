@@ -1,14 +1,17 @@
-#ifndef DEVICE_REDUCE_INSTANCE_MULTIBLOCK_ATOMIC_ADD_HPP
-#define DEVICE_REDUCE_INSTANCE_MULTIBLOCK_ATOMIC_ADD_HPP
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "reduction_operator_mapping.hpp"
-#include "device_reduce_instance_impl_common.hpp"
-#include "device_reduce_multiblock.hpp"
+#pragma once
+
+#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
+#include "ck/tensor_operation/gpu/device/device_reduce_multiblock.hpp"
+
+#include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance_impl_common.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_reduce_instance {
+namespace instance {
 
 using reduce_configuration_1_instances_multiblock_atomic_add = std::tuple<
     // clang-format off
@@ -61,12 +64,10 @@ using reduce_configuration_2_instances_multiblock_atomic_add = std::tuple<
     >;
 #endif
 
-template <typename AccDataType, ReduceTensorOp ReduceOperation>
-using deviceReduceMultiBlockAtomicAddPtrType =
-    DeviceReducePtr<typename reduce_unary_operator<AccDataType, ReduceOperation, true, true>::
-                        InElementwiseOperation,
-                    typename reduce_unary_operator<AccDataType, ReduceOperation, true, true>::
-                        AccElementwiseOperation>;
+template <ReduceTensorOp ReduceOperation>
+using deviceReduceMultiBlockAtomicAddPtrType = DeviceReducePtr<
+    typename reduce_unary_operator<ReduceOperation, true, true>::InElementwiseOperation,
+    typename reduce_unary_operator<ReduceOperation, true, true>::AccElementwiseOperation>;
 
 template <typename InDataType,
           typename AccDataType,
@@ -77,15 +78,13 @@ template <typename InDataType,
           bool PropagateNan,
           bool UseIndex>
 void add_device_reduce_instance_multiblock_atomic_add(
-    std::vector<deviceReduceMultiBlockAtomicAddPtrType<AccDataType, ReduceOpId>>&
-        device_op_instances)
+    std::vector<deviceReduceMultiBlockAtomicAddPtrType<ReduceOpId>>& device_op_instances)
 {
-    using ReduceOperation = typename reduce_binary_operator<AccDataType, ReduceOpId>::opType;
+    using ReduceOperation = typename reduce_binary_operator<ReduceOpId>::opType;
     using InElementwiseOperation =
-        typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::InElementwiseOperation;
+        typename reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation;
     using AccElementwiseOperation =
-        typename reduce_unary_operator<AccDataType, ReduceOpId, true, true>::
-            AccElementwiseOperation;
+        typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation;
 
     constexpr bool Indexable =
         (ReduceOpId == ReduceTensorOp::MIN || ReduceOpId == ReduceTensorOp::MAX ||
@@ -158,8 +157,7 @@ void add_device_reduce_instance_multiblock_atomic_add(
                                                                    ReduceOpId,   \
                                                                    PropagateNan, \
                                                                    UseIndex>(    \
-        std::vector<deviceReduceMultiBlockAtomicAddPtrType<compT, ReduceOpId>> & \
-        device_op_instances)
+        std::vector<deviceReduceMultiBlockAtomicAddPtrType<ReduceOpId>> & device_op_instances)
 
 #define ADD_MULTIBLOCK_ATOMIC_ADD_INST_BY_ID(                                       \
     inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)           \
@@ -172,21 +170,17 @@ void add_device_reduce_instance_multiblock_atomic_add(
                                            Rank,                                    \
                                            NumReduceDim)
 
-#define ADD_MULTIBLOCK_ATOMIC_ADD_INST_REF_BY_TYPE(                                                \
-    inT, compT, outT, ReduceOpId, PropagateNan, UseIndex, Rank, NumReduceDim)                      \
-    extern template void add_device_reduce_instance_multiblock_atomic_add<inT,                     \
-                                                                          compT,                   \
-                                                                          outT,                    \
-                                                                          Rank,                    \
-                                                                          NumReduceDim,            \
-                                                                          ReduceOpId,              \
-                                                                          PropagateNan,            \
-                                                                          UseIndex>(               \
-        std::vector<DeviceReducePtr<                                                               \
-            typename reduce_unary_operator<compT, ReduceOpId, true, true>::InElementwiseOperation, \
-            typename reduce_unary_operator<compT, ReduceOpId, true, true>::                        \
-                AccElementwiseOperation>> &                                                        \
-        device_op_instances)
+#define ADD_MULTIBLOCK_ATOMIC_ADD_INST_REF_BY_TYPE(                                     \
+    inT, compT, outT, ReduceOpId, PropagateNan, UseIndex, Rank, NumReduceDim)           \
+    extern template void add_device_reduce_instance_multiblock_atomic_add<inT,          \
+                                                                          compT,        \
+                                                                          outT,         \
+                                                                          Rank,         \
+                                                                          NumReduceDim, \
+                                                                          ReduceOpId,   \
+                                                                          PropagateNan, \
+                                                                          UseIndex>(    \
+        std::vector<deviceReduceMultiBlockAtomicAddPtrType<ReduceOpId>> & device_op_instances)
 
 #define ADD_MULTIBLOCK_ATOMIC_ADD_INST_REF_BY_ID(                                       \
     inT, compT, outT, ReduceOpId, NanOpt, IndicesOpt, Rank, NumReduceDim)               \
@@ -199,10 +193,7 @@ void add_device_reduce_instance_multiblock_atomic_add(
                                                Rank,                                    \
                                                NumReduceDim)
 
-} // namespace device_reduce_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
-
 } // namespace ck
-
-#endif
