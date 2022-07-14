@@ -75,7 +75,7 @@ void add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_f16_instances(
 
 void add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_f32_instances(
     std::vector<std::unique_ptr<
-        DeviceConvFwd<2, NHWC, KYXC, NHWK, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
+        DeviceConvFwd<2, NHWC, KYXC, NHWK, F32, F32, F32, PassThrough, PassThrough, PassThrough>>>&
         instances);
 
 void add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(

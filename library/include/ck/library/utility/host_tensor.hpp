@@ -256,6 +256,14 @@ struct Tensor
         return *this;
     }
 
+    void SetZero()
+    {
+        for(auto& v : mData)
+        {
+            v = T{0};
+        }
+    }
+
     template <typename F>
     void ForEach_impl(F&& f, std::vector<size_t>& idx, size_t rank)
     {

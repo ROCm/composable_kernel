@@ -39,7 +39,8 @@ namespace device {
 // 3D:
 // out[N, Do, Ho, Wo, K] = in[N, Di, Hi, Wi, C] * wei[K, Z, Y, X, C]
 //
-template <typename InDataType,
+template <ck::index_t NumDimSpatial,
+          typename InDataType,
           typename WeiDataType,
           typename OutDataType,
           typename AccDataType,
@@ -47,7 +48,6 @@ template <typename InDataType,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
           ConvolutionForwardSpecialization ConvForwardSpecialization,
-          ck::index_t NumDimSpatial,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -84,9 +84,9 @@ struct DeviceConvNdFwdNwcKxcNwk_Xdl
                                                          ck::tensor_layout::convolution::KYXC,
                                                          ck::tensor_layout::convolution::KZYXC>>,
                            ck::tuple_element_t<NumDimSpatial - 1,
-                                               ck::Tuple<ck::tensor_layout::convolution::NWC,
-                                                         ck::tensor_layout::convolution::NHWC,
-                                                         ck::tensor_layout::convolution::NDHWC>>,
+                                               ck::Tuple<ck::tensor_layout::convolution::NWK,
+                                                         ck::tensor_layout::convolution::NHWK,
+                                                         ck::tensor_layout::convolution::NDHWK>>,
                            InDataType,
                            WeiDataType,
                            OutDataType,
@@ -94,6 +94,27 @@ struct DeviceConvNdFwdNwcKxcNwk_Xdl
                            WeiElementwiseOperation,
                            OutElementwiseOperation>
 {
+    using Base =
+        DeviceConvFwd<NumDimSpatial,
+                      ck::tuple_element_t<NumDimSpatial - 1,
+                                          ck::Tuple<ck::tensor_layout::convolution::NWC,
+                                                    ck::tensor_layout::convolution::NHWC,
+                                                    ck::tensor_layout::convolution::NDHWC>>,
+                      ck::tuple_element_t<NumDimSpatial - 1,
+                                          ck::Tuple<ck::tensor_layout::convolution::KXC,
+                                                    ck::tensor_layout::convolution::KYXC,
+                                                    ck::tensor_layout::convolution::KZYXC>>,
+                      ck::tuple_element_t<NumDimSpatial - 1,
+                                          ck::Tuple<ck::tensor_layout::convolution::NWK,
+                                                    ck::tensor_layout::convolution::NHWK,
+                                                    ck::tensor_layout::convolution::NDHWK>>,
+                      InDataType,
+                      WeiDataType,
+                      OutDataType,
+                      InElementwiseOperation,
+                      WeiElementwiseOperation,
+                      OutElementwiseOperation>;
+
     using DeviceOp = DeviceConvNdFwdNwcKxcNwk_Xdl;
 
     using ADataType = InDataType;

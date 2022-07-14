@@ -20,6 +20,7 @@ static constexpr auto ConvFwdDefault =
 
 template <ck::index_t NumDimSpatial>
 using DeviceConvNDFwdInstance = ck::tensor_operation::device::DeviceConvNdFwdNwcKxcNwk_Xdl<
+    NumDimSpatial,  // NumDimSpatial
     InDataType,     //
     WeiDataType,    //
     OutDataType,    //
@@ -28,7 +29,6 @@ using DeviceConvNDFwdInstance = ck::tensor_operation::device::DeviceConvNdFwdNwc
     WeiElementOp,   // Weights Elementwise Operation                          =
     OutElementOp,   // Output Elementwise Operation
     ConvFwdDefault, // ConvForwardSpecialization
-    NumDimSpatial,  // NumDimSpatial
     256,            // BlockSize
     128,            // MPerBlock
     256,            // NPerBlock
@@ -77,7 +77,8 @@ int main(int argc, char* argv[])
     bool time_kernel     = false;
     int num_dim_spatial  = 2;
 
-    ck::tensor_operation::device::ConvParams params;
+    ck::tensor_operation::device::ConvParams params{
+        2, 128, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
 
     if(argc == 1)
     {
@@ -96,7 +97,7 @@ int main(int argc, char* argv[])
         time_kernel     = std::stoi(argv[3]);
         num_dim_spatial = std::stoi(argv[4]);
 
-        params = parse_conv_params(num_dim_spatial, argc, argv);
+        params = parse_conv_params(num_dim_spatial, 5, argv);
     }
 
     if(num_dim_spatial == 1)
