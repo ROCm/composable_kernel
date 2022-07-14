@@ -318,13 +318,13 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
                 reduce0_device_buf.FromDevice(d0_g_m_device_result.mData.data());
                 reduce1_device_buf.FromDevice(d1_g_m_device_result.mData.data());
 
-                float c_error  = ck::utils::check_err(c_g_m_n_host_result, c_g_m_n_device_result);
-                float d0_error = ck::utils::check_err(d0_g_m_host_result, d0_g_m_device_result);
-                float d1_error = ck::utils::check_err(d1_g_m_host_result, d1_g_m_device_result);
+                bool c_error  = ck::utils::check_err(c_g_m_n_host_result, c_g_m_n_device_result);
+                bool d0_error = ck::utils::check_err(d0_g_m_host_result, d0_g_m_device_result);
+                bool d1_error = ck::utils::check_err(d1_g_m_host_result, d1_g_m_device_result);
 
-                pass = pass && (c_error < 1E-6);
-                pass = pass && (d0_error < 1E-6);
-                pass = pass && (d1_error < 1E-6);
+                pass = pass && (c_error == true);
+                pass = pass && (d0_error == true);
+                pass = pass && (d1_error == true);
 
                 if(do_log)
                 {
