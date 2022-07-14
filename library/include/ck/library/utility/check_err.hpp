@@ -205,8 +205,8 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
 template <typename T>
 typename std::enable_if<std::is_floating_point<T>::value && !std::is_same<T, half_t>::value,
                         bool>::type
-check_err(const Tensor<T>& ref, 
-          const Tensor<T>& out, 
+check_err(const Tensor<T>& ref,
+          const Tensor<T>& out,
           const std::string& msg = "Error: Incorrect results!",
           double rtol            = 1e-5,
           double atol            = 1e-6)
@@ -220,7 +220,7 @@ check_err(const Tensor<T>& ref,
     {
         double ref_v = ck::type_convert<double>(ref.mData[i]);
         double out_v = ck::type_convert<double>(out.mData[i]);
-        err  = std::abs(ref_v - out_v);
+        err          = std::abs(ref_v - out_v);
         if(err > atol)
         {
             max_err = err > max_err ? err : max_err;
