@@ -433,7 +433,7 @@ bool profile_convnd_bwd_weight_impl(int do_verification,
         {
             wei_device_buf.FromDevice(weights_device_result.mData.data());
 
-            float max_error = check_error(weights_host_result, weights_device_result);
+            float max_error = ck::utils::check_err(weights_host_result, weights_device_result);
 
             if(max_error > 8)
             {
@@ -445,8 +445,6 @@ bool profile_convnd_bwd_weight_impl(int do_verification,
             {
                 std::cout << "Pass Info: " << conv_ptr->GetTypeString() << std::endl;
             }
-
-            check_error(weights_host_result, weights_device_result);
 
             if(do_log)
             {
