@@ -1023,7 +1023,7 @@ struct DeviceConvNDDirectFwdBiasActivationAddAvx2_Input_N_Hi_Wi_C_Weight_K_Y_X_C
         };
         // clang-format off
         str << "DeviceConv" << std::to_string(NumDimSpatial) 
-            << "DDirectFwd_BBAA_vx2_NHWC_KYXCK8"
+            << "DDirectFwd_BBA_Avx2_NHWC_KYXCK8"
             // <<"_FS"<< static_cast<int>(ConvForwardSpecialization)
             // <<"_KS"<< static_cast<int>(gridwise_gemm.dynamic_tunable.gemm_k_spec)
             <<"_BS"<< static_cast<int>(gridwise_gemm.dynamic_tunable.loop_over_spec)
