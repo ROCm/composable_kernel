@@ -526,8 +526,6 @@ struct DeviceGroupedGemmXdl
         {
             grid_size_ = 0;
 
-            gemm_descs_args_workspace_ = nullptr;
-
             group_count_ = ck::type_convert<ck::index_t>(gemm_descs.size());
 
             if(!(group_count_ == ck::type_convert<ck::index_t>(p_As.size()) &&
@@ -601,8 +599,6 @@ struct DeviceGroupedGemmXdl
 
         std::vector<GemmBiasTransKernelArg> gemm_desc_kernel_arg_;
 
-        void* gemm_descs_args_workspace_;
-
         index_t grid_size_;
     };
 
@@ -651,7 +647,7 @@ struct DeviceGroupedGemmXdl
             }
 
             hipGetErrorString(
-                hipMemcpy(arg.gemm_descs_args_workspace_,
+                hipMemcpy(arg.p_workspace_,
                           arg.gemm_desc_kernel_arg_.data(),
                           arg.gemm_desc_kernel_arg_.size() * sizeof(GemmBiasTransKernelArg),
                           hipMemcpyHostToDevice));
@@ -672,7 +668,7 @@ struct DeviceGroupedGemmXdl
                     dim3(arg.grid_size_),
                     dim3(BlockSize),
                     0,
-                    cast_pointer_to_constant_address_space(arg.gemm_descs_args_workspace_),
+                    cast_pointer_to_constant_address_space(arg.p_workspace_),
                     arg.gemm_desc_kernel_arg_.size(),
                     arg.a_element_op_,
                     arg.b_element_op_,
@@ -778,11 +774,6 @@ struct DeviceGroupedGemmXdl
     size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override
     {
         return dynamic_cast<const Argument*>(p_arg)->group_count_ * sizeof(GemmBiasTransKernelArg);
-    }
-
-    void SetWorkSpacePointer(BaseArgument* p_arg, void* workspace_ptr) const override
-    {
-        dynamic_cast<Argument*>(p_arg)->gemm_descs_args_workspace_ = workspace_ptr;
     }
 };
 
