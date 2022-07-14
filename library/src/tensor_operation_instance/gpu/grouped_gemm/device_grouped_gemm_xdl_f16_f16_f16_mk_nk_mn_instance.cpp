@@ -51,7 +51,9 @@ using device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instances = std::tuple<
     >;
 
 void add_device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(
-    std::vector<DeviceGroupedGemmPtr<PassThrough, PassThrough, PassThrough>>& instances)
+    std::vector<std::unique_ptr<
+        DeviceGroupedGemm<Row, Col, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
+        instances)
 {
     add_device_operation_instances(instances,
                                    device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instances{});

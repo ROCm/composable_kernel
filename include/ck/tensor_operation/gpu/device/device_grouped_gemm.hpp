@@ -14,7 +14,13 @@ struct GemmDesc
     ck::index_t stride_A_, stride_B_, stride_C_;
 };
 
-template <typename AElementwiseOperation,
+template <typename ALayout,
+          typename BLayout,
+          typename CLayout,
+          typename ADataType,
+          typename BDataType,
+          typename CDataType,
+          typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
 struct DeviceGroupedGemm : public BaseOperator
@@ -31,11 +37,24 @@ struct DeviceGroupedGemm : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <typename AElementwiseOperation,
+template <typename ALayout,
+          typename BLayout,
+          typename CLayout,
+          typename ADataType,
+          typename BDataType,
+          typename CDataType,
+          typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
-using DeviceGroupedGemmPtr = std::unique_ptr<
-    DeviceGroupedGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>>;
+using DeviceGroupedGemmPtr = std::unique_ptr<DeviceGroupedGemm<ALayout,
+                                                               BLayout,
+                                                               CLayout,
+                                                               ADataType,
+                                                               BDataType,
+                                                               CDataType,
+                                                               AElementwiseOperation,
+                                                               BElementwiseOperation,
+                                                               CElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation

@@ -10,36 +10,14 @@
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm_xdl.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/tensor_operation_instance/gpu/grouped_gemm.hpp"
+
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/conv_util.hpp"
 #include "ck/library/host_tensor/device_memory.hpp"
 #include "ck/library/host_tensor/host_tensor.hpp"
 #include "ck/library/host_tensor/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
-
-namespace ck {
-namespace tensor_operation {
-namespace device {
-namespace instance {
-
-using DeviceGroupedGemmNoOpPtr = ck::tensor_operation::device::DeviceGroupedGemmPtr<
-    ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::PassThrough>;
-
-void add_device_grouped_gemm_xdl_f16_f16_f16_mk_kn_mn_instances(
-    std::vector<DeviceGroupedGemmNoOpPtr>&);
-void add_device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(
-    std::vector<DeviceGroupedGemmNoOpPtr>&);
-void add_device_grouped_gemm_xdl_f16_f16_f16_km_kn_mn_instances(
-    std::vector<DeviceGroupedGemmNoOpPtr>&);
-void add_device_grouped_gemm_xdl_f16_f16_f16_km_nk_mn_instances(
-    std::vector<DeviceGroupedGemmNoOpPtr>&);
-
-} // namespace instance
-} // namespace device
-} // namespace tensor_operation
-} // namespace ck
 
 namespace ck {
 namespace profiler {
@@ -51,7 +29,7 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-void profile_grouped_gemm_impl(int do_verification,
+bool profile_grouped_gemm_impl(int do_verification,
                                int init_method,
                                bool do_log,
                                bool time_kernel,
@@ -62,6 +40,9 @@ void profile_grouped_gemm_impl(int do_verification,
                                const std::vector<int>& StrideBs,
                                const std::vector<int>& StrideCs)
 {
+
+    bool pass = true;
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
@@ -170,43 +151,20 @@ void profile_grouped_gemm_impl(int do_verification,
         p_c.push_back(c_device_buf[i]->GetDeviceBuffer());
     }
 
-    // add device GEMM instances
-    std::vector<ck::tensor_operation::device::instance::DeviceGroupedGemmNoOpPtr> gemm_ptrs;
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedGemm<ALayout,
+                                                                     BLayout,
+                                                                     CLayout,
+                                                                     ADataType,
+                                                                     BDataType,
+                                                                     CDataType,
+                                                                     AElementOp,
+                                                                     BElementOp,
+                                                                     CElementOp>;
 
-    if constexpr(is_same<ADataType, half_t>::value && is_same<BDataType, half_t>::value &&
-                 is_same<CDataType, half_t>::value)
-    {
-        if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
-                     is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
-                     is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
-        {
-            ck::tensor_operation::device::instance::
-                add_device_grouped_gemm_xdl_f16_f16_f16_mk_kn_mn_instances(gemm_ptrs);
-        }
-        else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
-                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
-                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
-        {
-            ck::tensor_operation::device::instance::
-                add_device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(gemm_ptrs);
-        }
-        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
-                          is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
-                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
-        {
-            ck::tensor_operation::device::instance::
-                add_device_grouped_gemm_xdl_f16_f16_f16_km_kn_mn_instances(gemm_ptrs);
-        }
-        else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
-                          is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
-                          is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
-        {
-            ck::tensor_operation::device::instance::
-                add_device_grouped_gemm_xdl_f16_f16_f16_km_nk_mn_instances(gemm_ptrs);
-        }
-    }
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
 
-    if(gemm_ptrs.size() <= 0)
+    if(op_ptrs.size() <= 0)
     {
         throw std::runtime_error("wrong! no device GEMM instance found");
     }
@@ -217,7 +175,7 @@ void profile_grouped_gemm_impl(int do_verification,
     float best_gb_per_sec = 0;
 
     // profile device GEMM instances
-    for(auto& gemm_ptr : gemm_ptrs)
+    for(auto& gemm_ptr : op_ptrs)
     {
         auto argument_ptr =
             gemm_ptr->MakeArgumentPointer(p_a,
@@ -294,7 +252,8 @@ void profile_grouped_gemm_impl(int do_verification,
                                                               c_element_op);
 
                     ref_invoker.Run(ref_argument);
-                    ck::utils::check_err(c_m_n_device_results[i].mData, c_m_n_host_result.mData);
+                    pass = pass && ck::utils::check_err(c_m_n_device_results[i].mData,
+                                                        c_m_n_host_result.mData);
 
                     if(do_log)
                     {
@@ -319,6 +278,8 @@ void profile_grouped_gemm_impl(int do_verification,
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
+
+    return pass;
 } // namespace profiler
 
 } // namespace profiler
