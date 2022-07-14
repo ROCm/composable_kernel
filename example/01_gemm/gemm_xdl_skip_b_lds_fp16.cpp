@@ -51,7 +51,7 @@ using BDataType   = ck::half_t;
 using CDataType   = ck::half_t;
 using AccDataType = float;
 #else  
-                    <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,    16,   64,     4,  4,   16,   16,    1,    1,     S<16, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,             4,      8,        7,               1>;
+                    <   F32,   F32,   F32,     F32,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,    16,   64,     4,  4,   16,   16,    1,    1,     S<16, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,      true,             4,      4,        7,               1>;
 using ADataType   = float;
 using BDataType   = float;
 using CDataType   = float;
