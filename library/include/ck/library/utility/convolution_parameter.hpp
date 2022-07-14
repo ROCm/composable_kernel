@@ -10,8 +10,6 @@
 
 #include "ck/ck.hpp"
 
-#include "ck/library/utility/io.hpp"
-
 namespace ck {
 namespace tensor_operation {
 namespace device {

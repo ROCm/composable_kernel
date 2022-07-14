@@ -2,6 +2,7 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/library/utility/convolution_parameter.hpp"
+#include "ck/library/utility/io.hpp"
 
 namespace ck {
 namespace tensor_operation {
