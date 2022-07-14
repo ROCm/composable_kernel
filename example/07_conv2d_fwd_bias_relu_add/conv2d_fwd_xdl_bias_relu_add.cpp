@@ -12,7 +12,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/conv_util.hpp"
+#include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
@@ -103,7 +103,7 @@ void PrintUseMsg()
               << std::endl;
 }
 
-ck::utils::conv::ConvParams ParseConvParams(int argc, char* argv[])
+ck::tensor_operation::device::ConvParams ParseConvParams(int argc, char* argv[])
 {
     // (N, K, C) + num_dim_spatial * 6 (filter, input, strides, dilations, pad left, pad right)
     int num_dim_spatial = 2;
@@ -115,7 +115,7 @@ ck::utils::conv::ConvParams ParseConvParams(int argc, char* argv[])
         exit(0);
     }
 
-    ck::utils::conv::ConvParams params;
+    ck::tensor_operation::device::ConvParams params;
     int arg_idx = 4;
 
     params.num_dim_spatial_ = num_dim_spatial;
@@ -168,7 +168,7 @@ int main(int argc, char* argv[])
     bool time_kernel          = false;
     const int num_dim_spatial = 2;
 
-    ck::utils::conv::ConvParams params;
+    ck::tensor_operation::device::ConvParams params;
 
     if(argc >= 4)
     {

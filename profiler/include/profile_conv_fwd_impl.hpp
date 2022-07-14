@@ -25,7 +25,7 @@ namespace ck {
 namespace profiler {
 
 // FIXME: only support NCHW and NHWC layout, need to be more general
-template <ck::index_t NumDimSpatial,
+template <ck::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout,
@@ -146,7 +146,7 @@ int profile_conv_fwd_impl(int do_verification,
     in_device_buf.ToDevice(input.mData.data());
     wei_device_buf.ToDevice(weight.mData.data());
 
-    using DeviceOp = ck::tensor_operation::device::DeviceConvFwd<NumDimSpatial,
+    using DeviceOp = ck::tensor_operation::device::DeviceConvFwd<NDimSpatial,
                                                                  InLayout,
                                                                  WeiLayout,
                                                                  OutLayout,
@@ -166,7 +166,7 @@ int profile_conv_fwd_impl(int do_verification,
     // run reference op
     if(do_verification)
     {
-        auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NumDimSpatial,
+        auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
                                                                      InLayout,
                                                                      WeiLayout,
                                                                      OutLayout,

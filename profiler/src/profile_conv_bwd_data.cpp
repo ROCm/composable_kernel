@@ -6,7 +6,7 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "profiler/include/profile_conv_fwd_impl.hpp"
+#include "profiler/include/profile_conv_bwd_data_impl.hpp"
 
 namespace {
 
@@ -28,7 +28,7 @@ static void print_helper_msg()
 {
     // clang-format-off
     std::cout
-        << "arg1: tensor operation (conv_fwd: Convolution Forward)\n"
+        << "arg1: tensor operation (conv_bwd_data: Convolution Backward Data)\n"
         << "arg2: data type (0: fp32; 1: fp16, 2: bf16, 3: int8)\n"
         << "arg3: tensor layout (0: Input[N, C, Hi, Wi], Weight[K, C, Y, X], Output[N, K, Ho, Wo]\n"
         << "                     1: Input[N, Hi, Wi, C], Weight[K, Y, X, C], Output[N, Ho, Wo, "
@@ -108,7 +108,7 @@ parse_conv_params(int num_dim_spatial, int arg_idx, char* const argv[])
 
 } // namespace
 
-int profile_conv_fwd(int argc, char* argv[])
+int profile_conv_bwd_data(int argc, char* argv[])
 {
     // 8 for control, 1 for num_dim_spatial
     if(argc < 9)
@@ -133,11 +133,6 @@ int profile_conv_fwd(int argc, char* argv[])
     }
 
     const auto params = parse_conv_params(num_dim_spatial, 9, argv);
-
-    using F32  = float;
-    using F16  = ck::half_t;
-    using BF16 = ck::bhalf_t;
-    using INT8 = int8_t;
 
     using NWC   = ck::tensor_layout::convolution::NWC;
     using NHWC  = ck::tensor_layout::convolution::NHWC;
@@ -172,13 +167,13 @@ int profile_conv_fwd(int argc, char* argv[])
         using WeiDataType = decltype(wei_type);
         using OutDataType = decltype(out_type);
 
-        bool pass = ck::profiler::profile_conv_fwd_impl<NDimSpatial,
-                                                        InLayout,
-                                                        WeiLayout,
-                                                        OutLayout,
-                                                        InDataType,
-                                                        WeiDataType,
-                                                        OutDataType>(
+        bool pass = ck::profiler::profile_conv_bwd_data_impl<NDimSpatial,
+                                                             InLayout,
+                                                             WeiLayout,
+                                                             OutLayout,
+                                                             InDataType,
+                                                             WeiDataType,
+                                                             OutDataType>(
             do_verification, init_method, do_log, time_kernel, params);
 
         return pass ? 0 : 1;
