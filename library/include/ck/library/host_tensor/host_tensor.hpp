@@ -381,4 +381,3 @@ HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens,
     : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
 {
 }
-
