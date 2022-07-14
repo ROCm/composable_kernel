@@ -55,6 +55,9 @@ int main()
     bool res = true;
 
     res = res && TestGroupedGemm<Row, Row, Row>();
+    res = res && TestGroupedGemm<Row, Col, Row>();
+    res = res && TestGroupedGemm<Col, Row, Row>();
+    res = res && TestGroupedGemm<Col, Col, Row>();
 
     std::cout << "TestGroupedGemm ..... " << (res ? "SUCCESS" : "FAILURE") << std::endl;
 
