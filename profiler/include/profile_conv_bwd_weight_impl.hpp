@@ -250,7 +250,7 @@ bool profile_conv_bwd_weight_impl(int do_verification,
             {
                 wei_device_buf.FromDevice(wei_k_c_y_x_device_result.mData.data());
 
-                float max_error = 
+                float max_error =
                     ck::util::check_err(wei_k_c_y_x_host_result, wei_k_c_y_x_device_result);
 
                 if(max_error > 8)
