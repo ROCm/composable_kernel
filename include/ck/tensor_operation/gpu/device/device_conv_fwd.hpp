@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include <iostream>
 #include <vector>
 
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
@@ -12,7 +11,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <ck::index_t NumDimSpatial,
+template <ck::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout,

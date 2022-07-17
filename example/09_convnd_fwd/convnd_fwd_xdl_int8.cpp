@@ -3,6 +3,8 @@
 
 #include "convnd_fwd_common.hpp"
 
+#include "ck/tensor_operation/gpu/device/device_convnd_fwd_nwc_kxc_nwk_xdl.hpp"
+
 using InDataType  = int8_t;
 using WeiDataType = int8_t;
 using OutDataType = int8_t;
@@ -55,15 +57,6 @@ using DeviceConvNDFwdInstance = ck::tensor_operation::device::DeviceConvNdFwdNwc
     7,              // CThreadTransferSrcDstVectorDim
     1>;             // CThreadTransferDstScalarPerVector
 
-template <ck::index_t NumDimSpatial>
-using ReferenceConvNDFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<InDataType,
-                                                                                WeiDataType,
-                                                                                OutDataType,
-                                                                                InElementOp,
-                                                                                WeiElementOp,
-                                                                                OutElementOp,
-                                                                                NumDimSpatial>;
-
 int main(int argc, char* argv[])
 {
     print_helper_msg();
@@ -73,7 +66,8 @@ int main(int argc, char* argv[])
     bool time_kernel     = false;
     int num_dim_spatial  = 2;
 
-    ck::tensor_operation::device::ConvParams params;
+    ck::tensor_operation::device::ConvParams params{
+        2, 128, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
 
     if(argc == 1)
     {
@@ -92,49 +86,49 @@ int main(int argc, char* argv[])
         time_kernel     = std::stoi(argv[3]);
         num_dim_spatial = std::stoi(argv[4]);
 
-        params = parse_conv_params(num_dim_spatial, argc, argv);
+        params = parse_conv_params(num_dim_spatial, 5, argv);
     }
 
     if(num_dim_spatial == 1)
     {
-        return run_conv_fwd<1,
-                            InDataType,
-                            WeiDataType,
-                            OutDataType,
-                            AccDataType,
-                            InElementOp,
-                            WeiElementOp,
-                            OutElementOp,
-                            DeviceConvNDFwdInstance<1>,
-                            ReferenceConvNDFwdInstance<1>>(
+        return run_conv_fwd_nhwc<1,
+                                 InDataType,
+                                 WeiDataType,
+                                 OutDataType,
+                                 AccDataType,
+                                 InElementOp,
+                                 WeiElementOp,
+                                 OutElementOp,
+                                 DeviceConvNDFwdInstance<1>,
+                                 ReferenceConvNDFwdInstance<1>>(
             params, do_verification, init_method, time_kernel);
     }
     else if(num_dim_spatial == 2)
     {
-        return run_conv_fwd<2,
-                            InDataType,
-                            WeiDataType,
-                            OutDataType,
-                            AccDataType,
-                            InElementOp,
-                            WeiElementOp,
-                            OutElementOp,
-                            DeviceConvNDFwdInstance<2>,
-                            ReferenceConvNDFwdInstance<2>>(
+        return run_conv_fwd_nhwc<2,
+                                 InDataType,
+                                 WeiDataType,
+                                 OutDataType,
+                                 AccDataType,
+                                 InElementOp,
+                                 WeiElementOp,
+                                 OutElementOp,
+                                 DeviceConvNDFwdInstance<2>,
+                                 ReferenceConvNDFwdInstance<2>>(
             params, do_verification, init_method, time_kernel);
     }
     else if(num_dim_spatial == 3)
     {
-        return run_conv_fwd<3,
-                            InDataType,
-                            WeiDataType,
-                            OutDataType,
-                            AccDataType,
-                            InElementOp,
-                            WeiElementOp,
-                            OutElementOp,
-                            DeviceConvNDFwdInstance<3>,
-                            ReferenceConvNDFwdInstance<3>>(
+        return run_conv_fwd_nhwc<3,
+                                 InDataType,
+                                 WeiDataType,
+                                 OutDataType,
+                                 AccDataType,
+                                 InElementOp,
+                                 WeiElementOp,
+                                 OutElementOp,
+                                 DeviceConvNDFwdInstance<3>,
+                                 ReferenceConvNDFwdInstance<3>>(
             params, do_verification, init_method, time_kernel);
     }
 

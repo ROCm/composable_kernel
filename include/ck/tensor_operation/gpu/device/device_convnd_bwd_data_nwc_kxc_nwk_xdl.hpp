@@ -21,7 +21,8 @@ namespace tensor_operation {
 namespace device {
 
 // out[N, Ho, Wo, K] = in[N, Hi, Wi, C] * wei[K, Y, X, C]
-template <typename InDataType,
+template <ck::index_t NDimSpatial,
+          typename InDataType,
           typename WeiDataType,
           typename OutDataType,
           typename AccDataType,
@@ -29,7 +30,6 @@ template <typename InDataType,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
           ConvolutionBackwardDataSpecialization ConvBackwardDataSpecialization,
-          ck::index_t NumDimSpatial,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -55,12 +55,29 @@ template <typename InDataType,
           bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
           ck::index_t CThreadTransferDstScalarPerVector>
-struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_K
-    : public DeviceConvBwdData<InElementwiseOperation,
-                               WeiElementwiseOperation,
-                               OutElementwiseOperation>
+struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
+    : public DeviceConvBwdData<
+          NDimSpatial,
+          ck::tuple_element_t<NDimSpatial - 1,
+                              ck::Tuple<ck::tensor_layout::convolution::NWC,
+                                        ck::tensor_layout::convolution::NHWC,
+                                        ck::tensor_layout::convolution::NDHWC>>,
+          ck::tuple_element_t<NDimSpatial - 1,
+                              ck::Tuple<ck::tensor_layout::convolution::KXC,
+                                        ck::tensor_layout::convolution::KYXC,
+                                        ck::tensor_layout::convolution::KZYXC>>,
+          ck::tuple_element_t<NDimSpatial - 1,
+                              ck::Tuple<ck::tensor_layout::convolution::NWK,
+                                        ck::tensor_layout::convolution::NHWK,
+                                        ck::tensor_layout::convolution::NDHWK>>,
+          InDataType,
+          WeiDataType,
+          OutDataType,
+          InElementwiseOperation,
+          WeiElementwiseOperation,
+          OutElementwiseOperation>
 {
-    using DeviceOp = DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_K;
+    using DeviceOp = DeviceConvNdBwdDataNwcKxcNwk_Xdl;
 
     using ADataType = OutDataType;
     using BDataType = WeiDataType;
@@ -950,7 +967,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                                                                   {0, 0, 0});
     }
 
-    using ABCGridDescs = decltype(GetABCGridDesc<NumDimSpatial>());
+    using ABCGridDescs = decltype(GetABCGridDesc<NDimSpatial>());
 
     using AGridDesc_K0_M_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I0])>;
     using BGridDesc_K0_N_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
@@ -1037,7 +1054,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
               input_left_pads_{input_left_pads},
               input_right_pads_{input_right_pads}
         {
-            CreateABCDesc<NumDimSpatial>();
+            CreateABCDesc<NDimSpatial>();
         }
 
         template <ck::index_t NDim, typename ck::enable_if<NDim == 1, bool>::type = false>
@@ -1060,7 +1077,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                 }
 
                 const auto descs =
-                    DeviceOp::MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NumDimSpatial>(
+                    DeviceOp::MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
                         Conv_N_,
                         Conv_K_,
                         Conv_C_,
@@ -1118,7 +1135,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                     }
 
                     const auto descs =
-                        DeviceOp::MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NumDimSpatial>(
+                        DeviceOp::MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
                             Conv_N_,
                             Conv_K_,
                             Conv_C_,
@@ -1186,18 +1203,18 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                         }
 
                         const auto descs =
-                            DeviceOp::MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<
-                                NumDimSpatial>(Conv_N_,
-                                               Conv_K_,
-                                               Conv_C_,
-                                               input_spatial_lengths_,
-                                               filter_spatial_lengths_,
-                                               output_spatial_lengths_,
-                                               conv_filter_strides_,
-                                               conv_filter_dilations_,
-                                               input_left_pads_,
-                                               input_right_pads_,
-                                               {i_ztilde, i_ytilde, i_xtilde});
+                            DeviceOp::MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
+                                Conv_N_,
+                                Conv_K_,
+                                Conv_C_,
+                                input_spatial_lengths_,
+                                filter_spatial_lengths_,
+                                output_spatial_lengths_,
+                                conv_filter_strides_,
+                                conv_filter_dilations_,
+                                input_left_pads_,
+                                input_right_pads_,
+                                {i_ztilde, i_ytilde, i_xtilde});
                         a_grid_desc_k0_m_k1_container_.push_back(descs[I0]);
                         b_grid_desc_k0_n_k1_container_.push_back(descs[I1]);
                         c_grid_desc_m_n_container_.push_back(descs[I2]);
@@ -1398,7 +1415,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
                      ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0)
         {
             // check if it's 1x1, stride=1 pad = 0 conv
-            for(int i = 0; i < NumDimSpatial; i++)
+            for(int i = 0; i < NDimSpatial; i++)
             {
                 if(!(arg.filter_spatial_lengths_[i] == 1 && arg.conv_filter_strides_[i] == 1 &&
                      arg.input_left_pads_[i] == 0 && arg.input_right_pads_[i] == 0))
@@ -1528,7 +1545,7 @@ struct DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceConvndBwdDataXdl_Input_N_Di_Hi_Wi_C_Weight_K_Z_Y_X_C_Output_N_Do_Ho_Wo_K"
+        str << "DeviceConvNdBwdDataNwcKxcNwk_Xdl"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

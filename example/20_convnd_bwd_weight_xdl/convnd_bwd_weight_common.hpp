@@ -8,7 +8,6 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_conv2d_backward_weight_xdl_c_shuffle_nhwc_kyxc_nhwk.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -17,73 +16,6 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_backward_weight.hpp"
-
-using InDataType  = ck::half_t;
-using WeiDataType = ck::half_t;
-using OutDataType = ck::half_t;
-using AccDataType = float;
-
-template <ck::index_t... Is>
-using S = ck::Sequence<Is...>;
-
-using InLayout  = ck::tensor_layout::convolution::NHWC;
-using WeiLayout = ck::tensor_layout::convolution::KYXC;
-using OutLayout = ck::tensor_layout::convolution::NHWK;
-
-using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
-using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
-using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
-
-// clang-format off
-using DeviceConvBwdWeightInstance = ck::tensor_operation::device::
-    DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K<
-        InDataType,                       // InDataType
-        WeiDataType,                      // WeiDataType
-        OutDataType,                      // OutDataType
-        AccDataType,                      // AccDataType
-        InElementOp,                      // InElementwiseOperation
-        WeiElementOp,                     // WeiElementwiseOperation
-        OutElementOp,                     // OutElementwiseOperation
-        256,                              // BlockSize
-        128,                              // MPerBlock
-        128,                              // NPerBlock
-        4,                                // K0PerBlock
-        8,                                // K1
-        32,                               // MPerXdl
-        32,                               // NPerXdl
-        2,                                // MXdlPerWave
-        2,                                // NXdlPerWave
-        S<1, 4, 16, 4>,                   // ABlockTransferThreadClusterLengths_K0_M_K1
-        S<0, 3, 1, 2>,                    // ABlockTransferThreadClusterArrangeOrder
-        S<0, 2, 1, 3>,                    // ABlockTransferSrcAccessOrder
-        2,                                // ABlockTransferSrcVectorDim
-        8,                                // ABlockTransferSrcScalarPerVector
-        2,                                // ABlockTransferDstScalarPerVector_K1
-        true,                             // ABlockLdsAddExtraM
-        S<1, 4, 16, 4>,                   // BBlockTransferThreadClusterLengths_K0_N_K1
-        S<0, 3, 1, 2>,                    // BBlockTransferThreadClusterArrangeOrder
-        S<0, 2, 1, 3>,                    // BBlockTransferSrcAccessOrder
-        2,                                // BBlockTransferSrcVectorDim
-        8,                                // BBlockTransferSrcScalarPerVector
-        2,                                // BBlockTransferDstScalarPerVector_K1
-        true,                             // BBlockLdsAddExtraN
-        1,                                // CShuffleMXdlPerWavePerShuffle
-        1,                                // CShuffleNXdlPerWavePerShuffle
-        S<1, 32, 1, 4>,                   // CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        8>;                               // CBlockTransferScalarPerVector_NWaveNPerXdl
-// clang-format on
-
-using ReferenceConvBwdWeightInstance =
-    ck::tensor_operation::host::ReferenceConvBwdWeight<2,
-                                                       InLayout,
-                                                       WeiLayout,
-                                                       OutLayout,
-                                                       InDataType,
-                                                       WeiDataType,
-                                                       OutDataType,
-                                                       InElementOp,
-                                                       WeiElementOp,
-                                                       OutElementOp>;
 
 void print_helper_msg()
 {
@@ -158,43 +90,24 @@ parse_conv_params(int num_dim_spatial, int arg_idx, char* const argv[])
                                                     input_right_pads};
 }
 
-int main(int argc, char* argv[])
+template <ck::index_t NDimSpatial,
+          typename InDataType,
+          typename WeiDataType,
+          typename OutDataType,
+          typename AccDataType,
+          typename InElementOp,
+          typename WeiElementOp,
+          typename OutElementOp,
+          typename DeviceConvBwdWeightInstance>
+int run_conv_bwd_weight_nhwc(bool do_verification,
+                             int init_method,
+                             bool time_kernel,
+                             const ck::tensor_operation::device::ConvParams& params,
+                             const InElementOp& in_element_op,
+                             const WeiElementOp& wei_element_op,
+                             const OutElementOp& out_element_op,
+                             ck::index_t split_k)
 {
-    print_helper_msg();
-
-    bool do_verification = true;
-    int init_method      = 1;
-    bool time_kernel     = false;
-    int num_dim_spatial  = 2;
-
-    ck::tensor_operation::device::ConvParams params{
-        2, 32, 256, 1024, {3, 3}, {14, 14}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
-
-    ck::index_t split_k = 4;
-
-    if(argc == 1)
-    {
-        // use default
-    }
-    else if(argc == 4)
-    {
-        do_verification = std::stoi(argv[1]);
-        init_method     = std::stoi(argv[2]);
-        time_kernel     = std::stoi(argv[3]);
-    }
-    else
-    {
-        do_verification = std::stoi(argv[1]);
-        init_method     = std::stoi(argv[2]);
-        time_kernel     = std::stoi(argv[3]);
-        num_dim_spatial = std::stoi(argv[4]);
-
-        params = parse_conv_params(num_dim_spatial, 5, argv);
-
-        split_k = std::stoi(argv[5 + 3 + 6 * num_dim_spatial - 1]);
-        split_k = std::max(1, split_k);
-    }
-
     auto f_nhwc_host_tensor_descriptor =
         [](ck::index_t n, ck::index_t c, std::vector<ck::index_t> spatial_lengths) {
             std::vector<std::size_t> nhwc_lengths{static_cast<std::size_t>(n),
@@ -238,7 +151,8 @@ int main(int argc, char* argv[])
     in_device_buf.ToDevice(in_n_hi_wi_c.mData.data());
     out_device_buf.ToDevice(out_n_ho_wo_k.mData.data());
 
-    //  wei_device_buf.SetZero();
+    // init to 0
+    wei_device_buf.SetZero();
 
     // do GEMM
     auto conv     = DeviceConvBwdWeightInstance{};
@@ -256,9 +170,9 @@ int main(int argc, char* argv[])
                                       params.conv_filter_dilations_,
                                       params.input_left_pads_,
                                       params.input_right_pads_,
-                                      InElementOp{},
-                                      WeiElementOp{},
-                                      OutElementOp{},
+                                      in_element_op,
+                                      wei_element_op,
+                                      out_element_op,
                                       split_k);
 
     if(!conv.IsSupportedArgument(argument))
@@ -279,11 +193,22 @@ int main(int argc, char* argv[])
     float gb_per_sec = num_btype / 1.E6 / avg_time;
 
     std::cout << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
-              << std::endl;
+              << conv.GetTypeString() << std::endl;
 
     if(do_verification)
     {
-        auto ref_conv    = ReferenceConvBwdWeightInstance{};
+        auto ref_conv =
+            ck::tensor_operation::host::ReferenceConvBwdWeight<2,
+                                                               ck::tensor_layout::convolution::NHWC,
+                                                               ck::tensor_layout::convolution::KYXC,
+                                                               ck::tensor_layout::convolution::NHWK,
+                                                               InDataType,
+                                                               WeiDataType,
+                                                               OutDataType,
+                                                               InElementOp,
+                                                               WeiElementOp,
+                                                               OutElementOp>{};
+
         auto ref_invoker = ref_conv.MakeInvoker();
 
         auto ref_argument = ref_conv.MakeArgument(in_n_hi_wi_c,

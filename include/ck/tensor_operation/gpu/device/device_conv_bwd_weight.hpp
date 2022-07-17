@@ -4,7 +4,6 @@
 #pragma once
 
 #include <vector>
-#include <iostream>
 
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 
@@ -12,7 +11,14 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename InElementwiseOperation,
+template <ck::index_t NumDimSpatial,
+          typename InLayout,
+          typename WeiLayout,
+          typename OutLayout,
+          typename InDataType,
+          typename WeiDataType,
+          typename OutDataType,
+          typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation>
 struct DeviceConvBwdWeight : public BaseOperator
@@ -38,12 +44,6 @@ struct DeviceConvBwdWeight : public BaseOperator
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
-
-template <typename InElementwiseOperation,
-          typename WeiElementwiseOperation,
-          typename OutElementwiseOperation>
-using DeviceConvBwdWeightPtr = std::unique_ptr<
-    DeviceConvBwdWeight<InElementwiseOperation, WeiElementwiseOperation, OutElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation

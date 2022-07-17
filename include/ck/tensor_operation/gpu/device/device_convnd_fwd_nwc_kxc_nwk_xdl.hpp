@@ -39,7 +39,7 @@ namespace device {
 // 3D:
 // out[N, Do, Ho, Wo, K] = in[N, Di, Hi, Wi, C] * wei[K, Z, Y, X, C]
 //
-template <ck::index_t NumDimSpatial,
+template <ck::index_t NDimSpatial,
           typename InDataType,
           typename WeiDataType,
           typename OutDataType,
@@ -74,16 +74,16 @@ template <ck::index_t NumDimSpatial,
           ck::index_t CThreadTransferSrcDstVectorDim,
           ck::index_t CThreadTransferDstScalarPerVector>
 struct DeviceConvNdFwdNwcKxcNwk_Xdl
-    : public DeviceConvFwd<NumDimSpatial,
-                           ck::tuple_element_t<NumDimSpatial - 1,
+    : public DeviceConvFwd<NDimSpatial,
+                           ck::tuple_element_t<NDimSpatial - 1,
                                                ck::Tuple<ck::tensor_layout::convolution::NWC,
                                                          ck::tensor_layout::convolution::NHWC,
                                                          ck::tensor_layout::convolution::NDHWC>>,
-                           ck::tuple_element_t<NumDimSpatial - 1,
+                           ck::tuple_element_t<NDimSpatial - 1,
                                                ck::Tuple<ck::tensor_layout::convolution::KXC,
                                                          ck::tensor_layout::convolution::KYXC,
                                                          ck::tensor_layout::convolution::KZYXC>>,
-                           ck::tuple_element_t<NumDimSpatial - 1,
+                           ck::tuple_element_t<NDimSpatial - 1,
                                                ck::Tuple<ck::tensor_layout::convolution::NWK,
                                                          ck::tensor_layout::convolution::NHWK,
                                                          ck::tensor_layout::convolution::NDHWK>>,
@@ -94,27 +94,6 @@ struct DeviceConvNdFwdNwcKxcNwk_Xdl
                            WeiElementwiseOperation,
                            OutElementwiseOperation>
 {
-    using Base =
-        DeviceConvFwd<NumDimSpatial,
-                      ck::tuple_element_t<NumDimSpatial - 1,
-                                          ck::Tuple<ck::tensor_layout::convolution::NWC,
-                                                    ck::tensor_layout::convolution::NHWC,
-                                                    ck::tensor_layout::convolution::NDHWC>>,
-                      ck::tuple_element_t<NumDimSpatial - 1,
-                                          ck::Tuple<ck::tensor_layout::convolution::KXC,
-                                                    ck::tensor_layout::convolution::KYXC,
-                                                    ck::tensor_layout::convolution::KZYXC>>,
-                      ck::tuple_element_t<NumDimSpatial - 1,
-                                          ck::Tuple<ck::tensor_layout::convolution::NWK,
-                                                    ck::tensor_layout::convolution::NHWK,
-                                                    ck::tensor_layout::convolution::NDHWK>>,
-                      InDataType,
-                      WeiDataType,
-                      OutDataType,
-                      InElementwiseOperation,
-                      WeiElementwiseOperation,
-                      OutElementwiseOperation>;
-
     using DeviceOp = DeviceConvNdFwdNwcKxcNwk_Xdl;
 
     using ADataType = InDataType;
@@ -123,8 +102,6 @@ struct DeviceConvNdFwdNwcKxcNwk_Xdl
 
     // TODO make A/B datatype different
     using ABDataType = InDataType;
-
-    static constexpr index_t NDimSpatial = NumDimSpatial;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -599,18 +576,18 @@ struct DeviceConvNdFwdNwcKxcNwk_Xdl
         // C = A^T*B
         // A:
         const auto in_gemmk0_gemmm_gemmk1_grid_desc =
-            GetInputTensorDescriptor<NumDimSpatial>(N,
-                                                    C,
-                                                    GemmMRaw,
-                                                    GemmK,
-                                                    GemmMPad,
-                                                    input_spatial_lengths,
-                                                    filter_spatial_lengths,
-                                                    output_spatial_lengths,
-                                                    conv_filter_strides,
-                                                    conv_filter_dilations,
-                                                    input_left_pads,
-                                                    input_right_pads);
+            GetInputTensorDescriptor<NDimSpatial>(N,
+                                                  C,
+                                                  GemmMRaw,
+                                                  GemmK,
+                                                  GemmMPad,
+                                                  input_spatial_lengths,
+                                                  filter_spatial_lengths,
+                                                  output_spatial_lengths,
+                                                  conv_filter_strides,
+                                                  conv_filter_dilations,
+                                                  input_left_pads,
+                                                  input_right_pads);
         // B:
         const auto wei_gemmk0_gemmn_gemmk1_grid_desc = GetWeightTensorDescriptor(GemmN, GemmK);
         // C:
@@ -642,7 +619,7 @@ struct DeviceConvNdFwdNwcKxcNwk_Xdl
             1, 1, 1, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1});
     }
 
-    using ABCGridDescs = decltype(GetABCGridDesc<NumDimSpatial>());
+    using ABCGridDescs = decltype(GetABCGridDesc<NDimSpatial>());
 
     using AGridDesc_K0_M_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I0])>;
     using BGridDesc_K0_N_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
@@ -934,7 +911,7 @@ struct DeviceConvNdFwdNwcKxcNwk_Xdl
                      ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
             // check if it's 1x1, stride=1 conv
-            for(ck::index_t i = 0; i < NumDimSpatial; ++i)
+            for(ck::index_t i = 0; i < NDimSpatial; ++i)
             {
                 if(!(arg.filter_spatial_lengths_[i] == 1 && arg.conv_filter_strides_[i] == 1 &&
                      arg.input_left_pads_[i] == 0 && arg.input_right_pads_[i] == 0))
@@ -947,7 +924,7 @@ struct DeviceConvNdFwdNwcKxcNwk_Xdl
                           ConvolutionForwardSpecialization::Filter1x1Pad0)
         {
             // check if it's 1x1 conv
-            for(ck::index_t i = 0; i < NumDimSpatial; ++i)
+            for(ck::index_t i = 0; i < NDimSpatial; ++i)
             {
                 if(!(arg.filter_spatial_lengths_[i] == 1 && arg.input_left_pads_[i] == 0 &&
                      arg.input_right_pads_[i] == 0))
