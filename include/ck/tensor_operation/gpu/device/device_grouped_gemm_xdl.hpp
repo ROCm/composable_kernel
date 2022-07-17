@@ -25,7 +25,7 @@ template <typename GridwiseGemm,
           typename GemmDesc,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename CElementwiseOperation,
+          typename CDEElementwiseOperation,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
@@ -35,7 +35,7 @@ __global__ void
                                 const index_t group_count,
                                 const AElementwiseOperation a_element_op,
                                 const BElementwiseOperation b_element_op,
-                                const CElementwiseOperation c_element_op)
+                                const CDEElementwiseOperation c_element_op)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -67,7 +67,7 @@ __global__ void
         gemm_desc_ptr[group_id].a_ptr_,
         gemm_desc_ptr[group_id].b_ptr_,
         ck::Tuple<>{},
-        gemm_desc_ptr[group_id].c_ptr_,
+        gemm_desc_ptr[group_id].e_ptr_,
         p_shared,
         a_element_op,
         b_element_op,
@@ -90,15 +90,16 @@ __global__ void
 
 template <typename ALayout,
           typename BLayout,
-          typename CLayout,
+          typename DELayout,
           typename ADataType,
           typename BDataType,
-          typename AccDataType,
+          typename GemmAccDataType,
           typename CShuffleDataType,
+          typename DsDataType,
           typename EDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename CElementwiseOperation,
+          typename CDEElementwiseOperation,
           GemmSpecialization GemmSpec,
           ck::index_t NumPrefetch,
           ck::index_t BlockSize,
@@ -132,14 +133,17 @@ template <typename ALayout,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
 struct DeviceGroupedGemmXdl : public DeviceGroupedGemm<ALayout,
                                                        BLayout,
-                                                       CLayout,
+                                                       DELayout,
                                                        ADataType,
                                                        BDataType,
+                                                       DsDataType,
                                                        EDataType,
                                                        AElementwiseOperation,
                                                        BElementwiseOperation,
-                                                       CElementwiseOperation>
+                                                       CDEElementwiseOperation>
 {
+    static constexpr index_t NumDTensor = DsDataType::Size();
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
@@ -353,12 +357,12 @@ struct DeviceGroupedGemmXdl : public DeviceGroupedGemm<ALayout,
     static auto MakeCGridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t StrideE)
     {
         const auto c_grid_desc_mraw_nraw = [&]() {
-            if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, DELayout>::value)
             {
                 return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
                                                     make_tuple(StrideE, I1));
             }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, DELayout>::value)
             {
                 return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
                                                     make_tuple(I1, StrideE));
@@ -415,13 +419,13 @@ struct DeviceGroupedGemmXdl : public DeviceGroupedGemm<ALayout,
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle<
         ADataType, // TODO: distinguish A/B datatype
-        AccDataType,
+        GemmAccDataType,
         CShuffleDataType,
-        ck::Tuple<>,
+        DsDataType,
         EDataType,
         AElementwiseOperation,
         BElementwiseOperation,
-        CElementwiseOperation,
+        CDEElementwiseOperation,
         InMemoryDataOperationEnum::Set,
         AGridDesc_AK0_M_AK1,
         BGridDesc_BK0_N_BK1,
@@ -510,11 +514,17 @@ struct DeviceGroupedGemmXdl : public DeviceGroupedGemm<ALayout,
         typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             e_grid_desc_mblock_mperblock_nblock_nperblock_;
 
+        StaticallyIndexedArray<
+            typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+            NumDTensor>
+            ds_grid_desc_mblock_mperblock_nblock_nperblock_; // FIXME: Ds desc may be of different
+
         GroupedGemmBlock2ETileMap block_2_ctile_map_;
 
         const ADataType* a_ptr_;
         const BDataType* b_ptr_;
-        EDataType* c_ptr_;
+        typename GridwiseGemm::DsGridPointer ds_ptr_;
+        EDataType* e_ptr_;
 
         ck::index_t BlockStart_, BlockEnd_;
     };
@@ -524,11 +534,12 @@ struct DeviceGroupedGemmXdl : public DeviceGroupedGemm<ALayout,
     {
         Argument(std::vector<const void*>& p_As,
                  std::vector<const void*>& p_Bs,
+                 std::vector<std::vector<const void*>>& p_Ds,
                  std::vector<void*>& p_Es,
                  std::vector<GemmDesc>& gemm_descs,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
-                 CElementwiseOperation c_element_op)
+                 CDEElementwiseOperation c_element_op)
             : a_element_op_{a_element_op}, b_element_op_{b_element_op}, c_element_op_{c_element_op}
         {
             grid_size_ = 0;
@@ -582,15 +593,40 @@ struct DeviceGroupedGemmXdl : public DeviceGroupedGemm<ALayout,
                     auto e_grid_desc_mblock_mperblock_nblock_nperblock_ =
                         GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                             e_grid_desc_m_n_);
+                    StaticallyIndexedArray<
+                        typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                        NumDTensor>
+                        ds_grid_desc_mblock_mperblock_nblock_nperblock_; // FIXME: Ds desc may be of
+                                                                         // different
+
+                    typename GridwiseGemm::DsGridPointer p_ds_grid_;
+
+                    if constexpr(NumDTensor > 0)
+                    {
+                        static_for<0, NumDTensor, 1>{}([&](auto j) {
+                            using DDataType = remove_cvref_t<tuple_element_t<j.value, DsDataType>>;
+
+                            p_ds_grid_(i) = static_cast<const DDataType*>(p_Ds[i][j]);
+
+                            const auto d_grid_desc_m_n = GridwiseGemm::MakeEGridDescriptor_M_N(
+                                M, N, gemm_descs[i].stride_Ds_[j]);
+
+                            ds_grid_desc_mblock_mperblock_nblock_nperblock_(j) =
+                                GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                    d_grid_desc_m_n);
+                        });
+                    }
 
                     gemm_desc_kernel_arg_.push_back(
                         GemmBiasTransKernelArg{a_grid_desc_k0_m_k1_,
                                                b_grid_desc_k0_n_k1_,
                                                e_grid_desc_m_n_,
                                                e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                               ds_grid_desc_mblock_mperblock_nblock_nperblock_,
                                                block_2_ctile_map_,
                                                static_cast<const ADataType*>(p_As[i]),
                                                static_cast<const BDataType*>(p_Bs[i]),
+                                               p_ds_grid_,
                                                static_cast<EDataType*>(p_Es[i]),
                                                BlockStart,
                                                BlockEnd});
@@ -602,7 +638,7 @@ struct DeviceGroupedGemmXdl : public DeviceGroupedGemm<ALayout,
         index_t group_count_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
-        CElementwiseOperation c_element_op_;
+        CDEElementwiseOperation c_element_op_;
 
         std::vector<GemmBiasTransKernelArg> gemm_desc_kernel_arg_;
 
@@ -666,7 +702,7 @@ struct DeviceGroupedGemmXdl : public DeviceGroupedGemm<ALayout,
                                                             GemmBiasTransKernelArg,
                                                             AElementwiseOperation,
                                                             BElementwiseOperation,
-                                                            CElementwiseOperation,
+                                                            CDEElementwiseOperation,
                                                             has_main_k_block_loop_>;
 
                 return launch_and_time_kernel(
@@ -724,13 +760,15 @@ struct DeviceGroupedGemmXdl : public DeviceGroupedGemm<ALayout,
 
     static auto MakeArgument(std::vector<const void*>& p_As,
                              std::vector<const void*>& p_Bs,
+                             std::vector<std::vector<const void*>>& p_Ds,
                              std::vector<void*>& p_Es,
                              std::vector<GemmDesc> gemm_descs,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
-                             CElementwiseOperation c_element_op)
+                             CDEElementwiseOperation c_element_op)
     {
-        return Argument{p_As, p_Bs, p_Es, gemm_descs, a_element_op, b_element_op, c_element_op};
+        return Argument{
+            p_As, p_Bs, p_Ds, p_Es, gemm_descs, a_element_op, b_element_op, c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -738,14 +776,15 @@ struct DeviceGroupedGemmXdl : public DeviceGroupedGemm<ALayout,
     // polymorphic
     std::unique_ptr<BaseArgument> MakeArgumentPointer(std::vector<const void*>& p_As,
                                                       std::vector<const void*>& p_Bs,
+                                                      std::vector<std::vector<const void*>>& p_Ds,
                                                       std::vector<void*>& p_Es,
                                                       std::vector<GemmDesc>& gemm_descs,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op) override
+                                                      CDEElementwiseOperation c_element_op) override
     {
         return std::make_unique<Argument>(
-            p_As, p_Bs, p_Es, gemm_descs, a_element_op, b_element_op, c_element_op);
+            p_As, p_Bs, p_Ds, p_Es, gemm_descs, a_element_op, b_element_op, c_element_op);
     }
 
     // polymorphic

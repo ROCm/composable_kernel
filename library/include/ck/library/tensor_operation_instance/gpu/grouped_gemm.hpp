@@ -16,39 +16,71 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
+using DsType = Tuple<>;
+
 void add_device_grouped_gemm_xdl_f16_f16_f16_mk_kn_mn_instances(
-    std::vector<std::unique_ptr<
-        DeviceGroupedGemm<Row, Row, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
-        instances);
+    std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
+                                                  Row,
+                                                  Row,
+                                                  F16,
+                                                  F16,
+                                                  DsType,
+                                                  F16,
+                                                  PassThrough,
+                                                  PassThrough,
+                                                  PassThrough>>>& instances);
 
 void add_device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(
-    std::vector<std::unique_ptr<
-        DeviceGroupedGemm<Row, Col, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
-        instances);
+    std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
+                                                  Col,
+                                                  Row,
+                                                  F16,
+                                                  F16,
+                                                  DsType,
+                                                  F16,
+                                                  PassThrough,
+                                                  PassThrough,
+                                                  PassThrough>>>& instances);
 
 void add_device_grouped_gemm_xdl_f16_f16_f16_km_kn_mn_instances(
-    std::vector<std::unique_ptr<
-        DeviceGroupedGemm<Col, Row, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
-        instances);
+    std::vector<std::unique_ptr<DeviceGroupedGemm<Col,
+                                                  Row,
+                                                  Row,
+                                                  F16,
+                                                  F16,
+                                                  DsType,
+                                                  F16,
+                                                  PassThrough,
+                                                  PassThrough,
+                                                  PassThrough>>>& instances);
 
 void add_device_grouped_gemm_xdl_f16_f16_f16_km_nk_mn_instances(
-    std::vector<std::unique_ptr<
-        DeviceGroupedGemm<Col, Col, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
-        instances);
+    std::vector<std::unique_ptr<DeviceGroupedGemm<Col,
+                                                  Col,
+                                                  Row,
+                                                  F16,
+                                                  F16,
+                                                  DsType,
+                                                  F16,
+                                                  PassThrough,
+                                                  PassThrough,
+                                                  PassThrough>>>& instances);
 
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
           typename ADataType,
           typename BDataType,
-          typename CDataType>
+          typename DsDataType,
+          typename EDataType>
 struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupedGemm<
     ALayout,
     BLayout,
     CLayout,
     ADataType,
     BDataType,
-    CDataType,
+    DsDataType,
+    EDataType,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough>>
@@ -58,7 +90,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                                        CLayout,
                                        ADataType,
                                        BDataType,
-                                       CDataType,
+                                       DsDataType,
+                                       EDataType,
                                        ck::tensor_operation::element_wise::PassThrough,
                                        ck::tensor_operation::element_wise::PassThrough,
                                        ck::tensor_operation::element_wise::PassThrough>;
@@ -68,7 +101,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
-                     is_same_v<CDataType, half_t>)
+                     is_same_v<EDataType, half_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<CLayout, Row>)
