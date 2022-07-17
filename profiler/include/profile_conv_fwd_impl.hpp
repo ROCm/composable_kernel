@@ -146,23 +146,6 @@ int profile_conv_fwd_impl(int do_verification,
     in_device_buf.ToDevice(input.mData.data());
     wei_device_buf.ToDevice(weight.mData.data());
 
-    using DeviceOp = ck::tensor_operation::device::DeviceConvFwd<NDimSpatial,
-                                                                 InLayout,
-                                                                 WeiLayout,
-                                                                 OutLayout,
-                                                                 InDataType,
-                                                                 WeiDataType,
-                                                                 OutDataType,
-                                                                 InElementOp,
-                                                                 WeiElementOp,
-                                                                 OutElementOp>;
-
-    // get device op instances
-    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
-        DeviceOp>::GetInstances();
-
-    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
-
     // run reference op
     if(do_verification)
     {
@@ -195,6 +178,23 @@ int profile_conv_fwd_impl(int do_verification,
         ref_invoker.Run(ref_argument);
     }
 
+    using DeviceOp = ck::tensor_operation::device::DeviceConvFwd<NDimSpatial,
+                                                                 InLayout,
+                                                                 WeiLayout,
+                                                                 OutLayout,
+                                                                 InDataType,
+                                                                 WeiDataType,
+                                                                 OutDataType,
+                                                                 InElementOp,
+                                                                 WeiElementOp,
+                                                                 OutElementOp>;
+
+    // get device op instances
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
+
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
+
     std::string best_op_name;
     float best_avg_time   = 0;
     float best_tflops     = 0;
@@ -221,14 +221,14 @@ int profile_conv_fwd_impl(int do_verification,
                                         wei_element_op,
                                         out_element_op);
 
-        auto invoker_ptr = op_ptr->MakeInvokerPointer();
-
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             // re-init output to zero before profiling next kernel
             out_device_buf.SetZero();
 
             std::string op_name = op_ptr->GetTypeString();
+
+            auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
             float avg_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});

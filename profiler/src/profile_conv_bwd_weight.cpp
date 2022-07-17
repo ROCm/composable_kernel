@@ -20,35 +20,33 @@ enum struct ConvDataType
 {
     F32_F32_F32,    // 0
     F16_F16_F16,    // 1
-    BF16_BF16_BF16, // 2
+    BF16_F32_BF16,  // 2
 };
 
 static void print_helper_msg()
 {
-    // clang-format-off
-    std::cout << "arg1: tensor operation (conv_bww: ConvolutionBackwardWeight, Input * d_Output = "
-                 "d_Weight)\n"
-              << "arg2: data type (0: fp32; 1: fp16, 2: bf16, 3: int8)\n"
-              << "arg3: tensor layout (0: Input[N, C, Hi, Wi] * d_Output[N, K, Ho, Wo] = "
-                 "d_Weight[K, C, Y, X] \n"
-              << "                     1: Input[N, Hi, Wi, C] * d_Output[N, Ho, Wo, K] = "
-                 "d_Weight[K, Y, X, C] )\n"
-              << "arg4: verification (0: no, 1: yes)\n"
-              << "arg5: initialization (0: no init, 1: integer value, 2: decimal value)\n"
-              << "arg6: print tensor value (0: no; 1: yes)\n"
-              << "arg7: time kernel (0: no, 1: yes)\n"
-              << "arg8: N spatial dimensions\n"
-              << "Following arguments (depending on number of spatial dims):\n"
-              << " N, K, C, \n"
-              << " <filter spatial dimensions>, (ie Y, X for 2D)\n"
-              << " <input image spatial dimensions>, (ie Hi, Wi for 2D)\n"
-              << " <strides>, (ie Sy, Sx for 2D)\n"
-              << " <dilations>, (ie Dy, Dx for 2D)\n"
-              << " <left padding>, (ie LeftPy, LeftPx for 2D)\n"
-              << " <right padding>, (ie RightPy, RightPx for 2D)\n"
-              << " SplitK\n"
-              << std::endl;
-    // clang-format-on
+    std::cout
+        << "arg1: tensor operation (conv_bwd_weight: Convolution Backward Weight\n"
+        << "arg2: data type (0: Input fp32, Weight fp32, Output fp32\n"
+        << "                 1: Input fp16, Weight fp16, Output fp16\n"
+        << "                 2: Input bf16, Weight fp32, Output bf16\n"
+        << "arg3: tensor layout (0: Input[N, C, Hi, Wi], Weight[K, C, Y, X], Output[N, K, Ho, Wo]\n"
+        << "                     1: Input[N, Hi, Wi, C], Weight[K, Y, X, C], Output[N, Ho, Wo, K]\n"
+        << "arg4: verification (0: no, 1: yes)\n"
+        << "arg5: initialization (0: no init, 1: integer value, 2: decimal value)\n"
+        << "arg6: print tensor value (0: no; 1: yes)\n"
+        << "arg7: time kernel (0: no, 1: yes)\n"
+        << "arg8: N spatial dimensions\n"
+        << "Following arguments (depending on number of spatial dims):\n"
+        << " N, K, C, \n"
+        << " <filter spatial dimensions>, (ie Y, X for 2D)\n"
+        << " <input image spatial dimensions>, (ie Hi, Wi for 2D)\n"
+        << " <strides>, (ie Sy, Sx for 2D)\n"
+        << " <dilations>, (ie Dy, Dx for 2D)\n"
+        << " <left padding>, (ie LeftPy, LeftPx for 2D)\n"
+        << " <right padding>, (ie RightPy, RightPx for 2D)\n"
+        << " SplitK\n"
+        << std::endl;
 }
 
 ck::tensor_operation::device::ConvParams
@@ -197,7 +195,7 @@ int profile_conv_bwd_weight(int argc, char* argv[])
         {
             return profile(I1, NWC{}, KXC{}, NWK{}, F16{}, F16{}, F16{});
         }
-        else if(data_type == ConvDataType::BF16_BF16_BF16)
+        else if(data_type == ConvDataType::BF16_F32_BF16)
         {
             return profile(I1, NWC{}, KXC{}, NWK{}, BF16{}, BF16{}, BF16{});
         }
@@ -212,7 +210,7 @@ int profile_conv_bwd_weight(int argc, char* argv[])
         {
             return profile(I2, NHWC{}, KYXC{}, NHWK{}, F16{}, F16{}, F16{});
         }
-        else if(data_type == ConvDataType::BF16_BF16_BF16)
+        else if(data_type == ConvDataType::BF16_F32_BF16)
         {
             return profile(I2, NHWC{}, KYXC{}, NHWK{}, BF16{}, BF16{}, BF16{});
         }
@@ -227,7 +225,7 @@ int profile_conv_bwd_weight(int argc, char* argv[])
         {
             return profile(I3, NDHWC{}, KZYXC{}, NDHWK{}, F16{}, F16{}, F16{});
         }
-        else if(data_type == ConvDataType::BF16_BF16_BF16)
+        else if(data_type == ConvDataType::BF16_F32_BF16)
         {
             return profile(I3, NDHWC{}, KZYXC{}, NDHWK{}, BF16{}, BF16{}, BF16{});
         }

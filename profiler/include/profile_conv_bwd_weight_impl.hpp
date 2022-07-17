@@ -1,136 +1,29 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 #include "ck/ck.hpp"
+#include <iomanip>
+#include <iostream>
+#include <typeinfo>
+
+#include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_conv_backward_weight.hpp"
+#include "ck/tensor_operation/gpu/device/device_conv_fwd.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/tensor_operation_instance/gpu/convolution_backward_weight.hpp"
+
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_backward_weight.hpp"
-
-using F16  = ck::half_t;
-using F32  = float;
-using BF16 = ck::bhalf_t;
-
-namespace ck {
-namespace tensor_operation {
-namespace device {
-namespace instance {
-
-using DeviceConvndBwdWeightNoOpPtr =
-    DeviceConvBwdWeightPtr<ck::tensor_operation::element_wise::PassThrough,
-                           ck::tensor_operation::element_wise::PassThrough,
-                           ck::tensor_operation::element_wise::PassThrough>;
-
-void add_device_conv1d_bwd_weight_xdl_nwc_kxc_nwk_f32_instances(
-    std::vector<DeviceConvndBwdWeightNoOpPtr>&);
-void add_device_convnd_bwd_weight_xdl_nhwc_kyxc_nhwk_f32_instances(
-    std::vector<DeviceConvndBwdWeightNoOpPtr>&);
-void add_device_conv3d_bwd_weight_xdl_ndhwc_kzyxc_ndhwk_f32_instances(
-    std::vector<DeviceConvndBwdWeightNoOpPtr>&);
-
-void add_device_conv1d_bwd_weight_xdl_nwc_kxc_nwk_f16_instances(
-    std::vector<DeviceConvndBwdWeightNoOpPtr>&);
-void add_device_convnd_bwd_weight_xdl_nhwc_kyxc_nhwk_f16_instances(
-    std::vector<DeviceConvndBwdWeightNoOpPtr>&);
-void add_device_conv3d_bwd_weight_xdl_ndhwc_kzyxc_ndhwk_f16_instances(
-    std::vector<DeviceConvndBwdWeightNoOpPtr>&);
-
-void add_device_conv1d_bwd_weight_xdl_nwc_kxc_nwk_bf16_instances(
-    std::vector<DeviceConvndBwdWeightNoOpPtr>&);
-void add_device_conv2d_bwd_weight_xdl_nhwc_kyxc_nhwk_bf16_instances(
-    std::vector<DeviceConvndBwdWeightNoOpPtr>&);
-void add_device_conv3d_bwd_weight_xdl_ndhwc_kzyxc_ndhwk_bf16_instances(
-    std::vector<DeviceConvndBwdWeightNoOpPtr>&);
-
-} // namespace instance
-} // namespace device
-} // namespace tensor_operation
-} // namespace ck
 
 namespace ck {
 namespace profiler {
-
-using DeviceConvndBwdWeightNoOpPtr =
-    ck::tensor_operation::device::instance::DeviceConvndBwdWeightNoOpPtr;
-
-template <typename InDataType, typename WeiDataType, typename OutDataType>
-void get_device_conv_bwd_weight_op_ptr(
-    InDataType, WeiDataType, OutDataType, std::vector<DeviceConvndBwdWeightNoOpPtr>&, int)
-{
-    std::cout << "can not find device conv bwd weight" << std::endl;
-    exit(1);
-}
-
-template <>
-void get_device_conv_bwd_weight_op_ptr(
-    F32, F32, F32, std::vector<DeviceConvndBwdWeightNoOpPtr>& op_ptrs, int num_dim_spatial)
-{
-    switch(num_dim_spatial)
-    {
-    case 1:
-        ck::tensor_operation::device::instance::
-            add_device_conv1d_bwd_weight_xdl_nwc_kxc_nwk_f32_instances(op_ptrs);
-        break;
-    case 2:
-        ck::tensor_operation::device::instance::
-            add_device_convnd_bwd_weight_xdl_nhwc_kyxc_nhwk_f32_instances(op_ptrs);
-        break;
-    case 3:
-        ck::tensor_operation::device::instance::
-            add_device_conv3d_bwd_weight_xdl_ndhwc_kzyxc_ndhwk_f32_instances(op_ptrs);
-        break;
-    default: break;
-    }
-}
-
-template <>
-void get_device_conv_bwd_weight_op_ptr(
-    F16, F16, F16, std::vector<DeviceConvndBwdWeightNoOpPtr>& op_ptrs, int num_dim_spatial)
-{
-    switch(num_dim_spatial)
-    {
-    case 1:
-        ck::tensor_operation::device::instance::
-            add_device_conv1d_bwd_weight_xdl_nwc_kxc_nwk_f16_instances(op_ptrs);
-        break;
-    case 2:
-        ck::tensor_operation::device::instance::
-            add_device_convnd_bwd_weight_xdl_nhwc_kyxc_nhwk_f16_instances(op_ptrs);
-        break;
-    case 3:
-        ck::tensor_operation::device::instance::
-            add_device_conv3d_bwd_weight_xdl_ndhwc_kzyxc_ndhwk_f16_instances(op_ptrs);
-        break;
-    default: break;
-    }
-}
-
-template <>
-void get_device_conv_bwd_weight_op_ptr(
-    BF16, BF16, BF16, std::vector<DeviceConvndBwdWeightNoOpPtr>& op_ptrs, int num_dim_spatial)
-{
-    switch(num_dim_spatial)
-    {
-    case 1:
-        ck::tensor_operation::device::instance::
-            add_device_conv1d_bwd_weight_xdl_nwc_kxc_nwk_bf16_instances(op_ptrs);
-        break;
-    case 2:
-        ck::tensor_operation::device::instance::
-            add_device_conv2d_bwd_weight_xdl_nhwc_kyxc_nhwk_bf16_instances(op_ptrs);
-        break;
-    case 3:
-        ck::tensor_operation::device::instance::
-            add_device_conv3d_bwd_weight_xdl_ndhwc_kzyxc_ndhwk_bf16_instances(op_ptrs);
-        break;
-    default: break;
-    }
-}
 
 template <typename DataType>
 void show_data_nhwc_layout(Tensor<DataType>& nhwc)
@@ -307,15 +200,22 @@ bool profile_conv_bwd_weight_impl(int do_verification,
         ref_invoker.Run(ref_argument);
     }
 
-    // add device Conv instances
-    std::vector<DeviceConvndBwdWeightNoOpPtr> op_ptrs;
-    get_device_conv_bwd_weight_op_ptr(
-        InDataType{}, WeiDataType{}, OutDataType{}, op_ptrs, NDimSpatial);
+    using DeviceOp = ck::tensor_operation::device::DeviceConvBwdWeight<NDimSpatial,
+                                                                       InLayout,
+                                                                       WeiLayout,
+                                                                       OutLayout,
+                                                                       InDataType,
+                                                                       WeiDataType,
+                                                                       OutDataType,
+                                                                       InElementOp,
+                                                                       WeiElementOp,
+                                                                       OutElementOp>;
 
-    if(op_ptrs.size() <= 0)
-    {
-        throw std::runtime_error("wrong! no device Conv instance found");
-    }
+    // get device op instances
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
+
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     std::string best_op_name;
     float best_avg_time   = 0;
@@ -328,10 +228,7 @@ bool profile_conv_bwd_weight_impl(int do_verification,
     for(auto& op_ptr : op_ptrs)
     {
         // using atomic, so need to reset input, setzero is done in invoker
-        // if(split_k > 1)
-        //{
-        //    wei_device_buf.SetZero();
-        //}
+        wei_device_buf.SetZero();
 
         auto argument_ptr =
             op_ptr->MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
@@ -352,85 +249,68 @@ bool profile_conv_bwd_weight_impl(int do_verification,
                                         out_element_op,
                                         split_k);
 
-        if(!op_ptr->IsSupportedArgument(argument_ptr.get()))
+        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            std::cout << "wrong! device_conv with the specified compilation parameters does "
-                         "not support this Conv problem"
-                      << std::endl;
-            continue;
-        }
+            std::string op_name = op_ptr->GetTypeString();
 
-        auto invoker_ptr    = op_ptr->MakeInvokerPointer();
-        std::string op_name = op_ptr->GetTypeString();
-        float avg_time      = 0;
+            auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-        if(std::is_same<InDataType, ck::bhalf_t>::value && split_k > 1)
-        {
-            // alloc work space
-            size_t bwd_weight_workspace_size = op_ptr->GetWorkSpaceSize(argument_ptr.get());
-            if(bwd_weight_workspace_size <= 0)
+            float avg_time =
+                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+
+            std::size_t flop      = params.GetFlops();
+            std::size_t num_btype = params.GetByte<InDataType, WeiDataType, OutDataType>();
+
+            float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
+            float gb_per_sec = num_btype / 1.E6 / avg_time;
+
+            std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << tflops << " TFlops, "
+                      << gb_per_sec << " GB/s, " << op_name << std::endl;
+
+            if(tflops > best_tflops)
             {
-                printf("wrong work space size\n");
-                exit(1);
+                best_op_name    = op_name;
+                best_tflops     = tflops;
+                best_avg_time   = avg_time;
+                best_gb_per_sec = gb_per_sec;
             }
-            DeviceMem wei_work_space_device_buf(bwd_weight_workspace_size);
-            wei_work_space_device_buf.SetZero();
-            op_ptr->SetWorkSpacePointer(argument_ptr.get(),
-                                        wei_work_space_device_buf.GetDeviceBuffer());
-            avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+
+            if(do_verification)
+            {
+                wei_device_buf.FromDevice(weight_device_result.mData.data());
+
+                pass = pass &
+                       ck::utils::check_err(weight_device_result.mData, weight_host_result.mData);
+
+                if(do_log)
+                {
+                    std::cout << "in : ";
+                    show_data_nhwc_layout(output);
+                    std::cout << std::endl;
+
+                    std::cout << "wei: ";
+                    show_data_nhwc_layout(weight_host_result);
+                    std::cout << std::endl;
+
+                    std::cout << "out  : ";
+                    show_data_nhwc_layout(input);
+                    std::cout << std::endl;
+
+                    std::cout << "wei_device: ";
+                    show_data_nhwc_layout(weight_device_result);
+                    std::cout << std::endl;
+                }
+            }
         }
         else
         {
-            avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
-        }
-
-        std::size_t flop      = params.GetFlops();
-        std::size_t num_btype = params.GetByte<InDataType, WeiDataType, OutDataType>();
-
-        float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
-        float gb_per_sec = num_btype / 1.E6 / avg_time;
-
-        std::cout << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                  << " GB/s" << std::endl;
-
-        if(tflops > best_tflops)
-        {
-            best_op_name    = op_name;
-            best_tflops     = tflops;
-            best_avg_time   = avg_time;
-            best_gb_per_sec = gb_per_sec;
-        }
-
-        if(do_verification)
-        {
-            wei_device_buf.FromDevice(weight_device_result.mData.data());
-
-            pass =
-                pass & ck::utils::check_err(weight_device_result.mData, weight_host_result.mData);
-
-            if(do_log)
-            {
-                std::cout << "in : ";
-                show_data_nhwc_layout(output);
-                std::cout << std::endl;
-
-                std::cout << "wei: ";
-                show_data_nhwc_layout(weight_host_result);
-                std::cout << std::endl;
-
-                std::cout << "out  : ";
-                show_data_nhwc_layout(input);
-                std::cout << std::endl;
-
-                std::cout << "wei_device: ";
-                show_data_nhwc_layout(weight_device_result);
-                std::cout << std::endl;
-            }
+            std::cout << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
         }
     }
 
-    std::cout << "Best Perf: " << best_avg_time << " ms, " << best_tflops << " TFlops, "
-              << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
+    std::cout << "Best configuration parameters:"
+              << "\nname: " << best_op_name << "\navg_time: " << best_avg_time
+              << "\ntflops: " << best_tflops << "\nGB/s: " << best_gb_per_sec << std::endl;
 
     return pass;
 }

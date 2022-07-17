@@ -23,8 +23,9 @@ add_subdirectory(conv2d_fwd_bias_relu)
 add_subdirectory(conv2d_fwd_bias_relu_add)
 add_subdirectory(conv2d_bwd_data)
 add_subdirectory(convnd_bwd_data)
+add_subdirectory(conv1d_bwd_weight)
 add_subdirectory(conv2d_bwd_weight)
-add_subdirectory(convnd_bwd_weight)
+add_subdirectory(conv3d_bwd_weight)
 add_subdirectory(reduce)
 add_subdirectory(normalization)
 add_subdirectory(elementwise)
@@ -47,8 +48,9 @@ add_library(device_operations STATIC
     $<TARGET_OBJECTS:device_conv2d_fwd_bias_relu_add_instance>
     $<TARGET_OBJECTS:device_conv2d_bwd_data_instance>
     $<TARGET_OBJECTS:device_convnd_bwd_data_instance>
+    $<TARGET_OBJECTS:device_conv1d_bwd_weight_instance>
     $<TARGET_OBJECTS:device_conv2d_bwd_weight_instance>
-    $<TARGET_OBJECTS:device_convnd_bwd_weight_instance>
+    $<TARGET_OBJECTS:device_conv3d_bwd_weight_instance>
     $<TARGET_OBJECTS:device_reduce_instance>
     $<TARGET_OBJECTS:device_normalization_instance>
     $<TARGET_OBJECTS:device_elementwise_instance>

@@ -17,7 +17,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-// conv1d_fwd
+// conv1d forward
 void add_device_conv1d_fwd_xdl_nwc_kxc_nwk_bf16_instances(
     std::vector<std::unique_ptr<
         DeviceConvFwd<1, NWC, KXC, NWK, BF16, BF16, BF16, PassThrough, PassThrough, PassThrough>>>&
@@ -45,7 +45,7 @@ void add_device_conv1d_fwd_xdl_nwc_kxc_nwk_int8_instances(
                                               PassThrough,
                                               PassThrough>>>& instances);
 
-// conv2d_fwd
+// conv2d forward
 void add_device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances(
     std::vector<std::unique_ptr<
         DeviceConvFwd<2, NHWC, KYXC, NHWK, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
@@ -119,7 +119,7 @@ void add_device_convnd_2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(
                                               PassThrough,
                                               PassThrough>>>& instances);
 
-// conv3d_fwd
+// conv3d forward
 void add_device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_bf16_instances(
     std::vector<std::unique_ptr<DeviceConvFwd<3,
                                               NDHWC,

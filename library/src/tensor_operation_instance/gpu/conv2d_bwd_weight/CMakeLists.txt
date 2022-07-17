@@ -1,10 +1,12 @@
-# device_conv2d_bwd_weight_instance
-set(DEVICE_CONV2D_BWD_WEIGHT_INSTANCE_SOURCE
-   device_conv2d_bwd_weight_xdl_nhwc_kyxc_nhwk_f16_instance.cpp;
-   device_conv2d_bwd_weight_xdl_nhwc_kyxc_nhwk_f32_instance.cpp;
+#device_conv2d_bwd_weight_instance
+set(DEVICE_CONV2D_BWD_WEIGHT_INSTANCE_SOURCE 
+    device_conv2d_bwd_weight_xdl_nhwc_kyxc_nhwk_f16_instance.cpp;
+    device_conv2d_bwd_weight_xdl_nhwc_kyxc_nhwk_f32_instance.cpp;
+    device_conv2d_bwd_weight_xdl_nhwc_kyxc_nhwk_bf16_instance.cpp;
 )
+
 add_library(device_conv2d_bwd_weight_instance OBJECT ${DEVICE_CONV2D_BWD_WEIGHT_INSTANCE_SOURCE})
-target_compile_features(device_conv2d_bwd_weight_instance PUBLIC)
+target_compile_features(device_conv2d_bwd_weight_instance PUBLIC) 
 set_target_properties(device_conv2d_bwd_weight_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
 rocm_install(TARGETS device_conv2d_bwd_weight_instance)
 
