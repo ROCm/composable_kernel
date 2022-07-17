@@ -66,7 +66,7 @@ __global__ void
     GridwiseGemm::template Run<HasMainKBlockLoop>(
         gemm_desc_ptr[group_id].a_ptr_,
         gemm_desc_ptr[group_id].b_ptr_,
-        ck::Tuple<>{},
+        gemm_desc_ptr[group_id].ds_ptr_,
         gemm_desc_ptr[group_id].e_ptr_,
         p_shared,
         a_element_op,
@@ -74,9 +74,7 @@ __global__ void
         c_element_op,
         gemm_desc_ptr[group_id].a_grid_desc_k0_m_k1_,
         gemm_desc_ptr[group_id].b_grid_desc_k0_n_k1_,
-        ck::StaticallyIndexedArray<
-            typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-            0>{},
+        gemm_desc_ptr[group_id].ds_grid_desc_mblock_mperblock_nblock_nperblock_,
         gemm_desc_ptr[group_id].e_grid_desc_mblock_mperblock_nblock_nperblock_,
         gemm_desc_ptr[group_id].block_2_ctile_map_);
 #else
@@ -354,7 +352,7 @@ struct DeviceGroupedGemmXdl : public DeviceGroupedGemm<ALayout,
         }
     }
 
-    static auto MakeCGridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t StrideE)
+    static auto MakeEGridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t StrideE)
     {
         const auto c_grid_desc_mraw_nraw = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, DELayout>::value)
@@ -414,7 +412,7 @@ struct DeviceGroupedGemmXdl : public DeviceGroupedGemm<ALayout,
 
     using AGridDesc_AK0_M_AK1 = decltype(MakeAGridDescriptor_AK0_M_AK1(1, 1, 1));
     using BGridDesc_BK0_N_BK1 = decltype(MakeBGridDescriptor_BK0_N_BK1(1, 1, 1));
-    using EGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
+    using EGridDesc_M_N       = decltype(MakeEGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle<
@@ -571,7 +569,7 @@ struct DeviceGroupedGemmXdl : public DeviceGroupedGemm<ALayout,
                     DeviceGroupedGemmXdl::MakeBGridDescriptor_BK0_N_BK1(K, N, StrideB);
 
                 const auto e_grid_desc_m_n_ =
-                    DeviceGroupedGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC);
+                    DeviceGroupedGemmXdl::MakeEGridDescriptor_M_N(M, N, StrideC);
 
                 const index_t grid_size_grp =
                     GroupedGemmBlock2ETileMap(e_grid_desc_m_n_, 0)
@@ -599,23 +597,20 @@ struct DeviceGroupedGemmXdl : public DeviceGroupedGemm<ALayout,
                         ds_grid_desc_mblock_mperblock_nblock_nperblock_; // FIXME: Ds desc may be of
                                                                          // different
 
-                    typename GridwiseGemm::DsGridPointer p_ds_grid_;
+                    typename GridwiseGemm::DsGridPointer p_ds_grid_{};
 
-                    if constexpr(NumDTensor > 0)
-                    {
-                        static_for<0, NumDTensor, 1>{}([&](auto j) {
-                            using DDataType = remove_cvref_t<tuple_element_t<j.value, DsDataType>>;
+                    static_for<0, NumDTensor, 1>{}([&](auto j) {
+                        using DDataType = remove_cvref_t<tuple_element_t<j.value, DsDataType>>;
 
-                            p_ds_grid_(i) = static_cast<const DDataType*>(p_Ds[i][j]);
+                        p_ds_grid_(j) = static_cast<const DDataType*>(p_Ds[i][j]);
 
-                            const auto d_grid_desc_m_n = GridwiseGemm::MakeEGridDescriptor_M_N(
-                                M, N, gemm_descs[i].stride_Ds_[j]);
+                        const auto d_grid_desc_m_n = DeviceGroupedGemmXdl::MakeEGridDescriptor_M_N(
+                            M, N, gemm_descs[i].stride_Ds_[j]);
 
-                            ds_grid_desc_mblock_mperblock_nblock_nperblock_(j) =
-                                GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                    d_grid_desc_m_n);
-                        });
-                    }
+                        ds_grid_desc_mblock_mperblock_nblock_nperblock_(j) =
+                            GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                d_grid_desc_m_n);
+                    });
 
                     gemm_desc_kernel_arg_.push_back(
                         GemmBiasTransKernelArg{a_grid_desc_k0_m_k1_,
