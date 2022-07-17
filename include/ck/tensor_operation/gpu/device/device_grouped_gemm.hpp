@@ -28,10 +28,12 @@ template <typename ALayout,
           typename CElementwiseOperation>
 struct DeviceGroupedGemm : public BaseOperator
 {
+    static constexpr index_t NumDTensor = DsDataType::Size();
+
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(std::vector<const void*>& p_a,
                         std::vector<const void*>& p_b,
-                        std::vector<std::vector<const void*>>& p_ds,
+                        std::vector<std::array<const void*, NumDTensor>>& p_ds,
                         std::vector<void*>& p_e,
                         std::vector<GemmDesc>& gemm_desc,
                         AElementwiseOperation a_element_op,

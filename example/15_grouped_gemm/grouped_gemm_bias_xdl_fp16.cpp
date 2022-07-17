@@ -82,7 +82,7 @@ int main(int argc, char* argv[])
     // GEMM shape
     std::vector<ck::tensor_operation::device::GemmDesc> gemm_descs;
     std::vector<const void*> p_a, p_b;
-    std::vector<std::vector<const void*>> p_ds;
+    std::vector<std::array<const void*, 1>> p_ds;
     std::vector<void*> p_c;
 
     gemm_descs.reserve(group_count);

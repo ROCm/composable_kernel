@@ -200,7 +200,7 @@ int main(int argc, char* argv[])
     auto gemm    = DeviceGemmInstance{};
     auto invoker = gemm.MakeInvoker();
 
-    std::vector<std::vector<const void*>> p_Ds = {};
+    std::vector<std::array<const void*, 0>> p_Ds = {};
 
     // do GEMM
     auto argument = gemm.MakeArgument(

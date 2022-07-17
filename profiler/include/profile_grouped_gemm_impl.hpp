@@ -175,7 +175,7 @@ bool profile_grouped_gemm_impl(int do_verification,
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
 
-    auto p_ds = std::vector<std::vector<const void*>>{};
+    auto p_ds = std::vector<std::array<const void*, 0>>{};
 
     // profile device GEMM instances
     for(auto& gemm_ptr : op_ptrs)
