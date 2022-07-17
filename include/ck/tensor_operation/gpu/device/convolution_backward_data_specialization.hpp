@@ -19,7 +19,7 @@ getConvBackwardDataSpecializationString(const ConvolutionBackwardDataSpecializat
     switch(s)
     {
     case ConvolutionBackwardDataSpecialization::Default: return "Default";
-    case ConvolutionBackwardDataSpecialization::FFilter1x1Stride1Pad0:
+    case ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0:
         return "FFilter1x1Stride1Pad0";
     default: return "Unrecognized specialization!";
     }

@@ -20,8 +20,9 @@ using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto ConvFwdDefault =
     ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
 
-template <ck::index_t NumDimSpatial>
+template <ck::index_t NDimSpatial>
 using DeviceConvNDFwdInstance = ck::tensor_operation::device::DeviceConvNdFwdNwcKxcNwk_Xdl<
+    NDimSpatial,    // NDimSpatial
     InDataType,     //
     WeiDataType,    //
     OutDataType,    //
@@ -30,7 +31,6 @@ using DeviceConvNDFwdInstance = ck::tensor_operation::device::DeviceConvNdFwdNwc
     WeiElementOp,   // Weights Elementwise Operation
     OutElementOp,   // Output Elementwise Operation
     ConvFwdDefault, // ConvForwardSpecialization
-    NumDimSpatial,  // NumDimSpatial
     256,            // BlockSize
     128,            // MPerBlock
     256,            // NPerBlock
@@ -89,6 +89,10 @@ int main(int argc, char* argv[])
         params = parse_conv_params(num_dim_spatial, 5, argv);
     }
 
+    const auto in_element_op  = InElementOp{};
+    const auto wei_element_op = WeiElementOp{};
+    const auto out_element_op = OutElementOp{};
+
     if(num_dim_spatial == 1)
     {
         return run_conv_fwd_nhwc<1,
@@ -99,9 +103,13 @@ int main(int argc, char* argv[])
                                  InElementOp,
                                  WeiElementOp,
                                  OutElementOp,
-                                 DeviceConvNDFwdInstance<1>,
-                                 ReferenceConvNDFwdInstance<1>>(
-            params, do_verification, init_method, time_kernel);
+                                 DeviceConvNDFwdInstance<1>>(do_verification,
+                                                             init_method,
+                                                             time_kernel,
+                                                             params,
+                                                             in_element_op,
+                                                             wei_element_op,
+                                                             out_element_op);
     }
     else if(num_dim_spatial == 2)
     {
@@ -113,9 +121,13 @@ int main(int argc, char* argv[])
                                  InElementOp,
                                  WeiElementOp,
                                  OutElementOp,
-                                 DeviceConvNDFwdInstance<2>,
-                                 ReferenceConvNDFwdInstance<2>>(
-            params, do_verification, init_method, time_kernel);
+                                 DeviceConvNDFwdInstance<2>>(do_verification,
+                                                             init_method,
+                                                             time_kernel,
+                                                             params,
+                                                             in_element_op,
+                                                             wei_element_op,
+                                                             out_element_op);
     }
     else if(num_dim_spatial == 3)
     {
@@ -127,9 +139,13 @@ int main(int argc, char* argv[])
                                  InElementOp,
                                  WeiElementOp,
                                  OutElementOp,
-                                 DeviceConvNDFwdInstance<3>,
-                                 ReferenceConvNDFwdInstance<3>>(
-            params, do_verification, init_method, time_kernel);
+                                 DeviceConvNDFwdInstance<3>>(do_verification,
+                                                             init_method,
+                                                             time_kernel,
+                                                             params,
+                                                             in_element_op,
+                                                             wei_element_op,
+                                                             out_element_op);
     }
 
     return 0;

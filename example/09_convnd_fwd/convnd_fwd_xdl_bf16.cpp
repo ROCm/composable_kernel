@@ -20,8 +20,9 @@ using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto ConvFwdDefault =
     ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
 
-template <ck::index_t NumDimSpatial>
+template <ck::index_t NDimSpatial>
 using DeviceConvNDFwdInstance = ck::tensor_operation::device::DeviceConvNdFwdNwcKxcNwk_Xdl<
+    NDimSpatial,    //
     InDataType,     //
     WeiDataType,    //
     OutDataType,    //
@@ -30,7 +31,6 @@ using DeviceConvNDFwdInstance = ck::tensor_operation::device::DeviceConvNdFwdNwc
     WeiElementOp,   // Weights Elementwise Operation
     OutElementOp,   // Output Elementwise Operation
     ConvFwdDefault, // ConvForwardSpecialization
-    NumDimSpatial,  // NumDimSpatial
     256,            // BlockSize
     128,            // MPerBlock
     256,            // NPerBlock

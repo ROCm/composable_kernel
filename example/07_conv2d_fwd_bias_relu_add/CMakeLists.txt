@@ -1,3 +1,2 @@
-# FIXME: should fix validation failure
-add_example_executable_no_testing(example_conv2d_fwd_xdl_bias_relu_add conv2d_fwd_xdl_bias_relu_add.cpp)
-target_link_libraries(example_conv2d_fwd_xdl_bias_relu_add PRIVATE conv_util)
+add_example_executable(example_conv2d_fwd_bias_relu_add_xdl_fp16 conv2d_fwd_bias_relu_add_xdl_fp16.cpp)
+target_link_libraries(example_conv2d_fwd_bias_relu_add_xdl_fp16 PRIVATE utility)
