@@ -142,14 +142,14 @@ struct ReferenceConvBwdData : public device::BaseOperator
 
                     for(std::size_t x = 0; x < X; ++x)
                     {
-                        auto w_tmp = ck::type_convert<ck::long_index_t>(wi) +
-                                     ck::type_convert<ck::long_index_t>(arg.in_left_pads_[0]) -
-                                     ck::type_convert<ck::long_index_t>(x * arg.conv_dilations_[0]);
+                        auto w_tmp = static_cast<ck::long_index_t>(wi) +
+                                     static_cast<ck::long_index_t>(arg.in_left_pads_[0]) -
+                                     static_cast<ck::long_index_t>(x * arg.conv_dilations_[0]);
 
                         if(w_tmp % arg.conv_strides_[0] == 0)
                         {
-                            auto wo = ck::type_convert<ck::long_index_t>(w_tmp) /
-                                      ck::type_convert<ck::long_index_t>(arg.conv_strides_[0]);
+                            auto wo = static_cast<ck::long_index_t>(w_tmp) /
+                                      static_cast<ck::long_index_t>(arg.conv_strides_[0]);
 
                             if(wo >= 0 && ck::type_convert<std::size_t>(wo) < Wo)
                             {
@@ -209,27 +209,26 @@ struct ReferenceConvBwdData : public device::BaseOperator
 
                     for(std::size_t y = 0; y < Y; ++y)
                     {
-                        auto h_tmp = ck::type_convert<ck::long_index_t>(hi) +
-                                     ck::type_convert<ck::long_index_t>(arg.in_left_pads_[0]) -
-                                     ck::type_convert<ck::long_index_t>(y * arg.conv_dilations_[0]);
+                        auto h_tmp = static_cast<ck::long_index_t>(hi) +
+                                     static_cast<ck::long_index_t>(arg.in_left_pads_[0]) -
+                                     static_cast<ck::long_index_t>(y * arg.conv_dilations_[0]);
                         if(h_tmp % arg.conv_strides_[0] == 0)
                         {
-                            auto ho = ck::type_convert<ck::long_index_t>(h_tmp) /
-                                      ck::type_convert<ck::long_index_t>(arg.conv_strides_[0]);
+                            auto ho = static_cast<ck::long_index_t>(h_tmp) /
+                                      static_cast<ck::long_index_t>(arg.conv_strides_[0]);
                             if(ho >= 0 && ck::type_convert<std::size_t>(ho) < Ho)
                             {
                                 for(std::size_t x = 0; x < X; ++x)
                                 {
                                     auto w_tmp =
-                                        ck::type_convert<ck::long_index_t>(wi) +
-                                        ck::type_convert<ck::long_index_t>(arg.in_left_pads_[1]) -
-                                        ck::type_convert<ck::long_index_t>(x *
-                                                                           arg.conv_dilations_[1]);
+                                        static_cast<ck::long_index_t>(wi) +
+                                        static_cast<ck::long_index_t>(arg.in_left_pads_[1]) -
+                                        static_cast<ck::long_index_t>(x * arg.conv_dilations_[1]);
                                     if(w_tmp % arg.conv_strides_[1] == 0)
                                     {
-                                        auto wo = ck::type_convert<ck::long_index_t>(w_tmp) /
-                                                  ck::type_convert<ck::long_index_t>(
-                                                      arg.conv_strides_[1]);
+                                        auto wo =
+                                            static_cast<ck::long_index_t>(w_tmp) /
+                                            static_cast<ck::long_index_t>(arg.conv_strides_[1]);
                                         if(wo >= 0 && ck::type_convert<std::size_t>(wo) < Wo)
                                         {
                                             for(std::size_t k = 0; k < K; ++k)
@@ -296,44 +295,41 @@ struct ReferenceConvBwdData : public device::BaseOperator
 
                     for(std::size_t z = 0; z < Z; ++z)
                     {
-                        auto d_tmp = ck::type_convert<ck::long_index_t>(di) +
-                                     ck::type_convert<ck::long_index_t>(arg.in_left_pads_[0]) -
-                                     ck::type_convert<ck::long_index_t>(z * arg.conv_dilations_[0]);
+                        auto d_tmp = static_cast<ck::long_index_t>(di) +
+                                     static_cast<ck::long_index_t>(arg.in_left_pads_[0]) -
+                                     static_cast<ck::long_index_t>(z * arg.conv_dilations_[0]);
                         if(d_tmp % arg.conv_strides_[0] == 0)
                         {
-                            auto do_ = ck::type_convert<ck::long_index_t>(d_tmp) /
-                                       ck::type_convert<ck::long_index_t>(arg.conv_strides_[0]);
+                            auto do_ = static_cast<ck::long_index_t>(d_tmp) /
+                                       static_cast<ck::long_index_t>(arg.conv_strides_[0]);
                             if(do_ >= 0 && ck::type_convert<std::size_t>(do_) < Do)
                             {
                                 for(std::size_t y = 0; y < Y; ++y)
                                 {
                                     auto h_tmp =
-                                        ck::type_convert<ck::long_index_t>(hi) +
-                                        ck::type_convert<ck::long_index_t>(arg.in_left_pads_[1]) -
-                                        ck::type_convert<ck::long_index_t>(y *
-                                                                           arg.conv_dilations_[1]);
+                                        static_cast<ck::long_index_t>(hi) +
+                                        static_cast<ck::long_index_t>(arg.in_left_pads_[1]) -
+                                        static_cast<ck::long_index_t>(y * arg.conv_dilations_[1]);
                                     if(h_tmp % arg.conv_strides_[1] == 0)
                                     {
-                                        auto ho = ck::type_convert<ck::long_index_t>(h_tmp) /
-                                                  ck::type_convert<ck::long_index_t>(
-                                                      arg.conv_strides_[1]);
+                                        auto ho =
+                                            static_cast<ck::long_index_t>(h_tmp) /
+                                            static_cast<ck::long_index_t>(arg.conv_strides_[1]);
                                         if(ho >= 0 && ck::type_convert<std::size_t>(ho) < Ho)
                                         {
                                             for(std::size_t x = 0; x < X; ++x)
                                             {
-                                                auto w_tmp =
-                                                    ck::type_convert<ck::long_index_t>(wi) +
-                                                    ck::type_convert<ck::long_index_t>(
-                                                        arg.in_left_pads_[2]) -
-                                                    ck::type_convert<ck::long_index_t>(
-                                                        x * arg.conv_dilations_[2]);
+                                                auto w_tmp = static_cast<ck::long_index_t>(wi) +
+                                                             static_cast<ck::long_index_t>(
+                                                                 arg.in_left_pads_[2]) -
+                                                             static_cast<ck::long_index_t>(
+                                                                 x * arg.conv_dilations_[2]);
 
                                                 if(w_tmp % arg.conv_strides_[2] == 0)
                                                 {
-                                                    auto wo =
-                                                        ck::type_convert<ck::long_index_t>(w_tmp) /
-                                                        ck::type_convert<ck::long_index_t>(
-                                                            arg.conv_strides_[2]);
+                                                    auto wo = static_cast<ck::long_index_t>(w_tmp) /
+                                                              static_cast<ck::long_index_t>(
+                                                                  arg.conv_strides_[2]);
                                                     if(wo >= 0 &&
                                                        ck::type_convert<std::size_t>(wo) < Wo)
                                                     {
@@ -381,7 +377,7 @@ struct ReferenceConvBwdData : public device::BaseOperator
                     arg.in_element_op_(v_in, v_acc);
 
                     // FIXME hacky
-                    arg.input_.mData[in_desc.GetOffsetFromMultiIndex(n, c, wi)] =
+                    arg.input_.mData[in_desc.GetOffsetFromMultiIndex(n, c, di, hi, wi)] =
                         ck::type_convert<InDataType>(v_acc);
                 };
 

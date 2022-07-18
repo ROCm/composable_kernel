@@ -194,17 +194,28 @@ int run_conv_bwd_data_nhwc(bool do_verification,
 
     if(do_verification)
     {
-        auto ref_conv =
-            ck::tensor_operation::host::ReferenceConvBwdData<NDimSpatial,
-                                                             ck::tensor_layout::convolution::NHWC,
-                                                             ck::tensor_layout::convolution::KYXC,
-                                                             ck::tensor_layout::convolution::NHWK,
-                                                             InDataType,
-                                                             WeiDataType,
-                                                             OutDataType,
-                                                             InElementOp,
-                                                             WeiElementOp,
-                                                             OutElementOp>();
+        std::cout << "before ref" << std::endl;
+
+        auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<
+            NDimSpatial,
+            ck::tuple_element_t<NDimSpatial - 1,
+                                ck::Tuple<ck::tensor_layout::convolution::NWC,
+                                          ck::tensor_layout::convolution::NHWC,
+                                          ck::tensor_layout::convolution::NDHWC>>,
+            ck::tuple_element_t<NDimSpatial - 1,
+                                ck::Tuple<ck::tensor_layout::convolution::KXC,
+                                          ck::tensor_layout::convolution::KYXC,
+                                          ck::tensor_layout::convolution::KZYXC>>,
+            ck::tuple_element_t<NDimSpatial - 1,
+                                ck::Tuple<ck::tensor_layout::convolution::NWK,
+                                          ck::tensor_layout::convolution::NHWK,
+                                          ck::tensor_layout::convolution::NDHWK>>,
+            InDataType,
+            WeiDataType,
+            OutDataType,
+            InElementOp,
+            WeiElementOp,
+            OutElementOp>();
 
         auto ref_invoker = ref_conv.MakeInvoker();
 
@@ -219,7 +230,11 @@ int run_conv_bwd_data_nhwc(bool do_verification,
                                                   wei_element_op,
                                                   out_element_op);
 
+        std::cout << "before ref" << std::endl;
+
         ref_invoker.Run(ref_argument);
+
+        std::cout << "after ref" << std::endl;
 
         in_device_buf.FromDevice(in_n_hi_wi_c_device.mData.data());
 

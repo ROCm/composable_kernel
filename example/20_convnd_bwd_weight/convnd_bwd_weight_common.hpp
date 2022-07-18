@@ -15,7 +15,7 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_conv_backward_weight.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_weight.hpp"
 
 void print_helper_msg()
 {
@@ -197,17 +197,26 @@ int run_conv_bwd_weight_nhwc(bool do_verification,
 
     if(do_verification)
     {
-        auto ref_conv =
-            ck::tensor_operation::host::ReferenceConvBwdWeight<2,
-                                                               ck::tensor_layout::convolution::NHWC,
-                                                               ck::tensor_layout::convolution::KYXC,
-                                                               ck::tensor_layout::convolution::NHWK,
-                                                               InDataType,
-                                                               WeiDataType,
-                                                               OutDataType,
-                                                               InElementOp,
-                                                               WeiElementOp,
-                                                               OutElementOp>{};
+        auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdWeight<
+            2,
+            ck::tuple_element_t<NDimSpatial - 1,
+                                ck::Tuple<ck::tensor_layout::convolution::NWC,
+                                          ck::tensor_layout::convolution::NHWC,
+                                          ck::tensor_layout::convolution::NDHWC>>,
+            ck::tuple_element_t<NDimSpatial - 1,
+                                ck::Tuple<ck::tensor_layout::convolution::KXC,
+                                          ck::tensor_layout::convolution::KYXC,
+                                          ck::tensor_layout::convolution::KZYXC>>,
+            ck::tuple_element_t<NDimSpatial - 1,
+                                ck::Tuple<ck::tensor_layout::convolution::NWK,
+                                          ck::tensor_layout::convolution::NHWK,
+                                          ck::tensor_layout::convolution::NDHWK>>,
+            InDataType,
+            WeiDataType,
+            OutDataType,
+            InElementOp,
+            WeiElementOp,
+            OutElementOp>{};
 
         auto ref_invoker = ref_conv.MakeInvoker();
 

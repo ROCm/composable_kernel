@@ -13,7 +13,6 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/conv_util.hpp"
 #include "ck/library/utility/fill.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"

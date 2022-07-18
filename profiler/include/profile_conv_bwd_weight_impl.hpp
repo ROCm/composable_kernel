@@ -20,7 +20,7 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_conv_backward_weight.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_weight.hpp"
 
 namespace ck {
 namespace profiler {

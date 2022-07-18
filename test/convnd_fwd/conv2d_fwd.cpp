@@ -7,7 +7,7 @@
 
 #include "ck/utility/data_type.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/library/utility/conv_util.hpp"
+#include "ck/library/utility/convolution_parameter.hpp"
 #include "test/convnd_fwd/conv_util.hpp"
 
 namespace {
