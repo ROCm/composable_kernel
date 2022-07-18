@@ -18,9 +18,9 @@ enum struct ConvLayout
 
 enum struct ConvDataType
 {
-    F32_F32_F32,    // 0
-    F16_F16_F16,    // 1
-    BF16_F32_BF16,  // 2
+    F32_F32_F32,   // 0
+    F16_F16_F16,   // 1
+    BF16_F32_BF16, // 2
 };
 
 static void print_helper_msg()
@@ -29,7 +29,7 @@ static void print_helper_msg()
         << "arg1: tensor operation (conv_bwd_weight: Convolution Backward Weight\n"
         << "arg2: data type (0: Input fp32, Weight fp32, Output fp32\n"
         << "                 1: Input fp16, Weight fp16, Output fp16\n"
-        << "                 2: Input bf16, Weight fp32, Output bf16\n"
+        << "                 2: Input bf16, Weight fp32, Output bf16)\n"
         << "arg3: tensor layout (0: Input[N, C, Hi, Wi], Weight[K, C, Y, X], Output[N, K, Ho, Wo]\n"
         << "                     1: Input[N, Hi, Wi, C], Weight[K, Y, X, C], Output[N, Ho, Wo, K]\n"
         << "arg4: verification (0: no, 1: yes)\n"

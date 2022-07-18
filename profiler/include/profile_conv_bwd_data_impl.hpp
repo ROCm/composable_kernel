@@ -8,153 +8,17 @@
 #include "ck/tensor_operation/gpu/device/device_conv_bwd_data.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/tensor_operation_instance/gpu/convolution_backward_data.hpp"
+
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_data.hpp"
-
-using F16  = ck::half_t;
-using F32  = float;
-using BF16 = ck::bhalf_t;
-using INT8 = int8_t;
-
-namespace ck {
-namespace tensor_operation {
-namespace device {
-namespace instance {
-
-using DeviceConvBwdDataNoOpPtr =
-    DeviceConvBwdDataPtr<ck::tensor_operation::element_wise::PassThrough,
-                         ck::tensor_operation::element_wise::PassThrough,
-                         ck::tensor_operation::element_wise::PassThrough>;
-void add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_f32_instances(
-    std::vector<DeviceConvBwdDataNoOpPtr>&);
-void add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_f16_instances(
-    std::vector<DeviceConvBwdDataNoOpPtr>&);
-void add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_bf16_instances(
-    std::vector<DeviceConvBwdDataNoOpPtr>&);
-void add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_int8_instances(
-    std::vector<DeviceConvBwdDataNoOpPtr>&);
-
-void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f32_instances(
-    std::vector<DeviceConvBwdDataNoOpPtr>&);
-void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f16_instances(
-    std::vector<DeviceConvBwdDataNoOpPtr>&);
-void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instances(
-    std::vector<DeviceConvBwdDataNoOpPtr>&);
-void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instances(
-    std::vector<DeviceConvBwdDataNoOpPtr>&);
-
-void add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f32_instances(
-    std::vector<DeviceConvBwdDataNoOpPtr>&);
-void add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f16_instances(
-    std::vector<DeviceConvBwdDataNoOpPtr>&);
-void add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_bf16_instances(
-    std::vector<DeviceConvBwdDataNoOpPtr>&);
-void add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_int8_instances(
-    std::vector<DeviceConvBwdDataNoOpPtr>&);
-} // namespace instance
-} // namespace device
-} // namespace tensor_operation
-} // namespace ck
 
 namespace ck {
 namespace profiler {
-using DeviceConvBwdDataNoOpPtr = ck::tensor_operation::device::instance::DeviceConvBwdDataNoOpPtr;
-
-template <typename InDataType, typename WeiDataType, typename OutDataType>
-void get_device_conv_bwd_data_op_ptr(
-    InDataType, WeiDataType, OutDataType, std::vector<DeviceConvBwdDataNoOpPtr>&, int)
-{
-    std::cout << "can not find device conv bwd data" << std::endl;
-    exit(1);
-}
-template <>
-void get_device_conv_bwd_data_op_ptr(
-    F32, F32, F32, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
-{
-    switch(num_dim_spatial)
-    {
-    case 1:
-        ck::tensor_operation::device::instance::
-            add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_f32_instances(conv_ptrs);
-        break;
-    case 2:
-        ck::tensor_operation::device::instance::
-            add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f32_instances(conv_ptrs);
-        break;
-    case 3:
-        ck::tensor_operation::device::instance::
-            add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f32_instances(conv_ptrs);
-        break;
-    default: break;
-    }
-}
-template <>
-void get_device_conv_bwd_data_op_ptr(
-    F16, F16, F16, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
-{
-    switch(num_dim_spatial)
-    {
-    case 1:
-        ck::tensor_operation::device::instance::
-            add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_f16_instances(conv_ptrs);
-        break;
-    case 2:
-        ck::tensor_operation::device::instance::
-            add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
-        break;
-    case 3:
-        ck::tensor_operation::device::instance::
-            add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f16_instances(conv_ptrs);
-        break;
-    default: break;
-    }
-}
-template <>
-void get_device_conv_bwd_data_op_ptr(
-    BF16, BF16, BF16, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
-{
-    switch(num_dim_spatial)
-    {
-    case 1:
-        ck::tensor_operation::device::instance::
-            add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_bf16_instances(conv_ptrs);
-        break;
-    case 2:
-        ck::tensor_operation::device::instance::
-            add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
-        break;
-    case 3:
-        ck::tensor_operation::device::instance::
-            add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_bf16_instances(conv_ptrs);
-        break;
-    default: break;
-    }
-}
-template <>
-void get_device_conv_bwd_data_op_ptr(
-    INT8, INT8, INT8, std::vector<DeviceConvBwdDataNoOpPtr>& conv_ptrs, int num_dim_spatial)
-{
-    switch(num_dim_spatial)
-    {
-    case 1:
-        ck::tensor_operation::device::instance::
-            add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_int8_instances(conv_ptrs);
-        break;
-    case 2:
-        ck::tensor_operation::device::instance::
-            add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instances(conv_ptrs);
-        break;
-    case 3:
-        ck::tensor_operation::device::instance::
-            add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_int8_instances(conv_ptrs);
-        break;
-    default: break;
-    }
-}
 
 template <typename DataType>
 void show_data_nhwc_layout(Tensor<DataType>& nhwc)
@@ -182,7 +46,7 @@ void show_data_nhwc_layout(Tensor<DataType>& nhwc)
     std::cout << "]";
 }
 
-template <int NDimSpatial,
+template <ck::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout,
@@ -329,15 +193,22 @@ bool profile_conv_bwd_data_impl(int do_verification,
         ref_invoker.Run(ref_argument);
     }
 
-    // add device Conv instances
-    std::vector<DeviceConvBwdDataNoOpPtr> conv_ptrs;
-    get_device_conv_bwd_data_op_ptr(
-        InDataType{}, WeiDataType{}, OutDataType{}, conv_ptrs, NDimSpatial);
+    using DeviceOp = ck::tensor_operation::device::DeviceConvBwdData<NDimSpatial,
+                                                                     InLayout,
+                                                                     WeiLayout,
+                                                                     OutLayout,
+                                                                     InDataType,
+                                                                     WeiDataType,
+                                                                     OutDataType,
+                                                                     InElementOp,
+                                                                     WeiElementOp,
+                                                                     OutElementOp>;
 
-    if(conv_ptrs.size() <= 0)
-    {
-        throw std::runtime_error("wrong! no device Conv instance found");
-    }
+    // get device op instances
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
+
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     std::string best_op_name;
     float best_avg_time   = 0;
@@ -347,34 +218,35 @@ bool profile_conv_bwd_data_impl(int do_verification,
     // profile device Conv instances
     bool pass = true;
 
-    for(auto& conv_ptr : conv_ptrs)
+    for(auto& op_ptr : op_ptrs)
     {
-        auto argument_ptr = conv_ptr->MakeArgumentPointer(
-            static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-            static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
-            static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-            params.N_,
-            params.K_,
-            params.C_,
-            params.input_spatial_lengths_,
-            params.filter_spatial_lengths_,
-            params.output_spatial_lengths_,
-            params.conv_filter_strides_,
-            params.conv_filter_dilations_,
-            params.input_left_pads_,
-            params.input_right_pads_,
-            in_element_op,
-            wei_element_op,
-            out_element_op);
+        auto argument_ptr =
+            op_ptr->MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
+                                        static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+                                        static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
+                                        params.N_,
+                                        params.K_,
+                                        params.C_,
+                                        params.input_spatial_lengths_,
+                                        params.filter_spatial_lengths_,
+                                        params.output_spatial_lengths_,
+                                        params.conv_filter_strides_,
+                                        params.conv_filter_dilations_,
+                                        params.input_left_pads_,
+                                        params.input_right_pads_,
+                                        in_element_op,
+                                        wei_element_op,
+                                        out_element_op);
 
-        auto invoker_ptr = conv_ptr->MakeInvokerPointer();
-
-        if(conv_ptr->IsSupportedArgument(argument_ptr.get()))
+        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            // reset input to zero
+            // for conv bwd data, some input tensor element are zero, but not written by kernel,
+            // need to set zero
             in_device_buf.SetZero();
 
-            std::string op_name = conv_ptr->GetTypeString();
+            std::string op_name = op_ptr->GetTypeString();
+
+            auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
             float avg_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
@@ -423,10 +295,15 @@ bool profile_conv_bwd_data_impl(int do_verification,
                 }
             }
         }
+        else
+        {
+            std::cout << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
+        }
     }
 
-    std::cout << "Best Perf: " << best_avg_time << " ms, " << best_tflops << " TFlops, "
-              << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
+    std::cout << "Best configuration parameters:"
+              << "\nname: " << best_op_name << "\navg_time: " << best_avg_time
+              << "\ntflops: " << best_tflops << "\nGB/s: " << best_gb_per_sec << std::endl;
 
     return pass;
 }

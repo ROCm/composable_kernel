@@ -26,10 +26,12 @@ enum struct ConvDataType
 
 static void print_helper_msg()
 {
-    // clang-format-off
     std::cout
         << "arg1: tensor operation (conv_fwd: Convolution Forward)\n"
-        << "arg2: data type (0: fp32; 1: fp16, 2: bf16, 3: int8)\n"
+        << "arg2: data type (0: Input fp32, Weight fp32, Output fp32\n"
+        << "                 1: Input fp16, Weight fp16, Output fp16\n"
+        << "                 2: Input bf16, Weight bf16, Output bf16\n"
+        << "                 3: Input int8, Weight int8, Output int8)\n"
         << "arg3: tensor layout (0: Input[N, C, Hi, Wi], Weight[K, C, Y, X], Output[N, K, Ho, Wo]\n"
         << "                     1: Input[N, Hi, Wi, C], Weight[K, Y, X, C], Output[N, Ho, Wo, "
            "K])\n"
@@ -47,7 +49,6 @@ static void print_helper_msg()
         << " <left padding>, (ie LeftPy, LeftPx for 2D)\n"
         << " <right padding>, (ie RightPy, RightPx for 2D)\n"
         << std::endl;
-    // clang-format-on
 }
 
 ck::tensor_operation::device::ConvParams

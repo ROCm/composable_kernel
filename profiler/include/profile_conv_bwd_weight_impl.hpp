@@ -65,6 +65,14 @@ bool profile_conv_bwd_weight_impl(int do_verification,
                                   const ck::tensor_operation::device::ConvParams& params,
                                   ck::index_t split_k)
 {
+    using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
+    using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
+    using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
+
+    const auto in_element_op  = InElementOp{};
+    const auto wei_element_op = WeiElementOp{};
+    const auto out_element_op = OutElementOp{};
+
     // make host tensor descritpor
     auto f_nhwc_host_tensor_descriptor =
         [](ck::index_t n, ck::index_t c, std::vector<ck::index_t> spatial_lengths) {
@@ -156,14 +164,6 @@ bool profile_conv_bwd_weight_impl(int do_verification,
         output.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
     }
 
-    using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
-    using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
-
-    const auto in_element_op  = InElementOp{};
-    const auto wei_element_op = WeiElementOp{};
-    const auto out_element_op = OutElementOp{};
-
     DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpace());
     DeviceMem wei_device_buf(sizeof(WeiDataType) * weight_device_result.mDesc.GetElementSpace());
     DeviceMem out_device_buf(sizeof(OutDataType) * output.mDesc.GetElementSpace());
@@ -227,9 +227,6 @@ bool profile_conv_bwd_weight_impl(int do_verification,
 
     for(auto& op_ptr : op_ptrs)
     {
-        // using atomic, so need to reset input, setzero is done in invoker
-        wei_device_buf.SetZero();
-
         auto argument_ptr =
             op_ptr->MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
                                         static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
@@ -251,6 +248,9 @@ bool profile_conv_bwd_weight_impl(int do_verification,
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            // using atomic add, so need to reset input
+            wei_device_buf.SetZero();
+
             std::string op_name = op_ptr->GetTypeString();
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
