@@ -108,12 +108,22 @@ def buildHipClangJob(Map conf=[:]){
 
         def retimage
 
+        def check_gpu
+
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
             try {
                 retimage = docker.build("${image}", dockerArgs + '.')
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo > clinfo.log'
+                        sh 'check_gpu="$(grep -n "Number of devices:.*. 0" clinfo.log  | awk -F ":"  '{print $1}')"'
+                        if ( "$check_gpu" != '' ){
+                            echo "GPU not found"
+                            throw e
+                        }
+                        else{
+                            echo "GPU is OK"
+                        }
                     }
                 }
             }
@@ -125,7 +135,15 @@ def buildHipClangJob(Map conf=[:]){
                 retimage = docker.build("${image}", dockerArgs + " --no-cache .")
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo > clinfo.log'
+                        sh 'check_gpu="$(grep -n "Number of devices:.*. 0" clinfo.log  | awk -F ":"  '{print $1}')"'
+                        if ( "$check_gpu" != '' ){
+                            echo "GPU not found"
+                            throw e
+                        }
+                        else{
+                            echo "GPU is OK"
+                        }
                     }
                 }
             }
@@ -133,7 +151,15 @@ def buildHipClangJob(Map conf=[:]){
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 5, unit: 'HOURS')
                 {
-                    sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                    sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo > clinfo.log'
+                    sh 'check_gpu="$(grep -n "Number of devices:.*. 0" clinfo.log  | awk -F ":"  '{print $1}')"'
+                    if ( "$check_gpu" != '' ){
+                        echo "GPU not found"
+                        throw e
+                    }
+                    else{
+                        echo "GPU is OK"
+                    }
                     cmake_build(conf)
                 }
             }
@@ -191,13 +217,22 @@ def runCKProfiler(Map conf=[:]){
         def variant = env.STAGE_NAME
 
         def retimage
+        def check_gpu
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
             try {
                 retimage = docker.build("${image}", dockerArgs + '.')
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo > clinfo.log'
+                        sh 'check_gpu="$(grep -n "Number of devices:.*. 0" clinfo.log  | awk -F ":"  '{print $1}')"'
+                        if ( "$check_gpu" != '' ){
+                            echo "GPU not found"
+                            throw e
+                        }
+                        else{
+                            echo "GPU is OK"
+                        }
                     }
                 }
             }
@@ -209,7 +244,15 @@ def runCKProfiler(Map conf=[:]){
                 retimage = docker.build("${image}", dockerArgs + " --no-cache .")
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo > clinfo.log'
+                        sh 'check_gpu="$(grep -n "Number of devices:.*. 0" clinfo.log  | awk -F ":"  '{print $1}')"'
+                        if ( "$check_gpu" != '' ){
+                            echo "GPU not found"
+                            throw e
+                        }
+                        else{
+                            echo "GPU is OK"
+                        }
                     }
                 }
             }
