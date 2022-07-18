@@ -116,7 +116,7 @@ def buildHipClangJob(Map conf=[:]){
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo > clinfo.log'
-                        sh 'check_gpu="$(grep -n "Number of devices:.*. 0" clinfo.log  | awk -F ":"  '{print $1}')"'
+                        sh 'export check_gpu="$(grep -n "Number of devices:.*. 0" clinfo.log  | awk -F ":"  '{print $1}')"'
                         if ( "$check_gpu" != '' ){
                             echo "GPU not found"
                             throw e
@@ -136,7 +136,7 @@ def buildHipClangJob(Map conf=[:]){
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo > clinfo.log'
-                        sh 'check_gpu="$(grep -n "Number of devices:.*. 0" clinfo.log  | awk -F ":"  '{print $1}')"'
+                        sh 'export check_gpu="$(grep -n "Number of devices:.*. 0" clinfo.log  | awk -F ":"  '{print $1}')"'
                         if ( "$check_gpu" != '' ){
                             echo "GPU not found"
                             throw e
@@ -152,7 +152,7 @@ def buildHipClangJob(Map conf=[:]){
                 timeout(time: 5, unit: 'HOURS')
                 {
                     sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo > clinfo.log'
-                    sh 'check_gpu="$(grep -n "Number of devices:.*. 0" clinfo.log  | awk -F ":"  '{print $1}')"'
+                    sh 'export check_gpu="$(grep -n "Number of devices:.*. 0" clinfo.log  | awk -F ":"  '{print $1}')"'
                     if ( "$check_gpu" != '' ){
                         echo "GPU not found"
                         throw e
@@ -225,7 +225,7 @@ def runCKProfiler(Map conf=[:]){
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo > clinfo.log'
-                        sh 'check_gpu="$(grep -n "Number of devices:.*. 0" clinfo.log  | awk -F ":"  '{print $1}')"'
+                        sh 'export check_gpu="$(grep -n "Number of devices:.*. 0" clinfo.log  | awk -F ":"  '{print $1}')"'
                         if ( "$check_gpu" != '' ){
                             echo "GPU not found"
                             throw e
@@ -245,7 +245,7 @@ def runCKProfiler(Map conf=[:]){
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo > clinfo.log'
-                        sh 'check_gpu="$(grep -n "Number of devices:.*. 0" clinfo.log  | awk -F ":"  '{print $1}')"'
+                        sh 'export check_gpu="$(grep -n "Number of devices:.*. 0" clinfo.log  | awk -F ":"  '{print $1}')"'
                         if ( "$check_gpu" != '' ){
                             echo "GPU not found"
                             throw e
