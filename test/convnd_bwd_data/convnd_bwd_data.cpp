@@ -22,6 +22,7 @@ int main()
 
     for(auto& param : params)
     {
+        // fp32
         pass &= ck::profiler::profile_conv_bwd_data_impl<1,
                                                          ck::tensor_layout::convolution::NWC,
                                                          ck::tensor_layout::convolution::KXC,
@@ -34,6 +35,7 @@ int main()
                                                                 false, // time_kernel
                                                                 param);
 
+        // fp16
         pass &= ck::profiler::profile_conv_bwd_data_impl<1,
                                                          ck::tensor_layout::convolution::NWC,
                                                          ck::tensor_layout::convolution::KXC,
@@ -46,6 +48,7 @@ int main()
                                                                      false, // time_kernel
                                                                      param);
 
+        // bf16
         pass &= ck::profiler::profile_conv_bwd_data_impl<1,
                                                          ck::tensor_layout::convolution::NWC,
                                                          ck::tensor_layout::convolution::KXC,
@@ -58,6 +61,7 @@ int main()
                                                                       false, // time_kernel
                                                                       param);
 
+        // int8
         pass &= ck::profiler::profile_conv_bwd_data_impl<1,
                                                          ck::tensor_layout::convolution::NWC,
                                                          ck::tensor_layout::convolution::KXC,
@@ -79,6 +83,7 @@ int main()
 
     for(auto& param : params)
     {
+        // fp32
         pass &= ck::profiler::profile_conv_bwd_data_impl<2,
                                                          ck::tensor_layout::convolution::NHWC,
                                                          ck::tensor_layout::convolution::KYXC,
@@ -91,6 +96,7 @@ int main()
                                                                 false, // time_kernel
                                                                 param);
 
+        // fp16
         pass &= ck::profiler::profile_conv_bwd_data_impl<2,
                                                          ck::tensor_layout::convolution::NHWC,
                                                          ck::tensor_layout::convolution::KYXC,
@@ -103,6 +109,7 @@ int main()
                                                                      false, // time_kernel
                                                                      param);
 
+        // bf16
         pass &= ck::profiler::profile_conv_bwd_data_impl<2,
                                                          ck::tensor_layout::convolution::NHWC,
                                                          ck::tensor_layout::convolution::KYXC,
@@ -115,6 +122,7 @@ int main()
                                                                       false, // time_kernel
                                                                       param);
 
+        // int8
         pass &= ck::profiler::profile_conv_bwd_data_impl<2,
                                                          ck::tensor_layout::convolution::NHWC,
                                                          ck::tensor_layout::convolution::KYXC,
@@ -139,6 +147,7 @@ int main()
 
     for(auto& param : params)
     {
+        // fp32
         pass &= ck::profiler::profile_conv_bwd_data_impl<3,
                                                          ck::tensor_layout::convolution::NDHWC,
                                                          ck::tensor_layout::convolution::KZYXC,
@@ -151,6 +160,7 @@ int main()
                                                                 false, // time_kernel
                                                                 param);
 
+        // fp16
         pass &= ck::profiler::profile_conv_bwd_data_impl<3,
                                                          ck::tensor_layout::convolution::NDHWC,
                                                          ck::tensor_layout::convolution::KZYXC,
@@ -163,6 +173,7 @@ int main()
                                                                      false, // time_kernel
                                                                      param);
 
+        // bf16
         pass &= ck::profiler::profile_conv_bwd_data_impl<3,
                                                          ck::tensor_layout::convolution::NDHWC,
                                                          ck::tensor_layout::convolution::KZYXC,
@@ -175,6 +186,7 @@ int main()
                                                                       false, // time_kernel
                                                                       param);
 
+        // int8
         pass &= ck::profiler::profile_conv_bwd_data_impl<3,
                                                          ck::tensor_layout::convolution::NDHWC,
                                                          ck::tensor_layout::convolution::KZYXC,
@@ -190,12 +202,12 @@ int main()
 
     if(pass)
     {
-        std::cout << "test convnd bwd : Pass" << std::endl;
+        std::cout << "test convnd bwd data: Pass" << std::endl;
         return 0;
     }
     else
     {
-        std::cout << "test convnd bwd: Fail " << std::endl;
+        std::cout << "test convnd bwd data: Fail " << std::endl;
         return 1;
     }
 }
