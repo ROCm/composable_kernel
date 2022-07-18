@@ -90,24 +90,27 @@ void print_helper_msg()
               << std::endl;
 }
 
+// FIXME: current implementation only support NCHW/NHWC layout
 template <ck::index_t NDimSpatial,
+          typename InLayout,
+          typename WeiLayout,
+          typename OutLayout,
           typename InDataType,
           typename WeiDataType,
           typename OutDataType,
-          typename AccDataType,
           typename InElementOp,
           typename WeiElementOp,
           typename OutElementOp,
           typename DeviceConvNdBwdDataInstance>
-int run_conv_bwd_data_nhwc(bool do_verification,
-                           int init_method,
-                           bool time_kernel,
-                           const ck::tensor_operation::device::ConvParams& params,
-                           const InElementOp& in_element_op,
-                           const WeiElementOp& wei_element_op,
-                           const OutElementOp& out_element_op)
+int run_conv_bwd_data(bool do_verification,
+                      int init_method,
+                      bool time_kernel,
+                      const ck::tensor_operation::device::ConvParams& params,
+                      const InElementOp& in_element_op,
+                      const WeiElementOp& wei_element_op,
+                      const OutElementOp& out_element_op)
 {
-
+    // make host tensor descritpor
     auto f_nhwc_host_tensor_descriptor =
         [](ck::index_t n, ck::index_t c, std::vector<ck::index_t> spatial_lengths) {
             std::vector<std::size_t> nhwc_lengths{static_cast<std::size_t>(n),
@@ -118,37 +121,92 @@ int run_conv_bwd_data_nhwc(bool do_verification,
             return HostTensorDescriptor(nhwc_lengths);
         };
 
-    Tensor<InDataType> in_n_hi_wi_c_host(
-        f_nhwc_host_tensor_descriptor(params.N_, params.C_, params.input_spatial_lengths_));
-    Tensor<InDataType> in_n_hi_wi_c_device(
-        f_nhwc_host_tensor_descriptor(params.N_, params.C_, params.input_spatial_lengths_));
-    Tensor<WeiDataType> wei_k_y_x_c(
-        f_nhwc_host_tensor_descriptor(params.K_, params.C_, params.filter_spatial_lengths_));
-    Tensor<OutDataType> out_n_ho_wo_k(
-        f_nhwc_host_tensor_descriptor(params.N_, params.K_, params.GetOutputSpatialLengths()));
+    auto f_nchw_host_tensor_descriptor =
+        [](ck::index_t n, ck::index_t c, std::vector<ck::index_t> spatial_lengths) {
+            std::vector<std::size_t> nchw_lengths{static_cast<std::size_t>(n),
+                                                  static_cast<std::size_t>(c)};
+            nchw_lengths.insert(nchw_lengths.end(), spatial_lengths.begin(), spatial_lengths.end());
 
-    std::cout << "in_n_hi_wi_c: " << in_n_hi_wi_c_host.mDesc << std::endl;
-    std::cout << "wei_k_y_x_c: " << wei_k_y_x_c.mDesc << std::endl;
-    std::cout << "out_n_ho_wo_k: " << out_n_ho_wo_k.mDesc << std::endl;
+            return HostTensorDescriptor(nchw_lengths);
+        };
+
+    HostTensorDescriptor in_desc, wei_desc, out_desc;
+
+    // FIXME: properly implement "make host descriptor" for different layout
+    if constexpr(ck::is_same_v<InLayout, ck::tensor_layout::convolution::NWC> ||
+                 ck::is_same_v<InLayout, ck::tensor_layout::convolution::NHWC> ||
+                 ck::is_same_v<InLayout, ck::tensor_layout::convolution::NDHWC>)
+    {
+        in_desc =
+            f_nhwc_host_tensor_descriptor(params.N_, params.C_, params.input_spatial_lengths_);
+    }
+    else if constexpr(ck::is_same_v<InLayout, ck::tensor_layout::convolution::NCW> ||
+                      ck::is_same_v<InLayout, ck::tensor_layout::convolution::NCHW> ||
+                      ck::is_same_v<InLayout, ck::tensor_layout::convolution::NCDHW>)
+    {
+        in_desc =
+            f_nchw_host_tensor_descriptor(params.N_, params.C_, params.input_spatial_lengths_);
+    }
+
+    // FIXME: properly implement "make host descriptor" for different layout
+    if constexpr(ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::KXC> ||
+                 ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::KYXC> ||
+                 ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::KZYXC>)
+    {
+        wei_desc =
+            f_nhwc_host_tensor_descriptor(params.K_, params.C_, params.filter_spatial_lengths_);
+    }
+    else if constexpr(ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::KCX> ||
+                      ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::KCYX> ||
+                      ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::KCZYX>)
+    {
+        wei_desc =
+            f_nchw_host_tensor_descriptor(params.K_, params.C_, params.filter_spatial_lengths_);
+    }
+
+    // FIXME: properly implement "make host descriptor" for different layout
+    if constexpr(ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NWK> ||
+                 ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NHWK> ||
+                 ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NDHWK>)
+    {
+        out_desc =
+            f_nhwc_host_tensor_descriptor(params.N_, params.K_, params.GetOutputSpatialLengths());
+    }
+    else if constexpr(ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NKW> ||
+                      ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NKHW> ||
+                      ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NKDHW>)
+    {
+        out_desc =
+            f_nchw_host_tensor_descriptor(params.N_, params.K_, params.GetOutputSpatialLengths());
+    }
+
+    Tensor<InDataType> in_host(in_desc);
+    Tensor<InDataType> in_device(in_desc);
+    Tensor<WeiDataType> wei(wei_desc);
+    Tensor<OutDataType> out(out_desc);
+
+    std::cout << "in: " << in_host.mDesc << std::endl;
+    std::cout << "wei: " << wei.mDesc << std::endl;
+    std::cout << "out: " << out.mDesc << std::endl;
 
     switch(init_method)
     {
     case 0: break;
     case 1:
-        out_n_ho_wo_k.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
-        wei_k_y_x_c.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
+        out.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
+        wei.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
         break;
     default:
-        out_n_ho_wo_k.GenerateTensorValue(GeneratorTensor_1<OutDataType>{1});
-        wei_k_y_x_c.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
+        out.GenerateTensorValue(GeneratorTensor_1<OutDataType>{1});
+        wei.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
     }
 
-    DeviceMem in_device_buf(sizeof(InDataType) * in_n_hi_wi_c_device.mDesc.GetElementSpace());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_k_y_x_c.mDesc.GetElementSpace());
-    DeviceMem out_device_buf(sizeof(OutDataType) * out_n_ho_wo_k.mDesc.GetElementSpace());
+    DeviceMem in_device_buf(sizeof(InDataType) * in_device.mDesc.GetElementSpace());
+    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpace());
+    DeviceMem out_device_buf(sizeof(OutDataType) * out.mDesc.GetElementSpace());
 
-    out_device_buf.ToDevice(out_n_ho_wo_k.mData.data());
-    wei_device_buf.ToDevice(wei_k_y_x_c.mData.data());
+    out_device_buf.ToDevice(out.mData.data());
+    wei_device_buf.ToDevice(wei.mData.data());
 
     // reset input to zero
     in_device_buf.SetZero();
@@ -194,34 +252,22 @@ int run_conv_bwd_data_nhwc(bool do_verification,
 
     if(do_verification)
     {
-        std::cout << "before ref" << std::endl;
-
-        auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<
-            NDimSpatial,
-            ck::tuple_element_t<NDimSpatial - 1,
-                                ck::Tuple<ck::tensor_layout::convolution::NWC,
-                                          ck::tensor_layout::convolution::NHWC,
-                                          ck::tensor_layout::convolution::NDHWC>>,
-            ck::tuple_element_t<NDimSpatial - 1,
-                                ck::Tuple<ck::tensor_layout::convolution::KXC,
-                                          ck::tensor_layout::convolution::KYXC,
-                                          ck::tensor_layout::convolution::KZYXC>>,
-            ck::tuple_element_t<NDimSpatial - 1,
-                                ck::Tuple<ck::tensor_layout::convolution::NWK,
-                                          ck::tensor_layout::convolution::NHWK,
-                                          ck::tensor_layout::convolution::NDHWK>>,
-            InDataType,
-            WeiDataType,
-            OutDataType,
-            InElementOp,
-            WeiElementOp,
-            OutElementOp>();
+        auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<NDimSpatial,
+                                                                         InLayout,
+                                                                         WeiLayout,
+                                                                         OutLayout,
+                                                                         InDataType,
+                                                                         WeiDataType,
+                                                                         OutDataType,
+                                                                         InElementOp,
+                                                                         WeiElementOp,
+                                                                         OutElementOp>();
 
         auto ref_invoker = ref_conv.MakeInvoker();
 
-        auto ref_argument = ref_conv.MakeArgument(in_n_hi_wi_c_host,
-                                                  wei_k_y_x_c,
-                                                  out_n_ho_wo_k,
+        auto ref_argument = ref_conv.MakeArgument(in_host,
+                                                  wei,
+                                                  out,
                                                   params.conv_filter_strides_,
                                                   params.conv_filter_dilations_,
                                                   params.input_left_pads_,
@@ -230,15 +276,11 @@ int run_conv_bwd_data_nhwc(bool do_verification,
                                                   wei_element_op,
                                                   out_element_op);
 
-        std::cout << "before ref" << std::endl;
-
         ref_invoker.Run(ref_argument);
 
-        std::cout << "after ref" << std::endl;
+        in_device_buf.FromDevice(in_device.mData.data());
 
-        in_device_buf.FromDevice(in_n_hi_wi_c_device.mData.data());
-
-        return ck::utils::check_err(in_n_hi_wi_c_device.mData, in_n_hi_wi_c_host.mData) ? 0 : 1;
+        return ck::utils::check_err(in_device.mData, in_host.mData) ? 0 : 1;
     }
 
     return 0;
