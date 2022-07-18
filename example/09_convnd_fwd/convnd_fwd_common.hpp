@@ -15,6 +15,7 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
+#include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 
 void print_helper_msg()
@@ -110,75 +111,9 @@ int run_conv_fwd(bool do_verification,
                  const WeiElementOp& wei_element_op,
                  const OutElementOp& out_element_op)
 {
-    // make host tensor descritpor
-    auto f_nhwc_host_tensor_descriptor =
-        [](ck::index_t n, ck::index_t c, std::vector<ck::index_t> spatial_lengths) {
-            std::vector<std::size_t> nhwc_lengths{static_cast<std::size_t>(n),
-                                                  static_cast<std::size_t>(c)};
-            nhwc_lengths.insert(
-                nhwc_lengths.begin() + 1, spatial_lengths.begin(), spatial_lengths.end());
-
-            return HostTensorDescriptor(nhwc_lengths);
-        };
-
-    auto f_nchw_host_tensor_descriptor =
-        [](ck::index_t n, ck::index_t c, std::vector<ck::index_t> spatial_lengths) {
-            std::vector<std::size_t> nchw_lengths{static_cast<std::size_t>(n),
-                                                  static_cast<std::size_t>(c)};
-            nchw_lengths.insert(nchw_lengths.end(), spatial_lengths.begin(), spatial_lengths.end());
-
-            return HostTensorDescriptor(nchw_lengths);
-        };
-
-    HostTensorDescriptor in_desc, wei_desc, out_desc;
-
-    // FIXME: properly implement "make host descriptor" for different layout
-    if constexpr(ck::is_same_v<InLayout, ck::tensor_layout::convolution::NWC> ||
-                 ck::is_same_v<InLayout, ck::tensor_layout::convolution::NHWC> ||
-                 ck::is_same_v<InLayout, ck::tensor_layout::convolution::NDHWC>)
-    {
-        in_desc =
-            f_nhwc_host_tensor_descriptor(params.N_, params.C_, params.input_spatial_lengths_);
-    }
-    else if constexpr(ck::is_same_v<InLayout, ck::tensor_layout::convolution::NCW> ||
-                      ck::is_same_v<InLayout, ck::tensor_layout::convolution::NCHW> ||
-                      ck::is_same_v<InLayout, ck::tensor_layout::convolution::NCDHW>)
-    {
-        in_desc =
-            f_nchw_host_tensor_descriptor(params.N_, params.C_, params.input_spatial_lengths_);
-    }
-
-    // FIXME: properly implement "make host descriptor" for different layout
-    if constexpr(ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::KXC> ||
-                 ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::KYXC> ||
-                 ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::KZYXC>)
-    {
-        wei_desc =
-            f_nhwc_host_tensor_descriptor(params.K_, params.C_, params.filter_spatial_lengths_);
-    }
-    else if constexpr(ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::KCX> ||
-                      ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::KCYX> ||
-                      ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::KCZYX>)
-    {
-        wei_desc =
-            f_nchw_host_tensor_descriptor(params.K_, params.C_, params.filter_spatial_lengths_);
-    }
-
-    // FIXME: properly implement "make host descriptor" for different layout
-    if constexpr(ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NWK> ||
-                 ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NHWK> ||
-                 ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NDHWK>)
-    {
-        out_desc =
-            f_nhwc_host_tensor_descriptor(params.N_, params.K_, params.GetOutputSpatialLengths());
-    }
-    else if constexpr(ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NKW> ||
-                      ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NKHW> ||
-                      ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NKDHW>)
-    {
-        out_desc =
-            f_nchw_host_tensor_descriptor(params.N_, params.K_, params.GetOutputSpatialLengths());
-    }
+    const auto in_desc  = ck::utils::conv::get_input_host_tensor_descriptor<InLayout>(conv_param);
+    const auto wei_desc = ck::utils::conv::get_weight_host_tensor_descriptor<WeiLayout>(conv_param);
+    const auto out_desc = ck::utils::conv::get_output_host_tensor_descriptor<OutLayout>(conv_param);
 
     Tensor<InDataType> in(in_desc);
     Tensor<WeiDataType> wei(wei_desc);

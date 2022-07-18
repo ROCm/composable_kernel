@@ -15,14 +15,16 @@
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/fill.hpp"
 #include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 
 namespace {
+
 using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 
-template <ck::index_t NDim,
+template <ck::index_t NDimSpatial,
           typename InDataType    = float,
           typename WeiDataType   = float,
           typename OutDataType   = float,
@@ -32,7 +34,7 @@ template <ck::index_t NDim,
           typename FillInputOp   = ck::utils::FillMonotonicSeq<InDataType>,
           typename FillWeightsOp = ck::utils::FillConstant<WeiDataType>>
 Tensor<OutDataType>
-run_reference_convolution_forward(const ck::utils::conv::ConvParams& params,
+run_reference_convolution_forward(const ck::tensor_operation::device::ConvParams& params,
                                   const FillInputOp& fill_input_op     = FillInputOp{},
                                   const FillWeightsOp& fill_weights_op = FillWeightsOp{0.5f})
 {
@@ -65,13 +67,16 @@ run_reference_convolution_forward(const ck::utils::conv::ConvParams& params,
     fill_weights_op(weights.begin(), weights.end());
     std::fill(host_output.begin(), host_output.end(), OutDataType(0.f));
 
-    auto ref_conv     = ck::tensor_operation::host::ReferenceConvFwd<InDataType,
+    auto ref_conv     = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
+                                                                 InLayout,
+                                                                 WeiLayout,
+                                                                 OutLayout,
+                                                                 InDataType,
                                                                  WeiDataType,
                                                                  OutDataType,
                                                                  InElementOp,
                                                                  WeiElementOp,
-                                                                 OutElementOp,
-                                                                 NDim>();
+                                                                 OutElementOp>();
     auto ref_invoker  = ref_conv.MakeInvoker();
     auto ref_argument = ref_conv.MakeArgument(input,
                                               weights,
@@ -92,7 +97,7 @@ run_reference_convolution_forward(const ck::utils::conv::ConvParams& params,
 
 TEST(ReferenceConvolutionFWD, Conv2DNHWC)
 {
-    ck::utils::conv::ConvParams params;
+    ck::tensor_operation::device::ConvParams params;
     params.N_                      = 1;
     params.K_                      = 1;
     params.C_                      = 2;
@@ -128,7 +133,7 @@ TEST(ReferenceConvolutionFWD, Conv2DNHWC)
 
 TEST(ReferenceConvolutionFWD, Conv2DNHWCStridesDilationsPadding)
 {
-    ck::utils::conv::ConvParams params;
+    ck::tensor_operation::device::ConvParams params;
     params.N_                      = 1;
     params.K_                      = 2;
     params.C_                      = 2;
@@ -154,7 +159,7 @@ TEST(ReferenceConvolutionFWD, Conv2DNHWCStridesDilationsPadding)
 
 TEST(ReferenceConvolutionFWD, Conv1DNWC)
 {
-    ck::utils::conv::ConvParams params;
+    ck::tensor_operation::device::ConvParams params;
     params.num_dim_spatial_        = 1;
     params.N_                      = 1;
     params.K_                      = 1;
@@ -183,7 +188,7 @@ TEST(ReferenceConvolutionFWD, Conv1DNWC)
 
 TEST(ReferenceConvolutionFWD, Conv1DNWCStridesDilationsPadding)
 {
-    ck::utils::conv::ConvParams params;
+    ck::tensor_operation::device::ConvParams params;
     params.num_dim_spatial_        = 1;
     params.N_                      = 1;
     params.K_                      = 2;
@@ -212,7 +217,7 @@ TEST(ReferenceConvolutionFWD, Conv1DNWCStridesDilationsPadding)
 
 TEST(ReferenceConvolutionFWD, Conv1DNWCSameOutputSize)
 {
-    ck::utils::conv::ConvParams params;
+    ck::tensor_operation::device::ConvParams params;
     params.num_dim_spatial_        = 1;
     params.N_                      = 2;
     params.K_                      = 16;
@@ -306,7 +311,7 @@ TEST(ReferenceConvolutionFWD, Conv1DNWCSameOutputSize)
 
 TEST(ReferenceConvolutionFWD, Conv3DNCDHW)
 {
-    ck::utils::conv::ConvParams params;
+    ck::tensor_operation::device::ConvParams params;
     params.num_dim_spatial_        = 3;
     params.N_                      = 1;
     params.K_                      = 1;
@@ -345,7 +350,7 @@ TEST(ReferenceConvolutionFWD, Conv3DNCDHW)
 
 TEST(ReferenceConvolutionFWD, Conv3DNCDHWStridesDilations)
 {
-    ck::utils::conv::ConvParams params;
+    ck::tensor_operation::device::ConvParams params;
     params.num_dim_spatial_        = 3;
     params.N_                      = 1;
     params.K_                      = 2;
