@@ -4,6 +4,7 @@
 #include "convnd_fwd_common.hpp"
 
 #include "ck/tensor_operation/gpu/device/device_convnd_fwd_nwc_kxc_nwk_xdl.hpp"
+#include "ck/tensor_operation/gpu/device/device_convnd_fwd_multiple_d_nwc_kxc_nwk_xdl_cshuffle.hpp"
 
 using InDataType  = ck::half_t;
 using WeiDataType = ck::half_t;
@@ -20,6 +21,7 @@ using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto ConvFwdDefault =
     ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
 
+#if 0
 template <ck::index_t NDimSpatial>
 using DeviceConvNDFwdInstance = ck::tensor_operation::device::DeviceConvNdFwdNwcKxcNwk_Xdl<
     NDimSpatial,    //
@@ -56,6 +58,49 @@ using DeviceConvNDFwdInstance = ck::tensor_operation::device::DeviceConvNdFwdNwc
     true,           // BBlockLdsAddExtraN
     7,              // CThreadTransferSrcDstVectorDim
     1>;             // CThreadTransferDstScalarPerVector
+#else
+using CShuffleDataType = float;
+
+template <ck::index_t NDimSpatial>
+using DeviceConvNDFwdInstance =
+    ck::tensor_operation::device::DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle<
+        NDimSpatial,      //
+        InDataType,       //
+        WeiDataType,      //
+        AccDataType,      //
+        CShuffleDataType, //
+        ck::Tuple<>,
+        OutDataType,    //
+        InElementOp,    // Input Elementwise Operation
+        WeiElementOp,   // Weights Elementwise Operation
+        OutElementOp,   // Output Elementwise Operation
+        ConvFwdDefault, // ConvForwardSpecialization
+        256,            // BlockSize
+        128,            // MPerBlock
+        256,            // NPerBlock
+        4,              // K0PerBlock
+        8,              // K1
+        32,             // MPerXdl
+        32,             // NPerXdl
+        2,              // MXdlPerWave
+        4,              // NXdlPerWave
+        S<4, 64, 1>,    // ABlockTransferThreadClusterLengths_K0_M_K1
+        S<1, 0, 2>,     // ABlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,     // ABlockTransferSrcAccessOrder
+        2,              // ABlockTransferSrcVectorDim
+        8,              // ABlockTransferSrcScalarPerVector
+        8,              // ABlockTransferDstScalarPerVector_K1
+        true,           // ABlockLdsAddExtraM
+        S<4, 64, 1>,    // BBlockTransferThreadClusterLengths_K0_N_K1
+        S<1, 0, 2>,     // BBlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,     // BBlockTransferSrcAccessOrder
+        2,              // BBlockTransferSrcVectorDim
+        8,              // BBlockTransferSrcScalarPerVector
+        8,              // BBlockTransferDstScalarPerVector_K1
+        true,           // BBlockLdsAddExtraN
+        7,              // CThreadTransferSrcDstVectorDim
+        1>;             // CThreadTransferDstScalarPerVector
+#endif
 
 int main(int argc, char* argv[])
 {
