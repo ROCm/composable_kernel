@@ -11,22 +11,22 @@
 #include "ck/ck.hpp"
 
 namespace ck {
-namespace tensor_operation {
-namespace device {
+namespace utils {
+namespace conv {
 
-struct ConvParams
+struct ConvParam
 {
-    ConvParams();
-    ConvParams(ck::index_t n_dim,
-               ck::index_t n_batch,
-               ck::index_t n_out_channels,
-               ck::index_t n_in_channels,
-               const std::vector<ck::index_t>& filters_len,
-               const std::vector<ck::index_t>& input_len,
-               const std::vector<ck::index_t>& strides,
-               const std::vector<ck::index_t>& dilations,
-               const std::vector<ck::index_t>& left_pads,
-               const std::vector<ck::index_t>& right_pads);
+    ConvParam();
+    ConvParam(ck::index_t n_dim,
+              ck::index_t n_batch,
+              ck::index_t n_out_channels,
+              ck::index_t n_in_channels,
+              const std::vector<ck::index_t>& filters_len,
+              const std::vector<ck::index_t>& input_len,
+              const std::vector<ck::index_t>& strides,
+              const std::vector<ck::index_t>& dilations,
+              const std::vector<ck::index_t>& left_pads,
+              const std::vector<ck::index_t>& right_pads);
 
     ck::index_t num_dim_spatial_;
     ck::index_t N_;
@@ -71,8 +71,8 @@ struct ConvParams
     }
 };
 
-} // namespace device
-} // namespace tensor_operation
+} // namespace conv
+} // namespace utils
 } // namespace ck
 
-std::ostream& operator<<(std::ostream& os, const ck::tensor_operation::device::ConvParams& p);
+std::ostream& operator<<(std::ostream& os, const ck::utils::conv::ConvParam& p);

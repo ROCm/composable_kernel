@@ -25,7 +25,6 @@
 namespace ck {
 namespace profiler {
 
-// FIXME: only support NCHW and NHWC layout, need to be more general
 template <ck::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
@@ -37,7 +36,7 @@ bool profile_conv_fwd_impl(int do_verification,
                            int init_method,
                            bool do_log,
                            bool time_kernel,
-                           const ck::tensor_operation::device::ConvParams& conv_param)
+                           const ck::utils::conv::ConvParam& conv_param)
 {
     const auto in_desc  = ck::utils::conv::get_input_host_tensor_descriptor<InLayout>(conv_param);
     const auto wei_desc = ck::utils::conv::get_weight_host_tensor_descriptor<WeiLayout>(conv_param);

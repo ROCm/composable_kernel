@@ -35,8 +35,7 @@ void print_helper_msg()
               << std::endl;
 }
 
-ck::tensor_operation::device::ConvParams
-parse_conv_params(int num_dim_spatial, int arg_idx, char* const argv[])
+ck::utils::conv::ConvParam parse_conv_params(int num_dim_spatial, int arg_idx, char* const argv[])
 {
     const ck::index_t N = std::stoi(argv[arg_idx++]);
     const ck::index_t K = std::stoi(argv[arg_idx++]);
@@ -79,16 +78,16 @@ parse_conv_params(int num_dim_spatial, int arg_idx, char* const argv[])
         input_right_pads[i] = std::stoi(argv[arg_idx++]);
     }
 
-    return ck::tensor_operation::device::ConvParams{num_dim_spatial,
-                                                    N,
-                                                    K,
-                                                    C,
-                                                    filter_spatial_lengths,
-                                                    input_spatial_lengths,
-                                                    conv_filter_strides,
-                                                    conv_filter_dilations,
-                                                    input_left_pads,
-                                                    input_right_pads};
+    return ck::utils::conv::ConvParam{num_dim_spatial,
+                                      N,
+                                      K,
+                                      C,
+                                      filter_spatial_lengths,
+                                      input_spatial_lengths,
+                                      conv_filter_strides,
+                                      conv_filter_dilations,
+                                      input_left_pads,
+                                      input_right_pads};
 }
 
 // FIXME: current implementation only support NCHW/NHWC layout
@@ -106,7 +105,7 @@ template <ck::index_t NDimSpatial,
 int run_conv_fwd(bool do_verification,
                  int init_method,
                  bool time_kernel,
-                 const ck::tensor_operation::device::ConvParams& params,
+                 const ck::utils::conv::ConvParam& conv_param,
                  const InElementOp& in_element_op,
                  const WeiElementOp& wei_element_op,
                  const OutElementOp& out_element_op)
@@ -149,16 +148,16 @@ int run_conv_fwd(bool do_verification,
     auto argument = conv.MakeArgument(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
                                       static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
                                       static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-                                      params.N_,
-                                      params.K_,
-                                      params.C_,
-                                      params.input_spatial_lengths_,
-                                      params.filter_spatial_lengths_,
-                                      params.GetOutputSpatialLengths(),
-                                      params.conv_filter_strides_,
-                                      params.conv_filter_dilations_,
-                                      params.input_left_pads_,
-                                      params.input_right_pads_,
+                                      conv_param.N_,
+                                      conv_param.K_,
+                                      conv_param.C_,
+                                      conv_param.input_spatial_lengths_,
+                                      conv_param.filter_spatial_lengths_,
+                                      conv_param.GetOutputSpatialLengths(),
+                                      conv_param.conv_filter_strides_,
+                                      conv_param.conv_filter_dilations_,
+                                      conv_param.input_left_pads_,
+                                      conv_param.input_right_pads_,
                                       in_element_op,
                                       wei_element_op,
                                       out_element_op);
@@ -172,8 +171,8 @@ int run_conv_fwd(bool do_verification,
 
     float avg_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-    std::size_t flop      = params.GetFlops();
-    std::size_t num_btype = params.GetByte<InDataType, WeiDataType, OutDataType>();
+    std::size_t flop      = conv_param.GetFlops();
+    std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
 
     float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
     float gb_per_sec = num_btype / 1.E6 / avg_time;
@@ -197,10 +196,10 @@ int run_conv_fwd(bool do_verification,
         auto ref_argument = ref_conv.MakeArgument(in,
                                                   wei,
                                                   out_host,
-                                                  params.conv_filter_strides_,
-                                                  params.conv_filter_dilations_,
-                                                  params.input_left_pads_,
-                                                  params.input_right_pads_,
+                                                  conv_param.conv_filter_strides_,
+                                                  conv_param.conv_filter_dilations_,
+                                                  conv_param.input_left_pads_,
+                                                  conv_param.input_right_pads_,
                                                   in_element_op,
                                                   wei_element_op,
                                                   out_element_op);

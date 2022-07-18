@@ -66,7 +66,7 @@ int main(int argc, char* argv[])
     bool time_kernel     = false;
     int num_dim_spatial  = 2;
 
-    ck::tensor_operation::device::ConvParams params{
+    ck::utils::conv::ConvParam params{
         2, 128, 256, 256, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
 
     if(argc == 1)

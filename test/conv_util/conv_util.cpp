@@ -35,7 +35,7 @@ class TestConvUtil : public ::testing::Test
     // stride {2,2},
     // dilations {1,1},
     // padding {{1,1}, {1,1}}
-    ck::tensor_operation::device::ConvParams conv_params;
+    ck::utils::conv::ConvParam conv_params;
 };
 
 } // namespace
@@ -79,7 +79,7 @@ TEST_F(TestConvUtil, ConvParamsGetOutputSpatialLengths1D)
 
 TEST_F(TestConvUtil, ConvParamsGetOutputSpatialLengths2D)
 {
-    ck::tensor_operation::device::ConvParams conv_params;
+    ck::utils::conv::ConvParam conv_params;
     std::vector<ck::index_t> out_spatial_len = conv_params.GetOutputSpatialLengths();
     EXPECT_TRUE(ck::utils::check_err(out_spatial_len,
                                      std::vector<ck::index_t>{36, 36},

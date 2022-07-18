@@ -12,8 +12,7 @@ namespace utils {
 namespace conv {
 
 template <typename InLayout>
-HostTensorDescriptor
-get_input_host_tensor_descriptor(const ck::tensor_operation::device::ConvParams& param)
+HostTensorDescriptor get_input_host_tensor_descriptor(const ck::utils::conv::ConvParam& param)
 {
     if constexpr(ck::is_same_v<InLayout, ck::tensor_layout::convolution::NWC> ||
                  ck::is_same_v<InLayout, ck::tensor_layout::convolution::NHWC> ||
@@ -48,8 +47,7 @@ get_input_host_tensor_descriptor(const ck::tensor_operation::device::ConvParams&
 }
 
 template <typename WeiLayout>
-HostTensorDescriptor
-get_weight_host_tensor_descriptor(const ck::tensor_operation::device::ConvParams& param)
+HostTensorDescriptor get_weight_host_tensor_descriptor(const ck::utils::conv::ConvParam& param)
 {
     if constexpr(ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::KXC> ||
                  ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::KYXC> ||
@@ -84,8 +82,7 @@ get_weight_host_tensor_descriptor(const ck::tensor_operation::device::ConvParams
 }
 
 template <typename OutLayout>
-HostTensorDescriptor
-get_output_host_tensor_descriptor(const ck::tensor_operation::device::ConvParams& param)
+HostTensorDescriptor get_output_host_tensor_descriptor(const ck::utils::conv::ConvParam& param)
 {
     if constexpr(ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NWK> ||
                  ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NHWK> ||

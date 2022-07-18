@@ -51,8 +51,7 @@ static void print_helper_msg()
         << std::endl;
 }
 
-ck::tensor_operation::device::ConvParams
-parse_conv_params(int num_dim_spatial, int arg_idx, char* const argv[])
+ck::utils::conv::ConvParam parse_conv_params(int num_dim_spatial, int arg_idx, char* const argv[])
 {
     const ck::index_t N = std::stoi(argv[arg_idx++]);
     const ck::index_t K = std::stoi(argv[arg_idx++]);
@@ -95,16 +94,16 @@ parse_conv_params(int num_dim_spatial, int arg_idx, char* const argv[])
         input_right_pads[i] = std::stoi(argv[arg_idx++]);
     }
 
-    return ck::tensor_operation::device::ConvParams{num_dim_spatial,
-                                                    N,
-                                                    K,
-                                                    C,
-                                                    filter_spatial_lengths,
-                                                    input_spatial_lengths,
-                                                    conv_filter_strides,
-                                                    conv_filter_dilations,
-                                                    input_left_pads,
-                                                    input_right_pads};
+    return ck::utils::conv::ConvParam{num_dim_spatial,
+                                      N,
+                                      K,
+                                      C,
+                                      filter_spatial_lengths,
+                                      input_spatial_lengths,
+                                      conv_filter_strides,
+                                      conv_filter_dilations,
+                                      input_left_pads,
+                                      input_right_pads};
 }
 
 } // namespace

@@ -63,7 +63,7 @@ bool profile_conv_bwd_weight_impl(int do_verification,
                                   int init_method,
                                   bool do_log,
                                   bool time_kernel,
-                                  const ck::tensor_operation::device::ConvParams& conv_param,
+                                  const ck::utils::conv::ConvParam& conv_param,
                                   ck::index_t split_k)
 {
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;

@@ -13,7 +13,7 @@ int main()
 {
     bool pass = true;
 
-    std::vector<ck::tensor_operation::device::ConvParams> params;
+    std::vector<ck::utils::conv::ConvParam> params;
 
     // check 1d
     params.push_back({1, 128, 128, 256, {1}, {14}, {2}, {1}, {0}, {0}});

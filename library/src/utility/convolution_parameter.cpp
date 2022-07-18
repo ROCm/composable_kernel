@@ -5,19 +5,19 @@
 #include "ck/library/utility/io.hpp"
 
 namespace ck {
-namespace tensor_operation {
-namespace device {
+namespace utils {
+namespace conv {
 
-ConvParams::ConvParams(ck::index_t n_dim,
-                       ck::index_t n_batch,
-                       ck::index_t n_out_channels,
-                       ck::index_t n_in_channels,
-                       const std::vector<ck::index_t>& filters_len,
-                       const std::vector<ck::index_t>& input_len,
-                       const std::vector<ck::index_t>& strides,
-                       const std::vector<ck::index_t>& dilations,
-                       const std::vector<ck::index_t>& left_pads,
-                       const std::vector<ck::index_t>& right_pads)
+ConvParam::ConvParam(ck::index_t n_dim,
+                     ck::index_t n_batch,
+                     ck::index_t n_out_channels,
+                     ck::index_t n_in_channels,
+                     const std::vector<ck::index_t>& filters_len,
+                     const std::vector<ck::index_t>& input_len,
+                     const std::vector<ck::index_t>& strides,
+                     const std::vector<ck::index_t>& dilations,
+                     const std::vector<ck::index_t>& left_pads,
+                     const std::vector<ck::index_t>& right_pads)
     : num_dim_spatial_(n_dim),
       N_(n_batch),
       K_(n_out_channels),
@@ -38,7 +38,7 @@ ConvParams::ConvParams(ck::index_t n_dim,
        static_cast<ck::index_t>(input_right_pads_.size()) != num_dim_spatial_)
     {
         throw(
-            std::runtime_error("ConvParams::ConvParams: "
+            std::runtime_error("ConvParam::ConvParam: "
                                "parameter size is different from number of declared dimensions!"));
     }
 
@@ -55,17 +55,17 @@ ConvParams::ConvParams(ck::index_t n_dim,
     }
 }
 
-ConvParams::ConvParams()
-    : ConvParams::ConvParams(2, 128, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1})
+ConvParam::ConvParam()
+    : ConvParam::ConvParam(2, 128, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1})
 {
 }
 
-std::vector<ck::index_t> ConvParams::GetOutputSpatialLengths() const
+std::vector<ck::index_t> ConvParam::GetOutputSpatialLengths() const
 {
     return output_spatial_lengths_;
 }
 
-std::size_t ConvParams::GetFlops() const
+std::size_t ConvParam::GetFlops() const
 {
     // 2 * N * K * C * <output spatial lengths product> * <filter spatial lengths product>
     return static_cast<std::size_t>(2) * N_ * K_ * C_ *
@@ -79,13 +79,13 @@ std::size_t ConvParams::GetFlops() const
                            std::multiplies<std::size_t>());
 }
 
-} // namespace device
-} // namespace tensor_operation
+} // namespace conv
+} // namespace utils
 } // namespace ck
 
-std::ostream& operator<<(std::ostream& os, const ck::tensor_operation::device::ConvParams& p)
+std::ostream& operator<<(std::ostream& os, const ck::utils::conv::ConvParam& p)
 {
-    os << "ConvParams {"
+    os << "ConvParam {"
        << "\nnum_dim_spatial: " << p.num_dim_spatial_ << "\nN: " << p.N_ << "\nK: " << p.K_
        << "\nC: " << p.C_ << "\nfilter_spatial_lengths: " << p.filter_spatial_lengths_
        << "\ninput_spatial_lengths: " << p.input_spatial_lengths_

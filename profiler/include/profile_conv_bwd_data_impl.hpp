@@ -58,7 +58,7 @@ bool profile_conv_bwd_data_impl(int do_verification,
                                 int init_method,
                                 bool do_log,
                                 bool time_kernel,
-                                const ck::tensor_operation::device::ConvParams& conv_param)
+                                const ck::utils::conv::ConvParam& conv_param)
 {
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
