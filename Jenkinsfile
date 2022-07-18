@@ -11,6 +11,12 @@ def show_node_info() {
     """
 }
 
+def runShell(String command){
+    def responseCode = sh returnStatus: true, script: "${command}" &> tmp.txt
+    def output = readFile(file: "tmp.txt")
+    return (output != "")
+}
+
 def cmake_build(Map conf=[:]){
 
     def compiler = conf.get("compiler","/opt/rocm/bin/hipcc")
