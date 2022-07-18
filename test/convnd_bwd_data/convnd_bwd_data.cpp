@@ -196,6 +196,6 @@ int main()
     else
     {
         std::cout << "test convnd bwd: Fail " << std::endl;
-        return -1;
+        return 1;
     }
 }

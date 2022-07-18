@@ -156,12 +156,12 @@ bool profile_conv_bwd_weight_impl(int do_verification,
     {
     case 0: break;
     case 1:
-        input.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-2, 2});
-        output.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-2, 2});
+        input.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
+        output.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
         break;
     default:
-        input.GenerateTensorValue(GeneratorTensor_1<OutDataType>{1});
-        output.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
+        input.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
+        output.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-0.5, 0.5});
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpace());

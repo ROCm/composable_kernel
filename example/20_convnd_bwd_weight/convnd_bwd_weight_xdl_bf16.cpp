@@ -6,8 +6,8 @@
 #include "ck/tensor_operation/gpu/device/device_convnd_bwd_weight_nwc_kxc_nwk_xdl_cshuffle.hpp"
 
 using InDataType = ck::bhalf_t;
-using WeiDataType =
-    float; // bf16 kernel use fp32 atomic add to accumulate Weight tensor into global memory
+// bf16 kernel use fp32 atomic add to accumulate Weight tensor into global memory
+using WeiDataType = float;
 using OutDataType = ck::bhalf_t;
 using AccDataType = float;
 
