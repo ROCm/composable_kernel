@@ -135,7 +135,7 @@ struct AddAdd
                       "Data type is not supported by this operation!");
 
         const C y = c + type_convert<C>(d0) + type_convert<C>(d1);
-        e = type_convert<E>(y);
+        e         = type_convert<E>(y);
     }
 };
 

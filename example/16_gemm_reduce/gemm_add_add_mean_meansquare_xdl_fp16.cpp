@@ -79,6 +79,36 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleDMultip
         < ALayout, BLayout, ELayout, ADataType, BDataType, GemmAccDataType, CShuffleDataType, DsDataType, EDataType, ReduceAccDataType, RsDataType,  AElementOp,  BElementOp, CDEElementOp, QsElementOp, RsElementOp, RsThreadReduceOp, RsGlobalReduceOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,             S<64, 4>,                    4,                  1>;
 // clang-format on
 
+using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                        BDataType,
+                                                                        EDataType,
+                                                                        GemmAccDataType,
+                                                                        AElementOp,
+                                                                        BElementOp,
+                                                                        PassThrough>;
+
+template <typename ADataType,
+          typename BDataType,
+          typename D0DataType,
+          typename D1DataType,
+          typename EDataType,
+          typename R0DataType,
+          typename R1DataType>
+void DumpPerf(float ave_time, int M, int N, int K)
+{
+    std::size_t flop          = std::size_t(2) * M * N * K + std::size_t(2) * M * N;
+    std::size_t gemm_num_byte = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
+                                sizeof(D0DataType) * M * N + sizeof(D1DataType) * M * N +
+                                sizeof(EDataType) * M * N + sizeof(R0DataType) * M +
+                                sizeof(R1DataType) * M;
+
+    float tflops          = static_cast<float>(flop) / 1.E9 / ave_time;
+    float gemm_gb_per_sec = gemm_num_byte / 1.E6 / ave_time;
+
+    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gemm_gb_per_sec
+              << " GB/s, " << std::endl;
+}
+
 auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
     return HostTensorDescriptor(std::vector<std::size_t>({len}),
                                 std::vector<std::size_t>({stride}));
@@ -98,7 +128,7 @@ auto f_host_tensor_descriptor2d =
         }
     };
 
-int main(int argc, char* argv[])
+int main()
 {
     ck::index_t M = 1024;
     ck::index_t N = 1024;
@@ -121,7 +151,7 @@ int main(int argc, char* argv[])
     a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-1, 1});
     b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-1, 1});
     d0_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{-1, 1});
-    d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{-5, 5});
+    d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{-1, 1});
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
     DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
@@ -145,32 +175,105 @@ int main(int argc, char* argv[])
     // Prepare GEMM, mean, mean_square
     auto device_op = DeviceOpInstance{};
     auto invoker   = device_op.MakeInvoker();
-    auto argument  = device_op.MakeArgument(
-        a_device_buf.GetDeviceBuffer(),
-        b_device_buf.GetDeviceBuffer(),
-        std::array<const void*, 2>{d0_device_buf.GetDeviceBuffer(),
-                                   d1_device_buf.GetDeviceBuffer()},
-        e_device_buf.GetDeviceBuffer(),
-        std::array<void*, 2>{r0_device_buf.GetDeviceBuffer(), r1_device_buf.GetDeviceBuffer()},
-        M,
-        N,
-        K,
-        StrideA,
-        StrideB,
-        std::array<ck::index_t, 2>{StrideD0, StrideD1},
-        StrideE,
-        a_element_op,
-        b_element_op,
-        cde_element_op,
-        qs_element_op,
-        rs_element_op);
+    auto argument =
+        device_op.MakeArgument(a_device_buf.GetDeviceBuffer(),
+                               b_device_buf.GetDeviceBuffer(),
+                               {d0_device_buf.GetDeviceBuffer(), d1_device_buf.GetDeviceBuffer()},
+                               e_device_buf.GetDeviceBuffer(),
+                               {r0_device_buf.GetDeviceBuffer(), r1_device_buf.GetDeviceBuffer()},
+                               M,
+                               N,
+                               K,
+                               StrideA,
+                               StrideB,
+                               std::array<ck::index_t, 2>{StrideD0, StrideD1},
+                               StrideE,
+                               a_element_op,
+                               b_element_op,
+                               cde_element_op,
+                               qs_element_op,
+                               rs_element_op);
 
     if(!device_op.IsSupportedArgument(argument))
     {
         throw std::runtime_error("wrong! this device_op instance does not support this problem");
     }
 
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, false});
+    r0_device_buf.SetZero();
+    r1_device_buf.SetZero();
 
-    return 0;
+    invoker.Run(argument, StreamConfig{nullptr, false});
+
+    bool do_verification = true;
+    bool pass            = true;
+
+    if(do_verification)
+    {
+        auto I0 = ck::Number<0>{};
+        auto I1 = ck::Number<1>{};
+
+        Tensor<EDataType> e_m_n_host(e_m_n.mDesc);
+        Tensor<R0DataType> r0_m_host(r0_m.mDesc);
+        Tensor<R1DataType> r1_m_host(r1_m.mDesc);
+
+        auto ref_gemm    = ReferenceGemmInstance{};
+        auto ref_invoker = ref_gemm.MakeInvoker();
+
+        auto ref_argument = ref_gemm.MakeArgument(
+            a_m_k, b_k_n, e_m_n_host, a_element_op, b_element_op, PassThrough{});
+
+        ref_invoker.Run(ref_argument);
+
+        auto reduce0_op = R0ThreadReduceOp{};
+        auto reduce1_op = R1ThreadReduceOp{};
+
+        for(int m = 0; m < M; ++m)
+        {
+            auto reduce0_acc = reduce0_op.GetIdentityValue<ReduceAccDataType>();
+            auto reduce1_acc = reduce1_op.GetIdentityValue<ReduceAccDataType>();
+
+            for(int n = 0; n < N; ++n)
+            {
+                ReduceAccDataType square_e_val;
+
+                auto e_val  = ck::type_convert<GemmAccDataType>(e_m_n_host(m, n));
+                auto d0_val = ck::type_convert<GemmAccDataType>(d0_n(n));
+                auto d1_val = ck::type_convert<GemmAccDataType>(d1_m_n(m, n));
+                cde_element_op(e_val, e_val, d0_val, d1_val);
+                e_m_n_host(m, n) = ck::type_convert<EDataType>(e_val);
+
+                auto e_val_reduce = ck::type_convert<ReduceAccDataType>(e_val);
+                qs_element_op[I1](square_e_val, e_val_reduce);
+
+                reduce0_op(reduce0_acc, e_val_reduce);
+                reduce1_op(reduce1_acc, square_e_val);
+            }
+
+            rs_element_op[I0](reduce0_acc, reduce0_acc);
+            rs_element_op[I1](reduce1_acc, reduce1_acc);
+            r0_m_host(m) = ck::type_convert<R0DataType>(reduce0_acc);
+            r1_m_host(m) = ck::type_convert<R1DataType>(reduce1_acc);
+        }
+
+        e_device_buf.FromDevice(e_m_n.mData.data());
+        r0_device_buf.FromDevice(r0_m.mData.data());
+        r1_device_buf.FromDevice(r1_m.mData.data());
+
+        pass = ck::utils::check_err(
+            e_m_n.mData, e_m_n_host.mData, "Error: Incorrect results c", 1e-2, 1e-2);
+        pass &= ck::utils::check_err(
+            r0_m.mData, r0_m_host.mData, "Error: Incorrect results d0", 1e-2, 1e-2);
+        pass &= ck::utils::check_err(
+            r1_m.mData, r1_m_host.mData, "Error: Incorrect results d1", 1e-2, 1e-2);
+    }
+
+    bool time_kernel = true;
+    if(time_kernel)
+    {
+        float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
+        DumpPerf<ADataType, BDataType, D0DataType, D1DataType, EDataType, R0DataType, R1DataType>(
+            ave_time, M, N, K);
+    }
+
+    return pass ? 0 : 1;
 }
