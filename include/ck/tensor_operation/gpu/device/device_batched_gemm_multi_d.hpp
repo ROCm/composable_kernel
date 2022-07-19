@@ -29,16 +29,18 @@ struct DeviceBatchedGemmMultiD : public BaseOperator
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
+                        std::array<const void*, NumDTensor> p_ds,
                         void* p_c,
                         ck::index_t M,
                         ck::index_t N,
                         ck::index_t K,
                         ck::index_t StrideA,
                         ck::index_t StrideB,
-                        //std::array<ck::index_t, NumDTensor> StrideDs,
+                        std::array<ck::index_t, NumDTensor> StrideDs,
                         ck::index_t StrideE,
                         ck::index_t BatchStrideA,
                         ck::index_t BatchStrideB,
+                        std::array<ck::index_t, NumDTensor> BatchStrideDs,
                         ck::index_t BatchStrideE,
                         ck::index_t Batch,
                         AElementwiseOperation a_element_op,
@@ -58,16 +60,17 @@ template <typename ALayout,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation>
-using DeviceBatchedGemmMultiDPtr = std::unique_ptr<DeviceBatchedGemmMultiD<ALayout,
-                                                               BLayout,
-                                                               CLayout,
-                                                               ADataType,
-                                                               BDataType,
-                                                               DsDataType,
-                                                               EDataType,
-                                                               AElementwiseOperation,
-                                                               BElementwiseOperation,
-                                                               CDEElementwiseOperation>>;
+using DeviceBatchedGemmMultiDPtr =
+    std::unique_ptr<DeviceBatchedGemmMultiD<ALayout,
+                                            BLayout,
+                                            CLayout,
+                                            ADataType,
+                                            BDataType,
+                                            DsDataType,
+                                            EDataType,
+                                            AElementwiseOperation,
+                                            BElementwiseOperation,
+                                            CDEElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation

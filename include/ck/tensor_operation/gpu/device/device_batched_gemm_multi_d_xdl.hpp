@@ -47,10 +47,12 @@ namespace device {
  */
 template <typename GridwiseGemm,
           typename FloatAB,
+          typename FloatDsPointer,
           typename FloatC,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
-          typename CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+          typename DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+          typename EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
@@ -63,18 +65,22 @@ __global__ void
 #endif
         kernel_batched_gemm_xdl(const FloatAB* __restrict__ p_a_grid,
                                 const FloatAB* __restrict__ p_b_grid,
+                                FloatDsPointer p_ds_grid,
                                 FloatC* __restrict__ p_e_grid,
                                 const index_t batch_count,
                                 const AGridDesc_AK0_M_AK1 a_grid_desc_k0_m_k1,
                                 const BGridDesc_BK0_N_BK1 b_grid_desc_k0_n_k1,
-                                const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+                                const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                                    ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
                                     e_grid_desc_mblock_mperblock_nblock_nperblock_,
                                 const AElementwiseOperation a_element_op,
                                 const BElementwiseOperation b_element_op,
-                                const CDEElementwiseOperation c_element_op,
+                                const CDEElementwiseOperation cde_element_op,
                                 const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
                                 const Block2CTileMap block_2_ctile_map)
 {
+
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -84,38 +90,47 @@ __global__ void
         static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
     const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
-    const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetCPtrOffset(g_idx)));
+    const long_index_t e_batch_offset = __builtin_amdgcn_readfirstlane(
+        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx)));
+
+    const auto ds_batch_offset = compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
 
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(
-        p_a_grid + a_batch_offset,
-        p_b_grid + b_batch_offset,
-        ck::Tuple<>{},
-        p_e_grid + c_batch_offset,
-        p_shared,
-        a_element_op,
-        b_element_op,
-        c_element_op,
-        a_grid_desc_k0_m_k1,
-        b_grid_desc_k0_n_k1,
-        ck::StaticallyIndexedArray<
-            typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-            0>{},
-        e_grid_desc_mblock_mperblock_nblock_nperblock_,
-        block_2_ctile_map);
+    FloatDsPointer p_ds_grid_grp;
+
+    static constexpr index_t NumDTensor =
+        DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock::Size();
+
+    static_for<0, NumDTensor, 1>{}(
+        [&](auto i) { p_ds_grid_grp(i) = p_ds_grid[i] + ds_batch_offset[i]; });
+
+    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
+                                                  p_b_grid + b_batch_offset,
+                                                  p_ds_grid_grp,
+                                                  p_e_grid + e_batch_offset,
+                                                  p_shared,
+                                                  a_element_op,
+                                                  b_element_op,
+                                                  cde_element_op,
+                                                  a_grid_desc_k0_m_k1,
+                                                  b_grid_desc_k0_n_k1,
+                                                  ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                  e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                                  block_2_ctile_map);
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
+    ignore = p_ds_grid;
     ignore = p_e_grid;
     ignore = batch_count;
     ignore = a_grid_desc_k0_m_k1;
     ignore = b_grid_desc_k0_n_k1;
+    ignore = ds_grid_desc_mblock_mperblock_nblock_nperblock;
     ignore = e_grid_desc_mblock_mperblock_nblock_nperblock_;
     ignore = a_element_op;
     ignore = b_element_op;
-    ignore = c_element_op;
+    ignore = cde_element_op;
     ignore = compute_ptr_offset_of_batch;
     ignore = block_2_ctile_map;
 #endif
@@ -456,8 +471,12 @@ struct DeviceBatchedGemmMultiDXdl : public DeviceBatchedGemmMultiD<ALayout,
     {
         ComputePtrOffsetOfStridedBatch(index_t BatchStrideA,
                                        index_t BatchStrideB,
+                                       std::array<ck::index_t, NumDTensor> BatchStrideDs,
                                        index_t BatchStrideE)
-            : BatchStrideA_(BatchStrideA), BatchStrideB_(BatchStrideB), BatchStrideE_(BatchStrideE)
+            : BatchStrideA_(BatchStrideA),
+              BatchStrideB_(BatchStrideB),
+              BatchStrideDs_(BatchStrideDs),
+              BatchStrideE_(BatchStrideE)
         {
         }
 
@@ -471,7 +490,16 @@ struct DeviceBatchedGemmMultiDXdl : public DeviceBatchedGemmMultiD<ALayout,
             return g_idx * static_cast<long_index_t>(BatchStrideB_);
         }
 
-        __host__ __device__ constexpr long_index_t GetCPtrOffset(index_t g_idx) const
+        __host__ __device__ constexpr auto GetDsPtrOffset(index_t g_idx) const
+        {
+            std::array<long_index_t, NumDTensor> ds_offset;
+            static_for<0, NumDTensor, 1>{}([&](auto i) {
+                ds_offset[i] = g_idx * static_cast<long_index_t>(BatchStrideDs_[i]);
+            });
+            return ds_offset;
+        }
+
+        __host__ __device__ constexpr long_index_t GetEPtrOffset(index_t g_idx) const
         {
             return g_idx * static_cast<long_index_t>(BatchStrideE_);
         }
@@ -479,6 +507,7 @@ struct DeviceBatchedGemmMultiDXdl : public DeviceBatchedGemmMultiD<ALayout,
         private:
         index_t BatchStrideA_;
         index_t BatchStrideB_;
+        std::array<ck::index_t, NumDTensor> BatchStrideDs_;
         index_t BatchStrideE_;
     };
 
@@ -535,41 +564,46 @@ struct DeviceBatchedGemmMultiDXdl : public DeviceBatchedGemmMultiD<ALayout,
     // Argument
     struct Argument : public BaseArgument
     {
-        Argument(const ADataType* p_a_grid,
-                 const BDataType* p_b_grid,
-                 EDataType* p_e_grid,
+        Argument(const void* p_a_grid,
+                 const void* p_b_grid,
+                 std::array<const void*, NumDTensor> p_ds_grid,
+                 void* p_e_grid,
                  index_t M,
                  index_t N,
                  index_t K,
                  index_t StrideA,
                  index_t StrideB,
+                 std::array<ck::index_t, NumDTensor> StrideDs,
                  index_t StrideE,
                  index_t BatchStrideA,
                  index_t BatchStrideB,
+                 std::array<ck::index_t, NumDTensor> BatchStrideDs,
                  index_t BatchStrideE,
                  index_t Batch,
                  index_t M01,
                  index_t N01,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
-                 CDEElementwiseOperation c_element_op)
-            : p_a_grid_{p_a_grid},
-              p_b_grid_{p_b_grid},
-              p_e_grid_{p_e_grid},
+                 CDEElementwiseOperation cde_element_op)
+            : p_a_grid_{static_cast<const ADataType*>(p_a_grid)},
+              p_b_grid_{static_cast<const BDataType*>(p_b_grid)},
+              p_ds_grid_{}, // FIXME
+              p_e_grid_{static_cast<EDataType*>(p_e_grid)},
               Batch_(Batch),
               a_grid_desc_ak0_m_ak1_{
                   DeviceBatchedGemmMultiDXdl::MakeAGridDescriptor_AK0_M_AK1(M, K, StrideA)},
               b_grid_desc_bk0_n_bk1_{
                   DeviceBatchedGemmMultiDXdl::MakeBGridDescriptor_BK0_N_BK1(K, N, StrideB)},
+              ds_grid_desc_mblock_mperblock_nblock_nperblock_{},
               e_grid_desc_m_n_{DeviceBatchedGemmMultiDXdl::MakeEGridDescriptor_M_N(M, N, StrideE)},
               e_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              compute_ptr_offset_of_batch_{BatchStrideA, BatchStrideB, BatchStrideE},
+              compute_ptr_offset_of_batch_{BatchStrideA, BatchStrideB, BatchStrideDs, BatchStrideE},
               block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_)},
               M01_{M01},
               N01_{N01},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
-              cde_element_op_{c_element_op}
+              cde_element_op_{cde_element_op}
         {
             if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
                                            b_grid_desc_bk0_n_bk1_,
@@ -579,6 +613,19 @@ struct DeviceBatchedGemmMultiDXdl : public DeviceBatchedGemmMultiD<ALayout,
                 e_grid_desc_mblock_mperblock_nblock_nperblock_ =
                     GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         e_grid_desc_m_n_);
+
+                static_for<0, NumDTensor, 1>{}([&](auto i) {
+                    using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+
+                    p_ds_grid_(i) = static_cast<const DDataType*>(p_ds_grid[i]);
+
+                    const auto d_grid_desc_m_n =
+                        DeviceOp::MakeEGridDescriptor_M_N(M, N, StrideDs[i]);
+
+                    ds_grid_desc_mblock_mperblock_nblock_nperblock_(i) =
+                        GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                            d_grid_desc_m_n);
+                });
             }
         }
 
@@ -646,77 +693,57 @@ struct DeviceBatchedGemmMultiDXdl : public DeviceBatchedGemmMultiD<ALayout,
             const auto K =
                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
 
+            auto launch_kernel = [&](auto has_main_k_block_loop) {
+                constexpr bool has_main_loop = has_main_k_block_loop.value;
+
+                const auto kernel = kernel_batched_gemm_xdl<
+                    GridwiseGemm,
+                    ADataType, // TODO: distiguish A/B datatype
+                    typename GridwiseGemm::DsGridPointer,
+                    EDataType,
+                    DeviceOp::AGridDesc_AK0_M_AK1,
+                    DeviceOp::BGridDesc_BK0_N_BK1,
+                    ck::StaticallyIndexedArray<
+                        typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                        NumDTensor>,
+                    typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                    AElementwiseOperation,
+                    BElementwiseOperation,
+                    CDEElementwiseOperation,
+                    ComputePtrOffsetOfStridedBatch,
+                    remove_reference_t<Block2CTileMap>,
+                    has_main_loop>;
+
+                return launch_and_time_kernel(stream_config,
+                                              kernel,
+                                              dim3(grid_size),
+                                              dim3(BlockSize),
+                                              0,
+                                              arg.p_a_grid_,
+                                              arg.p_b_grid_,
+                                              arg.p_ds_grid_,
+                                              arg.p_e_grid_,
+                                              arg.Batch_,
+                                              arg.a_grid_desc_ak0_m_ak1_,
+                                              arg.b_grid_desc_bk0_n_bk1_,
+                                              arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                              arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                              arg.a_element_op_,
+                                              arg.b_element_op_,
+                                              arg.cde_element_op_,
+                                              arg.compute_ptr_offset_of_batch_,
+                                              arg.block_2_ctile_map_);
+            };
+
             float ave_time = 0;
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
-                const auto kernel = kernel_batched_gemm_xdl<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    EDataType,
-                    remove_reference_t<DeviceBatchedGemmMultiDXdl::AGridDesc_AK0_M_AK1>,
-                    remove_reference_t<DeviceBatchedGemmMultiDXdl::BGridDesc_BK0_N_BK1>,
-                    typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CDEElementwiseOperation,
-                    ComputePtrOffsetOfStridedBatch,
-                    remove_reference_t<Block2CTileMap>,
-                    true>;
-
-                ave_time =
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_,
-                                           arg.p_b_grid_,
-                                           arg.p_e_grid_,
-                                           arg.Batch_,
-                                           arg.a_grid_desc_ak0_m_ak1_,
-                                           arg.b_grid_desc_bk0_n_bk1_,
-                                           arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.cde_element_op_,
-                                           arg.compute_ptr_offset_of_batch_,
-                                           arg.block_2_ctile_map_);
+                ave_time = launch_kernel(integral_constant<bool, true>{});
             }
             else
             {
-                const auto kernel = kernel_batched_gemm_xdl<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    EDataType,
-                    remove_reference_t<DeviceBatchedGemmMultiDXdl::AGridDesc_AK0_M_AK1>,
-                    remove_reference_t<DeviceBatchedGemmMultiDXdl::BGridDesc_BK0_N_BK1>,
-                    typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CDEElementwiseOperation,
-                    ComputePtrOffsetOfStridedBatch,
-                    remove_reference_t<Block2CTileMap>,
-                    false>;
-
-                ave_time =
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_,
-                                           arg.p_b_grid_,
-                                           arg.p_e_grid_,
-                                           arg.Batch_,
-                                           arg.a_grid_desc_ak0_m_ak1_,
-                                           arg.b_grid_desc_bk0_n_bk1_,
-                                           arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.cde_element_op_,
-                                           arg.compute_ptr_offset_of_batch_,
-                                           arg.block_2_ctile_map_);
+                ave_time = launch_kernel(integral_constant<bool, false>{});
             }
 
             return ave_time;
@@ -750,81 +777,94 @@ struct DeviceBatchedGemmMultiDXdl : public DeviceBatchedGemmMultiD<ALayout,
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-    static auto MakeArgument(const ADataType* p_a,
-                             const BDataType* p_b,
-                             EDataType* p_c,
+    static auto MakeArgument(const void* p_a,
+                             const void* p_b,
+                             std::array<const void*, NumDTensor> p_ds,
+                             void* p_c,
                              index_t M,
                              index_t N,
                              index_t K,
                              index_t StrideA,
                              index_t StrideB,
+                             std::array<index_t, NumDTensor> StrideDs,
                              index_t StrideE,
                              index_t BatchStrideA,
                              index_t BatchStrideB,
+                             std::array<ck::index_t, NumDTensor> BatchStrideDs,
                              index_t BatchStrideE,
                              index_t Batch,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
-                             CDEElementwiseOperation c_element_op)
+                             CDEElementwiseOperation cde_element_op)
     {
         return Argument{p_a,
                         p_b,
+                        p_ds,
                         p_c,
                         M,
                         N,
                         K,
                         StrideA,
                         StrideB,
+                        StrideDs,
                         StrideE,
                         BatchStrideA,
                         BatchStrideB,
+                        BatchStrideDs,
                         BatchStrideE,
                         Batch,
                         1,
                         1,
                         a_element_op,
                         b_element_op,
-                        c_element_op};
+                        cde_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
 
     // polymorphic
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
-                                                      const void* p_b,
-                                                      void* p_c,
-                                                      index_t M,
-                                                      index_t N,
-                                                      index_t K,
-                                                      index_t StrideA,
-                                                      index_t StrideB,
-                                                      index_t StrideE,
-                                                      index_t BatchStrideA,
-                                                      index_t BatchStrideB,
-                                                      index_t BatchStrideE,
-                                                      index_t Batch,
-                                                      AElementwiseOperation a_element_op,
-                                                      BElementwiseOperation b_element_op,
-                                                      CDEElementwiseOperation c_element_op) override
+    std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(const void* p_a,
+                        const void* p_b,
+                        std::array<const void*, NumDTensor> p_ds,
+                        void* p_c,
+                        index_t M,
+                        index_t N,
+                        index_t K,
+                        index_t StrideA,
+                        index_t StrideB,
+                        std::array<ck::index_t, NumDTensor> StrideDs,
+                        index_t StrideE,
+                        index_t BatchStrideA,
+                        index_t BatchStrideB,
+                        std::array<ck::index_t, NumDTensor> BatchStrideDs,
+                        index_t BatchStrideE,
+                        index_t Batch,
+                        AElementwiseOperation a_element_op,
+                        BElementwiseOperation b_element_op,
+                        CDEElementwiseOperation cde_element_op) override
     {
-        return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
-                                          static_cast<const BDataType*>(p_b),
-                                          static_cast<EDataType*>(p_c),
+        return std::make_unique<Argument>(p_a,
+                                          p_b,
+                                          p_ds,
+                                          p_c,
                                           M,
                                           N,
                                           K,
                                           StrideA,
                                           StrideB,
+                                          StrideDs,
                                           StrideE,
                                           BatchStrideA,
                                           BatchStrideB,
+                                          BatchStrideDs,
                                           BatchStrideE,
                                           Batch,
                                           1,
                                           1,
                                           a_element_op,
                                           b_element_op,
-                                          c_element_op);
+                                          cde_element_op);
     }
 
     // polymorphic
