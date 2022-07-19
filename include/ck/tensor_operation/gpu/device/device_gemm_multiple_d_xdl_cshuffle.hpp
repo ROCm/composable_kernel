@@ -618,18 +618,18 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
                                               arg.block_2_etile_map_);
             };
 
-            float ave_time = 0;
+            float avg_time = 0;
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
-                ave_time = launch_kernel(integral_constant<bool, true>{});
+                avg_time = launch_kernel(integral_constant<bool, true>{});
             }
             else
             {
-                ave_time = launch_kernel(integral_constant<bool, false>{});
+                avg_time = launch_kernel(integral_constant<bool, false>{});
             }
 
-            return ave_time;
+            return avg_time;
         }
 
         // polymorphic
