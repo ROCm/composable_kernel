@@ -50,28 +50,6 @@ struct DeviceBatchedGemmMultiD : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <typename ALayout,
-          typename BLayout,
-          typename CLayout,
-          typename ADataType,
-          typename BDataType,
-          typename DsDataType,
-          typename EDataType,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CDEElementwiseOperation>
-using DeviceBatchedGemmMultiDPtr =
-    std::unique_ptr<DeviceBatchedGemmMultiD<ALayout,
-                                            BLayout,
-                                            CLayout,
-                                            ADataType,
-                                            BDataType,
-                                            DsDataType,
-                                            EDataType,
-                                            AElementwiseOperation,
-                                            BElementwiseOperation,
-                                            CDEElementwiseOperation>>;
-
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
