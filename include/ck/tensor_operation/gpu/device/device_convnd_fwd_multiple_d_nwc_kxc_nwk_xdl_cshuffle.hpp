@@ -181,51 +181,54 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
     static constexpr auto K1Number     = Number<K1>{};
     static constexpr auto GemmK1Number = K1Number;
 
-    static auto GetWeightTensorDescriptor(ck::index_t gemm_n, ck::index_t gemm_k)
+    static auto GetWeightTensorDescriptor(index_t GemmN, index_t GemmK)
     {
-        const ck::index_t gemm_k0 = gemm_k / GemmK1Number;
-        const auto wei_k_yxe_grid_desc =
-            make_naive_tensor_descriptor_packed(make_tuple(gemm_n, gemm_k));
+        const index_t GemmK0 = GemmK / GemmK1Number;
+        const auto wei_k_yxc_grid_desc =
+            make_naive_tensor_descriptor_packed(make_tuple(GemmN, GemmK));
 
         // wei_gemmk0_gemmn_gemmk1_grid_desc
         return transform_tensor_descriptor(
-            wei_k_yxe_grid_desc,
-            make_tuple(make_unmerge_transform(make_tuple(gemm_k0, GemmK1Number)),
-                       make_pass_through_transform(gemm_n)),
+            wei_k_yxc_grid_desc,
+            make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
+                       make_pass_through_transform(GemmN)),
             make_tuple(Sequence<1>{}, Sequence<0>{}),
             make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
-    static auto
-    GetOutputTensorDescriptor(ck::index_t gemm_m, ck::index_t gemm_n, ck::index_t gemm_m_pad)
+    static auto GetOutputTensorDescriptor(index_t GemmMRaw, index_t GemmN)
     {
+        const index_t GemmM    = math::integer_least_multiple(GemmMRaw, MPerBlock);
+        const index_t GemmMPad = GemmM - GemmMRaw;
+
         const auto out_gemmmraw_gemmn_grid_desc =
-            make_naive_tensor_descriptor_packed(make_tuple(gemm_m, gemm_n));
+            make_naive_tensor_descriptor_packed(make_tuple(GemmM, GemmN));
 
         // out_gemmm_gemmn_grid_desc
         return transform_tensor_descriptor(out_gemmmraw_gemmn_grid_desc,
-                                           make_tuple(make_right_pad_transform(gemm_m, gemm_m_pad),
-                                                      make_pass_through_transform(gemm_n)),
+                                           make_tuple(make_right_pad_transform(GemmM, GemmMPad),
+                                                      make_pass_through_transform(GemmN)),
                                            make_tuple(Sequence<0>{}, Sequence<1>{}),
                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
     }
 
-    template <ck::index_t NDim, typename std::enable_if<NDim == 1, bool>::type = false>
-    static auto GetInputTensorDescriptor(ck::index_t N,
-                                         ck::index_t C,
-                                         ck::index_t gemm_m,
-                                         ck::index_t gemm_k,
-                                         ck::index_t gemm_m_pad,
-                                         const std::vector<ck::index_t>& input_spatial_lengths,
-                                         const std::vector<ck::index_t>& filter_spatial_lengths,
-                                         const std::vector<ck::index_t>& output_spatial_lengths,
-                                         const std::vector<ck::index_t>& conv_filter_strides,
-                                         const std::vector<ck::index_t>& conv_filter_dilations,
-                                         const std::vector<ck::index_t>& input_left_pads,
-                                         const std::vector<ck::index_t>& input_right_pads)
+    template <index_t NDim, typename std::enable_if<NDim == 1, bool>::type = false>
+    static auto GetInputTensorDescriptor(index_t N,
+                                         index_t C,
+                                         index_t GemmMRaw,
+                                         index_t GemmK,
+                                         const std::vector<index_t>& input_spatial_lengths,
+                                         const std::vector<index_t>& filter_spatial_lengths,
+                                         const std::vector<index_t>& output_spatial_lengths,
+                                         const std::vector<index_t>& conv_filter_strides,
+                                         const std::vector<index_t>& conv_filter_dilations,
+                                         const std::vector<index_t>& input_left_pads,
+                                         const std::vector<index_t>& input_right_pads)
     {
+        const index_t GemmM    = math::integer_least_multiple(GemmMRaw, MPerBlock);
+        const index_t GemmMPad = GemmM - GemmMRaw;
 
-        const ck::index_t gemm_k0 = gemm_k / GemmK1Number;
+        const index_t GemmK0      = GemmK / GemmK1Number;
         const index_t Wi          = input_spatial_lengths[0];
         const index_t Wo          = output_spatial_lengths[0];
         const index_t ConvStrideW = conv_filter_strides[0];
@@ -234,13 +237,13 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
                      ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
             const auto in_gemmmraw_gemmk_grid_desc =
-                make_naive_tensor_descriptor_packed(make_tuple(gemm_m, gemm_k));
+                make_naive_tensor_descriptor_packed(make_tuple(GemmMRaw, GemmK));
 
             // in_gemmk0_gemmm_gemmk1_grid_desc
             return transform_tensor_descriptor(
                 in_gemmmraw_gemmk_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(gemm_k0, GemmK1Number)),
-                           make_right_pad_transform(gemm_m, gemm_m_pad)),
+                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
+                           make_right_pad_transform(GemmMRaw, GemmMPad)),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
         }
@@ -260,7 +263,7 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
 
             const auto in_gemmk0_gemmmraw_gemmk1_grid_desc = transform_tensor_descriptor(
                 in_n_wo_e_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(gemm_k0, GemmK1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
                            make_merge_transform(make_tuple(N, Wo))),
                 make_tuple(Sequence<2>{}, Sequence<0, 1>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
@@ -268,8 +271,8 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
             // in_gemmk0_gemmm_gemmk1_grid_desc
             return transform_tensor_descriptor(
                 in_gemmk0_gemmmraw_gemmk1_grid_desc,
-                make_tuple(make_pass_through_transform(gemm_k0),
-                           make_right_pad_transform(gemm_m, gemm_m_pad),
+                make_tuple(make_pass_through_transform(GemmK0),
+                           make_right_pad_transform(GemmM, GemmMPad),
                            make_pass_through_transform(GemmK1Number)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
@@ -310,39 +313,41 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
 
             const auto in_gemmk0_gemmmraw_gemmk1_grid_desc = transform_tensor_descriptor(
                 in_gemmk_gemmmraw_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(gemm_k0, GemmK1Number)),
-                           make_pass_through_transform(gemm_m)),
+                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
+                           make_pass_through_transform(GemmM)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
             // in_gemmk0_gemmm_gemmk1_grid_desc
             return transform_tensor_descriptor(
                 in_gemmk0_gemmmraw_gemmk1_grid_desc,
-                make_tuple(make_pass_through_transform(gemm_k0),
-                           make_right_pad_transform(gemm_m, gemm_m_pad),
+                make_tuple(make_pass_through_transform(GemmK0),
+                           make_right_pad_transform(GemmM, GemmMPad),
                            make_pass_through_transform(GemmK1Number)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
         }
     }
 
-    template <ck::index_t NDim, typename std::enable_if<NDim == 2, bool>::type = false>
-    static auto GetInputTensorDescriptor(ck::index_t N,
-                                         ck::index_t C,
-                                         ck::index_t gemm_m,
-                                         ck::index_t gemm_k,
-                                         ck::index_t gemm_m_pad,
-                                         const std::vector<ck::index_t>& input_spatial_lengths,
-                                         const std::vector<ck::index_t>& filter_spatial_lengths,
-                                         const std::vector<ck::index_t>& output_spatial_lengths,
-                                         const std::vector<ck::index_t>& conv_filter_strides,
-                                         const std::vector<ck::index_t>& conv_filter_dilations,
-                                         const std::vector<ck::index_t>& input_left_pads,
-                                         const std::vector<ck::index_t>& input_right_pads)
+    template <index_t NDim, typename std::enable_if<NDim == 2, bool>::type = false>
+    static auto GetInputTensorDescriptor(index_t N,
+                                         index_t C,
+                                         index_t GemmMRaw,
+                                         index_t GemmK,
+                                         const std::vector<index_t>& input_spatial_lengths,
+                                         const std::vector<index_t>& filter_spatial_lengths,
+                                         const std::vector<index_t>& output_spatial_lengths,
+                                         const std::vector<index_t>& conv_filter_strides,
+                                         const std::vector<index_t>& conv_filter_dilations,
+                                         const std::vector<index_t>& input_left_pads,
+                                         const std::vector<index_t>& input_right_pads)
     {
-        const ck::index_t gemm_k0 = gemm_k / GemmK1Number;
-        const index_t Hi          = input_spatial_lengths[0];
-        const index_t Wi          = input_spatial_lengths[1];
+        const index_t GemmM    = math::integer_least_multiple(GemmMRaw, MPerBlock);
+        const index_t GemmMPad = GemmM - GemmMRaw;
+
+        const index_t GemmK0 = GemmK / GemmK1Number;
+        const index_t Hi     = input_spatial_lengths[0];
+        const index_t Wi     = input_spatial_lengths[1];
 
         const index_t Ho = output_spatial_lengths[0];
         const index_t Wo = output_spatial_lengths[1];
@@ -354,13 +359,13 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
                      ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
             const auto in_gemmmraw_gemmk_grid_desc =
-                make_naive_tensor_descriptor_packed(make_tuple(gemm_m, gemm_k));
+                make_naive_tensor_descriptor_packed(make_tuple(GemmM, GemmK));
 
             // in_gemmk0_gemmm_gemmk1_grid_desc
             return transform_tensor_descriptor(
                 in_gemmmraw_gemmk_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(gemm_k0, GemmK1Number)),
-                           make_right_pad_transform(gemm_m, gemm_m_pad)),
+                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
+                           make_right_pad_transform(GemmM, GemmMPad)),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
         }
@@ -381,7 +386,7 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
 
             const auto in_gemmk0_gemmmraw_gemmk1_grid_desc = transform_tensor_descriptor(
                 in_n_ho_wo_e_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(gemm_k0, GemmK1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
                            make_merge_transform(make_tuple(N, Ho, Wo))),
                 make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
@@ -389,8 +394,8 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
             // in_gemmk0_gemmm_gemmk1_grid_desc
             return transform_tensor_descriptor(
                 in_gemmk0_gemmmraw_gemmk1_grid_desc,
-                make_tuple(make_pass_through_transform(gemm_k0),
-                           make_right_pad_transform(gemm_m, gemm_m_pad),
+                make_tuple(make_pass_through_transform(GemmK0),
+                           make_right_pad_transform(GemmM, GemmMPad),
                            make_pass_through_transform(GemmK1Number)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
@@ -440,8 +445,8 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
 
             const auto in_gemmk0_gemmmraw_gemmk1_grid_desc = transform_tensor_descriptor(
                 in_gemmk_gemmmraw_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(gemm_k0, GemmK1Number)),
-                           make_pass_through_transform(gemm_m)),
+                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
+                           make_pass_through_transform(GemmM)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
@@ -449,32 +454,34 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
             return transform_tensor_descriptor(
                 in_gemmk0_gemmmraw_gemmk1_grid_desc,
 
-                make_tuple(make_pass_through_transform(gemm_k0),
-                           make_right_pad_transform(gemm_m, gemm_m_pad),
+                make_tuple(make_pass_through_transform(GemmK0),
+                           make_right_pad_transform(GemmM, GemmMPad),
                            make_pass_through_transform(GemmK1Number)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
         }
     }
 
-    template <ck::index_t NDim, typename std::enable_if<NDim == 3, bool>::type = false>
-    static auto GetInputTensorDescriptor(ck::index_t N,
-                                         ck::index_t C,
-                                         ck::index_t gemm_m,
-                                         ck::index_t gemm_k,
-                                         ck::index_t gemm_m_pad,
-                                         const std::vector<ck::index_t>& input_spatial_lengths,
-                                         const std::vector<ck::index_t>& filter_spatial_lengths,
-                                         const std::vector<ck::index_t>& output_spatial_lengths,
-                                         const std::vector<ck::index_t>& conv_filter_strides,
-                                         const std::vector<ck::index_t>& conv_filter_dilations,
-                                         const std::vector<ck::index_t>& input_left_pads,
-                                         const std::vector<ck::index_t>& input_right_pads)
+    template <index_t NDim, typename std::enable_if<NDim == 3, bool>::type = false>
+    static auto GetInputTensorDescriptor(index_t N,
+                                         index_t C,
+                                         index_t GemmMRaw,
+                                         index_t GemmK,
+                                         const std::vector<index_t>& input_spatial_lengths,
+                                         const std::vector<index_t>& filter_spatial_lengths,
+                                         const std::vector<index_t>& output_spatial_lengths,
+                                         const std::vector<index_t>& conv_filter_strides,
+                                         const std::vector<index_t>& conv_filter_dilations,
+                                         const std::vector<index_t>& input_left_pads,
+                                         const std::vector<index_t>& input_right_pads)
     {
-        const ck::index_t gemm_k0 = gemm_k / GemmK1Number;
-        const index_t Di          = input_spatial_lengths[0];
-        const index_t Hi          = input_spatial_lengths[1];
-        const index_t Wi          = input_spatial_lengths[2];
+        const index_t GemmM    = math::integer_least_multiple(GemmMRaw, MPerBlock);
+        const index_t GemmMPad = GemmM - GemmMRaw;
+
+        const index_t GemmK0 = GemmK / GemmK1Number;
+        const index_t Di     = input_spatial_lengths[0];
+        const index_t Hi     = input_spatial_lengths[1];
+        const index_t Wi     = input_spatial_lengths[2];
 
         const index_t Do = output_spatial_lengths[0];
         const index_t Ho = output_spatial_lengths[1];
@@ -488,13 +495,13 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
                      ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
             const auto in_gemmmraw_gemmk_grid_desc =
-                make_naive_tensor_descriptor_packed(make_tuple(gemm_m, gemm_k));
+                make_naive_tensor_descriptor_packed(make_tuple(GemmM, GemmK));
 
             // in_gemmk0_gemmm_gemmk1_grid_desc
             return transform_tensor_descriptor(
                 in_gemmmraw_gemmk_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(gemm_k0, GemmK1Number)),
-                           make_right_pad_transform(gemm_m, gemm_m_pad)),
+                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
+                           make_right_pad_transform(GemmM, GemmMPad)),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
         }
@@ -518,7 +525,7 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
 
             const auto in_gemmk0_gemmmraw_gemmk1_grid_desc = transform_tensor_descriptor(
                 in_n_do_ho_wo_e_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(gemm_k0, GemmK1Number)),
+                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
                            make_merge_transform(make_tuple(N, Do, Ho, Wo))),
 
                 make_tuple(Sequence<4>{}, Sequence<0, 1, 2, 3>{}),
@@ -527,8 +534,8 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
             // in_gemmk0_gemmm_gemmk1_grid_desc
             return transform_tensor_descriptor(
                 in_gemmk0_gemmmraw_gemmk1_grid_desc,
-                make_tuple(make_pass_through_transform(gemm_k0),
-                           make_right_pad_transform(gemm_m, gemm_m_pad),
+                make_tuple(make_pass_through_transform(GemmK0),
+                           make_right_pad_transform(GemmM, GemmMPad),
                            make_pass_through_transform(GemmK1Number)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
@@ -591,68 +598,65 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
 
             const auto in_gemmk0_gemmmraw_gemmk1_grid_desc = transform_tensor_descriptor(
                 in_gemmk_gemmmraw_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(gemm_k0, GemmK1Number)),
-                           make_pass_through_transform(gemm_m)),
+                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
+                           make_pass_through_transform(GemmM)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
             // in_gemmk0_gemmm_gemmk1_grid_desc
             return transform_tensor_descriptor(
                 in_gemmk0_gemmmraw_gemmk1_grid_desc,
-                make_tuple(make_pass_through_transform(gemm_k0),
-                           make_right_pad_transform(gemm_m, gemm_m_pad),
+                make_tuple(make_pass_through_transform(GemmK0),
+                           make_right_pad_transform(GemmM, GemmMPad),
                            make_pass_through_transform(GemmK1Number)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
         }
     }
 
-    static index_t GetGemmMRaw(ck::index_t N,
-                               const std::vector<ck::index_t>& output_spatial_lengths)
+    static index_t GetGemmMRaw(index_t N, const std::vector<index_t>& output_spatial_lengths)
     {
         return N * std::accumulate(std::begin(output_spatial_lengths),
                                    std::end(output_spatial_lengths),
                                    1,
-                                   std::multiplies<ck::index_t>());
+                                   std::multiplies<index_t>());
     }
 
-    static index_t GetGemmK(ck::index_t C, const std::vector<ck::index_t>& filter_spatial_lengths)
+    static index_t GetGemmKRaw(index_t C, const std::vector<index_t>& filter_spatial_lengths)
     {
         return C * std::accumulate(std::begin(filter_spatial_lengths),
                                    std::end(filter_spatial_lengths),
                                    1,
-                                   std::multiplies<ck::index_t>());
+                                   std::multiplies<index_t>());
     }
 
     static auto
-    MakeABEGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(ck::index_t N,
-                                                    ck::index_t K,
-                                                    ck::index_t C,
-                                                    std::vector<ck::index_t> input_spatial_lengths,
-                                                    std::vector<ck::index_t> filter_spatial_lengths,
-                                                    std::vector<ck::index_t> output_spatial_lengths,
-                                                    std::vector<ck::index_t> conv_filter_strides,
-                                                    std::vector<ck::index_t> conv_filter_dilations,
-                                                    std::vector<ck::index_t> input_left_pads,
-                                                    std::vector<ck::index_t> input_right_pads)
+    MakeABEGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(index_t N,
+                                                    index_t K,
+                                                    index_t C,
+                                                    std::vector<index_t> input_spatial_lengths,
+                                                    std::vector<index_t> filter_spatial_lengths,
+                                                    std::vector<index_t> output_spatial_lengths,
+                                                    std::vector<index_t> conv_filter_strides,
+                                                    std::vector<index_t> conv_filter_dilations,
+                                                    std::vector<index_t> input_left_pads,
+                                                    std::vector<index_t> input_right_pads)
     {
         using namespace ck;
 
         const index_t GemmMRaw = GetGemmMRaw(N, output_spatial_lengths);
-        const index_t GemmN    = K;
-        const index_t GemmK    = GetGemmK(C, filter_spatial_lengths);
+        const index_t GemmNRaw = K;
+        const index_t GemmKRaw = GetGemmKRaw(C, filter_spatial_lengths);
 
-        const auto GemmMPad = math::integer_least_multiple(GemmMRaw, MPerBlock) - GemmMRaw;
-
-        assert(GemmK % GemmK1Number == 0);
+        // TODO: remove
+        assert(GemmKRaw % GemmK1Number == 0);
 
         // A:
         const auto in_gemmk0_gemmm_gemmk1_grid_desc =
             GetInputTensorDescriptor<NDimSpatial>(N,
                                                   C,
                                                   GemmMRaw,
-                                                  GemmK,
-                                                  GemmMPad,
+                                                  GemmKRaw,
                                                   input_spatial_lengths,
                                                   filter_spatial_lengths,
                                                   output_spatial_lengths,
@@ -660,31 +664,34 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
                                                   conv_filter_dilations,
                                                   input_left_pads,
                                                   input_right_pads);
+
         // B:
-        const auto wei_gemmk0_gemmn_gemmk1_grid_desc = GetWeightTensorDescriptor(GemmN, GemmK);
+        const auto wei_gemmk0_gemmn_gemmk1_grid_desc =
+            GetWeightTensorDescriptor(GemmNRaw, GemmKRaw);
+
         // E:
-        const auto out_gemmm_gemmn_grid_desc = GetOutputTensorDescriptor(GemmMRaw, GemmN, GemmMPad);
+        const auto out_gemmm_gemmn_grid_desc = GetOutputTensorDescriptor(GemmMRaw, GemmNRaw);
 
         return make_tuple(in_gemmk0_gemmm_gemmk1_grid_desc,
                           wei_gemmk0_gemmn_gemmk1_grid_desc,
                           out_gemmm_gemmn_grid_desc);
     }
 
-    template <ck::index_t NDim, typename std::enable_if<NDim == 1, bool>::type = false>
+    template <index_t NDim, typename std::enable_if<NDim == 1, bool>::type = false>
     static auto GetABEGridDesc()
     {
         return MakeABEGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(
             1, 1, 1, {1}, {1}, {1}, {1}, {1}, {1}, {1});
     }
 
-    template <ck::index_t NDim, typename std::enable_if<NDim == 2, bool>::type = false>
+    template <index_t NDim, typename std::enable_if<NDim == 2, bool>::type = false>
     static auto GetABEGridDesc()
     {
         return MakeABEGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(
             1, 1, 1, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1});
     }
 
-    template <ck::index_t NDim, typename std::enable_if<NDim == 3, bool>::type = false>
+    template <index_t NDim, typename std::enable_if<NDim == 3, bool>::type = false>
     static auto GetABEGridDesc()
     {
         return MakeABEGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(
@@ -756,16 +763,16 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
         Argument(const ADataType* p_in_grid,
                  const BDataType* p_wei_grid,
                  EDataType* p_out_grid,
-                 ck::index_t N,
-                 ck::index_t K,
-                 ck::index_t C,
-                 std::vector<ck::index_t> input_spatial_lengths,
-                 std::vector<ck::index_t> filter_spatial_lengths,
-                 std::vector<ck::index_t> output_spatial_lengths,
-                 std::vector<ck::index_t> conv_filter_strides,
-                 std::vector<ck::index_t> conv_filter_dilations,
-                 std::vector<ck::index_t> input_left_pads,
-                 std::vector<ck::index_t> input_right_pads,
+                 index_t N,
+                 index_t K,
+                 index_t C,
+                 std::vector<index_t> input_spatial_lengths,
+                 std::vector<index_t> filter_spatial_lengths,
+                 std::vector<index_t> output_spatial_lengths,
+                 std::vector<index_t> conv_filter_strides,
+                 std::vector<index_t> conv_filter_dilations,
+                 std::vector<index_t> input_left_pads,
+                 std::vector<index_t> input_right_pads,
                  AElementwiseOperation in_element_op,
                  BElementwiseOperation wei_element_op,
                  CDEElementwiseOperation out_element_op)
@@ -988,7 +995,7 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
                      ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
             // check if it's 1x1, stride=1 conv
-            for(ck::index_t i = 0; i < NDimSpatial; ++i)
+            for(index_t i = 0; i < NDimSpatial; ++i)
             {
                 if(!(arg.filter_spatial_lengths_[i] == 1 && arg.conv_filter_strides_[i] == 1 &&
                      arg.input_left_pads_[i] == 0 && arg.input_right_pads_[i] == 0))
@@ -1001,7 +1008,7 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
                           ConvolutionForwardSpecialization::Filter1x1Pad0)
         {
             // check if it's 1x1 conv
-            for(ck::index_t i = 0; i < NDimSpatial; ++i)
+            for(index_t i = 0; i < NDimSpatial; ++i)
             {
                 if(!(arg.filter_spatial_lengths_[i] == 1 && arg.input_left_pads_[i] == 0 &&
                      arg.input_right_pads_[i] == 0))
@@ -1040,16 +1047,16 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
     static auto MakeArgument(const ADataType* p_in_grid,
                              const BDataType* p_wei_grid,
                              EDataType* p_out_grid,
-                             ck::index_t N,
-                             ck::index_t K,
-                             ck::index_t C,
-                             std::vector<ck::index_t> input_spatial_lengths,
-                             std::vector<ck::index_t> filter_spatial_lengths,
-                             std::vector<ck::index_t> output_spatial_lengths,
-                             std::vector<ck::index_t> conv_filter_strides,
-                             std::vector<ck::index_t> conv_filter_dilations,
-                             std::vector<ck::index_t> input_left_pads,
-                             std::vector<ck::index_t> input_right_pads,
+                             index_t N,
+                             index_t K,
+                             index_t C,
+                             std::vector<index_t> input_spatial_lengths,
+                             std::vector<index_t> filter_spatial_lengths,
+                             std::vector<index_t> output_spatial_lengths,
+                             std::vector<index_t> conv_filter_strides,
+                             std::vector<index_t> conv_filter_dilations,
+                             std::vector<index_t> input_left_pads,
+                             std::vector<index_t> input_right_pads,
                              AElementwiseOperation in_element_op,
                              BElementwiseOperation wei_element_op,
                              CDEElementwiseOperation out_element_op)
@@ -1078,16 +1085,16 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
     MakeArgumentPointer(const void* p_in_grid,
                         const void* p_wei_grid,
                         void* p_out_grid,
-                        ck::index_t N,
-                        ck::index_t K,
-                        ck::index_t C,
-                        std::vector<ck::index_t> input_spatial_lengths,
-                        std::vector<ck::index_t> filter_spatial_lengths,
-                        std::vector<ck::index_t> output_spatial_lengths,
-                        std::vector<ck::index_t> conv_filter_strides,
-                        std::vector<ck::index_t> conv_filter_dilations,
-                        std::vector<ck::index_t> input_left_pads,
-                        std::vector<ck::index_t> input_right_pads,
+                        index_t N,
+                        index_t K,
+                        index_t C,
+                        std::vector<index_t> input_spatial_lengths,
+                        std::vector<index_t> filter_spatial_lengths,
+                        std::vector<index_t> output_spatial_lengths,
+                        std::vector<index_t> conv_filter_strides,
+                        std::vector<index_t> conv_filter_dilations,
+                        std::vector<index_t> input_left_pads,
+                        std::vector<index_t> input_right_pads,
                         AElementwiseOperation in_element_op,
                         BElementwiseOperation wei_element_op,
                         CDEElementwiseOperation out_element_op) override
