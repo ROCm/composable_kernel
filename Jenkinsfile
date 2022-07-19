@@ -366,6 +366,9 @@ def runCKProfiler(Map conf=[:]){
                             else{
                                 sh "./run_performance_tests.sh 0 CI_release ${gpu_arch}"
                             }
+                            archiveArtifacts "perf_gemm_${gpu_arch}.log"
+                            archiveArtifacts "perf_resnet50_N256_${gpu_arch}.log"
+                            archiveArtifacts "perf_resnet50_N4_${gpu_arch}.log"
                             // stash perf files to master
                             stash name: "perf_gemm_${gpu_arch}.log"
                             stash name: "perf_resnet50_N256_${gpu_arch}.log"
