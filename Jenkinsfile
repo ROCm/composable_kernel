@@ -66,7 +66,7 @@ def cmake_build(Map conf=[:]){
         """
     def setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
     // reduce parallelism when compiling, clang uses too much memory
-    def build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make  -j\$(( \$(nproc) / 1 )) ${config_targets}")
+    def build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make  -j\$(( \$(nproc) / 2 )) ${config_targets}")
     def execute_cmd = conf.get("execute_cmd", "")
 
     def cmd = conf.get("cmd", """
@@ -119,7 +119,7 @@ def buildHipClangJob(Map conf=[:]){
                 retimage = docker.build("${image}", dockerArgs + '.')
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo > clinfo.log'
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
                         if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
                             echo "GPU not found"
                             throw e
@@ -138,7 +138,7 @@ def buildHipClangJob(Map conf=[:]){
                 retimage = docker.build("${image}", dockerArgs + " --no-cache .")
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo > clinfo.log'
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo |tee clinfo.log'
                         if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
                             echo "GPU not found"
                             throw e
@@ -153,7 +153,7 @@ def buildHipClangJob(Map conf=[:]){
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 5, unit: 'HOURS')
                 {
-                    sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo > clinfo.log'
+                    sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
                     if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
                         echo "GPU not found"
                         throw e
@@ -224,7 +224,7 @@ def runCKProfiler(Map conf=[:]){
                 retimage = docker.build("${image}", dockerArgs + '.')
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo > clinfo.log'
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
                         if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
                             echo "GPU not found"
                             throw e
@@ -243,7 +243,7 @@ def runCKProfiler(Map conf=[:]){
                 retimage = docker.build("${image}", dockerArgs + " --no-cache .")
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo > clinfo.log'
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
                         if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
                             echo "GPU not found"
                             throw e
@@ -260,6 +260,7 @@ def runCKProfiler(Map conf=[:]){
                 {
                     cmake_build(conf)
 					dir("script"){
+                        '''
                         //run gemm performance tests
                         def gemm_log = "perf_gemm_${gpu_arch}.log"
                         sh "rm -f ${gemm_log}"
@@ -334,13 +335,51 @@ def runCKProfiler(Map conf=[:]){
                         sh "python3 process_perf_data.py ${gemm_log} "
                         sh "python3 process_perf_data.py ${resnet256_log} "
                         sh "python3 process_perf_data.py ${resnet4_log} "
+                        '''
+
+
+                        if (params.RUN_FULL_QA){
+                            def qa_log = "qa_${gpu_arch}.log"
+                            if (params.USE_9110){
+                                sh "./run_full_performance_tests.sh 1 QA_9110 ${gpu_arch}"
+                            }
+                            else{
+                                sh "./run_full_performance_tests.sh 1 QA_release ${gpu_arch}"
+                            }
+                            // stash perf files to master
+                            stash name: "perf_gemm_${gpu_arch}.log"
+                            stash name: "perf_resnet50_N256_${gpu_arch}.log"
+                            stash name: "perf_resnet50_N4_${gpu_arch}.log"
+                            stash name: "perf_bathced_gemm_${gpu_arch}.log"
+                            stash name: "perf_grouped_gemm_${gpu_arch}.log"
+                            stash name: "perf_fwd_conv_${gpu_arch}.log"
+                            stash name: "perf_bwd_conv_${gpu_arch}.log"
+                            stash name: "perf_fusion_${gpu_arch}.log"
+                            stash name: "perf_reduction_${gpu_arch}.log"
+                            //we may need to run this on the master
+                            sh "python3 process_qa_data.sh ${gpu_arch}"
+                        }
+                        else{
+                            if (params.USE_9110){
+                                sh "./run_performance_tests.sh 0 CI_9110 ${gpu_arch}"
+                            }
+                            else{
+                                sh "./run_performance_tests.sh 0 CI_release ${gpu_arch}"
+                            }
+                            // stash perf files to master
+                            stash name: "perf_gemm_${gpu_arch}.log"
+                            stash name: "perf_resnet50_N256_${gpu_arch}.log"
+                            stash name: "perf_resnet50_N4_${gpu_arch}.log"
+                            //we may need to run this on the master
+                            sh "python3 process_perf_data.sh ${gpu_arch}"
+                        }
+
 					}
                 }
             }
         }
         return retimage
 }
-
 
 def runPerfTest(Map conf=[:]){
     try{
@@ -367,6 +406,10 @@ pipeline {
         booleanParam(
             name: "USE_9110",
             defaultValue: true,
+            description: "")
+        booleanParam(
+            name: "RUN_FULL_QA",
+            defaultValue: false,
             description: "")
     }
     environment{
@@ -480,6 +523,7 @@ pipeline {
                 }
             }
         }
+
         /* enable after the cmake file supports packaging
         stage("Packages") {
             when {

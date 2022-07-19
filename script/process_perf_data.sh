@@ -10,6 +10,7 @@ pip3 install sqlalchemy pymysql pandas sshtunnel
 # please contact Illia.Silin@amd.com for more details
 
 #process results
-python3 process_perf_data.py $gemm_log
-python3 process_perf_data.py $resnet256_log
-python3 process_perf_data.py $resnet4_log
+gpu_arch=$1
+python3 process_perf_data.py perf_gemm_"$gpu_arch".log
+python3 process_perf_data.py perf_resnet50_N265_"$gpu_arch".log
+python3 process_perf_data.py perf_resnet50_N4_"$gpu_arch".log
