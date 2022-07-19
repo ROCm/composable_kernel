@@ -694,7 +694,7 @@ struct DeviceGemmMultipleDMultipleR_Xdl_CShuffle
                     typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     ck::StaticallyIndexedArray<
                         typename GridwiseGemm::RGridDescriptor_MBlock_MPerBlock,
-                        NumDTensor>,
+                        NumRTensor>,
                     typename GridwiseGemm::DefaultBlock2ETileMap,
                     has_main_loop>;
 
@@ -767,7 +767,7 @@ struct DeviceGemmMultipleDMultipleR_Xdl_CShuffle
                              const void* p_b,
                              std::array<const void*, NumDTensor> p_ds,
                              void* p_e,
-                             std::array<void*, NumDTensor> p_rs,
+                             std::array<void*, NumRTensor> p_rs,
                              index_t MRaw,
                              index_t NRaw,
                              index_t KRaw,
@@ -807,7 +807,7 @@ struct DeviceGemmMultipleDMultipleR_Xdl_CShuffle
                                                       const void* p_b,
                                                       std::array<const void*, NumDTensor> p_ds,
                                                       void* p_e,
-                                                      std::array<void*, NumDTensor> p_rs,
+                                                      std::array<void*, NumRTensor> p_rs,
                                                       index_t MRaw,
                                                       index_t NRaw,
                                                       index_t KRaw,

@@ -143,8 +143,8 @@ int main()
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor2d(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor2d(K, N, StrideB, BLayout{}));
     Tensor<D0DataType> d0_n(f_host_tensor_descriptor1d(N, 1));
-    Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor2d(M, N, StrideD1, ELayout{}));
-    Tensor<EDataType> e_m_n(f_host_tensor_descriptor2d(M, N, StrideE, D1Layout{}));
+    Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor2d(M, N, StrideD1, D1Layout{}));
+    Tensor<EDataType> e_m_n(f_host_tensor_descriptor2d(M, N, StrideE, ELayout{}));
     Tensor<R0DataType> r0_m(f_host_tensor_descriptor1d(M, 1));
     Tensor<R1DataType> r1_m(f_host_tensor_descriptor1d(M, 1));
 
@@ -186,7 +186,7 @@ int main()
                                K,
                                StrideA,
                                StrideB,
-                               std::array<ck::index_t, 2>{StrideD0, StrideD1},
+                               {StrideD0, StrideD1},
                                StrideE,
                                a_element_op,
                                b_element_op,
