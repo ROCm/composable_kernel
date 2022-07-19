@@ -357,7 +357,7 @@ def runCKProfiler(Map conf=[:]){
                             stash name: "perf_fusion_${gpu_arch}.log"
                             stash name: "perf_reduction_${gpu_arch}.log"
                             //we may need to run this on the master
-                            sh "python3 process_qa_data.sh ${gpu_arch}"
+                            sh "./process_qa_data.sh ${gpu_arch}"
                         }
                         else{
                             if (params.USE_9110){
@@ -371,7 +371,7 @@ def runCKProfiler(Map conf=[:]){
                             stash name: "perf_resnet50_N256_${gpu_arch}.log"
                             stash name: "perf_resnet50_N4_${gpu_arch}.log"
                             //we may need to run this on the master
-                            sh "python3 process_perf_data.sh ${gpu_arch}"
+                            sh "./process_perf_data.sh ${gpu_arch}"
                         }
 
 					}
@@ -406,11 +406,11 @@ pipeline {
         booleanParam(
             name: "USE_9110",
             defaultValue: true,
-            description: "")
+            description: "Select compiler version: 9110 (default) or release")
         booleanParam(
             name: "RUN_FULL_QA",
             defaultValue: false,
-            description: "")
+            description: "Select whether to run small set of performance tests (default) or full QA")
     }
     environment{
         dbuser = "${dbuser}"
