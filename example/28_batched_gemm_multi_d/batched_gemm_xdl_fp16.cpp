@@ -96,24 +96,27 @@ int main(int argc, char* argv[])
                                        std::size_t row,
                                        std::size_t col,
                                        std::size_t stride,
+                                       std::size_t batch_stride,
                                        auto layout) {
         if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
         {
             return HostTensorDescriptor(std::vector<std::size_t>({batch_count_, row, col}),
-                                        std::vector<std::size_t>({row * stride, stride, 1}));
+                                        std::vector<std::size_t>({batch_stride, stride, 1}));
         }
         else
         {
             return HostTensorDescriptor(std::vector<std::size_t>({batch_count_, row, col}),
-                                        std::vector<std::size_t>({col * stride, 1, stride}));
+                                        std::vector<std::size_t>({batch_stride, 1, stride}));
         }
     };
 
-    Tensor<ADataType> a_g_m_k(f_host_tensor_descriptor(batch_count, M, K, stride_A, ALayout{}));
-    Tensor<BDataType> b_g_k_n(f_host_tensor_descriptor(batch_count, K, N, stride_B, BLayout{}));
+    Tensor<ADataType> a_g_m_k(
+        f_host_tensor_descriptor(batch_count, M, K, stride_A, batch_stride_A, ALayout{}));
+    Tensor<BDataType> b_g_k_n(
+        f_host_tensor_descriptor(batch_count, K, N, stride_B, batch_stride_B, BLayout{}));
 
     Tensor<EDataType> e_g_m_n_device_result(
-        f_host_tensor_descriptor(batch_count, M, N, stride_C, ELayout{}));
+        f_host_tensor_descriptor(batch_count, M, N, stride_C, batch_stride_C, ELayout{}));
 
     std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
     std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;
@@ -198,7 +201,7 @@ int main(int argc, char* argv[])
         auto ref_invoker      = ref_batched_gemm.MakeInvoker();
 
         Tensor<EDataType> e_g_m_n_host_result(
-            f_host_tensor_descriptor(batch_count, M, N, stride_C, ELayout{}));
+            f_host_tensor_descriptor(batch_count, M, N, stride_C, batch_stride_C, ELayout{}));
 
         auto ref_argument = ref_batched_gemm.MakeArgument(
             a_g_m_k, b_g_k_n, e_g_m_n_host_result, a_element_op, b_element_op, cde_element_op);
