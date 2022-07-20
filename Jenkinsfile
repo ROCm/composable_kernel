@@ -335,18 +335,12 @@ def process_results(Map conf=[:]){
 
     // Jenkins is complaining about the render group 
     // def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
-    def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+    //def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+    def dockerOpts="--cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
     if (conf.get("enforce_xnack_on", false)) {
         dockerOpts = dockerOpts + " --env HSA_XNACK=1"
     }
-    def dockerArgs
-    if (params.USE_9110){
-        dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='9110' "
-        dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
-    }
-    else{
-        dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='release' "
-    }
+    def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='release' "
 
     def variant = env.STAGE_NAME
     def retimage
@@ -354,42 +348,18 @@ def process_results(Map conf=[:]){
     gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
         try {
             retimage = docker.build("${image}", dockerArgs + '.')
-            withDockerContainer(image: image, args: dockerOpts) {
-                timeout(time: 5, unit: 'MINUTES'){
-                    sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
-                    if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
-                        echo "GPU not found"
-                        throw e
-                    }
-                    else{
-                        echo "GPU is OK"
-                    }
-                }
-            }
         }
         catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
             echo "The job was cancelled or aborted"
             throw e
         }
-        catch(Exception ex) {
-            retimage = docker.build("${image}", dockerArgs + " --no-cache .")
-            withDockerContainer(image: image, args: dockerOpts) {
-                timeout(time: 5, unit: 'MINUTES'){
-                    sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
-                    if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
-                        echo "GPU not found"
-                        throw e
-                    }
-                    else{
-                        echo "GPU is OK"
-                    }
-                }
-            }
-        }
+        //catch(Exception ex) {
+        //    retimage = docker.build("${image}", dockerArgs + " --no-cache .")
+        //}
     }
 
     withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
-        timeout(time: 24, unit: 'HOURS'){  
+        timeout(time: 1, unit: 'HOURS'){  
             node("master"){
                 try{
                     dir("script"){
