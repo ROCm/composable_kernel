@@ -326,7 +326,7 @@ def runPerfTest(Map conf=[:]){
 }
 
 def process_results(Map conf=[:]){
-    show_node_info()
+    echo "NODE_NAME = \$NODE_NAME"
     env.HSA_ENABLE_SDMA=0
     checkout scm
     def image = "composable_kernels"
