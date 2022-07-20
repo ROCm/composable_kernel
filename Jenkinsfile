@@ -386,12 +386,12 @@ def process_results(Map conf=[:]){
                 }
             }
         }
+    }
 
-        withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
-            timeout(time: 24, unit: 'HOURS')
-            {  
-                node("master"){
-                    try{
+    withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
+        timeout(time: 24, unit: 'HOURS'){  
+            node("master"){
+                try{
                     dir("script"){
                         //delete any old files
                         sh "rm -f perf_*.log"
