@@ -282,7 +282,7 @@ def runCKProfiler(Map conf=[:]){
                             stash name: "perf_fusion_${gpu_arch}.log"
                             stash name: "perf_reduction_${gpu_arch}.log"
                             //we may need to run this on the master
-                            sh "./process_qa_data.sh ${gpu_arch}"
+                            //sh "./process_qa_data.sh ${gpu_arch}"
                         }
                         else{
                             if (params.USE_9110){
@@ -299,7 +299,7 @@ def runCKProfiler(Map conf=[:]){
                             stash name: "perf_resnet50_N256_${gpu_arch}.log"
                             stash name: "perf_resnet50_N4_${gpu_arch}.log"
                             //we may need to run this on the master
-                            sh "./process_perf_data.sh ${gpu_arch}"
+                            //sh "./process_perf_data.sh ${gpu_arch}"
                         }
 
 					}
@@ -324,6 +324,48 @@ def runPerfTest(Map conf=[:]){
         }
     }
 }
+
+def process_results(Map conf=[:]){
+    node("master"){
+        try{
+            dir("script"){
+                //delete any old files
+                sh "rm -f perf_*.log"
+                if (params.RUN_FULL_QA){
+                    // unstash perf files to master
+                    unstash "perf_gemm_${gpu_arch}.log"
+                    unstash "perf_resnet50_N256_${gpu_arch}.log"
+                    unstash "perf_resnet50_N4_${gpu_arch}.log"
+                    unstash "perf_bathced_gemm_${gpu_arch}.log"
+                    unstash "perf_grouped_gemm_${gpu_arch}.log"
+                    unstash "perf_fwd_conv_${gpu_arch}.log"
+                    unstash "perf_bwd_conv_${gpu_arch}.log"
+                    unstash "perf_fusion_${gpu_arch}.log"
+                    unstash "perf_reduction_${gpu_arch}.log"
+                    sh "./process_qa_data.sh ${gpu_arch}"
+                }
+                else{
+                    // unstash perf files to master
+                    unstash "perf_gemm_${gpu_arch}.log"
+                    unstash "perf_resnet50_N256_${gpu_arch}.log"
+                    unstash "perf_resnet50_N4_${gpu_arch}.log"
+                    sh "./process_perf_data.sh ${gpu_arch}"
+                }
+            }
+        }
+        catch(e){
+            echo "throwing error exception while processing performance test results"
+            echo 'Exception occurred: ' + e.toString()
+            throw e
+        }
+        finally{
+            if (!conf.get("no_reboot", false)) {
+                reboot()
+            }
+        }
+    }
+}
+
 //launch develop branch daily at 23:00 in FULL_QA mode
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;USE_9110=true''' : ""
 
@@ -413,6 +455,16 @@ pipeline {
                 }
             }
         }
+        stage("Process Performance Test Results")
+        {
+            steps{
+                process_results(gpu_arch: "gfx908")
+            }
+            steps{
+                process_results(gpu_arch: "gfx90a")
+            }
+        }
+
 		stage("Tests")
         {
             parallel
