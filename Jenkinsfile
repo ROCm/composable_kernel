@@ -499,6 +499,7 @@ pipeline {
         {
             parallel
             {
+                '''
                 stage("Run ckProfiler: gfx908")
                 {
                     agent{ label rocmnode("gfx908")}
@@ -509,6 +510,7 @@ pipeline {
                         runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
                     }
                 }
+                '''
                 stage("Run ckProfiler: gfx90a")
                 {
                     agent{ label rocmnode("gfx90a")}
@@ -525,14 +527,16 @@ pipeline {
         {
             parallel
             {
+                '''
                 stage("Process results for gfx908"){
                     agent { label 'master' }
                     steps{
                         process_results(gpu_arch: "gfx908")
                     }
                 }
+                '''
                 stage("Process results for gfx90a"){
-                    agent { label 'master' }
+                    agent { label 'mici' }
                     steps{
                         process_results(gpu_arch: "gfx90a")
                     }
