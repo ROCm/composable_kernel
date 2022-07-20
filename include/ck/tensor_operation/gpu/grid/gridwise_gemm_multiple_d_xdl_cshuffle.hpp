@@ -18,8 +18,8 @@
 namespace ck {
 
 // GEMM:
-//   input : A[AK0, M, AK1]
-//   input : B[AK0, N, AK1]
+//   input : A[AK0PerBlock, M, AK1]
+//   input : B[AK0PerBlock, N, AK1]
 //   input : D0[M, N], D1[M, N], ...
 //   output : E[M, N]
 //   C = a_op(A) * b_op(B)
@@ -35,8 +35,8 @@ template <typename FloatAB,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
           InMemoryDataOperationEnum EGlobalMemoryDataOperation,
-          typename AGridDesc_AK0_M_AK1,
-          typename BGridDesc_BK0_N_BK1,
+          typename AGridDesc_M_K,
+          typename BGridDesc_N_K,
           typename EGridDesc_M_N,
           index_t NumGemmKPrefetchStage,
           index_t BlockSize,
@@ -84,10 +84,10 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
     static constexpr auto I7 = Number<7>{};
 
     // K1 should be Number<...>
-    static constexpr auto AK0 = Number<KPerBlock / AK1Value>{};
-    static constexpr auto BK0 = Number<KPerBlock / BK1Value>{};
-    static constexpr auto AK1 = Number<AK1Value>{};
-    static constexpr auto BK1 = Number<BK1Value>{};
+    static constexpr auto AK1         = Number<AK1Value>{};
+    static constexpr auto BK1         = Number<BK1Value>{};
+    static constexpr auto AK0PerBlock = Number<KPerBlock / AK1Value>{};
+    static constexpr auto BK0PerBlock = Number<KPerBlock / BK1Value>{};
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -97,7 +97,7 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
     {
         // A matrix in LDS memory, dst of blockwise copy
         return make_naive_tensor_descriptor(
-            make_tuple(AK0, Number<MPerBlock>{}, AK1),
+            make_tuple(AK0PerBlock, Number<MPerBlock>{}, AK1),
             make_tuple(Number<MPerBlock + ABlockLdsExtraM>{} * AK1, AK1, I1));
     }
 
@@ -105,7 +105,7 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
     {
         // B matrix in LDS memory, dst of blockwise copy
         return make_naive_tensor_descriptor(
-            make_tuple(BK0, Number<NPerBlock>{}, BK1),
+            make_tuple(BK0PerBlock, Number<NPerBlock>{}, BK1),
             make_tuple(Number<NPerBlock + BBlockLdsExtraN>{} * BK1, BK1, I1));
     }
 
@@ -164,8 +164,65 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
                          c_block_size * sizeof(FloatCShuffle));
     }
 
+    __host__ __device__ static constexpr auto
+    MakeDefaultAGridDescriptor_AK0_M_AK1(const AGridDesc_M_K& a_grid_desc_m_k)
+    {
+        const auto M = a_grid_desc_m_k.GetLength(I0);
+        const auto K = a_grid_desc_m_k.GetLength(I1);
+
+        const auto AK0 = K / AK1;
+
+        return transform_tensor_descriptor(a_grid_desc_m_k,
+                                           make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
+                                                      make_pass_through_transform(M)),
+                                           make_tuple(Sequence<1>{}, Sequence<0>{}),
+                                           make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+    }
+
+    __host__ __device__ static constexpr auto
+    MakeDefaultBGridDescriptor_BK0_N_BK1(const BGridDesc_N_K& b_grid_desc_n_k)
+    {
+        const auto N = b_grid_desc_n_k.GetLength(I0);
+        const auto K = b_grid_desc_n_k.GetLength(I1);
+
+        const auto BK0 = K / BK1;
+
+        return transform_tensor_descriptor(b_grid_desc_n_k,
+                                           make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
+                                                      make_pass_through_transform(N)),
+                                           make_tuple(Sequence<1>{}, Sequence<0>{}),
+                                           make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+    }
+
+    __host__ __device__ static constexpr auto
+    MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const EGridDesc_M_N& e_grid_desc_m_n)
+    {
+        const auto M = e_grid_desc_m_n.GetLength(I0);
+        const auto N = e_grid_desc_m_n.GetLength(I1);
+
+        const auto MBlock = M / MPerBlock;
+        const auto NBlock = N / NPerBlock;
+
+        const auto e_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
+            e_grid_desc_m_n,
+            make_tuple(make_unmerge_transform(make_tuple(MBlock, Number<MPerBlock>{})),
+                       make_unmerge_transform(make_tuple(NBlock, Number<NPerBlock>{}))),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}));
+
+        return e_grid_desc_mblock_mperblock_nblock_nperblock;
+    }
+
+    // return block_id to E matrix tile idx (m0, n0) mapping
+    __host__ __device__ static constexpr auto
+    MakeDefaultBlock2ETileMap(const EGridDesc_M_N& e_grid_desc_m_n)
+    {
+        return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, EGridDesc_M_N>(
+            e_grid_desc_m_n);
+    }
+
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
-    template <typename Block2ETileMap>
+    template <typename AGridDesc_AK0_M_AK1, typename BGridDesc_BK0_N_BK1, typename Block2ETileMap>
     __host__ __device__ static constexpr bool
     CheckValidity(const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
                   const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
@@ -210,32 +267,10 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
         return GridwiseGemmPipe::CalculateHasMainLoop(num_loop);
     }
 
-    __host__ __device__ static constexpr auto
-    MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const EGridDesc_M_N& e_grid_desc_m_n)
-    {
-        const auto M = e_grid_desc_m_n.GetLength(I0);
-        const auto N = e_grid_desc_m_n.GetLength(I1);
-
-        const auto MBlock = M / MPerBlock;
-        const auto NBlock = N / NPerBlock;
-
-        const auto e_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
-            e_grid_desc_m_n,
-            make_tuple(make_unmerge_transform(make_tuple(MBlock, Number<MPerBlock>{})),
-                       make_unmerge_transform(make_tuple(NBlock, Number<NPerBlock>{}))),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}));
-
-        return e_grid_desc_mblock_mperblock_nblock_nperblock;
-    }
-
-    // return block_id to E matrix tile idx (m0, n0) mapping
-    __host__ __device__ static constexpr auto
-    MakeDefaultBlock2ETileMap(const EGridDesc_M_N& e_grid_desc_m_n)
-    {
-        return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, EGridDesc_M_N>(
-            e_grid_desc_m_n);
-    }
+    using DefaultAGridDesc_AK0_M_AK1 =
+        remove_cvref_t<decltype(MakeDefaultAGridDescriptor_AK0_M_AK1(AGridDesc_M_K{}))>;
+    using DefaultBGridDesc_BK0_N_BK1 =
+        remove_cvref_t<decltype(MakeDefaultBGridDescriptor_BK0_N_BK1(BGridDesc_N_K{}))>;
 
     using EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
         MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(EGridDesc_M_N{}))>;
@@ -245,7 +280,10 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
 
     using DsGridPointer = decltype(MakeDsGridPointer());
 
-    template <bool HasMainKBlockLoop, typename Block2ETileMap>
+    template <bool HasMainKBlockLoop,
+              typename AGridDesc_AK0_M_AK1,
+              typename BGridDesc_BK0_N_BK1,
+              typename Block2ETileMap>
     __device__ static void
     Run(const FloatAB* __restrict__ p_a_grid,
         const FloatAB* __restrict__ p_b_grid,
@@ -316,7 +354,7 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
                                                 AElementwiseOperation,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 InMemoryDataOperationEnum::Set,
-                                                Sequence<AK0, MPerBlock, AK1>,
+                                                Sequence<AK0PerBlock, MPerBlock, AK1>,
                                                 ABlockTransferThreadClusterLengths_AK0_M_AK1,
                                                 ABlockTransferThreadClusterArrangeOrder,
                                                 FloatAB,
@@ -347,7 +385,7 @@ struct GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle
                                                 BElementwiseOperation,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 InMemoryDataOperationEnum::Set,
-                                                Sequence<BK0, NPerBlock, BK1>,
+                                                Sequence<BK0PerBlock, NPerBlock, BK1>,
                                                 BBlockTransferThreadClusterLengths_BK0_N_BK1,
                                                 BBlockTransferThreadClusterArrangeOrder,
                                                 FloatAB,

@@ -77,18 +77,18 @@ __global__ void
                                                   e_grid_desc_mblock_mperblock_nblock_nperblock,
                                                   block_2_etile_map);
 #else
-    ignore               = p_a_grid;
-    ignore               = p_b_grid;
-    ignore               = p_ds_grid;
-    ignore               = p_e_grid;
-    ignore               = a_element_op;
-    ignore               = b_element_op;
-    ignore               = cde_element_op;
-    ignore               = a_grid_desc_ak0_m_ak1;
-    ignore               = b_grid_desc_bk0_n_bk1;
-    ignore               = ds_grid_desc_mblock_mperblock_nblock_nperblock;
-    ignore               = e_grid_desc_mblock_mperblock_nblock_nperblock;
-    ignore               = block_2_etile_map;
+    ignore = p_a_grid;
+    ignore = p_b_grid;
+    ignore = p_ds_grid;
+    ignore = p_e_grid;
+    ignore = a_element_op;
+    ignore = b_element_op;
+    ignore = cde_element_op;
+    ignore = a_grid_desc_ak0_m_ak1;
+    ignore = b_grid_desc_bk0_n_bk1;
+    ignore = ds_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = e_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = block_2_etile_map;
 #endif
 }
 } // namespace
@@ -197,18 +197,7 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
         const auto wei_gemmn_gemmk_grid_desc =
             matrix_padder.PadBDescriptor_N_K(wei_k_yxc_grid_desc);
 
-        const auto GemmN = wei_gemmn_gemmk_grid_desc.GetLength(I0);
-        const auto GemmK = wei_gemmn_gemmk_grid_desc.GetLength(I1);
-
-        const index_t GemmK0 = GemmK / GemmK1Number;
-
-        // wei_gemmk0_gemmn_gemmk1_grid_desc
-        return transform_tensor_descriptor(
-            wei_gemmn_gemmk_grid_desc,
-            make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
-                       make_pass_through_transform(GemmN)),
-            make_tuple(Sequence<1>{}, Sequence<0>{}),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        return wei_gemmn_gemmk_grid_desc;
     }
 
     static auto GetOutputTensorDescriptor(index_t GemmMRaw, index_t GemmN)
@@ -250,18 +239,7 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
             const auto in_gemmm_gemmk_grid_desc =
                 matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmk_grid_desc);
 
-            const auto GemmM = in_gemmm_gemmk_grid_desc.GetLength(I0);
-            const auto GemmK = in_gemmm_gemmk_grid_desc.GetLength(I1);
-
-            const auto GemmK0 = GemmK / GemmK1Number;
-
-            // in_gemmk0_gemmm_gemmk1_grid_desc
-            return transform_tensor_descriptor(
-                in_gemmm_gemmk_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
-                           make_pass_through_transform(GemmM)),
-                make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+            return in_gemmm_gemmk_grid_desc;
         }
         else if constexpr(ConvForwardSpecialization ==
                           ConvolutionForwardSpecialization::Filter1x1Pad0)
@@ -286,19 +264,7 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
             const auto in_gemmm_gemmk_grid_desc =
                 matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_grid_desc);
 
-            const auto GemmM = in_gemmm_gemmk_grid_desc.GetLength(I0);
-            const auto GemmK = in_gemmm_gemmk_grid_desc.GetLength(I1);
-
-            const auto GemmK0 = GemmK / GemmK1Number;
-
-            const auto in_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
-                in_gemmm_gemmk_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
-                           make_pass_through_transform(GemmM)),
-                make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return in_gemmk0_gemmm_gemmk1_grid_desc;
+            return in_gemmm_gemmk_grid_desc;
         }
         else
         {
@@ -337,19 +303,7 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
             const auto in_gemmm_gemmk_grid_desc =
                 matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmk_grid_desc);
 
-            const auto GemmM = in_gemmm_gemmk_grid_desc.GetLength(I0);
-            const auto GemmK = in_gemmm_gemmk_grid_desc.GetLength(I1);
-
-            const auto GemmK0 = GemmK / GemmK1Number;
-
-            const auto in_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
-                in_gemmm_gemmk_grid_desc,
-                make_tuple(make_pass_through_transform(GemmM),
-                           make_unmerge_transform(make_tuple(GemmK0, GemmK1Number))),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<1>{}, Sequence<0, 2>{}));
-
-            return in_gemmk0_gemmm_gemmk1_grid_desc;
+            return in_gemmm_gemmk_grid_desc;
         }
     }
 
@@ -384,18 +338,7 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
             const auto in_gemmm_gemmk_grid_desc =
                 matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_grid_desc);
 
-            const auto GemmM = in_gemmm_gemmk_grid_desc.GetLength(I0);
-            const auto GemmK = in_gemmm_gemmk_grid_desc.GetLength(I1);
-
-            const auto GemmK0 = GemmK / GemmK1Number;
-
-            // in_gemmk0_gemmm_gemmk1_grid_desc
-            return transform_tensor_descriptor(
-                in_gemmm_gemmk_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
-                           make_pass_through_transform(GemmM)),
-                make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+            return in_gemmm_gemmk_grid_desc;
         }
         else if constexpr(ConvForwardSpecialization ==
                           ConvolutionForwardSpecialization::Filter1x1Pad0)
@@ -422,19 +365,7 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
             const auto in_gemmm_gemmk_grid_desc =
                 matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmk_grid_desc);
 
-            const auto GemmM = in_gemmm_gemmk_grid_desc.GetLength(I0);
-            const auto GemmK = in_gemmm_gemmk_grid_desc.GetLength(I1);
-
-            const auto GemmK0 = GemmK / GemmK1Number;
-
-            const auto in_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
-                in_gemmm_gemmk_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
-                           make_pass_through_transform(GemmM)),
-                make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return in_gemmk0_gemmm_gemmk1_grid_desc;
+            return in_gemmm_gemmk_grid_desc;
         }
         else
         {
@@ -482,19 +413,7 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
             const auto in_gemmm_gemmk_grid_desc =
                 matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmk_grid_desc);
 
-            const auto GemmM = in_gemmm_gemmk_grid_desc.GetLength(I0);
-            const auto GemmK = in_gemmm_gemmk_grid_desc.GetLength(I1);
-
-            const auto GemmK0 = GemmK / GemmK1Number;
-
-            const auto in_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
-                in_gemmm_gemmk_grid_desc,
-                make_tuple(make_pass_through_transform(GemmM),
-                           make_unmerge_transform(make_tuple(GemmK0, GemmK1Number))),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<1>{}, Sequence<0, 2>{}));
-
-            return in_gemmk0_gemmm_gemmk1_grid_desc;
+            return in_gemmm_gemmk_grid_desc;
         }
     }
 
@@ -532,18 +451,7 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
             const auto in_gemmm_gemmk_grid_desc =
                 matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_grid_desc);
 
-            const auto GemmM = in_gemmm_gemmk_grid_desc.GetLength(I0);
-            const auto GemmK = in_gemmm_gemmk_grid_desc.GetLength(I1);
-
-            const auto GemmK0 = GemmK / GemmK1Number;
-
-            // in_gemmk0_gemmm_gemmk1_grid_desc
-            return transform_tensor_descriptor(
-                in_gemmm_gemmk_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
-                           make_pass_through_transform(GemmM)),
-                make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+            return in_gemmm_gemmk_grid_desc;
         }
         else if constexpr(ConvForwardSpecialization ==
                           ConvolutionForwardSpecialization::Filter1x1Pad0)
@@ -573,19 +481,7 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
             const auto in_gemmm_gemmk_grid_desc =
                 matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_grid_desc);
 
-            const auto GemmM = in_gemmm_gemmk_grid_desc.GetLength(I0);
-            const auto GemmK = in_gemmm_gemmk_grid_desc.GetLength(I1);
-
-            const auto GemmK0 = GemmK / GemmK1Number;
-
-            const auto in_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
-                in_gemmm_gemmk_grid_desc,
-                make_tuple(make_unmerge_transform(make_tuple(GemmK0, GemmK1Number)),
-                           make_pass_through_transform(GemmM)),
-                make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return in_gemmk0_gemmm_gemmk1_grid_desc;
+            return in_gemmm_gemmk_grid_desc;
         }
         else
         {
@@ -646,19 +542,7 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
             const auto in_gemmm_gemmk_grid_desc =
                 matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_grid_desc);
 
-            const auto GemmM = in_gemmm_gemmk_grid_desc.GetLength(I0);
-            const auto GemmK = in_gemmm_gemmk_grid_desc.GetLength(I1);
-
-            const auto GemmK0 = GemmK / GemmK1Number;
-
-            const auto in_gemmk0_gemmm_gemmk1_grid_desc = transform_tensor_descriptor(
-                in_gemmm_gemmk_grid_desc,
-                make_tuple(make_pass_through_transform(GemmM),
-                           make_unmerge_transform(make_tuple(GemmK0, GemmK1Number))),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<1>{}, Sequence<0, 2>{}));
-
-            return in_gemmk0_gemmm_gemmk1_grid_desc;
+            return in_gemmm_gemmk_grid_desc;
         }
     }
 
@@ -696,11 +580,8 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
         const index_t GemmNRaw = K;
         const index_t GemmKRaw = GetGemmKRaw(C, filter_spatial_lengths);
 
-        // TODO: remove
-        assert(GemmKRaw % GemmK1Number == 0);
-
         // A:
-        const auto in_gemmk0_gemmm_gemmk1_grid_desc =
+        const auto in_gemmm_gemmk_grid_desc =
             GetInputTensorDescriptor<NDimSpatial>(N,
                                                   C,
                                                   GemmMRaw,
@@ -714,15 +595,13 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
                                                   input_right_pads);
 
         // B:
-        const auto wei_gemmk0_gemmn_gemmk1_grid_desc =
-            GetWeightTensorDescriptor(GemmNRaw, GemmKRaw);
+        const auto wei_gemmn_gemmk_grid_desc = GetWeightTensorDescriptor(GemmNRaw, GemmKRaw);
 
         // E:
         const auto out_gemmm_gemmn_grid_desc = GetOutputTensorDescriptor(GemmMRaw, GemmNRaw);
 
-        return make_tuple(in_gemmk0_gemmm_gemmk1_grid_desc,
-                          wei_gemmk0_gemmn_gemmk1_grid_desc,
-                          out_gemmm_gemmn_grid_desc);
+        return make_tuple(
+            in_gemmm_gemmk_grid_desc, wei_gemmn_gemmk_grid_desc, out_gemmm_gemmn_grid_desc);
     }
 
     template <index_t NDim, typename std::enable_if<NDim == 1, bool>::type = false>
@@ -748,9 +627,9 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
 
     using ABEGridDescs = decltype(GetABEGridDesc<NDimSpatial>());
 
-    using AGridDesc_AK0_M_AK1 = remove_cvref_t<decltype(ABEGridDescs{}[I0])>;
-    using BGridDesc_BK0_N_BK1 = remove_cvref_t<decltype(ABEGridDescs{}[I1])>;
-    using EGridDesc_M_N       = remove_cvref_t<decltype(ABEGridDescs{}[I2])>;
+    using AGridDesc_M_K = remove_cvref_t<decltype(ABEGridDescs{}[I0])>;
+    using BGridDesc_N_K = remove_cvref_t<decltype(ABEGridDescs{}[I1])>;
+    using EGridDesc_M_N = remove_cvref_t<decltype(ABEGridDescs{}[I2])>;
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle<
@@ -763,8 +642,8 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
         BElementwiseOperation,
         CDEElementwiseOperation,
         InMemoryDataOperationEnum::Set,
-        AGridDesc_AK0_M_AK1,
-        BGridDesc_BK0_N_BK1,
+        AGridDesc_M_K,
+        BGridDesc_N_K,
         EGridDesc_M_N,
         NumGemmKPrefetchStage,
         BlockSize,
@@ -799,11 +678,12 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
         CDEBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
 
-#if 0
-    using Block2ETileMap = BlockToCTileMap_M00_N0_M01<MPerBlock, NPerBlock, EGridDesc_M_N>;
-#else
+    using AGridDesc_AK0_M_AK1 = remove_cvref_t<decltype(
+        GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(AGridDesc_M_K{}))>;
+    using BGridDesc_BK0_N_BK1 = remove_cvref_t<decltype(
+        GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(BGridDesc_N_K{}))>;
+
     using Block2ETileMap = typename GridwiseGemm::DefaultBlock2ETileMap;
-#endif
 
     // Argument
     struct Argument : public BaseArgument
@@ -856,9 +736,14 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
                                                                           input_left_pads,
                                                                           input_right_pads);
 
-            a_grid_desc_ak0_m_ak1_ = descs[I0];
-            b_grid_desc_bk0_n_bk1_ = descs[I1];
-            e_grid_desc_m_n_       = descs[I2];
+            const auto a_grid_desc_m_k = descs[I0];
+            const auto b_grid_desc_n_k = descs[I1];
+            e_grid_desc_m_n_           = descs[I2];
+
+            a_grid_desc_ak0_m_ak1_ =
+                GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k);
+            b_grid_desc_bk0_n_bk1_ =
+                GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k);
 
             block_2_etile_map_ = Block2ETileMap{e_grid_desc_m_n_};
 
@@ -917,7 +802,7 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-#if 0
+#if 1
             {
                 std::cout << "arg.a_grid_desc_ak0_m_ak1_{"
                           << arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) << ", "
@@ -1010,6 +895,20 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+#if 1
+        {
+            std::cout << "arg.a_grid_desc_ak0_m_ak1_{" << arg.a_grid_desc_ak0_m_ak1_.GetLength(I0)
+                      << ", " << arg.a_grid_desc_ak0_m_ak1_.GetLength(I1) << ", "
+                      << arg.a_grid_desc_ak0_m_ak1_.GetLength(I2) << "}" << std::endl;
+
+            std::cout << "arg.b_grid_desc_bk0_n_bk1_{" << arg.b_grid_desc_bk0_n_bk1_.GetLength(I0)
+                      << ", " << arg.b_grid_desc_bk0_n_bk1_.GetLength(I1) << ", "
+                      << arg.b_grid_desc_bk0_n_bk1_.GetLength(I2) << "}" << std::endl;
+
+            std::cout << "arg.e_grid_desc_m_n_{ " << arg.e_grid_desc_m_n_.GetLength(I0) << ", "
+                      << arg.e_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
+        }
+#endif
         if(ck::get_device_name() == "gfx908")
         {
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, float> ||
