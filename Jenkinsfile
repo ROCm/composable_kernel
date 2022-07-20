@@ -326,6 +326,7 @@ def runPerfTest(Map conf=[:]){
 }
 
 def process_results(Map conf=[:]){
+    def gpu_arch = conf.get("gpu_arch", "gfx908")
     node("master"){
         try{
             dir("script"){
