@@ -17,7 +17,6 @@
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r3.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "ck/device_utility/device_prop.hpp"
 #include "ck/device_utility/kernel_launch.hpp"
@@ -110,6 +109,10 @@ __global__ void
 // out[N, Do, Ho, Wo, K] = in[N, Di, Hi, Wi, C] * wei[K, Z, Y, X, C]
 //
 template <index_t NDimSpatial,
+          typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename ELayout,
           typename ADataType,
           typename BDataType,
           typename AccDataType,
@@ -150,31 +153,20 @@ template <index_t NDimSpatial,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
-struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
-    : public DeviceConvFwdMultipleD<
-          NDimSpatial,
-          ck::tuple_element_t<NDimSpatial - 1,
-                              ck::Tuple<ck::tensor_layout::convolution::NWC,
-                                        ck::tensor_layout::convolution::NHWC,
-                                        ck::tensor_layout::convolution::NDHWC>>,
-          ck::tuple_element_t<NDimSpatial - 1,
-                              ck::Tuple<ck::tensor_layout::convolution::KXC,
-                                        ck::tensor_layout::convolution::KYXC,
-                                        ck::tensor_layout::convolution::KZYXC>>,
-          ck::tuple_element_t<NDimSpatial - 1,
-                              ck::Tuple<ck::tensor_layout::convolution::NWK,
-                                        ck::tensor_layout::convolution::NHWK,
-                                        ck::tensor_layout::convolution::NDHWK>>,
-          ADataType,
-          BDataType,
-          DsDataType,
-          EDataType,
-          AElementwiseOperation,
-          BElementwiseOperation,
-          CDEElementwiseOperation>
+struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimSpatial,
+                                                                           ALayout,
+                                                                           BLayout,
+                                                                           DsLayout,
+                                                                           ELayout,
+                                                                           ADataType,
+                                                                           BDataType,
+                                                                           DsDataType,
+                                                                           EDataType,
+                                                                           AElementwiseOperation,
+                                                                           BElementwiseOperation,
+                                                                           CDEElementwiseOperation>
 {
-
-    using DeviceOp = DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle;
+    using DeviceOp = DeviceConvFwdMultipleD_Xdl_CShuffle;
 
     static constexpr index_t NumDTensor = DsDataType::Size();
 
@@ -824,7 +816,7 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
                                             arg.block_2_etile_map_))
             {
                 throw std::runtime_error(
-                    "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v2r3 has invalid setting");
+                    "wrong! GridwiseGemmMultipleD_k0mk1_k0nk1_mn_xdl_cshuffle has invalid setting");
             }
 
             const index_t grid_size =
@@ -1076,7 +1068,7 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle"
+        str << "DeviceConvFwdMultipleD_Xdl_CShuffle"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

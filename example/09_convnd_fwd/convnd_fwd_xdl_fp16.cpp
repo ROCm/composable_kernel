@@ -4,7 +4,7 @@
 #include "convnd_fwd_common.hpp"
 
 #include "ck/tensor_operation/gpu/device/device_convnd_fwd_nwc_kxc_nwk_xdl.hpp"
-#include "ck/tensor_operation/gpu/device/device_convnd_fwd_multiple_d_nwc_kxc_nwk_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/device_conv_fwd_multiple_d_xdl_cshuffle.hpp"
 
 using InDataType  = ck::half_t;
 using WeiDataType = ck::half_t;
@@ -67,48 +67,51 @@ static constexpr auto ConvSpec =
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
 template <ck::index_t NDimSpatial>
-using DeviceConvNDFwdInstance =
-    ck::tensor_operation::device::DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle<
-        NDimSpatial,      //
-        InDataType,       //
-        WeiDataType,      //
-        AccDataType,      //
-        CShuffleDataType, //
-        ck::Tuple<>,      //
-        OutDataType,      //
-        InElementOp,      // Input Elementwise Operation
-        WeiElementOp,     // Weights Elementwise Operation
-        OutElementOp,     // Output Elementwise Operation
-        ConvSpec,         // ConvForwardSpecialization
-        GemmSpec,         // GemmSpecialization
-        1,                //
-        256,              // BlockSize
-        128,              // MPerBlock
-        256,              // NPerBlock
-        32,               // KPerBlock
-        8,                // K1
-        32,               // MPerXdl
-        32,               // NPerXdl
-        2,                // MXdlPerWave
-        4,                // NXdlPerWave
-        S<4, 64, 1>,      // ABlockTransferThreadClusterLengths_K0_M_K1
-        S<1, 0, 2>,       // ABlockTransferThreadClusterArrangeOrder
-        S<1, 0, 2>,       // ABlockTransferSrcAccessOrder
-        2,                // ABlockTransferSrcVectorDim
-        8,                // ABlockTransferSrcScalarPerVector
-        8,                // ABlockTransferDstScalarPerVector_K1
-        1,                // ABlockLdsExtraM
-        S<4, 64, 1>,      // BBlockTransferThreadClusterLengths_K0_N_K1
-        S<1, 0, 2>,       // BBlockTransferThreadClusterArrangeOrder
-        S<1, 0, 2>,       // BBlockTransferSrcAccessOrder
-        2,                // BBlockTransferSrcVectorDim
-        8,                // BBlockTransferSrcScalarPerVector
-        8,                // BBlockTransferDstScalarPerVector_K1
-        1,                // BBlockLdsExtraN
-        1,
-        1,
-        S<1, 32, 1, 8>,
-        8>;
+using DeviceConvNDFwdInstance = ck::tensor_operation::device::DeviceConvFwdMultipleD_Xdl_CShuffle<
+    NDimSpatial,
+    ck::tensor_layout::convolution::NWC,
+    ck::tensor_layout::convolution::KXC,
+    ck::tensor_layout::convolution::NWK,
+    ck::Tuple<>,
+    InDataType,
+    WeiDataType,
+    AccDataType,
+    CShuffleDataType,
+    ck::Tuple<>,
+    OutDataType,
+    InElementOp,
+    WeiElementOp,
+    OutElementOp,
+    ConvSpec,    // ConvForwardSpecialization
+    GemmSpec,    // GemmSpecialization
+    1,           //
+    256,         // BlockSize
+    128,         // MPerBlock
+    256,         // NPerBlock
+    32,          // KPerBlock
+    8,           // K1
+    32,          // MPerXdl
+    32,          // NPerXdl
+    2,           // MXdlPerWave
+    4,           // NXdlPerWave
+    S<4, 64, 1>, // ABlockTransferThreadClusterLengths_K0_M_K1
+    S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
+    S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
+    2,           // ABlockTransferSrcVectorDim
+    8,           // ABlockTransferSrcScalarPerVector
+    8,           // ABlockTransferDstScalarPerVector_K1
+    1,           // ABlockLdsExtraM
+    S<4, 64, 1>, // BBlockTransferThreadClusterLengths_K0_N_K1
+    S<1, 0, 2>,  // BBlockTransferThreadClusterArrangeOrder
+    S<1, 0, 2>,  // BBlockTransferSrcAccessOrder
+    2,           // BBlockTransferSrcVectorDim
+    8,           // BBlockTransferSrcScalarPerVector
+    8,           // BBlockTransferDstScalarPerVector_K1
+    1,           // BBlockLdsExtraN
+    1,
+    1,
+    S<1, 32, 1, 8>,
+    8>;
 #endif
 
 int main(int argc, char* argv[])
