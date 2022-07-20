@@ -1,0 +1,1 @@
+add_example_executable(example_group_convnd_fwd_bias_relu_xdl_fp16 group_convnd_fwd_bias_relu_xdl_fp16.cpp)

@@ -13,7 +13,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_conv_fwd.hpp"
+#include "ck/tensor_operation/gpu/device/device_conv_fwd_multiple_d.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
@@ -151,25 +151,27 @@ template <index_t NDimSpatial,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
 struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
-    : public DeviceConvFwd<NDimSpatial,
-                           ck::tuple_element_t<NDimSpatial - 1,
-                                               ck::Tuple<ck::tensor_layout::convolution::NWC,
-                                                         ck::tensor_layout::convolution::NHWC,
-                                                         ck::tensor_layout::convolution::NDHWC>>,
-                           ck::tuple_element_t<NDimSpatial - 1,
-                                               ck::Tuple<ck::tensor_layout::convolution::KXC,
-                                                         ck::tensor_layout::convolution::KYXC,
-                                                         ck::tensor_layout::convolution::KZYXC>>,
-                           ck::tuple_element_t<NDimSpatial - 1,
-                                               ck::Tuple<ck::tensor_layout::convolution::NWK,
-                                                         ck::tensor_layout::convolution::NHWK,
-                                                         ck::tensor_layout::convolution::NDHWK>>,
-                           ADataType,
-                           BDataType,
-                           EDataType,
-                           AElementwiseOperation,
-                           BElementwiseOperation,
-                           CDEElementwiseOperation>
+    : public DeviceConvFwdMultipleD<
+          NDimSpatial,
+          ck::tuple_element_t<NDimSpatial - 1,
+                              ck::Tuple<ck::tensor_layout::convolution::NWC,
+                                        ck::tensor_layout::convolution::NHWC,
+                                        ck::tensor_layout::convolution::NDHWC>>,
+          ck::tuple_element_t<NDimSpatial - 1,
+                              ck::Tuple<ck::tensor_layout::convolution::KXC,
+                                        ck::tensor_layout::convolution::KYXC,
+                                        ck::tensor_layout::convolution::KZYXC>>,
+          ck::tuple_element_t<NDimSpatial - 1,
+                              ck::Tuple<ck::tensor_layout::convolution::NWK,
+                                        ck::tensor_layout::convolution::NHWK,
+                                        ck::tensor_layout::convolution::NDHWK>>,
+          ADataType,
+          BDataType,
+          DsDataType,
+          EDataType,
+          AElementwiseOperation,
+          BElementwiseOperation,
+          CDEElementwiseOperation>
 {
 
     using DeviceOp = DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle;
@@ -1130,9 +1132,9 @@ struct DeviceConvNdFwdMultipleD_NwcKxcNwk_Xdl_CShuffle
     static auto MakeInvoker() { return Invoker{}; }
 
     std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const void* p_in_grid,
-                        const void* p_wei_grid,
-                        void* p_out_grid,
+    MakeArgumentPointer(const ADataType* p_in_grid,
+                        const BDataType* p_wei_grid,
+                        EDataType* p_out_grid,
                         index_t N,
                         index_t K,
                         index_t C,

@@ -93,7 +93,7 @@ void print_helper_msg()
               << "Following arguments (depending on number of spatial dims):\n"
               << " N, K, C, \n"
               << " <filter spatial dimensions>, (ie Y, X for 2D)\n"
-              << " <in_n_hi_wi_c image spatial dimensions>, (ie Hi, Wi for 2D)\n"
+              << " <input image spatial dimensions>, (ie Hi, Wi for 2D)\n"
               << " <strides>, (ie Sy, Sx for 2D)\n"
               << " <dilations>, (ie Dy, Dx for 2D)\n"
               << " <left padding>, (ie LeftPy, LeftPx for 2D)\n"
