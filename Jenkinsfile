@@ -360,11 +360,11 @@ def process_results(Map conf=[:]){
 
     withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
         timeout(time: 1, unit: 'HOURS'){  
-            node("master"){
+            //node("master"){
                 try{
                     dir("script"){
                         //delete any old files
-                        sh "rm -f perf_*.log"
+                        //sh "rm -f perf_*.log"
                         if (params.RUN_FULL_QA){
                             // unstash perf files to master
                             unstash "perf_gemm_${gpu_arch}.log"
@@ -397,7 +397,7 @@ def process_results(Map conf=[:]){
                         reboot()
                     }
                 }
-            }
+            //}
         }
     }
 }
