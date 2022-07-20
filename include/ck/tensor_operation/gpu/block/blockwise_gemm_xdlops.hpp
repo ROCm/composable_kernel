@@ -25,16 +25,27 @@ constexpr LoopScheduler make_default_loop_scheduler()
 #endif // if CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING
 }
 
+// Blockwise gemm supporting both regular XDL output M2_M3_M4_M2 and transposed XDL output
+// M2_N2_N3_N4. The latter is similar to "SourceSwap" seen in Tensile
+// TODO ANT: rename class to reflect the above fact
 template <index_t BlockSize,
           typename FloatAB,
           typename FloatAcc,
-          typename AK0MK1BlockDesc,
+          typename AK0MK1BlockDesc, // could be thread desc
           typename BK0NK1BlockDesc,
+          typename AMmaTileDesc,
+          typename BMmaTileDesc,
+          index_t MPerBlock,
+          index_t NPerBlock,
+          index_t KPerBlock,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPack>
+          index_t KPack,
+          bool TransposeC = false,
+          index_t AMmaKStride = KPack * XdlopsGemm<FloatAB, MPerXDL, NPerXDL, KPack, TransposeC>{}.K0PerXdlops,
+          index_t BMmaKStride = KPack * XdlopsGemm<FloatAB, MPerXDL, NPerXDL, KPack, TransposeC>{}.K0PerXdlops>
 struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 {
     static constexpr auto I0 = Number<0>{};
@@ -46,23 +57,28 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
     static constexpr index_t WaveSize = get_warp_size();
 
-    static constexpr index_t MPerBlock = AK0MK1BlockDesc{}.GetLength(I1);
-    static constexpr index_t NPerBlock = BK0NK1BlockDesc{}.GetLength(I1);
-    static constexpr index_t KPerBlock =
-        BK0NK1BlockDesc{}.GetLength(I0) * BK0NK1BlockDesc{}.GetLength(I2);
+    // static constexpr index_t MPerBlock = AK0MK1BlockDesc{}.GetLength(I1);
+    // static constexpr index_t NPerBlock = BK0NK1BlockDesc{}.GetLength(I1);
+    // static constexpr index_t KPerBlock =
+    //     BK0NK1BlockDesc{}.GetLength(I0) * BK0NK1BlockDesc{}.GetLength(I2);
 
     static constexpr index_t A_K0 = AK0MK1BlockDesc{}.GetLength(I0);
     static constexpr index_t B_K0 = BK0NK1BlockDesc{}.GetLength(I0);
     static constexpr index_t A_K1 = AK0MK1BlockDesc{}.GetLength(I2);
     static constexpr index_t B_K1 = BK0NK1BlockDesc{}.GetLength(I2);
 
-    static constexpr auto xdlops_gemm = XdlopsGemm<FloatAB, MPerXDL, NPerXDL, KPack>{};
+    static constexpr auto xdlops_gemm = XdlopsGemm<FloatAB, MPerXDL, NPerXDL, KPack, TransposeC>{};
 
     static constexpr index_t KPerThread = KPerBlock / xdlops_gemm.K0PerXdlops;
 
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
 
+    // StaticBuffer<AddressSpaceEnum::Vgpr,
+    //              FloatAcc,
+    //              MRepeat * NRepeat * xdlops_gemm.GetRegSizePerXdlops(),
+    //              true>
+    //     c_thread_buf_;
     StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
                               FloatAcc,
                               MRepeat * NRepeat,
@@ -92,7 +108,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
         const auto xdlops_a_idx = xdlops_gemm.CalculateAThreadOriginDataIndex();
 
-        return make_tuple(0, waveId_m, xdlops_a_idx[I1], KPerThread * xdlops_a_idx[I0]);
+        return make_tuple(0, waveId_m, xdlops_a_idx[I1], KPack * xdlops_a_idx[I0]);
     }
 
     __device__ static auto CalculateBThreadOriginDataIndex()
@@ -103,7 +119,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
         const auto xdlops_b_idx = xdlops_gemm.CalculateBThreadOriginDataIndex();
 
-        return make_tuple(0, waveId_n, xdlops_b_idx[I1], KPerThread * xdlops_b_idx[I0]);
+        return make_tuple(0, waveId_n, xdlops_b_idx[I1], KPack * xdlops_b_idx[I0]);
     }
 
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
@@ -135,10 +151,30 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
         return make_tuple(c_thread_m, c_thread_n);
     }
 
-    __host__ __device__ BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1()
+    using Tuple4 = decltype(CalculateAThreadOriginDataIndex());
+
+    __host__ __device__ BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1(
+        Tuple4 a_origin = CalculateAThreadOriginDataIndex(),
+        Tuple4 b_origin = CalculateBThreadOriginDataIndex())
+        : a_thread_copy_(a_origin), b_thread_copy_(b_origin)
     {
-        static_assert(AK0MK1BlockDesc::IsKnownAtCompileTime() &&
-                          BK0NK1BlockDesc::IsKnownAtCompileTime(),
+#if 0
+        if(!TransposeC && hipThreadIdx_x % 32 < 8)
+        {
+            printf("bid %zd tid %zd, a_mma = %d, %d, %d, %d, b_mma = %d, %d, %d, %d\n",
+                   hipBlockIdx_x,
+                   hipThreadIdx_x,
+                   a_origin[Number<0>{}],
+                   a_origin[Number<1>{}],
+                   a_origin[Number<2>{}],
+                   a_origin[Number<3>{}],
+                   b_origin[Number<0>{}],
+                   b_origin[Number<1>{}],
+                   b_origin[Number<2>{}],
+                   b_origin[Number<3>{}]);
+        }
+#endif
+        static_assert(AMmaTileDesc::IsKnownAtCompileTime() && BMmaTileDesc::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
 
         static_assert(ThisThreadBlock::GetNumOfThread() == MWaves * NWaves * WaveSize,
@@ -148,6 +184,27 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                       "wrong!");
     }
 
+    __host__ __device__ BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1(
+        const BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1& other)
+        : a_thread_copy_(other.a_origin), b_thread_copy_(other.b_origin)
+    {
+    }
+
+    // transposed XDL output supporting C_xdl' = B_xdl' * A_xdl'
+    __host__ __device__ static constexpr auto GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4()
+    {
+        constexpr auto c_m0_m1_m2_n_tblk_lens = xdlops_gemm.GetCM0M1M2NThreadBlkLengths();
+
+        constexpr auto M0 = c_m0_m1_m2_n_tblk_lens[I0];
+        constexpr auto M1 = c_m0_m1_m2_n_tblk_lens[I1];
+        constexpr auto M2 = c_m0_m1_m2_n_tblk_lens[I2];
+        constexpr auto N  = c_m0_m1_m2_n_tblk_lens[I3];
+
+        return make_naive_tensor_descriptor_packed(
+            make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, N, M0, M1, M2));
+    }
+
+    // XDL output supporting C_xdl = A_xdl * B_xdl
     __host__ __device__ static constexpr auto GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2()
     {
         constexpr auto c_m0_m1_m2_n_tblk_lens = xdlops_gemm.GetCM0M1M2NThreadBlkLengths();
@@ -174,6 +231,21 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
             make_tuple(I1, Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, M0, M1, M2, N));
     }
 
+    // transposed XDL output supporting C_xdl' = B_xdl' * A_xdl'
+    __host__ __device__ static constexpr auto GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4()
+    {
+        constexpr auto c_block_desc_m0_n0_m1_n1_m2_n2 =
+            make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{},
+                                                           Number<NRepeat>{},
+                                                           Number<MWaves>{},
+                                                           Number<NWaves>{},
+                                                           Number<MPerXDL>{},
+                                                           Number<NPerXDL>{}));
+
+        return xdlops_gemm.MakeCDescriptor_M0_N0_M1_N1_M2_N2_N3_N4(c_block_desc_m0_n0_m1_n1_m2_n2);
+    }
+
+    // XDL output supporting C_xdl = A_xdl * B_xdl
     __host__ __device__ static constexpr auto GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2()
     {
         constexpr auto c_block_desc_m0_n0_m1_n1_m2_n2 =
@@ -239,33 +311,10 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
             c_grid_desc_g_m0_n0_m1_n1_m2_n2);
     }
 
-    __host__ __device__ static constexpr auto MakeABlockDescriptor_M0_M1_M2_K()
-    {
-        return transform_tensor_descriptor(
-            AK0MK1BlockDesc{},
-            make_tuple(
-                make_merge_transform_v3_division_mod(make_tuple(Number<A_K0>{}, Number<A_K1>{})),
-                make_unmerge_transform(
-                    make_tuple(Number<MRepeat>{}, Number<MWaves>{}, Number<MPerXDL>{}))),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
-            make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
-    }
+    static constexpr AMmaTileDesc a_block_desc_m0_m1_m2_k;
+    static constexpr BMmaTileDesc b_block_desc_n0_n1_n2_k;
 
-    __host__ __device__ static constexpr auto MakeBBlockDescriptor_N0_N1_N2_K()
-    {
-        return transform_tensor_descriptor(
-            BK0NK1BlockDesc{},
-            make_tuple(
-                make_merge_transform_v3_division_mod(make_tuple(Number<B_K0>{}, Number<B_K1>{})),
-                make_unmerge_transform(
-                    make_tuple(Number<NRepeat>{}, Number<NWaves>{}, Number<NPerXDL>{}))),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
-            make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
-    }
-
-    static constexpr auto a_block_desc_m0_m1_m2_k = MakeABlockDescriptor_M0_M1_M2_K();
-    static constexpr auto b_block_desc_n0_n1_n2_k = MakeBBlockDescriptor_N0_N1_N2_K();
-
+    // NOTE ANT: a_block_buf for the 2nd gemm is vgpr buffer
     template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>
     __device__ void Run(const ABlockBuffer& a_block_buf,
                         const BBlockBuffer& b_block_buf,
@@ -276,33 +325,65 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
             b_thread_desc_.GetElementSpaceSize());
 
-        static_for<0, MRepeat, 1>{}([&](auto m0) {
-            // read A
-            a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
-                               make_tuple(m0, I0, I0, I0),
-                               a_block_buf,
-                               a_thread_desc_,
-                               make_tuple(I0, I0, I0, I0),
-                               a_thread_buf);
-
-            static_for<0, NRepeat, 1>{}([&](auto n0) {
-                // read B
-                b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
-                                   make_tuple(n0, I0, I0, I0),
-                                   b_block_buf,
-                                   b_thread_desc_,
+        // static_for<0, KPerBlock, KPack * xdlops_gemm.K0PerXdlops>{}([&](auto k) {
+        static_for<0, KPerThread / KPack, 1>{}([&](auto k) { // k=0,1,2 instead of k=kpack*[0, 1, 2]
+            static_for<0, MRepeat, 1>{}([&](auto m0) {
+                // read A1 without stride
+                a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
+                                   make_tuple(m0, I0, I0, Number<k * AMmaKStride>{}),
+                                   a_block_buf,
+                                   a_thread_desc_,
                                    make_tuple(I0, I0, I0, I0),
-                                   b_thread_buf);
+                                   a_thread_buf);
 
-                static_for<0, KPerThread, KPack>{}([&](auto k) {
+                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                    // read B with stride
+                    b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
+                                       make_tuple(n0, I0, I0, Number<k * BMmaKStride>{}),
+                                       b_block_buf,
+                                       b_thread_desc_,
+                                       make_tuple(I0, I0, I0, I0),
+                                       b_thread_buf);
+#if 0
+                if (!TransposeC && hipThreadIdx_x % 32 < 8) {
+                    printf("bid %zd tid %zd, mma tile %d %d %d, a[0:3] = %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, b[0:3] = %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f, %.0f\n",
+                        hipBlockIdx_x, hipThreadIdx_x, m0.value, n0.value, k.value,
+                        // (float)a_thread_buf[Number<0>{}],
+                        // (float)a_thread_buf[Number<1>{}],
+                        // (float)a_thread_buf[Number<2>{}],
+                        // (float)a_thread_buf[Number<3>{}],
+                        // (float)b_thread_buf[Number<0>{}],
+                        // (float)b_thread_buf[Number<1>{}],
+                        // (float)b_thread_buf[Number<2>{}],
+                        // (float)b_thread_buf[Number<3>{}]
+                        (float)a_thread_buf[Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, /* k + */ 0))>{}],
+                        (float)a_thread_buf[Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, /* k + */ 1))>{}],
+                        (float)a_thread_buf[Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, /* k + */ 2))>{}],
+                        (float)a_thread_buf[Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, /* k + */ 3))>{}],
+                        (float)a_thread_buf[Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, /* k + */ 4))>{}],
+                        (float)a_thread_buf[Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, /* k + */ 5))>{}],
+                        (float)a_thread_buf[Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, /* k + */ 6))>{}],
+                        (float)a_thread_buf[Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, /* k + */ 7))>{}],
+                        (float)b_thread_buf[Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, /* k + */ 0))>{}],
+                        (float)b_thread_buf[Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, /* k + */ 1))>{}],
+                        (float)b_thread_buf[Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, /* k + */ 2))>{}],
+                        (float)b_thread_buf[Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, /* k + */ 3))>{}],
+                        (float)b_thread_buf[Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, /* k + */ 4))>{}],
+                        (float)b_thread_buf[Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, /* k + */ 5))>{}],
+                        (float)b_thread_buf[Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, /* k + */ 6))>{}],
+                        (float)b_thread_buf[Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, /* k + */ 7))>{}]
+                        );
+                }
+#endif
                     vector_type<FloatAB, KPack> a_thread_vec;
                     vector_type<FloatAB, KPack> b_thread_vec;
-
+                    // xdlops_gemm.K0PerXdlops
+                    // TODO ANT: add appropriate iteration delta
                     static_for<0, KPack, 1>{}([&](auto i) {
                         a_thread_vec.template AsType<FloatAB>()(i) = a_thread_buf
-                            [Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];
+                            [Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, i))>{}];
                         b_thread_vec.template AsType<FloatAB>()(i) = b_thread_buf
-                            [Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];
+                            [Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, i))>{}];
                     });
 
                     using mfma_input_type =
@@ -337,7 +418,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                                          FloatAB,
                                                          decltype(a_block_desc_m0_m1_m2_k),
                                                          decltype(a_thread_desc_),
-                                                         Sequence<1, 1, 1, KPerThread>,
+                                                         Sequence<1, 1, 1, KPack>,
                                                          Sequence<0, 1, 2, 3>,
                                                          3,
                                                          A_K1,
@@ -347,16 +428,17 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                                          FloatAB,
                                                          decltype(b_block_desc_n0_n1_n2_k),
                                                          decltype(b_thread_desc_),
-                                                         Sequence<1, 1, 1, KPerThread>,
+                                                         Sequence<1, 1, 1, KPack>,
                                                          Sequence<0, 1, 2, 3>,
                                                          3,
                                                          B_K1,
                                                          B_K1>;
 
-    AThreadCopy a_thread_copy_{CalculateAThreadOriginDataIndex()};
-    BThreadCopy b_thread_copy_{CalculateBThreadOriginDataIndex()};
+    AThreadCopy a_thread_copy_; // {CalculateAThreadOriginDataIndex()};
+    BThreadCopy b_thread_copy_; // {CalculateBThreadOriginDataIndex()};
 };
 
+#if 0
 // Note: To facilitate the inter-wave loop scheduler, we need to explicitly set the macro
 // CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING=1 as a few intrinsics are not yet available in
 // the latest ROCm release. For unsupported compilers, inter-wave loop scheduler falls back to the
@@ -584,5 +666,6 @@ constexpr auto BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector()
                                                                             KPack>{};
     }
 };
+#endif
 
 } // namespace ck

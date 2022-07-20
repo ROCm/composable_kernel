@@ -61,6 +61,7 @@ struct StaticBufferTupleOfVector
 
     static constexpr auto s_per_v   = Number<ScalarPerVector>{};
     static constexpr auto num_of_v_ = Number<NumOfVector>{};
+    static constexpr auto s_per_buf = s_per_v * num_of_v_;
 
     __host__ __device__ constexpr StaticBufferTupleOfVector() : base{} {}
 
@@ -70,6 +71,7 @@ struct StaticBufferTupleOfVector
 
     __host__ __device__ static constexpr bool IsDynamicBuffer() { return false; }
 
+    __host__ __device__ static constexpr index_t Size() { return s_per_buf; };
     // Get S
     // i is offset of S
     template <index_t I>

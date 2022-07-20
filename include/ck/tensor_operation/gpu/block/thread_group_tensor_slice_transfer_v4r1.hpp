@@ -81,7 +81,21 @@ struct ThreadGroupTensorSliceTransfer_v4r1
                 make_multi_index(ThreadGroup::GetThreadId()));
 
             const auto thread_data_idx_begin = thread_cluster_idx * thread_slice_lengths;
-
+#if 0
+            if (std::is_same<Sequence<16,64,2>, BlockSliceLengths>::value)
+            {
+                auto s = src_block_slice_origin + thread_data_idx_begin;
+                auto d = dst_block_slice_origin + thread_data_idx_begin;
+                printf("bid %zd tid %zd, src origin %d %d %d, dst origin %d %d %d\n",
+                hipBlockIdx_x, hipThreadIdx_x,
+                s[Number<0>{}],
+                s[Number<1>{}],
+                s[Number<2>{}],
+                d[Number<0>{}],
+                d[Number<1>{}],
+                d[Number<2>{}]);
+            }
+#endif
             threadwise_transfer_.SetSrcSliceOrigin(src_desc,
                                                    src_block_slice_origin + thread_data_idx_begin);
             threadwise_transfer_.SetDstSliceOrigin(dst_desc,

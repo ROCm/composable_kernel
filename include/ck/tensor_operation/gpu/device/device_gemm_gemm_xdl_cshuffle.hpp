@@ -24,29 +24,36 @@ namespace device {
 // version currently has compiler issues with register spill which further causes validation
 // failures.
 // Computes C = A * B0 * B1
+//              ^^^^^^ (Acc0)
+//              ^^^^^^^^^^^ (Acc1)
 template <typename ALayout,
-          typename BLayout,
+          typename BLayout, // B0Layout
+          typename B1Layout,
           typename CLayout,
           typename ADataType,
-          typename BDataType,
+          typename BDataType, // NOTE: don't distinguish B0/B1 type just yet
           typename CDataType,
           typename GemmAccDataType,
           typename CShuffleDataType,
           typename AElementwiseOperation,
-          typename BElementwiseOperation,
+          typename BElementwiseOperation, // NOTE: don't distinguish B0/B1 type just yet
           typename CElementwiseOperation,
           GemmSpecialization GemmSpec,
           index_t NumGemmKPrefetchStage,
           index_t BlockSize,
           index_t MPerBlock,
-          index_t NPerBlock,
-          index_t KPerBlock,
+          index_t NPerBlock, // Gemm0NPerBlock
+          index_t KPerBlock, // Gemm0KPerBlock
+          index_t Gemm1NPerBlock,
+          index_t Gemm1KPerBlock,
           index_t AK1,
           index_t BK1,
+          index_t B1K1,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MXdlPerWave,
           index_t NXdlPerWave,
+          index_t Gemm1NXdlPerWave,
           typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -61,20 +68,19 @@ template <typename ALayout,
           index_t BBlockTransferSrcScalarPerVector,
           index_t BBlockTransferDstScalarPerVector_BK1,
           bool BBlockLdsExtraN,
+          typename B1BlockTransferThreadClusterLengths_BK0_N_BK1,
+          typename B1BlockTransferThreadClusterArrangeOrder,
+          typename B1BlockTransferSrcAccessOrder,
+          index_t B1BlockTransferSrcVectorDim,
+          index_t B1BlockTransferSrcScalarPerVector,
+          index_t B1BlockTransferDstScalarPerVector_BK1,
+          bool B1BlockLdsExtraN,
           index_t CShuffleMXdlPerWavePerShuffle,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
-struct DeviceGemmGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
-                                                   BLayout,
-                                                   CLayout,
-                                                   ADataType,
-                                                   BDataType,
-                                                   CDataType,
-                                                   AElementwiseOperation,
-                                                   BElementwiseOperation,
-                                                   CElementwiseOperation>
+struct DeviceGemmGemm_Xdl_CShuffle : public BaseOperator // TODO ANT: inherit from DeviceGemmGemm subtype
 {
     using DeviceOp = DeviceGemmGemm_Xdl_CShuffle;
 
@@ -288,6 +294,44 @@ struct DeviceGemmGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         }
     }
 
+    // Args: Gemm1KRaw, Gemm1NRaw, StrideB1
+    static auto MakeB1GridDescriptor_BK0_N_BK1(index_t KRaw, index_t NRaw, index_t StrideB)
+    {
+        const auto b1_grid_desc_nraw_kraw = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, B1Layout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
+                                                    make_tuple(I1, StrideB));
+            }
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, B1Layout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
+                                                    make_tuple(StrideB, I1));
+            }
+        }();
+
+        const auto N = math::integer_divide_ceil(NRaw, Gemm1NPerBlock) * Gemm1NPerBlock;
+        const auto K = math::integer_divide_ceil(KRaw, Gemm1KPerBlock) * Gemm1KPerBlock;
+
+        const auto NPad = N - NRaw;
+        const auto KPad = K - KRaw;
+
+        // TODO ANT: implement padding
+        // not pad N or K
+        assert(KRaw % B1K1 == 0);
+
+        const auto B1K0 = KRaw / B1K1;
+
+        const auto b1_grid_desc_bk0_n_bk1 =
+            transform_tensor_descriptor(b1_grid_desc_nraw_kraw,
+                                        make_tuple(make_unmerge_transform(make_tuple(B1K0, B1K1)),
+                                                   make_pass_through_transform(NRaw)),
+                                        make_tuple(Sequence<1>{}, Sequence<0>{}),
+                                        make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+
+        return b1_grid_desc_bk0_n_bk1;
+    }
+
     static auto MakeCGridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t StrideC)
     {
         const auto c_grid_desc_mraw_nraw = [&]() {
@@ -304,7 +348,7 @@ struct DeviceGemmGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         }();
 
         const auto M = math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
-        const auto N = math::integer_divide_ceil(NRaw, NPerBlock) * NPerBlock;
+        const auto N = math::integer_divide_ceil(NRaw, Gemm1NPerBlock) * Gemm1NPerBlock;
 
         const auto MPad = M - MRaw;
         const auto NPad = N - NRaw;
@@ -348,6 +392,7 @@ struct DeviceGemmGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
 
     using AGridDesc_AK0_M_AK1 = decltype(MakeAGridDescriptor_AK0_M_AK1(1, 1, 1));
     using BGridDesc_BK0_N_BK1 = decltype(MakeBGridDescriptor_BK0_N_BK1(1, 1, 1));
+    using B1GridDesc_BK0_N_BK1 = decltype(MakeB1GridDescriptor_BK0_N_BK1(1, 1, 1));
     using CGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
@@ -362,18 +407,23 @@ struct DeviceGemmGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         InMemoryDataOperationEnum::Set,
         AGridDesc_AK0_M_AK1,
         BGridDesc_BK0_N_BK1,
+        B1GridDesc_BK0_N_BK1,
         CGridDesc_M_N,
         NumGemmKPrefetchStage,
         BlockSize,
         MPerBlock,
         NPerBlock,
         KPerBlock,
+        Gemm1NPerBlock,
+        Gemm1KPerBlock,
         AK1,
         BK1,
+        B1K1,
         MPerXDL,
         NPerXDL,
         MXdlPerWave,
         NXdlPerWave,
+        Gemm1NXdlPerWave,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -390,6 +440,14 @@ struct DeviceGemmGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         BBlockTransferDstScalarPerVector_BK1,
         false,
         BBlockLdsExtraN,
+        B1BlockTransferThreadClusterLengths_BK0_N_BK1,
+        B1BlockTransferThreadClusterArrangeOrder,
+        B1BlockTransferSrcAccessOrder,
+        B1BlockTransferSrcVectorDim,
+        B1BlockTransferSrcScalarPerVector,
+        B1BlockTransferDstScalarPerVector_BK1,
+        false,
+        B1BlockLdsExtraN,
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -401,22 +459,27 @@ struct DeviceGemmGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
     {
         Argument(const ADataType* p_a_grid,
                  const BDataType* p_b_grid,
+                 const BDataType* p_b1_grid,
                  CDataType* p_c_grid,
                  index_t MRaw,
                  index_t NRaw,
                  index_t KRaw,
+                 index_t Gemm1NRaw, // = ORaw
                  index_t StrideA,
                  index_t StrideB,
+                 index_t StrideB1,
                  index_t StrideC,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
+              p_b1_grid_{p_b1_grid},
               p_c_grid_{p_c_grid},
               a_grid_desc_ak0_m_ak1_{DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, KRaw, StrideA)},
               b_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1(KRaw, NRaw, StrideB)},
-              c_grid_desc_m_n_{DeviceOp::MakeCGridDescriptor_M_N(MRaw, NRaw, StrideC)},
+              b1_grid_desc_bk0_n_bk1_{DeviceOp::MakeB1GridDescriptor_BK0_N_BK1(NRaw, Gemm1NRaw, StrideB1)},
+              c_grid_desc_m_n_{DeviceOp::MakeCGridDescriptor_M_N(MRaw, Gemm1NRaw, StrideC)},
               c_grid_desc_mblock_mperblock_nblock_nperblock_{},
               block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_)},
               a_element_op_{a_element_op},
@@ -425,6 +488,7 @@ struct DeviceGemmGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         {
             if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
                                            b_grid_desc_bk0_n_bk1_,
+                                           b1_grid_desc_bk0_n_bk1_,
                                            c_grid_desc_m_n_,
                                            block_2_ctile_map_))
             {
@@ -437,9 +501,11 @@ struct DeviceGemmGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         //  private:
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
+        const BDataType* p_b1_grid_;
         CDataType* p_c_grid_;
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
+        B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1_;
         CGridDesc_M_N c_grid_desc_m_n_;
         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
@@ -473,8 +539,10 @@ struct DeviceGemmGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
             }
 #endif
 
+            // TODO ANT: block id to ctilemap should infer acc0tile map
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
                                             arg.b_grid_desc_bk0_n_bk1_,
+                                            arg.b1_grid_desc_bk0_n_bk1_,
                                             arg.c_grid_desc_m_n_,
                                             arg.block_2_ctile_map_))
             {
@@ -484,13 +552,13 @@ struct DeviceGemmGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
             const index_t grid_size =
                 arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_);
 
+            // TODO ANT: K for gemm1
             const auto K =
                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
 
             float ave_time = 0;
 
-            if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
-            {
+            auto launch_kernel = [&](auto has_main_k_block_loop_) {
                 const auto kernel = kernel_gemm_gemm_xdl_cshuffle_v1<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
@@ -500,57 +568,38 @@ struct DeviceGemmGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                     CElementwiseOperation,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
+                    DeviceOp::B1GridDesc_BK0_N_BK1,
                     typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseGemm::DefaultBlock2CTileMap,
-                    true>;
+                    has_main_k_block_loop_>;
 
-                ave_time =
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_,
-                                           arg.p_b_grid_,
-                                           arg.p_c_grid_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.c_element_op_,
-                                           arg.a_grid_desc_ak0_m_ak1_,
-                                           arg.b_grid_desc_bk0_n_bk1_,
-                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.block_2_ctile_map_);
+                return launch_and_time_kernel(stream_config,
+                                              kernel,
+                                              dim3(grid_size),
+                                              dim3(BlockSize),
+                                              0,
+                                              arg.p_a_grid_,
+                                              arg.p_b_grid_,
+                                              arg.p_b1_grid_,
+                                              arg.p_c_grid_,
+                                              arg.a_element_op_,
+                                              arg.b_element_op_,
+                                              arg.c_element_op_,
+                                              arg.a_grid_desc_ak0_m_ak1_,
+                                              arg.b_grid_desc_bk0_n_bk1_,
+                                              arg.b1_grid_desc_bk0_n_bk1_,
+                                              arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                              arg.block_2_ctile_map_);
+            };
+
+            // TODO ANT: handle tail loops for gemm0 & gemm1
+            if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
+            {
+                ave_time = launch_kernel(integral_constant<bool, true>{});
             }
             else
             {
-                const auto kernel = kernel_gemm_gemm_xdl_cshuffle_v1<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    CDataType,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CElementwiseOperation,
-                    DeviceOp::AGridDesc_AK0_M_AK1,
-                    DeviceOp::BGridDesc_BK0_N_BK1,
-                    typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    typename GridwiseGemm::DefaultBlock2CTileMap,
-                    false>;
-                ave_time =
-                    launch_and_time_kernel(stream_config,
-                                           kernel,
-                                           dim3(grid_size),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.p_a_grid_,
-                                           arg.p_b_grid_,
-                                           arg.p_c_grid_,
-                                           arg.a_element_op_,
-                                           arg.b_element_op_,
-                                           arg.c_element_op_,
-                                           arg.a_grid_desc_ak0_m_ak1_,
-                                           arg.b_grid_desc_bk0_n_bk1_,
-                                           arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                           arg.block_2_ctile_map_);
+                ave_time = launch_kernel(integral_constant<bool, false>{});
             }
 
             return ave_time;
@@ -579,6 +628,7 @@ struct DeviceGemmGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
 
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
                                            arg.b_grid_desc_bk0_n_bk1_,
+                                           arg.b1_grid_desc_bk0_n_bk1_,
                                            arg.c_grid_desc_m_n_,
                                            arg.block_2_ctile_map_);
     }
@@ -591,12 +641,15 @@ struct DeviceGemmGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
 
     static auto MakeArgument(const ADataType* p_a,
                              const BDataType* p_b,
+                             const BDataType* p_b1,
                              CDataType* p_c,
                              index_t MRaw,
                              index_t NRaw,
                              index_t KRaw,
+                             index_t Gemm1NRaw,
                              index_t StrideA,
                              index_t StrideB,
+                             index_t StrideB1,
                              index_t StrideC,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
@@ -604,12 +657,15 @@ struct DeviceGemmGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
     {
         return Argument{p_a,
                         p_b,
+                        p_b1,
                         p_c,
                         MRaw,
                         NRaw,
                         KRaw,
+                        Gemm1NRaw,
                         StrideA,
                         StrideB,
+                        StrideB1,
                         StrideC,
                         a_element_op,
                         b_element_op,
@@ -621,25 +677,31 @@ struct DeviceGemmGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
     // polymorphic
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
                                                       const void* p_b,
+                                                      const void* p_b1,
                                                       void* p_c,
                                                       index_t MRaw,
                                                       index_t NRaw,
                                                       index_t KRaw,
+                                                      index_t Gemm1NRaw,
                                                       index_t StrideA,
                                                       index_t StrideB,
+                                                      index_t StrideB1,
                                                       index_t StrideC,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op) override
+                                                      CElementwiseOperation c_element_op) /* override */
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
+                                          static_cast<const BDataType*>(p_b1),
                                           static_cast<CDataType*>(p_c),
                                           MRaw,
                                           NRaw,
                                           KRaw,
+                                          Gemm1NRaw,
                                           StrideA,
                                           StrideB,
+                                          StrideB1,
                                           StrideC,
                                           a_element_op,
                                           b_element_op,
@@ -647,7 +709,7 @@ struct DeviceGemmGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
     }
 
     // polymorphic
-    std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
+    std::unique_ptr<BaseInvoker> MakeInvokerPointer() /* override */
     {
         return std::make_unique<Invoker>(Invoker{});
     }
@@ -658,15 +720,18 @@ struct DeviceGemmGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGemm_Xdl_CShuffle"
+        str << "DeviceGemmGemm_Xdl_CShuffle"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
             << KPerBlock << ", "
             << AK1 << ", "
-            << BK1
-            << ">";
+            << BK1 << ", "
+            << NPerBlock << ", "
+            << Gemm1NPerBlock << ", "
+            << Gemm1KPerBlock << ", "
+            << B1K1 << ">";
         // clang-format on
 
         return str.str();
