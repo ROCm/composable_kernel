@@ -326,42 +326,107 @@ def runPerfTest(Map conf=[:]){
 }
 
 def process_results(Map conf=[:]){
+    show_node_info()
+    env.HSA_ENABLE_SDMA=0
+    checkout scm
+    def image = "composable_kernels"
+    def prefixpath = "/opt/rocm"
     def gpu_arch = conf.get("gpu_arch", "gfx908")
-    node("master"){
-        try{
-            dir("script"){
-                //delete any old files
-                sh "rm -f perf_*.log"
-                if (params.RUN_FULL_QA){
-                    // unstash perf files to master
-                    unstash "perf_gemm_${gpu_arch}.log"
-                    unstash "perf_resnet50_N256_${gpu_arch}.log"
-                    unstash "perf_resnet50_N4_${gpu_arch}.log"
-                    unstash "perf_bathced_gemm_${gpu_arch}.log"
-                    unstash "perf_grouped_gemm_${gpu_arch}.log"
-                    unstash "perf_fwd_conv_${gpu_arch}.log"
-                    unstash "perf_bwd_conv_${gpu_arch}.log"
-                    unstash "perf_fusion_${gpu_arch}.log"
-                    unstash "perf_reduction_${gpu_arch}.log"
-                    sh "./process_qa_data.sh ${gpu_arch}"
-                }
-                else{
-                    // unstash perf files to master
-                    unstash "perf_gemm_${gpu_arch}.log"
-                    unstash "perf_resnet50_N256_${gpu_arch}.log"
-                    unstash "perf_resnet50_N4_${gpu_arch}.log"
-                    sh "./process_perf_data.sh ${gpu_arch}"
+
+    // Jenkins is complaining about the render group 
+    // def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+    def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+    if (conf.get("enforce_xnack_on", false)) {
+        dockerOpts = dockerOpts + " --env HSA_XNACK=1"
+    }
+    def dockerArgs
+    if (params.USE_9110){
+        dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='9110' "
+        dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
+    }
+    else{
+        dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='release' "
+    }
+
+    def variant = env.STAGE_NAME
+    def retimage
+
+    gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
+        try {
+            retimage = docker.build("${image}", dockerArgs + '.')
+            withDockerContainer(image: image, args: dockerOpts) {
+                timeout(time: 5, unit: 'MINUTES'){
+                    sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
+                    if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                        echo "GPU not found"
+                        throw e
+                    }
+                    else{
+                        echo "GPU is OK"
+                    }
                 }
             }
         }
-        catch(e){
-            echo "throwing error exception while processing performance test results"
-            echo 'Exception occurred: ' + e.toString()
+        catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+            echo "The job was cancelled or aborted"
             throw e
         }
-        finally{
-            if (!conf.get("no_reboot", false)) {
-                reboot()
+        catch(Exception ex) {
+            retimage = docker.build("${image}", dockerArgs + " --no-cache .")
+            withDockerContainer(image: image, args: dockerOpts) {
+                timeout(time: 5, unit: 'MINUTES'){
+                    sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
+                    if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                        echo "GPU not found"
+                        throw e
+                    }
+                    else{
+                        echo "GPU is OK"
+                    }
+                }
+            }
+        }
+
+        withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
+            timeout(time: 24, unit: 'HOURS')
+            {  
+                node("master"){
+                    try{
+                    dir("script"){
+                        //delete any old files
+                        sh "rm -f perf_*.log"
+                        if (params.RUN_FULL_QA){
+                            // unstash perf files to master
+                            unstash "perf_gemm_${gpu_arch}.log"
+                            unstash "perf_resnet50_N256_${gpu_arch}.log"
+                            unstash "perf_resnet50_N4_${gpu_arch}.log"
+                            unstash "perf_bathced_gemm_${gpu_arch}.log"
+                            unstash "perf_grouped_gemm_${gpu_arch}.log"
+                            unstash "perf_fwd_conv_${gpu_arch}.log"
+                            unstash "perf_bwd_conv_${gpu_arch}.log"
+                            unstash "perf_fusion_${gpu_arch}.log"
+                            unstash "perf_reduction_${gpu_arch}.log"
+                            sh "./process_qa_data.sh ${gpu_arch}"
+                        }
+                        else{
+                            // unstash perf files to master
+                            unstash "perf_gemm_${gpu_arch}.log"
+                            unstash "perf_resnet50_N256_${gpu_arch}.log"
+                            unstash "perf_resnet50_N4_${gpu_arch}.log"
+                            sh "./process_perf_data.sh ${gpu_arch}"
+                        }
+                    }
+                }
+                catch(e){
+                    echo "throwing error exception while processing performance test results"
+                    echo 'Exception occurred: ' + e.toString()
+                    throw e
+                }
+                finally{
+                    if (!conf.get("no_reboot", false)) {
+                        reboot()
+                    }
+                }
             }
         }
     }
