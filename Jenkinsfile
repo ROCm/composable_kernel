@@ -256,95 +256,17 @@ def runCKProfiler(Map conf=[:]){
             }
 
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
-                timeout(time: 5, unit: 'HOURS')
+                timeout(time: 24, unit: 'HOURS')
                 {
                     cmake_build(conf)
 					dir("script"){
-                        '''
-                        //run gemm performance tests
-                        def gemm_log = "perf_gemm_${gpu_arch}.log"
-                        sh "rm -f ${gemm_log}"
-                        sh "echo Branch name: ${env.BRANCH_NAME} > ${gemm_log}"
-                        sh "echo Node name: ${NODE_NAME} >> ${gemm_log}"
-                        sh "echo GPU_arch name: ${gpu_arch}  >> ${gemm_log}"
-                        sh "rocminfo | grep 'Compute Unit:' >> ${gemm_log} "
-                        sh "hipcc --version | grep -e 'HIP version'  >> ${gemm_log}"
-                        if (params.USE_9110){
-                            sh "echo Environment type: CI_9110  >> ${gemm_log}"
-                        }
-                        else{
-                            sh "echo Environment type: CI_release  >> ${gemm_log}"
-                        }
-                        sh "/opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 0 0 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 1 0 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 2 0 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 3 0 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 0 1 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 1 1 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 2 1 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 3 1 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 0 2 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 1 2 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 2 2 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 3 2 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 0 3 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 1 3 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 2 3 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 3 3 0 1 0 5 | tee -a ${gemm_log}"
-                        //results will be parsed, stored, and analyzed within the python script
-                        //the script will return 0 if the performance criteria are met
-                        //or return 1 if the criteria are not met
-                        archiveArtifacts  "${gemm_log}"
-                        //run resnet50 test
-                        def resnet256_log = "perf_resnet50_N256_${gpu_arch}.log"
-                        sh "rm -f ${resnet256_log}"
-                        sh "echo Branch name: ${env.BRANCH_NAME} > ${resnet256_log}"
-                        sh "echo Node name: ${NODE_NAME} >> ${resnet256_log}"
-                        sh "echo GPU_arch name: ${gpu_arch}  >> ${resnet256_log}"
-                        sh "rocminfo | grep 'Compute Unit:' >> ${resnet256_log} "
-                        sh "hipcc --version | grep -e 'HIP version'  >> ${resnet256_log}"
-                        if (params.USE_9110){
-                            sh "echo Environment type: CI_9110  >> ${resnet256_log}"
-                        }
-                        else{
-                            sh "echo Environment type: CI_release  >> ${resnet256_log}"
-                        }
-                        sh "/opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> ${resnet256_log}"
-                        //first run tests with N=256
-                        sh "./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 0 2 0 1 256 | tee -a ${resnet256_log}"
-                        archiveArtifacts  "${resnet256_log}"
-                        //then run with N=4
-                        def resnet4_log = "perf_resnet50_N4_${gpu_arch}.log"
-                        sh "rm -f ${resnet4_log}"
-                        sh "echo Branch name: ${env.BRANCH_NAME} > ${resnet4_log}"
-                        sh "echo Node name: ${NODE_NAME} >> ${resnet4_log}"
-                        sh "echo GPU_arch name: ${gpu_arch}  >> ${resnet4_log}"
-                        sh "rocminfo | grep 'Compute Unit:' >> ${resnet4_log} "
-                        sh "hipcc --version | grep -e 'HIP version'  >> ${resnet4_log}"
-                        if (params.USE_9110){
-                            sh "echo Environment type: CI_9110  >> ${resnet4_log}"
-                        }
-                        else{
-                            sh "echo Environment type: CI_release  >> ${resnet4_log}"
-                        }
-                        sh "/opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> ${resnet4_log}"
-                        sh "./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 0 2 0 1 4 | tee -a ${resnet4_log}"
-                        archiveArtifacts  "${resnet4_log}"
-
-                        sh "python3 process_perf_data.py ${gemm_log} "
-                        sh "python3 process_perf_data.py ${resnet256_log} "
-                        sh "python3 process_perf_data.py ${resnet4_log} "
-                        '''
-
-
                         if (params.RUN_FULL_QA){
                             def qa_log = "qa_${gpu_arch}.log"
                             if (params.USE_9110){
-                                sh "./run_full_performance_tests.sh 1 QA_9110 ${gpu_arch}"
+                                sh "./run_full_performance_tests.sh 1 QA_9110 ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
                             }
                             else{
-                                sh "./run_full_performance_tests.sh 1 QA_release ${gpu_arch}"
+                                sh "./run_full_performance_tests.sh 1 QA_release ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
                             }
                             archiveArtifacts "perf_gemm_${gpu_arch}.log"
                             archiveArtifacts "perf_resnet50_N256_${gpu_arch}.log"
@@ -364,10 +286,10 @@ def runCKProfiler(Map conf=[:]){
                         }
                         else{
                             if (params.USE_9110){
-                                sh "./run_performance_tests.sh 0 CI_9110 ${gpu_arch}"
+                                sh "./run_performance_tests.sh 0 CI_9110 ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
                             }
                             else{
-                                sh "./run_performance_tests.sh 0 CI_release ${gpu_arch}"
+                                sh "./run_performance_tests.sh 0 CI_release ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
                             }
                             archiveArtifacts "perf_gemm_${gpu_arch}.log"
                             archiveArtifacts "perf_resnet50_N256_${gpu_arch}.log"
