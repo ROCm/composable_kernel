@@ -457,11 +457,18 @@ pipeline {
         }
         stage("Process Performance Test Results")
         {
-            steps{
-                process_results(gpu_arch: "gfx908")
-            }
-            steps{
-                process_results(gpu_arch: "gfx90a")
+            parallel
+            {
+                stage("Process results for gfx908"){
+                    steps{
+                        process_results(gpu_arch: "gfx908")
+                    }
+                }
+                stage("Process results for gfx90a"){
+                    steps{
+                        process_results(gpu_arch: "gfx90a")
+                    }
+                }
             }
         }
 
