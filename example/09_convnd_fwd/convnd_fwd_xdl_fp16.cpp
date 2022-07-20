@@ -44,7 +44,7 @@ using DeviceConvNDFwdInstance = ck::tensor_operation::device::DeviceConvNdFwdNwc
     4,              // NXdlPerWave
     S<4, 64, 1>,    // ABlockTransferThreadClusterLengths_K0_M_K1
     S<1, 0, 2>,     // ABlockTransferThreadClusterArrangeOrder
-    S<1, 0, 2>,     // ABlockTransferSrcAccessOrder
+    S<1, 0, 2>, 1    // ABlockTransferSrcAccessOrder
     2,              // ABlockTransferSrcVectorDim
     8,              // ABlockTransferSrcScalarPerVector
     8,              // ABlockTransferDstScalarPerVector_K1
@@ -69,10 +69,10 @@ static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecializatio
 template <ck::index_t NDimSpatial>
 using DeviceConvNDFwdInstance = ck::tensor_operation::device::DeviceConvFwdMultipleD_Xdl_CShuffle<
     NDimSpatial,
-    ck::tensor_layout::convolution::NWC,
-    ck::tensor_layout::convolution::KXC,
-    ck::tensor_layout::convolution::NWK,
+    ck::tensor_layout::convolution::NHWC,
+    ck::tensor_layout::convolution::KYXC,
     ck::Tuple<>,
+    ck::tensor_layout::convolution::NHWK,
     InDataType,
     WeiDataType,
     AccDataType,
