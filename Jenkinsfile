@@ -526,11 +526,13 @@ pipeline {
             parallel
             {
                 stage("Process results for gfx908"){
+                    agent { label 'master' }
                     steps{
                         process_results(gpu_arch: "gfx908")
                     }
                 }
                 stage("Process results for gfx90a"){
+                    agent { label 'master' }
                     steps{
                         process_results(gpu_arch: "gfx90a")
                     }
