@@ -27,8 +27,8 @@ export host_name=$5
 echo 'Host name: ' $host_name
 function print_log_header(){
 	rm -f $1;
-	echo 'On branch $3' &> $1;
-	echo 'Node name: $4' >> $1;
+	echo 'On branch ' $3 &> $1;
+	echo 'Node name: ' $4 >> $1;
 	#get GPU_arch and number of compute units from rocminfo
 	echo -n "GPU_arch: " >> $1; rocminfo | grep "Name:" | grep "gfx" >> $1;
 	rocminfo | grep "Compute Unit:" >> $1;
