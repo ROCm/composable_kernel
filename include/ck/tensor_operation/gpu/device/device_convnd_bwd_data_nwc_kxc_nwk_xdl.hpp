@@ -13,8 +13,8 @@
 #include "ck/tensor_operation/gpu/device/device_conv_bwd_data.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r3.hpp"
-#include "ck/device_utility/device_prop.hpp"
-#include "ck/device_utility/kernel_launch.hpp"
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
