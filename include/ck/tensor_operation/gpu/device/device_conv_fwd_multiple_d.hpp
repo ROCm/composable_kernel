@@ -39,7 +39,7 @@ struct DeviceConvFwdMultipleD : public BaseOperator
     virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(
         const void* p_a,
         const void* p_b,
-        std::array<const void*, NumDTensor> p_ds,
+        const std::array<const void*, NumDTensor>& p_ds,
         void* p_e,
         const std::array<index_t, NDimSpatial + 2>& a_n_c_wis_lengths,
         const std::array<index_t, NDimSpatial + 2>& a_n_c_wis_strides,
