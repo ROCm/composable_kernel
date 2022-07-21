@@ -11,11 +11,10 @@
 #include "ck/tensor_operation/gpu/device/device_cgemm_4gemm_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 
-using ADataType        = F16;
-using BDataType        = F16;
-using CDataType        = F16;
-using AccDataType      = F32;
-using CShuffleDataType = F32;
+using ADataType   = INT8;
+using BDataType   = INT8;
+using CDataType   = INT8;
+using AccDataType = INT32;
 
 using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
@@ -37,7 +36,7 @@ using DeviceCGemmInstance = ck::tensor_operation::device::DeviceCGemm_4Gemm_Xdl_
      BDataType,                  // typename BDataType
      CDataType,                  // typename CDataType
      AccDataType,                // typename GemmAccDataType
-     CShuffleDataType,           // typename CShuffleDataType
+     CDataType,                  // typename CShuffleDataType
      PassThrough,                // typename AElementwiseOperation
      PassThrough,                // typename BElementwiseOperation
      PassThrough,                // typename CElementwiseOperation
@@ -46,9 +45,9 @@ using DeviceCGemmInstance = ck::tensor_operation::device::DeviceCGemm_4Gemm_Xdl_
      256,                        // index_t BlockSize
      256,                        // index_t MPerBlock
      128,                        // index_t NPerBlock
-     32,                         // index_t KPerBlock
-     8,                          // index_t AK1
-     8,                          // index_t BK1
+     64,                         // index_t KPerBlock
+     16,                         // index_t AK1
+     16,                         // index_t BK1
      32,                         // index_t MPerXDL
      32,                         // index_t NPerXDL
      4,                          // index_t MXdlPerWave
@@ -57,8 +56,8 @@ using DeviceCGemmInstance = ck::tensor_operation::device::DeviceCGemm_4Gemm_Xdl_
      S<1, 0, 2>,                 // typename ABlockTransferThreadClusterArrangeOrder
      S<1, 0, 2>,                 // typename ABlockTransferSrcAccessOrder
      2,                          // index_t ABlockTransferSrcVectorDim
-     8,                          // index_t ABlockTransferSrcScalarPerVector
-     8,                          // index_t ABlockTransferDstScalarPerVector_AK1
+     16,                         // index_t ABlockTransferSrcScalarPerVector
+     16,                         // index_t ABlockTransferDstScalarPerVector_AK1
      1,                          // index_t ABlockLdsExtraM
      S<4, 64, 1>,                // typename BBlockTransferThreadClusterLengths_BK0_N_BK1
      S<1, 0, 2>,                 // typename BBlockTransferThreadClusterArrangeOrder
@@ -69,8 +68,8 @@ using DeviceCGemmInstance = ck::tensor_operation::device::DeviceCGemm_4Gemm_Xdl_
      1,                          // index_t BBlockLdsExtraN
      1,                          // index_t CShuffleMXdlPerWavePerShuffle
      1,                          // index_t CShuffleNXdlPerWavePerShuffle
-     S<1, 32, 1, 8>,             // typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-     8>;                         // index_t CShuffleBlockTransferScalarPerVector_NPerBlock
+     S<1, 64, 1, 4>,             // typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+     16>;                        // index_t CShuffleBlockTransferScalarPerVector_NPerBlock
 // clang-format on
 
 int main(int argc, char* argv[])

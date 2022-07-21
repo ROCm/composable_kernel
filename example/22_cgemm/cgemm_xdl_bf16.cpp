@@ -11,11 +11,10 @@
 #include "ck/tensor_operation/gpu/device/device_cgemm_4gemm_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 
-using ADataType        = F16;
-using BDataType        = F16;
-using CDataType        = F16;
-using AccDataType      = F32;
-using CShuffleDataType = F32;
+using ADataType   = BF16;
+using BDataType   = BF16;
+using CDataType   = BF16;
+using AccDataType = F32;
 
 using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
@@ -37,7 +36,7 @@ using DeviceCGemmInstance = ck::tensor_operation::device::DeviceCGemm_4Gemm_Xdl_
      BDataType,                  // typename BDataType
      CDataType,                  // typename CDataType
      AccDataType,                // typename GemmAccDataType
-     CShuffleDataType,           // typename CShuffleDataType
+     CDataType,                  // typename CShuffleDataType
      PassThrough,                // typename AElementwiseOperation
      PassThrough,                // typename BElementwiseOperation
      PassThrough,                // typename CElementwiseOperation
