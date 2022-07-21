@@ -37,6 +37,7 @@ template <typename ABDataType, // FIXME: don't assume A/B have same datatype
           InMemoryDataOperationEnum EGlobalMemoryDataOperation,
           typename AGridDesc_M_K,
           typename BGridDesc_N_K,
+          typename DsGridDesc_M_N,
           typename EGridDesc_M_N,
           index_t NumGemmKPrefetchStage,
           index_t BlockSize,
@@ -225,6 +226,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
     template <typename Block2ETileMap>
     __host__ __device__ static constexpr bool CheckValidity(const AGridDesc_M_K& a_grid_desc_m_k,
                                                             const BGridDesc_N_K& b_grid_desc_n_k,
+                                                            const DsGridDesc_M_N& ds_grid_desc_m_n,
                                                             const EGridDesc_M_N& e_grid_desc_m_n,
                                                             const Block2ETileMap& block_2_etile_map)
     {
@@ -236,11 +238,29 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         const auto N = b_grid_desc_n_k.GetLength(I0);
         const auto K = a_grid_desc_m_k.GetLength(I1);
 
+        // check consistency of desc
         if(!(M == e_grid_desc_m_n.GetLength(I0) && N == e_grid_desc_m_n.GetLength(I1)))
+        {
             return false;
+        }
 
-        if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K % KPerBlock == 0))
+        bool valid = true;
+
+        static_for<0, NumDTensor, 1>{}([&](auto i) {
+            valid = valid && (M == ds_grid_desc_m_n[i].GetLength(I0) &&
+                              N == ds_grid_desc_m_n[i].GetLength(I1));
+        });
+
+        if(!valid)
+        {
             return false;
+        }
+
+        // check tile size
+        if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K % KPerBlock == 0))
+        {
+            return false;
+        }
 
         // check gridwise gemm pipeline
         const auto num_k_loop = K / KPerBlock;
@@ -250,6 +270,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
             return false;
         }
 
+        // check block-to-E-tile
         if(!block_2_etile_map.CheckValidity(e_grid_desc_m_n))
         {
             return false;
