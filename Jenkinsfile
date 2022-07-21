@@ -172,7 +172,6 @@ def reboot(){
     build job: 'reboot-slaves', propagate: false , parameters: [string(name: 'server', value: "${env.NODE_NAME}"),]
 }
 
-
 def buildHipClangJobAndReboot(Map conf=[:]){
     try{
         buildHipClangJob(conf)
@@ -188,7 +187,6 @@ def buildHipClangJobAndReboot(Map conf=[:]){
         }
     }
 }
-
 
 def runCKProfiler(Map conf=[:]){
         show_node_info()
@@ -216,7 +214,6 @@ def runCKProfiler(Map conf=[:]){
         }
 
         def variant = env.STAGE_NAME
-
         def retimage
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
@@ -271,7 +268,13 @@ def runCKProfiler(Map conf=[:]){
                             archiveArtifacts "perf_gemm_${gpu_arch}.log"
                             archiveArtifacts "perf_resnet50_N256_${gpu_arch}.log"
                             archiveArtifacts "perf_resnet50_N4_${gpu_arch}.log"
-                            // stash perf files to master
+                            archiveArtifacts "perf_bathced_gemm_${gpu_arch}.log"
+                            archiveArtifacts "perf_grouped_gemm_${gpu_arch}.log"
+                            archiveArtifacts "perf_fwd_conv_${gpu_arch}.log"
+                            archiveArtifacts "perf_bwd_conv_${gpu_arch}.log"
+                            archiveArtifacts "perf_fusion_${gpu_arch}.log"
+                            archiveArtifacts "perf_reduction_${gpu_arch}.log"
+                           // stash perf files to master
                             stash name: "perf_gemm_${gpu_arch}.log"
                             stash name: "perf_resnet50_N256_${gpu_arch}.log"
                             stash name: "perf_resnet50_N4_${gpu_arch}.log"
@@ -281,8 +284,7 @@ def runCKProfiler(Map conf=[:]){
                             stash name: "perf_bwd_conv_${gpu_arch}.log"
                             stash name: "perf_fusion_${gpu_arch}.log"
                             stash name: "perf_reduction_${gpu_arch}.log"
-                            //we may need to run this on the master
-                            //sh "./process_qa_data.sh ${gpu_arch}"
+                            //we will process results on the master node
                         }
                         else{
                             if (params.USE_9110){
@@ -298,8 +300,7 @@ def runCKProfiler(Map conf=[:]){
                             stash name: "perf_gemm_${gpu_arch}.log"
                             stash name: "perf_resnet50_N256_${gpu_arch}.log"
                             stash name: "perf_resnet50_N4_${gpu_arch}.log"
-                            //we may need to run this on the master
-                            //sh "./process_perf_data.sh ${gpu_arch}"
+                            //we will process the results on the master node
                         }
 
 					}
@@ -326,7 +327,6 @@ def runPerfTest(Map conf=[:]){
 }
 
 def process_results(Map conf=[:]){
-    echo "NODE_NAME = \$NODE_NAME"
     env.HSA_ENABLE_SDMA=0
     checkout scm
     def image = "composable_kernels"
@@ -334,8 +334,6 @@ def process_results(Map conf=[:]){
     def gpu_arch = conf.get("gpu_arch", "gfx908")
 
     // Jenkins is complaining about the render group 
-    // def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
-    //def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
     def dockerOpts="--cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
     if (conf.get("enforce_xnack_on", false)) {
         dockerOpts = dockerOpts + " --env HSA_XNACK=1"
@@ -353,51 +351,39 @@ def process_results(Map conf=[:]){
             echo "The job was cancelled or aborted"
             throw e
         }
-        //catch(Exception ex) {
-        //    retimage = docker.build("${image}", dockerArgs + " --no-cache .")
-        //}
     }
 
     withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
-        timeout(time: 1, unit: 'HOURS'){  
-            //node("master"){
-                try{
-                    dir("script"){
-                        //delete any old files
-                        //sh "rm -f perf_*.log"
-                        if (params.RUN_FULL_QA){
-                            // unstash perf files to master
-                            unstash "perf_gemm_${gpu_arch}.log"
-                            unstash "perf_resnet50_N256_${gpu_arch}.log"
-                            unstash "perf_resnet50_N4_${gpu_arch}.log"
-                            unstash "perf_bathced_gemm_${gpu_arch}.log"
-                            unstash "perf_grouped_gemm_${gpu_arch}.log"
-                            unstash "perf_fwd_conv_${gpu_arch}.log"
-                            unstash "perf_bwd_conv_${gpu_arch}.log"
-                            unstash "perf_fusion_${gpu_arch}.log"
-                            unstash "perf_reduction_${gpu_arch}.log"
-                            sh "./process_qa_data.sh ${gpu_arch}"
-                        }
-                        else{
-                            // unstash perf files to master
-                            unstash "perf_gemm_${gpu_arch}.log"
-                            unstash "perf_resnet50_N256_${gpu_arch}.log"
-                            unstash "perf_resnet50_N4_${gpu_arch}.log"
-                            sh "./process_perf_data.sh ${gpu_arch}"
-                        }
+        timeout(time: 1, unit: 'HOURS'){
+            try{
+                dir("script"){
+                    if (params.RUN_FULL_QA){
+                        // unstash perf files to master
+                        unstash "perf_gemm_${gpu_arch}.log"
+                        unstash "perf_resnet50_N256_${gpu_arch}.log"
+                        unstash "perf_resnet50_N4_${gpu_arch}.log"
+                        unstash "perf_bathced_gemm_${gpu_arch}.log"
+                        unstash "perf_grouped_gemm_${gpu_arch}.log"
+                        unstash "perf_fwd_conv_${gpu_arch}.log"
+                        unstash "perf_bwd_conv_${gpu_arch}.log"
+                        unstash "perf_fusion_${gpu_arch}.log"
+                        unstash "perf_reduction_${gpu_arch}.log"
+                        sh "./process_qa_data.sh ${gpu_arch}"
+                    }
+                    else{
+                        // unstash perf files to master
+                        unstash "perf_gemm_${gpu_arch}.log"
+                        unstash "perf_resnet50_N256_${gpu_arch}.log"
+                        unstash "perf_resnet50_N4_${gpu_arch}.log"
+                        sh "./process_perf_data.sh ${gpu_arch}"
                     }
                 }
-                catch(e){
-                    echo "throwing error exception while processing performance test results"
-                    echo 'Exception occurred: ' + e.toString()
-                    throw e
-                }
-                finally{
-                    if (!conf.get("no_reboot", false)) {
-                        reboot()
-                    }
-                }
-            //}
+            }
+            catch(e){
+                echo "throwing error exception while processing performance test results"
+                echo 'Exception occurred: ' + e.toString()
+                throw e
+            }
         }
     }
 }
@@ -465,51 +451,6 @@ pipeline {
                 }
             }
         }
-        stage("Performance Tests")
-        {
-            parallel
-            {
-                //stage("Run ckProfiler: gfx908")
-                //{
-                //    agent{ label rocmnode("gfx908")}
-                //    environment{
-                //        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
-                //   }
-                //    steps{
-                //        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
-                //    }
-                //}
-                stage("Run ckProfiler: gfx90a")
-                {
-                    agent{ label rocmnode("gfx90a")}
-                    environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
-                   }
-                    steps{
-                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
-                    }
-                }
-            }
-        }
-        stage("Process Performance Test Results")
-        {
-            parallel
-            {
-                //stage("Process results for gfx908"){
-                //    agent { label 'master' }
-                //    steps{
-                //        process_results(gpu_arch: "gfx908")
-                //    }
-                //}
-                stage("Process results for gfx90a"){
-                    agent { label 'mici' }
-                    steps{
-                        process_results(gpu_arch: "gfx90a")
-                    }
-                }
-            }
-        }
-
 		stage("Tests")
         {
             parallel
@@ -549,6 +490,50 @@ pipeline {
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                    }
+                }
+            }
+        }
+        stage("Performance Tests")
+        {
+            parallel
+            {
+                stage("Run ckProfiler: gfx908")
+                {
+                    agent{ label rocmnode("gfx908")}
+                    environment{
+                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
+                   }
+                    steps{
+                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
+                    }
+                }
+                stage("Run ckProfiler: gfx90a")
+                {
+                    agent{ label rocmnode("gfx90a")}
+                    environment{
+                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
+                   }
+                    steps{
+                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
+                    }
+                }
+            }
+        }
+        stage("Process Performance Test Results")
+        {
+            parallel
+            {
+                stage("Process results for gfx908"){
+                    agent { label 'master' }
+                    steps{
+                        process_results(gpu_arch: "gfx908")
+                    }
+                }
+                stage("Process results for gfx90a"){
+                    agent { label 'mici' }
+                    steps{
+                        process_results(gpu_arch: "gfx90a")
                     }
                 }
             }
