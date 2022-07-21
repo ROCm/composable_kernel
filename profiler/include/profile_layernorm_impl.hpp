@@ -20,15 +20,15 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using F16  = ck::half_t;
-using F32  = float;
-using Pass = ck::tensor_operation::element_wise::PassThrough;
+using F16         = ck::half_t;
+using F32         = float;
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 void add_device_layernorm_f16_rank2_instances(
-    std::vector<DeviceNormalization2Ptr<F16, F16, F16, F32, F16, Pass, 2, 1>>&);
+    std::vector<DeviceNormalization2Ptr<F16, F16, F16, F32, F16, PassThrough, 2, 1>>&);
 
 void add_device_layernorm_f32_rank2_instances(
-    std::vector<DeviceNormalization2Ptr<F32, F32, F32, F32, F32, Pass, 2, 1>>&);
+    std::vector<DeviceNormalization2Ptr<F32, F32, F32, F32, F32, PassThrough, 2, 1>>&);
 
 } // namespace instance
 } // namespace device
@@ -53,9 +53,9 @@ void profile_layernorm_impl(int do_verification,
                             std::vector<index_t> strideGamma,
                             std::vector<index_t> strideBeta)
 {
-    using F16  = ck::half_t;
-    using F32  = float;
-    using Pass = ck::tensor_operation::element_wise::PassThrough;
+    using F16         = ck::half_t;
+    using F32         = float;
+    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
     if(length.size() < 2)
         return;
@@ -70,6 +70,7 @@ void profile_layernorm_impl(int do_verification,
     Tensor<GammaDataType> gamma(reduce_length, strideGamma);
     Tensor<BetaDataType> beta(reduce_length, strideBeta);
     Tensor<YDataType> y(length, strideXY);
+    Tensor<YDataType> host_y(length, strideXY);
 
     switch(init_method)
     {
@@ -103,15 +104,15 @@ void profile_layernorm_impl(int do_verification,
     beta_dev.ToDevice(beta.mData.data());
 
     // add device normalization instances
-    constexpr int reduceRank = Rank - 1;
+    constexpr int NumReduceDim = Rank - 1;
     std::vector<tensor_operation::device::DeviceNormalization2Ptr<XDataType,
                                                                   GammaDataType,
                                                                   BetaDataType,
                                                                   AccDataType,
                                                                   YDataType,
-                                                                  Pass,
+                                                                  PassThrough,
                                                                   Rank,
-                                                                  reduceRank>>
+                                                                  NumReduceDim>>
         instances;
 
     if constexpr(is_same<XDataType, F16>::value && is_same<GammaDataType, F16>::value &&
@@ -138,6 +139,24 @@ void profile_layernorm_impl(int do_verification,
     float best_avg_time   = std::numeric_limits<float>::max();
     float best_gb_per_sec = 0;
 
+    if(do_verification)
+    {
+        using ReferenceInstance = ck::tensor_operation::host::ReferenceLayernorm<XDataType,
+                                                                                 GammaDataType,
+                                                                                 BetaDataType,
+                                                                                 YDataType,
+                                                                                 AccDataType,
+                                                                                 PassThrough,
+                                                                                 Rank,
+                                                                                 NumReduceDim>;
+
+        ReferenceInstance ref;
+        auto ref_argument =
+            ref.MakeArgument(x, gamma, beta, host_y, PassThrough{}, length, reduce_dim, 1e-4);
+        auto ref_invoker = ref.MakeInvoker();
+        ref_invoker.Run(ref_argument);
+    }
+
     for(auto& inst_ptr : instances)
     {
         auto argument_ptr = inst_ptr->MakeArgumentPointer(length,
@@ -150,7 +169,7 @@ void profile_layernorm_impl(int do_verification,
                                                           gamma_dev.GetDeviceBuffer(),
                                                           beta_dev.GetDeviceBuffer(),
                                                           y_dev.GetDeviceBuffer(),
-                                                          Pass{});
+                                                          PassThrough{});
 
         if(!inst_ptr->IsSupportedArgument(argument_ptr.get()))
         {
@@ -183,8 +202,28 @@ void profile_layernorm_impl(int do_verification,
 
         if(do_verification)
         {
-            // TODO
-            (void)do_log;
+            y_dev.FromDevice(y.mData.data());
+
+            bool pass = ck::utils::check_err(
+                y.mData, host_y.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
+
+            if(do_log)
+            {
+                LogRangeAsType<float>(std::cout << "x  : ", x.mData, ",") << std::endl;
+                LogRangeAsType<float>(std::cout << "host_y  : ", host_y.mData, ",") << std::endl;
+                LogRangeAsType<float>(std::cout << "y  : ", y.mData, ",") << std::endl;
+            }
+
+            if(!pass)
+            {
+                std::cout << inst_ptr->GetTypeString() << " failed verification: ";
+                LogRange(std::cout << "lengths = [", length, ", ") << "]." << std::endl;
+                return;
+            }
+            else
+            {
+                std::cout << "pass" << std::endl;
+            }
         }
     }
 
