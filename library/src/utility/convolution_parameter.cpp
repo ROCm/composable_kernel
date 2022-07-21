@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
+#include "ck/host_utility/io.hpp"
+
 #include "ck/library/utility/convolution_parameter.hpp"
-#include "ck/library/utility/io.hpp"
 
 namespace ck {
 namespace utils {

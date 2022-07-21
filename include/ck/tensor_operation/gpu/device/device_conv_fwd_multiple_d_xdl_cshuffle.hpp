@@ -183,7 +183,8 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};
 
     template <typename ALay,
-              typename std::enable_if<is_same_v<ALay, tensor_layout::convolution::NWC>,
+              typename std::enable_if<NDimSpatial == 1 &&
+                                          is_same_v<ALay, tensor_layout::convolution::NWC>,
                                       bool>::type = false>
     static auto
     MakeAGridDescriptor_M_K(const std::array<index_t, NDimSpatial + 2>& a_n_c_wis_lengths,
@@ -294,7 +295,8 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
     }
 
     template <typename ALay,
-              typename std::enable_if<is_same_v<ALay, tensor_layout::convolution::NHWC>,
+              typename std::enable_if<NDimSpatial == 2 &&
+                                          is_same_v<ALay, tensor_layout::convolution::NHWC>,
                                       bool>::type = false>
     static auto
     MakeAGridDescriptor_M_K(const std::array<index_t, NDimSpatial + 2>& a_n_c_wis_lengths,
@@ -419,7 +421,8 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
     }
 
     template <typename ALay,
-              typename std::enable_if<is_same_v<ALay, tensor_layout::convolution::NDHWC>,
+              typename std::enable_if<NDimSpatial == 3 &&
+                                          is_same_v<ALay, tensor_layout::convolution::NDHWC>,
                                       bool>::type = false>
     static auto
     MakeAGridDescriptor_M_K(const std::array<index_t, NDimSpatial + 2>& a_n_c_wis_lengths,
@@ -925,16 +928,6 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
             return false;
         }
 
-        // check tensor size: cannot be larger than 2GB each
-        constexpr long_index_t TwoGB = (long_index_t{1} << 31);
-
-        if(arg.a_grid_desc_ak0_m_ak1_.GetElementSpaceSize() * sizeof(ADataType) > TwoGB ||
-           arg.b_grid_desc_bk0_n_bk1_.GetElementSpaceSize() * sizeof(BDataType) > TwoGB ||
-           arg.e_grid_desc_m_n_.GetElementSpaceSize() * sizeof(EDataType) > TwoGB)
-        {
-            return false;
-        }
-
         // check ConvolutionForwardSpecialization
         if constexpr(ConvForwardSpecialization ==
                      ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
@@ -1020,7 +1013,7 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
             return false;
         }
 
-        // Gridwise GEMM size
+        // check Gridwise GEMM
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
                                            arg.b_grid_desc_n_k_,
                                            arg.e_grid_desc_m_n_,

@@ -15,8 +15,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/data_type.hpp"
-
-#include "ck/library/utility/io.hpp"
+#include "ck/host_utility/io.hpp"
 
 namespace ck {
 namespace utils {
