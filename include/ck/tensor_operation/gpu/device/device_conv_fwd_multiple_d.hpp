@@ -20,7 +20,7 @@ namespace device {
 //   E = cde_op(C, D0, D1, ...)
 // Assume:
 //   D0, D1, ... and E have the same layout
-template <ck::index_t NDimSpatial,
+template <index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
           typename DsLayout,
@@ -36,23 +36,26 @@ struct DeviceConvFwdMultipleD : public BaseOperator
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
-    virtual std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const ADataType* p_a,
-                        const BDataType* p_b,
-                        EDataType* p_e,
-                        ck::index_t N,
-                        ck::index_t K,
-                        ck::index_t C,
-                        std::vector<ck::index_t> input_spatial_lengths,
-                        std::vector<ck::index_t> filter_spatial_lengths,
-                        std::vector<ck::index_t> output_spatial_lengths,
-                        std::vector<ck::index_t> conv_filter_strides,
-                        std::vector<ck::index_t> conv_filter_dilations,
-                        std::vector<ck::index_t> input_left_pads,
-                        std::vector<ck::index_t> input_right_pads,
-                        AElementwiseOperation a_element_op,
-                        BElementwiseOperation b_element_op,
-                        CDEElementwiseOperation cde_element_op) = 0;
+    virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(
+        const void* p_a,
+        const void* p_b,
+        std::array<const void*, NumDTensor> p_ds,
+        void* p_e,
+        const std::array<index_t, NDimSpatial + 2>& a_n_c_wis_lengths,
+        const std::array<index_t, NDimSpatial + 2>& a_n_c_wis_strides,
+        const std::array<index_t, NDimSpatial + 2>& b_k_c_xs_lengths,
+        const std::array<index_t, NDimSpatial + 2>& b_k_c_xs_strides,
+        const std::array<std::array<index_t, NDimSpatial + 2>, NumDTensor>& ds_n_k_wos_lengths,
+        const std::array<std::array<index_t, NDimSpatial + 2>, NumDTensor>& ds_n_k_wos_strides,
+        const std::array<index_t, NDimSpatial + 2>& e_n_k_wos_lengths,
+        const std::array<index_t, NDimSpatial + 2>& e_n_k_wos_strides,
+        const std::array<index_t, NDimSpatial>& conv_filter_strides,
+        const std::array<index_t, NDimSpatial>& conv_filter_dilations,
+        const std::array<index_t, NDimSpatial>& input_left_pads,
+        const std::array<index_t, NDimSpatial>& input_right_pads,
+        const AElementwiseOperation& a_element_op,
+        const BElementwiseOperation& b_element_op,
+        const CDEElementwiseOperation& cde_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
