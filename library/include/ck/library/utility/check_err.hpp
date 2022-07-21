@@ -29,9 +29,8 @@ check_err(const std::vector<T>& out,
 {
     if(out.size() != ref.size())
     {
-        std::cout << "out.size() != ref.size(), :" << out.size() << " != " << ref.size()
-                  << std::endl
-                  << msg << std::endl;
+        std::cout << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
+                  << std::endl;
         return false;
     }
 
@@ -48,9 +47,8 @@ check_err(const std::vector<T>& out,
             err_count++;
             if(err_count < 5)
             {
-                std::cout << std::setw(12) << std::setprecision(7) << "out[" << i << "] != ref["
-                          << i << "]: " << out[i] << " != " << ref[i] << std::endl
-                          << msg << std::endl;
+                std::cout << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                          << "] != ref[" << i << "]: " << out[i] << " != " << ref[i] << std::endl;
             }
             res = false;
         }
@@ -72,9 +70,8 @@ check_err(const std::vector<T>& out,
 {
     if(out.size() != ref.size())
     {
-        std::cout << "out.size() != ref.size(), :" << out.size() << " != " << ref.size()
-                  << std::endl
-                  << msg << std::endl;
+        std::cout << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
+                  << std::endl;
         return false;
     }
 
@@ -94,9 +91,8 @@ check_err(const std::vector<T>& out,
             err_count++;
             if(err_count < 5)
             {
-                std::cout << std::setw(12) << std::setprecision(7) << "out[" << i << "] != ref["
-                          << i << "]: " << o << " != " << r << std::endl
-                          << msg << std::endl;
+                std::cout << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                          << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
             }
             res = false;
         }
@@ -118,9 +114,8 @@ check_err(const std::vector<T>& out,
 {
     if(out.size() != ref.size())
     {
-        std::cout << "out.size() != ref.size(), :" << out.size() << " != " << ref.size()
-                  << std::endl
-                  << msg << std::endl;
+        std::cout << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
+                  << std::endl;
         return false;
     }
 
@@ -139,9 +134,8 @@ check_err(const std::vector<T>& out,
             err_count++;
             if(err_count < 5)
             {
-                std::cout << std::setw(12) << std::setprecision(7) << "out[" << i << "] != ref["
-                          << i << "]: " << o << " != " << r << std::endl
-                          << msg << std::endl;
+                std::cout << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                          << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
             }
             res = false;
         }
@@ -163,9 +157,8 @@ check_err(const std::vector<T>& out,
 {
     if(out.size() != ref.size())
     {
-        std::cout << "out.size() != ref.size(), :" << out.size() << " != " << ref.size()
-                  << std::endl
-                  << msg << std::endl;
+        std::cout << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
+                  << std::endl;
         return false;
     }
 
@@ -185,9 +178,9 @@ check_err(const std::vector<T>& out,
             err_count++;
             if(err_count < 5)
             {
-                std::cout << "out[" << i << "] != ref[" << i << "]: " << static_cast<int>(out[i])
-                          << " != " << static_cast<int>(ref[i]) << std::endl
-                          << msg << std::endl;
+                std::cout << msg << " out[" << i << "] != ref[" << i
+                          << "]: " << static_cast<int>(out[i]) << " != " << static_cast<int>(ref[i])
+                          << std::endl;
             }
             res = false;
         }
