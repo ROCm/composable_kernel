@@ -85,7 +85,6 @@ def parse_logfile(logfile):
         for line in open(logfile):
             if 'Best Perf' in line:
                 lst=line.split()
-                print("len(lst)=",len(lst),"lst:",lst)
                 if len(lst)>=37: #the line is complete
                     tests.append(glue.join(lst[5:30]))
                     kernels.append(glue.join(lst[37:]))
