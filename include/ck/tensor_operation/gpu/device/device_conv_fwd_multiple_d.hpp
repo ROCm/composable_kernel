@@ -12,14 +12,12 @@ namespace tensor_operation {
 namespace device {
 
 // Convolution Forward:
-//   input : input image A[N, Hi, Wi, C],
-//   input : weight B[K, Y, X, C],
-//   input : D0[N, Ho, Wo, K], D1[N, Ho, Wo, K], ...
-//   output : output image E[N, Ho, Wo, K]
+//   input : input image A[N, C, Hi, Wi],
+//   input : weight B[K, C, Y, X],
+//   input : D0[N, K, Ho, Wo], D1[N, K, Ho, Wo], ...
+//   output : output image E[N, K, Ho, Wo]
 //   C = a_op(A) * b_op(B)
 //   E = cde_op(C, D0, D1, ...)
-// Assume:
-//   D0, D1, ... and E have the same layout
 template <index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
