@@ -525,7 +525,7 @@ pipeline {
             parallel
             {
                 stage("Process results for gfx908"){
-                    agent { label 'master' }
+                    agent { label 'mici' }
                     steps{
                         process_results(gpu_arch: "gfx908")
                     }
