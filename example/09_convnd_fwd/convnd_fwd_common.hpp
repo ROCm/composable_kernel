@@ -114,13 +114,23 @@ int run_conv_fwd(bool do_verification,
     const auto wei_desc = ck::utils::conv::get_weight_host_tensor_descriptor<WeiLayout>(conv_param);
     const auto out_desc = ck::utils::conv::get_output_host_tensor_descriptor<OutLayout>(conv_param);
 
+    // hacky, hardcoded for 2d NHWK
+    const auto bias_desc = HostTensorDescriptor(
+        std::vector<std::size_t>{static_cast<std::size_t>(conv_param.N_),
+                                 static_cast<std::size_t>(conv_param.output_spatial_lengths_[0]),
+                                 static_cast<std::size_t>(conv_param.output_spatial_lengths_[1]),
+                                 static_cast<std::size_t>(conv_param.K_)},
+        std::vector<std::size_t>{0, 0, 0, 1});
+
     Tensor<InDataType> in(in_desc);
     Tensor<WeiDataType> wei(wei_desc);
+    Tensor<OutDataType> bias(bias_desc);
     Tensor<OutDataType> out_host(out_desc);
     Tensor<OutDataType> out_device(out_desc);
 
     std::cout << "in: " << in.mDesc << std::endl;
     std::cout << "wei: " << wei.mDesc << std::endl;
+    std::cout << "bias: " << bias.mDesc << std::endl;
     std::cout << "out: " << out_host.mDesc << std::endl;
 
     switch(init_method)
@@ -129,23 +139,28 @@ int run_conv_fwd(bool do_verification,
     case 1:
         in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
         wei.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
+        bias.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
         break;
     default:
         in.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
         wei.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
+        bias.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-0.5, 0.5});
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * in.mDesc.GetElementSpace());
     DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpace());
+    DeviceMem bias_device_buf(sizeof(OutDataType) * bias.mDesc.GetElementSpace());
     DeviceMem out_device_buf(sizeof(OutDataType) * out_device.mDesc.GetElementSpace());
 
     in_device_buf.ToDevice(in.mData.data());
     wei_device_buf.ToDevice(wei.mData.data());
+    bias_device_buf.ToDevice(bias.mData.data());
 
     // tensor descriptor in NCHW/KXYC/NKHW dimensional order
-    HostTensorDescriptor in_n_c_wis_desc  = in_desc;
-    HostTensorDescriptor wei_k_c_xs_desc  = wei_desc;
-    HostTensorDescriptor out_n_k_wos_desc = out_desc;
+    HostTensorDescriptor in_n_c_wis_desc   = in_desc;
+    HostTensorDescriptor wei_k_c_xs_desc   = wei_desc;
+    HostTensorDescriptor bias_n_k_wos_desc = bias_desc;
+    HostTensorDescriptor out_n_k_wos_desc  = out_desc;
 
     // input
     if constexpr(ck::is_same_v<InLayout, ck::tensor_layout::convolution::NWC>)
@@ -186,22 +201,33 @@ int run_conv_fwd(bool do_verification,
     {
         out_n_k_wos_desc = transpose_host_tensor_descriptor_given_new2old(
             out_desc, std::vector<std::size_t>{0, 2, 1});
+
+        bias_n_k_wos_desc = transpose_host_tensor_descriptor_given_new2old(
+            bias_desc, std::vector<std::size_t>{0, 2, 1});
     }
     else if constexpr(ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NHWK>)
     {
         out_n_k_wos_desc = transpose_host_tensor_descriptor_given_new2old(
             out_desc, std::vector<std::size_t>{0, 3, 1, 2});
+
+        bias_n_k_wos_desc = transpose_host_tensor_descriptor_given_new2old(
+            bias_desc, std::vector<std::size_t>{0, 3, 1, 2});
     }
     else if constexpr(ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NDHWK>)
     {
         out_n_k_wos_desc = transpose_host_tensor_descriptor_given_new2old(
             out_desc, std::vector<std::size_t>{0, 4, 1, 2, 3});
+
+        bias_n_k_wos_desc = transpose_host_tensor_descriptor_given_new2old(
+            bias_desc, std::vector<std::size_t>{0, 4, 1, 2, 3});
     }
 
     std::array<ck::index_t, NDimSpatial + 2> a_n_c_wis_lengths{};
     std::array<ck::index_t, NDimSpatial + 2> a_n_c_wis_strides{};
     std::array<ck::index_t, NDimSpatial + 2> b_k_c_xs_lengths{};
     std::array<ck::index_t, NDimSpatial + 2> b_k_c_xs_strides{};
+    std::array<ck::index_t, NDimSpatial + 2> d_n_k_wos_lengths{};
+    std::array<ck::index_t, NDimSpatial + 2> d_n_k_wos_strides{};
     std::array<ck::index_t, NDimSpatial + 2> e_n_k_wos_lengths{};
     std::array<ck::index_t, NDimSpatial + 2> e_n_k_wos_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
@@ -215,6 +241,8 @@ int run_conv_fwd(bool do_verification,
     copy(in_n_c_wis_desc.GetStrides(), a_n_c_wis_strides);
     copy(wei_k_c_xs_desc.GetLengths(), b_k_c_xs_lengths);
     copy(wei_k_c_xs_desc.GetStrides(), b_k_c_xs_strides);
+    copy(bias_n_k_wos_desc.GetLengths(), d_n_k_wos_lengths);
+    copy(bias_n_k_wos_desc.GetStrides(), d_n_k_wos_strides);
     copy(out_n_k_wos_desc.GetLengths(), e_n_k_wos_lengths);
     copy(out_n_k_wos_desc.GetStrides(), e_n_k_wos_strides);
     copy(conv_param.conv_filter_strides_, conv_filter_strides);
@@ -225,25 +253,26 @@ int run_conv_fwd(bool do_verification,
     // do GEMM
     auto conv     = DeviceConvNDFwdInstance{};
     auto invoker  = conv.MakeInvoker();
-    auto argument = conv.MakeArgument(in_device_buf.GetDeviceBuffer(),
-                                      wei_device_buf.GetDeviceBuffer(),
-                                      std::array<const void*, 0>{},
-                                      out_device_buf.GetDeviceBuffer(),
-                                      a_n_c_wis_lengths,
-                                      a_n_c_wis_strides,
-                                      b_k_c_xs_lengths,
-                                      b_k_c_xs_strides,
-                                      std::array<std::array<ck::index_t, NDimSpatial + 2>, 0>{{}},
-                                      std::array<std::array<ck::index_t, NDimSpatial + 2>, 0>{{}},
-                                      e_n_k_wos_lengths,
-                                      e_n_k_wos_strides,
-                                      conv_filter_strides,
-                                      conv_filter_dilations,
-                                      input_left_pads,
-                                      input_right_pads,
-                                      in_element_op,
-                                      wei_element_op,
-                                      out_element_op);
+    auto argument = conv.MakeArgument(
+        in_device_buf.GetDeviceBuffer(),
+        wei_device_buf.GetDeviceBuffer(),
+        std::array<const void*, 1>{bias_device_buf.GetDeviceBuffer()},
+        out_device_buf.GetDeviceBuffer(),
+        a_n_c_wis_lengths,
+        a_n_c_wis_strides,
+        b_k_c_xs_lengths,
+        b_k_c_xs_strides,
+        std::array<std::array<ck::index_t, NDimSpatial + 2>, 1>{{d_n_k_wos_lengths}},
+        std::array<std::array<ck::index_t, NDimSpatial + 2>, 1>{{d_n_k_wos_strides}},
+        e_n_k_wos_lengths,
+        e_n_k_wos_strides,
+        conv_filter_strides,
+        conv_filter_dilations,
+        input_left_pads,
+        input_right_pads,
+        in_element_op,
+        wei_element_op,
+        out_element_op);
 
     if(!conv.IsSupportedArgument(argument))
     {
@@ -264,6 +293,10 @@ int run_conv_fwd(bool do_verification,
 
     if(do_verification)
     {
+        using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+
+        Tensor<OutDataType> c_host(out_desc);
+
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
                                                                      InLayout,
                                                                      WeiLayout,
@@ -273,26 +306,41 @@ int run_conv_fwd(bool do_verification,
                                                                      OutDataType,
                                                                      InElementOp,
                                                                      WeiElementOp,
-                                                                     OutElementOp>();
+                                                                     PassThrough>();
 
         auto ref_invoker  = ref_conv.MakeInvoker();
         auto ref_argument = ref_conv.MakeArgument(in,
                                                   wei,
-                                                  out_host,
+                                                  c_host,
                                                   conv_param.conv_filter_strides_,
                                                   conv_param.conv_filter_dilations_,
                                                   conv_param.input_left_pads_,
                                                   conv_param.input_right_pads_,
                                                   in_element_op,
                                                   wei_element_op,
-                                                  out_element_op);
+                                                  PassThrough{});
 
         ref_invoker.Run(ref_argument);
+
+        for(int n = 0; n < out_host.mDesc.GetLengths()[0]; n++)
+        {
+            for(int ho = 0; ho < out_host.mDesc.GetLengths()[1]; ho++)
+            {
+                for(int wo = 0; wo < out_host.mDesc.GetLengths()[2]; wo++)
+                {
+                    for(int k = 0; k < out_host.mDesc.GetLengths()[3]; k++)
+                    {
+                        out_element_op(
+                            out_host(n, ho, wo, k), c_host(n, ho, wo, k), bias(n, ho, wo, k));
+                    }
+                }
+            }
+        }
 
         out_device_buf.FromDevice(out_device.mData.data());
 
         return ck::utils::check_err(
-                   out_host.mData, out_device.mData, "Error: incorrect results!", 1e-5f, 1e-4f)
+                   out_device.mData, out_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f)
                    ? 0
                    : 1;
     }

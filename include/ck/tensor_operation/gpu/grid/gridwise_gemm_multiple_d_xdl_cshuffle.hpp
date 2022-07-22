@@ -165,6 +165,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                          c_block_size * sizeof(CShuffleDataType));
     }
 
+    // A desc for source in blockwise copy
     __host__ __device__ static constexpr auto
     MakeDefaultAGridDescriptor_AK0_M_AK1(const AGridDesc_M_K& a_grid_desc_m_k)
     {
@@ -180,6 +181,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
+    // B desc for source in blockwise copy
     __host__ __device__ static constexpr auto
     MakeDefaultBGridDescriptor_BK0_N_BK1(const BGridDesc_N_K& b_grid_desc_n_k)
     {
@@ -195,8 +197,10 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
-    __host__ __device__ static constexpr auto
-    MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const EGridDesc_M_N& e_grid_desc_m_n)
+    // E desc for destination in blockwise copy
+    template <typename EGridDescriptor_M_N>
+    __host__ __device__ static constexpr auto MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+        const EGridDescriptor_M_N& e_grid_desc_m_n)
     {
         const auto M = e_grid_desc_m_n.GetLength(I0);
         const auto N = e_grid_desc_m_n.GetLength(I1);
@@ -212,6 +216,19 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
             make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}));
 
         return e_grid_desc_mblock_mperblock_nblock_nperblock;
+    }
+
+    // Ds desc for source in blockwise copy
+    template <typename DsGridDescriptor_M_N>
+    __host__ __device__ static constexpr auto
+    MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+        const DsGridDescriptor_M_N& ds_grid_desc_m_n)
+    {
+        return generate_tuple(
+            [&](auto i) {
+                return MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(ds_grid_desc_m_n[i]);
+            },
+            Number<NumDTensor>{});
     }
 
     // return block_id to E matrix tile idx (m0, n0) mapping
@@ -301,8 +318,10 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         remove_cvref_t<decltype(MakeDefaultAGridDescriptor_AK0_M_AK1(AGridDesc_M_K{}))>;
     using DefaultBGridDesc_BK0_N_BK1 =
         remove_cvref_t<decltype(MakeDefaultBGridDescriptor_BK0_N_BK1(BGridDesc_N_K{}))>;
-    using EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
+    using EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock  = remove_cvref_t<decltype(
         MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(EGridDesc_M_N{}))>;
+    using DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
+        MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(DsGridDesc_M_N{}))>;
 
     using DefaultBlock2ETileMap =
         remove_cvref_t<decltype(MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
@@ -313,24 +332,21 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
               typename AGridDesc_AK0_M_AK1,
               typename BGridDesc_BK0_N_BK1,
               typename Block2ETileMap>
-    __device__ static void
-    Run(const ABDataType* __restrict__ p_a_grid,
-        const ABDataType* __restrict__ p_b_grid,
-        DsGridPointer p_ds_grid,
-        EDataType* __restrict__ p_e_grid,
-        void* __restrict__ p_shared,
-        const AElementwiseOperation& a_element_op,
-        const BElementwiseOperation& b_element_op,
-        const CDEElementwiseOperation& cde_element_op,
-        const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
-        const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
-        const StaticallyIndexedArray<EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                                     NumDTensor>&
-            ds_grid_desc_mblock_mperblock_nblock_nperblock, // FIXME: Ds desc may be of different
-                                                            // type from E
-        const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
-            e_grid_desc_mblock_mperblock_nblock_nperblock,
-        const Block2ETileMap& block_2_etile_map)
+    __device__ static void Run(const ABDataType* __restrict__ p_a_grid,
+                               const ABDataType* __restrict__ p_b_grid,
+                               DsGridPointer p_ds_grid,
+                               EDataType* __restrict__ p_e_grid,
+                               void* __restrict__ p_shared,
+                               const AElementwiseOperation& a_element_op,
+                               const BElementwiseOperation& b_element_op,
+                               const CDEElementwiseOperation& cde_element_op,
+                               const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
+                               const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
+                               const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
+                                   ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                               const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
+                                   e_grid_desc_mblock_mperblock_nblock_nperblock,
+                               const Block2ETileMap& block_2_etile_map)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());

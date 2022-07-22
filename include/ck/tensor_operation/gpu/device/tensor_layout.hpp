@@ -25,51 +25,28 @@ struct ColumnMajor : public BaseTensorLayout
 
 namespace convolution {
 
-// 1D Conv
+// input tensor
+// packed NWC/NHWC/NDHWC
 struct NWC : public BaseTensorLayout
 {
     static constexpr const char* name = "NWC";
 };
 
-struct KXC : public BaseTensorLayout
-{
-    static constexpr const char* name = "KXC";
-};
-
-struct NWK : public BaseTensorLayout
-{
-    static constexpr const char* name = "NWK";
-};
-
-struct NCW : public BaseTensorLayout
-{
-    static constexpr const char* name = "NCW";
-};
-
-struct KCX : public BaseTensorLayout
-{
-    static constexpr const char* name = "KCX";
-};
-
-struct NKW : public BaseTensorLayout
-{
-    static constexpr const char* name = "NKW";
-};
-
-// 2D Conv
 struct NHWC : public BaseTensorLayout
 {
     static constexpr const char* name = "NHWC";
 };
 
-struct KYXC : public BaseTensorLayout
+struct NDHWC : public BaseTensorLayout
 {
-    static constexpr const char* name = "KYXC";
+    static constexpr const char* name = "NDHWC";
 };
 
-struct NHWK : public BaseTensorLayout
+// input tensor
+// packed NCW/NCHW/NCDHW
+struct NCW : public BaseTensorLayout
 {
-    static constexpr const char* name = "NHWK";
+    static constexpr const char* name = "NCW";
 };
 
 struct NCHW : public BaseTensorLayout
@@ -77,20 +54,21 @@ struct NCHW : public BaseTensorLayout
     static constexpr const char* name = "NCHW";
 };
 
-struct KCYX : public BaseTensorLayout
+struct NCDHW : public BaseTensorLayout
 {
-    static constexpr const char* name = "KCYX";
+    static constexpr const char* name = "NCDHW";
 };
 
-struct NKHW : public BaseTensorLayout
+// weight tensor
+// packed KXC/KYXC/KZYXC
+struct KXC : public BaseTensorLayout
 {
-    static constexpr const char* name = "NKHW";
+    static constexpr const char* name = "KXC";
 };
 
-// 3D Conv
-struct NDHWC : public BaseTensorLayout
+struct KYXC : public BaseTensorLayout
 {
-    static constexpr const char* name = "NDHWC";
+    static constexpr const char* name = "KYXC";
 };
 
 struct KZYXC : public BaseTensorLayout
@@ -98,13 +76,16 @@ struct KZYXC : public BaseTensorLayout
     static constexpr const char* name = "KZYXC";
 };
 
-struct NDHWK : public BaseTensorLayout
+// weight tensor
+// packed KCX/KCYX/KCZYX
+struct KCX : public BaseTensorLayout
 {
-    static constexpr const char* name = "NDHWK";
+    static constexpr const char* name = "KCX";
 };
-struct NCDHW : public BaseTensorLayout
+
+struct KCYX : public BaseTensorLayout
 {
-    static constexpr const char* name = "NCDHW";
+    static constexpr const char* name = "KCYX";
 };
 
 struct KCZYX : public BaseTensorLayout
@@ -112,9 +93,55 @@ struct KCZYX : public BaseTensorLayout
     static constexpr const char* name = "KCZYX";
 };
 
+// output tensor
+// packed NWK/NHWK/NDHWK
+struct NWK : public BaseTensorLayout
+{
+    static constexpr const char* name = "NWK";
+};
+
+struct NHWK : public BaseTensorLayout
+{
+    static constexpr const char* name = "NHWK";
+};
+
+struct NDHWK : public BaseTensorLayout
+{
+    static constexpr const char* name = "NDHWK";
+};
+
+// output tensor
+// packed NKW/NKHW/NKDHW
+struct NKW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NKW";
+};
+
+struct NKHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NKHW";
+};
+
 struct NKDHW : public BaseTensorLayout
 {
     static constexpr const char* name = "NKDHW";
+};
+
+// output tensor
+// strided layout
+struct NW_K : public BaseTensorLayout
+{
+    static constexpr const char* name = "NW_K";
+};
+
+struct NHW_K : public BaseTensorLayout
+{
+    static constexpr const char* name = "NHW_K";
+};
+
+struct NDHW_K : public BaseTensorLayout
+{
+    static constexpr const char* name = "NDHW_K";
 };
 
 } // namespace convolution

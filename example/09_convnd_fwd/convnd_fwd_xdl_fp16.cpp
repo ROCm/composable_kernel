@@ -16,7 +16,8 @@ using S = ck::Sequence<Is...>;
 
 using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
-using OutElementOp = ck::tensor_operation::element_wise::UnaryConvert;
+// using OutElementOp = ck::tensor_operation::element_wise::UnaryConvert;
+using OutElementOp = ck::tensor_operation::element_wise::AddRelu;
 
 #if 0
 static constexpr auto ConvFwdDefault =
@@ -60,6 +61,7 @@ using DeviceConvNDFwdInstance = ck::tensor_operation::device::DeviceConvNdFwdNwc
     1>;             // CThreadTransferDstScalarPerVector
 #else
 using CShuffleDataType = ck::half_t;
+using DDataType        = ck::half_t;
 
 static constexpr auto ConvSpec =
     ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
@@ -77,7 +79,10 @@ using DeviceConvNDFwdInstance = ck::tensor_operation::device::DeviceConvFwdMulti
                         ck::Tuple<ck::tensor_layout::convolution::KXC,
                                   ck::tensor_layout::convolution::KYXC,
                                   ck::tensor_layout::convolution::KZYXC>>,
-    ck::Tuple<>,
+    ck::Tuple<ck::tuple_element_t<NDimSpatial - 1,
+                                  ck::Tuple<ck::tensor_layout::convolution::NW_K,
+                                            ck::tensor_layout::convolution::NHW_K,
+                                            ck::tensor_layout::convolution::NDHW_K>>>,
     ck::tuple_element_t<NDimSpatial - 1,
                         ck::Tuple<ck::tensor_layout::convolution::NWK,
                                   ck::tensor_layout::convolution::NHWK,
@@ -86,7 +91,7 @@ using DeviceConvNDFwdInstance = ck::tensor_operation::device::DeviceConvFwdMulti
     WeiDataType,
     AccDataType,
     CShuffleDataType,
-    ck::Tuple<>,
+    ck::Tuple<DDataType>,
     OutDataType,
     InElementOp,
     WeiElementOp,

@@ -565,10 +565,6 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         }
     }
 
-    // supported layout:
-    // KXC, K_XC
-    // KYXC, K_YXC
-    // KZYXC, K_ZYXC
     template <typename BLay,
               typename std::enable_if<is_same_v<BLay, tensor_layout::convolution::KXC> ||
                                           is_same_v<BLay, tensor_layout::convolution::KYXC> ||
@@ -625,10 +621,57 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         return out_gemmm_gemmn_grid_desc;
     }
 
-    using AGridDesc_M_K = remove_cvref_t<decltype(
+    template <typename ELay,
+              typename std::enable_if<is_same_v<ELay, tensor_layout::convolution::NW_K> ||
+                                          is_same_v<ELay, tensor_layout::convolution::NHW_K> ||
+                                          is_same_v<ELay, tensor_layout::convolution::NDHW_K>,
+                                      bool>::type = false>
+    static auto
+    MakeEGridDescriptor_M_N(const std::array<index_t, NDimSpatial + 2>& e_n_k_wos_lengths,
+                            const std::array<index_t, NDimSpatial + 2>& e_n_k_wos_strides)
+    {
+        namespace ctc = ck::tensor_layout::convolution;
+
+        const index_t N = e_n_k_wos_lengths[0];
+        const index_t K = e_n_k_wos_lengths[1];
+
+        const index_t WoStride = e_n_k_wos_strides[NDimSpatial + 1];
+
+        const index_t GemmMRaw = N * std::accumulate(e_n_k_wos_lengths.begin() + 2,
+                                                     e_n_k_wos_lengths.begin() + 2 + NDimSpatial,
+                                                     index_t{1},
+                                                     std::multiplies<index_t>());
+
+        const index_t GemmNRaw = K;
+
+        const auto out_gemmmraw_gemmnraw_grid_desc =
+            make_naive_tensor_descriptor(make_tuple(GemmMRaw, GemmNRaw), make_tuple(WoStride, I1));
+
+        const auto out_gemmm_gemmn_grid_desc =
+            matrix_padder.PadCDescriptor_M_N(out_gemmmraw_gemmnraw_grid_desc);
+
+        return out_gemmm_gemmn_grid_desc;
+    }
+
+    static auto MakeDsGridDescriptor_M_N(
+        const std::array<std::array<index_t, NDimSpatial + 2>, NumDTensor>& ds_n_k_wos_lengths,
+        const std::array<std::array<index_t, NDimSpatial + 2>, NumDTensor>& ds_n_k_wos_strides)
+    {
+        return generate_tuple(
+            [&](auto i) {
+                using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+
+                return DeviceOp::MakeEGridDescriptor_M_N<DLayout>(ds_n_k_wos_lengths[i],
+                                                                  ds_n_k_wos_strides[i]);
+            },
+            Number<NumDTensor>{});
+    }
+
+    using AGridDesc_M_K  = remove_cvref_t<decltype(
         MakeAGridDescriptor_M_K<ALayout>({}, {}, {}, {}, {}, {}, {}, {}, {}, {}))>;
-    using BGridDesc_N_K = remove_cvref_t<decltype(MakeBGridDescriptor_N_K<BLayout>({}, {}))>;
-    using EGridDesc_M_N = remove_cvref_t<decltype(MakeEGridDescriptor_M_N<ELayout>({}, {}))>;
+    using BGridDesc_N_K  = remove_cvref_t<decltype(MakeBGridDescriptor_N_K<BLayout>({}, {}))>;
+    using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}))>;
+    using EGridDesc_M_N  = remove_cvref_t<decltype(MakeEGridDescriptor_M_N<ELayout>({}, {}))>;
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
@@ -643,7 +686,7 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         InMemoryDataOperationEnum::Set,
         AGridDesc_M_K,
         BGridDesc_N_K,
-        StaticallyIndexedArray<EGridDesc_M_N, NumDTensor>,
+        DsGridDesc_M_N,
         EGridDesc_M_N,
         NumGemmKPrefetchStage,
         BlockSize,
@@ -762,6 +805,18 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
 
             block_2_etile_map_ = Block2ETileMap{e_grid_desc_m_n_};
 
+            // populate pointer and desc for Ds
+            static_for<0, NumDTensor, 1>{}([&](auto i) {
+                using DLayout   = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+                using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+
+                p_ds_grid_(i) = static_cast<const DDataType*>(p_ds[i]);
+
+                ds_grid_desc_m_n_(i) = DeviceOp::MakeEGridDescriptor_M_N<DLayout>(
+                    ds_n_k_wos_lengths[i], ds_n_k_wos_strides[i]);
+            });
+
+            // populate desc for Ds/E
             if(GridwiseGemm::CheckValidity(a_grid_desc_m_k_,
                                            b_grid_desc_n_k_,
                                            ds_grid_desc_m_n_,
@@ -772,20 +827,19 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
                     GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         e_grid_desc_m_n_);
 
-                // populate pointer and desc for Ds
-                static_for<0, NumDTensor, 1>{}([&](auto i) {
-                    using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
-
-                    p_ds_grid_(i) = static_cast<const DDataType*>(p_ds[i]);
-
-                    ds_grid_desc_m_n_[i] = DeviceOp::MakeEGridDescriptor_M_N<ELayout>(
-                        ds_n_k_wos_lengths[i], ds_n_k_wos_strides[i]);
-
-                    ds_grid_desc_mblock_mperblock_nblock_nperblock_(i) =
-                        GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                            ds_grid_desc_m_n_[i]);
-                });
+                ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                    GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                        ds_grid_desc_m_n_);
             }
+        }
+
+        void Print() const
+        {
+            std::cout << "A[M, K]: " << a_grid_desc_m_k_ << std::endl;
+            std::cout << "B[N, K]: " << b_grid_desc_n_k_ << std::endl;
+            static_for<0, NumDTensor, 1>{}(
+                [&](auto i) { std::cout << "Ds[M, N]: " << ds_grid_desc_m_n_[i] << std::endl; });
+            std::cout << "E[M, N]: " << e_grid_desc_m_n_ << std::endl;
         }
 
         //  private:
@@ -798,14 +852,12 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         // tensor descriptors
         AGridDesc_M_K a_grid_desc_m_k_;
         BGridDesc_N_K b_grid_desc_n_k_;
-        StaticallyIndexedArray<EGridDesc_M_N, NumDTensor> ds_grid_desc_m_n_;
+        DsGridDesc_M_N ds_grid_desc_m_n_;
         EGridDesc_M_N e_grid_desc_m_n_;
 
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
-        StaticallyIndexedArray<
-            typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-            NumDTensor>
+        typename GridwiseGemm::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             ds_grid_desc_mblock_mperblock_nblock_nperblock_;
         typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             e_grid_desc_mblock_mperblock_nblock_nperblock_;
@@ -841,11 +893,7 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
 #if 1
-            {
-                std::cout << "A[M, K]: " << arg.a_grid_desc_m_k_ << std::endl;
-                std::cout << "B[N, K]: " << arg.b_grid_desc_n_k_ << std::endl;
-                std::cout << "E[M, N]: " << arg.e_grid_desc_m_n_ << std::endl;
-            }
+            arg.Print();
 #endif
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
                                             arg.b_grid_desc_n_k_,
@@ -876,9 +924,7 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
                     CDEElementwiseOperation,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
-                    StaticallyIndexedArray<
-                        typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                        NumDTensor>,
+                    typename GridwiseGemm::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     Block2ETileMap,
                     has_main_loop>;
@@ -921,7 +967,14 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+#if 1
+        arg.Print();
+#endif
         namespace ctc = tensor_layout::convolution;
+
+        int itmp = 0;
+
+        printf("itmp %d\n", itmp++);
 
         // check device
         if(get_device_name() == "gfx908")
@@ -944,6 +997,8 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         {
             return false;
         }
+
+        printf("itmp %d\n", itmp++);
 
         // check ConvolutionForwardSpecialization
         if constexpr(ConvForwardSpecialization ==
@@ -980,6 +1035,8 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
             }
         }
 
+        printf("itmp %d\n", itmp++);
+
         // check vector access of A
         if constexpr(is_same_v<ALayout, ctc::NWC> || is_same_v<ALayout, ctc::NHWC> ||
                      is_same_v<ALayout, ctc::NDHWC>)
@@ -995,6 +1052,8 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         {
             return false;
         }
+
+        printf("itmp %d\n", itmp++);
 
         // check vector access of B
         if constexpr(is_same_v<BLayout, ctc::KXC> || is_same_v<BLayout, ctc::KYXC> ||
@@ -1012,7 +1071,37 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
             return false;
         }
 
-        // FIXME: check vector access of Ds
+        printf("itmp %d\n", itmp++);
+
+        //  check vector access of Ds
+        bool valid = true;
+
+        static_for<0, NumDTensor, 1>{}([&](auto i) {
+            using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+
+            if constexpr(is_same_v<DLayout, ctc::NWK> || is_same_v<DLayout, ctc::NHWK> ||
+                         is_same_v<DLayout, ctc::NDHWK> || is_same_v<DLayout, ctc::NW_K> ||
+                         is_same_v<DLayout, ctc::NHW_K> || is_same_v<DLayout, ctc::NDHW_K>)
+            {
+                const index_t K = arg.ds_n_k_wos_lengths_[i][1];
+
+                if(!(K % CDEBlockTransferScalarPerVector_NPerBlock == 0))
+                {
+                    valid = false;
+                }
+            }
+            else
+            {
+                valid = false;
+            }
+        });
+
+        if(!valid)
+        {
+            return false;
+        }
+
+        printf("itmp %d\n", itmp++);
 
         // check vector access of E
         if constexpr(is_same_v<ELayout, ctc::NWK> || is_same_v<ELayout, ctc::NHWK> ||
@@ -1029,6 +1118,8 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         {
             return false;
         }
+
+        printf("itmp %d\n", itmp++);
 
         // check Gridwise GEMM
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
