@@ -967,14 +967,7 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-#if 1
-        arg.Print();
-#endif
         namespace ctc = tensor_layout::convolution;
-
-        int itmp = 0;
-
-        printf("itmp %d\n", itmp++);
 
         // check device
         if(get_device_name() == "gfx908")
@@ -997,8 +990,6 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         {
             return false;
         }
-
-        printf("itmp %d\n", itmp++);
 
         // check ConvolutionForwardSpecialization
         if constexpr(ConvForwardSpecialization ==
@@ -1035,8 +1026,6 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
             }
         }
 
-        printf("itmp %d\n", itmp++);
-
         // check vector access of A
         if constexpr(is_same_v<ALayout, ctc::NWC> || is_same_v<ALayout, ctc::NHWC> ||
                      is_same_v<ALayout, ctc::NDHWC>)
@@ -1053,8 +1042,6 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
             return false;
         }
 
-        printf("itmp %d\n", itmp++);
-
         // check vector access of B
         if constexpr(is_same_v<BLayout, ctc::KXC> || is_same_v<BLayout, ctc::KYXC> ||
                      is_same_v<BLayout, ctc::KZYXC>)
@@ -1070,8 +1057,6 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         {
             return false;
         }
-
-        printf("itmp %d\n", itmp++);
 
         //  check vector access of Ds
         bool valid = true;
@@ -1101,8 +1086,6 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
             return false;
         }
 
-        printf("itmp %d\n", itmp++);
-
         // check vector access of E
         if constexpr(is_same_v<ELayout, ctc::NWK> || is_same_v<ELayout, ctc::NHWK> ||
                      is_same_v<ELayout, ctc::NDHWK>)
@@ -1118,8 +1101,6 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         {
             return false;
         }
-
-        printf("itmp %d\n", itmp++);
 
         // check Gridwise GEMM
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
