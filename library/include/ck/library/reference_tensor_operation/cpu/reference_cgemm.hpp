@@ -92,7 +92,7 @@ struct ReferenceCGemm : public device::BaseOperator
                     v_c_real += v_a_real * v_b_real - v_a_imag * v_b_imag;
                 }
 
-                arg.c_m_n_real_(m, n) = v_c_real;
+                arg.c_m_n_real_(m, n) = ck::type_convert<CDataType>(v_c_real);
             };
 
             auto f_mk_kn_mn_imag = [&](auto m, auto n) {
@@ -108,7 +108,7 @@ struct ReferenceCGemm : public device::BaseOperator
                     v_c_imag += v_a_real * v_b_imag + v_a_imag * v_b_real;
                 }
 
-                arg.c_m_n_imag_(m, n) = v_c_imag;
+                arg.c_m_n_imag_(m, n) = ck::type_convert<CDataType>(v_c_imag);
             };
 
             make_ParallelTensorFunctor(f_mk_kn_mn_real,
