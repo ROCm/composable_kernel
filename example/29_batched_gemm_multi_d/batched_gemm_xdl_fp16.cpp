@@ -6,7 +6,7 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/device_batched_gemm_c_permute_xdl.hpp"
+#include "ck/tensor_operation/gpu/device/device_batched_gemm_multi_d_xdl.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -46,7 +46,7 @@ static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecializa
 // static constexpr auto MNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
 // clang-format off
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmCPermuteXdl
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmMultiDXdl
 //######| ALayout| BLayout| ELayout|     AData|     BData|     AccData|         CShuffle|     DsData|     EData|           A|           B|          CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
 //######|        |        |        |      Type|      Type|        Type|         DataType|       Type|      Type| Elementwise| Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
 //######|        |        |        |          |          |            |                 |           |          |   Operation|   Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
@@ -63,26 +63,19 @@ int main(int argc, char* argv[])
     int init_method      = 1;
     bool time_kernel     = false;
 
-    const int M = 256;
-    const int N = 128;
-    const int K = 64;
+    const int M = 256 * (rand() % 16 + 1);
+    const int N = 128 * (rand() % 16 + 1);
+    const int K = 64 * (rand() % 16 + 1);
 
     const int stride_A = K;
     const int stride_B = K;
+    const int stride_C = N;
 
     const int batch_stride_A = M * K;
     const int batch_stride_B = K * N;
+    const int batch_stride_C = M * N;
 
-    const int G0 = 16;
-    const int G1 = 8;
-
-    const int batch_count = G0 * G1;
-
-    // output layout - [G0, M, G1, N]
-    const int stride_G0 = M * G1 * N;
-    const int stride_G1 = N;
-    const int stride_M  = G1 * N;
-    const int stride_N  = 1;
+    const int batch_count = 16;
 
     if(argc == 4)
     {
@@ -99,9 +92,6 @@ int main(int argc, char* argv[])
     }
 
     // GEMM shape
-    ck::tensor_operation::device::BatchedGemmCPermuteDesc batched_gemm_c_permute_desc{
-        G0, G1, M, N, stride_G0, stride_G1, stride_M, stride_N};
-
     auto f_host_tensor_descriptor = [](std::size_t batch_count_,
                                        std::size_t row,
                                        std::size_t col,
@@ -125,28 +115,12 @@ int main(int argc, char* argv[])
     Tensor<BDataType> b_g_k_n(
         f_host_tensor_descriptor(batch_count, K, N, stride_B, batch_stride_B, BLayout{}));
 
-    auto f_host_c_tensor_descriptor = [](std::size_t G0_,
-                                         std::size_t G1_,
-                                         std::size_t M_,
-                                         std::size_t N_,
-                                         std::size_t stride_G0_,
-                                         std::size_t stride_G1_,
-                                         std::size_t stride_M_,
-                                         std::size_t stride_N_) {
-        return HostTensorDescriptor(
-            std::vector<std::size_t>({G0_, G1_, M_, N_}),
-            std::vector<std::size_t>({stride_G0_, stride_G1_, stride_M_, stride_N_}));
-    };
-
-    Tensor<EDataType> c_g0_g1_m_n_host_result(
-        f_host_c_tensor_descriptor(G0, G1, M, N, stride_G0, stride_G1, stride_M, stride_N));
-
-    Tensor<EDataType> c_g0_g1_m_n_device_result(
-        f_host_c_tensor_descriptor(G0, G1, M, N, stride_G0, stride_G1, stride_M, stride_N));
+    Tensor<EDataType> e_g_m_n_device_result(
+        f_host_tensor_descriptor(batch_count, M, N, stride_C, batch_stride_C, ELayout{}));
 
     std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
     std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;
-    std::cout << "c_g0_g1_m_n: " << c_g0_g1_m_n_host_result.mDesc << std::endl;
+    std::cout << "e_g_m_n: " << e_g_m_n_device_result.mDesc << std::endl;
 
     switch(init_method)
     {
@@ -163,7 +137,7 @@ int main(int argc, char* argv[])
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpace());
     DeviceMem b_device_buf(sizeof(BDataType) * b_g_k_n.mDesc.GetElementSpace());
-    DeviceMem c_device_buf(sizeof(EDataType) * c_g0_g1_m_n_device_result.mDesc.GetElementSpace());
+    DeviceMem c_device_buf(sizeof(EDataType) * e_g_m_n_device_result.mDesc.GetElementSpace());
 
     a_device_buf.ToDevice(a_g_m_k.mData.data());
     b_device_buf.ToDevice(b_g_k_n.mData.data());
@@ -175,18 +149,22 @@ int main(int argc, char* argv[])
     auto gemm    = DeviceGemmInstance{};
     auto invoker = gemm.MakeInvoker();
 
-    // do GEM
-    auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                                      static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-                                      static_cast<EDataType*>(c_device_buf.GetDeviceBuffer()),
+    // do GEMM
+    auto argument = gemm.MakeArgument(a_device_buf.GetDeviceBuffer(),
+                                      b_device_buf.GetDeviceBuffer(),
+                                      {},
+                                      c_device_buf.GetDeviceBuffer(),
                                       M,
                                       N,
                                       K,
                                       stride_A,
                                       stride_B,
+                                      {},
+                                      stride_C,
                                       batch_stride_A,
                                       batch_stride_B,
-                                      batched_gemm_c_permute_desc,
+                                      {},
+                                      batch_stride_C,
                                       batch_count,
                                       a_element_op,
                                       b_element_op,
@@ -217,37 +195,21 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        c_device_buf.FromDevice(c_g0_g1_m_n_device_result.mData.data());
+        c_device_buf.FromDevice(e_g_m_n_device_result.mData.data());
 
         auto ref_batched_gemm = ReferenceBatchedGemmInstance{};
         auto ref_invoker      = ref_batched_gemm.MakeInvoker();
 
-        Tensor<EDataType> c_g_m_n_host_result = HostTensorDescriptor(
-            std::vector<std::size_t>({batch_count, M, N}), std::vector<std::size_t>({M * N, N, 1}));
+        Tensor<EDataType> e_g_m_n_host_result(
+            f_host_tensor_descriptor(batch_count, M, N, stride_C, batch_stride_C, ELayout{}));
 
         auto ref_argument = ref_batched_gemm.MakeArgument(
-            a_g_m_k, b_g_k_n, c_g_m_n_host_result, a_element_op, b_element_op, cde_element_op);
+            a_g_m_k, b_g_k_n, e_g_m_n_host_result, a_element_op, b_element_op, cde_element_op);
 
         ref_invoker.Run(ref_argument);
 
-        for(int g0 = 0; g0 < G0; g0++)
-        {
-            for(int g1 = 0; g1 < G1; g1++)
-            {
-                for(int m = 0; m < M; m++)
-                {
-                    for(int n = 0; n < N; n++)
-                    {
-                        int g                                 = g0 * G1 + g1;
-                        c_g0_g1_m_n_host_result(g0, g1, m, n) = c_g_m_n_host_result(g, m, n);
-                    }
-                }
-            }
-        }
-
-        pass = ck::utils::check_err(c_g0_g1_m_n_host_result.mData,
-                                    c_g0_g1_m_n_device_result.mData,
-                                    "Error: Incorrect results c");
+        pass = ck::utils::check_err(
+            e_g_m_n_host_result.mData, e_g_m_n_device_result.mData, "Error: Incorrect results c");
     }
 
     return pass ? 0 : 1;
