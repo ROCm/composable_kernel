@@ -18,6 +18,7 @@ struct ConvParam
 {
     ConvParam();
     ConvParam(ck::index_t n_dim,
+              ck::index_t group_count,
               ck::index_t n_batch,
               ck::index_t n_out_channels,
               ck::index_t n_in_channels,
@@ -29,6 +30,7 @@ struct ConvParam
               const std::vector<ck::index_t>& right_pads);
 
     ck::index_t num_dim_spatial_;
+    ck::index_t G_;
     ck::index_t N_;
     ck::index_t K_;
     ck::index_t C_;
@@ -50,20 +52,22 @@ struct ConvParam
     template <typename InDataType, typename WeiDataType, typename OutDataType>
     std::size_t GetByte() const
     {
-        // sizeof(InDataType) * (N * C * <input spatial lengths product>) +
-        // sizeof(WeiDataType) * (K * C * <filter spatial lengths product>) +
-        // sizeof(OutDataType) * (N * K * <output spatial lengths product>);
-        return sizeof(InDataType) * (N_ * C_ *
-                                     std::accumulate(std::begin(input_spatial_lengths_),
-                                                     std::end(input_spatial_lengths_),
-                                                     static_cast<std::size_t>(1),
-                                                     std::multiplies<std::size_t>())) +
-               sizeof(WeiDataType) * (K_ * C_ *
-                                      std::accumulate(std::begin(filter_spatial_lengths_),
-                                                      std::end(filter_spatial_lengths_),
-                                                      static_cast<std::size_t>(1),
-                                                      std::multiplies<std::size_t>())) +
-               sizeof(OutDataType) * (N_ * K_ *
+        // sizeof(InDataType) * (G * N * C * <input spatial lengths product>) +
+        // sizeof(WeiDataType) * (G * K * C * <filter spatial lengths product>) +
+        // sizeof(OutDataType) * (G * N * K * <output spatial lengths product>);
+        return sizeof(InDataType) *
+                   (G_ * N_ * C_ *
+                    std::accumulate(std::begin(input_spatial_lengths_),
+                                    std::begin(input_spatial_lengths_) + num_dim_spatial_,
+                                    static_cast<std::size_t>(1),
+                                    std::multiplies<std::size_t>())) +
+               sizeof(WeiDataType) *
+                   (G_ * K_ * C_ *
+                    std::accumulate(std::begin(filter_spatial_lengths_),
+                                    std::begin(filter_spatial_lengths_) + num_dim_spatial_,
+                                    static_cast<std::size_t>(1),
+                                    std::multiplies<std::size_t>())) +
+               sizeof(OutDataType) * (G_ * N_ * K_ *
                                       std::accumulate(std::begin(output_spatial_lengths_),
                                                       std::end(output_spatial_lengths_),
                                                       static_cast<std::size_t>(1),

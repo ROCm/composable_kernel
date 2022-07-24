@@ -256,6 +256,10 @@ struct Tensor
         return *this;
     }
 
+    const std::vector<std::size_t>& GetLengths() const { return mDesc.GetLengths(); }
+
+    const std::vector<std::size_t>& GetStrides() const { return mDesc.GetStrides(); }
+
     void SetZero()
     {
         for(auto& v : mData)

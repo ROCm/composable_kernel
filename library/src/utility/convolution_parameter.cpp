@@ -10,6 +10,7 @@ namespace utils {
 namespace conv {
 
 ConvParam::ConvParam(ck::index_t n_dim,
+                     ck::index_t group_count,
                      ck::index_t n_batch,
                      ck::index_t n_out_channels,
                      ck::index_t n_in_channels,
@@ -20,6 +21,7 @@ ConvParam::ConvParam(ck::index_t n_dim,
                      const std::vector<ck::index_t>& left_pads,
                      const std::vector<ck::index_t>& right_pads)
     : num_dim_spatial_(n_dim),
+      G_(group_count),
       N_(n_batch),
       K_(n_out_channels),
       C_(n_in_channels),
@@ -57,7 +59,7 @@ ConvParam::ConvParam(ck::index_t n_dim,
 }
 
 ConvParam::ConvParam()
-    : ConvParam::ConvParam(2, 128, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1})
+    : ConvParam::ConvParam(2, 1, 128, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1})
 {
 }
 
@@ -68,14 +70,14 @@ std::vector<ck::index_t> ConvParam::GetOutputSpatialLengths() const
 
 std::size_t ConvParam::GetFlops() const
 {
-    // 2 * N * K * C * <output spatial lengths product> * <filter spatial lengths product>
-    return static_cast<std::size_t>(2) * N_ * K_ * C_ *
+    // 2 * G * N * K * C * <output spatial lengths product> * <filter spatial lengths product>
+    return static_cast<std::size_t>(2) * G_ * N_ * K_ * C_ *
            std::accumulate(std::begin(output_spatial_lengths_),
-                           std::end(output_spatial_lengths_),
+                           std::begin(output_spatial_lengths_) + num_dim_spatial_,
                            static_cast<std::size_t>(1),
                            std::multiplies<std::size_t>()) *
            std::accumulate(std::begin(filter_spatial_lengths_),
-                           std::end(filter_spatial_lengths_),
+                           std::begin(filter_spatial_lengths_) + num_dim_spatial_,
                            static_cast<std::size_t>(1),
                            std::multiplies<std::size_t>());
 }
@@ -87,13 +89,14 @@ std::size_t ConvParam::GetFlops() const
 std::ostream& operator<<(std::ostream& os, const ck::utils::conv::ConvParam& p)
 {
     os << "ConvParam {"
-       << "\nnum_dim_spatial: " << p.num_dim_spatial_ << "\nN: " << p.N_ << "\nK: " << p.K_
-       << "\nC: " << p.C_ << "\nfilter_spatial_lengths: " << p.filter_spatial_lengths_
+       << "\nnum_dim_spatial: " << p.num_dim_spatial_ << "\nG: " << p.G_ << "\nN: " << p.N_
+       << "\nK: " << p.K_ << "\nC: " << p.C_
+       << "\nfilter_spatial_lengths: " << p.filter_spatial_lengths_
        << "\ninput_spatial_lengths: " << p.input_spatial_lengths_
        << "\nconv_filter_strides: " << p.conv_filter_strides_
        << "\nconv_filter_dilations: " << p.conv_filter_dilations_
        << "\ninput_left_pads: " << p.input_left_pads_
-       << "\ninput_right_pads: " << p.input_right_pads_;
+       << "\ninput_right_pads: " << p.input_right_pads_ << "}\n";
 
     return os;
 }

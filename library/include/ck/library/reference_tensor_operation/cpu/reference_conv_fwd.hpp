@@ -89,97 +89,33 @@ struct ReferenceConvFwd : public device::BaseOperator
     {
         using Argument = ReferenceConvFwd::Argument;
 
-        // FIXME: properly implement "TensorView" for doing transpose or refer to dimension by name
         float Run(const Argument& arg)
         {
             // tensor descriptor in NCHW/KXYC/NKHW dimensional order
-            HostTensorDescriptor in_desc  = arg.input_.mDesc;
-            HostTensorDescriptor wei_desc = arg.weight_.mDesc;
-            HostTensorDescriptor out_desc = arg.output_.mDesc;
-
-            // input
-            if constexpr(is_same_v<InLayout, ck::tensor_layout::convolution::NWC>)
-            {
-                in_desc = transpose_host_tensor_descriptor_given_new2old(
-                    arg.input_.mDesc, std::vector<std::size_t>{0, 2, 1});
-            }
-            else if constexpr(is_same_v<InLayout, ck::tensor_layout::convolution::NHWC>)
-            {
-                in_desc = transpose_host_tensor_descriptor_given_new2old(
-                    arg.input_.mDesc, std::vector<std::size_t>{0, 3, 1, 2});
-            }
-            else if constexpr(is_same_v<InLayout, ck::tensor_layout::convolution::NDHWC>)
-            {
-                in_desc = transpose_host_tensor_descriptor_given_new2old(
-                    arg.input_.mDesc, std::vector<std::size_t>{0, 4, 1, 2, 3});
-            }
-
-            // weight
-            if constexpr(is_same_v<WeiLayout, ck::tensor_layout::convolution::KXC>)
-            {
-                wei_desc = transpose_host_tensor_descriptor_given_new2old(
-                    arg.weight_.mDesc, std::vector<std::size_t>{0, 2, 1});
-            }
-            else if constexpr(is_same_v<WeiLayout, ck::tensor_layout::convolution::KYXC>)
-            {
-                wei_desc = transpose_host_tensor_descriptor_given_new2old(
-                    arg.weight_.mDesc, std::vector<std::size_t>{0, 3, 1, 2});
-            }
-            else if constexpr(is_same_v<WeiLayout, ck::tensor_layout::convolution::KZYXC>)
-            {
-                wei_desc = transpose_host_tensor_descriptor_given_new2old(
-                    arg.weight_.mDesc, std::vector<std::size_t>{0, 4, 1, 2, 3});
-            }
-
-            // output
-            if constexpr(is_same_v<OutLayout, ck::tensor_layout::convolution::NWK>)
-            {
-                out_desc = transpose_host_tensor_descriptor_given_new2old(
-                    arg.output_.mDesc, std::vector<std::size_t>{0, 2, 1});
-            }
-            else if constexpr(is_same_v<OutLayout, ck::tensor_layout::convolution::NHWK>)
-            {
-                out_desc = transpose_host_tensor_descriptor_given_new2old(
-                    arg.output_.mDesc, std::vector<std::size_t>{0, 3, 1, 2});
-            }
-            else if constexpr(is_same_v<OutLayout, ck::tensor_layout::convolution::NDHWK>)
-            {
-                out_desc = transpose_host_tensor_descriptor_given_new2old(
-                    arg.output_.mDesc, std::vector<std::size_t>{0, 4, 1, 2, 3});
-            }
-
             if constexpr(NumDimSpatial == 1)
             {
-                auto f_ncw = [&](auto n, auto k, auto wo) {
+                auto func = [&](auto g, auto n, auto k, auto wo) {
                     float v_acc = 0;
 
-                    for(std::size_t c = 0; c < wei_desc.GetLengths()[1]; ++c)
+                    for(std::size_t c = 0; c < arg.weight_.GetLengths()[2]; ++c)
                     {
-                        for(std::size_t x = 0; x < wei_desc.GetLengths()[2]; ++x)
+                        for(std::size_t x = 0; x < arg.weight_.GetLengths()[3]; ++x)
                         {
                             auto wi = static_cast<ck::long_index_t>(wo * arg.conv_strides_[0]) +
                                       static_cast<ck::long_index_t>(x * arg.conv_dilations_[0]) -
                                       static_cast<ck::long_index_t>(arg.in_left_pads_[0]);
 
                             if(wi >= 0 &&
-                               ck::type_convert<std::size_t>(wi) < in_desc.GetLengths()[2])
+                               ck::type_convert<std::size_t>(wi) < arg.input_.GetLengths()[3])
                             {
                                 float v_in;
                                 float v_wei;
 
-                                // FIXME hacky
                                 arg.in_element_op_(
-                                    v_in,
-                                    ck::type_convert<float>(
-                                        arg.input_
-                                            .mData[in_desc.GetOffsetFromMultiIndex(n, c, wi)]));
+                                    v_in, ck::type_convert<float>(arg.input_(g, n, c, wi)));
 
-                                // FIXME hacky
                                 arg.wei_element_op_(
-                                    v_wei,
-                                    ck::type_convert<float>(
-                                        arg.weight_
-                                            .mData[wei_desc.GetOffsetFromMultiIndex(k, c, x)]));
+                                    v_wei, ck::type_convert<float>(arg.weight_(g, k, c, x)));
 
                                 v_acc += v_in * v_wei;
                             }
@@ -190,33 +126,32 @@ struct ReferenceConvFwd : public device::BaseOperator
 
                     arg.out_element_op_(v_out, v_acc);
 
-                    // FIXME hacky
-                    arg.output_.mData[out_desc.GetOffsetFromMultiIndex({n, k, wo})] =
-                        ck::type_convert<OutDataType>(v_out);
+                    arg.output_(g, n, k, wo) = ck::type_convert<OutDataType>(v_out);
                 };
 
-                make_ParallelTensorFunctor(f_ncw,
-                                           out_desc.GetLengths()[0],
-                                           out_desc.GetLengths()[1],
-                                           out_desc.GetLengths()[2])(
+                make_ParallelTensorFunctor(func,
+                                           arg.output_.GetLengths()[0],
+                                           arg.output_.GetLengths()[1],
+                                           arg.output_.GetLengths()[2],
+                                           arg.output_.GetLengths()[3])(
                     std::thread::hardware_concurrency());
 
                 return 0;
             }
             else if constexpr(NumDimSpatial == 2)
             {
-                auto f_nchw = [&](auto n, auto k, auto ho, auto wo) {
+                auto func = [&](auto g, auto n, auto k, auto ho, auto wo) {
                     float v_acc = 0;
 
-                    for(std::size_t c = 0; c < wei_desc.GetLengths()[1]; ++c)
+                    for(std::size_t c = 0; c < arg.weight_.GetLengths()[2]; ++c)
                     {
-                        for(std::size_t y = 0; y < wei_desc.GetLengths()[2]; ++y)
+                        for(std::size_t y = 0; y < arg.weight_.GetLengths()[3]; ++y)
                         {
                             auto hi = static_cast<ck::long_index_t>(ho * arg.conv_strides_[0]) +
                                       static_cast<ck::long_index_t>(y * arg.conv_dilations_[0]) -
                                       static_cast<ck::long_index_t>(arg.in_left_pads_[0]);
 
-                            for(std::size_t x = 0; x < wei_desc.GetLengths()[3]; ++x)
+                            for(std::size_t x = 0; x < arg.weight_.GetLengths()[4]; ++x)
                             {
                                 auto wi =
                                     static_cast<ck::long_index_t>(wo * arg.conv_strides_[1]) +
@@ -224,26 +159,18 @@ struct ReferenceConvFwd : public device::BaseOperator
                                     static_cast<ck::long_index_t>(arg.in_left_pads_[1]);
 
                                 if(hi >= 0 &&
-                                   ck::type_convert<std::size_t>(hi) < in_desc.GetLengths()[2] &&
+                                   ck::type_convert<std::size_t>(hi) < arg.input_.GetLengths()[3] &&
                                    wi >= 0 &&
-                                   ck::type_convert<std::size_t>(wi) < in_desc.GetLengths()[3])
+                                   ck::type_convert<std::size_t>(wi) < arg.input_.GetLengths()[4])
                                 {
                                     float v_in;
                                     float v_wei;
 
-                                    // FIXME hacky
                                     arg.in_element_op_(
-                                        v_in,
-                                        ck::type_convert<float>(
-                                            arg.input_.mData[in_desc.GetOffsetFromMultiIndex(
-                                                n, c, hi, wi)]));
+                                        v_in, ck::type_convert<float>(arg.input_(g, n, c, hi, wi)));
 
-                                    // FIXME hacky
                                     arg.wei_element_op_(
-                                        v_wei,
-                                        ck::type_convert<float>(
-                                            arg.weight_.mData[wei_desc.GetOffsetFromMultiIndex(
-                                                k, c, y, x)]));
+                                        v_wei, ck::type_convert<float>(arg.weight_(g, k, c, y, x)));
 
                                     v_acc += v_in * v_wei;
                                 }
@@ -255,39 +182,38 @@ struct ReferenceConvFwd : public device::BaseOperator
 
                     arg.out_element_op_(v_out, v_acc);
 
-                    // FIXME hacky
-                    arg.output_.mData[out_desc.GetOffsetFromMultiIndex({n, k, ho, wo})] =
-                        ck::type_convert<OutDataType>(v_out);
+                    arg.output_(g, n, k, ho, wo) = ck::type_convert<OutDataType>(v_out);
                 };
 
-                make_ParallelTensorFunctor(f_nchw,
-                                           out_desc.GetLengths()[0],
-                                           out_desc.GetLengths()[1],
-                                           out_desc.GetLengths()[2],
-                                           out_desc.GetLengths()[3])(
+                make_ParallelTensorFunctor(func,
+                                           arg.output_.GetLengths()[0],
+                                           arg.output_.GetLengths()[1],
+                                           arg.output_.GetLengths()[2],
+                                           arg.output_.GetLengths()[3],
+                                           arg.output_.GetLengths()[4])(
                     std::thread::hardware_concurrency());
 
                 return 0;
             }
             else if constexpr(NumDimSpatial == 3)
             {
-                auto f_nchw = [&](auto n, auto k, auto d_o, auto ho, auto wo) {
+                auto func = [&](auto g, auto n, auto k, auto d_o, auto ho, auto wo) {
                     float v_acc = 0;
 
-                    for(std::size_t c = 0; c < wei_desc.GetLengths()[1]; ++c)
+                    for(std::size_t c = 0; c < arg.weight_.GetLengths()[2]; ++c)
                     {
-                        for(std::size_t z = 0; z < wei_desc.GetLengths()[2]; ++z)
+                        for(std::size_t z = 0; z < arg.weight_.GetLengths()[3]; ++z)
                         {
                             auto di = static_cast<ck::long_index_t>(d_o * arg.conv_strides_[0]) +
                                       static_cast<ck::long_index_t>(z * arg.conv_dilations_[0]) -
                                       static_cast<ck::long_index_t>(arg.in_left_pads_[0]);
-                            for(std::size_t y = 0; y < wei_desc.GetLengths()[3]; ++y)
+                            for(std::size_t y = 0; y < arg.weight_.GetLengths()[4]; ++y)
                             {
                                 auto hi =
                                     static_cast<ck::long_index_t>(ho * arg.conv_strides_[1]) +
                                     static_cast<ck::long_index_t>(y * arg.conv_dilations_[1]) -
                                     static_cast<ck::long_index_t>(arg.in_left_pads_[1]);
-                                for(std::size_t x = 0; x < wei_desc.GetLengths()[4]; ++x)
+                                for(std::size_t x = 0; x < arg.weight_.GetLengths()[5]; ++x)
                                 {
                                     auto wi =
                                         static_cast<ck::long_index_t>(wo * arg.conv_strides_[2]) +
@@ -295,29 +221,24 @@ struct ReferenceConvFwd : public device::BaseOperator
                                         static_cast<ck::long_index_t>(arg.in_left_pads_[2]);
                                     if(di >= 0 &&
                                        ck::type_convert<std::size_t>(di) <
-                                           in_desc.GetLengths()[2] &&
+                                           arg.input_.GetLengths()[3] &&
                                        hi >= 0 &&
                                        ck::type_convert<std::size_t>(hi) <
-                                           in_desc.GetLengths()[3] &&
+                                           arg.input_.GetLengths()[4] &&
                                        wi >= 0 &&
-                                       ck::type_convert<std::size_t>(wi) < in_desc.GetLengths()[4])
+                                       ck::type_convert<std::size_t>(wi) <
+                                           arg.input_.GetLengths()[5])
                                     {
                                         float v_in;
                                         float v_wei;
 
-                                        // FIXME hacky
-                                        arg.in_element_op_(
-                                            v_in,
-                                            ck::type_convert<float>(
-                                                arg.input_.mData[in_desc.GetOffsetFromMultiIndex(
-                                                    n, c, di, hi, wi)]));
+                                        arg.in_element_op_(v_in,
+                                                           ck::type_convert<float>(
+                                                               arg.input_(g, n, c, di, hi, wi)));
 
-                                        // FIXME hacky
                                         arg.wei_element_op_(
                                             v_wei,
-                                            ck::type_convert<float>(
-                                                arg.weight_.mData[wei_desc.GetOffsetFromMultiIndex(
-                                                    k, c, z, y, x)]));
+                                            ck::type_convert<float>(arg.weight_(g, k, c, z, y, x)));
 
                                         v_acc += v_in * v_wei;
                                     }
@@ -330,17 +251,16 @@ struct ReferenceConvFwd : public device::BaseOperator
 
                     arg.out_element_op_(v_out, v_acc);
 
-                    // FIXME hacky
-                    arg.output_.mData[out_desc.GetOffsetFromMultiIndex({n, k, d_o, ho, wo})] =
-                        ck::type_convert<OutDataType>(v_out);
+                    arg.output_(g, n, k, d_o, ho, wo) = ck::type_convert<OutDataType>(v_out);
                 };
 
-                make_ParallelTensorFunctor(f_nchw,
-                                           out_desc.GetLengths()[0],
-                                           out_desc.GetLengths()[1],
-                                           out_desc.GetLengths()[2],
-                                           out_desc.GetLengths()[3],
-                                           out_desc.GetLengths()[4])(
+                make_ParallelTensorFunctor(func,
+                                           arg.output_.GetLengths()[0],
+                                           arg.output_.GetLengths()[1],
+                                           arg.output_.GetLengths()[2],
+                                           arg.output_.GetLengths()[3],
+                                           arg.output_.GetLengths()[4],
+                                           arg.output_.GetLengths()[5])(
                     std::thread::hardware_concurrency());
 
                 return 0;

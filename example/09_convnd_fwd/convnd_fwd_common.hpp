@@ -25,7 +25,7 @@ void print_helper_msg()
               << "arg3: time kernel (0=no, 1=yes)\n"
               << "arg4: N spatial dimensions (default 2)\n"
               << "Following arguments (depending on number of spatial dims):\n"
-              << " N, K, C, \n"
+              << " G, N, K, C, \n"
               << " <filter spatial dimensions>, (ie Y, X for 2D)\n"
               << " <input image spatial dimensions>, (ie Hi, Wi for 2D)\n"
               << " <strides>, (ie Sy, Sx for 2D)\n"
@@ -37,6 +37,7 @@ void print_helper_msg()
 
 ck::utils::conv::ConvParam parse_conv_params(int num_dim_spatial, int arg_idx, char* const argv[])
 {
+    const ck::index_t G = std::stoi(argv[arg_idx++]);
     const ck::index_t N = std::stoi(argv[arg_idx++]);
     const ck::index_t K = std::stoi(argv[arg_idx++]);
     const ck::index_t C = std::stoi(argv[arg_idx++]);
@@ -79,6 +80,7 @@ ck::utils::conv::ConvParam parse_conv_params(int num_dim_spatial, int arg_idx, c
     }
 
     return ck::utils::conv::ConvParam{num_dim_spatial,
+                                      G,
                                       N,
                                       K,
                                       C,
@@ -110,23 +112,56 @@ int run_conv_fwd(bool do_verification,
                  const WeiElementOp& wei_element_op,
                  const OutElementOp& out_element_op)
 {
-    const auto in_desc  = ck::utils::conv::get_input_host_tensor_descriptor<InLayout>(conv_param);
-    const auto wei_desc = ck::utils::conv::get_weight_host_tensor_descriptor<WeiLayout>(conv_param);
-    const auto out_desc = ck::utils::conv::get_output_host_tensor_descriptor<OutLayout>(conv_param);
+#if 0
+    const auto in_g_n_c_wis_desc  = ck::utils::conv::get_input_host_tensor_descriptor<InLayout>(conv_param);
+    const auto wei_g_k_c_xs_desc = ck::utils::conv::get_weight_host_tensor_descriptor<WeiLayout>(conv_param);
+    const auto out_g_n_k_wos_desc = ck::utils::conv::get_output_host_tensor_descriptor<OutLayout>(conv_param);
+#else
+    const auto in_g_n_wis_c_desc = HostTensorDescriptor(
+        std::vector<std::size_t>{static_cast<std::size_t>(conv_param.G_),
+                                 static_cast<std::size_t>(conv_param.N_),
+                                 static_cast<std::size_t>(conv_param.input_spatial_lengths_[0]),
+                                 static_cast<std::size_t>(conv_param.input_spatial_lengths_[1]),
+                                 static_cast<std::size_t>(conv_param.C_)});
 
-    // hacky, hardcoded for 2d NHWK
-    const auto bias_desc = HostTensorDescriptor(
-        std::vector<std::size_t>{static_cast<std::size_t>(conv_param.N_),
+    const auto wei_g_k_xs_c_desc = HostTensorDescriptor(
+        std::vector<std::size_t>{static_cast<std::size_t>(conv_param.G_),
+                                 static_cast<std::size_t>(conv_param.K_),
+                                 static_cast<std::size_t>(conv_param.filter_spatial_lengths_[0]),
+                                 static_cast<std::size_t>(conv_param.filter_spatial_lengths_[1]),
+                                 static_cast<std::size_t>(conv_param.C_)});
+
+    const auto bias_g_n_wos_k_desc = HostTensorDescriptor(
+        std::vector<std::size_t>{static_cast<std::size_t>(conv_param.G_),
+                                 static_cast<std::size_t>(conv_param.N_),
                                  static_cast<std::size_t>(conv_param.output_spatial_lengths_[0]),
                                  static_cast<std::size_t>(conv_param.output_spatial_lengths_[1]),
                                  static_cast<std::size_t>(conv_param.K_)},
-        std::vector<std::size_t>{0, 0, 0, 1});
+        std::vector<std::size_t>{0, 0, 0, 0, 1});
 
-    Tensor<InDataType> in(in_desc);
-    Tensor<WeiDataType> wei(wei_desc);
-    Tensor<OutDataType> bias(bias_desc);
-    Tensor<OutDataType> out_host(out_desc);
-    Tensor<OutDataType> out_device(out_desc);
+    const auto out_g_n_wos_k_desc = HostTensorDescriptor(
+        std::vector<std::size_t>{static_cast<std::size_t>(conv_param.G_),
+                                 static_cast<std::size_t>(conv_param.N_),
+                                 static_cast<std::size_t>(conv_param.output_spatial_lengths_[0]),
+                                 static_cast<std::size_t>(conv_param.output_spatial_lengths_[1]),
+                                 static_cast<std::size_t>(conv_param.K_)});
+
+    // tensor descriptor in NCHW/KXYC/NKHW dimensional order
+    const auto in_g_n_c_wis_desc = transpose_host_tensor_descriptor_given_new2old(
+        in_g_n_wis_c_desc, std::vector<ck::index_t>{0, 1, 4, 2, 3});
+    const auto wei_g_k_c_xs_desc = transpose_host_tensor_descriptor_given_new2old(
+        wei_g_k_xs_c_desc, std::vector<ck::index_t>{0, 1, 4, 2, 3});
+    const auto bias_g_n_k_wos_desc = transpose_host_tensor_descriptor_given_new2old(
+        bias_g_n_wos_k_desc, std::vector<ck::index_t>{0, 1, 4, 2, 3});
+    const auto out_g_n_k_wos_desc = transpose_host_tensor_descriptor_given_new2old(
+        out_g_n_wos_k_desc, std::vector<ck::index_t>{0, 1, 4, 2, 3});
+#endif
+
+    Tensor<InDataType> in(in_g_n_c_wis_desc);
+    Tensor<WeiDataType> wei(wei_g_k_c_xs_desc);
+    Tensor<OutDataType> bias(bias_g_n_k_wos_desc);
+    Tensor<OutDataType> out_host(out_g_n_k_wos_desc);
+    Tensor<OutDataType> out_device(out_g_n_k_wos_desc);
 
     std::cout << "in: " << in.mDesc << std::endl;
     std::cout << "wei: " << wei.mDesc << std::endl;
@@ -156,80 +191,14 @@ int run_conv_fwd(bool do_verification,
     wei_device_buf.ToDevice(wei.mData.data());
     bias_device_buf.ToDevice(bias.mData.data());
 
-    // tensor descriptor in NCHW/KXYC/NKHW dimensional order
-    HostTensorDescriptor in_n_c_wis_desc   = in_desc;
-    HostTensorDescriptor wei_k_c_xs_desc   = wei_desc;
-    HostTensorDescriptor bias_n_k_wos_desc = bias_desc;
-    HostTensorDescriptor out_n_k_wos_desc  = out_desc;
-
-    // input
-    if constexpr(ck::is_same_v<InLayout, ck::tensor_layout::convolution::NWC>)
-    {
-        in_n_c_wis_desc = transpose_host_tensor_descriptor_given_new2old(
-            in_desc, std::vector<std::size_t>{0, 2, 1});
-    }
-    else if constexpr(ck::is_same_v<InLayout, ck::tensor_layout::convolution::NHWC>)
-    {
-        in_n_c_wis_desc = transpose_host_tensor_descriptor_given_new2old(
-            in_desc, std::vector<std::size_t>{0, 3, 1, 2});
-    }
-    else if constexpr(ck::is_same_v<InLayout, ck::tensor_layout::convolution::NDHWC>)
-    {
-        in_n_c_wis_desc = transpose_host_tensor_descriptor_given_new2old(
-            in_desc, std::vector<std::size_t>{0, 4, 1, 2, 3});
-    }
-
-    // weight
-    if constexpr(ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::KXC>)
-    {
-        wei_k_c_xs_desc = transpose_host_tensor_descriptor_given_new2old(
-            wei_desc, std::vector<std::size_t>{0, 2, 1});
-    }
-    else if constexpr(ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::KYXC>)
-    {
-        wei_k_c_xs_desc = transpose_host_tensor_descriptor_given_new2old(
-            wei_desc, std::vector<std::size_t>{0, 3, 1, 2});
-    }
-    else if constexpr(ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::KZYXC>)
-    {
-        wei_k_c_xs_desc = transpose_host_tensor_descriptor_given_new2old(
-            wei_desc, std::vector<std::size_t>{0, 4, 1, 2, 3});
-    }
-
-    // output
-    if constexpr(ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NWK>)
-    {
-        out_n_k_wos_desc = transpose_host_tensor_descriptor_given_new2old(
-            out_desc, std::vector<std::size_t>{0, 2, 1});
-
-        bias_n_k_wos_desc = transpose_host_tensor_descriptor_given_new2old(
-            bias_desc, std::vector<std::size_t>{0, 2, 1});
-    }
-    else if constexpr(ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NHWK>)
-    {
-        out_n_k_wos_desc = transpose_host_tensor_descriptor_given_new2old(
-            out_desc, std::vector<std::size_t>{0, 3, 1, 2});
-
-        bias_n_k_wos_desc = transpose_host_tensor_descriptor_given_new2old(
-            bias_desc, std::vector<std::size_t>{0, 3, 1, 2});
-    }
-    else if constexpr(ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NDHWK>)
-    {
-        out_n_k_wos_desc = transpose_host_tensor_descriptor_given_new2old(
-            out_desc, std::vector<std::size_t>{0, 4, 1, 2, 3});
-
-        bias_n_k_wos_desc = transpose_host_tensor_descriptor_given_new2old(
-            bias_desc, std::vector<std::size_t>{0, 4, 1, 2, 3});
-    }
-
-    std::array<ck::index_t, NDimSpatial + 2> a_n_c_wis_lengths{};
-    std::array<ck::index_t, NDimSpatial + 2> a_n_c_wis_strides{};
-    std::array<ck::index_t, NDimSpatial + 2> b_k_c_xs_lengths{};
-    std::array<ck::index_t, NDimSpatial + 2> b_k_c_xs_strides{};
-    std::array<ck::index_t, NDimSpatial + 2> d_n_k_wos_lengths{};
-    std::array<ck::index_t, NDimSpatial + 2> d_n_k_wos_strides{};
-    std::array<ck::index_t, NDimSpatial + 2> e_n_k_wos_lengths{};
-    std::array<ck::index_t, NDimSpatial + 2> e_n_k_wos_strides{};
+    std::array<ck::index_t, NDimSpatial + 3> a_g_n_c_wis_lengths{};
+    std::array<ck::index_t, NDimSpatial + 3> a_g_n_c_wis_strides{};
+    std::array<ck::index_t, NDimSpatial + 3> b_g_k_c_xs_lengths{};
+    std::array<ck::index_t, NDimSpatial + 3> b_g_k_c_xs_strides{};
+    std::array<ck::index_t, NDimSpatial + 3> d_g_n_k_wos_lengths{};
+    std::array<ck::index_t, NDimSpatial + 3> d_g_n_k_wos_strides{};
+    std::array<ck::index_t, NDimSpatial + 3> e_g_n_k_wos_lengths{};
+    std::array<ck::index_t, NDimSpatial + 3> e_g_n_k_wos_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
     std::array<ck::index_t, NDimSpatial> input_left_pads{};
@@ -237,14 +206,14 @@ int run_conv_fwd(bool do_verification,
 
     auto copy = [](auto& x, auto& y) { std::copy(x.begin(), x.end(), y.begin()); };
 
-    copy(in_n_c_wis_desc.GetLengths(), a_n_c_wis_lengths);
-    copy(in_n_c_wis_desc.GetStrides(), a_n_c_wis_strides);
-    copy(wei_k_c_xs_desc.GetLengths(), b_k_c_xs_lengths);
-    copy(wei_k_c_xs_desc.GetStrides(), b_k_c_xs_strides);
-    copy(bias_n_k_wos_desc.GetLengths(), d_n_k_wos_lengths);
-    copy(bias_n_k_wos_desc.GetStrides(), d_n_k_wos_strides);
-    copy(out_n_k_wos_desc.GetLengths(), e_n_k_wos_lengths);
-    copy(out_n_k_wos_desc.GetStrides(), e_n_k_wos_strides);
+    copy(in_g_n_c_wis_desc.GetLengths(), a_g_n_c_wis_lengths);
+    copy(in_g_n_c_wis_desc.GetStrides(), a_g_n_c_wis_strides);
+    copy(wei_g_k_c_xs_desc.GetLengths(), b_g_k_c_xs_lengths);
+    copy(wei_g_k_c_xs_desc.GetStrides(), b_g_k_c_xs_strides);
+    copy(bias_g_n_k_wos_desc.GetLengths(), d_g_n_k_wos_lengths);
+    copy(bias_g_n_k_wos_desc.GetStrides(), d_g_n_k_wos_strides);
+    copy(out_g_n_k_wos_desc.GetLengths(), e_g_n_k_wos_lengths);
+    copy(out_g_n_k_wos_desc.GetStrides(), e_g_n_k_wos_strides);
     copy(conv_param.conv_filter_strides_, conv_filter_strides);
     copy(conv_param.conv_filter_dilations_, conv_filter_dilations);
     copy(conv_param.input_left_pads_, input_left_pads);
@@ -258,14 +227,14 @@ int run_conv_fwd(bool do_verification,
         wei_device_buf.GetDeviceBuffer(),
         std::array<const void*, 1>{bias_device_buf.GetDeviceBuffer()},
         out_device_buf.GetDeviceBuffer(),
-        a_n_c_wis_lengths,
-        a_n_c_wis_strides,
-        b_k_c_xs_lengths,
-        b_k_c_xs_strides,
-        std::array<std::array<ck::index_t, NDimSpatial + 2>, 1>{{d_n_k_wos_lengths}},
-        std::array<std::array<ck::index_t, NDimSpatial + 2>, 1>{{d_n_k_wos_strides}},
-        e_n_k_wos_lengths,
-        e_n_k_wos_strides,
+        a_g_n_c_wis_lengths,
+        a_g_n_c_wis_strides,
+        b_g_k_c_xs_lengths,
+        b_g_k_c_xs_strides,
+        std::array<std::array<ck::index_t, NDimSpatial + 3>, 1>{{d_g_n_k_wos_lengths}},
+        std::array<std::array<ck::index_t, NDimSpatial + 3>, 1>{{d_g_n_k_wos_strides}},
+        e_g_n_k_wos_lengths,
+        e_g_n_k_wos_strides,
         conv_filter_strides,
         conv_filter_dilations,
         input_left_pads,
@@ -295,7 +264,7 @@ int run_conv_fwd(bool do_verification,
     {
         using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-        Tensor<OutDataType> c_host(out_desc);
+        Tensor<OutDataType> c_host(out_g_n_k_wos_desc);
 
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
                                                                      InLayout,
@@ -322,16 +291,20 @@ int run_conv_fwd(bool do_verification,
 
         ref_invoker.Run(ref_argument);
 
-        for(int n = 0; n < out_host.mDesc.GetLengths()[0]; n++)
+        for(int g = 0; g < out_host.mDesc.GetLengths()[0]; g++)
         {
-            for(int ho = 0; ho < out_host.mDesc.GetLengths()[1]; ho++)
+            for(int n = 0; n < out_host.mDesc.GetLengths()[1]; n++)
             {
-                for(int wo = 0; wo < out_host.mDesc.GetLengths()[2]; wo++)
+                for(int k = 0; k < out_host.mDesc.GetLengths()[2]; k++)
                 {
-                    for(int k = 0; k < out_host.mDesc.GetLengths()[3]; k++)
+                    for(int ho = 0; ho < out_host.mDesc.GetLengths()[3]; ho++)
                     {
-                        out_element_op(
-                            out_host(n, ho, wo, k), c_host(n, ho, wo, k), bias(n, ho, wo, k));
+                        for(int wo = 0; wo < out_host.mDesc.GetLengths()[4]; wo++)
+                        {
+                            out_element_op(out_host(g, n, k, ho, wo),
+                                           c_host(g, n, k, ho, wo),
+                                           bias(g, n, k, ho, wo));
+                        }
                     }
                 }
             }

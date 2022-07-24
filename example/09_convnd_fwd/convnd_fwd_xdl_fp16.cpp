@@ -138,7 +138,7 @@ int main(int argc, char* argv[])
     int num_dim_spatial  = 2;
 
     ck::utils::conv::ConvParam params{
-        2, 128, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
+        2, 1, 128, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
 
     if(argc == 1)
     {
