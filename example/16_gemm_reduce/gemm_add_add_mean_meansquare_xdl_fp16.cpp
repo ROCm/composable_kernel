@@ -23,7 +23,6 @@ using S = ck::Sequence<Is...>;
 
 using F16 = ck::half_t;
 using F32 = float;
-using F64 = double;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -199,6 +198,7 @@ int main()
         throw std::runtime_error("wrong! this device_op instance does not support this problem");
     }
 
+    // init reducetion buffer to 0
     r0_device_buf.SetZero();
     r1_device_buf.SetZero();
 
