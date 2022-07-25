@@ -8,6 +8,7 @@
 #include "ck/tensor_operation/gpu/device/device_conv_bwd_data.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/conv_util.hpp"
 #include "ck/library/host_tensor/device_memory.hpp"
 #include "ck/library/host_tensor/host_tensor.hpp"
@@ -452,7 +453,7 @@ bool profile_convnd_bwd_data_impl(int do_verification,
                     std::cout << "Pass Info: " << conv_ptr->GetTypeString() << std::endl;
                 }
 
-                check_error(input_host_result, input_device_result);
+                success = ck::utils::check_err(input_host_result.mData, input_device_result.mData);
 
                 if(do_log)
                 {
