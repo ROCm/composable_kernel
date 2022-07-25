@@ -71,9 +71,9 @@ bool profile_conv_fwd_impl(int do_verification,
     const auto wei_element_op = WeiElementOp{};
     const auto out_element_op = OutElementOp{};
 
-    DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpace());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * weight.mDesc.GetElementSpace());
-    DeviceMem out_device_buf(sizeof(OutDataType) * device_output.mDesc.GetElementSpace());
+    DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpaceSize());
+    DeviceMem wei_device_buf(sizeof(WeiDataType) * weight.mDesc.GetElementSpaceSize());
+    DeviceMem out_device_buf(sizeof(OutDataType) * device_output.mDesc.GetElementSpaceSize());
 
     in_device_buf.ToDevice(input.mData.data());
     wei_device_buf.ToDevice(weight.mData.data());

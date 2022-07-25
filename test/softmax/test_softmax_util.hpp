@@ -80,8 +80,8 @@ class TestSoftmax : public ::testing::Test
 
         Tensor<OutDataType> out_ref(out);
 
-        DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpace());
-        DeviceMem out_dev(sizeof(OutDataType) * out.mDesc.GetElementSpace());
+        DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
+        DeviceMem out_dev(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
         in_dev.ToDevice(in.mData.data());
         out_dev.ToDevice(out.mData.data());
 

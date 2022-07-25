@@ -146,10 +146,10 @@ int run_conv_fwd(bool do_verification,
         bias.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-0.5, 0.5});
     }
 
-    DeviceMem in_device_buf(sizeof(InDataType) * in.mDesc.GetElementSpace());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpace());
-    DeviceMem bias_device_buf(sizeof(OutDataType) * bias.mDesc.GetElementSpace());
-    DeviceMem out_device_buf(sizeof(OutDataType) * out_device.mDesc.GetElementSpace());
+    DeviceMem in_device_buf(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
+    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
+    DeviceMem bias_device_buf(sizeof(OutDataType) * bias.mDesc.GetElementSpaceSize());
+    DeviceMem out_device_buf(sizeof(OutDataType) * out_device.mDesc.GetElementSpaceSize());
 
     in_device_buf.ToDevice(in.mData.data());
     wei_device_buf.ToDevice(wei.mData.data());

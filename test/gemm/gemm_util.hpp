@@ -71,9 +71,9 @@ bool RunDeviceGEMM(DeviceGemmPtr_& gemmPtr,
                    BElementwiseOperation b_element_op,
                    CElementwiseOperation c_element_op)
 {
-    DeviceMem a_m_k_device_buf(sizeof(ADataType) * A.mDesc.GetElementSpace());
-    DeviceMem b_k_n_device_buf(sizeof(BDataType) * B.mDesc.GetElementSpace());
-    DeviceMem c_m_n_device_buf(sizeof(CDataType) * C.mDesc.GetElementSpace());
+    DeviceMem a_m_k_device_buf(sizeof(ADataType) * A.mDesc.GetElementSpaceSize());
+    DeviceMem b_k_n_device_buf(sizeof(BDataType) * B.mDesc.GetElementSpaceSize());
+    DeviceMem c_m_n_device_buf(sizeof(CDataType) * C.mDesc.GetElementSpaceSize());
 
     auto invoker_ptr = gemmPtr->MakeInvokerPointer();
     auto argument_ptr =

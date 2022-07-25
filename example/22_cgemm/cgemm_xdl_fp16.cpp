@@ -177,14 +177,14 @@ int main(int argc, char* argv[])
 
     auto cgemm = DeviceCGemmInstance{};
 
-    DeviceMem a_m_k_real_device_buf(sizeof(ADataType) * a_m_k_real.mDesc.GetElementSpace());
-    DeviceMem a_m_k_imag_device_buf(sizeof(ADataType) * a_m_k_imag.mDesc.GetElementSpace());
-    DeviceMem b_k_n_real_device_buf(sizeof(BDataType) * b_k_n_real.mDesc.GetElementSpace());
-    DeviceMem b_k_n_imag_device_buf(sizeof(BDataType) * b_k_n_imag.mDesc.GetElementSpace());
+    DeviceMem a_m_k_real_device_buf(sizeof(ADataType) * a_m_k_real.mDesc.GetElementSpaceSize());
+    DeviceMem a_m_k_imag_device_buf(sizeof(ADataType) * a_m_k_imag.mDesc.GetElementSpaceSize());
+    DeviceMem b_k_n_real_device_buf(sizeof(BDataType) * b_k_n_real.mDesc.GetElementSpaceSize());
+    DeviceMem b_k_n_imag_device_buf(sizeof(BDataType) * b_k_n_imag.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_real_device_buf(sizeof(CDataType) *
-                                    c_m_n_real_device_result.mDesc.GetElementSpace());
+                                    c_m_n_real_device_result.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_imag_device_buf(sizeof(CDataType) *
-                                    c_m_n_imag_device_result.mDesc.GetElementSpace());
+                                    c_m_n_imag_device_result.mDesc.GetElementSpaceSize());
     DeviceMem workspace_device_buf(cgemm.GetWorkspaceSize(M, N, K, StrideA, StrideB, StrideC));
 
     a_m_k_real_device_buf.ToDevice(a_m_k_real.mData.data());

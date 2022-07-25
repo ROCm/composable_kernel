@@ -177,7 +177,7 @@ int main(int argc, char* argv[])
         }
 
         if(beta != 0.0f)
-            for(size_t i = 0; i < out_ref.mDesc.GetElementSpace(); i++)
+            for(size_t i = 0; i < out_ref.mDesc.GetElementSpaceSize(); i++)
                 out.mData[i] = out_ref.mData[i];
     };
     // std::cout << "beta = " << beta << std::endl;
@@ -185,8 +185,8 @@ int main(int argc, char* argv[])
     // LogRangeAsType<float>(std::cout << "tensor prior out: " , out.mData, ",") << std::endl;
 
     // these buffers are usually provided by the user application
-    DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpace());
-    DeviceMem out_dev(sizeof(OutDataType) * out.mDesc.GetElementSpace());
+    DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
+    DeviceMem out_dev(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
 
     in_dev.ToDevice(in.mData.data());
 

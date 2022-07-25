@@ -91,7 +91,7 @@ struct ReferenceConvFwd : public device::BaseOperator
                  arg.weight_.GetNumOfDimension() == NDimSpatial + 3 &&
                  arg.output_.GetNumOfDimension() == NDimSpatial + 3))
             {
-                std::throw("wrong! inconsistent dimension");
+                throw std::runtime_error("wrong! inconsistent dimension");
             }
 
             if constexpr(NDimSpatial == 1)

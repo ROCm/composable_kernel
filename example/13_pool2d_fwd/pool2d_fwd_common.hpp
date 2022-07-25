@@ -204,10 +204,11 @@ bool pool_test(bool do_verification,
     default: in_n_c_hi_wi.GenerateTensorValue(GeneratorTensor_3<InDataType>{-5.0, 5.0});
     }
 
-    DeviceMem in_device_buf(sizeof(InDataType) * in_n_c_hi_wi.mDesc.GetElementSpace());
-    DeviceMem out_device_buf(sizeof(OutDataType) * out_n_c_ho_wo_device.mDesc.GetElementSpace());
+    DeviceMem in_device_buf(sizeof(InDataType) * in_n_c_hi_wi.mDesc.GetElementSpaceSize());
+    DeviceMem out_device_buf(sizeof(OutDataType) *
+                             out_n_c_ho_wo_device.mDesc.GetElementSpaceSize());
     DeviceMem out_indices_device_buf(sizeof(IndexDataType) *
-                                     out_indices_n_c_ho_wo_device.mDesc.GetElementSpace());
+                                     out_indices_n_c_ho_wo_device.mDesc.GetElementSpaceSize());
 
     in_device_buf.ToDevice(in_n_c_hi_wi.mData.data());
 

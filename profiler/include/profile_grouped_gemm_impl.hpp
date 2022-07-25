@@ -152,12 +152,12 @@ void profile_grouped_gemm_impl(int do_verification,
     for(std::size_t i = 0; i < group_count; i++)
     {
         a_device_buf.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(ADataType) * a_m_k[i].mDesc.GetElementSpace()));
+            std::make_unique<DeviceMem>(sizeof(ADataType) * a_m_k[i].mDesc.GetElementSpaceSize()));
         b_device_buf.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(BDataType) * b_k_n[i].mDesc.GetElementSpace()));
+            std::make_unique<DeviceMem>(sizeof(BDataType) * b_k_n[i].mDesc.GetElementSpaceSize()));
 
         c_device_buf.emplace_back(std::make_unique<DeviceMem>(
-            sizeof(CDataType) * c_m_n_device_results[i].mDesc.GetElementSpace()));
+            sizeof(CDataType) * c_m_n_device_results[i].mDesc.GetElementSpaceSize()));
 
         a_device_buf[i]->ToDevice(a_m_k[i].mData.data());
         b_device_buf[i]->ToDevice(b_k_n[i].mData.data());

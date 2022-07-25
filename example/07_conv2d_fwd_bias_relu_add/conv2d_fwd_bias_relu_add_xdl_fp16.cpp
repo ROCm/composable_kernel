@@ -238,11 +238,12 @@ int main(int argc, char* argv[])
         resi_n_ho_wo_k.GenerateTensorValue(GeneratorTensor_3<OutDataType>{0.0, 1.0});
     }
 
-    DeviceMem in_device_buf(sizeof(InDataType) * in_n_hi_wi_c.mDesc.GetElementSpace());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_k_y_x_c.mDesc.GetElementSpace());
-    DeviceMem bias_device_buf(sizeof(OutDataType) * bias_k.mDesc.GetElementSpace());
-    DeviceMem resi_device_buf(sizeof(OutDataType) * resi_n_ho_wo_k.mDesc.GetElementSpace());
-    DeviceMem out_device_buf(sizeof(OutDataType) * out_n_ho_wo_k_device.mDesc.GetElementSpace());
+    DeviceMem in_device_buf(sizeof(InDataType) * in_n_hi_wi_c.mDesc.GetElementSpaceSize());
+    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_k_y_x_c.mDesc.GetElementSpaceSize());
+    DeviceMem bias_device_buf(sizeof(OutDataType) * bias_k.mDesc.GetElementSpaceSize());
+    DeviceMem resi_device_buf(sizeof(OutDataType) * resi_n_ho_wo_k.mDesc.GetElementSpaceSize());
+    DeviceMem out_device_buf(sizeof(OutDataType) *
+                             out_n_ho_wo_k_device.mDesc.GetElementSpaceSize());
 
     in_device_buf.ToDevice(in_n_hi_wi_c.mData.data());
     wei_device_buf.ToDevice(wei_k_y_x_c.mData.data());
