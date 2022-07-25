@@ -723,8 +723,7 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             auto ds_thread_buf = generate_tuple(
                 [&](auto) {
                     return make_static_buffer<AddressSpaceEnum::Vgpr, FloatReduceAcc>(
-                        cde_reduce_thread_desc_I1_mperblock_I1_nperblock
-                            .GetElementSpaceSize());
+                        cde_reduce_thread_desc_I1_mperblock_I1_nperblock.GetElementSpaceSize());
                 },
                 Number<NumDTensor>{});
 
@@ -825,12 +824,11 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                     });
 
                 // Global write E
-                e_thread_copy_vgpr_to_global.Run(
-                    cde_reduce_thread_desc_I1_mperblock_I1_nperblock,
-                    make_tuple(I0, I0, I0, I0),
-                    e_thread_buf,
-                    e_grid_desc_mblock_mperblock_nblock_nperblock,
-                    e_grid_buf);
+                e_thread_copy_vgpr_to_global.Run(cde_reduce_thread_desc_I1_mperblock_I1_nperblock,
+                                                 make_tuple(I0, I0, I0, I0),
+                                                 e_thread_buf,
+                                                 e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                 e_grid_buf);
 
                 if constexpr(access_id < num_access - 1)
                 {

@@ -218,7 +218,7 @@ int main()
             for(int n = 0; n < N; ++n)
             {
                 ReduceAccDataType square_e_val;
-                auto e_val  = ck::type_convert<ReduceAccDataType>(e_m_n_host(m, n));
+                auto e_val = ck::type_convert<ReduceAccDataType>(e_m_n_host(m, n));
                 qs_element_op[I1](square_e_val, e_val);
 
                 reduce0_op(reduce0_acc, e_val);
@@ -247,8 +247,7 @@ int main()
     if(time_kernel)
     {
         float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
-        DumpPerf<ADataType, BDataType, EDataType, R0DataType, R1DataType>(
-            ave_time, M, N, K);
+        DumpPerf<ADataType, BDataType, EDataType, R0DataType, R1DataType>(ave_time, M, N, K);
     }
 
     return pass ? 0 : 1;
