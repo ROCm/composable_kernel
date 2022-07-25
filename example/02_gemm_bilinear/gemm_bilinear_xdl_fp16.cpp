@@ -51,33 +51,34 @@ using BDataType        = F16;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
 using DDataType        = F16;
-using DsDataType       = ck::Tuple<DDataType>;
 using EDataType        = F16;
 
-using ALayout  = Row;
-using BLayout  = Col;
-using DELayout = Row;
+using ALayout = Row;
+using BLayout = Col;
+using DLayout = Row;
+using ELayout = Row;
 
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
 using CDEElementOp = AlphaBetaAdd;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
+static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
 using DeviceOpInstance =
     ck::tensor_operation::device::DeviceGemmMultipleD_Xdl_CShuffle<ALayout,
                                                                    BLayout,
-                                                                   DELayout,
+                                                                   ck::Tuple<DLayout>,
+                                                                   ELayout,
                                                                    ADataType,
                                                                    BDataType,
                                                                    AccDataType,
                                                                    CShuffleDataType,
-                                                                   DsDataType,
+                                                                   ck::Tuple<DDataType>,
                                                                    EDataType,
                                                                    AElementOp,
                                                                    BElementOp,
                                                                    CDEElementOp,
-                                                                   GemmDefault,
+                                                                   GemmSpec,
                                                                    1,
                                                                    256,
                                                                    256,
@@ -190,9 +191,9 @@ int main(int argc, char* argv[])
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-    Tensor<DDataType> d_m_n(f_host_tensor_descriptor(M, N, StrideD, DELayout{}));
-    Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, DELayout{}));
-    Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, DELayout{}));
+    Tensor<DDataType> d_m_n(f_host_tensor_descriptor(M, N, StrideD, DLayout{}));
+    Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
+    Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;

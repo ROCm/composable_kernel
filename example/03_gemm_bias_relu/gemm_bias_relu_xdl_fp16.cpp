@@ -47,33 +47,34 @@ using BDataType        = F16;
 using AccDataType      = F32;
 using CShuffleDataType = F16;
 using DDataType        = F16;
-using DsDataType       = ck::Tuple<DDataType>;
 using EDataType        = F16;
 
 using ALayout = Row;
 using BLayout = Col;
+using DLayout = Row;
 using ELayout = Row;
 
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
 using CDEElementOp = AddRelu;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
+static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
 using DeviceOpInstance =
     ck::tensor_operation::device::DeviceGemmMultipleD_Xdl_CShuffle<ALayout,
                                                                    BLayout,
+                                                                   ck::Tuple<DLayout>,
                                                                    ELayout,
                                                                    ADataType,
                                                                    BDataType,
                                                                    AccDataType,
                                                                    CShuffleDataType,
-                                                                   DsDataType,
+                                                                   ck::Tuple<DDataType>,
                                                                    EDataType,
                                                                    AElementOp,
                                                                    BElementOp,
                                                                    CDEElementOp,
-                                                                   GemmDefault,
+                                                                   GemmSpec,
                                                                    1,
                                                                    256,
                                                                    256,

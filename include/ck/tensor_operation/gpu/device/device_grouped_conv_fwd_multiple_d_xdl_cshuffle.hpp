@@ -1315,17 +1315,30 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
                  const CDEElementwiseOperation& cde_element_op)
             : p_a_grid_{static_cast<const ADataType*>(p_a)},
               p_b_grid_{static_cast<const BDataType*>(p_b)},
-              p_ds_grid_{}, // FIXME
+              p_ds_grid_{},
               p_e_grid_{static_cast<EDataType*>(p_e)},
-              a_grid_desc_m_k_{},
-              b_grid_desc_n_k_{},
+              a_grid_desc_m_k_{DeviceOp::MakeAGridDescriptor_M_K<ALayout>(a_g_n_c_wis_lengths,
+                                                                          a_g_n_c_wis_strides,
+                                                                          b_g_k_c_xs_lengths,
+                                                                          b_g_k_c_xs_strides,
+                                                                          e_g_n_k_wos_lengths,
+                                                                          e_g_n_k_wos_strides,
+                                                                          conv_filter_strides,
+                                                                          conv_filter_dilations,
+                                                                          input_left_pads,
+                                                                          input_right_pads)},
+              b_grid_desc_n_k_{DeviceOp::MakeBGridDescriptor_N_K<BLayout>(b_g_k_c_xs_lengths,
+                                                                          b_g_k_c_xs_strides)},
               ds_grid_desc_m_n_{},
-              e_grid_desc_m_n_{},
-              a_grid_desc_ak0_m_ak1_{},
-              b_grid_desc_bk0_n_bk1_{},
+              e_grid_desc_m_n_{DeviceOp::MakeEGridDescriptor_M_N<ELayout>(e_g_n_k_wos_lengths,
+                                                                          e_g_n_k_wos_strides)},
+              a_grid_desc_ak0_m_ak1_{
+                  GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_)},
+              b_grid_desc_bk0_n_bk1_{
+                  GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k_)},
               ds_grid_desc_mblock_mperblock_nblock_nperblock_{},
               e_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              block_2_etile_map_{},
+              block_2_etile_map_{GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_)},
               compute_ptr_offset_of_batch_{},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
@@ -1343,42 +1356,12 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
               input_left_pads_{input_left_pads},
               input_right_pads_{input_right_pads}
         {
-            // A desc
-            a_grid_desc_m_k_ = DeviceOp::MakeAGridDescriptor_M_K<ALayout>(a_g_n_c_wis_lengths,
-                                                                          a_g_n_c_wis_strides,
-                                                                          b_g_k_c_xs_lengths,
-                                                                          b_g_k_c_xs_strides,
-                                                                          e_g_n_k_wos_lengths,
-                                                                          e_g_n_k_wos_strides,
-                                                                          conv_filter_strides,
-                                                                          conv_filter_dilations,
-                                                                          input_left_pads,
-                                                                          input_right_pads);
-
-            // B Desc
-            b_grid_desc_n_k_ =
-                DeviceOp::MakeBGridDescriptor_N_K<BLayout>(b_g_k_c_xs_lengths, b_g_k_c_xs_strides);
-
-            // E Desc
-            e_grid_desc_m_n_ = DeviceOp::MakeEGridDescriptor_M_N<ELayout>(e_g_n_k_wos_lengths,
-                                                                          e_g_n_k_wos_strides);
-
-            // A Des
-            a_grid_desc_ak0_m_ak1_ =
-                GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_);
-
-            // B Desc
-            b_grid_desc_bk0_n_bk1_ =
-                GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k_);
-
-            // Block-to-e-tile
-            block_2_etile_map_ = Block2ETileMap{e_grid_desc_m_n_};
-
             // A/B/E Batch Stride
             compute_ptr_offset_of_batch_.BatchStrideA_ = a_g_n_c_wis_strides[0];
             compute_ptr_offset_of_batch_.BatchStrideB_ = b_g_k_c_xs_strides[0];
             compute_ptr_offset_of_batch_.BatchStrideE_ = e_g_n_k_wos_strides[0];
 
+            // populate pointer, batch stride, desc for Ds
             static_for<0, NumDTensor, 1>{}([&](auto i) {
                 using DLayout   = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
                 using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
@@ -1427,12 +1410,13 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
         typename GridwiseGemm::DsGridPointer p_ds_grid_;
         EDataType* p_e_grid_;
 
-        // tensor descriptors
+        // tensor descriptors for problem definiton
         AGridDesc_M_K a_grid_desc_m_k_;
         BGridDesc_N_K b_grid_desc_n_k_;
         DsGridDesc_M_N ds_grid_desc_m_n_;
         EGridDesc_M_N e_grid_desc_m_n_;
 
+        // tensor descriptors for block/thread-wise copy
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         typename GridwiseGemm::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
@@ -1487,7 +1471,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
 
             const index_t grid_size =
                 arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) *
-                arg.a_g_n_c_wis_lengths_[0];
+                arg.a_g_n_c_wis_lengths_[0]; // Group count
 
             const auto K =
                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
