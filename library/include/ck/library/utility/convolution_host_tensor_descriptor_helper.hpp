@@ -156,9 +156,9 @@ make_weight_host_tensor_descriptor_g_k_c_xs_packed(const ck::utils::conv::ConvPa
                                 param.filter_spatial_lengths_.begin(),
                                 param.filter_spatial_lengths_.begin() + param.num_dim_spatial_);
     }
-    else if constexpr(ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::KXC> ||
-                      ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::KYXC> ||
-                      ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::KZYXC>)
+    else if constexpr(ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::GKXC> ||
+                      ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::GKYXC> ||
+                      ck::is_same_v<WeiLayout, ck::tensor_layout::convolution::GKZYXC>)
     {
         physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.G_),
                                                     static_cast<std::size_t>(param.K_),
@@ -183,6 +183,7 @@ make_weight_host_tensor_descriptor_g_k_c_xs_packed(const ck::utils::conv::ConvPa
     else
     {
         printf("%s\n", __func__);
+        printf("%s\n", WeiLayout::name);
         throw std::runtime_error("wrong! unsupported layout");
     }
 
@@ -238,6 +239,7 @@ make_output_host_tensor_descriptor_g_n_k_wos_packed(const ck::utils::conv::ConvP
     else
     {
         printf("%s\n", __func__);
+        printf("%s\n", OutLayout::name);
         throw std::runtime_error("wrong! unsupported layout");
     }
 

@@ -248,7 +248,8 @@ template <index_t NDimSpatial,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
-          index_t K1,
+          index_t AK1,
+          index_t BK1,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MXdlPerWave,
@@ -294,9 +295,6 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
-
-    static constexpr auto K1Number     = Number<K1>{};
-    static constexpr auto GemmK1Number = K1Number;
 
     static constexpr auto matrix_padder =
         MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};
@@ -1256,8 +1254,8 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
         MPerBlock,
         NPerBlock,
         KPerBlock,
-        K1,
-        K1,
+        AK1,
+        BK1,
         MPerXDL,
         NPerXDL,
         MXdlPerWave,

@@ -5,6 +5,8 @@
 
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_d_xdl_cshuffle.hpp"
 
+#include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
+
 using InDataType       = ck::half_t;
 using WeiDataType      = ck::half_t;
 using AccDataType      = float;
@@ -29,7 +31,7 @@ template <ck::index_t NDimSpatial,
           typename WeiLayout,
           typename BiasLayout,
           typename OutLayout>
-using DeviceGroupledConvNDFwdInstance =
+using DeviceGroupedConvNDFwdInstance =
     ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<
         NDimSpatial,
         InLayout,
@@ -52,24 +54,25 @@ using DeviceGroupledConvNDFwdInstance =
         128,         // MPerBlock
         256,         // NPerBlock
         32,          // KPerBlock
-        8,           // K1
+        8,           // AK1
+        8,           // BK1
         32,          // MPerXdl
         32,          // NPerXdl
         2,           // MXdlPerWave
         4,           // NXdlPerWave
-        S<4, 64, 1>, // ABlockTransferThreadClusterLengths_K0_M_K1
+        S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
         S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
         2,           // ABlockTransferSrcVectorDim
         8,           // ABlockTransferSrcScalarPerVector
-        8,           // ABlockTransferDstScalarPerVector_K1
+        8,           // ABlockTransferDstScalarPerVector_AK1
         1,           // ABlockLdsExtraM
-        S<4, 64, 1>, // BBlockTransferThreadClusterLengths_K0_N_K1
+        S<4, 64, 1>, // BBlockTransferThreadClusterLengths_BK0_N_BK1
         S<1, 0, 2>,  // BBlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // BBlockTransferSrcAccessOrder
         2,           // BBlockTransferSrcVectorDim
         8,           // BBlockTransferSrcScalarPerVector
-        8,           // BBlockTransferDstScalarPerVector_K1
+        8,           // BBlockTransferDstScalarPerVector_BK1
         1,           // BBlockLdsExtraN
         1,
         1,
@@ -164,7 +167,7 @@ int main(int argc, char* argv[])
             InElementOp,
             WeiElementOp,
             OutElementOp,
-            DeviceGroupledConvNDFwdInstance<1, InLayout, WeiLayout, BiasLayout, OutLayout>>(
+            DeviceGroupedConvNDFwdInstance<1, InLayout, WeiLayout, BiasLayout, OutLayout>>(
             do_verification,
             init_method,
             time_kernel,
@@ -251,7 +254,7 @@ int main(int argc, char* argv[])
             InElementOp,
             WeiElementOp,
             OutElementOp,
-            DeviceGroupledConvNDFwdInstance<2, InLayout, WeiLayout, BiasLayout, OutLayout>>(
+            DeviceGroupedConvNDFwdInstance<2, InLayout, WeiLayout, BiasLayout, OutLayout>>(
             do_verification,
             init_method,
             time_kernel,
@@ -349,7 +352,7 @@ int main(int argc, char* argv[])
             InElementOp,
             WeiElementOp,
             OutElementOp,
-            DeviceGroupledConvNDFwdInstance<3, InLayout, WeiLayout, BiasLayout, OutLayout>>(
+            DeviceGroupedConvNDFwdInstance<3, InLayout, WeiLayout, BiasLayout, OutLayout>>(
             do_verification,
             init_method,
             time_kernel,
