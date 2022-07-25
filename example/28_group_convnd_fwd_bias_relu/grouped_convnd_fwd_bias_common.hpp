@@ -23,8 +23,8 @@ void print_helper_msg()
     std::cout << "arg1: verification (0=no, 1=yes)\n"
               << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
               << "arg3: time kernel (0=no, 1=yes)\n"
-              << "arg4: N spatial dimensions (default 2)\n"
               << "Following arguments (depending on number of spatial dims):\n"
+              << " N spatial dimensions (1=Conv1d, 2=Conv2d, 3=Conv3d)\n"
               << " G, N, K, C, \n"
               << " <filter spatial dimensions>, (ie Y, X for 2D)\n"
               << " <input image spatial dimensions>, (ie Hi, Wi for 2D)\n"
@@ -92,7 +92,6 @@ ck::utils::conv::ConvParam parse_conv_param(int num_dim_spatial, int arg_idx, ch
                                       input_right_pads};
 }
 
-// FIXME: current implementation only support NCHW/NHWC layout
 template <ck::index_t NDimSpatial,
           typename InDataType,
           typename WeiDataType,
@@ -101,17 +100,17 @@ template <ck::index_t NDimSpatial,
           typename WeiElementOp,
           typename OutElementOp,
           typename DeviceConvNDFwdInstance>
-int run_conv_fwd_bias(bool do_verification,
-                      int init_method,
-                      bool time_kernel,
-                      const ck::utils::conv::ConvParam& conv_param,
-                      const HostTensorDescriptor& in_g_n_c_wis_desc,
-                      const HostTensorDescriptor& wei_g_k_c_xs_desc,
-                      const HostTensorDescriptor& bias_g_n_k_wos_desc,
-                      const HostTensorDescriptor& out_g_n_k_wos_desc,
-                      const InElementOp& in_element_op,
-                      const WeiElementOp& wei_element_op,
-                      const OutElementOp& out_element_op)
+int run_grouped_conv_fwd_bias(bool do_verification,
+                              int init_method,
+                              bool time_kernel,
+                              const ck::utils::conv::ConvParam& conv_param,
+                              const HostTensorDescriptor& in_g_n_c_wis_desc,
+                              const HostTensorDescriptor& wei_g_k_c_xs_desc,
+                              const HostTensorDescriptor& bias_g_n_k_wos_desc,
+                              const HostTensorDescriptor& out_g_n_k_wos_desc,
+                              const InElementOp& in_element_op,
+                              const WeiElementOp& wei_element_op,
+                              const OutElementOp& out_element_op)
 {
     Tensor<InDataType> in(in_g_n_c_wis_desc);
     Tensor<WeiDataType> wei(wei_g_k_c_xs_desc);
@@ -175,7 +174,7 @@ int run_conv_fwd_bias(bool do_verification,
     copy(conv_param.input_left_pads_, input_left_pads);
     copy(conv_param.input_right_pads_, input_right_pads);
 
-    // do GEMM
+    // do Conv
     auto conv     = DeviceConvNDFwdInstance{};
     auto invoker  = conv.MakeInvoker();
     auto argument = conv.MakeArgument(

@@ -1,5 +1,0 @@
-add_example_executable(example_conv2d_fwd_bias_relu_xdl_fp16 conv2d_fwd_bias_relu_xdl_fp16.cpp)
-target_link_libraries(example_conv2d_fwd_bias_relu_xdl_fp16 PRIVATE utility)
-
-add_example_executable(example_convnd_fwd_bias_relu_xdl_fp16 convnd_fwd_bias_relu_xdl_fp16.cpp)
-target_link_libraries(example_convnd_fwd_bias_relu_xdl_fp16 PRIVATE utility)

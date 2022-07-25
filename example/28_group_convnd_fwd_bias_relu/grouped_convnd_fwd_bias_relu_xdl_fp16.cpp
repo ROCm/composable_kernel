@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "convnd_fwd_bias_common.hpp"
+#include "grouped_convnd_fwd_bias_common.hpp"
 
-#include "ck/tensor_operation/gpu/device/device_conv_fwd_multiple_d_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_d_xdl_cshuffle.hpp"
 
 using InDataType       = ck::half_t;
 using WeiDataType      = ck::half_t;
@@ -29,51 +29,52 @@ template <ck::index_t NDimSpatial,
           typename WeiLayout,
           typename BiasLayout,
           typename OutLayout>
-using DeviceConvNDFwdInstance = ck::tensor_operation::device::DeviceConvFwdMultipleD_Xdl_CShuffle<
-    NDimSpatial,
-    InLayout,
-    WeiLayout,
-    ck::Tuple<BiasLayout>,
-    OutLayout,
-    InDataType,
-    WeiDataType,
-    AccDataType,
-    CShuffleDataType,
-    ck::Tuple<BiasDataType>,
-    OutDataType,
-    InElementOp,
-    WeiElementOp,
-    OutElementOp,
-    ConvSpec,    // ConvForwardSpecialization
-    GemmSpec,    // GemmSpecialization
-    1,           //
-    256,         // BlockSize
-    128,         // MPerBlock
-    256,         // NPerBlock
-    32,          // KPerBlock
-    8,           // K1
-    32,          // MPerXdl
-    32,          // NPerXdl
-    2,           // MXdlPerWave
-    4,           // NXdlPerWave
-    S<4, 64, 1>, // ABlockTransferThreadClusterLengths_K0_M_K1
-    S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
-    S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
-    2,           // ABlockTransferSrcVectorDim
-    8,           // ABlockTransferSrcScalarPerVector
-    8,           // ABlockTransferDstScalarPerVector_K1
-    1,           // ABlockLdsExtraM
-    S<4, 64, 1>, // BBlockTransferThreadClusterLengths_K0_N_K1
-    S<1, 0, 2>,  // BBlockTransferThreadClusterArrangeOrder
-    S<1, 0, 2>,  // BBlockTransferSrcAccessOrder
-    2,           // BBlockTransferSrcVectorDim
-    8,           // BBlockTransferSrcScalarPerVector
-    8,           // BBlockTransferDstScalarPerVector_K1
-    1,           // BBlockLdsExtraN
-    1,
-    1,
-    S<1, 32, 1, 8>,
-    8>;
+using DeviceGroupledConvNDFwdInstance =
+    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<
+        NDimSpatial,
+        InLayout,
+        WeiLayout,
+        ck::Tuple<BiasLayout>,
+        OutLayout,
+        InDataType,
+        WeiDataType,
+        AccDataType,
+        CShuffleDataType,
+        ck::Tuple<BiasDataType>,
+        OutDataType,
+        InElementOp,
+        WeiElementOp,
+        OutElementOp,
+        ConvSpec,    // ConvForwardSpecialization
+        GemmSpec,    // GemmSpecialization
+        1,           //
+        256,         // BlockSize
+        128,         // MPerBlock
+        256,         // NPerBlock
+        32,          // KPerBlock
+        8,           // K1
+        32,          // MPerXdl
+        32,          // NPerXdl
+        2,           // MXdlPerWave
+        4,           // NXdlPerWave
+        S<4, 64, 1>, // ABlockTransferThreadClusterLengths_K0_M_K1
+        S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
+        2,           // ABlockTransferSrcVectorDim
+        8,           // ABlockTransferSrcScalarPerVector
+        8,           // ABlockTransferDstScalarPerVector_K1
+        1,           // ABlockLdsExtraM
+        S<4, 64, 1>, // BBlockTransferThreadClusterLengths_K0_N_K1
+        S<1, 0, 2>,  // BBlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,  // BBlockTransferSrcAccessOrder
+        2,           // BBlockTransferSrcVectorDim
+        8,           // BBlockTransferSrcScalarPerVector
+        8,           // BBlockTransferDstScalarPerVector_K1
+        1,           // BBlockLdsExtraN
+        1,
+        1,
+        S<1, 32, 1, 8>,
+        8>;
 
 int main(int argc, char* argv[])
 {
@@ -155,7 +156,7 @@ int main(int argc, char* argv[])
                 conv_param.G_ * conv_param.K_                                          // wo
             });
 
-        return run_conv_fwd_bias<
+        return run_grouped_conv_fwd_bias<
             1,
             InDataType,
             WeiDataType,
@@ -163,7 +164,7 @@ int main(int argc, char* argv[])
             InElementOp,
             WeiElementOp,
             OutElementOp,
-            DeviceConvNDFwdInstance<1, InLayout, WeiLayout, BiasLayout, OutLayout>>(
+            DeviceGroupledConvNDFwdInstance<1, InLayout, WeiLayout, BiasLayout, OutLayout>>(
             do_verification,
             init_method,
             time_kernel,
@@ -242,7 +243,7 @@ int main(int argc, char* argv[])
                 conv_param.G_ * conv_param.K_                                          // wo
             });
 
-        return run_conv_fwd_bias<
+        return run_grouped_conv_fwd_bias<
             2,
             InDataType,
             WeiDataType,
@@ -250,7 +251,7 @@ int main(int argc, char* argv[])
             InElementOp,
             WeiElementOp,
             OutElementOp,
-            DeviceConvNDFwdInstance<2, InLayout, WeiLayout, BiasLayout, OutLayout>>(
+            DeviceGroupledConvNDFwdInstance<2, InLayout, WeiLayout, BiasLayout, OutLayout>>(
             do_verification,
             init_method,
             time_kernel,
@@ -340,7 +341,7 @@ int main(int argc, char* argv[])
                 conv_param.G_ * conv_param.K_                                          // wo
             });
 
-        return run_conv_fwd_bias<
+        return run_grouped_conv_fwd_bias<
             3,
             InDataType,
             WeiDataType,
@@ -348,7 +349,7 @@ int main(int argc, char* argv[])
             InElementOp,
             WeiElementOp,
             OutElementOp,
-            DeviceConvNDFwdInstance<3, InLayout, WeiLayout, BiasLayout, OutLayout>>(
+            DeviceGroupledConvNDFwdInstance<3, InLayout, WeiLayout, BiasLayout, OutLayout>>(
             do_verification,
             init_method,
             time_kernel,
