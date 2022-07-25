@@ -30,12 +30,8 @@ namespace host {
 //                                      operation.
 // @tparam     NumDimSpatial  Number of spatial dimensions.
 //
-// FIXME: only support NDimSpatial = 1 to 3; only support NCHW and NHWC layout.
-//   Need to be more general
+// tensor descriptor in GNCHW/GKCXY/GNKHW dimensional order
 template <ck::index_t NumDimSpatial,
-          typename InLayout,
-          typename WeiLayout,
-          typename OutLayout,
           typename InDataType,
           typename WeiDataType,
           typename OutDataType,
@@ -91,7 +87,6 @@ struct ReferenceConvFwd : public device::BaseOperator
 
         float Run(const Argument& arg)
         {
-            // tensor descriptor in NCHW/KXYC/NKHW dimensional order
             if constexpr(NumDimSpatial == 1)
             {
                 auto func = [&](auto g, auto n, auto k, auto wo) {

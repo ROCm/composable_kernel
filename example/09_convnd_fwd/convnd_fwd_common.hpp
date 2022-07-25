@@ -112,50 +112,14 @@ int run_conv_fwd(bool do_verification,
                  const WeiElementOp& wei_element_op,
                  const OutElementOp& out_element_op)
 {
-#if 0
-    const auto in_g_n_c_wis_desc  = ck::utils::conv::get_input_host_tensor_descriptor<InLayout>(conv_param);
-    const auto wei_g_k_c_xs_desc = ck::utils::conv::get_weight_host_tensor_descriptor<WeiLayout>(conv_param);
-    const auto out_g_n_k_wos_desc = ck::utils::conv::get_output_host_tensor_descriptor<OutLayout>(conv_param);
-#else
-    const auto in_g_n_wis_c_desc = HostTensorDescriptor(
-        std::vector<std::size_t>{static_cast<std::size_t>(conv_param.G_),
-                                 static_cast<std::size_t>(conv_param.N_),
-                                 static_cast<std::size_t>(conv_param.input_spatial_lengths_[0]),
-                                 static_cast<std::size_t>(conv_param.input_spatial_lengths_[1]),
-                                 static_cast<std::size_t>(conv_param.C_)});
-
-    const auto wei_g_k_xs_c_desc = HostTensorDescriptor(
-        std::vector<std::size_t>{static_cast<std::size_t>(conv_param.G_),
-                                 static_cast<std::size_t>(conv_param.K_),
-                                 static_cast<std::size_t>(conv_param.filter_spatial_lengths_[0]),
-                                 static_cast<std::size_t>(conv_param.filter_spatial_lengths_[1]),
-                                 static_cast<std::size_t>(conv_param.C_)});
-
-    const auto bias_g_n_wos_k_desc = HostTensorDescriptor(
-        std::vector<std::size_t>{static_cast<std::size_t>(conv_param.G_),
-                                 static_cast<std::size_t>(conv_param.N_),
-                                 static_cast<std::size_t>(conv_param.output_spatial_lengths_[0]),
-                                 static_cast<std::size_t>(conv_param.output_spatial_lengths_[1]),
-                                 static_cast<std::size_t>(conv_param.K_)},
-        std::vector<std::size_t>{0, 0, 0, 0, 1});
-
-    const auto out_g_n_wos_k_desc = HostTensorDescriptor(
-        std::vector<std::size_t>{static_cast<std::size_t>(conv_param.G_),
-                                 static_cast<std::size_t>(conv_param.N_),
-                                 static_cast<std::size_t>(conv_param.output_spatial_lengths_[0]),
-                                 static_cast<std::size_t>(conv_param.output_spatial_lengths_[1]),
-                                 static_cast<std::size_t>(conv_param.K_)});
-
-    // tensor descriptor in NCHW/KXYC/NKHW dimensional order
-    const auto in_g_n_c_wis_desc = transpose_host_tensor_descriptor_given_new2old(
-        in_g_n_wis_c_desc, std::vector<ck::index_t>{0, 1, 4, 2, 3});
-    const auto wei_g_k_c_xs_desc = transpose_host_tensor_descriptor_given_new2old(
-        wei_g_k_xs_c_desc, std::vector<ck::index_t>{0, 1, 4, 2, 3});
-    const auto bias_g_n_k_wos_desc = transpose_host_tensor_descriptor_given_new2old(
-        bias_g_n_wos_k_desc, std::vector<ck::index_t>{0, 1, 4, 2, 3});
-    const auto out_g_n_k_wos_desc = transpose_host_tensor_descriptor_given_new2old(
-        out_g_n_wos_k_desc, std::vector<ck::index_t>{0, 1, 4, 2, 3});
-#endif
+    const auto in_g_n_c_wis_desc =
+        ck::utils::conv::make_input_host_tensor_descriptor_packed<InLayout>(conv_param);
+    const auto wei_g_k_c_xs_desc =
+        ck::utils::conv::make_weight_host_tensor_descriptor_packed<WeiLayout>(conv_param);
+    const auto bias_g_n_k_wos_desc =
+        ck::utils::conv::make_output_host_tensor_descriptor_packed<OutLayout>(conv_param);
+    const auto out_g_n_k_wos_desc =
+        ck::utils::conv::make_output_host_tensor_descriptor_packed<OutLayout>(conv_param);
 
     Tensor<InDataType> in(in_g_n_c_wis_desc);
     Tensor<WeiDataType> wei(wei_g_k_c_xs_desc);
@@ -267,9 +231,6 @@ int run_conv_fwd(bool do_verification,
         Tensor<OutDataType> c_host(out_g_n_k_wos_desc);
 
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
-                                                                     InLayout,
-                                                                     WeiLayout,
-                                                                     OutLayout,
                                                                      InDataType,
                                                                      WeiDataType,
                                                                      OutDataType,
@@ -291,24 +252,9 @@ int run_conv_fwd(bool do_verification,
 
         ref_invoker.Run(ref_argument);
 
-        for(int g = 0; g < out_host.mDesc.GetLengths()[0]; g++)
-        {
-            for(int n = 0; n < out_host.mDesc.GetLengths()[1]; n++)
-            {
-                for(int k = 0; k < out_host.mDesc.GetLengths()[2]; k++)
-                {
-                    for(int ho = 0; ho < out_host.mDesc.GetLengths()[3]; ho++)
-                    {
-                        for(int wo = 0; wo < out_host.mDesc.GetLengths()[4]; wo++)
-                        {
-                            out_element_op(out_host(g, n, k, ho, wo),
-                                           c_host(g, n, k, ho, wo),
-                                           bias(g, n, k, ho, wo));
-                        }
-                    }
-                }
-            }
-        }
+        // TODO: implement elementwise operation for host
+        out_host.ForEach(
+            [&](auto&, auto idx) { out_element_op(out_host(idx), c_host(idx), bias(idx)); });
 
         out_device_buf.FromDevice(out_device.mData.data());
 

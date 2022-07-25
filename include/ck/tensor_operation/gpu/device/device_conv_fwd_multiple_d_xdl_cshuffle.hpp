@@ -216,9 +216,9 @@ __global__ void
 //
 // Supports:
 //  @li         Forward convolution with up to 3 spatial dimentions
-//  @li         Input tensor in NWC data format
-//  @li         Weight tensor in KXC data format
-//  @li         Output tensor in NWK data format
+//  @li         Input tensor in GNWC data format
+//  @li         Weight tensor in GKXC data format
+//  @li         Output tensor in GNWK data format
 //
 // 1D:
 // out[N, Wo, K] = in[N, Wi, C] * wei[K, X, C]
@@ -302,7 +302,7 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
 
     template <typename ALay,
               typename std::enable_if<NDimSpatial == 1 &&
-                                          is_same_v<ALay, tensor_layout::convolution::NWC>,
+                                          is_same_v<ALay, tensor_layout::convolution::GNWC>,
                                       bool>::type = false>
     static auto
     MakeAGridDescriptor_M_K(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
@@ -319,16 +319,6 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         const index_t N = a_g_n_c_wis_lengths[1];
         const index_t C = a_g_n_c_wis_lengths[2];
 
-        const index_t GemmMRaw = N * std::accumulate(e_g_n_k_wos_lengths.begin() + 3,
-                                                     e_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
-                                                     index_t{1},
-                                                     std::multiplies<index_t>());
-
-        const index_t GemmKRaw = C * std::accumulate(b_g_k_c_xs_lengths.begin() + 3,
-                                                     b_g_k_c_xs_lengths.begin() + 3 + NDimSpatial,
-                                                     index_t{1},
-                                                     std::multiplies<index_t>());
-
         const index_t Wi = a_g_n_c_wis_lengths[3];
 
         const index_t Wo = e_g_n_k_wos_lengths[3];
@@ -338,8 +328,13 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         if constexpr(ConvForwardSpecialization ==
                      ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
+            const index_t NWo = N * std::accumulate(e_g_n_k_wos_lengths.begin() + 3,
+                                                    e_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
+                                                    index_t{1},
+                                                    std::multiplies<index_t>());
+
             const auto in_gemmmraw_gemmk_grid_desc =
-                make_naive_tensor_descriptor_packed(make_tuple(GemmMRaw, GemmKRaw));
+                make_naive_tensor_descriptor_packed(make_tuple(NWo, C));
 
             const auto in_gemmm_gemmk_grid_desc =
                 matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmk_grid_desc);
@@ -414,7 +409,7 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
 
     template <typename ALay,
               typename std::enable_if<NDimSpatial == 2 &&
-                                          is_same_v<ALay, tensor_layout::convolution::NHWC>,
+                                          is_same_v<ALay, tensor_layout::convolution::GNHWC>,
                                       bool>::type = false>
     static auto
     MakeAGridDescriptor_M_K(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
@@ -431,16 +426,6 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         const index_t N = a_g_n_c_wis_lengths[1];
         const index_t C = a_g_n_c_wis_lengths[2];
 
-        const index_t GemmMRaw = N * std::accumulate(e_g_n_k_wos_lengths.begin() + 3,
-                                                     e_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
-                                                     index_t{1},
-                                                     std::multiplies<index_t>());
-
-        const index_t GemmKRaw = C * std::accumulate(b_g_k_c_xs_lengths.begin() + 3,
-                                                     b_g_k_c_xs_lengths.begin() + 3 + NDimSpatial,
-                                                     index_t{1},
-                                                     std::multiplies<index_t>());
-
         const index_t Hi = a_g_n_c_wis_lengths[3];
         const index_t Wi = a_g_n_c_wis_lengths[4];
 
@@ -453,8 +438,13 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         if constexpr(ConvForwardSpecialization ==
                      ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
+            const index_t NHoWo = N * std::accumulate(e_g_n_k_wos_lengths.begin() + 3,
+                                                      e_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
+                                                      index_t{1},
+                                                      std::multiplies<index_t>());
+
             const auto in_gemmmraw_gemmkraw_grid_desc =
-                make_naive_tensor_descriptor_packed(make_tuple(GemmMRaw, GemmKRaw));
+                make_naive_tensor_descriptor_packed(make_tuple(NHoWo, C));
 
             const auto in_gemmm_gemmk_grid_desc =
                 matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_grid_desc);
@@ -504,146 +494,6 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
 
             const auto in_n_hi_wi_c_grid_desc =
                 make_naive_tensor_descriptor_packed(make_tuple(N, Hi, Wi, C));
-
-            const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
-                in_n_hi_wi_c_grid_desc,
-                make_tuple(make_pass_through_transform(N),
-                           make_pad_transform(Hi, InLeftPadH, InRightPadH),
-                           make_pad_transform(Wi, InLeftPadW, InRightPadW),
-                           make_pass_through_transform(C)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
-
-            const auto in_n_y_ho_x_wo_c_grid_desc = transform_tensor_descriptor(
-                in_n_hip_wip_c_grid_desc,
-                make_tuple(
-                    make_pass_through_transform(N),
-                    make_embed_transform(make_tuple(Y, Ho), make_tuple(ConvDilationH, ConvStrideH)),
-                    make_embed_transform(make_tuple(X, Wo), make_tuple(ConvDilationW, ConvStrideW)),
-                    make_pass_through_transform(C)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-                make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
-
-            const auto in_gemmmraw_gemmk_grid_desc =
-                transform_tensor_descriptor(in_n_y_ho_x_wo_c_grid_desc,
-                                            make_tuple(make_merge_transform(make_tuple(N, Ho, Wo)),
-                                                       make_merge_transform(make_tuple(Y, X, C))),
-                                            make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5>{}),
-                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
-
-            const auto in_gemmm_gemmk_grid_desc =
-                matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmk_grid_desc);
-
-            return in_gemmm_gemmk_grid_desc;
-        }
-    }
-
-    template <typename ALay,
-              typename std::enable_if<NDimSpatial == 2 &&
-                                          is_same_v<ALay, tensor_layout::convolution::G_N_HW_C>,
-                                      bool>::type = false>
-    static auto
-    MakeAGridDescriptor_M_K(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
-                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
-                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
-                            const std::array<index_t, NDimSpatial>& conv_filter_strides,
-                            const std::array<index_t, NDimSpatial>& conv_filter_dilations,
-                            const std::array<index_t, NDimSpatial>& input_left_pads,
-                            const std::array<index_t, NDimSpatial>& input_right_pads)
-    {
-        const index_t N = a_g_n_c_wis_lengths[1];
-        const index_t C = a_g_n_c_wis_lengths[2];
-
-        const index_t GemmMRaw = N * std::accumulate(e_g_n_k_wos_lengths.begin() + 3,
-                                                     e_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
-                                                     index_t{1},
-                                                     std::multiplies<index_t>());
-
-        const index_t GemmKRaw = C * std::accumulate(b_g_k_c_xs_lengths.begin() + 3,
-                                                     b_g_k_c_xs_lengths.begin() + 3 + NDimSpatial,
-                                                     index_t{1},
-                                                     std::multiplies<index_t>());
-
-        const index_t Hi = a_g_n_c_wis_lengths[3];
-        const index_t Wi = a_g_n_c_wis_lengths[4];
-
-        const index_t Ho = e_g_n_k_wos_lengths[3];
-        const index_t Wo = e_g_n_k_wos_lengths[4];
-
-        const index_t ConvStrideH = conv_filter_strides[0];
-        const index_t ConvStrideW = conv_filter_strides[1];
-
-        if constexpr(ConvForwardSpecialization ==
-                     ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
-        {
-            // This is different
-            const index_t CStride = a_g_n_c_wis_strides[2];
-            const index_t WStride = a_g_n_c_wis_strides[2+NDimSpatial];
-
-            const auto in_gemmmraw_gemmkraw_grid_desc =
-                make_naive_tensor_descriptor(make_tuple(GemmMRaw, GemmKRaw), make_tuple(WStride, CStride);
-
-            const auto in_gemmm_gemmk_grid_desc =
-                matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_grid_desc);
-
-            return in_gemmm_gemmk_grid_desc;
-        }
-        else if constexpr(ConvForwardSpecialization ==
-                          ConvolutionForwardSpecialization::Filter1x1Pad0)
-        {
-            // This is different
-            const auto in_n_hi_wi_c_grid_desc =
-                make_naive_tensor_descriptor(make_tuple(N, Hi, Wi, C),
-                        make_tuple(a_g_n_c_wis_srides[1],
-                                   a_g_n_c_wis_srides[3],
-                                   a_g_n_c_wis_srides[4],
-                                   a_g_n_c_wis_srides[2]));
-
-            const auto in_n_ho_wo_c_grid_desc = transform_tensor_descriptor(
-                in_n_hi_wi_c_grid_desc,
-                make_tuple(make_pass_through_transform(N),
-                           make_embed_transform(make_tuple(Ho), make_tuple(ConvStrideH)),
-                           make_embed_transform(make_tuple(Wo), make_tuple(ConvStrideW)),
-                           make_pass_through_transform(C)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
-
-            const auto in_gemmmraw_gemmk_grid_desc =
-                transform_tensor_descriptor(in_n_ho_wo_c_grid_desc,
-                                            make_tuple(make_merge_transform(make_tuple(N, Ho, Wo)),
-                                                       make_pass_through_transform(C)),
-                                            make_tuple(Sequence<0, 1, 2>{}, Sequence<3>{}),
-                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
-
-            const auto in_gemmm_gemmk_grid_desc =
-                matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmk_grid_desc);
-
-            return in_gemmm_gemmk_grid_desc;
-        }
-        else
-        {
-            const index_t Y = b_g_k_c_xs_lengths[3];
-            const index_t X = b_g_k_c_xs_lengths[4];
-
-            const index_t ConvDilationH = conv_filter_dilations[0];
-            const index_t ConvDilationW = conv_filter_dilations[1];
-
-            const index_t InLeftPadH = input_left_pads[0];
-            const index_t InLeftPadW = input_left_pads[1];
-
-            const index_t InRightPadH = input_right_pads[0];
-            const index_t InRightPadW = input_right_pads[1];
-
-            // This is different
-            const auto in_n_hi_wi_c_grid_desc =
-                make_naive_tensor_descriptor(make_tuple(N, Hi, Wi, C),
-                        make_tuple(a_g_n_c_wis_srides[1],
-                                   a_g_n_c_wis_srides[3],
-                                   a_g_n_c_wis_srides[4],
-                                   a_g_n_c_wis_srides[2]));
 
             const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
                 in_n_hi_wi_c_grid_desc,
@@ -680,7 +530,7 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
 
     template <typename ALay,
               typename std::enable_if<NDimSpatial == 3 &&
-                                          is_same_v<ALay, tensor_layout::convolution::NDHWC>,
+                                          is_same_v<ALay, tensor_layout::convolution::GNDHWC>,
                                       bool>::type = false>
     static auto
     MakeAGridDescriptor_M_K(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
@@ -697,16 +547,6 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         const index_t N = a_g_n_c_wis_lengths[1];
         const index_t C = a_g_n_c_wis_lengths[2];
 
-        const index_t GemmMRaw = N * std::accumulate(e_g_n_k_wos_lengths.begin() + 3,
-                                                     e_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
-                                                     index_t{1},
-                                                     std::multiplies<index_t>());
-
-        const index_t GemmKRaw = C * std::accumulate(b_g_k_c_xs_lengths.begin() + 3,
-                                                     b_g_k_c_xs_lengths.begin() + 3 + NDimSpatial,
-                                                     index_t{1},
-                                                     std::multiplies<index_t>());
-
         const index_t Di = a_g_n_c_wis_lengths[3];
         const index_t Hi = a_g_n_c_wis_lengths[4];
         const index_t Wi = a_g_n_c_wis_lengths[5];
@@ -722,8 +562,14 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         if constexpr(ConvForwardSpecialization ==
                      ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
         {
+            const index_t NDoHoWo =
+                N * std::accumulate(e_g_n_k_wos_lengths.begin() + 3,
+                                    e_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
+                                    index_t{1},
+                                    std::multiplies<index_t>());
+
             const auto in_gemmmraw_gemmkraw_grid_desc =
-                make_naive_tensor_descriptor_packed(make_tuple(GemmMRaw, GemmKRaw));
+                make_naive_tensor_descriptor_packed(make_tuple(NDoHoWo, C));
 
             const auto in_gemmm_gemmk_grid_desc =
                 matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_grid_desc);
@@ -823,10 +669,434 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         }
     }
 
+    // TODO: implement ck::tensor_layout::convolution that describe packed/strided dimemsion as
+    // properties
+    template <typename ALay,
+              typename std::enable_if<NDimSpatial == 1 &&
+                                          (is_same_v<ALay, tensor_layout::convolution::G_NW_C> ||
+                                           is_same_v<ALay, tensor_layout::convolution::NWGC>),
+                                      bool>::type = false>
+    static auto
+    MakeAGridDescriptor_M_K(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
+                            const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
+                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
+                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+                            const std::array<index_t, NDimSpatial>& conv_filter_strides,
+                            const std::array<index_t, NDimSpatial>& conv_filter_dilations,
+                            const std::array<index_t, NDimSpatial>& input_left_pads,
+                            const std::array<index_t, NDimSpatial>& input_right_pads)
+    {
+        const index_t N = a_g_n_c_wis_lengths[1];
+        const index_t C = a_g_n_c_wis_lengths[2];
+
+        const index_t Wi = a_g_n_c_wis_lengths[3];
+
+        const index_t Wo = e_g_n_k_wos_lengths[3];
+
+        const index_t ConvStrideW = conv_filter_strides[0];
+
+        if constexpr(ConvForwardSpecialization ==
+                     ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
+        {
+            const index_t NHoWo = N * std::accumulate(e_g_n_k_wos_lengths.begin() + 3,
+                                                      e_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
+                                                      index_t{1},
+                                                      std::multiplies<index_t>());
+
+            // This is different
+            const index_t WiStride = a_g_n_c_wis_strides[2 + NDimSpatial];
+            const auto CStride     = I1;
+
+            const auto in_gemmmraw_gemmk_grid_desc =
+                make_naive_tensor_descriptor(make_tuple(NHoWo, C), make_tuple(WiStride, CStride));
+
+            const auto in_gemmm_gemmk_grid_desc =
+                matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmk_grid_desc);
+
+            return in_gemmm_gemmk_grid_desc;
+        }
+        else if constexpr(ConvForwardSpecialization ==
+                          ConvolutionForwardSpecialization::Filter1x1Pad0)
+        {
+            // This is different
+            const index_t NStride  = a_g_n_c_wis_strides[1];
+            const index_t WiStride = a_g_n_c_wis_strides[3];
+            const auto CStride     = I1;
+
+            const auto in_n_wi_c_grid_desc = make_naive_tensor_descriptor(
+                make_tuple(N, Wi, C), make_tuple(NStride, WiStride, CStride));
+
+            const auto in_n_wo_c_grid_desc = transform_tensor_descriptor(
+                in_n_wi_c_grid_desc,
+                make_tuple(make_pass_through_transform(N),
+                           make_embed_transform(make_tuple(Wo), make_tuple(ConvStrideW)),
+                           make_pass_through_transform(C)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+
+            const auto in_gemmmraw_gemmkraw_grid_desc = transform_tensor_descriptor(
+                in_n_wo_c_grid_desc,
+                make_tuple(make_merge_transform(make_tuple(N, Wo)), make_pass_through_transform(C)),
+                make_tuple(Sequence<0, 1>{}, Sequence<2>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            const auto in_gemmm_gemmk_grid_desc =
+                matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_grid_desc);
+
+            return in_gemmm_gemmk_grid_desc;
+        }
+        else
+        {
+            const index_t X             = b_g_k_c_xs_lengths[3];
+            const index_t ConvDilationW = conv_filter_dilations[0];
+            const index_t InLeftPadW    = input_left_pads[0];
+            const index_t InRightPadW   = input_right_pads[0];
+
+            // This is different
+            const index_t NStride  = a_g_n_c_wis_strides[1];
+            const index_t WiStride = a_g_n_c_wis_strides[3];
+            const auto CStride     = I1;
+
+            const auto in_n_wi_c_grid_desc = make_naive_tensor_descriptor(
+                make_tuple(N, Wi, C), make_tuple(NStride, WiStride, CStride));
+
+            const auto in_n_wip_c_grid_desc = transform_tensor_descriptor(
+                in_n_wi_c_grid_desc,
+                make_tuple(make_pass_through_transform(N),
+                           make_pad_transform(Wi, InLeftPadW, InRightPadW),
+                           make_pass_through_transform(C)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+
+            const auto in_n_x_wo_c_grid_desc = transform_tensor_descriptor(
+                in_n_wip_c_grid_desc,
+                make_tuple(
+                    make_pass_through_transform(N),
+                    make_embed_transform(make_tuple(X, Wo), make_tuple(ConvDilationW, ConvStrideW)),
+                    make_pass_through_transform(C)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}));
+
+            const auto in_gemmmraw_gemmk_grid_desc =
+                transform_tensor_descriptor(in_n_x_wo_c_grid_desc,
+                                            make_tuple(make_merge_transform(make_tuple(N, Wo)),
+                                                       make_merge_transform(make_tuple(X, C))),
+                                            make_tuple(Sequence<0, 2>{}, Sequence<1, 3>{}),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            const auto in_gemmm_gemmk_grid_desc =
+                matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmk_grid_desc);
+
+            return in_gemmm_gemmk_grid_desc;
+        }
+    }
+
+    template <typename ALay,
+              typename std::enable_if<NDimSpatial == 2 &&
+                                          (is_same_v<ALay, tensor_layout::convolution::G_NHW_C> ||
+                                           is_same_v<ALay, tensor_layout::convolution::NHWGC>),
+                                      bool>::type = false>
+    static auto
+    MakeAGridDescriptor_M_K(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
+                            const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
+                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
+                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+                            const std::array<index_t, NDimSpatial>& conv_filter_strides,
+                            const std::array<index_t, NDimSpatial>& conv_filter_dilations,
+                            const std::array<index_t, NDimSpatial>& input_left_pads,
+                            const std::array<index_t, NDimSpatial>& input_right_pads)
+    {
+        const index_t N = a_g_n_c_wis_lengths[1];
+        const index_t C = a_g_n_c_wis_lengths[2];
+
+        const index_t Hi = a_g_n_c_wis_lengths[3];
+        const index_t Wi = a_g_n_c_wis_lengths[4];
+
+        const index_t Ho = e_g_n_k_wos_lengths[3];
+        const index_t Wo = e_g_n_k_wos_lengths[4];
+
+        const index_t ConvStrideH = conv_filter_strides[0];
+        const index_t ConvStrideW = conv_filter_strides[1];
+
+        if constexpr(ConvForwardSpecialization ==
+                     ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
+        {
+            const index_t NHoWo = N * std::accumulate(e_g_n_k_wos_lengths.begin() + 3,
+                                                      e_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
+                                                      index_t{1},
+                                                      std::multiplies<index_t>());
+
+            // This is different
+            const index_t WiStride = a_g_n_c_wis_strides[2 + NDimSpatial];
+            const auto CStride     = I1;
+
+            const auto in_gemmmraw_gemmkraw_grid_desc =
+                make_naive_tensor_descriptor(make_tuple(NHoWo, C), make_tuple(WiStride, CStride));
+
+            const auto in_gemmm_gemmk_grid_desc =
+                matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_grid_desc);
+
+            return in_gemmm_gemmk_grid_desc;
+        }
+        else if constexpr(ConvForwardSpecialization ==
+                          ConvolutionForwardSpecialization::Filter1x1Pad0)
+        {
+            // This is different
+            const index_t NStride  = a_g_n_c_wis_strides[1];
+            const index_t HiStride = a_g_n_c_wis_strides[3];
+            const index_t WiStride = a_g_n_c_wis_strides[4];
+            const auto CStride     = I1;
+
+            const auto in_n_hi_wi_c_grid_desc = make_naive_tensor_descriptor(
+                make_tuple(N, Hi, Wi, C), make_tuple(NStride, HiStride, WiStride, CStride));
+
+            const auto in_n_ho_wo_c_grid_desc = transform_tensor_descriptor(
+                in_n_hi_wi_c_grid_desc,
+                make_tuple(make_pass_through_transform(N),
+                           make_embed_transform(make_tuple(Ho), make_tuple(ConvStrideH)),
+                           make_embed_transform(make_tuple(Wo), make_tuple(ConvStrideW)),
+                           make_pass_through_transform(C)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+
+            const auto in_gemmmraw_gemmk_grid_desc =
+                transform_tensor_descriptor(in_n_ho_wo_c_grid_desc,
+                                            make_tuple(make_merge_transform(make_tuple(N, Ho, Wo)),
+                                                       make_pass_through_transform(C)),
+                                            make_tuple(Sequence<0, 1, 2>{}, Sequence<3>{}),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            const auto in_gemmm_gemmk_grid_desc =
+                matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmk_grid_desc);
+
+            return in_gemmm_gemmk_grid_desc;
+        }
+        else
+        {
+            const index_t Y = b_g_k_c_xs_lengths[3];
+            const index_t X = b_g_k_c_xs_lengths[4];
+
+            const index_t ConvDilationH = conv_filter_dilations[0];
+            const index_t ConvDilationW = conv_filter_dilations[1];
+
+            const index_t InLeftPadH = input_left_pads[0];
+            const index_t InLeftPadW = input_left_pads[1];
+
+            const index_t InRightPadH = input_right_pads[0];
+            const index_t InRightPadW = input_right_pads[1];
+
+            // This is different
+            const index_t NStride  = a_g_n_c_wis_strides[1];
+            const index_t HiStride = a_g_n_c_wis_strides[3];
+            const index_t WiStride = a_g_n_c_wis_strides[4];
+            const auto CStride     = I1;
+
+            const auto in_n_hi_wi_c_grid_desc = make_naive_tensor_descriptor(
+                make_tuple(N, Hi, Wi, C), make_tuple(NStride, HiStride, WiStride, CStride));
+
+            const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
+                in_n_hi_wi_c_grid_desc,
+                make_tuple(make_pass_through_transform(N),
+                           make_pad_transform(Hi, InLeftPadH, InRightPadH),
+                           make_pad_transform(Wi, InLeftPadW, InRightPadW),
+                           make_pass_through_transform(C)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+
+            const auto in_n_y_ho_x_wo_c_grid_desc = transform_tensor_descriptor(
+                in_n_hip_wip_c_grid_desc,
+                make_tuple(
+                    make_pass_through_transform(N),
+                    make_embed_transform(make_tuple(Y, Ho), make_tuple(ConvDilationH, ConvStrideH)),
+                    make_embed_transform(make_tuple(X, Wo), make_tuple(ConvDilationW, ConvStrideW)),
+                    make_pass_through_transform(C)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
+
+            const auto in_gemmmraw_gemmk_grid_desc =
+                transform_tensor_descriptor(in_n_y_ho_x_wo_c_grid_desc,
+                                            make_tuple(make_merge_transform(make_tuple(N, Ho, Wo)),
+                                                       make_merge_transform(make_tuple(Y, X, C))),
+                                            make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5>{}),
+                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            const auto in_gemmm_gemmk_grid_desc =
+                matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmk_grid_desc);
+
+            return in_gemmm_gemmk_grid_desc;
+        }
+    }
+
+    template <typename ALay,
+              typename std::enable_if<NDimSpatial == 3 &&
+                                          (is_same_v<ALay, tensor_layout::convolution::G_NDHW_C> ||
+                                           is_same_v<ALay, tensor_layout::convolution::NDHWGC>),
+                                      bool>::type = false>
+    static auto
+    MakeAGridDescriptor_M_K(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
+                            const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
+                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
+                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+                            const std::array<index_t, NDimSpatial>& conv_filter_strides,
+                            const std::array<index_t, NDimSpatial>& conv_filter_dilations,
+                            const std::array<index_t, NDimSpatial>& input_left_pads,
+                            const std::array<index_t, NDimSpatial>& input_right_pads)
+    {
+        const index_t N = a_g_n_c_wis_lengths[1];
+        const index_t C = a_g_n_c_wis_lengths[2];
+
+        const index_t Di = a_g_n_c_wis_lengths[3];
+        const index_t Hi = a_g_n_c_wis_lengths[4];
+        const index_t Wi = a_g_n_c_wis_lengths[5];
+
+        const index_t Do = e_g_n_k_wos_lengths[3];
+        const index_t Ho = e_g_n_k_wos_lengths[4];
+        const index_t Wo = e_g_n_k_wos_lengths[5];
+
+        const index_t ConvStrideD = conv_filter_strides[0];
+        const index_t ConvStrideH = conv_filter_strides[1];
+        const index_t ConvStrideW = conv_filter_strides[2];
+
+        if constexpr(ConvForwardSpecialization ==
+                     ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
+        {
+            const index_t NDoHoWo =
+                N * std::accumulate(e_g_n_k_wos_lengths.begin() + 3,
+                                    e_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
+                                    index_t{1},
+                                    std::multiplies<index_t>());
+
+            // This is different
+            const index_t WiStride = a_g_n_c_wis_strides[2 + NDimSpatial];
+            const auto CStride     = I1;
+
+            const auto in_gemmmraw_gemmkraw_grid_desc =
+                make_naive_tensor_descriptor(make_tuple(NDoHoWo, C), make_tuple(WiStride, CStride));
+
+            const auto in_gemmm_gemmk_grid_desc =
+                matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_grid_desc);
+
+            return in_gemmm_gemmk_grid_desc;
+        }
+        else if constexpr(ConvForwardSpecialization ==
+                          ConvolutionForwardSpecialization::Filter1x1Pad0)
+        {
+            // This is different
+            const index_t NStride  = a_g_n_c_wis_strides[1];
+            const index_t DiStride = a_g_n_c_wis_strides[3];
+            const index_t HiStride = a_g_n_c_wis_strides[4];
+            const index_t WiStride = a_g_n_c_wis_strides[5];
+            const auto CStride     = I1;
+
+            const auto in_n_di_hi_wi_c_grid_desc = make_naive_tensor_descriptor(
+                make_tuple(N, Di, Hi, Wi, C),
+                make_tuple(NStride, DiStride, HiStride, WiStride, CStride));
+
+            const auto in_n_do_ho_wo_c_grid_desc = transform_tensor_descriptor(
+                in_n_di_hi_wi_c_grid_desc,
+                make_tuple(make_pass_through_transform(N),
+                           make_embed_transform(make_tuple(Do), make_tuple(ConvStrideD)),
+                           make_embed_transform(make_tuple(Ho), make_tuple(ConvStrideH)),
+                           make_embed_transform(make_tuple(Wo), make_tuple(ConvStrideW)),
+                           make_pass_through_transform(C)),
+                make_tuple(
+                    Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
+                make_tuple(
+                    Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
+
+            const auto in_gemmmraw_gemmkraw_grid_desc = transform_tensor_descriptor(
+                in_n_do_ho_wo_c_grid_desc,
+                make_tuple(make_merge_transform(make_tuple(N, Do, Ho, Wo)),
+                           make_pass_through_transform(C)),
+                make_tuple(Sequence<0, 1, 2, 3>{}, Sequence<4>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            const auto in_gemmm_gemmk_grid_desc =
+                matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_grid_desc);
+
+            return in_gemmm_gemmk_grid_desc;
+        }
+        else
+        {
+            const index_t Z = b_g_k_c_xs_lengths[3];
+            const index_t Y = b_g_k_c_xs_lengths[4];
+            const index_t X = b_g_k_c_xs_lengths[5];
+
+            const index_t ConvDilationD = conv_filter_dilations[0];
+            const index_t ConvDilationH = conv_filter_dilations[1];
+            const index_t ConvDilationW = conv_filter_dilations[2];
+
+            const index_t InLeftPadD = input_left_pads[0];
+            const index_t InLeftPadH = input_left_pads[1];
+            const index_t InLeftPadW = input_left_pads[2];
+
+            const index_t InRightPadD = input_right_pads[0];
+            const index_t InRightPadH = input_right_pads[1];
+            const index_t InRightPadW = input_right_pads[2];
+
+            // This is different
+            const index_t NStride  = a_g_n_c_wis_strides[1];
+            const index_t DiStride = a_g_n_c_wis_strides[3];
+            const index_t HiStride = a_g_n_c_wis_strides[4];
+            const index_t WiStride = a_g_n_c_wis_strides[5];
+            const auto CStride     = I1;
+
+            const auto in_n_di_hi_wi_c_grid_desc = make_naive_tensor_descriptor(
+                make_tuple(N, Di, Hi, Wi, C),
+                make_tuple(NStride, DiStride, HiStride, WiStride, CStride));
+
+            const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
+                in_n_di_hi_wi_c_grid_desc,
+                make_tuple(make_pass_through_transform(N),
+                           make_pad_transform(Di, InLeftPadD, InRightPadD),
+                           make_pad_transform(Hi, InLeftPadH, InRightPadH),
+                           make_pad_transform(Wi, InLeftPadW, InRightPadW),
+                           make_pass_through_transform(C)),
+                make_tuple(
+                    Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
+                make_tuple(
+                    Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
+
+            const auto in_n_z_do_y_ho_x_wo_c_grid_desc = transform_tensor_descriptor(
+                in_n_hip_wip_c_grid_desc,
+                make_tuple(
+                    make_pass_through_transform(N),
+                    make_embed_transform(make_tuple(Z, Do), make_tuple(ConvDilationD, ConvStrideD)),
+                    make_embed_transform(make_tuple(Y, Ho), make_tuple(ConvDilationH, ConvStrideH)),
+                    make_embed_transform(make_tuple(X, Wo), make_tuple(ConvDilationW, ConvStrideW)),
+                    make_pass_through_transform(C)),
+                make_tuple(
+                    Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
+                make_tuple(Sequence<0>{},
+                           Sequence<1, 2>{},
+                           Sequence<3, 4>{},
+                           Sequence<5, 6>{},
+                           Sequence<7>{}));
+
+            const auto in_gemmmraw_gemmkraw_grid_desc = transform_tensor_descriptor(
+                in_n_z_do_y_ho_x_wo_c_grid_desc,
+                make_tuple(make_merge_transform(make_tuple(N, Do, Ho, Wo)),
+                           make_merge_transform(make_tuple(Z, Y, X, C))),
+                make_tuple(Sequence<0, 2, 4, 6>{}, Sequence<1, 3, 5, 7>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            const auto in_gemmm_gemmk_grid_desc =
+                matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_grid_desc);
+
+            return in_gemmm_gemmk_grid_desc;
+        }
+    }
+
     template <typename BLay,
-              typename std::enable_if<is_same_v<BLay, tensor_layout::convolution::KXC> ||
-                                          is_same_v<BLay, tensor_layout::convolution::KYXC> ||
-                                          is_same_v<BLay, tensor_layout::convolution::KZYXC>,
+              typename std::enable_if<is_same_v<BLay, tensor_layout::convolution::GKXC> ||
+                                          is_same_v<BLay, tensor_layout::convolution::GKYXC> ||
+                                          is_same_v<BLay, tensor_layout::convolution::GKZYXC>,
                                       bool>::type = false>
     static auto
     MakeBGridDescriptor_N_K(const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
@@ -835,15 +1105,12 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         const index_t K = b_g_k_c_xs_lengths[1];
         const index_t C = b_g_k_c_xs_lengths[2];
 
-        const index_t GemmNRaw = K;
+        const index_t YX = std::accumulate(b_g_k_c_xs_lengths.begin() + 3,
+                                           b_g_k_c_xs_lengths.begin() + 3 + NDimSpatial,
+                                           index_t{1},
+                                           std::multiplies<index_t>());
 
-        const index_t GemmKRaw = C * std::accumulate(b_g_k_c_xs_lengths.begin() + 3,
-                                                     b_g_k_c_xs_lengths.begin() + 3 + NDimSpatial,
-                                                     index_t{1},
-                                                     std::multiplies<index_t>());
-
-        const auto wei_k_yxc_grid_desc =
-            make_naive_tensor_descriptor_packed(make_tuple(GemmNRaw, GemmKRaw));
+        const auto wei_k_yxc_grid_desc = make_naive_tensor_descriptor_packed(make_tuple(K, YX * C));
 
         const auto wei_gemmn_gemmk_grid_desc =
             matrix_padder.PadBDescriptor_N_K(wei_k_yxc_grid_desc);
@@ -854,7 +1121,10 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
     template <typename BLay,
               typename std::enable_if<is_same_v<BLay, tensor_layout::convolution::G_K_X_C> ||
                                           is_same_v<BLay, tensor_layout::convolution::G_K_YX_C> ||
-                                          is_same_v<BLay, tensor_layout::convolution::G_K_ZYX_C>,
+                                          is_same_v<BLay, tensor_layout::convolution::G_K_ZYX_C> ||
+                                          is_same_v<BLay, tensor_layout::convolution::KXGC> ||
+                                          is_same_v<BLay, tensor_layout::convolution::KYXGC> ||
+                                          is_same_v<BLay, tensor_layout::convolution::KZYXGC>,
                                       bool>::type = false>
     static auto
     MakeBGridDescriptor_N_K(const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
@@ -863,26 +1133,34 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         const index_t K = b_g_k_c_xs_lengths[1];
         const index_t C = b_g_k_c_xs_lengths[2];
 
-        const index_t GemmNRaw = K;
+        const index_t YX = std::accumulate(b_g_k_c_xs_lengths.begin() + 3,
+                                           b_g_k_c_xs_lengths.begin() + 3 + NDimSpatial,
+                                           index_t{1},
+                                           std::multiplies<index_t>());
 
-        const index_t GemmKRaw = C * std::accumulate(b_g_k_c_xs_lengths.begin() + 3,
-                                                     b_g_k_c_xs_lengths.begin() + 3 + NDimSpatial,
-                                                     index_t{1},
-                                                     std::multiplies<index_t>());
+        const index_t KStride = b_g_k_c_xs_strides[1];
+        const index_t XStride = b_g_k_c_xs_strides[2 + NDimSpatial];
+        const auto CStride    = I1;
 
-        const auto wei_k_yxc_grid_desc =
-            make_naive_tensor_descriptor_packed(make_tuple(GemmNRaw, GemmKRaw));
+        const auto wei_k_yx_c_grid_desc = make_naive_tensor_descriptor(
+            make_tuple(K, YX, C), make_tuple(KStride, XStride, CStride));
+
+        const auto wei_gemmnraw_gemmkraw_grid_desc = transform_tensor_descriptor(
+            wei_k_yx_c_grid_desc,
+            make_tuple(make_pass_through_transform(K), make_merge_transform(make_tuple(YX, C))),
+            make_tuple(Sequence<0>{}, Sequence<1, 2>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
 
         const auto wei_gemmn_gemmk_grid_desc =
-            matrix_padder.PadBDescriptor_N_K(wei_k_yxc_grid_desc);
+            matrix_padder.PadBDescriptor_N_K(wei_gemmnraw_gemmkraw_grid_desc);
 
         return wei_gemmn_gemmk_grid_desc;
     }
 
     template <typename ELay,
-              typename std::enable_if<is_same_v<ELay, tensor_layout::convolution::NWK> ||
-                                          is_same_v<ELay, tensor_layout::convolution::NHWK> ||
-                                          is_same_v<ELay, tensor_layout::convolution::NDHWK>,
+              typename std::enable_if<is_same_v<ELay, tensor_layout::convolution::GNWK> ||
+                                          is_same_v<ELay, tensor_layout::convolution::GNHWK> ||
+                                          is_same_v<ELay, tensor_layout::convolution::GNDHWK>,
                                       bool>::type = false>
     static auto
     MakeEGridDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
@@ -891,15 +1169,13 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         const index_t N = e_g_n_k_wos_lengths[1];
         const index_t K = e_g_n_k_wos_lengths[2];
 
-        const index_t GemmMRaw = N * std::accumulate(e_g_n_k_wos_lengths.begin() + 3,
-                                                     e_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
-                                                     index_t{1},
-                                                     std::multiplies<index_t>());
-
-        const index_t GemmNRaw = K;
+        const index_t NHoWo = N * std::accumulate(e_g_n_k_wos_lengths.begin() + 3,
+                                                  e_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
+                                                  index_t{1},
+                                                  std::multiplies<index_t>());
 
         const auto out_gemmmraw_gemmnraw_grid_desc =
-            make_naive_tensor_descriptor_packed(make_tuple(GemmMRaw, GemmNRaw));
+            make_naive_tensor_descriptor_packed(make_tuple(NHoWo, K));
 
         const auto out_gemmm_gemmn_grid_desc =
             matrix_padder.PadCDescriptor_M_N(out_gemmmraw_gemmnraw_grid_desc);
@@ -908,30 +1184,30 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
     }
 
     template <typename ELay,
-              typename std::enable_if<is_same_v<ELay, tensor_layout::convolution::NW_K> ||
-                                          is_same_v<ELay, tensor_layout::convolution::NHW_K> ||
-                                          is_same_v<ELay, tensor_layout::convolution::NDHW_K>,
+              typename std::enable_if<is_same_v<ELay, tensor_layout::convolution::G_NW_K> ||
+                                          is_same_v<ELay, tensor_layout::convolution::G_NHW_K> ||
+                                          is_same_v<ELay, tensor_layout::convolution::G_NDHW_K> ||
+                                          is_same_v<ELay, tensor_layout::convolution::NWGK> ||
+                                          is_same_v<ELay, tensor_layout::convolution::NHWGK> ||
+                                          is_same_v<ELay, tensor_layout::convolution::NDHWGK>,
                                       bool>::type = false>
     static auto
     MakeEGridDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
                             const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides)
     {
-        namespace ctc = ck::tensor_layout::convolution;
-
         const index_t N = e_g_n_k_wos_lengths[1];
         const index_t K = e_g_n_k_wos_lengths[2];
 
+        const auto KStride     = I1;
         const index_t WoStride = e_g_n_k_wos_strides[NDimSpatial + 2];
 
-        const index_t GemmMRaw = N * std::accumulate(e_g_n_k_wos_lengths.begin() + 3,
-                                                     e_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
-                                                     index_t{1},
-                                                     std::multiplies<index_t>());
-
-        const index_t GemmNRaw = K;
+        const index_t NHoWo = N * std::accumulate(e_g_n_k_wos_lengths.begin() + 3,
+                                                  e_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
+                                                  index_t{1},
+                                                  std::multiplies<index_t>());
 
         const auto out_gemmmraw_gemmnraw_grid_desc =
-            make_naive_tensor_descriptor(make_tuple(GemmMRaw, GemmNRaw), make_tuple(WoStride, I1));
+            make_naive_tensor_descriptor(make_tuple(NHoWo, K), make_tuple(WoStride, KStride));
 
         const auto out_gemmm_gemmn_grid_desc =
             matrix_padder.PadCDescriptor_M_N(out_gemmmraw_gemmnraw_grid_desc);
@@ -1342,8 +1618,12 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         printf("%d\n", itmp++);
 
         // check vector access of A
-        if constexpr(is_same_v<ALayout, ctc::NWC> || is_same_v<ALayout, ctc::NHWC> ||
-                     is_same_v<ALayout, ctc::NDHWC>)
+        // FIXME: layout
+        if constexpr(is_same_v<ALayout, ctc::G_NW_C> || is_same_v<ALayout, ctc::G_NHW_C> ||
+                     is_same_v<ALayout, ctc::G_NDHW_C> || is_same_v<ALayout, ctc::GNWC> ||
+                     is_same_v<ALayout, ctc::GNHWC> || is_same_v<ALayout, ctc::GNDHWC> ||
+                     is_same_v<ALayout, ctc::NWGC> || is_same_v<ALayout, ctc::NHWGC> ||
+                     is_same_v<ALayout, ctc::NDHWGC>)
         {
             const index_t C = arg.a_g_n_c_wis_lengths_[2];
 
@@ -1360,8 +1640,13 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         printf("%d\n", itmp++);
 
         // check vector access of B
-        if constexpr(is_same_v<BLayout, ctc::KXC> || is_same_v<BLayout, ctc::KYXC> ||
-                     is_same_v<BLayout, ctc::KZYXC>)
+        // FIXME: layout
+        if constexpr(is_same_v<BLayout, ctc::G_K_X_C> || is_same_v<BLayout, ctc::G_K_YX_C> ||
+                     is_same_v<BLayout, ctc::G_K_ZYX_C> || is_same_v<BLayout, ctc::GKXC> ||
+                     is_same_v<BLayout, ctc::GKYXC> || is_same_v<BLayout, ctc::GKZYXC> ||
+                     is_same_v<BLayout, ctc::KXGC> || is_same_v<BLayout, ctc::KYXGC> ||
+                     is_same_v<BLayout, ctc::KZYXGC>)
+
         {
             const index_t C = arg.b_g_k_c_xs_lengths_[2];
 
@@ -1383,9 +1668,12 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         static_for<0, NumDTensor, 1>{}([&](auto i) {
             using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
 
-            if constexpr(is_same_v<DLayout, ctc::NWK> || is_same_v<DLayout, ctc::NHWK> ||
-                         is_same_v<DLayout, ctc::NDHWK> || is_same_v<DLayout, ctc::NW_K> ||
-                         is_same_v<DLayout, ctc::NHW_K> || is_same_v<DLayout, ctc::NDHW_K>)
+            // FIXME: layout
+            if constexpr(is_same_v<DLayout, ctc::G_NW_K> || is_same_v<DLayout, ctc::G_NHW_K> ||
+                         is_same_v<DLayout, ctc::G_NDHW_K> || is_same_v<DLayout, ctc::GNWK> ||
+                         is_same_v<DLayout, ctc::GNHWK> || is_same_v<DLayout, ctc::GNDHWK> ||
+                         is_same_v<DLayout, ctc::NWGK> || is_same_v<DLayout, ctc::NHWGK> ||
+                         is_same_v<DLayout, ctc::NDHWGK>)
             {
                 const index_t K = arg.ds_g_n_k_wos_lengths_[i][2];
 
@@ -1408,8 +1696,11 @@ struct DeviceConvFwdMultipleD_Xdl_CShuffle : public DeviceConvFwdMultipleD<NDimS
         printf("%d\n", itmp++);
 
         // check vector access of E
-        if constexpr(is_same_v<ELayout, ctc::NWK> || is_same_v<ELayout, ctc::NHWK> ||
-                     is_same_v<ELayout, ctc::NDHWK>)
+        if constexpr(is_same_v<ELayout, ctc::G_NW_K> || is_same_v<ELayout, ctc::G_NHW_K> ||
+                     is_same_v<ELayout, ctc::G_NDHW_K> || is_same_v<ELayout, ctc::GNWK> ||
+                     is_same_v<ELayout, ctc::GNHWK> || is_same_v<ELayout, ctc::GNDHWK> ||
+                     is_same_v<ELayout, ctc::NWGK> || is_same_v<ELayout, ctc::NHWGK> ||
+                     is_same_v<ELayout, ctc::NDHWGK>)
         {
             const index_t K = arg.e_g_n_k_wos_lengths_[2];
 

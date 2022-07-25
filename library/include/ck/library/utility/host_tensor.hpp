@@ -358,6 +358,19 @@ struct Tensor
                                        mDesc.GetLengths()[4])(num_thread);
             break;
         }
+        case 6: {
+            auto f = [&](auto i0, auto i1, auto i2, auto i3, auto i4, auto i5) {
+                (*this)(i0, i1, i2, i3, i4) = g(i0, i1, i2, i3, i4, i5);
+            };
+            make_ParallelTensorFunctor(f,
+                                       mDesc.GetLengths()[0],
+                                       mDesc.GetLengths()[1],
+                                       mDesc.GetLengths()[2],
+                                       mDesc.GetLengths()[3],
+                                       mDesc.GetLengths()[4],
+                                       mDesc.GetLengths()[5])(num_thread);
+            break;
+        }
         default: throw std::runtime_error("unspported dimension");
         }
     }
