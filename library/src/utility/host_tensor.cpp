@@ -26,7 +26,7 @@ std::size_t HostTensorDescriptor::GetElementSize() const
         mLens.begin(), mLens.end(), std::size_t{1}, std::multiplies<std::size_t>());
 }
 
-std::size_t HostTensorDescriptor::GetElementSpace() const
+std::size_t HostTensorDescriptor::GetElementSpaceSize() const
 {
     std::size_t space = 1;
     for(std::size_t i = 0; i < mLens.size(); ++i)

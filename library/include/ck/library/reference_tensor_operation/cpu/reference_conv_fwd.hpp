@@ -28,17 +28,17 @@ namespace host {
 //                                      operation.
 // @tparam     WeiElementwiseOperation  Functor for weights tensor elementwise
 //                                      operation.
-// @tparam     NumDimSpatial  Number of spatial dimensions.
+// @tparam     NDimSpatial  Number of spatial dimensions.
 //
 // tensor descriptor in GNCHW/GKCXY/GNKHW dimensional order
-template <ck::index_t NumDimSpatial,
+template <ck::index_t NDimSpatial,
           typename InDataType,
           typename WeiDataType,
           typename OutDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
-          typename std::enable_if<NumDimSpatial >= 1 && NumDimSpatial <= 3, bool>::type = false>
+          typename std::enable_if<NDimSpatial >= 1 && NDimSpatial <= 3, bool>::type = false>
 struct ReferenceConvFwd : public device::BaseOperator
 {
     // Argument
@@ -87,7 +87,14 @@ struct ReferenceConvFwd : public device::BaseOperator
 
         float Run(const Argument& arg)
         {
-            if constexpr(NumDimSpatial == 1)
+            if(!(arg.input_.GetNumOfDimension() == NDimSpatial + 3 &&
+                 arg.weight_.GetNumOfDimension() == NDimSpatial + 3 &&
+                 arg.output_.GetNumOfDimension() == NDimSpatial + 3))
+            {
+                std::throw("wrong! inconsistent dimension");
+            }
+
+            if constexpr(NDimSpatial == 1)
             {
                 auto func = [&](auto g, auto n, auto k, auto wo) {
                     float v_acc = 0;
@@ -133,7 +140,7 @@ struct ReferenceConvFwd : public device::BaseOperator
 
                 return 0;
             }
-            else if constexpr(NumDimSpatial == 2)
+            else if constexpr(NDimSpatial == 2)
             {
                 auto func = [&](auto g, auto n, auto k, auto ho, auto wo) {
                     float v_acc = 0;
@@ -190,7 +197,7 @@ struct ReferenceConvFwd : public device::BaseOperator
 
                 return 0;
             }
-            else if constexpr(NumDimSpatial == 3)
+            else if constexpr(NDimSpatial == 3)
             {
                 auto func = [&](auto g, auto n, auto k, auto d_o, auto ho, auto wo) {
                     float v_acc = 0;
@@ -277,7 +284,7 @@ struct ReferenceConvFwd : public device::BaseOperator
 
     bool IsSupportedArgument(const device::BaseArgument*) override
     {
-        return NumDimSpatial >= 1 && NumDimSpatial <= 3;
+        return NDimSpatial >= 1 && NDimSpatial <= 3;
     }
 
     static auto MakeArgument(const Tensor<InDataType>& input,

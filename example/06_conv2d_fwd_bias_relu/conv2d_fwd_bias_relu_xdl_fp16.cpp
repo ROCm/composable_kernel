@@ -101,7 +101,7 @@ void print_helper_msg()
               << std::endl;
 }
 
-ck::utils::conv::ConvParam parse_conv_params(int num_dim_spatial, int arg_idx, char* const argv[])
+ck::utils::conv::ConvParam parse_conv_param(int num_dim_spatial, int arg_idx, char* const argv[])
 {
     const ck::index_t N = std::stoi(argv[arg_idx++]);
     const ck::index_t K = std::stoi(argv[arg_idx++]);

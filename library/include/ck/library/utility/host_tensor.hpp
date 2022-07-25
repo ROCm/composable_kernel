@@ -75,18 +75,37 @@ struct HostTensorDescriptor
 {
     HostTensorDescriptor() = default;
 
-    template <typename X>
-    HostTensorDescriptor(const std::vector<X>& lens);
-
-    template <typename X, typename Y>
-    HostTensorDescriptor(const std::vector<X>& lens, const std::vector<Y>& strides);
-
     void CalculateStrides();
+
+    template <typename X>
+    HostTensorDescriptor(const std::initializer_list<X>& lens) : mLens(lens.begin(), lens.end())
+    {
+        this->CalculateStrides();
+    }
+
+    template <typename X>
+    HostTensorDescriptor(const std::vector<X>& lens) : mLens(lens.begin(), lens.end())
+    {
+        this->CalculateStrides();
+    }
 
     template <typename Range>
     HostTensorDescriptor(const Range& lens) : mLens(lens.begin(), lens.end())
     {
         this->CalculateStrides();
+    }
+
+    template <typename X, typename Y>
+    HostTensorDescriptor(const std::initializer_list<X>& lens,
+                         const std::initializer_list<Y>& strides)
+        : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
+    {
+    }
+
+    template <typename X, typename Y>
+    HostTensorDescriptor(const std::vector<X>& lens, const std::vector<Y>& strides)
+        : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
+    {
     }
 
     template <typename Range1, typename Range2>
@@ -97,7 +116,7 @@ struct HostTensorDescriptor
 
     std::size_t GetNumOfDimension() const;
     std::size_t GetElementSize() const;
-    std::size_t GetElementSpace() const;
+    std::size_t GetElementSpaceSize() const;
 
     const std::vector<std::size_t>& GetLengths() const;
     const std::vector<std::size_t>& GetStrides() const;
@@ -219,22 +238,22 @@ template <typename T>
 struct Tensor
 {
     template <typename X>
-    Tensor(std::initializer_list<X> lens) : mDesc(lens), mData(mDesc.GetElementSpace())
+    Tensor(std::initializer_list<X> lens) : mDesc(lens), mData(mDesc.GetElementSpaceSize())
     {
     }
 
     template <typename X>
-    Tensor(std::vector<X> lens) : mDesc(lens), mData(mDesc.GetElementSpace())
+    Tensor(std::vector<X> lens) : mDesc(lens), mData(mDesc.GetElementSpaceSize())
     {
     }
 
     template <typename X, typename Y>
     Tensor(std::vector<X> lens, std::vector<Y> strides)
-        : mDesc(lens, strides), mData(mDesc.GetElementSpace())
+        : mDesc(lens, strides), mData(mDesc.GetElementSpaceSize())
     {
     }
 
-    Tensor(const HostTensorDescriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpace()) {}
+    Tensor(const HostTensorDescriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpaceSize()) {}
 
     template <typename OutT>
     Tensor<OutT> CopyAsType()
@@ -259,6 +278,12 @@ struct Tensor
     const std::vector<std::size_t>& GetLengths() const { return mDesc.GetLengths(); }
 
     const std::vector<std::size_t>& GetStrides() const { return mDesc.GetStrides(); }
+
+    std::size_t GetNumOfDimension() const { return mDesc.GetNumOfDimension(); }
+
+    std::size_t GetElementSize() const { return mDesc.GetElementSize(); }
+
+    std::size_t GetElementSpaceSize() const { return mDesc.GetElementSpaceSize(); }
 
     void SetZero()
     {
@@ -408,20 +433,6 @@ struct Tensor
     HostTensorDescriptor mDesc;
     std::vector<T> mData;
 };
-
-template <typename X>
-HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens)
-    : mLens(lens.begin(), lens.end())
-{
-    this->CalculateStrides();
-}
-
-template <typename X, typename Y>
-HostTensorDescriptor::HostTensorDescriptor(const std::vector<X>& lens,
-                                           const std::vector<Y>& strides)
-    : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
-{
-}
 
 #if 1
 // FIXME: remove

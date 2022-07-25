@@ -84,7 +84,7 @@ std::vector<std::size_t> get_layout_transpose_gnchw_to_old()
 // regardless of physical layout
 template <typename InLayout>
 HostTensorDescriptor
-make_input_host_tensor_descriptor_packed(const ck::utils::conv::ConvParam& param)
+make_input_host_tensor_descriptor_g_n_c_wis_packed(const ck::utils::conv::ConvParam& param)
 {
     std::vector<std::size_t> physical_lengths;
 
@@ -140,7 +140,7 @@ make_input_host_tensor_descriptor_packed(const ck::utils::conv::ConvParam& param
 // regardless of physical layout
 template <typename WeiLayout>
 HostTensorDescriptor
-make_weight_host_tensor_descriptor_packed(const ck::utils::conv::ConvParam& param)
+make_weight_host_tensor_descriptor_g_k_c_xs_packed(const ck::utils::conv::ConvParam& param)
 {
     std::vector<std::size_t> physical_lengths;
 
@@ -195,7 +195,7 @@ make_weight_host_tensor_descriptor_packed(const ck::utils::conv::ConvParam& para
 // regardless of physical layout
 template <typename OutLayout>
 HostTensorDescriptor
-make_output_host_tensor_descriptor_packed(const ck::utils::conv::ConvParam& param)
+make_output_host_tensor_descriptor_g_n_k_wos_packed(const ck::utils::conv::ConvParam& param)
 {
     std::vector<std::size_t> physical_lengths;
 
