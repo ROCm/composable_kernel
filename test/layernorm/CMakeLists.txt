@@ -1,0 +1,8 @@
+add_custom_target(test_layernorm)
+
+add_gtest_executable(test_layernorm_fp32 test_layernorm_fp32.cpp)
+add_gtest_executable(test_layernorm_fp16 test_layernorm_fp16.cpp)
+target_link_libraries(test_layernorm_fp32 PRIVATE host_tensor)
+target_link_libraries(test_layernorm_fp16 PRIVATE host_tensor)
+add_dependencies(test_layernorm test_layernorm_fp32)
+add_dependencies(test_layernorm test_layernorm_fp16)

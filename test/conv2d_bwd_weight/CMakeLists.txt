@@ -1,2 +1,2 @@
-add_test_executable(test_conv2d_bwd_weight conv2d_bwd_weight.cpp)
-target_link_libraries(test_conv2d_bwd_weight PRIVATE host_tensor device_conv2d_bwd_weight_instance conv_util)
+#add_test_executable(test_conv2d_bwd_weight conv2d_bwd_weight.cpp)
+#target_link_libraries(test_conv2d_bwd_weight PRIVATE host_tensor device_conv2d_bwd_weight_instance conv_util)

@@ -1,0 +1,2 @@
+add_test_executable(test_convnd_bwd_weight convnd_bwd_weight.cpp) 
+target_link_libraries(test_convnd_bwd_weight PRIVATE host_tensor device_convnd_bwd_weight_instance conv_util)
