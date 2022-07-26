@@ -74,7 +74,7 @@ int bnorm_fwd(bool time_kernel,
             1,
             ck::Sequence<1, 1>>;
 
-    using DeviceNormalizeInstance = ck::tensor_operation::device::DeviceGenericElementwise<
+    using DeviceNormalizeInstance = ck::tensor_operation::device::DeviceElementwise<
         ck::Tuple<InOutDataType, AccDataType, AccDataType, AccDataType, AccDataType>, // x, mean,
                                                                                       // meansquare,
                                                                                       // scale, bias
@@ -85,7 +85,7 @@ int bnorm_fwd(bool time_kernel,
         ck::Sequence<1, 1, 1, 1, 1>, // scalarPerVector: x, mean, meansquare, scale, bias
         ck::Sequence<1>>;            // scalarPerVector: y
 
-    using DeviceInvVarianceInstance = ck::tensor_operation::device::DeviceGenericElementwise<
+    using DeviceInvVarianceInstance = ck::tensor_operation::device::DeviceElementwise<
         ck::Tuple<AccDataType, AccDataType>, // mean, meansquare
         ck::Tuple<AccDataType>,              // invVariance
         InvVariance,
@@ -94,7 +94,7 @@ int bnorm_fwd(bool time_kernel,
         ck::Sequence<1, 1>, // scalarPerVector: mean, meansquare
         ck::Sequence<1>>;   // scalarPerVector: invVariance
 
-    using DeviceMovingAverageInstance = ck::tensor_operation::device::DeviceGenericElementwise<
+    using DeviceMovingAverageInstance = ck::tensor_operation::device::DeviceElementwise<
         ck::Tuple<AccDataType, AccDataType, AccDataType, AccDataType>, // old moving mean, new mean,
                                                                        // old moving variance, new
                                                                        // meansquare
@@ -107,7 +107,7 @@ int bnorm_fwd(bool time_kernel,
         ck::Sequence<1, 1>>;      // scalarPerVector: updated moving mean, updated moving variance
 
     using DeviceMovingAverageAndInvVarianceInstance =
-        ck::tensor_operation::device::DeviceGenericElementwise<
+        ck::tensor_operation::device::DeviceElementwise<
             ck::Tuple<AccDataType, AccDataType, AccDataType, AccDataType>, // old moving mean, new
                                                                            // mean, old moving
                                                                            // variance, new

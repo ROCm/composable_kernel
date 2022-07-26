@@ -25,7 +25,7 @@ template <typename InDataTypeTuple,
           index_t MPerThread,
           typename InScalarPerVectorSeq,
           typename OutScalarPerVectorSeq>
-struct DeviceGenericElementwise : public BaseOperator
+struct DeviceElementwise : public BaseOperator
 {
     static constexpr int NumInput  = InDataTypeTuple::Size();
     static constexpr int NumOutput = OutDataTypeTuple::Size();
@@ -138,14 +138,14 @@ struct DeviceGenericElementwise : public BaseOperator
     using InGrid1dDescTuple  = decltype(GenerateInGrid1dDescTuple());
     using OutGrid1dDescTuple = decltype(GenerateOutGrid1dDescTuple());
 
-    using GridwiseGenericElementwise = GridwiseGenericElementwise_1D<InGrid1dDescTuple,
-                                                                     OutGrid1dDescTuple,
-                                                                     InDataTypePointerTuple,
-                                                                     OutDataTypePointerTuple,
-                                                                     ElementwiseOperation,
-                                                                     MPerThread,
-                                                                     InScalarPerVectorSeq,
-                                                                     OutScalarPerVectorSeq>;
+    using GridwiseElementwise = GridwiseElementwise_1D<InGrid1dDescTuple,
+                                                       OutGrid1dDescTuple,
+                                                       InDataTypePointerTuple,
+                                                       OutDataTypePointerTuple,
+                                                       ElementwiseOperation,
+                                                       MPerThread,
+                                                       InScalarPerVectorSeq,
+                                                       OutScalarPerVectorSeq>;
 
     struct Argument : public BaseArgument
     {
@@ -210,12 +210,12 @@ struct DeviceGenericElementwise : public BaseOperator
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            const auto kernel = kernel_generic_elementwise_1d<GridwiseGenericElementwise,
-                                                              InGrid1dDescTuple,
-                                                              OutGrid1dDescTuple,
-                                                              InDataTypePointerTuple,
-                                                              OutDataTypePointerTuple,
-                                                              ElementwiseOperation>;
+            const auto kernel = kernel_elementwise_1d<GridwiseElementwise,
+                                                      InGrid1dDescTuple,
+                                                      OutGrid1dDescTuple,
+                                                      InDataTypePointerTuple,
+                                                      OutDataTypePointerTuple,
+                                                      ElementwiseOperation>;
 
             float elapsed_time = launch_and_time_kernel(stream_config,
                                                         kernel,

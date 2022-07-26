@@ -10,23 +10,23 @@
 
 namespace ck {
 
-template <typename GridwiseGenericElementwise1dFunctor,
+template <typename GridwiseElementwise1dFunctor,
           typename InGrid1dDescTuple,
           typename OutGrid1dDescTuple,
           typename InDataTypePointerTuple,
           typename OutDataTypePointerTuple,
           typename ElementwiseOperation>
-__global__ void kernel_generic_elementwise_1d(const InGrid1dDescTuple in_grid_1d_desc_tuple,
-                                              const OutGrid1dDescTuple out_grid_1d_desc_tuple,
-                                              const InDataTypePointerTuple p_in_global_tuple,
-                                              const OutDataTypePointerTuple p_out_global_tuple,
-                                              const ElementwiseOperation elementwise_op)
+__global__ void kernel_elementwise_1d(const InGrid1dDescTuple in_grid_1d_desc_tuple,
+                                      const OutGrid1dDescTuple out_grid_1d_desc_tuple,
+                                      const InDataTypePointerTuple p_in_global_tuple,
+                                      const OutDataTypePointerTuple p_out_global_tuple,
+                                      const ElementwiseOperation elementwise_op)
 {
-    GridwiseGenericElementwise1dFunctor::Run(in_grid_1d_desc_tuple,
-                                             out_grid_1d_desc_tuple,
-                                             p_in_global_tuple,
-                                             p_out_global_tuple,
-                                             elementwise_op);
+    GridwiseElementwise1dFunctor::Run(in_grid_1d_desc_tuple,
+                                      out_grid_1d_desc_tuple,
+                                      p_in_global_tuple,
+                                      p_out_global_tuple,
+                                      elementwise_op);
 }
 
 template <typename InGrid1dDescTuple,
@@ -37,7 +37,7 @@ template <typename InGrid1dDescTuple,
           index_t MPerThread,
           typename InScalarPerVectorSeq,
           typename OutScalarPerVectorSeq>
-struct GridwiseGenericElementwise_1D
+struct GridwiseElementwise_1D
 {
     static constexpr index_t NumInput  = InDataTypePointerTuple::Size();
     static constexpr index_t NumOutput = OutDataTypePointerTuple::Size();

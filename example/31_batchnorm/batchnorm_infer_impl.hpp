@@ -40,7 +40,7 @@ int bnorm_infer(
     static_assert(NumBatchNormReduceDim < Rank,
                   "Invalid number of reduced dimensions for batchnorm!");
 
-    using DeviceNormalizeInstance = ck::tensor_operation::device::DeviceGenericElementwise<
+    using DeviceNormalizeInstance = ck::tensor_operation::device::DeviceElementwise<
         ck::Tuple<InOutDataType, AccDataType, AccDataType, AccDataType, AccDataType>, // x, mean,
                                                                                       // variance,
                                                                                       // scale,
