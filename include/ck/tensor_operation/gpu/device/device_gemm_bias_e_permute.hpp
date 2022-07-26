@@ -46,12 +46,6 @@ struct DeviceGemmBiasCPermute : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation>
-using DeviceGemmBiasCPermutePtr = std::unique_ptr<
-    DeviceGemmBiasCPermute<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>>;
-
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

@@ -205,12 +205,12 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
     static auto MakeEGridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t StrideE)
     {
         const auto e_grid_desc_mraw_nraw = [&]() {
-            if constexpr(is_same<tensor_layout::gemm::RowMajor, ELayout>::value)
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, ELay>::value)
             {
                 return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
                                                     make_tuple(StrideE, I1));
             }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ELayout>::value)
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ELay>::value)
             {
                 return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
                                                     make_tuple(I1, StrideE));
@@ -329,7 +329,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op}
         {
-            // populate pointer, batch stride, desc for Ds
+            // populate pointer, desc for Ds
             static_for<0, NumDTensor, 1>{}([&](auto i) {
                 using DLayout   = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
                 using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;

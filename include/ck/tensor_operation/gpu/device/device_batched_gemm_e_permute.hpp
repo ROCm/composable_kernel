@@ -8,7 +8,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-struct BatchedGemmCPermuteDesc
+struct BatchedGemmEPermuteDesc
 {
     ck::index_t G0_, G1_, M_, N_;
     ck::index_t stride_G0_, stride_G1_, stride_M_, stride_N_;
@@ -16,32 +16,26 @@ struct BatchedGemmCPermuteDesc
 
 template <typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename CElementwiseOperation>
-struct DeviceBatchedGemmCPermute : public BaseOperator
+          typename CDEElementwiseOperation>
+struct DeviceBatchedGemmEPermute : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
-                        void* p_c,
+                        void* p_e,
                         index_t M,
                         index_t N,
                         index_t K,
                         index_t stride_A,
                         index_t stride_B,
-                        BatchedGemmCPermuteDesc batched_gemm_c_permute_desc,
+                        BatchedGemmEPermuteDesc batched_gemm_e_permute_desc,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
-                        CElementwiseOperation c_element_op,
+                        CDEElementwiseOperation cde_element_op,
                         ck::index_t BatchCount) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
-
-template <typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation>
-using DeviceBatchedGemmCPermutePtr = std::unique_ptr<
-    DeviceBatchedGemmCPermute<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation
