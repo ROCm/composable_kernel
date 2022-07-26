@@ -268,7 +268,7 @@ def runCKProfiler(Map conf=[:]){
                             archiveArtifacts "perf_gemm_${gpu_arch}.log"
                             archiveArtifacts "perf_resnet50_N256_${gpu_arch}.log"
                             archiveArtifacts "perf_resnet50_N4_${gpu_arch}.log"
-                            archiveArtifacts "perf_bathced_gemm_${gpu_arch}.log"
+                            archiveArtifacts "perf_batched_gemm_${gpu_arch}.log"
                             archiveArtifacts "perf_grouped_gemm_${gpu_arch}.log"
                             archiveArtifacts "perf_fwd_conv_${gpu_arch}.log"
                             archiveArtifacts "perf_bwd_conv_${gpu_arch}.log"
@@ -278,7 +278,7 @@ def runCKProfiler(Map conf=[:]){
                             stash name: "perf_gemm_${gpu_arch}.log"
                             stash name: "perf_resnet50_N256_${gpu_arch}.log"
                             stash name: "perf_resnet50_N4_${gpu_arch}.log"
-                            stash name: "perf_bathced_gemm_${gpu_arch}.log"
+                            stash name: "perf_batched_gemm_${gpu_arch}.log"
                             stash name: "perf_grouped_gemm_${gpu_arch}.log"
                             stash name: "perf_fwd_conv_${gpu_arch}.log"
                             stash name: "perf_bwd_conv_${gpu_arch}.log"
@@ -362,7 +362,7 @@ def process_results(Map conf=[:]){
                         unstash "perf_gemm_${gpu_arch}.log"
                         unstash "perf_resnet50_N256_${gpu_arch}.log"
                         unstash "perf_resnet50_N4_${gpu_arch}.log"
-                        unstash "perf_bathced_gemm_${gpu_arch}.log"
+                        unstash "perf_batched_gemm_${gpu_arch}.log"
                         unstash "perf_grouped_gemm_${gpu_arch}.log"
                         unstash "perf_fwd_conv_${gpu_arch}.log"
                         unstash "perf_bwd_conv_${gpu_arch}.log"
@@ -389,13 +389,13 @@ def process_results(Map conf=[:]){
 }
 
 //launch develop branch daily at 23:00 in FULL_QA mode
-//CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;USE_9110=true''' : ""
+CRON_SETTINGS = BRANCH_NAME == "lwpck-367" ? '''0 23 * * * % RUN_FULL_QA=true;USE_9110=true''' : ""
 
 pipeline {
     agent none
-    //triggers {
-    //    cron(CRON_SETTINGS)
-    //}
+    triggers {
+        parameterizedCron(CRON_SETTINGS)
+    }
     options {
         parallelsAlwaysFailFast()
     }
@@ -451,6 +451,56 @@ pipeline {
                 }
             }
         }
+        stage("Performance Tests")
+        {
+            parallel
+            {
+                stage("Run ckProfiler: gfx908")
+                {
+                    when {
+                        expression { return params.RUN_FULL_QA != 'true'; }
+                    }
+                    agent{ label rocmnode("gfx908")}
+                    environment{
+                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
+                   }
+                    steps{
+                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
+                    }
+                }
+                stage("Run ckProfiler: gfx90a")
+                {
+                    agent{ label rocmnode("gfx90a")}
+                    environment{
+                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
+                   }
+                    steps{
+                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
+                    }
+                }
+            }
+        }
+        stage("Process Performance Test Results")
+        {
+            parallel
+            {
+                stage("Process results for gfx908"){
+                    when {
+                        expression { return params.RUN_FULL_QA != 'true'; }
+                    }
+                    agent { label 'mici' }
+                    steps{
+                        process_results(gpu_arch: "gfx908")
+                    }
+                }
+                stage("Process results for gfx90a"){
+                    agent { label 'mici' }
+                    steps{
+                        process_results(gpu_arch: "gfx90a")
+                    }
+                }
+            }
+        }
 		stage("Tests")
         {
             parallel
@@ -490,50 +540,6 @@ pipeline {
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
-                    }
-                }
-            }
-        }
-        stage("Performance Tests")
-        {
-            parallel
-            {
-                stage("Run ckProfiler: gfx908")
-                {
-                    agent{ label rocmnode("gfx908")}
-                    environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
-                   }
-                    steps{
-                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
-                    }
-                }
-                stage("Run ckProfiler: gfx90a")
-                {
-                    agent{ label rocmnode("gfx90a")}
-                    environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
-                   }
-                    steps{
-                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
-                    }
-                }
-            }
-        }
-        stage("Process Performance Test Results")
-        {
-            parallel
-            {
-                stage("Process results for gfx908"){
-                    agent { label 'mici' }
-                    steps{
-                        process_results(gpu_arch: "gfx908")
-                    }
-                }
-                stage("Process results for gfx90a"){
-                    agent { label 'mici' }
-                    steps{
-                        process_results(gpu_arch: "gfx90a")
                     }
                 }
             }

@@ -56,7 +56,7 @@ print_log_header $gemm_log $env_type $branch $host_name
 #run resnet50 test
 export resnet256_log="perf_resnet50_N256_${gpu_arch}.log"
 print_log_header $resnet256_log $env_type $branch $host_name
-./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 $verify 2 0 1 256 | tee -a $resnet256_log
+./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 $verify 1 0 1 256 | tee -a $resnet256_log
 export resnet4_log="perf_resnet50_N4_${gpu_arch}.log"
 print_log_header $resnet4_log $env_type $branch $host_name
-./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 $verify 2 0 1 4 | tee -a $resnet4_log
+./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 $verify 1 0 1 4 | tee -a $resnet4_log
