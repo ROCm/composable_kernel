@@ -31,7 +31,6 @@ namespace device {
  * \tparam Block2ETileMap Block2ETileMap::CalculateBottomIndex() takes in id of a workgroup and
  * returns the 2D index of the tile that it computes. \see
  * GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3::Run().
- *
  * \note Using \p ComputePtrOffsetOfBatch gives us the flexibility that 2 workgroups can compute 2
  * tiles from different matrices. Keep in mind that these 2 matrices can share the same grid
  * descriptor (like in BatchedGEMM), or use their own grid descriptors (in GroupedGemm). \link

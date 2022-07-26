@@ -63,15 +63,16 @@ using DeviceConvndBwdWeightInstance =
 
 int main(int argc, char* argv[])
 {
+    namespace ctc = ck::tensor_layout::convolution;
+
     print_helper_msg();
 
     bool do_verification = true;
     int init_method      = 1;
     bool time_kernel     = false;
-    int num_dim_spatial  = 2;
 
-    ck::utils::conv::ConvParam params{
-        2, 32, 256, 1024, {3, 3}, {14, 14}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
+    ck::utils::conv::ConvParam conv_param{
+        2, 1, 32, 256, 1024, {3, 3}, {14, 14}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
 
     ck::index_t split_k = 4;
 
@@ -87,12 +88,12 @@ int main(int argc, char* argv[])
     }
     else
     {
-        do_verification = std::stoi(argv[1]);
-        init_method     = std::stoi(argv[2]);
-        time_kernel     = std::stoi(argv[3]);
-        num_dim_spatial = std::stoi(argv[4]);
+        do_verification                   = std::stoi(argv[1]);
+        init_method                       = std::stoi(argv[2]);
+        time_kernel                       = std::stoi(argv[3]);
+        const ck::index_t num_dim_spatial = std::stoi(argv[4]);
 
-        params = parse_conv_params(num_dim_spatial, 5, argv);
+        conv_param = parse_conv_param(num_dim_spatial, 5, argv);
 
         split_k = std::stoi(argv[5 + 3 + 6 * num_dim_spatial - 1]);
         split_k = std::max(1, split_k);
@@ -102,12 +103,22 @@ int main(int argc, char* argv[])
     const auto wei_element_op = WeiElementOp{};
     const auto out_element_op = OutElementOp{};
 
-    if(num_dim_spatial == 1)
+    if(conv_param.num_dim_spatial_ == 1)
     {
+        using InLayout  = ctc::GNWC;
+        using WeiLayout = ctc::GKXC;
+        using OutLayout = ctc::GNWK;
+
+        const auto in_g_n_c_wis_desc =
+            make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_param);
+
+        const auto wei_g_k_c_xs_desc =
+            make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(conv_param);
+
+        const auto out_g_n_k_wos_desc =
+            make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(conv_param);
+
         return run_conv_bwd_weight<1,
-                                   ck::tensor_layout::convolution::NWC,
-                                   ck::tensor_layout::convolution::KXC,
-                                   ck::tensor_layout::convolution::NWK,
                                    InDataType,
                                    WeiDataType,
                                    OutDataType,
@@ -117,18 +128,31 @@ int main(int argc, char* argv[])
                                    DeviceConvndBwdWeightInstance<1>>(do_verification,
                                                                      init_method,
                                                                      time_kernel,
-                                                                     params,
+                                                                     conv_param,
+                                                                     in_g_n_c_wis_desc,
+                                                                     wei_g_k_c_xs_desc,
+                                                                     out_g_n_k_wos_desc,
                                                                      in_element_op,
                                                                      wei_element_op,
                                                                      out_element_op,
                                                                      split_k);
     }
-    else if(num_dim_spatial == 2)
+    else if(conv_param.num_dim_spatial_ == 2)
     {
+        using InLayout  = ctc::GNHWC;
+        using WeiLayout = ctc::GKYXC;
+        using OutLayout = ctc::GNHWK;
+
+        const auto in_g_n_c_wis_desc =
+            make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_param);
+
+        const auto wei_g_k_c_xs_desc =
+            make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(conv_param);
+
+        const auto out_g_n_k_wos_desc =
+            make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(conv_param);
+
         return run_conv_bwd_weight<2,
-                                   ck::tensor_layout::convolution::NHWC,
-                                   ck::tensor_layout::convolution::KYXC,
-                                   ck::tensor_layout::convolution::NHWK,
                                    InDataType,
                                    WeiDataType,
                                    OutDataType,
@@ -138,18 +162,31 @@ int main(int argc, char* argv[])
                                    DeviceConvndBwdWeightInstance<2>>(do_verification,
                                                                      init_method,
                                                                      time_kernel,
-                                                                     params,
+                                                                     conv_param,
+                                                                     in_g_n_c_wis_desc,
+                                                                     wei_g_k_c_xs_desc,
+                                                                     out_g_n_k_wos_desc,
                                                                      in_element_op,
                                                                      wei_element_op,
                                                                      out_element_op,
                                                                      split_k);
     }
-    else if(num_dim_spatial == 3)
+    else if(conv_param.num_dim_spatial_ == 3)
     {
+        using InLayout  = ctc::GNDHWC;
+        using WeiLayout = ctc::GKZYXC;
+        using OutLayout = ctc::GNDHWK;
+
+        const auto in_g_n_c_wis_desc =
+            make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_param);
+
+        const auto wei_g_k_c_xs_desc =
+            make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(conv_param);
+
+        const auto out_g_n_k_wos_desc =
+            make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(conv_param);
+
         return run_conv_bwd_weight<3,
-                                   ck::tensor_layout::convolution::NDHWC,
-                                   ck::tensor_layout::convolution::KZYXC,
-                                   ck::tensor_layout::convolution::NDHWK,
                                    InDataType,
                                    WeiDataType,
                                    OutDataType,
@@ -159,7 +196,10 @@ int main(int argc, char* argv[])
                                    DeviceConvndBwdWeightInstance<3>>(do_verification,
                                                                      init_method,
                                                                      time_kernel,
-                                                                     params,
+                                                                     conv_param,
+                                                                     in_g_n_c_wis_desc,
+                                                                     wei_g_k_c_xs_desc,
+                                                                     out_g_n_k_wos_desc,
                                                                      in_element_op,
                                                                      wei_element_op,
                                                                      out_element_op,
