@@ -10,7 +10,7 @@
 #include "ck/utility/reduction_operator.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/device_multiple_reduce_multiblock.hpp"
-#include "ck/tensor_operation/gpu/device/device_generic_elementwise.hpp"
+#include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
 
 #include "batchnorm_common.hpp"
 

@@ -5,7 +5,7 @@
 #include <cstdlib>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/device_generic_elementwise.hpp"
+#include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/host_tensor/device_memory.hpp"

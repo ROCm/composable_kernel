@@ -14,7 +14,7 @@
 #include "ck/tensor_operation/gpu/device/device_cgemm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v1.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_generic_elementwise_1d.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_elementwise_1d.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 #include "ck/device_utility/device_prop.hpp"
 #include "ck/device_utility/kernel_launch.hpp"
