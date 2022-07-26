@@ -14,7 +14,7 @@
 #include "ck/tensor_operation/gpu/device/device_cgemm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v1.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_binary_elementwise_1d.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_generic_elementwise_1d.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 #include "ck/device_utility/device_prop.hpp"
 #include "ck/device_utility/kernel_launch.hpp"
@@ -538,48 +538,43 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
 
             float ave_time = 0;
 
-            using Add                  = ck::tensor_operation::element_wise::Add;
-            using Subtract             = ck::tensor_operation::element_wise::Subtract;
-            using GridwiseBinAdd       = GridwiseBinaryElementwise_1D<CDataType,
-                                                                CDataType,
-                                                                CDataType,
-                                                                CDataType,
-                                                                CGridDesc_M,
-                                                                CGridDesc_M,
-                                                                CGridDesc_M,
-                                                                Add,
-                                                                MPerThread,
-                                                                AScalarPerVector,
-                                                                BScalarPerVector,
-                                                                CScalarPerVector>;
-            using GridwiseBinSubtract  = GridwiseBinaryElementwise_1D<CDataType,
-                                                                     CDataType,
-                                                                     CDataType,
-                                                                     CDataType,
-                                                                     CGridDesc_M,
-                                                                     CGridDesc_M,
-                                                                     CGridDesc_M,
-                                                                     Subtract,
-                                                                     MPerThread,
-                                                                     AScalarPerVector,
-                                                                     BScalarPerVector,
-                                                                     CScalarPerVector>;
-            const auto add_kernel      = kernel_binary_elementwise_1d<GridwiseBinAdd,
-                                                                 CDataType,
-                                                                 CDataType,
-                                                                 CDataType,
-                                                                 CGridDesc_M,
-                                                                 CGridDesc_M,
-                                                                 CGridDesc_M,
-                                                                 Add>;
-            const auto subtract_kernel = kernel_binary_elementwise_1d<GridwiseBinSubtract,
-                                                                      CDataType,
-                                                                      CDataType,
-                                                                      CDataType,
-                                                                      CGridDesc_M,
-                                                                      CGridDesc_M,
-                                                                      CGridDesc_M,
-                                                                      Subtract>;
+            using Add      = ck::tensor_operation::element_wise::Add;
+            using Subtract = ck::tensor_operation::element_wise::Subtract;
+
+            using GridwiseBinAdd =
+                GridwiseElementwise_1D<Tuple<CGridDesc_M, CGridDesc_M>,
+                                       Tuple<CGridDesc_M>,
+                                       Tuple<const CDataType*, const CDataType*>,
+                                       Tuple<CDataType*>,
+                                       Add,
+                                       MPerThread,
+                                       Sequence<AScalarPerVector, BScalarPerVector>,
+                                       Sequence<CScalarPerVector>>;
+
+            using GridwiseBinSubtract =
+                GridwiseElementwise_1D<Tuple<CGridDesc_M, CGridDesc_M>,
+                                       Tuple<CGridDesc_M>,
+                                       Tuple<const CDataType*, const CDataType*>,
+                                       Tuple<CDataType*>,
+                                       Subtract,
+                                       MPerThread,
+                                       Sequence<AScalarPerVector, BScalarPerVector>,
+                                       Sequence<CScalarPerVector>>;
+
+            const auto add_kernel = kernel_elementwise_1d<GridwiseBinAdd,
+                                                          Tuple<CGridDesc_M, CGridDesc_M>,
+                                                          Tuple<CGridDesc_M>,
+                                                          Tuple<const CDataType*, const CDataType*>,
+                                                          Tuple<CDataType*>,
+                                                          Add>;
+
+            const auto subtract_kernel =
+                kernel_elementwise_1d<GridwiseBinSubtract,
+                                      Tuple<CGridDesc_M, CGridDesc_M>,
+                                      Tuple<CGridDesc_M>,
+                                      Tuple<const CDataType*, const CDataType*>,
+                                      Tuple<CDataType*>,
+                                      Subtract>;
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
@@ -631,18 +626,18 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                            arg.block_2_ctile_map_);
 
                 // c_real = aux - aux_2
-                ave_time += launch_and_time_kernel(stream_config,
-                                                   subtract_kernel,
-                                                   dim3(grid_size),
-                                                   dim3(BlockSize),
-                                                   0,
-                                                   arg.p_aux_grid_,
-                                                   arg.p_aux_2_grid_,
-                                                   arg.p_c_grid_real_,
-                                                   arg.c_grid_desc_m_,
-                                                   arg.c_grid_desc_m_,
-                                                   arg.c_grid_desc_m_,
-                                                   Subtract{});
+                ave_time += launch_and_time_kernel(
+                    stream_config,
+                    subtract_kernel,
+                    dim3(grid_size),
+                    dim3(BlockSize),
+                    0,
+                    make_tuple(arg.c_grid_desc_m_, arg.c_grid_desc_m_),
+                    make_tuple(arg.c_grid_desc_m_),
+                    make_tuple(const_cast<const CDataType*>(arg.p_aux_grid_),
+                               const_cast<const CDataType*>(arg.p_aux_2_grid_)),
+                    make_tuple(arg.p_c_grid_real_),
+                    Subtract{});
 
                 ave_time +=
                     launch_and_time_kernel(stream_config,
@@ -679,18 +674,18 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                            arg.block_2_ctile_map_);
 
                 // c_imag = aux + aux_2
-                ave_time += launch_and_time_kernel(stream_config,
-                                                   add_kernel,
-                                                   dim3(grid_size),
-                                                   dim3(BlockSize),
-                                                   0,
-                                                   arg.p_aux_grid_,
-                                                   arg.p_aux_2_grid_,
-                                                   arg.p_c_grid_imag_,
-                                                   arg.c_grid_desc_m_,
-                                                   arg.c_grid_desc_m_,
-                                                   arg.c_grid_desc_m_,
-                                                   Add{});
+                ave_time += launch_and_time_kernel(
+                    stream_config,
+                    add_kernel,
+                    dim3(grid_size),
+                    dim3(BlockSize),
+                    0,
+                    make_tuple(arg.c_grid_desc_m_, arg.c_grid_desc_m_),
+                    make_tuple(arg.c_grid_desc_m_),
+                    make_tuple(const_cast<const CDataType*>(arg.p_aux_grid_),
+                               const_cast<const CDataType*>(arg.p_aux_2_grid_)),
+                    make_tuple(arg.p_c_grid_imag_),
+                    Add{});
             }
             else
             {
@@ -742,18 +737,18 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                            arg.block_2_ctile_map_);
 
                 // c_real = aux - aux_2
-                ave_time += launch_and_time_kernel(stream_config,
-                                                   subtract_kernel,
-                                                   dim3(grid_size),
-                                                   dim3(BlockSize),
-                                                   0,
-                                                   arg.p_aux_grid_,
-                                                   arg.p_aux_2_grid_,
-                                                   arg.p_c_grid_real_,
-                                                   arg.c_grid_desc_m_,
-                                                   arg.c_grid_desc_m_,
-                                                   arg.c_grid_desc_m_,
-                                                   Subtract{});
+                ave_time += launch_and_time_kernel(
+                    stream_config,
+                    subtract_kernel,
+                    dim3(grid_size),
+                    dim3(BlockSize),
+                    0,
+                    make_tuple(arg.c_grid_desc_m_, arg.c_grid_desc_m_),
+                    make_tuple(arg.c_grid_desc_m_),
+                    make_tuple(const_cast<const CDataType*>(arg.p_aux_grid_),
+                               const_cast<const CDataType*>(arg.p_aux_2_grid_)),
+                    make_tuple(arg.p_c_grid_real_),
+                    Subtract{});
 
                 ave_time +=
                     launch_and_time_kernel(stream_config,
@@ -790,18 +785,18 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                            arg.block_2_ctile_map_);
 
                 // c_imag = aux + aux_2
-                ave_time += launch_and_time_kernel(stream_config,
-                                                   add_kernel,
-                                                   dim3(grid_size),
-                                                   dim3(BlockSize),
-                                                   0,
-                                                   arg.p_aux_grid_,
-                                                   arg.p_aux_2_grid_,
-                                                   arg.p_c_grid_imag_,
-                                                   arg.c_grid_desc_m_,
-                                                   arg.c_grid_desc_m_,
-                                                   arg.c_grid_desc_m_,
-                                                   Add{});
+                ave_time += launch_and_time_kernel(
+                    stream_config,
+                    add_kernel,
+                    dim3(grid_size),
+                    dim3(BlockSize),
+                    0,
+                    make_tuple(arg.c_grid_desc_m_, arg.c_grid_desc_m_),
+                    make_tuple(arg.c_grid_desc_m_),
+                    make_tuple(const_cast<const CDataType*>(arg.p_aux_grid_),
+                               const_cast<const CDataType*>(arg.p_aux_2_grid_)),
+                    make_tuple(arg.p_c_grid_imag_),
+                    Add{});
             }
 
             return ave_time;
