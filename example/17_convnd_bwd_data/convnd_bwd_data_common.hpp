@@ -18,83 +18,15 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_data.hpp"
 
-ck::utils::conv::ConvParam parse_conv_params(int num_dim_spatial, int arg_idx, char* const argv[])
-{
-    const ck::index_t N = std::stoi(argv[arg_idx++]);
-    const ck::index_t K = std::stoi(argv[arg_idx++]);
-    const ck::index_t C = std::stoi(argv[arg_idx++]);
-
-    std::vector<ck::index_t> filter_spatial_lengths(num_dim_spatial);
-    std::vector<ck::index_t> input_spatial_lengths(num_dim_spatial);
-    std::vector<ck::index_t> conv_filter_strides(num_dim_spatial);
-    std::vector<ck::index_t> conv_filter_dilations(num_dim_spatial);
-    std::vector<ck::index_t> input_left_pads(num_dim_spatial);
-    std::vector<ck::index_t> input_right_pads(num_dim_spatial);
-
-    for(int i = 0; i < num_dim_spatial; ++i)
-    {
-        filter_spatial_lengths[i] = std::stoi(argv[arg_idx++]);
-    }
-
-    for(int i = 0; i < num_dim_spatial; ++i)
-    {
-        input_spatial_lengths[i] = std::stoi(argv[arg_idx++]);
-    }
-
-    for(int i = 0; i < num_dim_spatial; ++i)
-    {
-        conv_filter_strides[i] = std::stoi(argv[arg_idx++]);
-    }
-
-    for(int i = 0; i < num_dim_spatial; ++i)
-    {
-        conv_filter_dilations[i] = std::stoi(argv[arg_idx++]);
-    }
-
-    for(int i = 0; i < num_dim_spatial; ++i)
-    {
-        input_left_pads[i] = std::stoi(argv[arg_idx++]);
-    }
-
-    for(int i = 0; i < num_dim_spatial; ++i)
-    {
-        input_right_pads[i] = std::stoi(argv[arg_idx++]);
-    }
-
-    return ck::utils::conv::ConvParam{num_dim_spatial,
-                                      N,
-                                      K,
-                                      C,
-                                      filter_spatial_lengths,
-                                      input_spatial_lengths,
-                                      conv_filter_strides,
-                                      conv_filter_dilations,
-                                      input_left_pads,
-                                      input_right_pads};
-}
-
 void print_helper_msg()
 {
     std::cout << "arg1: verification (0=no, 1=yes)\n"
               << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
               << "arg3: time kernel (0=no, 1=yes)\n"
-              << "arg4: N spatial dimensions (default 2)\n"
-              << "Following arguments (depending on number of spatial dims):\n"
-              << " N, K, C, \n"
-              << " <filter spatial dimensions>, (ie Y, X for 2D)\n"
-              << " <input image spatial dimensions>, (ie Hi, Wi for 2D)\n"
-              << " <strides>, (ie Sy, Sx for 2D)\n"
-              << " <dilations>, (ie Dy, Dx for 2D)\n"
-              << " <left padding>, (ie LeftPy, LeftPx for 2D)\n"
-              << " <right padding>, (ie RightPy, RightPx for 2D)\n"
-              << std::endl;
+              << get_conv_param_parser_helper_msg() << std::endl;
 }
 
-// FIXME: current implementation only support NCHW/NHWC layout
 template <ck::index_t NDimSpatial,
-          typename InLayout,
-          typename WeiLayout,
-          typename OutLayout,
           typename InDataType,
           typename WeiDataType,
           typename OutDataType,
@@ -106,18 +38,17 @@ int run_conv_bwd_data(bool do_verification,
                       int init_method,
                       bool time_kernel,
                       const ck::utils::conv::ConvParam& conv_param,
+                      const HostTensorDescriptor& in_g_n_c_wis_desc,
+                      const HostTensorDescriptor& wei_g_k_c_xs_desc,
+                      const HostTensorDescriptor& out_g_n_k_wos_desc,
                       const InElementOp& in_element_op,
                       const WeiElementOp& wei_element_op,
                       const OutElementOp& out_element_op)
 {
-    const auto in_desc  = ck::utils::conv::get_input_host_tensor_descriptor<InLayout>(conv_param);
-    const auto wei_desc = ck::utils::conv::get_weight_host_tensor_descriptor<WeiLayout>(conv_param);
-    const auto out_desc = ck::utils::conv::get_output_host_tensor_descriptor<OutLayout>(conv_param);
-
-    Tensor<InDataType> in_host(in_desc);
-    Tensor<InDataType> in_device(in_desc);
-    Tensor<WeiDataType> wei(wei_desc);
-    Tensor<OutDataType> out(out_desc);
+    Tensor<InDataType> in_host(in_g_n_c_wis_desc);
+    Tensor<InDataType> in_device(in_g_n_c_wis_desc);
+    Tensor<WeiDataType> wei(wei_g_k_c_xs_desc);
+    Tensor<OutDataType> out(out_g_n_k_wos_desc);
 
     std::cout << "in: " << in_host.mDesc << std::endl;
     std::cout << "wei: " << wei.mDesc << std::endl;
@@ -187,9 +118,6 @@ int run_conv_bwd_data(bool do_verification,
     if(do_verification)
     {
         auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<NDimSpatial,
-                                                                         InLayout,
-                                                                         WeiLayout,
-                                                                         OutLayout,
                                                                          InDataType,
                                                                          WeiDataType,
                                                                          OutDataType,

@@ -17,9 +17,28 @@ namespace detail {
 template <typename OldLayout>
 std::vector<std::size_t> get_layout_transpose_gnchw_to_old()
 {
-    if constexpr(ck::is_same_v<OldLayout, ck::tensor_layout::convolution::GNCW> ||
-                 ck::is_same_v<OldLayout, ck::tensor_layout::convolution::GKCX> ||
-                 ck::is_same_v<OldLayout, ck::tensor_layout::convolution::GNKW>)
+    // NHWC tp NCHW
+    if constexpr(ck::is_same_v<OldLayout, ck::tensor_layout::convolution::NWC> ||
+                 ck::is_same_v<OldLayout, ck::tensor_layout::convolution::KXC> ||
+                 ck::is_same_v<OldLayout, ck::tensor_layout::convolution::NWK>)
+    {
+        return {0, 2, 1};
+    }
+    else if constexpr(ck::is_same_v<OldLayout, ck::tensor_layout::convolution::NHWC> ||
+                      ck::is_same_v<OldLayout, ck::tensor_layout::convolution::KYXC> ||
+                      ck::is_same_v<OldLayout, ck::tensor_layout::convolution::NHWK>)
+    {
+        return {0, 3, 1, 2};
+    }
+    else if constexpr(ck::is_same_v<OldLayout, ck::tensor_layout::convolution::NDHWC> ||
+                      ck::is_same_v<OldLayout, ck::tensor_layout::convolution::KZYXC> ||
+                      ck::is_same_v<OldLayout, ck::tensor_layout::convolution::NDHWK>)
+    {
+        return {0, 4, 1, 2, 3};
+    }
+    else if constexpr(ck::is_same_v<OldLayout, ck::tensor_layout::convolution::GNCW> ||
+                      ck::is_same_v<OldLayout, ck::tensor_layout::convolution::GKCX> ||
+                      ck::is_same_v<OldLayout, ck::tensor_layout::convolution::GNKW>)
     {
         return {0, 1, 2, 3};
     }
@@ -88,9 +107,25 @@ make_input_host_tensor_descriptor_g_n_c_wis_packed(const ck::utils::conv::ConvPa
 {
     std::vector<std::size_t> physical_lengths;
 
-    if constexpr(ck::is_same_v<InLayout, ck::tensor_layout::convolution::GNCW> ||
-                 ck::is_same_v<InLayout, ck::tensor_layout::convolution::GNCHW> ||
-                 ck::is_same_v<InLayout, ck::tensor_layout::convolution::GNCDHW>)
+    if constexpr(ck::is_same_v<InLayout, ck::tensor_layout::convolution::NWC> ||
+                 ck::is_same_v<InLayout, ck::tensor_layout::convolution::NHWC> ||
+                 ck::is_same_v<InLayout, ck::tensor_layout::convolution::NDHWC>)
+    {
+        if(param.G_ != 1)
+        {
+            throw std::runtime_error("wrong! G != 1");
+        }
+
+        physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.N_),
+                                                    static_cast<std::size_t>(param.C_)};
+
+        physical_lengths.insert(physical_lengths.end(),
+                                param.input_spatial_lengths_.begin(),
+                                param.input_spatial_lengths_.begin() + param.num_dim_spatial_);
+    }
+    else if constexpr(ck::is_same_v<InLayout, ck::tensor_layout::convolution::GNCW> ||
+                      ck::is_same_v<InLayout, ck::tensor_layout::convolution::GNCHW> ||
+                      ck::is_same_v<InLayout, ck::tensor_layout::convolution::GNCDHW>)
     {
         physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.G_),
                                                     static_cast<std::size_t>(param.N_),

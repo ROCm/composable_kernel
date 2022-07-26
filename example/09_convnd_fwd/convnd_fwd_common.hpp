@@ -23,73 +23,7 @@ void print_helper_msg()
     std::cout << "arg1: verification (0=no, 1=yes)\n"
               << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
               << "arg3: time kernel (0=no, 1=yes)\n"
-              << "Following arguments (depending on number of spatial dims):\n"
-              << " N spatial dimensions (1=Conv1d, 2=Conv2d, 3=Conv3d)\n"
-              << " G, N, K, C, \n"
-              << " <filter spatial dimensions>, (ie Y, X for 2D)\n"
-              << " <input image spatial dimensions>, (ie Hi, Wi for 2D)\n"
-              << " <strides>, (ie Sy, Sx for 2D)\n"
-              << " <dilations>, (ie Dy, Dx for 2D)\n"
-              << " <left padding>, (ie LeftPy, LeftPx for 2D)\n"
-              << " <right padding>, (ie RightPy, RightPx for 2D)\n"
-              << std::endl;
-}
-
-ck::utils::conv::ConvParam parse_conv_param(int num_dim_spatial, int arg_idx, char* const argv[])
-{
-    const ck::index_t G = std::stoi(argv[arg_idx++]);
-    const ck::index_t N = std::stoi(argv[arg_idx++]);
-    const ck::index_t K = std::stoi(argv[arg_idx++]);
-    const ck::index_t C = std::stoi(argv[arg_idx++]);
-
-    std::vector<ck::index_t> filter_spatial_lengths(num_dim_spatial);
-    std::vector<ck::index_t> input_spatial_lengths(num_dim_spatial);
-    std::vector<ck::index_t> conv_filter_strides(num_dim_spatial);
-    std::vector<ck::index_t> conv_filter_dilations(num_dim_spatial);
-    std::vector<ck::index_t> input_left_pads(num_dim_spatial);
-    std::vector<ck::index_t> input_right_pads(num_dim_spatial);
-
-    for(int i = 0; i < num_dim_spatial; ++i)
-    {
-        filter_spatial_lengths[i] = std::stoi(argv[arg_idx++]);
-    }
-
-    for(int i = 0; i < num_dim_spatial; ++i)
-    {
-        input_spatial_lengths[i] = std::stoi(argv[arg_idx++]);
-    }
-
-    for(int i = 0; i < num_dim_spatial; ++i)
-    {
-        conv_filter_strides[i] = std::stoi(argv[arg_idx++]);
-    }
-
-    for(int i = 0; i < num_dim_spatial; ++i)
-    {
-        conv_filter_dilations[i] = std::stoi(argv[arg_idx++]);
-    }
-
-    for(int i = 0; i < num_dim_spatial; ++i)
-    {
-        input_left_pads[i] = std::stoi(argv[arg_idx++]);
-    }
-
-    for(int i = 0; i < num_dim_spatial; ++i)
-    {
-        input_right_pads[i] = std::stoi(argv[arg_idx++]);
-    }
-
-    return ck::utils::conv::ConvParam{num_dim_spatial,
-                                      G,
-                                      N,
-                                      K,
-                                      C,
-                                      filter_spatial_lengths,
-                                      input_spatial_lengths,
-                                      conv_filter_strides,
-                                      conv_filter_dilations,
-                                      input_left_pads,
-                                      input_right_pads};
+              << get_conv_param_parser_helper_msg() << std::endl;
 }
 
 template <ck::index_t NDimSpatial,
