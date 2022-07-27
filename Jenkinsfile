@@ -116,7 +116,7 @@ def buildHipClangJob(Map conf=[:]){
         def retimage
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
-            try (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+            try {
                 retimage = docker.build("${image}", dockerArgs + '.')
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
