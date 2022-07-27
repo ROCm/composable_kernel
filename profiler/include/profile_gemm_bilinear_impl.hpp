@@ -28,7 +28,8 @@ template <typename ADataType,
           typename EDataType,
           typename ALayout,
           typename BLayout,
-          typename DELayout> // assume Ds and E have same layout
+          typename DLayout,
+          typename ELayout>
 bool profile_gemm_bilinear_impl(int do_verification,
                                 int init_method,
                                 bool /*do_log*/,
@@ -59,9 +60,9 @@ bool profile_gemm_bilinear_impl(int do_verification,
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-    Tensor<DDataType> d_m_n(f_host_tensor_descriptor(M, N, StrideD, DELayout{}));
-    Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, DELayout{}));
-    Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, DELayout{}));
+    Tensor<DDataType> d_m_n(f_host_tensor_descriptor(M, N, StrideD, DLayout{}));
+    Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
+    Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
@@ -96,7 +97,8 @@ bool profile_gemm_bilinear_impl(int do_verification,
     using DeviceOp = ck::tensor_operation::device::DeviceGemmMultipleD<
         ALayout,
         BLayout,
-        DELayout,
+        ck::Tuple<DLayout>,
+        ELayout,
         ADataType,
         BDataType,
         ck::Tuple<DDataType>,

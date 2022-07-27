@@ -27,6 +27,9 @@ using F32_TUPLE = ck::Tuple<F32>;
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
+using Row_Tuple     = ck::Tuple<Row>;
+using Row_Row_Tuple = ck::Tuple<Row, Row>;
+
 // Conv layout
 using NWC   = ck::tensor_layout::convolution::NWC;
 using NHWC  = ck::tensor_layout::convolution::NHWC;
