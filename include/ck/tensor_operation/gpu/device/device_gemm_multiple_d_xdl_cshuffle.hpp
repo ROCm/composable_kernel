@@ -349,13 +349,13 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
                                            e_grid_desc_m_n_,
                                            block_2_etile_map_))
             {
-                e_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                    GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                        e_grid_desc_m_n_);
-
                 ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
                     GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         ds_grid_desc_m_n_);
+
+                e_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                    GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                        e_grid_desc_m_n_);
             }
         }
 
@@ -411,8 +411,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
                                             arg.e_grid_desc_m_n_,
                                             arg.block_2_etile_map_))
             {
-                throw std::runtime_error(
-                    "wrong! GridwiseGemmMultipleD_xdl_cshuffle has invalid setting");
+                throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
 
             const index_t grid_size =

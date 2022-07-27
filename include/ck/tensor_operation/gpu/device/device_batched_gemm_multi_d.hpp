@@ -1,4 +1,8 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
+
 #include <iostream>
 #include <vector>
 
@@ -8,36 +12,40 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-struct BatchedGemmEPermuteDesc
-{
-    ck::index_t G0_, G1_, M_, N_;
-    ck::index_t stride_G0_, stride_G1_, stride_M_, stride_N_;
-};
-
 template <typename ALayout,
           typename BLayout,
-          typename DELayout,
+          typename DsLayout,
+          typename ELayout,
           typename ADataType,
           typename BDataType,
+          typename DsDataType,
           typename EDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation>
-struct DeviceBatchedGemmEPermute : public BaseOperator
+struct DeviceBatchedGemmMultiD : public BaseOperator
 {
+    static constexpr index_t NumDTensor = DsDataType::Size();
+
+    static_assert(DsLayout::Size() == DsDataType::Size(), "wrong! inconsisiten NumDTensor");
+
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
+                        const std::array<const void*, NumDTensor>& p_ds,
                         void* p_e,
                         index_t M,
                         index_t N,
                         index_t K,
-                        index_t stride_A,
-                        index_t stride_B,
-                        index_t batch_stride_A,
-                        index_t batch_stride_B,
-                        BatchedGemmEPermuteDesc batched_gemm_e_permute_desc,
-                        index_t BatchCount,
+                        index_t Batch,
+                        index_t StrideA,
+                        index_t StrideB,
+                        const std::array<ck::index_t, NumDTensor>& StrideDs,
+                        index_t StrideE,
+                        index_t BatchStrideA,
+                        index_t BatchStrideB,
+                        const std::array<ck::index_t, NumDTensor>& BatchStrideDs,
+                        index_t BatchStrideE,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
                         CDEElementwiseOperation cde_element_op) = 0;

@@ -26,31 +26,29 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-using ADataType        = ck::half_t;
-using BDataType        = ck::half_t;
-using AccDataType      = float;
-using CShuffleDataType = ck::half_t;
-using EDataType        = ck::half_t;
+using ADataType        = F16;
+using BDataType        = F16;
+using AccDataType      = F32;
+using CShuffleDataType = F16;
+using EDataType        = F16;
 
-using ALayout = ck::tensor_layout::gemm::RowMajor;
-using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+using ALayout = Row;
+using BLayout = Col;
+using ELayout = Row;
 
-using AElementOp   = ck::tensor_operation::element_wise::PassThrough;
-using BElementOp   = ck::tensor_operation::element_wise::PassThrough;
-using CDEElementOp = ck::tensor_operation::element_wise::PassThrough;
+using AElementOp   = PassThrough;
+using BElementOp   = PassThrough;
+using CDEElementOp = PassThrough;
 
-// static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
-// static constexpr auto MNPadding = ck::tensor_operation::device::GemmSpecialization::MNPadding;
-static constexpr auto MNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
-// clang-format off
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmEPermuteXdl
-//######| ALayout| BLayout| AData| BData| AccData| CShuffle| EData|           A|           B|           C|          GEMM|      Num| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|     CShuffle|    CShuffle| CBlockTransferClusterLengths|   CBlockTransfer|
-//######|        |        |  Type|  Type|    Type|     Data|  Type| Elementwise| Elementwise| Elementwise|Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|  MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl|  ScalarPerVector|
-//######|        |        |      |      |        |     Type|      |   Operation|   Operation|   Operation|              |         |      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |   PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|    _NWaveNPerXdl|
-//######|        |        |      |      |        |         |      |            |            |            |              |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |             |            |                             |                 |
-//      <     Row,     Col,   F16,   F16,     F32,      F16,   F16, PassThrough, PassThrough, PassThrough,     MNPadding,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,            1,           1,               S<1, 32, 1, 8>,                8>;
-        <     Row,     Col,   F16,   F16,     F32,      F16,   F16, PassThrough, PassThrough, PassThrough,    MNKPadding,        1,   256,   128,    64,    32,   8,   8,   32,   32,    2,    1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,            1,           1,               S<1, 32, 1, 8>,                8>;
+    // clang-format off
+//######| ALayout| BLayout| ELayout|     AData|     BData|     AccData|         CShuffle|     EData|           A|           B|          CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
+//######|        |        |        |      Type|      Type|        Type|         DataType|      Type| Elementwise| Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
+//######|        |        |        |          |          |            |                 |          |   Operation|   Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
+//######|        |        |        |          |          |            |                 |          |            |            |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
+        < ALayout, BLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8>;
 // clang-format on
 
 using ReferenceBatchedGemmInstance = ck::tensor_operation::host::
@@ -62,15 +60,18 @@ int main(int argc, char* argv[])
     int init_method      = 1;
     bool time_kernel     = false;
 
-    const int M = 88;
-    const int N = 64;
-    const int K = 88;
+    const int M = 256;
+    const int N = 128;
+    const int K = 64;
 
     const int stride_A = K;
     const int stride_B = K;
 
-    const int G0 = 1024;
-    const int G1 = 10;
+    const int batch_stride_A = M * K;
+    const int batch_stride_B = K * N;
+
+    const int G0 = 16;
+    const int G1 = 8;
 
     const int batch_count = G0 * G1;
 
@@ -102,21 +103,24 @@ int main(int argc, char* argv[])
                                        std::size_t row,
                                        std::size_t col,
                                        std::size_t stride,
+                                       std::size_t batch_stride,
                                        auto layout) {
         if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
         {
             return HostTensorDescriptor(std::vector<std::size_t>({batch_count_, row, col}),
-                                        std::vector<std::size_t>({row * stride, stride, 1}));
+                                        std::vector<std::size_t>({batch_stride, stride, 1}));
         }
         else
         {
             return HostTensorDescriptor(std::vector<std::size_t>({batch_count_, row, col}),
-                                        std::vector<std::size_t>({col * stride, 1, stride}));
+                                        std::vector<std::size_t>({batch_stride, 1, stride}));
         }
     };
 
-    Tensor<ADataType> a_g_m_k(f_host_tensor_descriptor(batch_count, M, K, stride_A, ALayout{}));
-    Tensor<BDataType> b_g_k_n(f_host_tensor_descriptor(batch_count, K, N, stride_B, BLayout{}));
+    Tensor<ADataType> a_g_m_k(
+        f_host_tensor_descriptor(batch_count, M, K, stride_A, batch_stride_A, ALayout{}));
+    Tensor<BDataType> b_g_k_n(
+        f_host_tensor_descriptor(batch_count, K, N, stride_B, batch_stride_B, BLayout{}));
 
     auto f_host_e_tensor_descriptor = [](std::size_t G0_,
                                          std::size_t G1_,
@@ -169,7 +173,7 @@ int main(int argc, char* argv[])
     auto gemm    = DeviceGemmInstance{};
     auto invoker = gemm.MakeInvoker();
 
-    // do GEMM
+    // do GEM
     auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
                                       static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
                                       static_cast<EDataType*>(e_device_buf.GetDeviceBuffer()),
@@ -178,11 +182,13 @@ int main(int argc, char* argv[])
                                       K,
                                       stride_A,
                                       stride_B,
+                                      batch_stride_A,
+                                      batch_stride_B,
                                       batched_gemm_e_permute_desc,
+                                      batch_count,
                                       a_element_op,
                                       b_element_op,
-                                      cde_element_op,
-                                      batch_count);
+                                      cde_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {

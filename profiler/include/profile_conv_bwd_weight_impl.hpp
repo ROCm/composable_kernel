@@ -159,7 +159,7 @@ bool profile_conv_bwd_weight_impl(int do_verification,
     float best_gb_per_sec = 0;
 
     // profile device Conv instances
-    bool pass = true;
+    bool all_pass = true;
 
     for(auto& op_ptr : op_ptrs)
     {
@@ -215,8 +215,15 @@ bool profile_conv_bwd_weight_impl(int do_verification,
             {
                 wei_device_buf.FromDevice(weight_device_result.mData.data());
 
-                pass = pass &
-                       ck::utils::check_err(weight_device_result.mData, weight_host_result.mData);
+                bool pass = ck::utils::check_err(wei_k_c_y_x_host_result.mData,
+                                                 wei_k_c_y_x_device_result.mData);
+
+                if(!pass)
+                {
+                    std::cout << "Fail info:" << conv_ptr->GetTypeString() << std::endl;
+                }
+
+                all_pass &= pass;
 
                 if(do_log)
                 {
@@ -248,7 +255,7 @@ bool profile_conv_bwd_weight_impl(int do_verification,
               << "\nname: " << best_op_name << "\navg_time: " << best_avg_time
               << "\ntflops: " << best_tflops << "\nGB/s: " << best_gb_per_sec << std::endl;
 
-    return pass;
+    return all_pass;
 }
 
 } // namespace profiler
