@@ -120,7 +120,7 @@ def buildHipClangJob(Map conf=[:]){
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
-                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') != "" ){
                             echo "GPU not found"
                             throw e
                         }
@@ -139,7 +139,7 @@ def buildHipClangJob(Map conf=[:]){
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo |tee clinfo.log'
-                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') != "" ){
                             echo "GPU not found"
                             throw e
                         }
@@ -154,7 +154,7 @@ def buildHipClangJob(Map conf=[:]){
                 timeout(time: 5, unit: 'HOURS')
                 {
                     sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
-                    if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                    if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log')  != "" ){
                         echo "GPU not found"
                         throw e
                     }
@@ -222,7 +222,7 @@ def runCKProfiler(Map conf=[:]){
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
-                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') != "" ){
                             echo "GPU not found"
                             throw e
                         }
@@ -241,7 +241,7 @@ def runCKProfiler(Map conf=[:]){
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
-                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') != "" ){
                             echo "GPU not found"
                             throw e
                         }
@@ -458,7 +458,7 @@ pipeline {
                 stage("Run ckProfiler: gfx908")
                 {
                     when {
-                        expression { return params.RUN_FULL_QA != 'true'; }
+                        expression { params.RUN_FULL_QA != "true" }
                     }
                     agent{ label rocmnode("gfx908")}
                     environment{
@@ -486,7 +486,7 @@ pipeline {
             {
                 stage("Process results for gfx908"){
                     when {
-                        expression { return params.RUN_FULL_QA != 'true'; }
+                        expression { params.RUN_FULL_QA != "true" }
                     }
                     agent { label 'mici' }
                     steps{
