@@ -16,14 +16,14 @@ Gemm + Gemm fused operation. Computes C_m_o = A_m_k * B0_k_n * B1_n_o
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_gemm_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/device_batched_gemm_gemm_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/host_tensor/device_memory.hpp"
 #include "ck/library/host_tensor/host_tensor.hpp"
 #include "ck/library/host_tensor/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -109,15 +109,15 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmGemm_Xdl_CShu
     S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
     8>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
 
-using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
                                                                          B0DataType,
-                                                                         AccDataType,
+                                                                         ADataType,
                                                                          AccDataType,
                                                                          AElementOp,
                                                                          BElementOp,
                                                                          CElementOp>;
 using ReferenceGemm1Instance = ck::tensor_operation::host::
-    ReferenceGemm<AccDataType, B1DataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
+    ReferenceBatchedGemm<ADataType, B1DataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -144,6 +144,7 @@ int main(int argc, char* argv[])
     ck::index_t StrideB0 = 32;
     ck::index_t StrideB1 = 128;
     ck::index_t StrideC = 128;
+    ck::index_t BatchCount = 64;
 
     if(argc == 1)
     {
@@ -155,7 +156,7 @@ int main(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
     }
-    else if(argc == 12)
+    else if(argc == 13)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
@@ -170,6 +171,8 @@ int main(int argc, char* argv[])
         StrideB0 = std::stoi(argv[9]);
         StrideB1 = std::stoi(argv[10]);
         StrideC = std::stoi(argv[11]);
+
+        BatchCount = std::stoi(argv[12]);
     }
     else
     {
@@ -180,26 +183,29 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
-    auto f_host_tensor_descriptor =
-        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
-            {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
-            }
-            else
-            {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
-            }
-        };
+    auto f_host_tensor_descriptor = [](std::size_t batch_count,
+                                       std::size_t row,
+                                       std::size_t col,
+                                       std::size_t stride,
+                                       auto layout) {
+        if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
+        {
+            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
+                                        std::vector<std::size_t>({row * stride, stride, 1}));
+        }
+        else
+        {
+            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
+                                        std::vector<std::size_t>({col * stride, 1, stride}));
+        }
+    };
 
     // C_m_o = A_m_k * B0_k_n * B1_n_o
-    Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
-    Tensor<B0DataType> b0_k_n(f_host_tensor_descriptor(K, N, StrideB0, B0Layout{}));
-    Tensor<B1DataType> b1_n_o(f_host_tensor_descriptor(N, O, StrideB1, B1Layout{}));
-    Tensor<CDataType> c_m_o_host_result(f_host_tensor_descriptor(N, O, StrideC, CLayout{}));
-    Tensor<CDataType> c_m_o_device_result(f_host_tensor_descriptor(N, O, StrideC, CLayout{}));
+    Tensor<ADataType> a_m_k(f_host_tensor_descriptor(BatchCount, M, K, StrideA, ALayout{}));
+    Tensor<B0DataType> b0_k_n(f_host_tensor_descriptor(BatchCount, K, N, StrideB0, B0Layout{}));
+    Tensor<B1DataType> b1_n_o(f_host_tensor_descriptor(BatchCount, N, O, StrideB1, B1Layout{}));
+    Tensor<CDataType> c_m_o_host_result(f_host_tensor_descriptor(BatchCount, N, O, StrideC, CLayout{}));
+    Tensor<CDataType> c_m_o_device_result(f_host_tensor_descriptor(BatchCount, N, O, StrideC, CLayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b0_k_n: " << b0_k_n.mDesc << std::endl;
@@ -210,9 +216,9 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-5, 5});
-        b1_n_o.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-5, 5});
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-0.5, 0.5});
+        b0_k_n.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
+        b1_n_o.GenerateTensorValue(GeneratorTensor_3<B1DataType>{-0.5, 0.5});
         break;
     case 2:
         a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
@@ -257,7 +263,8 @@ int main(int argc, char* argv[])
                                       StrideC,
                                       a_element_op,
                                       b_element_op,
-                                      c_element_op);
+                                      c_element_op,
+                                      BatchCount);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -268,9 +275,10 @@ int main(int argc, char* argv[])
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-    std::size_t flop      = (size_t)M * N * K * 2 + (size_t)M * N * O * 2;
-    std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
-                            sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O;
+    std::size_t flop      = ((size_t)M * N * K * 2 + (size_t)M * N * O * 2) * BatchCount;
+    std::size_t num_btype = (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
+                             sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O) *
+                            BatchCount;
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
@@ -284,7 +292,7 @@ int main(int argc, char* argv[])
     if(do_verification)
     {
         // Output of Gemm0 is input A of Gemm1
-        Tensor<AccDataType> a1_m_n(f_host_tensor_descriptor(M, N, N, Row{}));
+        Tensor<ADataType> a1_m_n(f_host_tensor_descriptor(BatchCount, M, N, N, Row{}));
 
         auto ref_gemm0          = ReferenceGemm0Instance{};
         auto ref_gemm0_invoker  = ref_gemm0.MakeInvoker();

@@ -17,66 +17,6 @@
 
 namespace ck {
 
-template <typename GridwiseGemm,
-          typename FloatAB,
-          typename FloatC,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation,
-          typename AGridDesc_AK0_M_AK1,
-          typename BGridDesc_BK0_N_BK1,
-          typename B1GridDesc_BK0_N_BK1,
-          typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-          typename Block2CTileMap,
-          bool HasMainKBlockLoop>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
-#endif
-        kernel_gemm_gemm_xdl_cshuffle_v1(const FloatAB* __restrict__ p_a_grid,
-                                    const FloatAB* __restrict__ p_b_grid,
-                                    const FloatAB* __restrict__ p_b1_grid,
-                                    FloatC* __restrict__ p_c_grid,
-                                    const AElementwiseOperation a_element_op,
-                                    const BElementwiseOperation b_element_op,
-                                    const CElementwiseOperation c_element_op,
-                                    const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-                                    const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-                                    const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
-                                    const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                                        c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                    const Block2CTileMap block_2_ctile_map)
-{
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
-                                                  p_b_grid,
-                                                  p_b1_grid,
-                                                  p_c_grid,
-                                                  p_shared,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  c_element_op,
-                                                  a_grid_desc_ak0_m_ak1,
-                                                  b_grid_desc_bk0_n_bk1,
-                                                  b1_grid_desc_bk0_n_bk1,
-                                                  c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  block_2_ctile_map);
-#else
-    ignore = p_a_grid;
-    ignore = p_b_grid;
-    ignore = p_c_grid;
-    ignore = a_element_op;
-    ignore = b_element_op;
-    ignore = c_element_op;
-    ignore = a_grid_desc_ak0_m_ak1;
-    ignore = b_grid_desc_bk0_n_bk1;
-    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
-    ignore = block_2_ctile_map;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
-}
-
 template <typename FloatAB,
           typename FloatGemmAcc,
           typename FloatCShuffle,
@@ -133,7 +73,7 @@ template <typename FloatAB,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched>
-struct GridwiseGemmGemm_xdl_cshuffle_v1
+struct GridwiseBatchedGemmGemm_Xdl_CShuffle
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
