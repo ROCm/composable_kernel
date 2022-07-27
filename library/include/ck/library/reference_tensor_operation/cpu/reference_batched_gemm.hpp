@@ -16,6 +16,7 @@ namespace host {
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
+          typename AccDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
@@ -58,7 +59,7 @@ struct ReferenceBatchedGemm : public device::BaseOperator
             auto f_gmk_gkn_gmn = [&](auto g, auto m, auto n) {
                 const int K = arg.a_g_m_k_.mDesc.GetLengths()[2];
 
-                float v_acc = 0;
+                AccDataType v_acc = 0;
 
                 for(int k = 0; k < K; ++k)
                 {
@@ -68,10 +69,10 @@ struct ReferenceBatchedGemm : public device::BaseOperator
                     arg.a_element_op_(v_a, arg.a_g_m_k_(g, m, k));
                     arg.b_element_op_(v_b, arg.b_g_k_n_(g, k, n));
 
-                    v_acc += ck::type_convert<float>(v_a) * ck::type_convert<float>(v_b);
+                    v_acc += ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
                 }
 
-                float v_c;
+                AccDataType v_c;
 
                 arg.c_element_op_(v_c, v_acc);
 
@@ -81,8 +82,7 @@ struct ReferenceBatchedGemm : public device::BaseOperator
             make_ParallelTensorFunctor(f_gmk_gkn_gmn,
                                        arg.c_g_m_n_.mDesc.GetLengths()[0],
                                        arg.c_g_m_n_.mDesc.GetLengths()[1],
-                                       arg.c_g_m_n_.mDesc.GetLengths()[2])(
-                std::thread::hardware_concurrency());
+                                       arg.c_g_m_n_.mDesc.GetLengths()[2])();
 
             return 0;
         }
