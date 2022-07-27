@@ -18,8 +18,8 @@
 namespace ck {
 
 // GEMM:
-//   input : A[AK0PerBlock, M, AK1]
-//   input : B[AK0PerBlock, N, AK1]
+//   input : A[M, K]
+//   input : B[N, K]
 //   input : D0[M, N], D1[M, N], ...
 //   output : E[M, N]
 //   C = a_op(A) * b_op(B)
