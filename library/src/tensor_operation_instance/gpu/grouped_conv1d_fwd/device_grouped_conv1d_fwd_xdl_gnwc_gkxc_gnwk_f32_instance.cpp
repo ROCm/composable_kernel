@@ -42,8 +42,9 @@ static constexpr auto ConvFwd1x1S1P0 =
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
 // Compilation parameters for in[g, n, wi, c] * wei[g, k, x, c] = out[g, n, wo, k]
-using device_grouped_conv1d_fwd_xdl_gnwc_gkxc_gnwk_f32_instances = std::tuple<
-    // clang-format off
+using device_grouped_conv1d_fwd_xdl_gnwc_gkxc_gnwk_f32_instances =
+    std::tuple<
+        // clang-format off
         // Default
         //########################################|  NumDim|      A|      B|          Ds|      E| AData| BData| AccData| CShuffle|          Ds| EData|           A|           B|         CDE|    ConvForward|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
         //########################################| Spatial| Layout| Layout|      Layout| Layout|  Type|  Type|    Type| DataType|    DataType|  Type| Elementwise| Elementwise| Elementwise| Specialization| Specialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
@@ -100,8 +101,8 @@ using device_grouped_conv1d_fwd_xdl_gnwc_gkxc_gnwk_f32_instances = std::tuple<
         DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<       1,   GNWC,   GKXC, EMPTY_TUPLE,   GNWK,   F32,   F32,     F32,      F32, EMPTY_TUPLE,   F32, PassThrough, PassThrough, PassThrough, ConvFwd1x1S1P0, GemmMNKPadding,        1,   128,    32,   128,    16,   4,   4,   32,   32,    1,    2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,         1,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              4,              4,         1,           1,           1,              S<1,  8, 1, 16>,              4>,
         DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<       1,   GNWC,   GKXC, EMPTY_TUPLE,   GNWK,   F32,   F32,     F32,      F32, EMPTY_TUPLE,   F32, PassThrough, PassThrough, PassThrough, ConvFwd1x1S1P0, GemmMNKPadding,        1,    64,    64,    32,    16,   4,   4,   32,   32,    2,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,         1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              4,              4,         1,           1,           1,              S<1,  8, 1,  8>,              4>,
         DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<       1,   GNWC,   GKXC, EMPTY_TUPLE,   GNWK,   F32,   F32,     F32,      F32, EMPTY_TUPLE,   F32, PassThrough, PassThrough, PassThrough, ConvFwd1x1S1P0, GemmMNKPadding,        1,    64,    32,    64,    16,   4,   4,   32,   32,    1,    2,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,         1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              4,              4,         1,           1,           1,              S<1,  8, 1,  8>,              4>
-    // clang-format on
-    >;
+        // clang-format on
+        >;
 
 void add_device_grouped_conv1d_fwd_xdl_gnwc_gkxc_gnwk_f32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<1,
