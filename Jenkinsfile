@@ -12,8 +12,9 @@ def show_node_info() {
 }
 
 def runShell(String command){
-    def responseCode = sh returnStatus: true, script: "${command} &> tmp.txt"
+    def responseCode = sh returnStatus: true, script: "${command} > tmp.txt"
     def output = readFile(file: "tmp.txt")
+    echo "tmp.txt contents: $output"
     return (output != "")
 }
 
@@ -115,14 +116,13 @@ def buildHipClangJob(Map conf=[:]){
         def retimage
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
-            try {
+            try (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
                 retimage = docker.build("${image}", dockerArgs + '.')
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
-                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') != "" ){
-                            echo "GPU not found"
-                            throw e
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                            throw new Exception ("GPU not found")
                         }
                         else{
                             echo "GPU is OK"
@@ -139,9 +139,8 @@ def buildHipClangJob(Map conf=[:]){
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo |tee clinfo.log'
-                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') != "" ){
-                            echo "GPU not found"
-                            throw e
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                            throw new Exception ("GPU not found")
                         }
                         else{
                             echo "GPU is OK"
@@ -153,14 +152,6 @@ def buildHipClangJob(Map conf=[:]){
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 5, unit: 'HOURS')
                 {
-                    sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
-                    if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log')  != "" ){
-                        echo "GPU not found"
-                        throw e
-                    }
-                    else{
-                        echo "GPU is OK"
-                    }
                     cmake_build(conf)
                 }
             }
@@ -222,9 +213,8 @@ def runCKProfiler(Map conf=[:]){
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
-                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') != "" ){
-                            echo "GPU not found"
-                            throw e
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                            throw new Exception ("GPU not found")
                         }
                         else{
                             echo "GPU is OK"
@@ -241,9 +231,8 @@ def runCKProfiler(Map conf=[:]){
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
-                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') != "" ){
-                            echo "GPU not found"
-                            throw e
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                            throw new Exception ("GPU not found")
                         }
                         else{
                             echo "GPU is OK"
