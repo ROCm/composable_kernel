@@ -90,8 +90,8 @@ namespace tensor_operation {
 namespace device {
 
 // GEMM:
-//   input : A[AK0, M, AK1]
-//   input : B[AK0, N, AK1]
+//   input : A[M, K]
+//   input : B[N, K]
 //   input : D0[M, N], D1[M, N], ...
 //   output : E[M, N]
 //   C = a_op(A) * b_op(B)
@@ -144,6 +144,7 @@ template <typename ALayout,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
 struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
                                                                      BLayout,
+                                                                     DsLayout,
                                                                      ELayout,
                                                                      ADataType,
                                                                      BDataType,
