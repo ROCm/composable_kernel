@@ -447,7 +447,7 @@ pipeline {
                 stage("Run ckProfiler: gfx908")
                 {
                     when {
-                        expression { params.RUN_FULL_QA != "true" }
+                        expression { !params.RUN_FULL_QA.toBoolean() }
                     }
                     agent{ label rocmnode("gfx908")}
                     environment{
@@ -475,7 +475,7 @@ pipeline {
             {
                 stage("Process results for gfx908"){
                     when {
-                        expression { params.RUN_FULL_QA != "true" }
+                        expression { !params.RUN_FULL_QA.toBoolean() }
                     }
                     agent { label 'mici' }
                     steps{
