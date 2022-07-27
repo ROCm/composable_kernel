@@ -11,12 +11,12 @@
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using ADataType         = F16;
-using BDataType         = F16;
-using CDataType         = F16;
-using GemmAccDataType   = F32;
-using ReduceAccDataType = F32;
-using ReduceDataType    = F64;
+using ADataType         = INT8;
+using BDataType         = INT8;
+using CDataType         = INT8;
+using GemmAccDataType   = INT32;
+using ReduceAccDataType = INT32;
+using ReduceDataType    = INT32;
 using ReducePtrsGlobal  = ck::Tuple<ReduceDataType*>;
 
 using ALayout = ck::tensor_layout::gemm::RowMajor;
@@ -43,7 +43,7 @@ using DeviceGemmReduceInstance = ck::tensor_operation::device::DeviceGemmReduce_
          BDataType,                 // BDataType
          CDataType,                 // CDataType
          GemmAccDataType,           // GemmAccDataType
-         F32,                       // CShuffleDataType
+         INT32,                     // CShuffleDataType
          ReduceAccDataType,         // ReduceAccDataType
          ReducePtrsGlobal,          // ReduceData Tuple
          AElementOp,                // AElementwiseOperation

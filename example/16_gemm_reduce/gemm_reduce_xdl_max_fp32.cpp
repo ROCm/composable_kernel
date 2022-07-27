@@ -11,9 +11,9 @@
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using ADataType         = F16;
-using BDataType         = F16;
-using CDataType         = F16;
+using ADataType         = F32;
+using BDataType         = F32;
+using CDataType         = F32;
 using GemmAccDataType   = F32;
 using ReduceAccDataType = F32;
 using ReduceDataType    = F64;
@@ -155,7 +155,6 @@ int main(int argc, char* argv[])
                                    AElementOp,
                                    BElementOp,
                                    CElementOp,
-                                   ReduceOps,
                                    ReduceElementOps,
                                    DeviceGemmReduceInstance,
                                    ReferenceGemmInstance>(

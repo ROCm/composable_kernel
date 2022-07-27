@@ -7,29 +7,39 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_reduce_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/utility/reduction_operator.hpp"
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using ADataType         = F16;
-using BDataType         = F16;
-using CDataType         = F16;
+using ADataType         = BF16;
+using BDataType         = BF16;
+using CDataType         = BF16;
 using GemmAccDataType   = F32;
 using ReduceAccDataType = F32;
-using ReduceDataType    = F64;
-using ReducePtrsGlobal  = ck::Tuple<ReduceDataType*>;
+using ReduceDataType    = F32;
+using ReducePtrsGlobal  = ck::Tuple<ReduceDataType*, ReduceDataType*>;
 
 using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
 using CLayout = ck::tensor_layout::gemm::RowMajor;
 
-using AElementOp       = ck::tensor_operation::element_wise::PassThrough;
-using BElementOp       = ck::tensor_operation::element_wise::PassThrough;
-using CElementOp       = ck::tensor_operation::element_wise::PassThrough;
-using ReduceOps        = ck::Tuple<ck::reduce::Max>;
-using ReduceElementOps = ck::Tuple<ck::tensor_operation::element_wise::PassThrough>;
+using AElementOp = ck::tensor_operation::element_wise::PassThrough;
+using BElementOp = ck::tensor_operation::element_wise::PassThrough;
+using CElementOp = ck::tensor_operation::element_wise::PassThrough;
+using ReduceOp0  = ck::reduce::Add;
+using ReduceOp1  = ck::reduce::Add;
+using ReduceOps  = ck::Tuple<ReduceOp0, ReduceOp1>;
+
+using UnaryIdenticElementOp = ck::tensor_operation::element_wise::PassThrough;
+using UnaryDivElementOp     = ck::tensor_operation::element_wise::UnaryDivide;
+using UnarySquareElementOp  = ck::tensor_operation::element_wise::UnarySquare;
+using ReduceInElementOps    = ck::Tuple<UnaryIdenticElementOp, UnarySquareElementOp>;
+using ReduceOutElementOps   = ck::Tuple<UnaryDivElementOp, UnaryDivElementOp>;
+
 using ReduceGlobalMemOps =
-    ck::InMemoryDataOperationEnumSequence<ck::InMemoryDataOperationEnum::AtomicMax>;
+    ck::InMemoryDataOperationEnumSequence<ck::InMemoryDataOperationEnum::AtomicAdd,
+                                          ck::InMemoryDataOperationEnum::AtomicAdd>;
 
 static constexpr auto GemmSpecialization =
     ck::tensor_operation::device::GemmSpecialization::Default;
@@ -50,8 +60,8 @@ using DeviceGemmReduceInstance = ck::tensor_operation::device::DeviceGemmReduce_
          BElementOp,                // BElementwiseOperation
          CElementOp,                // CElementwiseOperation
          ReduceOps,                 // ReduceOperation
-         ReduceElementOps,          // ReduceInEleOp
-         ReduceElementOps,          // ReduceAccEleOp
+         ReduceInElementOps,        // ReduceInEleOp
+         ReduceOutElementOps,       // ReduceOutEleOp
          ReduceGlobalMemOps,        // ReduceMemoryDataOperation
          GemmSpecialization,        // GEMM Specialization
          1,                         // NumGemmKPrefetchStage
@@ -95,7 +105,6 @@ using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataTyp
                                                                         AElementOp,
                                                                         BElementOp,
                                                                         CElementOp>;
-
 int main(int argc, char* argv[])
 {
     bool do_verification = true;
@@ -139,25 +148,28 @@ int main(int argc, char* argv[])
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: run kernel # of times (>1)\n");
+        printf("arg3: time kernel (0=n0, 1=yes)\n");
         printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC\n");
         exit(0);
     }
 
-    return run_gemm_reduce_max_xdl<ADataType,
-                                   BDataType,
-                                   CDataType,
-                                   ReduceDataType,
-                                   ReduceAccDataType,
-                                   ALayout,
-                                   BLayout,
-                                   CLayout,
-                                   AElementOp,
-                                   BElementOp,
-                                   CElementOp,
-                                   ReduceOps,
-                                   ReduceElementOps,
-                                   DeviceGemmReduceInstance,
-                                   ReferenceGemmInstance>(
+    return run_gemm_reduce_mean_squaremean_xdl<ADataType,
+                                               BDataType,
+                                               CDataType,
+                                               ReduceDataType,
+                                               ReduceAccDataType,
+                                               ALayout,
+                                               BLayout,
+                                               CLayout,
+                                               AElementOp,
+                                               BElementOp,
+                                               CElementOp,
+                                               UnaryIdenticElementOp,
+                                               UnarySquareElementOp,
+                                               UnaryDivElementOp,
+                                               ReduceOp0,
+                                               ReduceOp1,
+                                               DeviceGemmReduceInstance,
+                                               ReferenceGemmInstance>(
         M, N, K, StrideA, StrideB, StrideC, do_verification, init_method, time_kernel);
 }

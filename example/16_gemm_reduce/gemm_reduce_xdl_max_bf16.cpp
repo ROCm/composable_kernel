@@ -11,9 +11,9 @@
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using ADataType         = F16;
-using BDataType         = F16;
-using CDataType         = F16;
+using ADataType         = BF16;
+using BDataType         = BF16;
+using CDataType         = BF16;
 using GemmAccDataType   = F32;
 using ReduceAccDataType = F32;
 using ReduceDataType    = F64;
