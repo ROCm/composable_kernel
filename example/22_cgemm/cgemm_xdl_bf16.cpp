@@ -81,7 +81,7 @@ int main(int argc, char* argv[])
     // CGEMM shape
     ck::index_t M = 3840;
     ck::index_t N = 4096;
-    ck::index_t K = 4096;
+    ck::index_t K = 416;
 
     ck::index_t StrideA = 4096;
     ck::index_t StrideB = 4096;
