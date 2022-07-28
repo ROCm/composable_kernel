@@ -75,12 +75,12 @@ struct ConvParam
     }
 };
 
+std::string get_conv_param_parser_helper_msg();
+
+ConvParam parse_conv_param(int num_dim_spatial, int arg_idx, char* const argv[]);
+
 } // namespace conv
 } // namespace utils
 } // namespace ck
 
 std::ostream& operator<<(std::ostream& os, const ck::utils::conv::ConvParam& p);
-
-std::string get_conv_param_parser_helper_msg();
-
-ck::utils::conv::ConvParam parse_conv_param(int num_dim_spatial, int arg_idx, char* const argv[]);

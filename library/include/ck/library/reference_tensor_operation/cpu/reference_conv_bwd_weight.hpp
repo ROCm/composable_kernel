@@ -14,7 +14,10 @@ namespace ck {
 namespace tensor_operation {
 namespace host {
 
-// tensor descriptor in GNCHW/GKCXY/GNKHW dimensional order
+// input descriptor in [G, N, C, Do, Ho, Wo] order
+// weight descriptor in [G, K, C, Z, Y, X] order
+// output descriptor in [G, N, K, Di, Hi, Wi] order
+// phyiscal layout is irrelavent
 template <ck::index_t NDimSpatial,
           typename InDataType,
           typename WeiDataType,

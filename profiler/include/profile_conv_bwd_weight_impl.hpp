@@ -74,14 +74,19 @@ bool profile_conv_bwd_weight_impl(int do_verification,
     const auto wei_element_op = WeiElementOp{};
     const auto out_element_op = OutElementOp{};
 
-    const auto in_desc  = ck::utils::conv::get_input_host_tensor_descriptor<InLayout>(conv_param);
-    const auto wei_desc = ck::utils::conv::get_weight_host_tensor_descriptor<WeiLayout>(conv_param);
-    const auto out_desc = ck::utils::conv::get_output_host_tensor_descriptor<OutLayout>(conv_param);
+    const auto in_g_n_c_wis_desc =
+        ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_param);
 
-    Tensor<InDataType> input(in_desc);
-    Tensor<WeiDataType> weight_host_result(wei_desc);
-    Tensor<WeiDataType> weight_device_result(wei_desc);
-    Tensor<OutDataType> output(out_desc);
+    const auto wei_g_k_c_xs_desc =
+        ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(conv_param);
+
+    const auto out_g_n_k_wos_desc =
+        ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(conv_param);
+
+    Tensor<InDataType> input(in_g_n_c_wis_desc);
+    Tensor<WeiDataType> weight_host_result(wei_g_k_c_xs_desc);
+    Tensor<WeiDataType> weight_device_result(wei_g_k_c_xs_desc);
+    Tensor<OutDataType> output(out_g_n_k_wos_desc);
 
     std::cout << "input: " << input.mDesc << std::endl;
     std::cout << "weight: " << weight_host_result.mDesc << std::endl;
@@ -110,9 +115,6 @@ bool profile_conv_bwd_weight_impl(int do_verification,
     if(do_verification)
     {
         auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
-                                                                           InLayout,
-                                                                           WeiLayout,
-                                                                           OutLayout,
                                                                            InDataType,
                                                                            WeiDataType,
                                                                            OutDataType,
@@ -215,12 +217,12 @@ bool profile_conv_bwd_weight_impl(int do_verification,
             {
                 wei_device_buf.FromDevice(weight_device_result.mData.data());
 
-                bool pass = ck::utils::check_err(wei_k_c_y_x_host_result.mData,
-                                                 wei_k_c_y_x_device_result.mData);
+                bool pass =
+                    ck::utils::check_err(weight_host_result.mData, weight_device_result.mData);
 
                 if(!pass)
                 {
-                    std::cout << "Fail info:" << conv_ptr->GetTypeString() << std::endl;
+                    std::cout << "Fail info:" << op_ptr->GetTypeString() << std::endl;
                 }
 
                 all_pass &= pass;

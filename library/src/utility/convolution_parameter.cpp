@@ -82,25 +82,6 @@ std::size_t ConvParam::GetFlops() const
                            std::multiplies<std::size_t>());
 }
 
-} // namespace conv
-} // namespace utils
-} // namespace ck
-
-std::ostream& operator<<(std::ostream& os, const ck::utils::conv::ConvParam& p)
-{
-    os << "ConvParam {"
-       << "\nnum_dim_spatial: " << p.num_dim_spatial_ << "\nG: " << p.G_ << "\nN: " << p.N_
-       << "\nK: " << p.K_ << "\nC: " << p.C_
-       << "\nfilter_spatial_lengths: " << p.filter_spatial_lengths_
-       << "\ninput_spatial_lengths: " << p.input_spatial_lengths_
-       << "\nconv_filter_strides: " << p.conv_filter_strides_
-       << "\nconv_filter_dilations: " << p.conv_filter_dilations_
-       << "\ninput_left_pads: " << p.input_left_pads_
-       << "\ninput_right_pads: " << p.input_right_pads_ << "}\n";
-
-    return os;
-}
-
 std::string get_conv_param_parser_helper_msg()
 {
     std::string msg;
@@ -173,4 +154,22 @@ ck::utils::conv::ConvParam parse_conv_param(int num_dim_spatial, int arg_idx, ch
                                       conv_filter_dilations,
                                       input_left_pads,
                                       input_right_pads};
+}
+} // namespace conv
+} // namespace utils
+} // namespace ck
+
+std::ostream& operator<<(std::ostream& os, const ck::utils::conv::ConvParam& p)
+{
+    os << "ConvParam {"
+       << "\nnum_dim_spatial: " << p.num_dim_spatial_ << "\nG: " << p.G_ << "\nN: " << p.N_
+       << "\nK: " << p.K_ << "\nC: " << p.C_
+       << "\nfilter_spatial_lengths: " << p.filter_spatial_lengths_
+       << "\ninput_spatial_lengths: " << p.input_spatial_lengths_
+       << "\nconv_filter_strides: " << p.conv_filter_strides_
+       << "\nconv_filter_dilations: " << p.conv_filter_dilations_
+       << "\ninput_left_pads: " << p.input_left_pads_
+       << "\ninput_right_pads: " << p.input_right_pads_ << "}\n";
+
+    return os;
 }

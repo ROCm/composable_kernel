@@ -38,14 +38,27 @@ bool profile_conv_fwd_impl(int do_verification,
                            bool time_kernel,
                            const ck::utils::conv::ConvParam& conv_param)
 {
-    const auto in_desc  = ck::utils::conv::get_input_host_tensor_descriptor<InLayout>(conv_param);
-    const auto wei_desc = ck::utils::conv::get_weight_host_tensor_descriptor<WeiLayout>(conv_param);
-    const auto out_desc = ck::utils::conv::get_output_host_tensor_descriptor<OutLayout>(conv_param);
+    using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
+    using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
+    using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 
-    Tensor<InDataType> input(in_desc);
-    Tensor<WeiDataType> weight(wei_desc);
-    Tensor<OutDataType> host_output(out_desc);
-    Tensor<OutDataType> device_output(out_desc);
+    const auto in_element_op  = InElementOp{};
+    const auto wei_element_op = WeiElementOp{};
+    const auto out_element_op = OutElementOp{};
+
+    const auto in_g_n_c_wis_desc =
+        ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_param);
+
+    const auto wei_g_k_c_xs_desc =
+        ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(conv_param);
+
+    const auto out_g_n_k_wos_desc =
+        ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(conv_param);
+
+    Tensor<InDataType> input(in_g_n_c_wis_desc);
+    Tensor<WeiDataType> weight(wei_g_k_c_xs_desc);
+    Tensor<OutDataType> host_output(out_g_n_k_wos_desc);
+    Tensor<OutDataType> device_output(out_g_n_k_wos_desc);
 
     std::cout << "input: " << input.mDesc << std::endl;
     std::cout << "weight: " << weight.mDesc << std::endl;
@@ -63,14 +76,6 @@ bool profile_conv_fwd_impl(int do_verification,
         weight.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
     }
 
-    using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
-    using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
-
-    const auto in_element_op  = InElementOp{};
-    const auto wei_element_op = WeiElementOp{};
-    const auto out_element_op = OutElementOp{};
-
     DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpaceSize());
     DeviceMem wei_device_buf(sizeof(WeiDataType) * weight.mDesc.GetElementSpaceSize());
     DeviceMem out_device_buf(sizeof(OutDataType) * device_output.mDesc.GetElementSpaceSize());
@@ -82,9 +87,6 @@ bool profile_conv_fwd_impl(int do_verification,
     if(do_verification)
     {
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
-                                                                     InLayout,
-                                                                     WeiLayout,
-                                                                     OutLayout,
                                                                      InDataType,
                                                                      WeiDataType,
                                                                      OutDataType,

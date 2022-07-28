@@ -36,72 +36,8 @@ static void print_helper_msg()
         << "arg5: initialization (0: no init, 1: integer value, 2: decimal value)\n"
         << "arg6: print tensor value (0: no; 1: yes)\n"
         << "arg7: time kernel (0: no, 1: yes)\n"
-        << "arg8: N spatial dimensions\n"
-        << "Following arguments (depending on number of spatial dims):\n"
-        << " N, K, C, \n"
-        << " <filter spatial dimensions>, (ie Y, X for 2D)\n"
-        << " <input image spatial dimensions>, (ie Hi, Wi for 2D)\n"
-        << " <strides>, (ie Sy, Sx for 2D)\n"
-        << " <dilations>, (ie Dy, Dx for 2D)\n"
-        << " <left padding>, (ie LeftPy, LeftPx for 2D)\n"
-        << " <right padding>, (ie RightPy, RightPx for 2D)\n"
-        << " SplitK\n"
+        << ck::utils::conv::get_conv_param_parser_helper_msg() << " SplitK\n"
         << std::endl;
-}
-
-ck::utils::conv::ConvParam parse_conv_params(int num_dim_spatial, int arg_idx, char* const argv[])
-{
-    const ck::index_t N = std::stoi(argv[arg_idx++]);
-    const ck::index_t K = std::stoi(argv[arg_idx++]);
-    const ck::index_t C = std::stoi(argv[arg_idx++]);
-
-    std::vector<ck::index_t> filter_spatial_lengths(num_dim_spatial);
-    std::vector<ck::index_t> input_spatial_lengths(num_dim_spatial);
-    std::vector<ck::index_t> conv_filter_strides(num_dim_spatial);
-    std::vector<ck::index_t> conv_filter_dilations(num_dim_spatial);
-    std::vector<ck::index_t> input_left_pads(num_dim_spatial);
-    std::vector<ck::index_t> input_right_pads(num_dim_spatial);
-
-    for(int i = 0; i < num_dim_spatial; ++i)
-    {
-        filter_spatial_lengths[i] = std::stoi(argv[arg_idx++]);
-    }
-
-    for(int i = 0; i < num_dim_spatial; ++i)
-    {
-        input_spatial_lengths[i] = std::stoi(argv[arg_idx++]);
-    }
-
-    for(int i = 0; i < num_dim_spatial; ++i)
-    {
-        conv_filter_strides[i] = std::stoi(argv[arg_idx++]);
-    }
-
-    for(int i = 0; i < num_dim_spatial; ++i)
-    {
-        conv_filter_dilations[i] = std::stoi(argv[arg_idx++]);
-    }
-
-    for(int i = 0; i < num_dim_spatial; ++i)
-    {
-        input_left_pads[i] = std::stoi(argv[arg_idx++]);
-    }
-
-    for(int i = 0; i < num_dim_spatial; ++i)
-    {
-        input_right_pads[i] = std::stoi(argv[arg_idx++]);
-    }
-
-    return ck::utils::conv::ConvParam{num_dim_spatial,
-                                      N,
-                                      K,
-                                      C,
-                                      filter_spatial_lengths,
-                                      input_spatial_lengths,
-                                      conv_filter_strides,
-                                      conv_filter_dilations,
-                                      input_left_pads,
-                                      input_right_pads};
 }
 
 } // namespace
@@ -123,16 +59,16 @@ int profile_conv_bwd_weight(int argc, char* argv[])
     const bool time_kernel     = std::stoi(argv[7]);
     const int num_dim_spatial  = std::stoi(argv[8]);
 
-    // 8 for control, 1 for num_dim_spatial, 3 for N/K/C, and 6 * num_dim_spatial, 1 for split-K
-    if(argc != 8 + 4 + 6 * num_dim_spatial + 1)
+    // 8 for control, 1 for num_dim_spatial, 4 for G/N/K/C, and 6 * num_dim_spatial, 1 for split-K
+    if(argc != 8 + 1 + 4 + 6 * num_dim_spatial + 1)
     {
         print_helper_msg();
         return 1;
     }
 
-    const auto params = parse_conv_params(num_dim_spatial, 9, argv);
+    const auto params = ck::utils::conv::parse_conv_param(num_dim_spatial, 9, argv);
 
-    ck::index_t split_k = std::stoi(argv[8 + 4 + 6 * num_dim_spatial]);
+    ck::index_t split_k = std::stoi(argv[8 + 1 + 4 + 6 * num_dim_spatial]);
     split_k             = std::max(1, split_k);
 
     using F32  = float;

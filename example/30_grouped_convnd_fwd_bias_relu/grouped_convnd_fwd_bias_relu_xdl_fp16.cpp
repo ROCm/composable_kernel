@@ -109,7 +109,7 @@ int main(int argc, char* argv[])
         time_kernel                       = std::stoi(argv[3]);
         const ck::index_t num_dim_spatial = std::stoi(argv[4]);
 
-        conv_param = parse_conv_param(num_dim_spatial, 5, argv);
+        conv_param = ck::utils::conv::parse_conv_param(num_dim_spatial, 5, argv);
     }
 
     const auto in_element_op  = InElementOp{};
