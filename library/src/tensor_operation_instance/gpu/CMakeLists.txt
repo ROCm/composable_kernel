@@ -54,7 +54,7 @@ add_library(device_operations STATIC
     $<TARGET_OBJECTS:device_conv3d_bwd_weight_instance>
     $<TARGET_OBJECTS:device_conv2d_fwd_bias_relu_instance>
     $<TARGET_OBJECTS:device_conv2d_fwd_bias_relu_add_instance>
-#   $<TARGET_OBJECTS:device_reduce_instance>
+    $<TARGET_OBJECTS:device_reduce_instance>
     $<TARGET_OBJECTS:device_normalization_instance>
     $<TARGET_OBJECTS:device_elementwise_instance>
 )
