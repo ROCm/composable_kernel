@@ -12,7 +12,7 @@ namespace {
 
 enum struct ConvLayout
 {
-    NCHW_KYXC_NKHW, // 0
+    NCHW_KCYX_NKHW, // 0
     NHWC_KYXC_NHWK, // 1
 };
 

@@ -6,14 +6,14 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "profiler/include/profile_conv_fwd_impl.hpp"
+#include "profiler/include/profile_grouped_conv_fwd_impl.hpp"
 
 namespace {
 
 enum struct ConvLayout
 {
-    NCHW_KCYX_NKHW, // 0
-    NHWC_KYXC_NHWK, // 1
+    NGCHW_KGCYX_NGKHW, // 0
+    NHWGC_KYXGC_NHWGK, // 1
 };
 
 enum struct ConvDataType
@@ -27,26 +27,25 @@ enum struct ConvDataType
 static void print_helper_msg()
 {
     std::cout
-        // clang-format-off
-        << "arg1: tensor operation (conv_fwd: Convolution Forward)\n"
+        // clang-format off
+        << "arg1: tensor operation (grouped_conv_fwd: Grouped Convolution Forward)\n"
         << "arg2: data type (0: Input fp32, Weight fp32, Output fp32\n"
         << "                 1: Input fp16, Weight fp16, Output fp16\n"
         << "                 2: Input bf16, Weight bf16, Output bf16\n"
         << "                 3: Input int8, Weight int8, Output int8)\n"
-        << "arg3: tensor layout (0: Input[N, C, Hi, Wi], Weight[K, C, Y, X], Output[N, K, Ho, Wo]\n"
-        << "                     1: Input[N, Hi, Wi, C], Weight[K, Y, X, C], Output[N, Ho, Wo, "
-           "K])\n"
+        << "arg3: tensor layout (0: Input[G, N, Hi, Wi, C], Weight[G, K, Y, X, C], Output[G, N, Ho, Wo, K]\n"
+        << "                     1: Input[N, Hi, Wi, G, C], Weight[K, Y, X, G, C], Output[N, Ho, Wo, G, K])\n"
         << "arg4: verification (0: no, 1: yes)\n"
         << "arg5: initialization (0: no init, 1: integer value, 2: decimal value)\n"
         << "arg6: print tensor value (0: no; 1: yes)\n"
         << "arg7: time kernel (0: no, 1: yes)\n"
         << ck::utils::conv::get_conv_param_parser_helper_msg() << std::endl;
-    // clang-format-on
+    // clang-format on
 }
 
 } // namespace
 
-int profile_conv_fwd(int argc, char* argv[])
+int profile_grouped_conv_fwd(int argc, char* argv[])
 {
     // 8 for control, 1 for num_dim_spatial
     if(argc < 9)
@@ -77,17 +76,17 @@ int profile_conv_fwd(int argc, char* argv[])
     using BF16 = ck::bhalf_t;
     using INT8 = int8_t;
 
-    using NWC   = ck::tensor_layout::convolution::NWC;
-    using NHWC  = ck::tensor_layout::convolution::NHWC;
-    using NDHWC = ck::tensor_layout::convolution::NDHWC;
+    using NWGC   = ck::tensor_layout::convolution::NWGC;
+    using NHWGC  = ck::tensor_layout::convolution::NHWGC;
+    using NDHWGC = ck::tensor_layout::convolution::NDHWGC;
 
-    using KXC   = ck::tensor_layout::convolution::KXC;
-    using KYXC  = ck::tensor_layout::convolution::KYXC;
-    using KZYXC = ck::tensor_layout::convolution::KZYXC;
+    using KXGC   = ck::tensor_layout::convolution::KXGC;
+    using KYXGC  = ck::tensor_layout::convolution::KYXGC;
+    using KZYXGC = ck::tensor_layout::convolution::KZYXGC;
 
-    using NWK   = ck::tensor_layout::convolution::NWK;
-    using NHWK  = ck::tensor_layout::convolution::NHWK;
-    using NDHWK = ck::tensor_layout::convolution::NDHWK;
+    using NWGK   = ck::tensor_layout::convolution::NWGK;
+    using NHWGK  = ck::tensor_layout::convolution::NHWGK;
+    using NDHWGK = ck::tensor_layout::convolution::NDHWGK;
 
     constexpr auto I1 = ck::Number<1>{};
     constexpr auto I2 = ck::Number<2>{};
@@ -110,73 +109,73 @@ int profile_conv_fwd(int argc, char* argv[])
         using WeiDataType = decltype(wei_type);
         using OutDataType = decltype(out_type);
 
-        bool pass = ck::profiler::profile_conv_fwd_impl<NDimSpatial,
-                                                        InLayout,
-                                                        WeiLayout,
-                                                        OutLayout,
-                                                        InDataType,
-                                                        WeiDataType,
-                                                        OutDataType>(
+        bool pass = ck::profiler::profile_grouped_conv_fwd_impl<NDimSpatial,
+                                                                InLayout,
+                                                                WeiLayout,
+                                                                OutLayout,
+                                                                InDataType,
+                                                                WeiDataType,
+                                                                OutDataType>(
             do_verification, init_method, do_log, time_kernel, params);
 
         return pass ? 0 : 1;
     };
 
-    if(num_dim_spatial == 1 && layout == ConvLayout::NHWC_KYXC_NHWK)
+    if(num_dim_spatial == 1 && layout == ConvLayout::NHWGC_KYXGC_NHWGK)
     {
         if(data_type == ConvDataType::F32_F32_F32)
         {
-            return profile(I1, NWC{}, KXC{}, NWK{}, F32{}, F32{}, F32{});
+            return profile(I1, NWGC{}, KXGC{}, NWGK{}, F32{}, F32{}, F32{});
         }
         else if(data_type == ConvDataType::F16_F16_F16)
         {
-            return profile(I1, NWC{}, KXC{}, NWK{}, F16{}, F16{}, F16{});
+            return profile(I1, NWGC{}, KXGC{}, NWGK{}, F16{}, F16{}, F16{});
         }
         else if(data_type == ConvDataType::BF16_BF16_BF16)
         {
-            return profile(I1, NWC{}, KXC{}, NWK{}, BF16{}, BF16{}, BF16{});
+            return profile(I1, NWGC{}, KXGC{}, NWGK{}, BF16{}, BF16{}, BF16{});
         }
         else if(data_type == ConvDataType::INT8_INT8_INT8)
         {
-            return profile(I1, NWC{}, KXC{}, NWK{}, INT8{}, INT8{}, INT8{});
+            return profile(I1, NWGC{}, KXGC{}, NWGK{}, INT8{}, INT8{}, INT8{});
         }
     }
-    else if(num_dim_spatial == 2 && layout == ConvLayout::NHWC_KYXC_NHWK)
+    else if(num_dim_spatial == 2 && layout == ConvLayout::NHWGC_KYXGC_NHWGK)
     {
         if(data_type == ConvDataType::F32_F32_F32)
         {
-            return profile(I2, NHWC{}, KYXC{}, NHWK{}, F32{}, F32{}, F32{});
+            return profile(I2, NHWGC{}, KYXGC{}, NHWGK{}, F32{}, F32{}, F32{});
         }
         else if(data_type == ConvDataType::F16_F16_F16)
         {
-            return profile(I2, NHWC{}, KYXC{}, NHWK{}, F16{}, F16{}, F16{});
+            return profile(I2, NHWGC{}, KYXGC{}, NHWGK{}, F16{}, F16{}, F16{});
         }
         else if(data_type == ConvDataType::BF16_BF16_BF16)
         {
-            return profile(I2, NHWC{}, KYXC{}, NHWK{}, BF16{}, BF16{}, BF16{});
+            return profile(I2, NHWGC{}, KYXGC{}, NHWGK{}, BF16{}, BF16{}, BF16{});
         }
         else if(data_type == ConvDataType::INT8_INT8_INT8)
         {
-            return profile(I2, NHWC{}, KYXC{}, NHWK{}, INT8{}, INT8{}, INT8{});
+            return profile(I2, NHWGC{}, KYXGC{}, NHWGK{}, INT8{}, INT8{}, INT8{});
         }
     }
-    else if(num_dim_spatial == 3 && layout == ConvLayout::NHWC_KYXC_NHWK)
+    else if(num_dim_spatial == 3 && layout == ConvLayout::NHWGC_KYXGC_NHWGK)
     {
         if(data_type == ConvDataType::F32_F32_F32)
         {
-            return profile(I3, NDHWC{}, KZYXC{}, NDHWK{}, F32{}, F32{}, F32{});
+            return profile(I3, NDHWGC{}, KZYXGC{}, NDHWGK{}, F32{}, F32{}, F32{});
         }
         else if(data_type == ConvDataType::F16_F16_F16)
         {
-            return profile(I3, NDHWC{}, KZYXC{}, NDHWK{}, F16{}, F16{}, F16{});
+            return profile(I3, NDHWGC{}, KZYXGC{}, NDHWGK{}, F16{}, F16{}, F16{});
         }
         else if(data_type == ConvDataType::BF16_BF16_BF16)
         {
-            return profile(I3, NDHWC{}, KZYXC{}, NDHWK{}, BF16{}, BF16{}, BF16{});
+            return profile(I3, NDHWGC{}, KZYXGC{}, NDHWGK{}, BF16{}, BF16{}, BF16{});
         }
         else if(data_type == ConvDataType::INT8_INT8_INT8)
         {
-            return profile(I3, NDHWC{}, KZYXC{}, NDHWK{}, INT8{}, INT8{}, INT8{});
+            return profile(I3, NDHWGC{}, KZYXGC{}, NDHWGK{}, INT8{}, INT8{}, INT8{});
         }
     }
 

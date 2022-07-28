@@ -31,6 +31,7 @@ using Row_Tuple     = ck::Tuple<Row>;
 using Row_Row_Tuple = ck::Tuple<Row, Row>;
 
 // Conv layout
+//
 using NWC   = ck::tensor_layout::convolution::NWC;
 using NHWC  = ck::tensor_layout::convolution::NHWC;
 using NDHWC = ck::tensor_layout::convolution::NDHWC;
@@ -42,6 +43,32 @@ using KZYXC = ck::tensor_layout::convolution::KZYXC;
 using NWK   = ck::tensor_layout::convolution::NWK;
 using NHWK  = ck::tensor_layout::convolution::NHWK;
 using NDHWK = ck::tensor_layout::convolution::NDHWK;
+
+//
+using GNWC   = ck::tensor_layout::convolution::GNWC;
+using GNHWC  = ck::tensor_layout::convolution::GNHWC;
+using GNDHWC = ck::tensor_layout::convolution::GNDHWC;
+
+using GKXC   = ck::tensor_layout::convolution::GKXC;
+using GKYXC  = ck::tensor_layout::convolution::GKYXC;
+using GKZYXC = ck::tensor_layout::convolution::GKZYXC;
+
+using GNWK   = ck::tensor_layout::convolution::GNWK;
+using GNHWK  = ck::tensor_layout::convolution::GNHWK;
+using GNDHWK = ck::tensor_layout::convolution::GNDHWK;
+
+//
+using NWGC   = ck::tensor_layout::convolution::NWGC;
+using NHWGC  = ck::tensor_layout::convolution::NHWGC;
+using NDHWGC = ck::tensor_layout::convolution::NDHWGC;
+
+using KXGC   = ck::tensor_layout::convolution::KXGC;
+using KYXGC  = ck::tensor_layout::convolution::KYXGC;
+using KZYXGC = ck::tensor_layout::convolution::KZYXGC;
+
+using NWGK   = ck::tensor_layout::convolution::NWGK;
+using NHWGK  = ck::tensor_layout::convolution::NHWGK;
+using NDHWGK = ck::tensor_layout::convolution::NDHWGK;
 
 // pointwise functor
 using PassThrough    = ck::tensor_operation::element_wise::PassThrough;
