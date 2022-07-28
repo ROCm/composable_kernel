@@ -457,6 +457,7 @@ pipeline {
                 stage("Run Tests: gfx90a")
                 {
                     when {
+                        beforeAgent true
                         expression { params.RUN_FULL_QA.toBoolean() }
                     }
                     agent{ label rocmnode("gfx90a")}
@@ -493,6 +494,7 @@ pipeline {
                 stage("Run ckProfiler: gfx908")
                 {
                     when {
+                        beforeAgent true
                         expression { !params.RUN_FULL_QA.toBoolean() }
                     }
                     agent{ label rocmnode("gfx908")}
@@ -506,6 +508,7 @@ pipeline {
                 stage("Run ckProfiler: gfx90a")
                 {
                     when {
+                        beforeAgent true
                         expression { params.RUN_FULL_QA.toBoolean() }
                     }
                     agent{ label rocmnode("gfx90a")}
@@ -524,6 +527,7 @@ pipeline {
             {
                 stage("Process results for gfx908"){
                     when {
+                        beforeAgent true
                         expression { !params.RUN_FULL_QA.toBoolean() }
                     }
                     agent { label 'mici' }
@@ -533,6 +537,7 @@ pipeline {
                 }
                 stage("Process results for gfx90a"){
                     when {
+                        beforeAgent true
                         expression { params.RUN_FULL_QA.toBoolean() }
                     }
                     agent { label 'mici' }
