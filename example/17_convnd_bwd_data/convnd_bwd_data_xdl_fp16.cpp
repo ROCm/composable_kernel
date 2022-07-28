@@ -87,7 +87,7 @@ int main(int argc, char* argv[])
         time_kernel                       = std::stoi(argv[3]);
         const ck::index_t num_dim_spatial = std::stoi(argv[4]);
 
-        conv_param = parse_conv_param(num_dim_spatial, 5, argv);
+        conv_param = ck::utils::conv::parse_conv_param(num_dim_spatial, 5, argv);
     }
 
     const auto in_element_op  = InElementOp{};
@@ -101,13 +101,16 @@ int main(int argc, char* argv[])
         using OutLayout = ctc::GNWK;
 
         const auto in_g_n_c_wis_desc =
-            make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_param);
+            ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(
+                conv_param);
 
         const auto wei_g_k_c_xs_desc =
-            make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(conv_param);
+            ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(
+                conv_param);
 
         const auto out_g_n_k_wos_desc =
-            make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(conv_param);
+            ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
+                conv_param);
 
         return run_conv_bwd_data<1,
                                  InDataType,
@@ -134,13 +137,16 @@ int main(int argc, char* argv[])
         using OutLayout = ctc::GNHWK;
 
         const auto in_g_n_c_wis_desc =
-            make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_param);
+            ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(
+                conv_param);
 
         const auto wei_g_k_c_xs_desc =
-            make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(conv_param);
+            ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(
+                conv_param);
 
         const auto out_g_n_k_wos_desc =
-            make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(conv_param);
+            ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
+                conv_param);
 
         return run_conv_bwd_data<2,
                                  InDataType,
@@ -167,13 +173,16 @@ int main(int argc, char* argv[])
         using OutLayout = ctc::GNDHWK;
 
         const auto in_g_n_c_wis_desc =
-            make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_param);
+            ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(
+                conv_param);
 
         const auto wei_g_k_c_xs_desc =
-            make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(conv_param);
+            ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(
+                conv_param);
 
         const auto out_g_n_k_wos_desc =
-            make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(conv_param);
+            ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
+                conv_param);
 
         return run_conv_bwd_data<3,
                                  InDataType,

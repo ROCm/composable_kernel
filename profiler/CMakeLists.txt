@@ -19,8 +19,8 @@ set(PROFILER_SOURCE
     src/profile_conv_fwd_bias_relu_add.cpp
     src/profile_conv_bwd_data.cpp
     src/profile_conv_bwd_weight.cpp
-#   src/profile_reduce.cpp
-#   src/profile_normalization.cpp
+    src/profile_reduce.cpp
+    src/profile_normalization.cpp
 )
 
 add_executable(ckProfiler ${PROFILER_SOURCE})
@@ -48,4 +48,4 @@ target_link_libraries(ckProfiler PRIVATE device_conv3d_bwd_weight_instance)
 target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_bias_relu_instance)
 target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_bias_relu_add_instance)
 target_link_libraries(ckProfiler PRIVATE device_normalization_instance)
-#target_link_libraries(ckProfiler PRIVATE device_reduce_instance)
+target_link_libraries(ckProfiler PRIVATE device_reduce_instance)

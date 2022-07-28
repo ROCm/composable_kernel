@@ -29,9 +29,9 @@ template <ck::index_t NDimSpatial,
           typename InDataType    = float,
           typename WeiDataType   = float,
           typename OutDataType   = float,
-          typename InLayout      = ck::tensor_layout::convolution::NHWC,
-          typename WeiLayout     = ck::tensor_layout::convolution::KYXC,
-          typename OutLayout     = ck::tensor_layout::convolution::NHWK,
+          typename InLayout      = ck::tensor_layout::convolution::GNHWC,
+          typename WeiLayout     = ck::tensor_layout::convolution::GKYXC,
+          typename OutLayout     = ck::tensor_layout::convolution::GNHWK,
           typename FillInputOp   = ck::utils::FillMonotonicSeq<InDataType>,
           typename FillWeightsOp = ck::utils::FillConstant<WeiDataType>>
 Tensor<OutDataType>
@@ -39,22 +39,24 @@ run_reference_convolution_forward(const ck::utils::conv::ConvParam& conv_param,
                                   const FillInputOp& fill_input_op     = FillInputOp{},
                                   const FillWeightsOp& fill_weights_op = FillWeightsOp{0.5f})
 {
-    const auto in_desc  = ck::utils::conv::get_input_host_tensor_descriptor<InLayout>(conv_param);
-    const auto wei_desc = ck::utils::conv::get_weight_host_tensor_descriptor<WeiLayout>(conv_param);
-    const auto out_desc = ck::utils::conv::get_output_host_tensor_descriptor<OutLayout>(conv_param);
+    const auto in_g_n_c_wis_desc =
+        ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_param);
 
-    Tensor<InDataType> input(in_desc);
-    Tensor<WeiDataType> weights(wei_desc);
-    Tensor<OutDataType> host_output(out_desc);
+    const auto wei_g_k_c_xs_desc =
+        ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(conv_param);
+
+    const auto out_g_n_k_wos_desc =
+        ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(conv_param);
+
+    Tensor<InDataType> input(in_g_n_c_wis_desc);
+    Tensor<WeiDataType> weights(wei_g_k_c_xs_desc);
+    Tensor<OutDataType> host_output(out_g_n_k_wos_desc);
 
     fill_input_op(input.begin(), input.end());
     fill_weights_op(weights.begin(), weights.end());
     std::fill(host_output.begin(), host_output.end(), OutDataType(0.f));
 
     auto ref_conv     = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
-                                                                 InLayout,
-                                                                 WeiLayout,
-                                                                 OutLayout,
                                                                  InDataType,
                                                                  WeiDataType,
                                                                  OutDataType,
@@ -84,6 +86,7 @@ TEST(ReferenceConvolutionFWD, Conv2DNHWC)
     ck::utils::conv::ConvParam conv_param(2,
                                           1,
                                           1,
+                                          1,
                                           2,
                                           std::vector<ck::index_t>{3, 3},
                                           std::vector<ck::index_t>{6, 6},
@@ -93,7 +96,7 @@ TEST(ReferenceConvolutionFWD, Conv2DNHWC)
                                           std::vector<ck::index_t>{0, 0});
 
     auto out_tensor = run_reference_convolution_forward<2>(conv_param);
-    std::vector<std::size_t> ref_dims{1, 4, 4, 1};
+    std::vector<std::size_t> ref_dims{1, 1, 4, 4, 1};
     std::vector<float> ref_data{130.5,
                                 148.5,
                                 166.5,
@@ -118,6 +121,7 @@ TEST(ReferenceConvolutionFWD, Conv2DNHWC)
 TEST(ReferenceConvolutionFWD, Conv2DNHWCStridesDilationsPadding)
 {
     ck::utils::conv::ConvParam conv_param(2,
+                                          1,
                                           1,
                                           2,
                                           2,
@@ -146,6 +150,7 @@ TEST(ReferenceConvolutionFWD, Conv1DNWC)
     ck::utils::conv::ConvParam conv_param(1,
                                           1,
                                           1,
+                                          1,
                                           2,
                                           std::vector<ck::index_t>{3},
                                           std::vector<ck::index_t>{6},
@@ -159,10 +164,10 @@ TEST(ReferenceConvolutionFWD, Conv1DNWC)
                                           float,
                                           float,
                                           float,
-                                          ck::tensor_layout::convolution::NWC,
-                                          ck::tensor_layout::convolution::KXC,
-                                          ck::tensor_layout::convolution::NWK>(conv_param);
-    std::vector<std::size_t> ref_dims{1, 4, 1};
+                                          ck::tensor_layout::convolution::GNWC,
+                                          ck::tensor_layout::convolution::GKXC,
+                                          ck::tensor_layout::convolution::GNWK>(conv_param);
+    std::vector<std::size_t> ref_dims{1, 1, 4, 1};
     std::vector<float> ref_data{7.5, 13.5, 19.5, 25.5};
     EXPECT_TRUE(ck::utils::check_err(
         out_tensor.mDesc.GetLengths(), ref_dims, "Error: wrong output tensor dimensions!"));
@@ -172,6 +177,7 @@ TEST(ReferenceConvolutionFWD, Conv1DNWC)
 TEST(ReferenceConvolutionFWD, Conv1DNWCStridesDilationsPadding)
 {
     ck::utils::conv::ConvParam conv_param(1,
+                                          1,
                                           1,
                                           2,
                                           2,
@@ -187,10 +193,10 @@ TEST(ReferenceConvolutionFWD, Conv1DNWCStridesDilationsPadding)
                                           float,
                                           float,
                                           float,
-                                          ck::tensor_layout::convolution::NWC,
-                                          ck::tensor_layout::convolution::KXC,
-                                          ck::tensor_layout::convolution::NWK>(conv_param);
-    std::vector<std::size_t> ref_dims{1, 5, 2};
+                                          ck::tensor_layout::convolution::GNWC,
+                                          ck::tensor_layout::convolution::GKXC,
+                                          ck::tensor_layout::convolution::GNWK>(conv_param);
+    std::vector<std::size_t> ref_dims{1, 1, 5, 2};
     std::vector<float> ref_data{9., 9., 19.5, 19.5, 31.5, 31.5, 43.5, 43.5, 55.5, 55.5};
     EXPECT_TRUE(ck::utils::check_err(
         out_tensor.mDesc.GetLengths(), ref_dims, "Error: wrong output tensor dimensions!"));
@@ -200,6 +206,7 @@ TEST(ReferenceConvolutionFWD, Conv1DNWCStridesDilationsPadding)
 TEST(ReferenceConvolutionFWD, Conv1DNWCSameOutputSize)
 {
     ck::utils::conv::ConvParam conv_param(1,
+                                          1,
                                           2,
                                           16,
                                           4,
@@ -214,12 +221,12 @@ TEST(ReferenceConvolutionFWD, Conv1DNWCSameOutputSize)
                                                          float,
                                                          float,
                                                          float,
-                                                         ck::tensor_layout::convolution::NWC,
-                                                         ck::tensor_layout::convolution::KXC,
-                                                         ck::tensor_layout::convolution::NWK>(
+                                                         ck::tensor_layout::convolution::GNWC,
+                                                         ck::tensor_layout::convolution::GKXC,
+                                                         ck::tensor_layout::convolution::GNWK>(
         conv_param, ck::utils::FillMonotonicSeq<float>{0.f, 0.1f});
 
-    std::vector<std::size_t> ref_dims{2, 16, 16};
+    std::vector<std::size_t> ref_dims{1, 2, 16, 16};
     std::vector<float> ref_data{
         1.4,       1.4,       1.4,       1.4,       1.4,       1.4,       1.4,       1.4,
         1.4,       1.4,       1.4,       1.4,       1.4,       1.4,       1.4,       1.4,
@@ -295,6 +302,7 @@ TEST(ReferenceConvolutionFWD, Conv3DNCDHW)
     ck::utils::conv::ConvParam conv_param(3,
                                           1,
                                           1,
+                                          1,
                                           2,
                                           std::vector<ck::index_t>{3, 3, 3},
                                           std::vector<ck::index_t>{6, 6, 6},
@@ -307,11 +315,11 @@ TEST(ReferenceConvolutionFWD, Conv3DNCDHW)
                                                         float,
                                                         float,
                                                         float,
-                                                        ck::tensor_layout::convolution::NCDHW,
-                                                        ck::tensor_layout::convolution::KCZYX,
-                                                        ck::tensor_layout::convolution::NKDHW>(
+                                                        ck::tensor_layout::convolution::GNCDHW,
+                                                        ck::tensor_layout::convolution::GKCZYX,
+                                                        ck::tensor_layout::convolution::GNKDHW>(
         conv_param, ck::utils::FillMonotonicSeq<float>{0.f, 0.1f});
-    std::vector<std::size_t> ref_dims{1, 1, 4, 4, 4};
+    std::vector<std::size_t> ref_dims{1, 1, 1, 4, 4, 4};
     std::vector<float> ref_data{
         407.7,     410.40002, 413.09998, 415.80002, 423.90002, 426.6,     429.30002, 432.,
         440.1,     442.80002, 445.5,     448.2,     456.30002, 459.,      461.7,     464.40002,
@@ -332,6 +340,7 @@ TEST(ReferenceConvolutionFWD, Conv3DNCDHWStridesDilations)
 {
     ck::utils::conv::ConvParam conv_param(3,
                                           1,
+                                          1,
                                           2,
                                           2,
                                           std::vector<ck::index_t>{3, 3, 3},
@@ -345,11 +354,11 @@ TEST(ReferenceConvolutionFWD, Conv3DNCDHWStridesDilations)
                                                         float,
                                                         float,
                                                         float,
-                                                        ck::tensor_layout::convolution::NCDHW,
-                                                        ck::tensor_layout::convolution::KCZYX,
-                                                        ck::tensor_layout::convolution::NKDHW>(
+                                                        ck::tensor_layout::convolution::GNCDHW,
+                                                        ck::tensor_layout::convolution::GKCZYX,
+                                                        ck::tensor_layout::convolution::GNKDHW>(
         conv_param, ck::utils::FillMonotonicSeq<float>{0.f, 0.1f});
-    std::vector<std::size_t> ref_dims{1, 2, 4, 4, 4};
+    std::vector<std::size_t> ref_dims{1, 1, 2, 4, 4, 4};
     std::vector<float> ref_data{
         2756.7002, 2764.7998, 2772.9001, 2781.,     2853.9001, 2862.,     2870.1,    2878.2002,
         2951.1,    2959.2002, 2967.2998, 2975.4001, 3048.2998, 3056.4001, 3064.5,    3072.6,

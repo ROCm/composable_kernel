@@ -20,6 +20,7 @@ class TestConvUtil : public ::testing::Test
     void SetNDParams(std::size_t ndims, std::size_t s, std::size_t d, std::size_t p)
     {
         conv_params = ck::utils::conv::ConvParam(ndims,
+                                                 2,
                                                  128,
                                                  192,
                                                  256,
@@ -33,11 +34,11 @@ class TestConvUtil : public ::testing::Test
 
     protected:
     // -------  default 2D -------
-    // input NCHW {128,192,71,71},
-    // weights KCYX {256,192,3,3},
+    // input GNCHW {2, 128, 192, 71, 71},
+    // weights GKCYX {2, 256, 192, 3, 3},
     // stride {s, s},
-    // dilations {d,d},
-    // padding {{p,p}, {p,p}
+    // dilations {d, d},
+    // padding {{p, p}, {p, p}
     ck::utils::conv::ConvParam conv_params;
 };
 
