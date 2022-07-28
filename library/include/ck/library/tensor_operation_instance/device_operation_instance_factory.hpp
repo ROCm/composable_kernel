@@ -16,12 +16,12 @@ using F32  = float;
 using F16  = ck::half_t;
 using BF16 = ck::bhalf_t;
 
-using EMPTY_TUPLE = ck::Tuple<>;
+using Empty_Tuple = ck::Tuple<>;
 
-using F16_TUPLE     = ck::Tuple<F16>;
-using F16_F16_TUPLE = ck::Tuple<F16, F16>;
+using F16_Tuple     = ck::Tuple<F16>;
+using F16_F16_Tuple = ck::Tuple<F16, F16>;
 
-using F32_TUPLE = ck::Tuple<F32>;
+using F32_Tuple = ck::Tuple<F32>;
 
 // GEMM layout
 using Row = ck::tensor_layout::gemm::RowMajor;
