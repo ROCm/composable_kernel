@@ -12,7 +12,7 @@ namespace {
 
 enum struct ConvLayout
 {
-    NGCHW_KGCYX_NGKHW, // 0
+    GNHWC_GKYXC_GNHWK, // 0
     NHWGC_KYXGC_NHWGK, // 1
 };
 
@@ -76,6 +76,20 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
     using BF16 = ck::bhalf_t;
     using INT8 = int8_t;
 
+    //
+    using GNWC   = ck::tensor_layout::convolution::GNWC;
+    using GNHWC  = ck::tensor_layout::convolution::GNHWC;
+    using GNDHWC = ck::tensor_layout::convolution::GNDHWC;
+
+    using GKXC   = ck::tensor_layout::convolution::GKXC;
+    using GKYXC  = ck::tensor_layout::convolution::GKYXC;
+    using GKZYXC = ck::tensor_layout::convolution::GKZYXC;
+
+    using GNWK   = ck::tensor_layout::convolution::GNWK;
+    using GNHWK  = ck::tensor_layout::convolution::GNHWK;
+    using GNDHWK = ck::tensor_layout::convolution::GNDHWK;
+
+    //
     using NWGC   = ck::tensor_layout::convolution::NWGC;
     using NHWGC  = ck::tensor_layout::convolution::NHWGC;
     using NDHWGC = ck::tensor_layout::convolution::NDHWGC;
@@ -121,7 +135,66 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
         return pass ? 0 : 1;
     };
 
-    if(num_dim_spatial == 1 && layout == ConvLayout::NHWGC_KYXGC_NHWGK)
+    // GNHWC_GKYXC_GNHWK
+    if(num_dim_spatial == 1 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
+    {
+        if(data_type == ConvDataType::F32_F32_F32)
+        {
+            return profile(I1, GNWC{}, GKXC{}, GNWK{}, F32{}, F32{}, F32{});
+        }
+        else if(data_type == ConvDataType::F16_F16_F16)
+        {
+            return profile(I1, GNWC{}, GKXC{}, GNWK{}, F16{}, F16{}, F16{});
+        }
+        else if(data_type == ConvDataType::BF16_BF16_BF16)
+        {
+            return profile(I1, GNWC{}, GKXC{}, GNWK{}, BF16{}, BF16{}, BF16{});
+        }
+        else if(data_type == ConvDataType::INT8_INT8_INT8)
+        {
+            return profile(I1, GNWC{}, GKXC{}, GNWK{}, INT8{}, INT8{}, INT8{});
+        }
+    }
+    else if(num_dim_spatial == 2 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
+    {
+        if(data_type == ConvDataType::F32_F32_F32)
+        {
+            return profile(I2, GNHWC{}, GKYXC{}, GNHWK{}, F32{}, F32{}, F32{});
+        }
+        else if(data_type == ConvDataType::F16_F16_F16)
+        {
+            return profile(I2, GNHWC{}, GKYXC{}, GNHWK{}, F16{}, F16{}, F16{});
+        }
+        else if(data_type == ConvDataType::BF16_BF16_BF16)
+        {
+            return profile(I2, GNHWC{}, GKYXC{}, GNHWK{}, BF16{}, BF16{}, BF16{});
+        }
+        else if(data_type == ConvDataType::INT8_INT8_INT8)
+        {
+            return profile(I2, GNHWC{}, GKYXC{}, GNHWK{}, INT8{}, INT8{}, INT8{});
+        }
+    }
+    else if(num_dim_spatial == 3 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
+    {
+        if(data_type == ConvDataType::F32_F32_F32)
+        {
+            return profile(I3, GNDHWC{}, GKZYXC{}, GNDHWK{}, F32{}, F32{}, F32{});
+        }
+        else if(data_type == ConvDataType::F16_F16_F16)
+        {
+            return profile(I3, GNDHWC{}, GKZYXC{}, GNDHWK{}, F16{}, F16{}, F16{});
+        }
+        else if(data_type == ConvDataType::BF16_BF16_BF16)
+        {
+            return profile(I3, GNDHWC{}, GKZYXC{}, GNDHWK{}, BF16{}, BF16{}, BF16{});
+        }
+        else if(data_type == ConvDataType::INT8_INT8_INT8)
+        {
+            return profile(I3, GNDHWC{}, GKZYXC{}, GNDHWK{}, INT8{}, INT8{}, INT8{});
+        }
+    }
+    // NHWGC_KYXGC_NHWGK
+    else if(num_dim_spatial == 1 && layout == ConvLayout::NHWGC_KYXGC_NHWGK)
     {
         if(data_type == ConvDataType::F32_F32_F32)
         {
