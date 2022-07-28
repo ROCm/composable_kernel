@@ -24,6 +24,7 @@ Gemm + Gemm fused operation. Computes C_m_o = A_m_k * B0_k_n * B1_n_o
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -114,13 +115,20 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmGemm_X
     S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
     8>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
 
+// Ref Gemm0: fp16 in, fp32 out
 using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
                                                                                 B0DataType,
-                                                                                ADataType,
+                                                                                AccDataType,
                                                                                 AccDataType,
                                                                                 AElementOp,
                                                                                 B0ElementOp,
                                                                                 CElementOp>;
+
+// Ref Softmax: fp32 in, fp16 out
+using ReferenceSoftmaxInstance =
+    ck::tensor_operation::host::ReferenceSoftmax<AccDataType, ADataType, AccDataType>;
+
+// Ref Gemm1: fp16 in, fp16 out
 using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
                                                                                 B1DataType,
                                                                                 CDataType,
@@ -348,14 +356,22 @@ int main(int argc, char* argv[])
     if(do_verification)
     {
         // Output of Gemm0 is input A of Gemm1
+        Tensor<AccDataType> acc0_g_m_n(f_host_tensor_descriptor(BatchCount, M, N, N, M * N, Row{}));
+
         Tensor<ADataType> a1_g_m_n(f_host_tensor_descriptor(BatchCount, M, N, N, M * N, Row{}));
 
         auto ref_gemm0          = ReferenceGemm0Instance{};
         auto ref_gemm0_invoker  = ref_gemm0.MakeInvoker();
         auto ref_gemm0_argument = ref_gemm0.MakeArgument(
-            a_g_m_k, b0_g_k_n, a1_g_m_n, a_element_op, b0_element_op, PassThrough{});
+            a_g_m_k, b0_g_k_n, acc0_g_m_n, a_element_op, b0_element_op, PassThrough{});
 
         ref_gemm0_invoker.Run(ref_gemm0_argument);
+
+        auto ref_softmax          = ReferenceSoftmaxInstance{};
+        auto ref_softmax_invoker  = ref_softmax.MakeInvoker();
+        auto ref_softmax_argument = ref_softmax.MakeArgument(acc0_g_m_n, a1_g_m_n, 1, 0, {2});
+
+        ref_softmax_invoker.Run(ref_softmax_argument);
 
         auto ref_gemm1          = ReferenceGemm1Instance{};
         auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
