@@ -530,19 +530,15 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
             a_blockwise_copy.RunRead(a_grid_desc_k0_m_k1, a_grid_buf);
             a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_k0_m_k1, a_block_slice_copy_step);
 
-            auto read_b_first_half_data = [&]() {
-                static_for<0, BBlockBufferSize, 1>{}([&](auto ii) {
-                    b_threadwise_copy.Run(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
-                                          b_grid_buf,
-                                          b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3,
-                                          make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
-                                          b_thread_buf(Number<ii>{}));
-                    b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
-                                                         b_thread_slice_copy_step);
-                });
-            };
-
-            read_b_first_half_data();
+            static_for<0, BBlockBufferSize, 1>{}([&](auto ii) {
+                b_threadwise_copy.Run(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
+                                      b_grid_buf,
+                                      b_thread_desc_k0_k1_k2_n0_n1_n2_n3_k3,
+                                      make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
+                                      b_thread_buf(Number<ii>{}));
+                b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
+                                                     b_thread_slice_copy_step);
+            });
 
             // Initialize C
             c_thread_buf.Clear();
