@@ -305,11 +305,11 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
                                       bool>::type = false>
     static auto
     MakeAGridDescriptor_M_K(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
+                            const std::array<index_t, NDimSpatial + 3>& /* a_g_n_c_wis_strides */,
                             const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+                            const std::array<index_t, NDimSpatial + 3>& /* b_g_k_c_xs_strides */,
                             const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+                            const std::array<index_t, NDimSpatial + 3>& /* e_g_n_k_wos_strides */,
                             const std::array<index_t, NDimSpatial>& conv_filter_strides,
                             const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                             const std::array<index_t, NDimSpatial>& input_left_pads,
@@ -412,11 +412,11 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
                                       bool>::type = false>
     static auto
     MakeAGridDescriptor_M_K(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
+                            const std::array<index_t, NDimSpatial + 3>& /* a_g_n_c_wis_strides */,
                             const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+                            const std::array<index_t, NDimSpatial + 3>& /* b_g_k_c_xs_strides */,
                             const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+                            const std::array<index_t, NDimSpatial + 3>& /* e_g_n_k_wos_strides */,
                             const std::array<index_t, NDimSpatial>& conv_filter_strides,
                             const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                             const std::array<index_t, NDimSpatial>& input_left_pads,
@@ -533,11 +533,11 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
                                       bool>::type = false>
     static auto
     MakeAGridDescriptor_M_K(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
+                            const std::array<index_t, NDimSpatial + 3>& /* a_g_n_c_wis_strides */,
                             const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+                            const std::array<index_t, NDimSpatial + 3>& /* b_g_k_c_xs_strides */,
                             const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+                            const std::array<index_t, NDimSpatial + 3>& /* e_g_n_k_wos_strides */,
                             const std::array<index_t, NDimSpatial>& conv_filter_strides,
                             const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                             const std::array<index_t, NDimSpatial>& input_left_pads,
@@ -679,9 +679,9 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
     MakeAGridDescriptor_M_K(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
                             const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
                             const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+                            const std::array<index_t, NDimSpatial + 3>& /* b_g_k_c_xs_strides */,
                             const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+                            const std::array<index_t, NDimSpatial + 3>& /* e_g_n_k_wos_strides */,
                             const std::array<index_t, NDimSpatial>& conv_filter_strides,
                             const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                             const std::array<index_t, NDimSpatial>& input_left_pads,
@@ -801,9 +801,9 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
     MakeAGridDescriptor_M_K(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
                             const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
                             const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+                            const std::array<index_t, NDimSpatial + 3>& /* b_g_k_c_xs_strides */,
                             const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+                            const std::array<index_t, NDimSpatial + 3>& /* e_g_n_k_wos_strides */,
                             const std::array<index_t, NDimSpatial>& conv_filter_strides,
                             const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                             const std::array<index_t, NDimSpatial>& input_left_pads,
@@ -939,9 +939,9 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
     MakeAGridDescriptor_M_K(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
                             const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
                             const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+                            const std::array<index_t, NDimSpatial + 3>& /* b_g_k_c_xs_strides */,
                             const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+                            const std::array<index_t, NDimSpatial + 3>& /* e_g_n_k_wos_strides */,
                             const std::array<index_t, NDimSpatial>& conv_filter_strides,
                             const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                             const std::array<index_t, NDimSpatial>& input_left_pads,
@@ -1099,7 +1099,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
                                       bool>::type = false>
     static auto
     MakeBGridDescriptor_N_K(const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides)
+                            const std::array<index_t, NDimSpatial + 3>& /* b_g_k_c_xs_strides */)
     {
         const index_t K = b_g_k_c_xs_lengths[1];
         const index_t C = b_g_k_c_xs_lengths[2];
@@ -1163,7 +1163,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
                                       bool>::type = false>
     static auto
     MakeEGridDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides)
+                            const std::array<index_t, NDimSpatial + 3>& /* e_g_n_k_wos_strides */)
     {
         const index_t N = e_g_n_k_wos_lengths[1];
         const index_t K = e_g_n_k_wos_lengths[2];
