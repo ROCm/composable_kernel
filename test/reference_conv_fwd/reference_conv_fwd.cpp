@@ -81,7 +81,14 @@ run_reference_convolution_forward(const ck::utils::conv::ConvParam& conv_param,
 
 } // anonymous namespace
 
-TEST(ReferenceConvolutionFWD, Conv2DNHWC)
+// Eeference convolution assume dimensions of tensor descriptors are in GNCDHW/GKCZYX/GNKDHW order,
+// regardless of physical tensor layouts in  memory.
+// Some tests below assume dimensions of tensor descriptors can be in other order, and therefore
+// are disabled
+// TODO: add more tests, which comply with assumption about dimension order of reference convolution
+// and add tests for more physical layout
+#if 0
+TEST(ReferenceConvolutionFWD, Conv2DGNHWC)
 {
     ck::utils::conv::ConvParam conv_param(2,
                                           1,
@@ -118,7 +125,7 @@ TEST(ReferenceConvolutionFWD, Conv2DNHWC)
     EXPECT_TRUE(ck::utils::check_err(out_tensor.mData, ref_data, "Error: incorrect results!"));
 }
 
-TEST(ReferenceConvolutionFWD, Conv2DNHWCStridesDilationsPadding)
+TEST(ReferenceConvolutionFWD, Conv2DGNHWCStridesDilationsPadding)
 {
     ck::utils::conv::ConvParam conv_param(2,
                                           1,
@@ -145,7 +152,7 @@ TEST(ReferenceConvolutionFWD, Conv2DNHWCStridesDilationsPadding)
     EXPECT_TRUE(ck::utils::check_err(out_tensor.mData, ref_data, "Error: incorrect results!"));
 }
 
-TEST(ReferenceConvolutionFWD, Conv1DNWC)
+TEST(ReferenceConvolutionFWD, Conv1DGNWC)
 {
     ck::utils::conv::ConvParam conv_param(1,
                                           1,
@@ -174,7 +181,7 @@ TEST(ReferenceConvolutionFWD, Conv1DNWC)
     EXPECT_TRUE(ck::utils::check_err(out_tensor.mData, ref_data, "Error: incorrect results!"));
 }
 
-TEST(ReferenceConvolutionFWD, Conv1DNWCStridesDilationsPadding)
+TEST(ReferenceConvolutionFWD, Conv1DGNWCStridesDilationsPadding)
 {
     ck::utils::conv::ConvParam conv_param(1,
                                           1,
@@ -203,7 +210,7 @@ TEST(ReferenceConvolutionFWD, Conv1DNWCStridesDilationsPadding)
     EXPECT_TRUE(ck::utils::check_err(out_tensor.mData, ref_data, "Error: incorrect results!"));
 }
 
-TEST(ReferenceConvolutionFWD, Conv1DNWCSameOutputSize)
+TEST(ReferenceConvolutionFWD, Conv1DGNWCSameOutputSize)
 {
     ck::utils::conv::ConvParam conv_param(1,
                                           1,
@@ -296,8 +303,9 @@ TEST(ReferenceConvolutionFWD, Conv1DNWCSameOutputSize)
         out_tensor2.mDesc.GetLengths(), ref_dims, "Error: wrong output tensor dimensions!"));
     EXPECT_TRUE(ck::utils::check_err(out_tensor2.mData, ref_data, "Error: incorrect results!"));
 }
+#endif
 
-TEST(ReferenceConvolutionFWD, Conv3DNCDHW)
+TEST(ReferenceConvolutionFWD, Conv3DGNCDHW)
 {
     ck::utils::conv::ConvParam conv_param(3,
                                           1,
@@ -336,7 +344,7 @@ TEST(ReferenceConvolutionFWD, Conv3DNCDHW)
         ck::utils::check_err(out_tensor.mData, ref_data, "Error [case 1]: incorrect results!"));
 }
 
-TEST(ReferenceConvolutionFWD, Conv3DNCDHWStridesDilations)
+TEST(ReferenceConvolutionFWD, Conv3DGNCDHWStridesDilations)
 {
     ck::utils::conv::ConvParam conv_param(3,
                                           1,
