@@ -440,6 +440,52 @@ pipeline {
                 }
             }
         }
+		stage("Tests")
+        {
+            parallel
+            {
+                stage("Run Tests: gfx908")
+                {
+                    agent{ label rocmnode("gfx908")}
+                    environment{
+                        setup_args = """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
+                    }
+                }
+                stage("Run Tests: gfx90a")
+                {
+                    when {
+                        expression { params.RUN_FULL_QA.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx90a")}
+                    environment{
+                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
+                    }
+                }
+            }
+        }
+        stage("Client App")
+        {
+            parallel
+            {
+                stage("Run Client App")
+                {
+                    agent{ label rocmnode("gfx908")}
+                    environment{
+                        setup_args = """ -D  -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " """
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc .. && make -j """ 
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                    }
+                }
+            }
+        }
         stage("Performance Tests")
         {
             parallel
@@ -459,6 +505,9 @@ pipeline {
                 }
                 stage("Run ckProfiler: gfx90a")
                 {
+                    when {
+                        expression { params.RUN_FULL_QA.toBoolean() }
+                    }
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
@@ -483,52 +532,12 @@ pipeline {
                     }
                 }
                 stage("Process results for gfx90a"){
+                    when {
+                        expression { params.RUN_FULL_QA.toBoolean() }
+                    }
                     agent { label 'mici' }
                     steps{
                         process_results(gpu_arch: "gfx90a")
-                    }
-                }
-            }
-        }
-		stage("Tests")
-        {
-            parallel
-            {
-                stage("Run Tests: gfx908")
-                {
-                    agent{ label rocmnode("gfx908")}
-                    environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
-                    }
-                    steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
-                    }
-                }
-                stage("Run Tests: gfx90a")
-                {
-                    agent{ label rocmnode("gfx90a")}
-                    environment{
-                        setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
-                    }
-                    steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
-                    }
-                }
-            }
-        }
-        stage("Client App")
-        {
-            parallel
-            {
-                stage("Run Client App")
-                {
-                    agent{ label rocmnode("gfx908")}
-                    environment{
-                        setup_args = """ -D  -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " """
-                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc .. && make -j """ 
-                    }
-                    steps{
-                        buildHipClangJobAndReboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                     }
                 }
             }
