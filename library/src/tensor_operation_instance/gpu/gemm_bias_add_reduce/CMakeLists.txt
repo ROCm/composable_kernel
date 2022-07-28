@@ -5,9 +5,4 @@ set(DEVICE_GEMM_BIAS_ADD_REDUCE_INSTANCE_SOURCE
     device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f32_f32_km_nk_mn_instance.cpp
 )
 
-add_library(device_gemm_bias_add_reduce_instance OBJECT ${DEVICE_GEMM_BIAS_ADD_REDUCE_INSTANCE_SOURCE})
-
-target_compile_features(device_gemm_bias_add_reduce_instance PUBLIC)
-set_target_properties(device_gemm_bias_add_reduce_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
-
-clang_tidy_check(device_gemm_bias_add_reduce_instance)
+add_instance_library(device_gemm_bias_add_reduce_instance OBJECT ${DEVICE_GEMM_BIAS_ADD_REDUCE_INSTANCE_SOURCE})

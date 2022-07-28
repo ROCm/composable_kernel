@@ -18,9 +18,4 @@ set(DEVICE_BATCHED_GEMM_INSTANCE_SOURCE
    device_batched_gemm_xdl_int8_int8_int8_gkm_gnk_gmn_instance.cpp;
 )
 
-add_library(device_batched_gemm_instance OBJECT ${DEVICE_BATCHED_GEMM_INSTANCE_SOURCE})
-# target_compile_features(device_batched_gemm_instance PUBLIC)
-set_target_properties(device_batched_gemm_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
-# install(TARGETS device_batched_gemm_instance LIBRARY DESTINATION lib)
-
-clang_tidy_check(device_batched_gemm_instance)
+add_instance_library(device_batched_gemm_instance OBJECT ${DEVICE_BATCHED_GEMM_INSTANCE_SOURCE})

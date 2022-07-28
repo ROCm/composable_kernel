@@ -6,7 +6,4 @@ set(DEVICE_CONV2D_BWD_DATA_INSTANCE_SOURCE
    device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instance.cpp;
 ) 
 
-add_library(device_conv2d_bwd_data_instance OBJECT ${DEVICE_CONV2D_BWD_DATA_INSTANCE_SOURCE})
-set_target_properties(device_conv2d_bwd_data_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
-
-clang_tidy_check(device_conv2d_bwd_data_instance)
+add_instance_library(device_conv2d_bwd_data_instance OBJECT ${DEVICE_CONV2D_BWD_DATA_INSTANCE_SOURCE})

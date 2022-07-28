@@ -3,8 +3,3 @@ set(DEVICE_ELEMENTWISE_INSTANCE_SOURCE
 )
 
 add_instance_library(device_elementwise_instance ${DEVICE_ELEMENTWISE_INSTANCE_SOURCE})
-
-target_compile_features(device_elementwise_instance PUBLIC)
-set_target_properties(device_elementwise_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
-
-clang_tidy_check(device_elementwise_instance)

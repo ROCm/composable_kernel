@@ -2,7 +2,5 @@
 set(DEVICE_CONV2D_FWD_BIAS_RELU_INSTANCE_SOURCE
    device_conv2d_fwd_xdl_c_shuffle_bias_relu_nhwc_kyxc_nhwk_f16_instance.cpp;
 )
-add_library(device_conv2d_fwd_bias_relu_instance OBJECT ${DEVICE_CONV2D_FWD_BIAS_RELU_INSTANCE_SOURCE}) 
-set_target_properties(device_conv2d_fwd_bias_relu_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-clang_tidy_check(device_conv2d_fwd_bias_relu_instance)
+add_instance_library(device_conv2d_fwd_bias_relu_instance OBJECT ${DEVICE_CONV2D_FWD_BIAS_RELU_INSTANCE_SOURCE})

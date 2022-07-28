@@ -6,7 +6,3 @@ set(DEVICE_BATCHED_GEMM_REDUCE_INSTANCE_SOURCE
 )
 
 add_instance_library(device_batched_gemm_reduce_instance OBJECT ${DEVICE_BATCHED_GEMM_REDUCE_INSTANCE_SOURCE})
-target_compile_features(device_batched_gemm_reduce_instance PUBLIC)
-set_target_properties(device_batched_gemm_reduce_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
-clang_tidy_check(device_batched_gemm_reduce_instance)
-

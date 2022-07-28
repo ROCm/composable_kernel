@@ -42,7 +42,4 @@ set(DEVICE_GEMM_INSTANCE_SOURCE
    device_gemm_dl_i8_i8_i8_km_nk_mn_instance.cpp;
 )
 
-add_library(device_gemm_instance OBJECT ${DEVICE_GEMM_INSTANCE_SOURCE})
-
-target_compile_features(device_gemm_instance PUBLIC)
-set_target_properties(device_gemm_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
+add_instance_library(device_gemm_instance OBJECT ${DEVICE_GEMM_INSTANCE_SOURCE})

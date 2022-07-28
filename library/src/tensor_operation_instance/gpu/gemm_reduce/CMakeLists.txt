@@ -6,5 +6,3 @@ set(DEVICE_GEMM_REDUCE_INSTANCE_SOURCE
 )
 
 add_instance_library(device_gemm_reduce_instance ${DEVICE_GEMM_REDUCE_INSTANCE_SOURCE})
-rocm_install(TARGETS device_gemm_reduce_instance)
-clang_tidy_check(device_gemm_reduce_instance)

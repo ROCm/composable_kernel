@@ -23,7 +23,4 @@ set(DEVICE_REDUCE_INSTANCE_SOURCE
    device_reduce_instance_multiblock_atomic_add_b16_f32_f32.cpp;
 )
 
-add_library(device_reduce_instance OBJECT ${DEVICE_REDUCE_INSTANCE_SOURCE}) 
-set_target_properties(device_reduce_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
-
-clang_tidy_check(device_reduce_instance)
+add_instance_library(device_reduce_instance OBJECT ${DEVICE_REDUCE_INSTANCE_SOURCE})

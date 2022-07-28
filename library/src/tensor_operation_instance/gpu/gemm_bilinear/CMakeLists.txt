@@ -6,7 +6,4 @@ set(DEVICE_GEMM_BILINEAR_INSTANCE_SOURCE
    device_gemm_bilinear_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instance.cpp;
 )
 
-add_library(device_gemm_bilinear_instance OBJECT ${DEVICE_GEMM_BILINEAR_INSTANCE_SOURCE})
-set_target_properties(device_gemm_bilinear_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
-
-clang_tidy_check(device_gemm_bilinear_instance)
+add_instance_library(device_gemm_bilinear_instance OBJECT ${DEVICE_GEMM_BILINEAR_INSTANCE_SOURCE})

@@ -6,7 +6,4 @@ set(DEVICE_CONTRACTION_SCALE_INSTANCE_SOURCE
     device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_mnn_instance.cpp
 )
 
-add_library(device_contraction_scale_instance OBJECT ${DEVICE_CONTRACTION_SCALE_INSTANCE_SOURCE})
-set_target_properties(device_contraction_scale_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
-
-clang_tidy_check(device_contraction_scale_instance)
+add_instance_library(device_contraction_scale_instance OBJECT ${DEVICE_CONTRACTION_SCALE_INSTANCE_SOURCE})

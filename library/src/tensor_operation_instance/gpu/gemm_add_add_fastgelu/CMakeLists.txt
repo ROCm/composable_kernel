@@ -6,9 +6,4 @@ set(DEVICE_GEMM_ADD_ADD_FASTGELU_INSTANCE_SOURCE
    device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instance.cpp;
 )
 
-add_library(device_gemm_add_add_fastgelu_instance OBJECT ${DEVICE_GEMM_ADD_ADD_FASTGELU_INSTANCE_SOURCE})
-
-target_compile_features(device_gemm_add_add_fastgelu_instance PUBLIC)
-set_target_properties(device_gemm_add_add_fastgelu_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
-
-clang_tidy_check(device_gemm_add_add_fastgelu_instance)
+add_instance_library(device_gemm_add_add_fastgelu_instance OBJECT ${DEVICE_GEMM_ADD_ADD_FASTGELU_INSTANCE_SOURCE})

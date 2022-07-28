@@ -6,7 +6,4 @@ set(DEVICE_CONTRACTION_BILINEAR_INSTANCE_SOURCE
     device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_mnnn_instance.cpp
 )
 
-add_library(device_contraction_bilinear_instance OBJECT ${DEVICE_CONTRACTION_BILINEAR_INSTANCE_SOURCE})
-set_target_properties(device_contraction_bilinear_instance PROPERTIES POSITION_INDEPENDENT_CODE ON)
-
-clang_tidy_check(device_contraction_bilinear_instance)
+add_instance_library(device_contraction_bilinear_instance OBJECT ${DEVICE_CONTRACTION_BILINEAR_INSTANCE_SOURCE})
