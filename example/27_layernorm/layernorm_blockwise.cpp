@@ -13,10 +13,10 @@
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_common_util.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_common_util.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
 
 using XDataType     = ck::half_t;
@@ -75,10 +75,10 @@ int main()
     gamma.GenerateTensorValue(GeneratorTensor_3<GammaDataType>{0.0, 1.0});
     beta.GenerateTensorValue(GeneratorTensor_3<BetaDataType>{0.0, 1.0});
 
-    DeviceMem x_dev(sizeof(XDataType) * x.mDesc.GetElementSpace());
-    DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpace());
-    DeviceMem beta_dev(sizeof(BetaDataType) * beta.mDesc.GetElementSpace());
-    DeviceMem y_dev(sizeof(YDataType) * y.mDesc.GetElementSpace());
+    DeviceMem x_dev(sizeof(XDataType) * x.mDesc.GetElementSpaceSize());
+    DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpaceSize());
+    DeviceMem beta_dev(sizeof(BetaDataType) * beta.mDesc.GetElementSpaceSize());
+    DeviceMem y_dev(sizeof(YDataType) * y.mDesc.GetElementSpaceSize());
 
     x_dev.ToDevice(x.mData.data());
     gamma_dev.ToDevice(gamma.mData.data());

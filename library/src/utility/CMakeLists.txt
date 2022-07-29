@@ -1,11 +1,28 @@
-set(CONV_UTIL_SOURCE
-    conv_util.cpp
+## utility
+set(UTILITY_SOURCE
+    device_memory.cpp
+    host_tensor.cpp
+    convolution_parameter.cpp
 )
 
-add_library(conv_util SHARED ${CONV_UTIL_SOURCE})
-target_link_libraries(conv_util PRIVATE host_tensor)
-target_compile_features(conv_util PUBLIC)
-set_target_properties(conv_util PROPERTIES POSITION_INDEPENDENT_CODE ON)
-target_include_directories(conv_util SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
+add_library(utility STATIC ${UTILITY_SOURCE})
+add_library(composable_kernel::utility ALIAS utility)
 
-clang_tidy_check(conv_util)
+target_include_directories(utility PUBLIC
+    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck>"
+    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/utility>"
+)
+
+rocm_install(
+    TARGETS utility
+    EXPORT utilityTargets
+)
+
+rocm_install(
+    EXPORT utilityTargets
+    FILE composable_kernelutilityTargets.cmake
+    NAMESPACE composable_kernel::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
+)
+
+clang_tidy_check(utility)

@@ -21,6 +21,8 @@ struct TupleElementKey
 template <typename Key, typename Data>
 struct TupleElementKeyData
 {
+    using DataType = Data;
+
 #if 0 // workaround compiler complaint about implicitly-deleted default constructor
     __host__ __device__ constexpr TupleElementKeyData() = default;
 #else
@@ -34,27 +36,38 @@ struct TupleElementKeyData
     {
     }
 
-    Data mData;
+    DataType mData;
 };
 
+// for read access of tuple element
 template <typename Key, typename Data>
 __host__ __device__ constexpr const Data&
-get_tuple_element_data(const TupleElementKeyData<Key, Data>& x)
+get_tuple_element_data_reference(const TupleElementKeyData<Key, Data>& x)
 {
     return static_cast<const Data&>(x.mData);
 }
 
+// for write access of tuple element
 template <typename Key, typename Data>
-__host__ __device__ constexpr Data& get_tuple_element_data(TupleElementKeyData<Key, Data>& x)
+__host__ __device__ constexpr Data&
+get_tuple_element_data_reference(TupleElementKeyData<Key, Data>& x)
 {
     return x.mData;
 }
 
 // TODO: not sure the use of reference is correct
 template <typename Key, typename Data>
-__host__ __device__ constexpr Data&& get_tuple_element_data(TupleElementKeyData<Key, Data>&& x)
+__host__ __device__ constexpr Data&&
+get_tuple_element_data_reference(TupleElementKeyData<Key, Data>&& x)
 {
     return static_cast<Data&&>(x.mData);
+}
+
+// for infering type of tuple element
+template <typename Key, typename Data>
+__host__ __device__ constexpr Data get_tuple_element_data(const TupleElementKeyData<Key, Data>& x)
+{
+    return std::forward(x.mData);
 }
 
 template <typename Indices, typename... Xs>
@@ -87,13 +100,13 @@ struct TupleImpl<Sequence<Is...>, Xs...> : TupleElementKeyData<TupleElementKey<I
     template <index_t I>
     __host__ __device__ constexpr const auto& GetElementDataByKey(TupleElementKey<I>) const
     {
-        return get_tuple_element_data<TupleElementKey<I>>(*this);
+        return get_tuple_element_data_reference<TupleElementKey<I>>(*this);
     }
 
     template <index_t I>
     __host__ __device__ constexpr auto& GetElementDataByKey(TupleElementKey<I>)
     {
-        return get_tuple_element_data<TupleElementKey<I>>(*this);
+        return get_tuple_element_data_reference<TupleElementKey<I>>(*this);
     }
 };
 
@@ -185,7 +198,8 @@ struct Tuple<>
 template <index_t I, typename TTuple>
 struct tuple_element
 {
-    using type = decltype(TTuple{}.At(Number<I>{}));
+    // type should keep the cv/ref qualifier of original tuple element
+    using type = decltype(detail::get_tuple_element_data<detail::TupleElementKey<I>>(TTuple{}));
 };
 
 template <index_t I, typename TTuple>

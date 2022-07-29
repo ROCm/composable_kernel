@@ -14,7 +14,8 @@ namespace device {
 
 template <typename ALayout,
           typename BLayout,
-          typename CLayout,
+          typename DsLayout,
+          typename ELayout,
           typename ADataType,
           typename BDataType,
           typename DsDataType,
@@ -26,23 +27,25 @@ struct DeviceBatchedGemmMultiD : public BaseOperator
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
+    static_assert(DsLayout::Size() == DsDataType::Size(), "wrong! inconsisiten NumDTensor");
+
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
-                        std::array<const void*, NumDTensor> p_ds,
-                        void* p_c,
-                        ck::index_t M,
-                        ck::index_t N,
-                        ck::index_t K,
-                        ck::index_t StrideA,
-                        ck::index_t StrideB,
-                        std::array<ck::index_t, NumDTensor> StrideDs,
-                        ck::index_t StrideE,
-                        ck::index_t BatchStrideA,
-                        ck::index_t BatchStrideB,
-                        std::array<ck::index_t, NumDTensor> BatchStrideDs,
-                        ck::index_t BatchStrideE,
-                        ck::index_t Batch,
+                        const std::array<const void*, NumDTensor>& p_ds,
+                        void* p_e,
+                        index_t M,
+                        index_t N,
+                        index_t K,
+                        index_t Batch,
+                        index_t StrideA,
+                        index_t StrideB,
+                        const std::array<ck::index_t, NumDTensor>& StrideDs,
+                        index_t StrideE,
+                        index_t BatchStrideA,
+                        index_t BatchStrideB,
+                        const std::array<ck::index_t, NumDTensor>& BatchStrideDs,
+                        index_t BatchStrideE,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
                         CDEElementwiseOperation cde_element_op) = 0;

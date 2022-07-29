@@ -18,7 +18,8 @@ struct GemmDesc
 
 template <typename ALayout,
           typename BLayout,
-          typename DELayout,
+          typename DsLayout,
+          typename ELayout,
           typename ADataType,
           typename BDataType,
           typename DsDataType,
@@ -29,6 +30,8 @@ template <typename ALayout,
 struct DeviceGroupedGemm : public BaseOperator
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
+
+    static_assert(DsLayout::Size() == DsDataType::Size(), "wrong! inconsisiten NumDTensor");
 
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(std::vector<const void*>& p_a,
@@ -42,27 +45,6 @@ struct DeviceGroupedGemm : public BaseOperator
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
-
-template <typename ALayout,
-          typename BLayout,
-          typename DELayout,
-          typename ADataType,
-          typename BDataType,
-          typename DsDataType,
-          typename EDataType,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation>
-using DeviceGroupedGemmPtr = std::unique_ptr<DeviceGroupedGemm<ALayout,
-                                                               BLayout,
-                                                               DELayout,
-                                                               ADataType,
-                                                               BDataType,
-                                                               DsDataType,
-                                                               EDataType,
-                                                               AElementwiseOperation,
-                                                               BElementwiseOperation,
-                                                               CElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation

@@ -13,10 +13,10 @@
 #include "ck/library/tensor_operation_instance/gpu/grouped_gemm.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/conv_util.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/convolution_parameter.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 namespace ck {
@@ -24,7 +24,7 @@ namespace profiler {
 
 template <typename ADataType,
           typename BDataType,
-          typename EDataType,
+          typename CDataType,
           typename AccDataType,
           typename ALayout,
           typename BLayout,
@@ -67,7 +67,7 @@ bool profile_grouped_gemm_impl(int do_verification,
 
     std::vector<Tensor<ADataType>> a_m_k;
     std::vector<Tensor<BDataType>> b_k_n;
-    std::vector<Tensor<EDataType>> c_m_n_device_results;
+    std::vector<Tensor<CDataType>> c_m_n_device_results;
 
     for(std::size_t i = 0; i < group_count; i++)
     {
@@ -77,7 +77,7 @@ bool profile_grouped_gemm_impl(int do_verification,
             Tensor<BDataType>(f_host_tensor_descriptor(Ks[i], Ns[i], StrideBs[i], BLayout{})));
 
         c_m_n_device_results.push_back(
-            Tensor<EDataType>(f_host_tensor_descriptor(Ms[i], Ns[i], StrideCs[i], CLayout{})));
+            Tensor<CDataType>(f_host_tensor_descriptor(Ms[i], Ns[i], StrideCs[i], CLayout{})));
 
         std::cout << "group: " << i << " a_m_k[" << i << "]:" << a_m_k[i].mDesc << ", b_k_n[" << i
                   << "]:" << b_k_n[i].mDesc << ", c_m_n_device_results[" << i
@@ -96,7 +96,7 @@ bool profile_grouped_gemm_impl(int do_verification,
             b_k_n[i].GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5}, num_thread);
         }
 
-        c_m_n_device_results[i].GenerateTensorValue(GeneratorTensor_0<EDataType>{}, num_thread);
+        c_m_n_device_results[i].GenerateTensorValue(GeneratorTensor_0<CDataType>{}, num_thread);
     }
 
     using AElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -133,12 +133,12 @@ bool profile_grouped_gemm_impl(int do_verification,
     for(std::size_t i = 0; i < group_count; i++)
     {
         a_device_buf.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(ADataType) * a_m_k[i].mDesc.GetElementSpace()));
+            std::make_unique<DeviceMem>(sizeof(ADataType) * a_m_k[i].mDesc.GetElementSpaceSize()));
         b_device_buf.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(BDataType) * b_k_n[i].mDesc.GetElementSpace()));
+            std::make_unique<DeviceMem>(sizeof(BDataType) * b_k_n[i].mDesc.GetElementSpaceSize()));
 
         c_device_buf.emplace_back(std::make_unique<DeviceMem>(
-            sizeof(EDataType) * c_m_n_device_results[i].mDesc.GetElementSpace()));
+            sizeof(CDataType) * c_m_n_device_results[i].mDesc.GetElementSpaceSize()));
 
         a_device_buf[i]->ToDevice(a_m_k[i].mData.data());
         b_device_buf[i]->ToDevice(b_k_n[i].mData.data());
@@ -153,11 +153,12 @@ bool profile_grouped_gemm_impl(int do_verification,
 
     using DeviceOp = ck::tensor_operation::device::DeviceGroupedGemm<ALayout,
                                                                      BLayout,
+                                                                     ck::Tuple<>,
                                                                      CLayout,
                                                                      ADataType,
                                                                      BDataType,
                                                                      ck::Tuple<>,
-                                                                     EDataType,
+                                                                     CDataType,
                                                                      AElementOp,
                                                                      BElementOp,
                                                                      CElementOp>;
@@ -209,7 +210,7 @@ bool profile_grouped_gemm_impl(int do_verification,
                 flop += std::size_t(2) * Ms[i] * Ns[i] * Ks[i];
 
                 num_btype += sizeof(ADataType) * Ms[i] * Ks[i] + sizeof(BDataType) * Ks[i] * Ns[i] +
-                             sizeof(EDataType) * Ms[i] * Ns[i];
+                             sizeof(CDataType) * Ms[i] * Ns[i];
             }
 
             float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
@@ -233,13 +234,13 @@ bool profile_grouped_gemm_impl(int do_verification,
 
                     c_device_buf[i]->FromDevice(c_m_n_device_results[i].mData.data());
 
-                    Tensor<EDataType> c_m_n_host_result(
+                    Tensor<CDataType> c_m_n_host_result(
                         f_host_tensor_descriptor(Ms[i], Ns[i], StrideCs[i], CLayout{}));
 
                     using ReferenceGemmInstance =
                         ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                   BDataType,
-                                                                  EDataType,
+                                                                  CDataType,
                                                                   AccDataType,
                                                                   AElementOp,
                                                                   BElementOp,
