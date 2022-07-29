@@ -1,7 +1,7 @@
 #pragma once
 #include <iostream>
 #include "device_base.hpp"
-#include "device_gemm.hpp"
+#include "device_grouped_gemm.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -16,7 +16,7 @@ struct GroupedDeviceGemmSoftmax : public BaseOperator
     virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(std::vector<const void*>& p_a,
                                                               std::vector<const void*>& p_b,
                                                               std::vector<void*>& p_d,
-                                                              std::vector<GemmShape> gemm_shapes,
+                                                              std::vector<GemmDesc> gemm_shapes,
                                                               AElementwiseOperation a_element_op,
                                                               BElementwiseOperation b_element_op,
                                                               DElementwiseOperation d_element_op,
@@ -46,7 +46,7 @@ struct GroupedDeviceGemmReduce : public BaseOperator
                                                               std::vector<const void*>& p_b,
                                                               std::vector<void*>& p_c,
                                                               std::vector<DPtrsGlobal>& p_ds,
-                                                              std::vector<GemmShape> gemm_shapes,
+                                                              std::vector<GemmDesc> gemm_shapes,
                                                               AElementwiseOperation a_element_op,
                                                               BElementwiseOperation b_element_op,
                                                               CElementwiseOperation c_element_op,

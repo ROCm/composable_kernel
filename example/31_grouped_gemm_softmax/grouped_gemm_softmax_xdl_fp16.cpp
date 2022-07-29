@@ -52,9 +52,6 @@ static constexpr auto DGlobalMemOp = ck::InMemoryDataOperationEnum::Set;
 static constexpr auto GemmSpecialization =
     ck::tensor_operation::device::GemmSpecialization::Default;
 
-constexpr int Rank         = 2;
-// constexpr int NumReduceDim = 1;
-
 // clang-format off
 using DeviceGroupedGemmSoftmaxInstance = ck::tensor_operation::device::DeviceGroupedGemmSoftmax_Xdl_CShuffle
     <Row,                        // typename ALayout
@@ -148,7 +145,7 @@ int main(int argc, char* argv[])
     // int group_count = rand() % 16 + 1;
 
     // GEMM shape
-    std::vector<ck::tensor_operation::device::GemmShape> gemm_shapes;
+    std::vector<ck::tensor_operation::device::GemmDesc> gemm_shapes;
     std::vector<const void*> p_a, p_b;
     std::vector<void*> p_d;
 
@@ -203,22 +200,22 @@ int main(int argc, char* argv[])
     for(std::size_t i = 0; i < gemm_shapes.size(); i++)
     {
         a_tensors.push_back(Tensor<ADataType>(f_host_tensor_descriptor(
-            gemm_shapes[i].M, gemm_shapes[i].K, gemm_shapes[i].StrideA, ALayout{})));
+            gemm_shapes[i].M_, gemm_shapes[i].K_, gemm_shapes[i].stride_A_, ALayout{})));
         b_tensors.push_back(Tensor<BDataType>(f_host_tensor_descriptor(
-            gemm_shapes[i].K, gemm_shapes[i].N, gemm_shapes[i].StrideB, BLayout{})));
+            gemm_shapes[i].K_, gemm_shapes[i].N_, gemm_shapes[i].stride_B_, BLayout{})));
         c_host_tensors.push_back(Tensor<GemmAccDataType>(f_host_tensor_descriptor(
-            gemm_shapes[i].M, gemm_shapes[i].N, gemm_shapes[i].StrideC, CLayout{})));
+            gemm_shapes[i].M_, gemm_shapes[i].N_, gemm_shapes[i].stride_C_, CLayout{})));
         d_host_tensors.push_back(Tensor<DDataType>(f_host_tensor_descriptor(
-            gemm_shapes[i].M, gemm_shapes[i].N, gemm_shapes[i].StrideC, CLayout{})));
+            gemm_shapes[i].M_, gemm_shapes[i].N_, gemm_shapes[i].stride_C_, CLayout{})));
         d_device_tensors.push_back(Tensor<DDataType>(f_host_tensor_descriptor(
-            gemm_shapes[i].M, gemm_shapes[i].N, gemm_shapes[i].StrideC, CLayout{})));    
+            gemm_shapes[i].M_, gemm_shapes[i].N_, gemm_shapes[i].stride_C_, CLayout{})));    
 
         std::cout << "gemm[" << i << "] a_m_k: " << a_tensors[i].mDesc
                   << " b_k_n: " << b_tensors[i].mDesc << " c_m_n: " << c_host_tensors[i].mDesc
                   << " d_m_n: " << d_device_tensors[i].mDesc
                   << std::endl;
 
-        flop += std::size_t(2) * gemm_shapes[i].M * gemm_shapes[i].K * gemm_shapes[i].N;
+        flop += std::size_t(2) * gemm_shapes[i].M_ * gemm_shapes[i].K_ * gemm_shapes[i].N_;
         num_btype += sizeof(ADataType) * a_tensors[i].mDesc.GetElementSize() +
                      sizeof(BDataType) * b_tensors[i].mDesc.GetElementSize() +
                      sizeof(GemmAccDataType) * c_host_tensors[i].mDesc.GetElementSize() +
@@ -312,7 +309,7 @@ int main(int argc, char* argv[])
             ref_invoker.Run(ref_argument);
 
             ReferenceInstance ref;
-            auto ref_arg = ref.MakeArgument(c_host_tensors[i], d_host_tensors[i], alpha, beta, Rank, reduceDims);
+            auto ref_arg = ref.MakeArgument(c_host_tensors[i], d_host_tensors[i], alpha, beta, reduceDims);
             auto invoker = ref.MakeInvoker();
             invoker.Run(ref_arg);
 

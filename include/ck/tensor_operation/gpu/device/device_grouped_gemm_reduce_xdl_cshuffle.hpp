@@ -401,7 +401,7 @@ struct DeviceGroupedGemmReduce_Xdl_CShuffle : public GroupedDeviceGemmReduce<AEl
 
         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemm::DGridDescriptor_MBlock_MPerBlock d_grid_desc_mblock_mperblock_;
+        typename GridwiseGemm::ReduceGridDescriptor_MBlock_MPerBlock d_grid_desc_mblock_mperblock_;
         GroupedGemmBlock2CTileMap grouped_gemm_block_2_ctile_map_;
 
         const ADataType* a_ptr;
@@ -419,7 +419,7 @@ struct DeviceGroupedGemmReduce_Xdl_CShuffle : public GroupedDeviceGemmReduce<AEl
                  std::vector<const void*>& p_b,
                  std::vector<void*>& p_c,
                  std::vector<DPtrsGlobal>& p_ds,
-                 std::vector<GemmShape>& gemm_shapes,
+                 std::vector<GemmDesc>& gemm_shapes,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op,
@@ -449,13 +449,13 @@ struct DeviceGroupedGemmReduce_Xdl_CShuffle : public GroupedDeviceGemmReduce<AEl
 
             for(std::size_t i = 0; i < gemm_shapes.size(); i++)
             {
-                const index_t M = gemm_shapes[i].M;
-                const index_t N = gemm_shapes[i].N;
-                const index_t K = gemm_shapes[i].K;
+                const index_t M = gemm_shapes[i].M_;
+                const index_t N = gemm_shapes[i].N_;
+                const index_t K = gemm_shapes[i].K_;
 
-                const index_t StrideA = gemm_shapes[i].StrideA;
-                const index_t StrideB = gemm_shapes[i].StrideB;
-                const index_t StrideC = gemm_shapes[i].StrideC;
+                const index_t StrideA = gemm_shapes[i].stride_A_;
+                const index_t StrideB = gemm_shapes[i].stride_B_;
+                const index_t StrideC = gemm_shapes[i].stride_C_;
 
                 const auto a_grid_desc_ak0_m_ak1_ =
                     DeviceGroupedGemmReduce_Xdl_CShuffle::MakeAGridDescriptor_AK0_M_AK1(M, K, StrideA);
@@ -488,7 +488,7 @@ struct DeviceGroupedGemmReduce_Xdl_CShuffle : public GroupedDeviceGemmReduce<AEl
                             c_grid_desc_m_n_);
 
                     const auto d_grid_desc_mblock_mperblock_ =
-                        GridwiseGemm::MakeDGridDescriptor_MBlock_MPerBlock(d_grid_desc_m_);
+                        GridwiseGemm::MakeReduceGridDescriptor_MBlock_MPerBlock(d_grid_desc_m_);
 
                     gemm_desc_kernel_arg_.push_back(
                         GemmDescKernelArg{a_grid_desc_ak0_m_ak1_,
@@ -674,7 +674,7 @@ struct DeviceGroupedGemmReduce_Xdl_CShuffle : public GroupedDeviceGemmReduce<AEl
                              std::vector<const void*>& p_b,
                              std::vector<void*>& p_c,
                              std::vector<DPtrsGlobal>& p_ds,
-                             std::vector<GemmShape> gemm_shapes,
+                             std::vector<GemmDesc> gemm_shapes,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op,
@@ -691,7 +691,7 @@ struct DeviceGroupedGemmReduce_Xdl_CShuffle : public GroupedDeviceGemmReduce<AEl
                                                       std::vector<const void*>& p_b,
                                                       std::vector<void*>& p_c,
                                                       std::vector<DPtrsGlobal>& p_ds,
-                                                      std::vector<GemmShape> gemm_shapes,
+                                                      std::vector<GemmDesc> gemm_shapes,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op,

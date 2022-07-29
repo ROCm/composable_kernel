@@ -394,7 +394,7 @@ struct DeviceGroupedGemmSoftmax_Xdl_CShuffle : public GroupedDeviceGemmSoftmax<A
         Argument(std::vector<const void*>& p_a,
                  std::vector<const void*>& p_b,
                  std::vector<void*>& p_d,
-                 std::vector<GemmShape>& gemm_shapes,
+                 std::vector<GemmDesc>& gemm_shapes,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  DElementwiseOperation d_element_op,
@@ -405,7 +405,7 @@ struct DeviceGroupedGemmSoftmax_Xdl_CShuffle : public GroupedDeviceGemmSoftmax<A
               alpha_{alpha}
         {
             grid_size_ = 0;
-            reduce_total_length_ = gemm_shapes[0].N;
+            reduce_total_length_ = gemm_shapes[0].N_;
 
             gemm_descs_args_workspace_ = nullptr;
 
@@ -422,16 +422,16 @@ struct DeviceGroupedGemmSoftmax_Xdl_CShuffle : public GroupedDeviceGemmSoftmax<A
 
             for(std::size_t i = 0; i < gemm_shapes.size(); i++)
             {
-                const index_t M = gemm_shapes[i].M;
-                const index_t N = gemm_shapes[i].N;
-                const index_t K = gemm_shapes[i].K;
+                const index_t M = gemm_shapes[i].M_;
+                const index_t N = gemm_shapes[i].N_;
+                const index_t K = gemm_shapes[i].K_;
 
                 // static_assert(N == reduce_total_length_, "Invalid Gemm Shape!");
                 // static_assert(N == NPerBlockNumber, "Invalid NPerBlock Number!");
 
-                const index_t StrideA = gemm_shapes[i].StrideA;
-                const index_t StrideB = gemm_shapes[i].StrideB;
-                const index_t StrideC = gemm_shapes[i].StrideC;
+                const index_t StrideA = gemm_shapes[i].stride_A_;
+                const index_t StrideB = gemm_shapes[i].stride_B_;
+                const index_t StrideC = gemm_shapes[i].stride_C_;
 
                 const auto a_grid_desc_ak0_m_ak1_ =
                     DeviceGroupedGemmSoftmax_Xdl_CShuffle::MakeAGridDescriptor_AK0_M_AK1(M, K, StrideA);
@@ -628,7 +628,7 @@ struct DeviceGroupedGemmSoftmax_Xdl_CShuffle : public GroupedDeviceGemmSoftmax<A
     static auto MakeArgument(std::vector<const void*>& p_a,
                              std::vector<const void*>& p_b,
                              std::vector<void*>& p_d,
-                             std::vector<GemmShape> gemm_shapes,
+                             std::vector<GemmDesc> gemm_shapes,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              DElementwiseOperation d_element_op,
@@ -643,7 +643,7 @@ struct DeviceGroupedGemmSoftmax_Xdl_CShuffle : public GroupedDeviceGemmSoftmax<A
     std::unique_ptr<BaseArgument> MakeArgumentPointer(std::vector<const void*>& p_a,
                                                       std::vector<const void*>& p_b,
                                                       std::vector<void*>& p_d,
-                                                      std::vector<GemmShape> gemm_shapes,
+                                                      std::vector<GemmDesc> gemm_shapes,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
                                                       DElementwiseOperation d_element_op,
