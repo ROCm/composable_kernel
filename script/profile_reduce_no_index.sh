@@ -16,10 +16,10 @@ elif [ -n $PRECISION ] && [ "$PRECISION" = "--int8" ]; then
 fi
 
 #### 0 - ADD,  5 - AVG,  7 - NORM2
-Operations="0 5 7"
+Operations="0 5"
 
 #### 0 - ADD,  5 - AVG,    for int8, no NORM2 supported
-if [ -n $PRECISION ] && [ "$PRECISION" = "--int8" ]; then
+if [ -n $PRECISION ] && [ "$PRECISION" = "--int8" -o "$PRECISION" = "--half" ]; then
    Operations=5
 fi
 
