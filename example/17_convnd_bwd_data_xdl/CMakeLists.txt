@@ -1,2 +1,0 @@
-add_example_executable(example_convnd_bwd_data_xdl convnd_bwd_data_xdl.cpp)
-target_link_libraries(example_convnd_bwd_data_xdl PRIVATE conv_util)

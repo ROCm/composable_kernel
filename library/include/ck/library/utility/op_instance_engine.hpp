@@ -16,8 +16,8 @@
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
 
 namespace ck {
 namespace utils {
@@ -103,8 +103,8 @@ class OpInstanceRunEngine
             }
         }
         AllocateDeviceInputTensors(std::make_index_sequence<kNInArgs_>{});
-        out_device_buffer_ =
-            std::make_unique<DeviceMem>(sizeof(OutDataType) * out_tensor_->mDesc.GetElementSpace());
+        out_device_buffer_ = std::make_unique<DeviceMem>(sizeof(OutDataType) *
+                                                         out_tensor_->mDesc.GetElementSpaceSize());
         out_device_buffer_->SetZero();
     }
 
@@ -222,7 +222,7 @@ class OpInstanceRunEngine
         in_device_buffers_
             .emplace_back(
                 std::make_unique<DeviceMem>(sizeof(std::tuple_element_t<Index, InArgsTypesTuple>) *
-                                            ts->mDesc.GetElementSpace()))
+                                            ts->mDesc.GetElementSpaceSize()))
             ->ToDevice(ts->mData.data());
     }
 

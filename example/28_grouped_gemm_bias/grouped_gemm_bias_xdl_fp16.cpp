@@ -13,9 +13,9 @@
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 template <ck::index_t... Is>
@@ -34,13 +34,15 @@ using ADataType        = F16;
 using BDataType        = F16;
 using AccDataType      = F32;
 using CShuffleDataType = F16;
-using D0DataType       = F16;
-using DsDataType       = ck::Tuple<D0DataType>;
+using DDataType        = F16;
+using DsDataType       = ck::Tuple<DDataType>;
 using EDataType        = F16;
 
-using ALayout = Row;
-using BLayout = Col;
-using ELayout = Row;
+using ALayout  = Row;
+using BLayout  = Col;
+using DLayout  = Row;
+using DsLayout = ck::Tuple<DLayout>;
+using ELayout  = Row;
 
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
@@ -48,13 +50,13 @@ using CDEElementOp = Add;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemmXdl
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemm_Xdl
     // clang-format off
-//######| ALayout| BLayout| ELayout|     AData|     BData|     AccData|         CShuffle|     DsData|     EData|           A|           B|          CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
-//######|        |        |        |      Type|      Type|        Type|         DataType|       Type|      Type| Elementwise| Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
-//######|        |        |        |          |          |            |                 |           |          |   Operation|   Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-//######|        |        |        |          |          |            |                 |           |          |            |            |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
-        < ALayout, BLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8>;
+//######| ALayout| BLayout| DsLayout| ELayout|     AData|     BData|     AccData|         CShuffle|     DsData|     EData|           A|           B|          CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
+//######|        |        |         |        |      Type|      Type|        Type|         DataType|       Type|      Type| Elementwise| Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
+//######|        |        |         |        |          |          |            |                 |           |          |   Operation|   Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
+//######|        |        |         |        |          |          |            |                 |           |          |            |            |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
+        < ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8>;
 // clang-format on
 
 int main(int argc, char* argv[])
@@ -118,24 +120,24 @@ int main(int argc, char* argv[])
 
     std::vector<Tensor<ADataType>> a_tensors;
     std::vector<Tensor<BDataType>> b_tensors;
-    std::vector<Tensor<D0DataType>> d0_tensors;
+    std::vector<Tensor<DDataType>> d_tensors;
     std::vector<Tensor<EDataType>> e_host_tensors;
     std::vector<Tensor<EDataType>> e_device_tensors;
 
     a_tensors.reserve(group_count);
     b_tensors.reserve(group_count);
-    d0_tensors.reserve(group_count);
+    d_tensors.reserve(group_count);
     e_host_tensors.reserve(group_count);
     e_device_tensors.reserve(group_count);
 
     using DeviceMemPtr = std::unique_ptr<DeviceMem>;
 
-    std::vector<DeviceMemPtr> a_tensors_device, b_tensors_device, d0_tensors_device,
+    std::vector<DeviceMemPtr> a_tensors_device, b_tensors_device, d_tensors_device,
         e_tensors_device;
 
     a_tensors_device.reserve(group_count);
     b_tensors_device.reserve(group_count);
-    d0_tensors_device.reserve(group_count);
+    d_tensors_device.reserve(group_count);
     e_tensors_device.reserve(group_count);
 
     std::size_t flop = 0, num_btype = 0;
@@ -146,7 +148,7 @@ int main(int argc, char* argv[])
             gemm_descs[i].M_, gemm_descs[i].K_, gemm_descs[i].stride_A_, ALayout{})));
         b_tensors.push_back(Tensor<BDataType>(f_host_tensor_descriptor(
             gemm_descs[i].K_, gemm_descs[i].N_, gemm_descs[i].stride_B_, BLayout{})));
-        d0_tensors.push_back(Tensor<D0DataType>(f_host_tensor_descriptor(
+        d_tensors.push_back(Tensor<DDataType>(f_host_tensor_descriptor(
             gemm_descs[i].M_, gemm_descs[i].N_, gemm_descs[i].stride_Ds_[0], ELayout{})));
         e_host_tensors.push_back(Tensor<EDataType>(f_host_tensor_descriptor(
             gemm_descs[i].M_, gemm_descs[i].N_, gemm_descs[i].stride_C_, ELayout{})));
@@ -168,38 +170,38 @@ int main(int argc, char* argv[])
         case 1:
             a_tensors[i].GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
             b_tensors[i].GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
-            d0_tensors[i].GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+            d_tensors[i].GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
             break;
         case 2:
             a_tensors[i].GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
             b_tensors[i].GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
-            d0_tensors[i].GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+            d_tensors[i].GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
             break;
         default:
             a_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<0>{});
             b_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<1>{});
-            d0_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<0>{});
+            d_tensors[i].GenerateTensorValue(GeneratorTensor_Sequential<0>{});
         }
     }
 
     for(std::size_t i = 0; i < gemm_descs.size(); i++)
     {
-        a_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(ADataType) * a_tensors[i].mDesc.GetElementSpace()));
-        b_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(BDataType) * b_tensors[i].mDesc.GetElementSpace()));
-        d0_tensors_device.emplace_back(std::make_unique<DeviceMem>(
-            sizeof(D0DataType) * d0_tensors[i].mDesc.GetElementSpace()));
+        a_tensors_device.emplace_back(std::make_unique<DeviceMem>(
+            sizeof(ADataType) * a_tensors[i].mDesc.GetElementSpaceSize()));
+        b_tensors_device.emplace_back(std::make_unique<DeviceMem>(
+            sizeof(BDataType) * b_tensors[i].mDesc.GetElementSpaceSize()));
+        d_tensors_device.emplace_back(std::make_unique<DeviceMem>(
+            sizeof(DDataType) * d_tensors[i].mDesc.GetElementSpaceSize()));
         e_tensors_device.emplace_back(std::make_unique<DeviceMem>(
-            sizeof(EDataType) * e_device_tensors[i].mDesc.GetElementSpace()));
+            sizeof(EDataType) * e_device_tensors[i].mDesc.GetElementSpaceSize()));
 
         a_tensors_device[i]->ToDevice(a_tensors[i].mData.data());
         b_tensors_device[i]->ToDevice(b_tensors[i].mData.data());
-        d0_tensors_device[i]->ToDevice(d0_tensors[i].mData.data());
+        d_tensors_device[i]->ToDevice(d_tensors[i].mData.data());
 
         p_a.push_back(a_tensors_device[i]->GetDeviceBuffer());
         p_b.push_back(b_tensors_device[i]->GetDeviceBuffer());
-        p_ds.push_back({d0_tensors_device[i]->GetDeviceBuffer()});
+        p_ds.push_back({d_tensors_device[i]->GetDeviceBuffer()});
         p_c.push_back(e_tensors_device[i]->GetDeviceBuffer());
     }
 
@@ -266,7 +268,7 @@ int main(int argc, char* argv[])
                 for(int n = 0; n < gemm_descs[i].N_; ++n)
                 {
                     cde_element_op(
-                        e_host_tensors[i](m, n), e_host_tensors[i](m, n), d0_tensors[i](m, n));
+                        e_host_tensors[i](m, n), e_host_tensors[i](m, n), d_tensors[i](m, n));
                 }
             }
 

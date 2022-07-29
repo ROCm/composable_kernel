@@ -1,9 +1,9 @@
 # device_gemm_bilinear_instance
 set(DEVICE_GEMM_BILINEAR_INSTANCE_SOURCE
-   device_gemm_bilinear_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instance.cpp;
-   device_gemm_bilinear_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instance.cpp;
-   device_gemm_bilinear_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instance.cpp;
-   device_gemm_bilinear_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instance.cpp;
+   device_gemm_bilinear_xdl_c_shuffle_f16_f16_f16_f16_km_kn_mn_mn_instance.cpp;
+   device_gemm_bilinear_xdl_c_shuffle_f16_f16_f16_f16_km_nk_mn_mn_instance.cpp;
+   device_gemm_bilinear_xdl_c_shuffle_f16_f16_f16_f16_mk_kn_mn_mn_instance.cpp;
+   device_gemm_bilinear_xdl_c_shuffle_f16_f16_f16_f16_mk_nk_mn_mn_instance.cpp;
 )
 
 add_library(device_gemm_bilinear_instance OBJECT ${DEVICE_GEMM_BILINEAR_INSTANCE_SOURCE})
