@@ -82,7 +82,7 @@ TEST_F(TestConvndBwdWeight, Conv2dBwdWeight)
 {
     conv_params.clear();
     conv_params.push_back({2, 1, 128, 128, 256, {1, 1}, {7, 7}, {2, 2}, {1, 1}, {0, 0}, {0, 0}});
-    conv_params.push_back({2, 1, 128, 128, 256, {3, 3}, {14, 14}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
+    conv_params.push_back({2, 1, 32, 128, 256, {3, 3}, {14, 14}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     conv_params.push_back({2, 1, 128, 128, 256, {1, 1}, {3, 3}, {1, 1}, {1, 1}, {0, 0}, {0, 0}});
 
     for(auto& param : conv_params)
@@ -140,13 +140,13 @@ TEST_F(TestConvndBwdWeight, Conv2dBwdWeight)
 }
 
 // 3d
-TEST_F(TestConvndBwdWeight, Conv3dFwd)
+TEST_F(TestConvndBwdWeight, Conv3dBwdWeight)
 {
     conv_params.clear();
     conv_params.push_back(
         {3, 1, 128, 128, 256, {1, 1, 1}, {7, 7, 7}, {2, 2, 2}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
     conv_params.push_back(
-        {3, 1, 128, 128, 256, {3, 3, 3}, {14, 14, 3}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 1, 32, 128, 256, {3, 3, 3}, {14, 14, 3}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     conv_params.push_back(
         {3, 1, 128, 128, 256, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
 
