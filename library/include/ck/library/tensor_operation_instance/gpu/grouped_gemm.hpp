@@ -16,15 +16,14 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using DsType = Tuple<>;
-
 void add_device_grouped_gemm_xdl_f16_f16_f16_mk_kn_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
                                                   Row,
+                                                  Empty_Tuple,
                                                   Row,
                                                   F16,
                                                   F16,
-                                                  DsType,
+                                                  Empty_Tuple,
                                                   F16,
                                                   PassThrough,
                                                   PassThrough,
@@ -33,10 +32,11 @@ void add_device_grouped_gemm_xdl_f16_f16_f16_mk_kn_mn_instances(
 void add_device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
                                                   Col,
+                                                  Empty_Tuple,
                                                   Row,
                                                   F16,
                                                   F16,
-                                                  DsType,
+                                                  Empty_Tuple,
                                                   F16,
                                                   PassThrough,
                                                   PassThrough,
@@ -45,10 +45,11 @@ void add_device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(
 void add_device_grouped_gemm_xdl_f16_f16_f16_km_kn_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemm<Col,
                                                   Row,
+                                                  Empty_Tuple,
                                                   Row,
                                                   F16,
                                                   F16,
-                                                  DsType,
+                                                  Empty_Tuple,
                                                   F16,
                                                   PassThrough,
                                                   PassThrough,
@@ -57,10 +58,11 @@ void add_device_grouped_gemm_xdl_f16_f16_f16_km_kn_mn_instances(
 void add_device_grouped_gemm_xdl_f16_f16_f16_km_nk_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemm<Col,
                                                   Col,
+                                                  Empty_Tuple,
                                                   Row,
                                                   F16,
                                                   F16,
-                                                  DsType,
+                                                  Empty_Tuple,
                                                   F16,
                                                   PassThrough,
                                                   PassThrough,
@@ -68,18 +70,18 @@ void add_device_grouped_gemm_xdl_f16_f16_f16_km_nk_mn_instances(
 
 template <typename ALayout,
           typename BLayout,
-          typename CLayout,
+          typename ELayout,
           typename ADataType,
           typename BDataType,
-          typename DsDataType,
           typename EDataType>
 struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupedGemm<
     ALayout,
     BLayout,
-    CLayout,
+    Empty_Tuple,
+    ELayout,
     ADataType,
     BDataType,
-    DsDataType,
+    Empty_Tuple,
     EDataType,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
@@ -87,10 +89,11 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 {
     using DeviceOp = DeviceGroupedGemm<ALayout,
                                        BLayout,
-                                       CLayout,
+                                       Empty_Tuple,
+                                       ELayout,
                                        ADataType,
                                        BDataType,
-                                       DsDataType,
+                                       Empty_Tuple,
                                        EDataType,
                                        ck::tensor_operation::element_wise::PassThrough,
                                        ck::tensor_operation::element_wise::PassThrough,
@@ -104,22 +107,22 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                      is_same_v<EDataType, half_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
-                         is_same_v<CLayout, Row>)
+                         is_same_v<ELayout, Row>)
             {
                 add_device_grouped_gemm_xdl_f16_f16_f16_mk_kn_mn_instances(op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
-                              is_same_v<CLayout, Row>)
+                              is_same_v<ELayout, Row>)
             {
                 add_device_grouped_gemm_xdl_f16_f16_f16_mk_nk_mn_instances(op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
-                              is_same_v<CLayout, Row>)
+                              is_same_v<ELayout, Row>)
             {
                 add_device_grouped_gemm_xdl_f16_f16_f16_km_kn_mn_instances(op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
-                              is_same_v<CLayout, Row>)
+                              is_same_v<ELayout, Row>)
             {
                 add_device_grouped_gemm_xdl_f16_f16_f16_km_nk_mn_instances(op_ptrs);
             }

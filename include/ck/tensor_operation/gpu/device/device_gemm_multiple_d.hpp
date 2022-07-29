@@ -21,7 +21,8 @@ namespace device {
 //   D0, D1, ... and E have the same layout
 template <typename ALayout,
           typename BLayout,
-          typename DELayout,
+          typename DsLayout,
+          typename ELayout,
           typename ADataType,
           typename BDataType,
           typename DsDataType,
@@ -51,27 +52,6 @@ struct DeviceGemmMultipleD : public BaseOperator
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
-
-template <typename ALayout,
-          typename BLayout,
-          typename DELayout,
-          typename ADataType,
-          typename BDataType,
-          typename DsDataType,
-          typename EDataType,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CDEElementwiseOperation>
-using DeviceGemmMultipleDPtr = std::unique_ptr<DeviceGemmMultipleD<ALayout,
-                                                                   BLayout,
-                                                                   DELayout,
-                                                                   ADataType,
-                                                                   BDataType,
-                                                                   DsDataType,
-                                                                   EDataType,
-                                                                   AElementwiseOperation,
-                                                                   BElementwiseOperation,
-                                                                   CDEElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation

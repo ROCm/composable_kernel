@@ -13,8 +13,8 @@
 #include "ck/tensor_operation/gpu/device/device_conv_bwd_data.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r3.hpp"
-#include "ck/device_utility/device_prop.hpp"
-#include "ck/device_utility/kernel_launch.hpp"
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -55,7 +55,14 @@ template <typename InDataType,
           ck::index_t CThreadTransferSrcDstVectorDim,
           ck::index_t CThreadTransferDstScalarPerVector>
 struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
-    : public DeviceConvBwdData<InElementwiseOperation,
+    : public DeviceConvBwdData<2,
+                               ck::tensor_layout::convolution::NHWC,
+                               ck::tensor_layout::convolution::KYXC,
+                               ck::tensor_layout::convolution::NHWK,
+                               InDataType,
+                               WeiDataType,
+                               OutDataType,
+                               InElementwiseOperation,
                                WeiElementwiseOperation,
                                OutElementwiseOperation>
 {

@@ -146,7 +146,7 @@
 
 // workaround: verifaction failure, due to compiler regression, for conv bwd-data fp16 using some
 // tuning parameter
-#define CK_WORKAROUND_SWDEV_325164 1
+#define CK_WORKAROUND_SWDEV_325164 0
 
 namespace ck {
 

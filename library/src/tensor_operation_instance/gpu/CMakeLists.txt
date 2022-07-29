@@ -16,15 +16,18 @@ add_subdirectory(batched_gemm_reduce)
 add_subdirectory(grouped_gemm)
 add_subdirectory(contraction_scale)
 add_subdirectory(contraction_bilinear)
-add_subdirectory(conv1d_fwd)
+add_subdirectory(grouped_conv1d_fwd)
+add_subdirectory(grouped_conv2d_fwd)
+add_subdirectory(grouped_conv3d_fwd)
 add_subdirectory(conv2d_fwd)
-add_subdirectory(conv3d_fwd)
+add_subdirectory(conv1d_bwd_data)
+add_subdirectory(conv2d_bwd_data)
+add_subdirectory(conv3d_bwd_data)
+add_subdirectory(conv1d_bwd_weight)
+add_subdirectory(conv2d_bwd_weight)
+add_subdirectory(conv3d_bwd_weight)
 add_subdirectory(conv2d_fwd_bias_relu)
 add_subdirectory(conv2d_fwd_bias_relu_add)
-add_subdirectory(conv2d_bwd_data)
-add_subdirectory(convnd_bwd_data)
-add_subdirectory(conv2d_bwd_weight)
-add_subdirectory(convnd_bwd_weight)
 add_subdirectory(reduce)
 add_subdirectory(normalization)
 add_subdirectory(elementwise)
@@ -40,15 +43,17 @@ add_library(device_operations STATIC
     $<TARGET_OBJECTS:device_grouped_gemm_instance>
     $<TARGET_OBJECTS:device_contraction_scale_instance>
     $<TARGET_OBJECTS:device_contraction_bilinear_instance>
-    $<TARGET_OBJECTS:device_conv1d_fwd_instance>
-    $<TARGET_OBJECTS:device_conv2d_fwd_instance>
-    $<TARGET_OBJECTS:device_conv3d_fwd_instance>
+    $<TARGET_OBJECTS:device_grouped_conv1d_fwd_instance>
+    $<TARGET_OBJECTS:device_grouped_conv2d_fwd_instance>
+    $<TARGET_OBJECTS:device_grouped_conv3d_fwd_instance>
+    $<TARGET_OBJECTS:device_conv1d_bwd_data_instance>
+    $<TARGET_OBJECTS:device_conv2d_bwd_data_instance>
+    $<TARGET_OBJECTS:device_conv3d_bwd_data_instance>
+    $<TARGET_OBJECTS:device_conv1d_bwd_weight_instance>
+    $<TARGET_OBJECTS:device_conv2d_bwd_weight_instance>
+    $<TARGET_OBJECTS:device_conv3d_bwd_weight_instance>
     $<TARGET_OBJECTS:device_conv2d_fwd_bias_relu_instance>
     $<TARGET_OBJECTS:device_conv2d_fwd_bias_relu_add_instance>
-    $<TARGET_OBJECTS:device_conv2d_bwd_data_instance>
-    $<TARGET_OBJECTS:device_convnd_bwd_data_instance>
-    $<TARGET_OBJECTS:device_conv2d_bwd_weight_instance>
-    $<TARGET_OBJECTS:device_convnd_bwd_weight_instance>
     $<TARGET_OBJECTS:device_reduce_instance>
     $<TARGET_OBJECTS:device_normalization_instance>
     $<TARGET_OBJECTS:device_elementwise_instance>
@@ -75,7 +80,7 @@ target_include_directories(device_operations PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/warp>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/thread>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/tensor_operation/gpu/element>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/host_tensor>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/utility>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/reduce>

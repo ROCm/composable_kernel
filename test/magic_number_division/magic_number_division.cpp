@@ -9,9 +9,9 @@
 #include "ck/ck.hpp"
 #include "ck/utility/magic_division.hpp"
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
 
 __global__ void gpu_magic_number_division(uint32_t magic_multiplier,
                                           uint32_t magic_shift,

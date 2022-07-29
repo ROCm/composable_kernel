@@ -12,8 +12,8 @@
 #include "ck/tensor_operation/gpu/device/device_layernorm.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/device_memory.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
 
 namespace ck {
@@ -102,10 +102,10 @@ class TestLayernorm : public ::testing::Test
         gamma.GenerateTensorValue(GeneratorTensor_3<GammaDataType>{0.0, 1.0});
         beta.GenerateTensorValue(GeneratorTensor_3<BetaDataType>{0.0, 1.0});
 
-        DeviceMem x_dev(sizeof(XDataType) * x.mDesc.GetElementSpace());
-        DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpace());
-        DeviceMem beta_dev(sizeof(BetaDataType) * beta.mDesc.GetElementSpace());
-        DeviceMem y_dev(sizeof(YDataType) * y.mDesc.GetElementSpace());
+        DeviceMem x_dev(sizeof(XDataType) * x.mDesc.GetElementSpaceSize());
+        DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpaceSize());
+        DeviceMem beta_dev(sizeof(BetaDataType) * beta.mDesc.GetElementSpaceSize());
+        DeviceMem y_dev(sizeof(YDataType) * y.mDesc.GetElementSpaceSize());
 
         x_dev.ToDevice(x.mData.data());
         gamma_dev.ToDevice(gamma.mData.data());

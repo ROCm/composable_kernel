@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#ifndef CONVOLUTION_FORWARD_SPECIALIZATION
-#define CONVOLUTION_FORWARD_SPECIALIZATION
+#pragma once
 
 #include <string>
 
@@ -33,4 +32,3 @@ inline std::string getConvForwardSpecializationString(const ConvolutionForwardSp
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
-#endif

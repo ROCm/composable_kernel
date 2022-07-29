@@ -9,9 +9,9 @@
 #include "ck/tensor_operation/gpu/device/device_binary_elementwise.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -74,9 +74,9 @@ int main()
     a.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
     b.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
 
-    DeviceMem a_device_buf(sizeof(ABDataType) * a.mDesc.GetElementSpace());
-    DeviceMem b_device_buf(sizeof(ABDataType) * b.mDesc.GetElementSpace());
-    DeviceMem c_device_buf(sizeof(CDataType) * c.mDesc.GetElementSpace());
+    DeviceMem a_device_buf(sizeof(ABDataType) * a.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(ABDataType) * b.mDesc.GetElementSpaceSize());
+    DeviceMem c_device_buf(sizeof(CDataType) * c.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a.mData.data());
     b_device_buf.ToDevice(b.mData.data());

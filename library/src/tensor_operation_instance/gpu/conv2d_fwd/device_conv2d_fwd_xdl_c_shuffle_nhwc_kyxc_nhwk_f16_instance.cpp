@@ -20,6 +20,10 @@ using F32 = float;
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
+using NHWC = ck::tensor_layout::convolution::NHWC;
+using KYXC = ck::tensor_layout::convolution::KYXC;
+using NHWK = ck::tensor_layout::convolution::NHWK;
+
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr auto ConvFwdDefault =
@@ -131,7 +135,9 @@ using device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_odd_c_f16_instances = std::
     >;
 
 void add_device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances(
-    std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>>& instances)
+    std::vector<std::unique_ptr<
+        DeviceConvFwd<2, NHWC, KYXC, NHWK, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
+        instances)
 {
     add_device_operation_instances(instances,
                                    device_conv2d_fwd_xdl_c_shuffle_nhwc_kyxc_nhwk_f16_instances{});
