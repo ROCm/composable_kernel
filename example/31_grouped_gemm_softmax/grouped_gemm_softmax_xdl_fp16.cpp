@@ -44,9 +44,9 @@ using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
 using CLayout = ck::tensor_layout::gemm::RowMajor;
 
-using AElementOp  = ck::tensor_operation::element_wise::PassThrough;
-using BElementOp  = ck::tensor_operation::element_wise::PassThrough;
-using DElementOp  = ck::tensor_operation::element_wise::PassThrough;
+using AElementOp                   = ck::tensor_operation::element_wise::PassThrough;
+using BElementOp                   = ck::tensor_operation::element_wise::PassThrough;
+using DElementOp                   = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto DGlobalMemOp = ck::InMemoryDataOperationEnum::Set;
 
 static constexpr auto GemmSpecialization =
@@ -101,11 +101,16 @@ using DeviceGroupedGemmSoftmaxInstance = ck::tensor_operation::device::DeviceGro
      16,                         // index_t NThreadSliceSize
      1,                          // index_t InSrcVectorDim
      8,                          // index_t InSrcVectorSize
-     8>;                         // index_t OutDstVectorSize                          
+     8>;                         // index_t OutDstVectorSize
 // clang-format on
 
-using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, GemmAccDataType, GemmAccDataType, AElementOp, BElementOp, DElementOp>;
+using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                        BDataType,
+                                                                        GemmAccDataType,
+                                                                        GemmAccDataType,
+                                                                        AElementOp,
+                                                                        BElementOp,
+                                                                        DElementOp>;
 
 using ReferenceInstance =
     ck::tensor_operation::host::ReferenceSoftmax<CShuffleDataType, DDataType, ReduceAccDataType>;
@@ -119,7 +124,7 @@ int main(int argc, char* argv[])
     int group_count = rand() % 16 + 1;
 
     ReduceAccDataType alpha = 1.0;
-    ReduceAccDataType beta = 0.0;
+    ReduceAccDataType beta  = 0.0;
     const std::vector<int> reduceDims{1};
 
     if(argc == 1)
@@ -208,12 +213,11 @@ int main(int argc, char* argv[])
         d_host_tensors.push_back(Tensor<DDataType>(f_host_tensor_descriptor(
             gemm_shapes[i].M_, gemm_shapes[i].N_, gemm_shapes[i].stride_C_, CLayout{})));
         d_device_tensors.push_back(Tensor<DDataType>(f_host_tensor_descriptor(
-            gemm_shapes[i].M_, gemm_shapes[i].N_, gemm_shapes[i].stride_C_, CLayout{})));    
+            gemm_shapes[i].M_, gemm_shapes[i].N_, gemm_shapes[i].stride_C_, CLayout{})));
 
         std::cout << "gemm[" << i << "] a_m_k: " << a_tensors[i].mDesc
                   << " b_k_n: " << b_tensors[i].mDesc << " c_m_n: " << c_host_tensors[i].mDesc
-                  << " d_m_n: " << d_device_tensors[i].mDesc
-                  << std::endl;
+                  << " d_m_n: " << d_device_tensors[i].mDesc << std::endl;
 
         flop += std::size_t(2) * gemm_shapes[i].M_ * gemm_shapes[i].K_ * gemm_shapes[i].N_;
         num_btype += sizeof(ADataType) * a_tensors[i].mDesc.GetElementSize() +
@@ -264,8 +268,8 @@ int main(int argc, char* argv[])
     auto invoker = gemm.MakeInvoker();
 
     // do GEMM
-    auto argument =
-        gemm.MakeArgument(p_a, p_b, p_d, gemm_shapes, a_element_op, b_element_op, d_element_op, alpha);
+    auto argument = gemm.MakeArgument(
+        p_a, p_b, p_d, gemm_shapes, a_element_op, b_element_op, d_element_op, alpha);
 
     DeviceMem gemm_desc_workspace(gemm.GetWorkSpaceSize(&argument));
 
@@ -288,9 +292,9 @@ int main(int argc, char* argv[])
               << gemm.GetTypeString() << std::endl;
 
     bool pass = true;
-    
+
     int noo_zero_count_device = 0;
-    int noo_zero_count_host = 0;
+    int noo_zero_count_host   = 0;
     if(do_verification)
     {
         for(std::size_t i = 0; i < gemm_shapes.size(); i++)
@@ -309,7 +313,8 @@ int main(int argc, char* argv[])
             ref_invoker.Run(ref_argument);
 
             ReferenceInstance ref;
-            auto ref_arg = ref.MakeArgument(c_host_tensors[i], d_host_tensors[i], alpha, beta, reduceDims);
+            auto ref_arg =
+                ref.MakeArgument(c_host_tensors[i], d_host_tensors[i], alpha, beta, reduceDims);
             auto invoker = ref.MakeInvoker();
             invoker.Run(ref_arg);
 
@@ -318,20 +323,19 @@ int main(int argc, char* argv[])
             //                         "Error: Incorrect results! D",
             //                         1e-4,
             //                         1e-5);
-                                    
-            pass = ck::utils::check_err(d_device_tensors[i].mData,
-                                    d_host_tensors[i].mData,
-                                    "Error: Incorrect results! D");
+
+            pass = ck::utils::check_err(
+                d_device_tensors[i].mData, d_host_tensors[i].mData, "Error: Incorrect results! D");
         }
     }
 
     if(pass)
     {
-        std::cout << "Test Pass!!!!!!!!!!!!!!!!"  << std::endl;
+        std::cout << "Test Pass!!!!!!!!!!!!!!!!" << std::endl;
     }
     else
     {
-        std::cout << "Test Fail................"  << std::endl;
+        std::cout << "Test Fail................" << std::endl;
     }
 
     return pass ? 0 : 1;

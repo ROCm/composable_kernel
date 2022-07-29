@@ -35,13 +35,14 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_gemm_reduce_xdl_cshuffle_v1(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
-                                                   const index_t group_count,
-                                                   const AElementwiseOperation a_element_op,
-                                                   const BElementwiseOperation b_element_op,
-                                                   const CElementwiseOperation c_element_op,
-                                                   const DxsInElementwiseOperation dxs_in_element_op,
-                                                   const DxsAccElementwiseOperation dxs_out_element_op)
+        kernel_grouped_gemm_reduce_xdl_cshuffle_v1(
+            const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+            const index_t group_count,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const CElementwiseOperation c_element_op,
+            const DxsInElementwiseOperation dxs_in_element_op,
+            const DxsAccElementwiseOperation dxs_out_element_op)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -51,17 +52,22 @@ __global__ void
     const auto gemm_desc_ptr =
         reinterpret_cast<const GemmDesc*>(cast_pointer_to_generic_address_space(gemm_descs_const));
 
-    index_t left = 0;
-    index_t right = group_count;
-    index_t group_id = index_t((left + right)/2);
-    while((!(block_id >= gemm_desc_ptr[group_id].BlockStart_ && block_id < gemm_desc_ptr[group_id].BlockEnd_)) && left <= right ){
-        if(block_id < gemm_desc_ptr[group_id].BlockStart_){
+    index_t left     = 0;
+    index_t right    = group_count;
+    index_t group_id = index_t((left + right) / 2);
+    while((!(block_id >= gemm_desc_ptr[group_id].BlockStart_ &&
+             block_id < gemm_desc_ptr[group_id].BlockEnd_)) &&
+          left <= right)
+    {
+        if(block_id < gemm_desc_ptr[group_id].BlockStart_)
+        {
             right = group_id;
         }
-        else{
+        else
+        {
             left = group_id;
         }
-        group_id = index_t((left + right)/2);
+        group_id = index_t((left + right) / 2);
     }
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(
@@ -140,12 +146,13 @@ template <typename ALayout,
           index_t CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock,
           index_t CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
-struct DeviceGroupedGemmReduce_Xdl_CShuffle : public GroupedDeviceGemmReduce<AElementwiseOperation,
-                                                                             BElementwiseOperation,
-                                                                             CElementwiseOperation,
-                                                                             DPtrsGlobal,
-                                                                             DxsInElementwiseOperation,
-                                                                             DxsAccElementwiseOperation>
+struct DeviceGroupedGemmReduce_Xdl_CShuffle
+    : public GroupedDeviceGemmReduce<AElementwiseOperation,
+                                     BElementwiseOperation,
+                                     CElementwiseOperation,
+                                     DPtrsGlobal,
+                                     DxsInElementwiseOperation,
+                                     DxsAccElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -291,8 +298,8 @@ struct DeviceGroupedGemmReduce_Xdl_CShuffle : public GroupedDeviceGemmReduce<AEl
 
     using AGridDesc_AK0_M_AK1 = decltype(MakeAGridDescriptor_AK0_M_AK1(1, 1, 1));
     using BGridDesc_BK0_N_BK1 = decltype(MakeBGridDescriptor_BK0_N_BK1(1, 1, 1));
-    using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
-    using DGridDesc_M       = decltype(MakeDGridDescriptor_M(1));
+    using CGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
+    using DGridDesc_M         = decltype(MakeDGridDescriptor_M(1));
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1<
@@ -458,9 +465,11 @@ struct DeviceGroupedGemmReduce_Xdl_CShuffle : public GroupedDeviceGemmReduce<AEl
                 const index_t StrideC = gemm_shapes[i].stride_C_;
 
                 const auto a_grid_desc_ak0_m_ak1_ =
-                    DeviceGroupedGemmReduce_Xdl_CShuffle::MakeAGridDescriptor_AK0_M_AK1(M, K, StrideA);
+                    DeviceGroupedGemmReduce_Xdl_CShuffle::MakeAGridDescriptor_AK0_M_AK1(
+                        M, K, StrideA);
                 const auto b_grid_desc_bk0_n_bk1_ =
-                    DeviceGroupedGemmReduce_Xdl_CShuffle::MakeBGridDescriptor_BK0_N_BK1(K, N, StrideB);
+                    DeviceGroupedGemmReduce_Xdl_CShuffle::MakeBGridDescriptor_BK0_N_BK1(
+                        K, N, StrideB);
                 const auto c_grid_desc_m_n_ =
                     DeviceGroupedGemmReduce_Xdl_CShuffle::MakeCGridDescriptor_M_N(M, N, StrideC);
                 const auto d_grid_desc_m_ =
@@ -535,14 +544,20 @@ struct DeviceGroupedGemmReduce_Xdl_CShuffle : public GroupedDeviceGemmReduce<AEl
             for(std::size_t i = 0; i < arg.gemm_desc_kernel_arg_.size(); i++)
             {
                 std::cout << "group: " << i << " arg.a_grid_desc_ak0_m_ak1_{"
-                          << arg.gemm_desc_kernel_arg_[i].a_grid_desc_ak0_m_ak1_.GetLength(I0) << ", "
-                          << arg.gemm_desc_kernel_arg_[i].a_grid_desc_ak0_m_ak1_.GetLength(I1) << ", "
-                          << arg.gemm_desc_kernel_arg_[i].a_grid_desc_ak0_m_ak1_.GetLength(I2) << "}";
+                          << arg.gemm_desc_kernel_arg_[i].a_grid_desc_ak0_m_ak1_.GetLength(I0)
+                          << ", "
+                          << arg.gemm_desc_kernel_arg_[i].a_grid_desc_ak0_m_ak1_.GetLength(I1)
+                          << ", "
+                          << arg.gemm_desc_kernel_arg_[i].a_grid_desc_ak0_m_ak1_.GetLength(I2)
+                          << "}";
 
                 std::cout << ", arg.b_grid_desc_bk0_n_bk1_{"
-                          << arg.gemm_desc_kernel_arg_[i].b_grid_desc_bk0_n_bk1_.GetLength(I0) << ", "
-                          << arg.gemm_desc_kernel_arg_[i].b_grid_desc_bk0_n_bk1_.GetLength(I1) << ", "
-                          << arg.gemm_desc_kernel_arg_[i].b_grid_desc_bk0_n_bk1_.GetLength(I2) << "}";
+                          << arg.gemm_desc_kernel_arg_[i].b_grid_desc_bk0_n_bk1_.GetLength(I0)
+                          << ", "
+                          << arg.gemm_desc_kernel_arg_[i].b_grid_desc_bk0_n_bk1_.GetLength(I1)
+                          << ", "
+                          << arg.gemm_desc_kernel_arg_[i].b_grid_desc_bk0_n_bk1_.GetLength(I2)
+                          << "}";
 
                 std::cout << ", arg.c_grid_desc_m_n_{ "
                           << arg.gemm_desc_kernel_arg_[i].c_grid_desc_m_n_.GetLength(I0) << ", "
@@ -560,7 +575,8 @@ struct DeviceGroupedGemmReduce_Xdl_CShuffle : public GroupedDeviceGemmReduce<AEl
                        arg.gemm_desc_kernel_arg_[i].grouped_gemm_block_2_ctile_map_))
                 {
                     throw std::runtime_error(
-                        "wrong! GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1 has invalid setting");
+                        "wrong! GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1 has invalid "
+                        "setting");
                 }
 
                 const auto K = arg.gemm_desc_kernel_arg_[i].a_grid_desc_ak0_m_ak1_.GetLength(I0) *
@@ -584,7 +600,8 @@ struct DeviceGroupedGemmReduce_Xdl_CShuffle : public GroupedDeviceGemmReduce<AEl
             {
                 const auto kernel =
                     kernel_grouped_gemm_reduce_xdl_cshuffle_v1<GridwiseGemm,
-                                                               ADataType, // TODO: distiguish A/B datatype
+                                                               ADataType, // TODO: distiguish A/B
+                                                                          // datatype
                                                                CDataType,
                                                                DPtrsGlobal,
                                                                GemmDescKernelArg,
@@ -613,7 +630,8 @@ struct DeviceGroupedGemmReduce_Xdl_CShuffle : public GroupedDeviceGemmReduce<AEl
             {
                 const auto kernel =
                     kernel_grouped_gemm_reduce_xdl_cshuffle_v1<GridwiseGemm,
-                                                               ADataType, // TODO: distiguish A/B datatype
+                                                               ADataType, // TODO: distiguish A/B
+                                                                          // datatype
                                                                CDataType,
                                                                DPtrsGlobal,
                                                                GemmDescKernelArg,
@@ -681,25 +699,43 @@ struct DeviceGroupedGemmReduce_Xdl_CShuffle : public GroupedDeviceGemmReduce<AEl
                              DxsInElementwiseOperation dxs_in_element_op,
                              DxsAccElementwiseOperation dxs_out_element_op)
     {
-        return Argument{p_a, p_b, p_c, p_ds, gemm_shapes, a_element_op, b_element_op, c_element_op, dxs_in_element_op, dxs_out_element_op};
+        return Argument{p_a,
+                        p_b,
+                        p_c,
+                        p_ds,
+                        gemm_shapes,
+                        a_element_op,
+                        b_element_op,
+                        c_element_op,
+                        dxs_in_element_op,
+                        dxs_out_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
 
     // polymorphic
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(std::vector<const void*>& p_a,
-                                                      std::vector<const void*>& p_b,
-                                                      std::vector<void*>& p_c,
-                                                      std::vector<DPtrsGlobal>& p_ds,
-                                                      std::vector<GemmDesc> gemm_shapes,
-                                                      AElementwiseOperation a_element_op,
-                                                      BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op,
-                                                      DxsInElementwiseOperation dxs_in_element_op,
-                                                      DxsAccElementwiseOperation dxs_out_element_op) override
+    std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(std::vector<const void*>& p_a,
+                        std::vector<const void*>& p_b,
+                        std::vector<void*>& p_c,
+                        std::vector<DPtrsGlobal>& p_ds,
+                        std::vector<GemmDesc> gemm_shapes,
+                        AElementwiseOperation a_element_op,
+                        BElementwiseOperation b_element_op,
+                        CElementwiseOperation c_element_op,
+                        DxsInElementwiseOperation dxs_in_element_op,
+                        DxsAccElementwiseOperation dxs_out_element_op) override
     {
-        return std::make_unique<Argument>(
-            p_a, p_b, p_c, p_ds, gemm_shapes, a_element_op, b_element_op, c_element_op, dxs_in_element_op, dxs_out_element_op);
+        return std::make_unique<Argument>(p_a,
+                                          p_b,
+                                          p_c,
+                                          p_ds,
+                                          gemm_shapes,
+                                          a_element_op,
+                                          b_element_op,
+                                          c_element_op,
+                                          dxs_in_element_op,
+                                          dxs_out_element_op);
     }
 
     // polymorphic

@@ -40,19 +40,18 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_softmax_xdl_cshuffle_v1(
-            const FloatAB* __restrict__ p_a_grid,
-            const FloatAB* __restrict__ p_b_grid,
-            FloatD* __restrict__ p_d_grid,
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const DElementwiseOperation d_element_op,
-            const FloatReduceAcc alpha,
-            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-            const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                c_grid_desc_mblock_mperblock_nblock_nperblock,
-            const Block2CTileMap block_2_ctile_map)
+        kernel_gemm_softmax_xdl_cshuffle_v1(const FloatAB* __restrict__ p_a_grid,
+                                            const FloatAB* __restrict__ p_b_grid,
+                                            FloatD* __restrict__ p_d_grid,
+                                            const AElementwiseOperation a_element_op,
+                                            const BElementwiseOperation b_element_op,
+                                            const DElementwiseOperation d_element_op,
+                                            const FloatReduceAcc alpha,
+                                            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+                                            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+                                            const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                                                c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                            const Block2CTileMap block_2_ctile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -249,7 +248,8 @@ struct GridwiseGemmSoftmax_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
         return math::max((a_block_space_size_aligned + b_block_space_size_aligned) *
                              sizeof(FloatAB),
-                         c_block_size * sizeof(FloatCShuffle), BlockSize*sizeof(FloatReduceAcc));
+                         c_block_size * sizeof(FloatCShuffle),
+                         BlockSize * sizeof(FloatReduceAcc));
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
@@ -664,9 +664,11 @@ struct GridwiseGemmSoftmax_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             static_assert(num_access == sfc_c_global.GetNumOfAccess(), "wrong!");
 
             // Softmax
-            static_assert(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetLength(I1) == M_BlockTileSize,
+            static_assert(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetLength(I1) ==
+                              M_BlockTileSize,
                           "wrong!");
-            static_assert(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetLength(I3) == N_BlockTileSize,
+            static_assert(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetLength(I3) ==
+                              N_BlockTileSize,
                           "wrong!");
 
             // constexpr index_t MThreadSliceSize =
@@ -675,19 +677,27 @@ struct GridwiseGemmSoftmax_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             // constexpr index_t NThreadSliceSize =
             //     (CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl) / NThreadClusterSize;
 
-            StaticBuffer<AddressSpaceEnum::Vgpr, FloatCShuffle, MThreadSliceSize * NThreadSliceSize, true>
+            StaticBuffer<AddressSpaceEnum::Vgpr,
+                         FloatCShuffle,
+                         MThreadSliceSize * NThreadSliceSize,
+                         true>
                 in_thread_buf;
 
-            StaticBuffer<AddressSpaceEnum::Vgpr, FloatReduceAcc, MThreadSliceSize * NThreadSliceSize, true>
+            StaticBuffer<AddressSpaceEnum::Vgpr,
+                         FloatReduceAcc,
+                         MThreadSliceSize * NThreadSliceSize,
+                         true>
                 out_thread_buf;
 
-            StaticBuffer<AddressSpaceEnum::Vgpr, FloatReduceAcc, MThreadSliceSize, true> max_value_buf;
+            StaticBuffer<AddressSpaceEnum::Vgpr, FloatReduceAcc, MThreadSliceSize, true>
+                max_value_buf;
 
             static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
                 max_value_buf(I) = reduce::Max::template GetIdentityValue<FloatReduceAcc>();
             });
 
-            StaticBuffer<AddressSpaceEnum::Vgpr, FloatReduceAcc, MThreadSliceSize, true> accu_value_buf;
+            StaticBuffer<AddressSpaceEnum::Vgpr, FloatReduceAcc, MThreadSliceSize, true>
+                accu_value_buf;
 
             static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
                 accu_value_buf(I) = reduce::Add::template GetIdentityValue<FloatReduceAcc>();
@@ -704,44 +714,44 @@ struct GridwiseGemmSoftmax_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             using ThreadBufferLengths         = Sequence<MThreadSliceSize, NThreadSliceSize>;
             constexpr auto thread_buffer_desc = make_naive_tensor_descriptor_packed(
                 make_tuple(Number<MThreadSliceSize>{}, Number<NThreadSliceSize>{}));
-            
+
             constexpr auto thread_buffer_desc_mblock_mperblock_nblock_nperblock =
                 make_naive_tensor_descriptor_packed(
                     make_tuple(I1, Number<MThreadSliceSize>{}, I1, Number<NThreadSliceSize>{}));
 
-            auto threadwise_src_load = ThreadwiseTensorSliceTransfer_v2<FloatCShuffle,
-                                                                        FloatReduceAcc,
-                                                                        decltype(c_reduce_block_desc_mperblock_nperblock),
-                                                                        decltype(thread_buffer_desc),
-                                                                        ThreadBufferLengths,
-                                                                        ThreadBufferDimAccessOrder,
-                                                                        InSrcVectorDim,
-                                                                        InSrcVectorSize,
-                                                                        1,
-                                                                        true>(
-                c_reduce_block_desc_mperblock_nperblock,
-                make_multi_index(thread_m_cluster_id * MThreadSliceSize, 
-                                 thread_n_cluster_id * NThreadSliceSize));
+            auto threadwise_src_load =
+                ThreadwiseTensorSliceTransfer_v2<FloatCShuffle,
+                                                 FloatReduceAcc,
+                                                 decltype(c_reduce_block_desc_mperblock_nperblock),
+                                                 decltype(thread_buffer_desc),
+                                                 ThreadBufferLengths,
+                                                 ThreadBufferDimAccessOrder,
+                                                 InSrcVectorDim,
+                                                 InSrcVectorSize,
+                                                 1,
+                                                 true>(
+                    c_reduce_block_desc_mperblock_nperblock,
+                    make_multi_index(thread_m_cluster_id * MThreadSliceSize,
+                                     thread_n_cluster_id * NThreadSliceSize));
 
-            auto threadwise_dst_store =
-                ThreadwiseTensorSliceTransfer_v1r3<FloatReduceAcc,
-                                                   FloatD,
-                                                   decltype(thread_buffer_desc_mblock_mperblock_nblock_nperblock),
-                                                   decltype(c_grid_desc_mblock_mperblock_nblock_nperblock),
-                                                   decltype(d_element_op),
-                                                   Sequence<1, MThreadSliceSize, 1, NThreadSliceSize>,
-                                                   Sequence<0, 1, 2, 3>,
-                                                   3,
-                                                   OutDstVectorSize,
-                                                   DGlobalMemoryDataOperation,
-                                                   1,
-                                                   false>(
-                    c_grid_desc_mblock_mperblock_nblock_nperblock,
-                    make_multi_index(block_work_idx[I0],                      // mblock
-                                     thread_m_cluster_id * MThreadSliceSize,  // mperblock
-                                     block_work_idx[I1],                      // nblock
-                                     thread_n_cluster_id * NThreadSliceSize), // nperblock
-                    d_element_op);
+            auto threadwise_dst_store = ThreadwiseTensorSliceTransfer_v1r3<
+                FloatReduceAcc,
+                FloatD,
+                decltype(thread_buffer_desc_mblock_mperblock_nblock_nperblock),
+                decltype(c_grid_desc_mblock_mperblock_nblock_nperblock),
+                decltype(d_element_op),
+                Sequence<1, MThreadSliceSize, 1, NThreadSliceSize>,
+                Sequence<0, 1, 2, 3>,
+                3,
+                OutDstVectorSize,
+                DGlobalMemoryDataOperation,
+                1,
+                false>(c_grid_desc_mblock_mperblock_nblock_nperblock,
+                       make_multi_index(block_work_idx[I0],                      // mblock
+                                        thread_m_cluster_id * MThreadSliceSize,  // mperblock
+                                        block_work_idx[I1],                      // nblock
+                                        thread_n_cluster_id * NThreadSliceSize), // nperblock
+                       d_element_op);
 
             using BlockwiseSumReduce = PartitionedBlockwiseReduction<
                 FloatReduceAcc,
@@ -758,7 +768,7 @@ struct GridwiseGemmSoftmax_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                     ThreadReduceDstDesc_M,
                                     reduce::Add,
                                     false, // ignored
-                                    detail::AccumulateWithNanIgnore<reduce::Add, FloatReduceAcc>>;           
+                                    detail::AccumulateWithNanIgnore<reduce::Add, FloatReduceAcc>>;
 
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
@@ -784,8 +794,9 @@ struct GridwiseGemmSoftmax_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
                     ThreadwiseMaxReduce::Reduce(in_thread_buf, max_value_buf);
 
-                    static_for<0, MThreadSliceSize, 1>{}(
-                        [&](auto I) { BlockwiseMaxReduce::Reduce(c_shuffle_block_buf, max_value_buf(I)); });
+                    static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
+                        BlockwiseMaxReduce::Reduce(c_shuffle_block_buf, max_value_buf(I));
+                    });
 
                     ///
                     /// sum(exp(x - max(x)))
@@ -793,19 +804,19 @@ struct GridwiseGemmSoftmax_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                     // do element-wise pre-reduction operation
                     static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
                         static_for<0, NThreadSliceSize, 1>{}([&](auto iN) {
-                            constexpr auto offset = thread_buffer_desc.CalculateOffset(make_tuple(iM, iN));
+                            constexpr auto offset =
+                                thread_buffer_desc.CalculateOffset(make_tuple(iM, iN));
                             in_thread_buf(Number<offset>{}) =
                                 math::exp(in_thread_buf(Number<offset>{}) - max_value_buf(iM));
                         });
                     });
 
                     ThreadwiseSumReduce::Reduce(in_thread_buf, accu_value_buf);
-                    
+
                     static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
                         BlockwiseSumReduce::Reduce(c_shuffle_block_buf, accu_value_buf(I));
                         // block_sync_lds();
-                    }); 
-                                                          
+                    });
 
                     ///
                     /// softmax
@@ -821,26 +832,27 @@ struct GridwiseGemmSoftmax_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                     });
 
                     threadwise_dst_store.Run(thread_buffer_desc_mblock_mperblock_nblock_nperblock,
-                                            make_tuple(I0, I0, I0, I0),
-                                            out_thread_buf,
-                                            c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                            d_grid_buf);  
+                                             make_tuple(I0, I0, I0, I0),
+                                             out_thread_buf,
+                                             c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                             d_grid_buf);
 
                     if constexpr(access_id < num_access - 1)
                     {
                         constexpr auto c_global_step = sfc_c_global.GetForwardStep(access_id);
                         threadwise_dst_store.MoveDstSliceWindow(
                             c_grid_desc_mblock_mperblock_nblock_nperblock, c_global_step);
-                            
+
                         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-                            max_value_buf(I) = reduce::Max::template GetIdentityValue<FloatReduceAcc>();
+                            max_value_buf(I) =
+                                reduce::Max::template GetIdentityValue<FloatReduceAcc>();
                         });
 
                         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-                            accu_value_buf(I) = reduce::Add::template GetIdentityValue<FloatReduceAcc>();
+                            accu_value_buf(I) =
+                                reduce::Add::template GetIdentityValue<FloatReduceAcc>();
                         });
-                    }                  
-
+                    }
                 }
             });
             // Reduction

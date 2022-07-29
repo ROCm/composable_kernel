@@ -34,7 +34,7 @@ using CDataType         = F16;
 using ReduceAccDataType = F32;
 using DDataType         = F32;
 using DPtrsGlobal       = ck::Tuple<DDataType*>;
-using AccDataType = float;
+using AccDataType       = float;
 
 using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
@@ -43,12 +43,12 @@ using CLayout = ck::tensor_layout::gemm::RowMajor;
 using AElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using CElementOp  = ck::tensor_operation::element_wise::PassThrough;
-using DReduceOp  = ck::reduce::Max;
+using DReduceOp   = ck::reduce::Max;
 using DxsReduceOp = ck::Tuple<DReduceOp>;
 
 using UnaryIdenticElementOp = ck::tensor_operation::element_wise::PassThrough;
-using DxsInElementOp  = ck::Tuple<UnaryIdenticElementOp>;
-using DxsOutElementOp = ck::Tuple<UnaryIdenticElementOp>;
+using DxsInElementOp        = ck::Tuple<UnaryIdenticElementOp>;
+using DxsOutElementOp       = ck::Tuple<UnaryIdenticElementOp>;
 
 using DGlobalMemOp =
     ck::InMemoryDataOperationEnumSequence<ck::InMemoryDataOperationEnum::AtomicMax>;
@@ -146,7 +146,8 @@ int main(int argc, char* argv[])
 
     using DeviceMemPtr = std::unique_ptr<DeviceMem>;
 
-    std::vector<DeviceMemPtr> a_tensors_device, b_tensors_device, c_tensors_device, d_tensors_device;
+    std::vector<DeviceMemPtr> a_tensors_device, b_tensors_device, c_tensors_device,
+        d_tensors_device;
 
     a_tensors_device.reserve(group_count);
     b_tensors_device.reserve(group_count);
@@ -165,13 +166,14 @@ int main(int argc, char* argv[])
             gemm_shapes[i].M_, gemm_shapes[i].N_, gemm_shapes[i].stride_C_, CLayout{})));
         c_device_tensors.push_back(Tensor<CDataType>(f_host_tensor_descriptor(
             gemm_shapes[i].M_, gemm_shapes[i].N_, gemm_shapes[i].stride_C_, CLayout{})));
-        d_host_tensors.push_back(Tensor<DDataType>(HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(gemm_shapes[i].M_)}))));
-        d_device_tensors.push_back(Tensor<DDataType>(HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(gemm_shapes[i].M_)}))));
+        d_host_tensors.push_back(Tensor<DDataType>(HostTensorDescriptor(
+            std::vector<std::size_t>({static_cast<std::size_t>(gemm_shapes[i].M_)}))));
+        d_device_tensors.push_back(Tensor<DDataType>(HostTensorDescriptor(
+            std::vector<std::size_t>({static_cast<std::size_t>(gemm_shapes[i].M_)}))));
 
         std::cout << "gemm[" << i << "] a_m_k: " << a_tensors[i].mDesc
                   << " b_k_n: " << b_tensors[i].mDesc << " c_m_n: " << c_device_tensors[i].mDesc
-                  << " d_m: " << d_device_tensors[i].mDesc
-                  << std::endl;
+                  << " d_m: " << d_device_tensors[i].mDesc << std::endl;
 
         flop += std::size_t(2) * gemm_shapes[i].M_ * gemm_shapes[i].K_ * gemm_shapes[i].N_;
         num_btype += sizeof(ADataType) * a_tensors[i].mDesc.GetElementSize() +
@@ -212,7 +214,8 @@ int main(int argc, char* argv[])
         p_a.push_back(a_tensors_device[i]->GetDeviceBuffer());
         p_b.push_back(b_tensors_device[i]->GetDeviceBuffer());
         p_c.push_back(c_tensors_device[i]->GetDeviceBuffer());
-        dxs_global.push_back(ck::make_tuple(static_cast<DDataType*>(d_tensors_device[i]->GetDeviceBuffer())));
+        dxs_global.push_back(
+            ck::make_tuple(static_cast<DDataType*>(d_tensors_device[i]->GetDeviceBuffer())));
     }
 
     auto a_element_op = AElementOp{};
@@ -223,8 +226,16 @@ int main(int argc, char* argv[])
     auto invoker = gemm.MakeInvoker();
 
     // do GEMM
-    auto argument =
-        gemm.MakeArgument(p_a, p_b, p_c, dxs_global, gemm_shapes, a_element_op, b_element_op, c_element_op, DxsInElementOp{}, DxsOutElementOp{});
+    auto argument = gemm.MakeArgument(p_a,
+                                      p_b,
+                                      p_c,
+                                      dxs_global,
+                                      gemm_shapes,
+                                      a_element_op,
+                                      b_element_op,
+                                      c_element_op,
+                                      DxsInElementOp{},
+                                      DxsOutElementOp{});
 
     DeviceMem gemm_desc_workspace(gemm.GetWorkSpaceSize(&argument));
 
@@ -277,7 +288,7 @@ int main(int argc, char* argv[])
 
                 for(int n = 0; n < N; ++n)
                 {
-                    auto c_val  = ck::type_convert<ReduceAccDataType>(c_host_tensors[i](m, n));
+                    auto c_val = ck::type_convert<ReduceAccDataType>(c_host_tensors[i](m, n));
                     ReduceAccDataType d_val = 0;
 
                     UnaryIdenticElementOp{}(d_val, c_val);
@@ -288,23 +299,23 @@ int main(int argc, char* argv[])
             }
 
             pass = ck::utils::check_err(c_device_tensors[i].mData,
-                                    c_host_tensors[i].mData,
-                                    "Error: Incorrect results c") &&
+                                        c_host_tensors[i].mData,
+                                        "Error: Incorrect results c") &&
                    ck::utils::check_err(d_device_tensors[i].mData,
-                                    d_host_tensors[i].mData,
-                                    "Error: Incorrect results! D",
-                                    1e-4,
-                                    1e-5);
+                                        d_host_tensors[i].mData,
+                                        "Error: Incorrect results! D",
+                                        1e-4,
+                                        1e-5);
         }
     }
 
     if(pass)
     {
-        std::cout << "Test Pass!!!!!!!!!!!!!!!!"  << std::endl;
+        std::cout << "Test Pass!!!!!!!!!!!!!!!!" << std::endl;
     }
     else
     {
-        std::cout << "Test Fail................"  << std::endl;
+        std::cout << "Test Fail................" << std::endl;
     }
 
     return pass ? 0 : 1;

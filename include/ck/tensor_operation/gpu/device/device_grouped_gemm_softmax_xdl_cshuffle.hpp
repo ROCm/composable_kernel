@@ -31,12 +31,13 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_gemm_softmax_xdl_cshuffle_v1(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
-                                                    const index_t group_count,
-                                                    const AElementwiseOperation a_element_op,
-                                                    const BElementwiseOperation b_element_op,
-                                                    const DElementwiseOperation d_element_op,
-                                                    const FloatReduceAcc alpha)
+        kernel_grouped_gemm_softmax_xdl_cshuffle_v1(
+            const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+            const index_t group_count,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const DElementwiseOperation d_element_op,
+            const FloatReduceAcc alpha)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -46,17 +47,22 @@ __global__ void
     const auto gemm_desc_ptr =
         reinterpret_cast<const GemmDesc*>(cast_pointer_to_generic_address_space(gemm_descs_const));
 
-    index_t left = 0;
-    index_t right = group_count;
-    index_t group_id = index_t((left + right)/2);
-    while((!(block_id >= gemm_desc_ptr[group_id].BlockStart_ && block_id < gemm_desc_ptr[group_id].BlockEnd_)) && left <= right ){
-        if(block_id < gemm_desc_ptr[group_id].BlockStart_){
+    index_t left     = 0;
+    index_t right    = group_count;
+    index_t group_id = index_t((left + right) / 2);
+    while((!(block_id >= gemm_desc_ptr[group_id].BlockStart_ &&
+             block_id < gemm_desc_ptr[group_id].BlockEnd_)) &&
+          left <= right)
+    {
+        if(block_id < gemm_desc_ptr[group_id].BlockStart_)
+        {
             right = group_id;
         }
-        else{
+        else
+        {
             left = group_id;
         }
-        group_id = index_t((left + right)/2);
+        group_id = index_t((left + right) / 2);
     }
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(
@@ -122,18 +128,19 @@ template <typename ALayout,
           bool BBlockLdsAddExtraN,
           index_t CShuffleMXdlPerWavePerShuffle,
           index_t CShuffleNXdlPerWavePerShuffle,
-          index_t MThreadClusterSize, //CReduceThreadClusterLengths_MPerBlock,
-          index_t NThreadClusterSize, //CReduceThreadClusterLengths_NPerBlock,
+          index_t MThreadClusterSize, // CReduceThreadClusterLengths_MPerBlock,
+          index_t NThreadClusterSize, // CReduceThreadClusterLengths_NPerBlock,
           index_t MThreadSliceSize,
           index_t NThreadSliceSize,
           index_t InSrcVectorDim,
           index_t InSrcVectorSize,
           index_t OutDstVectorSize,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
-struct DeviceGroupedGemmSoftmax_Xdl_CShuffle : public GroupedDeviceGemmSoftmax<AElementwiseOperation,
-                                                                               BElementwiseOperation,
-                                                                               DElementwiseOperation,
-                                                                               ReduceAccDataType>
+struct DeviceGroupedGemmSoftmax_Xdl_CShuffle
+    : public GroupedDeviceGemmSoftmax<AElementwiseOperation,
+                                      BElementwiseOperation,
+                                      DElementwiseOperation,
+                                      ReduceAccDataType>
 {
     static_assert(BlockSize == MThreadClusterSize * NThreadClusterSize,
                   "Invalid thread cluster size assignments!");
@@ -153,8 +160,8 @@ struct DeviceGroupedGemmSoftmax_Xdl_CShuffle : public GroupedDeviceGemmSoftmax<A
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
-    static constexpr auto AK1Number = Number<AK1>{};
-    static constexpr auto BK1Number = Number<BK1>{};
+    static constexpr auto AK1Number       = Number<AK1>{};
+    static constexpr auto BK1Number       = Number<BK1>{};
     static constexpr auto NPerBlockNumber = Number<NPerBlock>{};
 
     // static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
@@ -275,7 +282,7 @@ struct DeviceGroupedGemmSoftmax_Xdl_CShuffle : public GroupedDeviceGemmSoftmax<A
 
     using AGridDesc_AK0_M_AK1 = decltype(MakeAGridDescriptor_AK0_M_AK1(1, 1, 1));
     using BGridDesc_BK0_N_BK1 = decltype(MakeBGridDescriptor_BK0_N_BK1(1, 1, 1));
-    using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
+    using CGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmSoftmax_k0mk1_k0nk1_mn_xdl_cshuffle_v1<
@@ -404,7 +411,7 @@ struct DeviceGroupedGemmSoftmax_Xdl_CShuffle : public GroupedDeviceGemmSoftmax<A
               d_element_op_{d_element_op},
               alpha_{alpha}
         {
-            grid_size_ = 0;
+            grid_size_           = 0;
             reduce_total_length_ = gemm_shapes[0].N_;
 
             gemm_descs_args_workspace_ = nullptr;
@@ -434,9 +441,11 @@ struct DeviceGroupedGemmSoftmax_Xdl_CShuffle : public GroupedDeviceGemmSoftmax<A
                 const index_t StrideC = gemm_shapes[i].stride_C_;
 
                 const auto a_grid_desc_ak0_m_ak1_ =
-                    DeviceGroupedGemmSoftmax_Xdl_CShuffle::MakeAGridDescriptor_AK0_M_AK1(M, K, StrideA);
+                    DeviceGroupedGemmSoftmax_Xdl_CShuffle::MakeAGridDescriptor_AK0_M_AK1(
+                        M, K, StrideA);
                 const auto b_grid_desc_bk0_n_bk1_ =
-                    DeviceGroupedGemmSoftmax_Xdl_CShuffle::MakeBGridDescriptor_BK0_N_BK1(K, N, StrideB);
+                    DeviceGroupedGemmSoftmax_Xdl_CShuffle::MakeBGridDescriptor_BK0_N_BK1(
+                        K, N, StrideB);
                 const auto c_grid_desc_m_n_ =
                     DeviceGroupedGemmSoftmax_Xdl_CShuffle::MakeCGridDescriptor_M_N(M, N, StrideC);
 
@@ -504,14 +513,20 @@ struct DeviceGroupedGemmSoftmax_Xdl_CShuffle : public GroupedDeviceGemmSoftmax<A
             for(std::size_t i = 0; i < arg.gemm_desc_kernel_arg_.size(); i++)
             {
                 std::cout << "group: " << i << " arg.a_grid_desc_ak0_m_ak1_{"
-                          << arg.gemm_desc_kernel_arg_[i].a_grid_desc_ak0_m_ak1_.GetLength(I0) << ", "
-                          << arg.gemm_desc_kernel_arg_[i].a_grid_desc_ak0_m_ak1_.GetLength(I1) << ", "
-                          << arg.gemm_desc_kernel_arg_[i].a_grid_desc_ak0_m_ak1_.GetLength(I2) << "}";
+                          << arg.gemm_desc_kernel_arg_[i].a_grid_desc_ak0_m_ak1_.GetLength(I0)
+                          << ", "
+                          << arg.gemm_desc_kernel_arg_[i].a_grid_desc_ak0_m_ak1_.GetLength(I1)
+                          << ", "
+                          << arg.gemm_desc_kernel_arg_[i].a_grid_desc_ak0_m_ak1_.GetLength(I2)
+                          << "}";
 
                 std::cout << ", arg.b_grid_desc_bk0_n_bk1_{"
-                          << arg.gemm_desc_kernel_arg_[i].b_grid_desc_bk0_n_bk1_.GetLength(I0) << ", "
-                          << arg.gemm_desc_kernel_arg_[i].b_grid_desc_bk0_n_bk1_.GetLength(I1) << ", "
-                          << arg.gemm_desc_kernel_arg_[i].b_grid_desc_bk0_n_bk1_.GetLength(I2) << "}";
+                          << arg.gemm_desc_kernel_arg_[i].b_grid_desc_bk0_n_bk1_.GetLength(I0)
+                          << ", "
+                          << arg.gemm_desc_kernel_arg_[i].b_grid_desc_bk0_n_bk1_.GetLength(I1)
+                          << ", "
+                          << arg.gemm_desc_kernel_arg_[i].b_grid_desc_bk0_n_bk1_.GetLength(I2)
+                          << "}";
 
                 std::cout << ", arg.c_grid_desc_m_n_{ "
                           << arg.gemm_desc_kernel_arg_[i].c_grid_desc_m_n_.GetLength(I0) << ", "
@@ -525,7 +540,8 @@ struct DeviceGroupedGemmSoftmax_Xdl_CShuffle : public GroupedDeviceGemmSoftmax<A
                        arg.gemm_desc_kernel_arg_[i].grouped_gemm_block_2_ctile_map_))
                 {
                     throw std::runtime_error(
-                        "wrong! GridwiseGemmSoftmax_k0mk1_k0nk1_mn_xdl_cshuffle_v1 has invalid setting");
+                        "wrong! GridwiseGemmSoftmax_k0mk1_k0nk1_mn_xdl_cshuffle_v1 has invalid "
+                        "setting");
                 }
 
                 const auto K = arg.gemm_desc_kernel_arg_[i].a_grid_desc_ak0_m_ak1_.GetLength(I0) *
@@ -634,7 +650,8 @@ struct DeviceGroupedGemmSoftmax_Xdl_CShuffle : public GroupedDeviceGemmSoftmax<A
                              DElementwiseOperation d_element_op,
                              ReduceAccDataType alpha)
     {
-        return Argument{p_a, p_b, p_d, gemm_shapes, a_element_op, b_element_op, d_element_op, alpha};
+        return Argument{
+            p_a, p_b, p_d, gemm_shapes, a_element_op, b_element_op, d_element_op, alpha};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
