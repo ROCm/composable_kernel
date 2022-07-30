@@ -14,7 +14,7 @@
 #include "ck/tensor_operation/gpu/device/device_reduce_common.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_2d_multiple_reduction_threadwise.hpp"
 
-#include "ck/device_utility/kernel_launch.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {

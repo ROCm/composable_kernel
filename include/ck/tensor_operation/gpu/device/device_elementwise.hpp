@@ -12,7 +12,7 @@
 #include "ck/tensor_operation/gpu/grid/gridwise_elementwise_1d.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 
-#include "ck/device_utility/kernel_launch.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {

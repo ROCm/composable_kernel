@@ -15,7 +15,7 @@
 #include "ck/tensor_operation/gpu/grid/gridwise_2d_multiple_reduction_multiblock.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_set_multiple_buffer_value.hpp"
 
-#include "ck/device_utility/kernel_launch.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {

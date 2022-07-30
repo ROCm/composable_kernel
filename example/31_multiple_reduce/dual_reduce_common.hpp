@@ -13,10 +13,10 @@
 #include "ck/utility/data_type.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
-#include "ck/library/host_tensor/host_common_util.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/host_common_util.hpp"
 
 static struct option long_options[] = {{"inLengths", required_argument, nullptr, 'D'},
                                        {"verify", required_argument, nullptr, 'v'},
@@ -233,9 +233,9 @@ int mean_meansquare_dual_reduce_test(size_t n,
     };
 
     // these buffers are usually provided by the user application
-    DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpace());
-    DeviceMem mean_dev(sizeof(OutDataType) * mean.mDesc.GetElementSpace());
-    DeviceMem meansquare_dev(sizeof(OutDataType) * meansquare.mDesc.GetElementSpace());
+    DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
+    DeviceMem mean_dev(sizeof(OutDataType) * mean.mDesc.GetElementSpaceSize());
+    DeviceMem meansquare_dev(sizeof(OutDataType) * meansquare.mDesc.GetElementSpaceSize());
 
     in_dev.ToDevice(in.mData.data());
 

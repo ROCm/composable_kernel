@@ -10,10 +10,10 @@
 
 #include "ck/ck.hpp"
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
-#include "ck/library/host_tensor/host_common_util.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/host_common_util.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_forward_nhwc_c.hpp"
 
 #include "batchnorm_forward_impl.hpp"
@@ -231,22 +231,23 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
     };
 
     // these buffers are usually provided by the user application
-    DeviceMem x_dev(sizeof(InOutDataType) * x.mDesc.GetElementSpace());
-    DeviceMem y_dev(sizeof(InOutDataType) * y.mDesc.GetElementSpace());
-    DeviceMem bnScale_dev(sizeof(AccDataType) * bnScale.mDesc.GetElementSpace());
-    DeviceMem bnBias_dev(sizeof(AccDataType) * bnBias.mDesc.GetElementSpace());
+    DeviceMem x_dev(sizeof(InOutDataType) * x.mDesc.GetElementSpaceSize());
+    DeviceMem y_dev(sizeof(InOutDataType) * y.mDesc.GetElementSpaceSize());
+    DeviceMem bnScale_dev(sizeof(AccDataType) * bnScale.mDesc.GetElementSpaceSize());
+    DeviceMem bnBias_dev(sizeof(AccDataType) * bnBias.mDesc.GetElementSpaceSize());
 
     // mean_dev or resultSaveMean_dev
-    DeviceMem resultSaveMean_dev(sizeof(AccDataType) * resultSaveMean_ref.mDesc.GetElementSpace());
+    DeviceMem resultSaveMean_dev(sizeof(AccDataType) *
+                                 resultSaveMean_ref.mDesc.GetElementSpaceSize());
     // meansquare_dev or resultSaveInvVariance_dev
     DeviceMem resultSaveInvVariance_dev(sizeof(AccDataType) *
-                                        resultSaveInvVariance_ref.mDesc.GetElementSpace());
+                                        resultSaveInvVariance_ref.mDesc.GetElementSpaceSize());
     // resultRunningMean_dev
     DeviceMem resultRunningMean_dev(sizeof(AccDataType) *
-                                    resultRunningMean_ref.mDesc.GetElementSpace());
+                                    resultRunningMean_ref.mDesc.GetElementSpaceSize());
     // resultRunningVariance_dev
     DeviceMem resultRunningVariance_dev(sizeof(AccDataType) *
-                                        resultRunningVariance_ref.mDesc.GetElementSpace());
+                                        resultRunningVariance_ref.mDesc.GetElementSpaceSize());
 
     x_dev.ToDevice(x.mData.data());
     bnScale_dev.ToDevice(bnScale.mData.data());
@@ -275,12 +276,13 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
     int result = 0;
 
     // used for saving meansquare
-    DeviceMem workspace(sizeof(AccDataType) * 2 * resultSaveMean_ref.mDesc.GetElementSpace() + 128);
+    DeviceMem workspace(sizeof(AccDataType) * 2 * resultSaveMean_ref.mDesc.GetElementSpaceSize() +
+                        128);
 
     void* p_tmp_mean = workspace.GetDeviceBuffer();
     void* p_tmp_meansquare =
         static_cast<char*>(p_tmp_mean) +
-        (sizeof(AccDataType) * resultSaveMean_ref.mDesc.GetElementSpace() + 63) / 64 * 64;
+        (sizeof(AccDataType) * resultSaveMean_ref.mDesc.GetElementSpaceSize() + 63) / 64 * 64;
 
     result = bnorm_fwd<InOutDataType, AccDataType, Rank, NumReduceDim, false>(
         time_kernel,

@@ -10,10 +10,10 @@
 
 #include "ck/ck.hpp"
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
-#include "ck/library/host_tensor/host_common_util.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/host_common_util.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_infer_nhwc_c.hpp"
 
 #include "batchnorm_infer_impl.hpp"
@@ -201,16 +201,16 @@ bool bnorm_infer_nhwc_test(bool do_verification,
     };
 
     // these buffers are usually provided by the user application
-    DeviceMem x_dev(sizeof(InOutDataType) * x.mDesc.GetElementSpace());
-    DeviceMem y_dev(sizeof(InOutDataType) * y.mDesc.GetElementSpace());
-    DeviceMem bnScale_dev(sizeof(AccDataType) * bnScale.mDesc.GetElementSpace());
-    DeviceMem bnBias_dev(sizeof(AccDataType) * bnBias.mDesc.GetElementSpace());
+    DeviceMem x_dev(sizeof(InOutDataType) * x.mDesc.GetElementSpaceSize());
+    DeviceMem y_dev(sizeof(InOutDataType) * y.mDesc.GetElementSpaceSize());
+    DeviceMem bnScale_dev(sizeof(AccDataType) * bnScale.mDesc.GetElementSpaceSize());
+    DeviceMem bnBias_dev(sizeof(AccDataType) * bnBias.mDesc.GetElementSpaceSize());
 
     // mean_dev or resultSaveMean_dev
-    DeviceMem estimatedMean_dev(sizeof(AccDataType) * estimatedMean.mDesc.GetElementSpace());
+    DeviceMem estimatedMean_dev(sizeof(AccDataType) * estimatedMean.mDesc.GetElementSpaceSize());
     // meansquare_dev or resultSaveInvVariance_dev
     DeviceMem estimatedVariance_dev(sizeof(AccDataType) *
-                                    estimatedVariance.mDesc.GetElementSpace());
+                                    estimatedVariance.mDesc.GetElementSpaceSize());
 
     x_dev.ToDevice(x.mData.data());
     bnScale_dev.ToDevice(bnScale.mData.data());
