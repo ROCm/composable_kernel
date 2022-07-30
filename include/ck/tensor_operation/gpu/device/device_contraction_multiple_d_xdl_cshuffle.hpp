@@ -11,7 +11,7 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_contraction_multiple_d.hpp"
-#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "ck/host_utility/device_prop.hpp"
@@ -115,6 +115,9 @@ template <index_t NumDimM,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
           GemmSpecialization GemmSpec,
+          TensorSpecialization ASpec,
+          TensorSpecialization BSpec,
+          TensorSpecialization DESpec,
           index_t NumGemmKPrefetchStage,
           index_t BlockSize,
           index_t MPerBlock,
@@ -196,18 +199,31 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
         // lengths for K0, K1, ...
         const auto kLengths = get_container_subset(a_ms_ns_lengths, kDimIds);
 
-        // naive tensor A[M0, M1, M2, ..., K0, K1, K2...]
-        const auto a_grid_desc_ms_ks =
-            make_naive_tensor_descriptor(a_ms_ns_lengths, a_ms_ks_strides);
+        if constexpr(ASpec == TensorSpecialization::Packed)
+        {
+            auto M = container_reduce(mLengths, math::multiplies{}, Number<1>{});
+            auto K = container_reduce(kLengths, math::multiplies{}, Number<1>{});
+            const auto a_grid_desc_mraw_kraw = make_naive_tensor_descriptor(
+                make_tuple(M, K),
+                make_tuple(a_ms_ks_strides[Number<NumDimM - 1>{}],
+                           a_ms_ks_strides[Number<NumDimM + NumDimK - 1>{}]));
+            return matrix_padder.PadADescriptor_M_K(a_grid_desc_mraw_kraw);
+        }
+        else
+        {
+            // naive tensor A[M0, M1, M2, ..., K0, K1, K2...]
+            const auto a_grid_desc_ms_ks =
+                make_naive_tensor_descriptor(a_ms_ns_lengths, a_ms_ks_strides);
 
-        // transformed tensor A[MRaw = M0 * M1 * M2 * ... , KRaw = K0 * K1 * K2 * ...]
-        const auto a_grid_desc_mraw_kraw = transform_tensor_descriptor(
-            a_grid_desc_ms_ks,
-            make_tuple(make_merge_transform(mLengths), make_merge_transform(kLengths)),
-            make_tuple(mDimIds, kDimIds),
-            make_tuple(Sequence<0>{}, Sequence<1>{}));
+            // transformed tensor A[MRaw = M0 * M1 * M2 * ... , KRaw = K0 * K1 * K2 * ...]
+            const auto a_grid_desc_mraw_kraw = transform_tensor_descriptor(
+                a_grid_desc_ms_ks,
+                make_tuple(make_merge_transform(mLengths), make_merge_transform(kLengths)),
+                make_tuple(mDimIds, kDimIds),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-        return matrix_padder.PadADescriptor_M_K(a_grid_desc_mraw_kraw);
+            return matrix_padder.PadADescriptor_M_K(a_grid_desc_mraw_kraw);
+        }
     }
 
     // Assume: B[N0, N1, N2, ..., K0, K1, K2, ...]
@@ -237,18 +253,31 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
         // lengths for N0, N1, ...
         const auto nLengths = get_container_subset(b_ns_ks_lengths, nDimIds);
 
-        // naive tensor B[N0, N1, N2, ..., K0, K1, K2, ...]
-        const auto b_grid_desc_ns_ks =
-            make_naive_tensor_descriptor(b_ns_ks_lengths, b_ns_ks_strides);
+        if constexpr(BSpec == TensorSpecialization::Packed)
+        {
+            auto N = container_reduce(nLengths, math::multiplies{}, Number<1>{});
+            auto K = container_reduce(kLengths, math::multiplies{}, Number<1>{});
+            const auto b_grid_desc_nraw_kraw = make_naive_tensor_descriptor(
+                make_tuple(N, K),
+                make_tuple(b_ns_ks_strides[Number<NumDimN - 1>{}],
+                           b_ns_ks_strides[Number<NumDimN + NumDimK - 1>{}]));
+            return matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
+        }
+        else
+        {
+            // naive tensor B[N0, N1, N2, ..., K0, K1, K2, ...]
+            const auto b_grid_desc_ns_ks =
+                make_naive_tensor_descriptor(b_ns_ks_lengths, b_ns_ks_strides);
 
-        // transformed tensor B[NRaw = N0 * N1 * N2 * ..., KRaw = K0 * K1 * K2 * ...]
-        const auto b_grid_desc_nraw_kraw = transform_tensor_descriptor(
-            b_grid_desc_ns_ks,
-            make_tuple(make_merge_transform(nLengths), make_merge_transform(kLengths)),
-            make_tuple(nDimIds, kDimIds),
-            make_tuple(Sequence<0>{}, Sequence<1>{}));
+            // transformed tensor B[NRaw = N0 * N1 * N2 * ..., KRaw = K0 * K1 * K2 * ...]
+            const auto b_grid_desc_nraw_kraw = transform_tensor_descriptor(
+                b_grid_desc_ns_ks,
+                make_tuple(make_merge_transform(nLengths), make_merge_transform(kLengths)),
+                make_tuple(nDimIds, kDimIds),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-        return matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
+            return matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
+        }
     }
 
     // assume E[M0, M1, M2, ..., N0, N1, N2...]
@@ -278,18 +307,31 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
         // lengths for K0, K1, ...
         const auto nLengths = get_container_subset(e_ms_ns_lengths, nDimIds);
 
-        // naive tensor E[M0, M1, M2, ..., N0, N1, N2...]
-        const auto e_grid_desc_ms_ns =
-            make_naive_tensor_descriptor(e_ms_ns_lengths, e_ms_ns_strides);
+        if constexpr(DESpec == TensorSpecialization::Packed)
+        {
+            auto M = container_reduce(mLengths, math::multiplies{}, Number<1>{});
+            auto N = container_reduce(nLengths, math::multiplies{}, Number<1>{});
+            const auto e_grid_desc_mraw_nraw = make_naive_tensor_descriptor(
+                make_tuple(M, N),
+                make_tuple(e_ms_ns_strides[Number<NumDimM - 1>{}],
+                           e_ms_ns_strides[Number<NumDimM + NumDimN - 1>{}]));
+            return matrix_padder.PadCDescriptor_M_N(e_grid_desc_mraw_nraw);
+        }
+        else
+        {
+            // naive tensor E[M0, M1, M2, ..., N0, N1, N2...]
+            const auto e_grid_desc_ms_ns =
+                make_naive_tensor_descriptor(e_ms_ns_lengths, e_ms_ns_strides);
 
-        // transformed tensor E[MRaw = M0 * M1 * M2 * ... , NRaw = N0 * N1 * N2 * ...]
-        const auto e_grid_desc_mraw_nraw = transform_tensor_descriptor(
-            e_grid_desc_ms_ns,
-            make_tuple(make_merge_transform(mLengths), make_merge_transform(nLengths)),
-            make_tuple(mDimIds, nDimIds),
-            make_tuple(Sequence<0>{}, Sequence<1>{}));
+            // transformed tensor E[MRaw = M0 * M1 * M2 * ... , NRaw = N0 * N1 * N2 * ...]
+            const auto e_grid_desc_mraw_nraw = transform_tensor_descriptor(
+                e_grid_desc_ms_ns,
+                make_tuple(make_merge_transform(mLengths), make_merge_transform(nLengths)),
+                make_tuple(mDimIds, nDimIds),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-        return matrix_padder.PadCDescriptor_M_N(e_grid_desc_mraw_nraw);
+            return matrix_padder.PadCDescriptor_M_N(e_grid_desc_mraw_nraw);
+        }
     }
 
     static auto MakeDsGridDescriptor_M_N(
@@ -653,10 +695,11 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
         }
 
         // vector memory access of E: always on NPerBlock dimension
-        if(!(arg.e_nz_stride_ == 1 &&
-             arg.e_grid_desc_mblock_mperblock_nblock_nperblock_.GetLength(I3) %
-                     CDEBlockTransferScalarPerVector_NPerBlock ==
-                 0))
+        if(!((arg.e_nz_stride_ == 1 &&
+              arg.e_grid_desc_mblock_mperblock_nblock_nperblock_.GetLength(I3) %
+                      CDEBlockTransferScalarPerVector_NPerBlock ==
+                  0) ||
+             CDEBlockTransferScalarPerVector_NPerBlock == 1))
         {
             return false;
         }
