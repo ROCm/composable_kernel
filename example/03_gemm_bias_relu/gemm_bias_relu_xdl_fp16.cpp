@@ -12,9 +12,9 @@
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
 
@@ -47,33 +47,34 @@ using BDataType        = F16;
 using AccDataType      = F32;
 using CShuffleDataType = F16;
 using DDataType        = F16;
-using DsDataType       = ck::Tuple<DDataType>;
 using EDataType        = F16;
 
 using ALayout = Row;
 using BLayout = Col;
+using DLayout = Row;
 using ELayout = Row;
 
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
 using CDEElementOp = AddRelu;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
+static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
 using DeviceOpInstance =
     ck::tensor_operation::device::DeviceGemmMultipleD_Xdl_CShuffle<ALayout,
                                                                    BLayout,
+                                                                   ck::Tuple<DLayout>,
                                                                    ELayout,
                                                                    ADataType,
                                                                    BDataType,
                                                                    AccDataType,
                                                                    CShuffleDataType,
-                                                                   DsDataType,
+                                                                   ck::Tuple<DDataType>,
                                                                    EDataType,
                                                                    AElementOp,
                                                                    BElementOp,
                                                                    CDEElementOp,
-                                                                   GemmDefault,
+                                                                   GemmSpec,
                                                                    1,
                                                                    256,
                                                                    256,
@@ -191,10 +192,10 @@ int main(int argc, char* argv[])
         d_m_n.GenerateTensorValue(GeneratorTensor_3<DDataType>{0.0, 1.0});
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
-    DeviceMem d_device_buf(sizeof(DDataType) * d_m_n.mDesc.GetElementSpace());
-    DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpace());
+    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem d_device_buf(sizeof(DDataType) * d_m_n.mDesc.GetElementSpaceSize());
+    DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
