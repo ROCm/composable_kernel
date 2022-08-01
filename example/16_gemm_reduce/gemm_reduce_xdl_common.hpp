@@ -20,6 +20,7 @@ using F16   = ck::half_t;
 using BF16  = ck::bhalf_t;
 using F32   = float;
 using F64   = double;
+using INT4  = std::int4_t;
 using INT8  = std::int8_t;
 using INT32 = std::int32_t;
 

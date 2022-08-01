@@ -11,12 +11,12 @@
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using ADataType         = F32;
-using BDataType         = F32;
-using CDataType         = F32;
-using GemmAccDataType   = F32;
-using ReduceAccDataType = F32;
-using ReduceDataType    = F64;
+using ADataType         = INT4;
+using BDataType         = INT4;
+using CDataType         = INT4;
+using GemmAccDataType   = INT32;
+using ReduceAccDataType = INT32;
+using ReduceDataType    = INT32;
 using ReducePtrsGlobal  = ck::Tuple<ReduceDataType*>;
 
 using ALayout = ck::tensor_layout::gemm::RowMajor;
@@ -43,7 +43,7 @@ using DeviceGemmReduceInstance = ck::tensor_operation::device::DeviceGemmReduce_
          BDataType,                 // BDataType
          CDataType,                 // CDataType
          GemmAccDataType,           // GemmAccDataType
-         F32,                       // CShuffleDataType
+         INT32,                     // CShuffleDataType
          ReduceAccDataType,         // ReduceAccDataType
          ReducePtrsGlobal,          // ReduceData Tuple
          AElementOp,                // AElementwiseOperation
@@ -58,9 +58,9 @@ using DeviceGemmReduceInstance = ck::tensor_operation::device::DeviceGemmReduce_
          256,                       // BlockSize
          256,                       // MPerBlock
          128,                       // NPerBlock
-         16,                        // KPerBlock
-         4,                         // AK1
-         4,                         // BK1
+         128,                       // KPerBlock
+         32,                        // AK1
+         32,                        // BK1
          32,                        // MPerXdl
          32,                        // NPerXdl
          4,                         // MXdlPerWave
@@ -69,20 +69,20 @@ using DeviceGemmReduceInstance = ck::tensor_operation::device::DeviceGemmReduce_
          S<1, 0, 2>,                // ABlockTransfer ThreadCluster ArrangeOrder
          S<1, 0, 2>,                // ABlockTransfer SrcAccessOrder
          2,                         // ABlockTransfer SrcVectorDim
-         4,                         // ABlockTransfer SrcScalarPerVector
-         4,                         // ABlockTransfer DstScalarPerVector_K1
+         32,                        // ABlockTransfer SrcScalarPerVector
+         32,                        // ABlockTransfer DstScalarPerVector_K1
          1,                         // ABlockLdsExtraM
          S<4, 64, 1>,               // BBlockTransfer ThreadCluster Lengths_K0_N_K1
          S<1, 0, 2>,                // BBlockTransfer ThreadCluster ArrangeOrder
          S<1, 0, 2>,                // BBlockTransfer SrcAccessOrder
          2,                         // BBlockTransfer SrcVectorDim
-         4,                         // BBlockTransfer SrcScalarPerVector
-         4,                         // BBlockTransfer DstScalarPerVector_K1
+         32,                        // BBlockTransfer SrcScalarPerVector
+         32,                        // BBlockTransfer DstScalarPerVector_K1
          1,                         // BBlockLdsExtraN
          1,                         // CShuffleMXdlPerWavePerShuffle
          1,                         // CShuffleNXdlPerWavePerShuffle
-         S<1, 16, 1, 16>,           // CBlockTransferClusterLengths _MBlock_MPerBlock_NBlock_NPerBlock
-         4,                         // CBlockTransferScalarPerVector_NPerBlock
+         S<1, 64, 1, 4>,            // CBlockTransferClusterLengths _MBlock_MPerBlock_NBlock_NPerBlock
+         32,                        // CBlockTransferScalarPerVector_NPerBlock
          S<64, 4>,                  // CReduceThread ClusterLengths _MPerBlock_NPerBlock
          4,                         // CReduceThread Lds2VGprCopy SrcDstScalarPerVector _NPerBlock
          1>;                        // CReduceThread Vgpr2GlobalCopy SrcDstScalarPerVector _MPerBlock
