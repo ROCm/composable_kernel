@@ -120,14 +120,14 @@ def parse_logfile(logfile):
         res = [x for _,x in sorted(zip(tests,tflops))]
         #sorted_kernels = [x for _,x in sorted(zip(tests,kernels))]
         test_list=list(range(1,len(tests)+1))
-    #parse fwd_conv performance tests:
-    elif 'fwd_conv' in logfile:
+    #parse conv_fwd performance tests:
+    elif 'conv_fwd' in logfile:
         for line in open(logfile):
             if 'tflops:' in line:
                 lst=line.split()
                 res.append(lst[1])
     #parse all other performance tests:
-    elif 'resnet50' or 'batched_gemm' or 'grouped_gemm' or 'bwd_conv' or 'fusion' or 'reduction' in logfile:
+    elif 'resnet50' or 'batched_gemm' or 'grouped_gemm' or 'conv_bwd_data' or 'gemm_bilinear' or 'reduction' in logfile:
         for line in open(logfile):
             if 'Best Perf' in line:
                 lst=line.split()
@@ -257,18 +257,18 @@ def main():
             for i in range(1,len(results)+1):
                 testlist.append("Test%i"%i)
             table_name="ck_grouped_gemm_tflops"
-        if 'fwd_conv' in filename:
+        if 'conv_fwd' in filename:
             for i in range(1,len(results)+1):
                 testlist.append("Test%i"%i)
-            table_name="ck_fwd_conv_tflops"
-        if 'bwd_conv' in filename:
+            table_name="ck_conv_fwd_tflops"
+        if 'conv_bwd_data' in filename:
             for i in range(1,len(results)+1):
                 testlist.append("Test%i"%i)
-            table_name="ck_bwd_conv_tflops"
-        if 'fusion' in filename:
+            table_name="ck_conv_bwd_data_tflops"
+        if 'gemm_bilinear' in filename:
             for i in range(1,len(results)+1):
                 testlist.append("Test%i"%i)
-            table_name="ck_fusion_tflops"
+            table_name="ck_gemm_bilinear_tflops"
         if 'reduction' in filename:
             for i in range(1,len(results)+1):
                 testlist.append("Test%i"%i)
