@@ -4,9 +4,7 @@
 #include <iostream>
 
 #include "cgemm_xdl_common.hpp"
-
 #include "ck/library/reference_tensor_operation/cpu/reference_cgemm.hpp"
-
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/device_cgemm_4gemm_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
@@ -118,6 +116,7 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
+<<<<<<< HEAD
     return run_cgemm_xdl<ADataType,
                          BDataType,
                          CDataType,
@@ -130,4 +129,150 @@ int main(int argc, char* argv[])
                          DeviceCGemmInstance,
                          ReferenceCGemmInstance>(
         M, N, K, StrideA, StrideB, StrideC, do_verification, init_method, time_kernel);
+=======
+    auto f_host_tensor_descriptor =
+        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+            if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
+            {
+                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
+                                            std::vector<std::size_t>({stride, 1}));
+            }
+            else
+            {
+                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
+                                            std::vector<std::size_t>({1, stride}));
+            }
+        };
+
+    Tensor<ADataType> a_m_k_real(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
+    Tensor<ADataType> a_m_k_imag(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
+    Tensor<BDataType> b_k_n_real(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
+    Tensor<BDataType> b_k_n_imag(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
+    Tensor<CDataType> c_m_n_real_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<CDataType> c_m_n_imag_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+
+    std::cout << "a_m_k_real: " << a_m_k_real.mDesc << std::endl;
+    std::cout << "a_m_k_imag: " << a_m_k_imag.mDesc << std::endl;
+    std::cout << "b_k_n_real: " << b_k_n_real.mDesc << std::endl;
+    std::cout << "b_k_n_imag: " << b_k_n_imag.mDesc << std::endl;
+    std::cout << "c_m_n_real: " << c_m_n_real_device_result.mDesc << std::endl;
+    std::cout << "c_m_n_imag: " << c_m_n_imag_device_result.mDesc << std::endl;
+
+    switch(init_method)
+    {
+    case 0: break;
+    case 1:
+        a_m_k_real.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        a_m_k_imag.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        b_k_n_real.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
+        b_k_n_imag.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
+        break;
+    default:
+        a_m_k_real.GenerateTensorValue(GeneratorTensor_3<ADataType>{-0.5, 0.5});
+        a_m_k_imag.GenerateTensorValue(GeneratorTensor_3<ADataType>{-0.5, 0.5});
+        b_k_n_real.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        b_k_n_imag.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+    }
+
+    auto cgemm = DeviceCGemmInstance{};
+
+    DeviceMem a_m_k_real_device_buf(sizeof(ADataType) * a_m_k_real.mDesc.GetElementSpaceSize());
+    DeviceMem a_m_k_imag_device_buf(sizeof(ADataType) * a_m_k_imag.mDesc.GetElementSpaceSize());
+    DeviceMem b_k_n_real_device_buf(sizeof(BDataType) * b_k_n_real.mDesc.GetElementSpaceSize());
+    DeviceMem b_k_n_imag_device_buf(sizeof(BDataType) * b_k_n_imag.mDesc.GetElementSpaceSize());
+    DeviceMem c_m_n_real_device_buf(sizeof(CDataType) *
+                                    c_m_n_real_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem c_m_n_imag_device_buf(sizeof(CDataType) *
+                                    c_m_n_imag_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem workspace_device_buf(cgemm.GetWorkspaceSize(M, N, K, StrideA, StrideB, StrideC));
+
+    a_m_k_real_device_buf.ToDevice(a_m_k_real.mData.data());
+    a_m_k_imag_device_buf.ToDevice(a_m_k_imag.mData.data());
+    b_k_n_real_device_buf.ToDevice(b_k_n_real.mData.data());
+    b_k_n_imag_device_buf.ToDevice(b_k_n_imag.mData.data());
+
+    auto a_element_op = PassThrough{};
+    auto b_element_op = PassThrough{};
+    auto c_element_op = PassThrough{};
+
+    // do GEMM
+    auto invoker = cgemm.MakeInvoker();
+    auto argument =
+        cgemm.MakeArgument(static_cast<ADataType*>(a_m_k_real_device_buf.GetDeviceBuffer()),
+                           static_cast<ADataType*>(a_m_k_imag_device_buf.GetDeviceBuffer()),
+                           static_cast<BDataType*>(b_k_n_real_device_buf.GetDeviceBuffer()),
+                           static_cast<BDataType*>(b_k_n_imag_device_buf.GetDeviceBuffer()),
+                           static_cast<CDataType*>(c_m_n_real_device_buf.GetDeviceBuffer()),
+                           static_cast<CDataType*>(c_m_n_imag_device_buf.GetDeviceBuffer()),
+                           static_cast<CDataType*>(workspace_device_buf.GetDeviceBuffer()),
+                           M,
+                           N,
+                           K,
+                           StrideA,
+                           StrideB,
+                           StrideC,
+                           a_element_op,
+                           b_element_op,
+                           c_element_op);
+
+    if(!cgemm.IsSupportedArgument(argument))
+    {
+        throw std::runtime_error(
+            "wrong! device_cgemm with the specified compilation parameters does "
+            "not support this CGEMM problem");
+    }
+
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
+
+    std::size_t flop = std::size_t(8) * M * N * K;
+    std::size_t num_btype =
+        std::size_t(2) *
+        (sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N);
+
+    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+
+    float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+              << cgemm.GetTypeString() << std::endl;
+
+    c_m_n_real_device_buf.FromDevice(c_m_n_real_device_result.mData.data());
+    c_m_n_imag_device_buf.FromDevice(c_m_n_imag_device_result.mData.data());
+
+    if(do_verification)
+    {
+        Tensor<CDataType> c_m_n_real_host_result(
+            f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+        Tensor<CDataType> c_m_n_imag_host_result(
+            f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+
+        auto ref_cgemm   = ReferenceCGemmInstance{};
+        auto ref_invoker = ref_cgemm.MakeInvoker();
+
+        auto ref_argument = ref_cgemm.MakeArgument(a_m_k_real,
+                                                   a_m_k_imag,
+                                                   b_k_n_real,
+                                                   b_k_n_imag,
+                                                   c_m_n_real_host_result,
+                                                   c_m_n_imag_host_result,
+                                                   a_element_op,
+                                                   b_element_op,
+                                                   c_element_op);
+
+        ref_invoker.Run(ref_argument);
+
+        ck::utils::check_err(c_m_n_real_device_result.mData,
+                             c_m_n_real_host_result.mData,
+                             "Verification error: incorrect results in real part!",
+                             1e-2f,
+                             1e-1f);
+        ck::utils::check_err(c_m_n_imag_device_result.mData,
+                             c_m_n_imag_host_result.mData,
+                             "Verification error: incorrect results in imaginary part!",
+                             1e-2f,
+                             1e-1f);
+    }
+
+    return 0;
+>>>>>>> origin/develop
 }

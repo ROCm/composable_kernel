@@ -14,12 +14,12 @@
 #include "ck/library/tensor_operation_instance/gpu/gemm_splitk.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
-#include "ck/library/host_tensor/host_gemm.hpp"
+#include "ck/library/utility/host_gemm.hpp"
 
 enum struct GemmMatrixLayout
 {
@@ -127,9 +127,9 @@ int test_gemm(const gemmArgs& args)
                        ck::tensor_operation::element_wise::PassThrough{},
                        ck::tensor_operation::element_wise::PassThrough{});
 
-    DeviceMem a_device_buf(sizeof(float) * a_m_k.mDesc.GetElementSpace());
-    DeviceMem b_device_buf(sizeof(float) * b_k_n.mDesc.GetElementSpace());
-    DeviceMem c_device_buf(sizeof(float) * c_m_n_device_result.mDesc.GetElementSpace());
+    DeviceMem a_device_buf(sizeof(float) * a_m_k.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(float) * b_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem c_device_buf(sizeof(float) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());

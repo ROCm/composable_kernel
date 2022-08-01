@@ -19,49 +19,53 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances(
+void add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_f16_f16_mk_kn_mn_mn_mn_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
                                                     Row,
+                                                    Row_Row_Tuple,
                                                     Row,
                                                     F16,
                                                     F16,
-                                                    F16_F16_TUPLE,
+                                                    F16_F16_Tuple,
                                                     F16,
                                                     PassThrough,
                                                     PassThrough,
                                                     AddAddFastGelu>>>&);
 
-void add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(
+void add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_f16_f16_mk_nk_mn_mn_mn_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
                                                     Col,
+                                                    Row_Row_Tuple,
                                                     Row,
                                                     F16,
                                                     F16,
-                                                    F16_F16_TUPLE,
+                                                    F16_F16_Tuple,
                                                     F16,
                                                     PassThrough,
                                                     PassThrough,
                                                     AddAddFastGelu>>>&);
 
-void add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances(
+void add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_f16_f16_km_kn_mn_mn_mn_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleD<Col,
                                                     Row,
+                                                    Row_Row_Tuple,
                                                     Row,
                                                     F16,
                                                     F16,
-                                                    F16_F16_TUPLE,
+                                                    F16_F16_Tuple,
                                                     F16,
                                                     PassThrough,
                                                     PassThrough,
                                                     AddAddFastGelu>>>&);
 
-void add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(
+void add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_f16_f16_km_nk_mn_mn_mn_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleD<Col,
                                                     Col,
+                                                    Row_Row_Tuple,
                                                     Row,
                                                     F16,
                                                     F16,
-                                                    F16_F16_TUPLE,
+                                                    F16_F16_Tuple,
                                                     F16,
                                                     PassThrough,
                                                     PassThrough,
@@ -70,7 +74,9 @@ void add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instanc
 // GEMM + Add + Add + FastGelu
 template <typename ALayout,
           typename BLayout,
-          typename DELayout,
+          typename D0Layout,
+          typename D1Layout,
+          typename ELayout,
           typename ADataType,
           typename BDataType,
           typename D0DataType,
@@ -79,7 +85,8 @@ template <typename ALayout,
 struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMultipleD<
     ALayout,
     BLayout,
-    DELayout,
+    ck::Tuple<D0Layout, D1Layout>,
+    ELayout,
     ADataType,
     BDataType,
     ck::Tuple<D0DataType, D1DataType>,
@@ -90,7 +97,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
 {
     using DeviceOp = DeviceGemmMultipleD<ALayout,
                                          BLayout,
-                                         DELayout,
+                                         ck::Tuple<D0Layout, D1Layout>,
+                                         ELayout,
                                          ADataType,
                                          BDataType,
                                          ck::Tuple<D0DataType, D1DataType>,
@@ -108,27 +116,31 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
                      is_same_v<EDataType, half_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
-                         is_same_v<DELayout, Row>)
+                         is_same_v<D0Layout, Row> && is_same_v<D1Layout, Row> &&
+                         is_same_v<ELayout, Row>)
             {
-                add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_mk_kn_mn_instances(
+                add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_f16_f16_mk_kn_mn_mn_mn_instances(
                     op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
-                              is_same_v<DELayout, Row>)
+                              is_same_v<D0Layout, Row> && is_same_v<D1Layout, Row> &&
+                              is_same_v<ELayout, Row>)
             {
-                add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(
+                add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_f16_f16_mk_nk_mn_mn_mn_instances(
                     op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
-                              is_same_v<DELayout, Row>)
+                              is_same_v<D0Layout, Row> && is_same_v<D1Layout, Row> &&
+                              is_same_v<ELayout, Row>)
             {
-                add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_km_kn_mn_instances(
+                add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_f16_f16_km_kn_mn_mn_mn_instances(
                     op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
-                              is_same_v<DELayout, Row>)
+                              is_same_v<D0Layout, Row> && is_same_v<D1Layout, Row> &&
+                              is_same_v<ELayout, Row>)
             {
-                add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_km_nk_mn_instances(
+                add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_f16_f16_km_nk_mn_mn_mn_instances(
                     op_ptrs);
             }
         }

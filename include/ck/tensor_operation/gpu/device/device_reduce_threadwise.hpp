@@ -6,8 +6,8 @@
 #include <iostream>
 #include <sstream>
 
-#include "ck/device_utility/device_prop.hpp"
-#include "ck/device_utility/kernel_launch.hpp"
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce_common.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_2d_reduction_multiblock.hpp"

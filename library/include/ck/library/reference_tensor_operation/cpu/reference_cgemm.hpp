@@ -6,9 +6,9 @@
 #include <iostream>
 #include <sstream>
 
+#include "ck/library/utility/host_tensor.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
 
 namespace ck {
 namespace tensor_operation {
