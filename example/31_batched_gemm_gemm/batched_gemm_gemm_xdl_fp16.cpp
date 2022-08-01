@@ -282,6 +282,11 @@ int main(int argc, char* argv[])
         b0_g_k_n.GenerateTensorValue(GeneratorTensor_3<B0DataType>{0.0, 1.0});
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_3<B1DataType>{-0.5, 0.5});
         break;
+    case 3:
+        a_g_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        b0_g_k_n.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
+        b1_g_n_o.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
+        break;
     default:
         a_g_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
         b0_g_k_n.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
