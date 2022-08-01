@@ -14,6 +14,7 @@
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_softmax_v1.hpp"
 
 namespace ck {
 
@@ -181,36 +182,11 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
 
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
-        // LDS allocation for A and B: be careful of alignment
-        constexpr auto a_block_desc_ak0_m_ak1  = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
-        constexpr auto b_block_desc_bk0_n_bk1  = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
-        constexpr auto b1_block_desc_bk0_n_bk1 = GetB1BlockDescriptor_BK0PerBlock_NPerBlock_BK1();
-
-        // lds max alignment
-        constexpr auto max_lds_align = math::lcm(math::lcm(AK1, BK1), B1K1);
-
-        constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
-            a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
-
-        constexpr auto b0_block_space_size_aligned = math::integer_least_multiple(
-            b_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
-
-        constexpr auto b1_block_space_size_aligned = math::integer_least_multiple(
-            b1_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
-
-        constexpr auto b_block_space_size_aligned =
-            math::max(b0_block_space_size_aligned.value, b1_block_space_size_aligned.value);
-
-        // LDS allocation for C shuffle in LDS
-        constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
-            GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
-
-        constexpr auto c_block_size =
-            c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
-
-        return math::max((a_block_space_size_aligned + b_block_space_size_aligned) *
-                             sizeof(FloatAB),
-                         c_block_size * sizeof(FloatCShuffle));
+        return math::max((SharedMemTrait::a_block_space_size_aligned +
+                          SharedMemTrait::b_block_space_size_aligned) *
+                                 sizeof(FloatAB) +
+                             SharedMemTrait::reduction_workspace * sizeof(FloatGemmAcc),
+                         SharedMemTrait::c_block_size * sizeof(FloatCShuffle));
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
@@ -312,6 +288,39 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
     using DefaultBlock2CTileMap =
         remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}))>;
 
+    struct SharedMemTrait
+    {
+        // LDS allocation for A and B: be careful of alignment
+        static constexpr auto a_block_desc_ak0_m_ak1 =
+            GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
+        static constexpr auto b_block_desc_bk0_n_bk1 =
+            GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
+        static constexpr auto b1_block_desc_bk0_n_bk1 =
+            GetB1BlockDescriptor_BK0PerBlock_NPerBlock_BK1();
+
+        static constexpr auto max_lds_align = math::lcm(math::lcm(AK1, BK1), B1K1);
+
+        static constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
+        static constexpr auto b0_block_space_size_aligned = math::integer_least_multiple(
+            b_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
+        static constexpr auto b1_block_space_size_aligned = math::integer_least_multiple(
+            b1_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
+
+        // B1 can reuse B's LDS
+        static constexpr auto b_block_space_size_aligned =
+            math::max(b0_block_space_size_aligned.value, b1_block_space_size_aligned.value);
+
+        // LDS allocation for reduction
+        static constexpr index_t reduction_workspace = BlockSize;
+
+        // LDS allocation for C shuffle in LDS
+        static constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
+            GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
+        static constexpr auto c_block_size =
+            c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
+    };
+
     template <bool HasMainKBlockLoop, typename Block2CTileMap>
     __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
                                const FloatAB* __restrict__ p_b_grid,
@@ -357,9 +366,6 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
 
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I1] * Gemm1NPerBlock);
-
-        // lds max alignment
-        constexpr auto max_lds_align = math::lcm(math::lcm(AK1, BK1), B1K1);
 
         // A matrix in LDS memory, dst of blockwise copy
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
@@ -464,14 +470,11 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
         auto acc_thread_buf = blockwise_gemm.GetCThreadBuffer();
 
         // LDS allocation for A and B: be careful of alignment
-        constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
-            a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
-
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<FloatAB*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<FloatAB*>(p_shared) + a_block_space_size_aligned,
+            static_cast<FloatAB*>(p_shared) + SharedMemTrait::a_block_space_size_aligned,
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1, 0, 0);
@@ -588,7 +591,7 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
 
         // reuse LDS space for gemm0's b_block_buf
         auto b1_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<FloatAB*>(p_shared) + a_block_space_size_aligned,
+            static_cast<FloatAB*>(p_shared) + SharedMemTrait::a_block_space_size_aligned,
             b1_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         constexpr index_t Gemm1KPack = math::max(
@@ -616,14 +619,38 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
             Gemm1KPack * XdlopsGemm<FloatAB, MPerXdl, NPerXdl, Gemm1KPack, false>{}.K0PerXdlops>{
             make_tuple(0, 0, 0, 0)}; // TransposeC
 
-        auto c_thread_buf = gemm1_blockwise_gemm.GetCThreadBuffer();
+        auto acc1_thread_buf = gemm1_blockwise_gemm.GetCThreadBuffer();
+
+        // Blockwise softmax
+        auto workspace_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+            static_cast<FloatGemmAcc*>(p_shared) +
+                SharedMemTrait::a_block_space_size_aligned * sizeof(FloatAB) / 4 +
+                SharedMemTrait::b_block_space_size_aligned * sizeof(FloatAB) / 4,
+            SharedMemTrait::reduction_workspace);
+
+        // FIXME: blockwise softmax assumes MPerBlock = 128
+        auto blockwise_softmax = BlockwiseSoftmax_V1<BlockSize,
+                                                     FloatGemmAcc,
+                                                     MPerBlock,
+                                                     MPerXdl,
+                                                     NPerXdl,
+                                                     MPerXdl * NPerXdl / 64,
+                                                     MXdlPerWave,
+                                                     NXdlPerWave>{};
 
         const index_t num_gemm1_k_block_outer_loop =
             b_grid_desc_bk0_n_bk1.GetLength(I1) / NPerBlock;
         constexpr index_t num_gemm1_k_block_inner_loop = NPerBlock / Gemm1KPerBlock;
 
         // Initialize C
+        StaticBuffer<AddressSpaceEnum::Vgpr, FloatGemmAcc, acc1_thread_buf.Size(), true>
+            c_thread_buf;
         c_thread_buf.Clear();
+
+        // Initialize running sum and max of exponentiating row vectors
+        // FIXME ANT: per row sum/max
+        float running_sum = 0, running_max = NumericLimits<float>::Lowest();
+        float running_sum_new = 0, running_max_new = NumericLimits<float>::Lowest();
 
         // gemm1 K loop
         index_t gemm1_k_block_outer_index = 0;
@@ -645,6 +672,17 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
                                                                    blockwise_gemm,
                                                                    acc_thread_buf,
                                                                    num_k_block_main_loop);
+            // softmax
+            FloatGemmAcc max, sum;
+
+            blockwise_softmax.Run(acc_thread_buf, sum, max, workspace_buf);
+
+            // TODO: may convert to log domain
+            running_max_new = math::max(max, running_max);
+            running_sum_new = math::exp(running_max - running_max_new) * running_sum +
+                              math::exp(max - running_max_new) * sum;
+
+            block_sync_lds();
             // gemm1
             {
                 // TODO: explore using dynamic buffer for a1 thread buffer
@@ -654,6 +692,9 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
                 // requires constexpr offset by design. Therefore, we pass tensor coordinate offset
                 // explicitly in Run() below.
 
+                // Initialize acc1
+                acc1_thread_buf.Clear();
+
                 // preload data into LDS
                 b1_blockwise_copy.RunRead(b1_grid_desc_bk0_n_bk1, b1_grid_buf);
 
@@ -661,6 +702,7 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
                                                      b1_block_slice_copy_step);
 
                 b1_blockwise_copy.RunWrite(b1_block_desc_bk0_n_bk1, b1_block_buf);
+
                 // main body
                 if constexpr(num_gemm1_k_block_inner_loop > 1)
                 {
@@ -676,7 +718,8 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
 
                         block_sync_lds();
 
-                        gemm1_blockwise_gemm.Run(a1_thread_buf, b1_block_buf, c_thread_buf);
+                        gemm1_blockwise_gemm.Run(a1_thread_buf, b1_block_buf, acc1_thread_buf);
+
                         block_sync_lds();
 
                         b1_blockwise_copy.MoveSrcSliceWindow(b1_grid_desc_bk0_n_bk1,
@@ -697,14 +740,29 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
                         a1_thread_buf);
                     block_sync_lds();
 
-                    gemm1_blockwise_gemm.Run(a1_thread_buf, b1_block_buf, c_thread_buf);
+                    gemm1_blockwise_gemm.Run(a1_thread_buf, b1_block_buf, acc1_thread_buf);
                 }
             } // end gemm1
+
+            // FIXME ANT: update on per-row basis
+            static_for<0, c_thread_buf.Size(), 1>{}([&](auto I) {
+                FloatGemmAcc acc1  = acc1_thread_buf[I]; // P*V
+                FloatGemmAcc c     = c_thread_buf[I];    // O
+                FloatGemmAcc c_new = (running_sum * math::exp(running_max - running_max_new) * c +
+                                      math::exp(max - running_max_new) * acc1) /
+                                     running_sum_new; // O_new
+
+                c_thread_buf(I) = c_new;
+            });
 
             a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_ak0_m_ak1,
                                                 a_block_reset_copy_step); // rewind K
             b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_bk0_n_bk1,
                                                 b_block_reset_copy_step); // rewind K and step N
+
+            // update before next j iteration
+            running_max = running_max_new;
+            running_sum = running_sum_new;
 
         } while(++gemm1_k_block_outer_index < num_gemm1_k_block_outer_loop); // end j loop
 
