@@ -10,7 +10,7 @@ rocm/tensorflow:rocm5.1-tf2.6-dev              \
 /bin/bash
 ```
 
-# Install the new rocm-cmake version
+# Install newer version of rocm-cmake
 https://github.com/RadeonOpenCompute/rocm-cmake
 
 ## Build
@@ -54,6 +54,7 @@ make install
 ```
 
 ## Using CK as pre-built kernel library
+Instructions for using CK as a pre-built kernel library are under ```client_example/```
 
 ## Caveat
 ### Kernel Timing and Verification

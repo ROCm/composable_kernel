@@ -1,2 +1,0 @@
-add_example_executable(example_conv2d_fwd_xdl_bias_relu conv2d_fwd_xdl_bias_relu.cpp)
-target_link_libraries(example_conv2d_fwd_xdl_bias_relu PRIVATE conv_util)

@@ -12,16 +12,65 @@ namespace element_wise {
 
 struct PassThrough
 {
-    template <typename T>
-    __host__ __device__ void operator()(T& y, const T& x) const
-    {
-        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, half_t>::value || is_same<T, bhalf_t>::value ||
-                          is_same<T, int32_t>::value || is_same<T, int8_t>::value,
-                      "Data type is not supported by this operation!");
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const;
 
+    template <>
+    __host__ __device__ void operator()<double, double>(double& y, const double& x) const
+    {
         y = x;
-    };
+    }
+
+    template <>
+    __host__ __device__ void operator()<float, float>(float& y, const float& x) const
+    {
+        y = x;
+    }
+
+    template <>
+    __host__ __device__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
+    {
+        y = x;
+    }
+
+    template <>
+    __host__ __device__ void operator()<bhalf_t, bhalf_t>(bhalf_t& y, const bhalf_t& x) const
+    {
+        y = x;
+    }
+
+    template <>
+    __host__ __device__ void operator()<int32_t, int32_t>(int32_t& y, const int32_t& x) const
+    {
+        y = x;
+    }
+
+    template <>
+    __host__ __device__ void operator()<bhalf_t, float>(bhalf_t& y, const float& x) const
+    {
+        y = type_convert<bhalf_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<int8_t, int8_t>(int8_t& y, const int8_t& x) const
+    {
+        y = x;
+    }
+
+    template <>
+    __host__ __device__ void operator()<int8_t, int32_t>(int8_t& y, const int32_t& x) const
+    {
+        y = type_convert<int8_t>(x);
+    }
+};
+
+struct UnaryConvert
+{
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const
+    {
+        y = type_convert<Y>(x);
+    }
 };
 
 struct Scale

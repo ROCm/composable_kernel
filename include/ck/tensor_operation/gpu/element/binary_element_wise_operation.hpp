@@ -106,6 +106,13 @@ struct Bilinear
 
     template <>
     __host__ __device__ constexpr void
+    operator()<half_t, half_t, half_t>(half_t& y, const half_t& x0, const half_t& x1) const
+    {
+        y = type_convert<half_t>(alpha_) * x0 + type_convert<half_t>(beta_) * x1;
+    };
+
+    template <>
+    __host__ __device__ constexpr void
     operator()<half_t, float, half_t>(half_t& y, const float& x0, const half_t& x1) const
     {
         y = type_convert<half_t>(alpha_ * x0 + beta_ * ck::type_convert<float>(x1));
@@ -117,12 +124,12 @@ struct Bilinear
 
 struct AddRelu
 {
-    template <typename T>
-    __host__ __device__ constexpr void operator()(T& y, const T& x0, const T& x1) const;
+    template <typename Y, typename X0, typename X1>
+    __host__ __device__ constexpr void operator()(Y& y, const X0& x0, const X1& x1) const;
 
     template <>
     __host__ __device__ constexpr void
-    operator()<float>(float& y, const float& x0, const float& x1) const
+    operator()<float, float, float>(float& y, const float& x0, const float& x1) const
     {
         const float a = x0 + x1;
         y             = a > 0.0f ? a : 0.0f;
@@ -130,7 +137,7 @@ struct AddRelu
 
     template <>
     __host__ __device__ constexpr void
-    operator()<double>(double& y, const double& x0, const double& x1) const
+    operator()<double, double, double>(double& y, const double& x0, const double& x1) const
     {
         const double a = x0 + x1;
         y              = a > 0.0 ? a : 0.0;
@@ -138,10 +145,18 @@ struct AddRelu
 
     template <>
     __host__ __device__ constexpr void
-    operator()<half_t>(half_t& y, const half_t& x0, const half_t& x1) const
+    operator()<half_t, half_t, half_t>(half_t& y, const half_t& x0, const half_t& x1) const
     {
         const half_t a = x0 + x1;
         y              = a > type_convert<half_t>(0.0f) ? a : type_convert<half_t>(0.0f);
+    };
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<half_t, float, half_t>(half_t& y, const float& x0, const half_t& x1) const
+    {
+        const float a = x0 + x1;
+        y             = a > type_convert<half_t>(0.0f) ? a : type_convert<half_t>(0.0f);
     };
 };
 
