@@ -204,8 +204,8 @@ int main(int argc, char* argv[])
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(BatchCount, M, K, StrideA, ALayout{}));
     Tensor<B0DataType> b0_k_n(f_host_tensor_descriptor(BatchCount, K, N, StrideB0, B0Layout{}));
     Tensor<B1DataType> b1_n_o(f_host_tensor_descriptor(BatchCount, N, O, StrideB1, B1Layout{}));
-    Tensor<CDataType> c_m_o_host_result(f_host_tensor_descriptor(BatchCount, N, O, StrideC, CLayout{}));
-    Tensor<CDataType> c_m_o_device_result(f_host_tensor_descriptor(BatchCount, N, O, StrideC, CLayout{}));
+    Tensor<CDataType> c_m_o_host_result(f_host_tensor_descriptor(BatchCount, M, O, StrideC, CLayout{}));
+    Tensor<CDataType> c_m_o_device_result(f_host_tensor_descriptor(BatchCount, M, O, StrideC, CLayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b0_k_n: " << b0_k_n.mDesc << std::endl;
