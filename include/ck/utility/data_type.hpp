@@ -9,6 +9,7 @@ namespace ck {
 
 using bhalf_t = ushort;
 using half_t  = _Float16;
+using int4_t  = _ExtInt(4);
 
 // vector_type
 template <typename T, index_t N>
@@ -930,6 +931,14 @@ using int8x16_t = typename vector_type<int8_t, 16>::type;
 using int8x32_t = typename vector_type<int8_t, 32>::type;
 using int8x64_t = typename vector_type<int8_t, 64>::type;
 
+// i4
+using int4x2_t  = typename vector_type<int4_t, 2>::type;
+using int4x4_t  = typename vector_type<int4_t, 4>::type;
+using int4x8_t  = typename vector_type<int4_t, 8>::type;
+using int4x16_t = typename vector_type<int4_t, 16>::type;
+using int4x32_t = typename vector_type<int4_t, 32>::type;
+using int4x64_t = typename vector_type<int4_t, 64>::type;
+
 // Convert X to Y
 template <typename Y, typename X>
 __host__ __device__ constexpr Y type_convert(X x)
@@ -994,6 +1003,18 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float 
     }
 
     return uint16_t(u.int32 >> 16);
+}
+
+template <>
+inline __host__ __device__ constexpr int8_t type_convert<int8_t, int4_t>(int4_t x)
+{
+    return int8_t(x);
+}
+
+template <>
+inline __host__ __device__ constexpr int4_t type_convert<int4_t, int8_t>(int8_t x)
+{
+    return int4_t(x & 0x7);
 }
 
 template <typename T>
