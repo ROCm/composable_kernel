@@ -16,7 +16,7 @@ python3 process_perf_data.py perf_resnet50_N265_"$gpu_arch".log
 python3 process_perf_data.py perf_resnet50_N4_"$gpu_arch".log
 python3 process_perf_data.py perf_batched_gemm_"$gpu_arch".log
 python3 process_perf_data.py perf_grouped_gemm_"$gpu_arch".log
-python3 process_perf_data.py perf_fwd_conv_"$gpu_arch".log
-python3 process_perf_data.py perf_bwd_conv_"$gpu_arch".log
-python3 process_perf_data.py perf_fusion_"$gpu_arch".log
+python3 process_perf_data.py perf_conv_fwd_"$gpu_arch".log
+python3 process_perf_data.py perf_conv_bwd_data_"$gpu_arch".log
+python3 process_perf_data.py perf_gemm_bilinear_"$gpu_arch".log
 python3 process_perf_data.py perf_reduction_"$gpu_arch".log

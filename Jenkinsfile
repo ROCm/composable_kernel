@@ -12,8 +12,9 @@ def show_node_info() {
 }
 
 def runShell(String command){
-    def responseCode = sh returnStatus: true, script: "${command} &> tmp.txt"
+    def responseCode = sh returnStatus: true, script: "${command} > tmp.txt"
     def output = readFile(file: "tmp.txt")
+    echo "tmp.txt contents: $output"
     return (output != "")
 }
 
@@ -121,8 +122,7 @@ def buildHipClangJob(Map conf=[:]){
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
                         if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
-                            echo "GPU not found"
-                            throw e
+                            throw new Exception ("GPU not found")
                         }
                         else{
                             echo "GPU is OK"
@@ -140,8 +140,7 @@ def buildHipClangJob(Map conf=[:]){
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo |tee clinfo.log'
                         if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
-                            echo "GPU not found"
-                            throw e
+                            throw new Exception ("GPU not found")
                         }
                         else{
                             echo "GPU is OK"
@@ -153,14 +152,6 @@ def buildHipClangJob(Map conf=[:]){
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 5, unit: 'HOURS')
                 {
-                    sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
-                    if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
-                        echo "GPU not found"
-                        throw e
-                    }
-                    else{
-                        echo "GPU is OK"
-                    }
                     cmake_build(conf)
                 }
             }
@@ -223,8 +214,7 @@ def runCKProfiler(Map conf=[:]){
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
                         if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
-                            echo "GPU not found"
-                            throw e
+                            throw new Exception ("GPU not found")
                         }
                         else{
                             echo "GPU is OK"
@@ -242,8 +232,7 @@ def runCKProfiler(Map conf=[:]){
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
                         if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
-                            echo "GPU not found"
-                            throw e
+                            throw new Exception ("GPU not found")
                         }
                         else{
                             echo "GPU is OK"
@@ -268,7 +257,7 @@ def runCKProfiler(Map conf=[:]){
                             archiveArtifacts "perf_gemm_${gpu_arch}.log"
                             archiveArtifacts "perf_resnet50_N256_${gpu_arch}.log"
                             archiveArtifacts "perf_resnet50_N4_${gpu_arch}.log"
-                            archiveArtifacts "perf_bathced_gemm_${gpu_arch}.log"
+                            archiveArtifacts "perf_batched_gemm_${gpu_arch}.log"
                             archiveArtifacts "perf_grouped_gemm_${gpu_arch}.log"
                             archiveArtifacts "perf_fwd_conv_${gpu_arch}.log"
                             archiveArtifacts "perf_bwd_conv_${gpu_arch}.log"
@@ -278,7 +267,7 @@ def runCKProfiler(Map conf=[:]){
                             stash name: "perf_gemm_${gpu_arch}.log"
                             stash name: "perf_resnet50_N256_${gpu_arch}.log"
                             stash name: "perf_resnet50_N4_${gpu_arch}.log"
-                            stash name: "perf_bathced_gemm_${gpu_arch}.log"
+                            stash name: "perf_batched_gemm_${gpu_arch}.log"
                             stash name: "perf_grouped_gemm_${gpu_arch}.log"
                             stash name: "perf_fwd_conv_${gpu_arch}.log"
                             stash name: "perf_bwd_conv_${gpu_arch}.log"
@@ -362,7 +351,7 @@ def process_results(Map conf=[:]){
                         unstash "perf_gemm_${gpu_arch}.log"
                         unstash "perf_resnet50_N256_${gpu_arch}.log"
                         unstash "perf_resnet50_N4_${gpu_arch}.log"
-                        unstash "perf_bathced_gemm_${gpu_arch}.log"
+                        unstash "perf_batched_gemm_${gpu_arch}.log"
                         unstash "perf_grouped_gemm_${gpu_arch}.log"
                         unstash "perf_fwd_conv_${gpu_arch}.log"
                         unstash "perf_bwd_conv_${gpu_arch}.log"
@@ -389,13 +378,13 @@ def process_results(Map conf=[:]){
 }
 
 //launch develop branch daily at 23:00 in FULL_QA mode
-//CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;USE_9110=true''' : ""
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;USE_9110=true''' : ""
 
 pipeline {
     agent none
-    //triggers {
-    //    cron(CRON_SETTINGS)
-    //}
+    triggers {
+        parameterizedCron(CRON_SETTINGS)
+    }
     options {
         parallelsAlwaysFailFast()
     }
@@ -467,6 +456,10 @@ pipeline {
                 }
                 stage("Run Tests: gfx90a")
                 {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_FULL_QA.toBoolean() }
+                    }
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
@@ -500,6 +493,10 @@ pipeline {
             {
                 stage("Run ckProfiler: gfx908")
                 {
+                    when {
+                        beforeAgent true
+                        expression { !params.RUN_FULL_QA.toBoolean() }
+                    }
                     agent{ label rocmnode("gfx908")}
                     environment{
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
@@ -510,6 +507,10 @@ pipeline {
                 }
                 stage("Run ckProfiler: gfx90a")
                 {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_FULL_QA.toBoolean() }
+                    }
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
@@ -525,12 +526,20 @@ pipeline {
             parallel
             {
                 stage("Process results for gfx908"){
+                    when {
+                        beforeAgent true
+                        expression { !params.RUN_FULL_QA.toBoolean() }
+                    }
                     agent { label 'mici' }
                     steps{
                         process_results(gpu_arch: "gfx908")
                     }
                 }
                 stage("Process results for gfx90a"){
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_FULL_QA.toBoolean() }
+                    }
                     agent { label 'mici' }
                     steps{
                         process_results(gpu_arch: "gfx90a")
