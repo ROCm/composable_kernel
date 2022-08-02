@@ -15,6 +15,19 @@ enum struct ConvolutionBackwardWeightSpecialization
     OddC,
 };
 
+inline std::string
+getConvBackwardWeightSpecializationString(const ConvolutionBackwardWeightSpecialization& s)
+{
+    switch(s)
+    {
+    case ConvolutionBackwardWeightSpecialization::Default: return "Default";
+    case ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0:
+        return "Filter1x1Stride1Pad0";
+    case ConvolutionBackwardWeightSpecialization::Filter1x1Pad0: return "Filter1x1Pad0";
+    case ConvolutionBackwardWeightSpecialization::OddC: return "OddC";
+    default: return "Unrecognized specialization!";
+    }
+}
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

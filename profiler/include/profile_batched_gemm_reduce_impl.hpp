@@ -10,10 +10,10 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/conv_util.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/convolution_parameter.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 
 namespace ck {
@@ -193,13 +193,13 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
         }
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpace());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_g_k_n.mDesc.GetElementSpace());
-    DeviceMem c_device_buf(sizeof(CDataType) * c_g_m_n_device_result.mDesc.GetElementSpace());
+    DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_g_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem c_device_buf(sizeof(CDataType) * c_g_m_n_device_result.mDesc.GetElementSpaceSize());
     DeviceMem reduce0_device_buf(sizeof(ReduceDataType) *
-                                 d0_g_m_device_result.mDesc.GetElementSpace());
+                                 d0_g_m_device_result.mDesc.GetElementSpaceSize());
     DeviceMem reduce1_device_buf(sizeof(ReduceDataType) *
-                                 d1_g_m_device_result.mDesc.GetElementSpace());
+                                 d1_g_m_device_result.mDesc.GetElementSpaceSize());
 
     std::array<void*, 2> p_reduces = {reduce0_device_buf.GetDeviceBuffer(),
                                       reduce1_device_buf.GetDeviceBuffer()};
@@ -318,13 +318,16 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
                 reduce0_device_buf.FromDevice(d0_g_m_device_result.mData.data());
                 reduce1_device_buf.FromDevice(d1_g_m_device_result.mData.data());
 
-                float c_error  = check_error(c_g_m_n_host_result, c_g_m_n_device_result);
-                float d0_error = check_error(d0_g_m_host_result, d0_g_m_device_result);
-                float d1_error = check_error(d1_g_m_host_result, d1_g_m_device_result);
+                bool c_error =
+                    ck::utils::check_err(c_g_m_n_device_result.mData, c_g_m_n_host_result.mData);
+                bool d0_error =
+                    ck::utils::check_err(d0_g_m_device_result.mData, d0_g_m_host_result.mData);
+                bool d1_error =
+                    ck::utils::check_err(d1_g_m_device_result.mData, d1_g_m_host_result.mData);
 
-                pass = pass && (c_error < 1E-6);
-                pass = pass && (d0_error < 1E-6);
-                pass = pass && (d1_error < 1E-6);
+                pass = pass && (c_error == true);
+                pass = pass && (d0_error == true);
+                pass = pass && (d1_error == true);
 
                 if(do_log)
                 {

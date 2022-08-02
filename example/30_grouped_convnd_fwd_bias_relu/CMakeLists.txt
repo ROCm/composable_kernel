@@ -1,0 +1,2 @@
+add_example_executable(example_grouped_convnd_fwd_bias_relu_xdl_fp16 grouped_convnd_fwd_bias_relu_xdl_fp16.cpp)
+target_link_libraries(example_grouped_convnd_fwd_bias_relu_xdl_fp16 PRIVATE utility)

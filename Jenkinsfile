@@ -11,6 +11,12 @@ def show_node_info() {
     """
 }
 
+def runShell(String command){
+    def responseCode = sh returnStatus: true, script: "${command} &> tmp.txt"
+    def output = readFile(file: "tmp.txt")
+    return (output != "")
+}
+
 def cmake_build(Map conf=[:]){
 
     def compiler = conf.get("compiler","/opt/rocm/bin/hipcc")
@@ -60,7 +66,7 @@ def cmake_build(Map conf=[:]){
         """
     def setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
     // reduce parallelism when compiling, clang uses too much memory
-    def build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make  -j\$(( \$(nproc) / 1 )) ${config_targets}")
+    def build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make  -j\$(( \$(nproc) / 2 )) ${config_targets}")
     def execute_cmd = conf.get("execute_cmd", "")
 
     def cmd = conf.get("cmd", """
@@ -113,7 +119,14 @@ def buildHipClangJob(Map conf=[:]){
                 retimage = docker.build("${image}", dockerArgs + '.')
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                            echo "GPU not found"
+                            throw e
+                        }
+                        else{
+                            echo "GPU is OK"
+                        }
                     }
                 }
             }
@@ -125,7 +138,14 @@ def buildHipClangJob(Map conf=[:]){
                 retimage = docker.build("${image}", dockerArgs + " --no-cache .")
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo |tee clinfo.log'
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                            echo "GPU not found"
+                            throw e
+                        }
+                        else{
+                            echo "GPU is OK"
+                        }
                     }
                 }
             }
@@ -133,7 +153,14 @@ def buildHipClangJob(Map conf=[:]){
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 5, unit: 'HOURS')
                 {
-                    sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                    sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
+                    if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                        echo "GPU not found"
+                        throw e
+                    }
+                    else{
+                        echo "GPU is OK"
+                    }
                     cmake_build(conf)
                 }
             }
@@ -144,7 +171,6 @@ def buildHipClangJob(Map conf=[:]){
 def reboot(){
     build job: 'reboot-slaves', propagate: false , parameters: [string(name: 'server', value: "${env.NODE_NAME}"),]
 }
-
 
 def buildHipClangJobAndReboot(Map conf=[:]){
     try{
@@ -161,7 +187,6 @@ def buildHipClangJobAndReboot(Map conf=[:]){
         }
     }
 }
-
 
 def runCKProfiler(Map conf=[:]){
         show_node_info()
@@ -189,7 +214,6 @@ def runCKProfiler(Map conf=[:]){
         }
 
         def variant = env.STAGE_NAME
-
         def retimage
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
@@ -197,7 +221,14 @@ def runCKProfiler(Map conf=[:]){
                 retimage = docker.build("${image}", dockerArgs + '.')
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                            echo "GPU not found"
+                            throw e
+                        }
+                        else{
+                            echo "GPU is OK"
+                        }
                     }
                 }
             }
@@ -209,96 +240,75 @@ def runCKProfiler(Map conf=[:]){
                 retimage = docker.build("${image}", dockerArgs + " --no-cache .")
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                            echo "GPU not found"
+                            throw e
+                        }
+                        else{
+                            echo "GPU is OK"
+                        }
                     }
                 }
             }
 
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
-                timeout(time: 5, unit: 'HOURS')
+                timeout(time: 24, unit: 'HOURS')
                 {
                     cmake_build(conf)
 					dir("script"){
-                        //run gemm performance tests
-                        def gemm_log = "perf_gemm_${gpu_arch}.log"
-                        sh "rm -f ${gemm_log}"
-                        sh "echo Branch name: ${env.BRANCH_NAME} > ${gemm_log}"
-                        sh "echo Node name: ${NODE_NAME} >> ${gemm_log}"
-                        sh "echo GPU_arch name: ${gpu_arch}  >> ${gemm_log}"
-                        sh "rocminfo | grep 'Compute Unit:' >> ${gemm_log} "
-                        sh "hipcc --version | grep -e 'HIP version'  >> ${gemm_log}"
-                        if (params.USE_9110){
-                            sh "echo Environment type: CI_9110  >> ${gemm_log}"
+                        if (params.RUN_FULL_QA){
+                            def qa_log = "qa_${gpu_arch}.log"
+                            if (params.USE_9110){
+                                sh "./run_full_performance_tests.sh 1 QA_9110 ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
+                            }
+                            else{
+                                sh "./run_full_performance_tests.sh 1 QA_release ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
+                            }
+                            archiveArtifacts "perf_gemm_${gpu_arch}.log"
+                            archiveArtifacts "perf_resnet50_N256_${gpu_arch}.log"
+                            archiveArtifacts "perf_resnet50_N4_${gpu_arch}.log"
+                            archiveArtifacts "perf_bathced_gemm_${gpu_arch}.log"
+                            archiveArtifacts "perf_grouped_gemm_${gpu_arch}.log"
+                            archiveArtifacts "perf_fwd_conv_${gpu_arch}.log"
+                            archiveArtifacts "perf_bwd_conv_${gpu_arch}.log"
+                            archiveArtifacts "perf_fusion_${gpu_arch}.log"
+                            archiveArtifacts "perf_reduction_${gpu_arch}.log"
+                           // stash perf files to master
+                            stash name: "perf_gemm_${gpu_arch}.log"
+                            stash name: "perf_resnet50_N256_${gpu_arch}.log"
+                            stash name: "perf_resnet50_N4_${gpu_arch}.log"
+                            stash name: "perf_bathced_gemm_${gpu_arch}.log"
+                            stash name: "perf_grouped_gemm_${gpu_arch}.log"
+                            stash name: "perf_fwd_conv_${gpu_arch}.log"
+                            stash name: "perf_bwd_conv_${gpu_arch}.log"
+                            stash name: "perf_fusion_${gpu_arch}.log"
+                            stash name: "perf_reduction_${gpu_arch}.log"
+                            //we will process results on the master node
                         }
                         else{
-                            sh "echo Environment type: CI_release  >> ${gemm_log}"
+                            if (params.USE_9110){
+                                sh "./run_performance_tests.sh 0 CI_9110 ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
+                            }
+                            else{
+                                sh "./run_performance_tests.sh 0 CI_release ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
+                            }
+                            archiveArtifacts "perf_gemm_${gpu_arch}.log"
+                            archiveArtifacts "perf_resnet50_N256_${gpu_arch}.log"
+                            archiveArtifacts "perf_resnet50_N4_${gpu_arch}.log"
+                            // stash perf files to master
+                            stash name: "perf_gemm_${gpu_arch}.log"
+                            stash name: "perf_resnet50_N256_${gpu_arch}.log"
+                            stash name: "perf_resnet50_N4_${gpu_arch}.log"
+                            //we will process the results on the master node
                         }
-                        sh "/opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 0 0 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 1 0 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 2 0 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 3 0 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 0 1 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 1 1 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 2 1 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 3 1 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 0 2 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 1 2 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 2 2 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 3 2 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 0 3 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 1 3 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 2 3 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 3 3 0 1 0 5 | tee -a ${gemm_log}"
-                        //results will be parsed, stored, and analyzed within the python script
-                        //the script will return 0 if the performance criteria are met
-                        //or return 1 if the criteria are not met
-                        archiveArtifacts  "${gemm_log}"
-                        sh "python3 process_perf_data.py ${gemm_log} "
-                        //run resnet50 test
-                        def resnet256_log = "perf_resnet50_N256_${gpu_arch}.log"
-                        sh "rm -f ${resnet256_log}"
-                        sh "echo Branch name: ${env.BRANCH_NAME} > ${resnet256_log}"
-                        sh "echo Node name: ${NODE_NAME} >> ${resnet256_log}"
-                        sh "echo GPU_arch name: ${gpu_arch}  >> ${resnet256_log}"
-                        sh "rocminfo | grep 'Compute Unit:' >> ${resnet256_log} "
-                        sh "hipcc --version | grep -e 'HIP version'  >> ${resnet256_log}"
-                        if (params.USE_9110){
-                            sh "echo Environment type: CI_9110  >> ${resnet256_log}"
-                        }
-                        else{
-                            sh "echo Environment type: CI_release  >> ${resnet256_log}"
-                        }
-                        sh "/opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> ${resnet256_log}"
-                        //first run tests with N=256
-                        sh "./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 0 2 0 1 256 | tee -a ${resnet256_log}"
-                        archiveArtifacts  "${resnet256_log}"
-                        sh "python3 process_perf_data.py ${resnet256_log} "
-                        //then run with N=4
-                        def resnet4_log = "perf_resnet50_N4_${gpu_arch}.log"
-                        sh "rm -f ${resnet4_log}"
-                        sh "echo Branch name: ${env.BRANCH_NAME} > ${resnet4_log}"
-                        sh "echo Node name: ${NODE_NAME} >> ${resnet4_log}"
-                        sh "echo GPU_arch name: ${gpu_arch}  >> ${resnet4_log}"
-                        sh "rocminfo | grep 'Compute Unit:' >> ${resnet4_log} "
-                        sh "hipcc --version | grep -e 'HIP version'  >> ${resnet4_log}"
-                        if (params.USE_9110){
-                            sh "echo Environment type: CI_9110  >> ${resnet4_log}"
-                        }
-                        else{
-                            sh "echo Environment type: CI_release  >> ${resnet4_log}"
-                        }
-                        sh "/opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> ${resnet4_log}"
-                        sh "./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 0 2 0 1 4 | tee -a ${resnet4_log}"
-                        archiveArtifacts  "${resnet4_log}"
-                        sh "python3 process_perf_data.py ${resnet4_log} "
+
 					}
                 }
             }
         }
         return retimage
 }
-
 
 def runPerfTest(Map conf=[:]){
     try{
@@ -316,8 +326,76 @@ def runPerfTest(Map conf=[:]){
     }
 }
 
+def process_results(Map conf=[:]){
+    env.HSA_ENABLE_SDMA=0
+    checkout scm
+    def image = "composable_kernels"
+    def prefixpath = "/opt/rocm"
+    def gpu_arch = conf.get("gpu_arch", "gfx908")
+
+    // Jenkins is complaining about the render group 
+    def dockerOpts="--cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+    if (conf.get("enforce_xnack_on", false)) {
+        dockerOpts = dockerOpts + " --env HSA_XNACK=1"
+    }
+    def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='release' "
+
+    def variant = env.STAGE_NAME
+    def retimage
+
+    gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
+        try {
+            retimage = docker.build("${image}", dockerArgs + '.')
+        }
+        catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+            echo "The job was cancelled or aborted"
+            throw e
+        }
+    }
+
+    withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
+        timeout(time: 1, unit: 'HOURS'){
+            try{
+                dir("script"){
+                    if (params.RUN_FULL_QA){
+                        // unstash perf files to master
+                        unstash "perf_gemm_${gpu_arch}.log"
+                        unstash "perf_resnet50_N256_${gpu_arch}.log"
+                        unstash "perf_resnet50_N4_${gpu_arch}.log"
+                        unstash "perf_bathced_gemm_${gpu_arch}.log"
+                        unstash "perf_grouped_gemm_${gpu_arch}.log"
+                        unstash "perf_fwd_conv_${gpu_arch}.log"
+                        unstash "perf_bwd_conv_${gpu_arch}.log"
+                        unstash "perf_fusion_${gpu_arch}.log"
+                        unstash "perf_reduction_${gpu_arch}.log"
+                        sh "./process_qa_data.sh ${gpu_arch}"
+                    }
+                    else{
+                        // unstash perf files to master
+                        unstash "perf_gemm_${gpu_arch}.log"
+                        unstash "perf_resnet50_N256_${gpu_arch}.log"
+                        unstash "perf_resnet50_N4_${gpu_arch}.log"
+                        sh "./process_perf_data.sh ${gpu_arch}"
+                    }
+                }
+            }
+            catch(e){
+                echo "throwing error exception while processing performance test results"
+                echo 'Exception occurred: ' + e.toString()
+                throw e
+            }
+        }
+    }
+}
+
+//launch develop branch daily at 23:00 in FULL_QA mode
+//CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;USE_9110=true''' : ""
+
 pipeline {
     agent none
+    //triggers {
+    //    cron(CRON_SETTINGS)
+    //}
     options {
         parallelsAlwaysFailFast()
     }
@@ -325,7 +403,11 @@ pipeline {
         booleanParam(
             name: "USE_9110",
             defaultValue: true,
-            description: "")
+            description: "Select compiler version: 9110 (default) or release")
+        booleanParam(
+            name: "RUN_FULL_QA",
+            defaultValue: false,
+            description: "Select whether to run small set of performance tests (default) or full QA")
     }
     environment{
         dbuser = "${dbuser}"
@@ -438,6 +520,25 @@ pipeline {
                 }
             }
         }
+        stage("Process Performance Test Results")
+        {
+            parallel
+            {
+                stage("Process results for gfx908"){
+                    agent { label 'mici' }
+                    steps{
+                        process_results(gpu_arch: "gfx908")
+                    }
+                }
+                stage("Process results for gfx90a"){
+                    agent { label 'mici' }
+                    steps{
+                        process_results(gpu_arch: "gfx90a")
+                    }
+                }
+            }
+        }
+
         /* enable after the cmake file supports packaging
         stage("Packages") {
             when {
