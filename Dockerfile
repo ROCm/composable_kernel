@@ -24,8 +24,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     cmake-data=3.15.1-0kitware1 \
     cmake=3.15.1-0kitware1 \
     curl \
-    g++ \
-    gdb \
+#   g++ \
+#   gdb \
     git \
     hip-rocclr \
     jq \
@@ -63,16 +63,16 @@ RUN wget https://github.com/Yelp/dumb-init/releases/download/v1.2.0/dumb-init_1.
 RUN dpkg -i dumb-init_*.deb && rm dumb-init_*.deb
 
 # Install cget
-RUN pip install cget
+#RUN pip install cget
 
 # Install rclone
-RUN pip install https://github.com/pfultz2/rclone/archive/master.tar.gz
+#RUN pip install https://github.com/pfultz2/rclone/archive/master.tar.gz
 
 ARG PREFIX=/opt/rocm
 # Install dependencies
-RUN cget install pfultz2/rocm-recipes
+#RUN cget install pfultz2/rocm-recipes
 # Install rbuild
-RUN pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/6d78a0553babdaea8d2da5de15cbda7e869594b8.tar.gz
+#RUN pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/6d78a0553babdaea8d2da5de15cbda7e869594b8.tar.gz
 # Install packages for processing the performance results
 RUN pip3 install --upgrade pip
 RUN pip3 install sqlalchemy
@@ -85,9 +85,9 @@ ENV UBSAN_OPTIONS=print_stacktrace=1
 
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
-ADD rbuild.ini /rbuild.ini
+#ADD rbuild.ini /rbuild.ini
 ADD dev-requirements.txt dev-requirements.txt
-RUN rbuild prepare -s develop -d $PREFIX
+#RUN rbuild prepare -s develop -d $PREFIX
 RUN groupadd -f render
 
 # Install the new rocm-cmake version
