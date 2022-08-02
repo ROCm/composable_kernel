@@ -31,11 +31,11 @@ using D0DataType = F16;
 using D1DataType = F16;
 using EDataType  = F16;
 
-using ALayout   = Row;
-using BLayout   = Col;
-using DDELayout = Row;
-using DDELayout = Row;
-using DELayout  = Row;
+using ALayout  = Row;
+using BLayout  = Col;
+using D0Layout = Row;
+using D1Layout = Row;
+using ELayout  = Row;
 
 struct SimpleDeviceMem
 {
@@ -105,16 +105,16 @@ int main(int argc, char* argv[])
     SimpleDeviceMem a_device_buf(sizeof(ADataType) * f_matrix_space_size(M, K, StrideA, ALayout{}));
     SimpleDeviceMem b_device_buf(sizeof(BDataType) * f_matrix_space_size(K, N, StrideB, BLayout{}));
     SimpleDeviceMem d0_m_n_device_buf(sizeof(D0DataType) *
-                                      f_matrix_space_size(M, N, StrideD0, DDELayout{}));
+                                      f_matrix_space_size(M, N, StrideD0, D0Layout{}));
     SimpleDeviceMem d1_m_n_device_buf(sizeof(D1DataType) *
-                                      f_matrix_space_size(M, N, StrideD1, DDELayout{}));
-    SimpleDeviceMem e_device_buf(sizeof(EDataType) *
-                                 f_matrix_space_size(M, N, StrideE, DELayout{}));
+                                      f_matrix_space_size(M, N, StrideD1, D1Layout{}));
+    SimpleDeviceMem e_device_buf(sizeof(EDataType) * f_matrix_space_size(M, N, StrideE, ELayout{}));
 
     using DeviceOp = ck::tensor_operation::device::DeviceGemmMultipleD<
         ALayout,
         BLayout,
-        DDELayout,
+        ck::Tuple<D0Layout, D1Layout>,
+        ELayout,
         ADataType,
         BDataType,
         ck::Tuple<D0DataType, D1DataType>,
