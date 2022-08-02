@@ -4,16 +4,17 @@
 #include <iostream>
 
 #include "cgemm_xdl_common.hpp"
+
 #include "ck/library/reference_tensor_operation/cpu/reference_cgemm.hpp"
+
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/device_cgemm_4gemm_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 
-using ADataType        = F16;
-using BDataType        = F16;
-using CDataType        = F16;
-using AccDataType      = F32;
-using CShuffleDataType = F32;
+using ADataType   = F32;
+using BDataType   = F32;
+using CDataType   = F32;
+using AccDataType = F32;
 
 using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
@@ -35,7 +36,7 @@ using DeviceCGemmInstance = ck::tensor_operation::device::DeviceCGemm_4Gemm_Xdl_
      BDataType,                  // typename BDataType
      CDataType,                  // typename CDataType
      AccDataType,                // typename GemmAccDataType
-     CShuffleDataType,           // typename CShuffleDataType
+     CDataType,                  // typename CShuffleDataType
      PassThrough,                // typename AElementwiseOperation
      PassThrough,                // typename BElementwiseOperation
      PassThrough,                // typename CElementwiseOperation
@@ -44,9 +45,9 @@ using DeviceCGemmInstance = ck::tensor_operation::device::DeviceCGemm_4Gemm_Xdl_
      256,                        // index_t BlockSize
      256,                        // index_t MPerBlock
      128,                        // index_t NPerBlock
-     32,                         // index_t KPerBlock
-     8,                          // index_t AK1
-     8,                          // index_t BK1
+     16,                         // index_t KPerBlock
+     4,                          // index_t AK1
+     4,                          // index_t BK1
      32,                         // index_t MPerXDL
      32,                         // index_t NPerXDL
      4,                          // index_t MXdlPerWave
@@ -55,20 +56,20 @@ using DeviceCGemmInstance = ck::tensor_operation::device::DeviceCGemm_4Gemm_Xdl_
      S<1, 0, 2>,                 // typename ABlockTransferThreadClusterArrangeOrder
      S<1, 0, 2>,                 // typename ABlockTransferSrcAccessOrder
      2,                          // index_t ABlockTransferSrcVectorDim
-     8,                          // index_t ABlockTransferSrcScalarPerVector
-     8,                          // index_t ABlockTransferDstScalarPerVector_AK1
+     4,                          // index_t ABlockTransferSrcScalarPerVector
+     4,                          // index_t ABlockTransferDstScalarPerVector_AK1
      1,                          // index_t ABlockLdsExtraM
      S<4, 64, 1>,                // typename BBlockTransferThreadClusterLengths_BK0_N_BK1
      S<1, 0, 2>,                 // typename BBlockTransferThreadClusterArrangeOrder
      S<1, 0, 2>,                 // typename BBlockTransferSrcAccessOrder
      2,                          // index_t BBlockTransferSrcVectorDim
-     8,                          // index_t BBlockTransferSrcScalarPerVector
-     8,                          // index_t BBlockTransferDstScalarPerVector_BK1
+     4,                          // index_t BBlockTransferSrcScalarPerVector
+     4,                          // index_t BBlockTransferDstScalarPerVector_BK1
      1,                          // index_t BBlockLdsExtraN
      1,                          // index_t CShuffleMXdlPerWavePerShuffle
      1,                          // index_t CShuffleNXdlPerWavePerShuffle
-     S<1, 32, 1, 8>,             // typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-     8>;                         // index_t CShuffleBlockTransferScalarPerVector_NPerBlock
+     S<1, 16, 1, 16>,            // typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+     4>;                         // index_t CShuffleBlockTransferScalarPerVector_NPerBlock
 // clang-format on
 
 int main(int argc, char* argv[])

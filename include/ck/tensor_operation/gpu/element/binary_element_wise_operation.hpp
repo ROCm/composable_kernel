@@ -51,6 +51,13 @@ struct Add
         const float y_tmp  = x1_tmp + x2_tmp;
         y                  = ck::type_convert<bhalf_t>(y_tmp);
     }
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<int8_t>(int8_t& y, const int8_t& x0, const int8_t& x1) const
+    {
+        y = x0 + x1;
+    };
 };
 
 struct Subtract
@@ -88,6 +95,13 @@ struct Subtract
         const float y_tmp  = x1_tmp - x2_tmp;
         y                  = ck::type_convert<bhalf_t>(y_tmp);
     }
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<int8_t>(int8_t& y, const int8_t& x0, const int8_t& x1) const
+    {
+        y = x0 - x1;
+    };
 };
 
 struct Bilinear
