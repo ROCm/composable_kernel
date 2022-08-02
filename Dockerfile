@@ -85,9 +85,9 @@ ENV UBSAN_OPTIONS=print_stacktrace=1
 
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
-ADD rbuild.ini /rbuild.ini
+#ADD rbuild.ini /rbuild.ini
 ADD dev-requirements.txt dev-requirements.txt
-RUN rbuild prepare -s develop -d $PREFIX
+#RUN rbuild prepare -s develop -d $PREFIX
 RUN groupadd -f render
 
 # Install the new rocm-cmake version
