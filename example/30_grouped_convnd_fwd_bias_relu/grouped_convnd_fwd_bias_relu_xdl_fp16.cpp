@@ -203,7 +203,7 @@ int main(int argc, char* argv[])
              conv_param.input_spatial_lengths_[0],
              conv_param.input_spatial_lengths_[1]},
             {
-                conv_param.output_spatial_lengths_[0] * conv_param.C_, // g
+                conv_param.C_, // g
                 conv_param.input_spatial_lengths_[0] * conv_param.input_spatial_lengths_[1] *
                     conv_param.G_ * conv_param.C_,                                    // n
                 1,                                                                    // c
@@ -291,7 +291,7 @@ int main(int argc, char* argv[])
              conv_param.input_spatial_lengths_[1],
              conv_param.input_spatial_lengths_[2]},
             {
-                conv_param.output_spatial_lengths_[0] * conv_param.C_, // g
+                conv_param.C_, // g
                 conv_param.input_spatial_lengths_[0] * conv_param.input_spatial_lengths_[1] *
                     conv_param.input_spatial_lengths_[2] * conv_param.G_ * conv_param.C_, // n
                 1,                                                                        // c
