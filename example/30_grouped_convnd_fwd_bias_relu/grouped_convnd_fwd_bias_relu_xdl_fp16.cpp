@@ -92,7 +92,7 @@ int main(int argc, char* argv[])
     // conventional group conv definition
     // G = 2
     // [N, C, Hi, Wi] =  [128, 384, 71, 71]
-    // [K, C,  Y,  X] =  [256, 384,  3,  3]
+    // [K, C,  Y,  X] =  [512, 192,  3,  3]
     // [N, K, Ho, Wo] =  [128, 512, 36, 36]
     // CK group conv definition
     // [G, N, C, Hi, Wi] =  [2, 128, 192, 71, 71]
