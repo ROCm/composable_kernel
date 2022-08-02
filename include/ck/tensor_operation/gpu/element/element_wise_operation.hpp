@@ -114,6 +114,17 @@ struct AddHardswishAdd
 // E = FastGelu(C + D0 + D1)
 struct AddAddFastGelu
 {
+    // Fast GeLU
+    // https://paperswithcode.com/method/gelu
+    // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
+    __host__ __device__ static float GetFastGeLU(float x)
+    {
+        const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
+        const float emu = exp(-u);
+        const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
+        return x * cdf;
+    }
+
     template <typename E, typename C, typename D0, typename D1>
     __host__ __device__ void operator()(E&, const C&, const D0&, const D1&) const
     {
@@ -128,17 +139,7 @@ struct AddAddFastGelu
                                                                     const float& d0,
                                                                     const float& d1) const
     {
-        // Fast GeLU
-        // https://paperswithcode.com/method/gelu
-        // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
-        const auto fast_gelu = [](float x) {
-            const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
-            const float emu = exp(-u);
-            const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
-            return x * cdf;
-        };
-
-        const float y = fast_gelu(c + d0 + d1);
+        const float y = GetFastGeLU(c + d0 + d1);
 
         e = y;
     }
@@ -149,17 +150,7 @@ struct AddAddFastGelu
                                                                           const bhalf_t& d0,
                                                                           const bhalf_t& d1) const
     {
-        // Fast GeLU
-        // https://paperswithcode.com/method/gelu
-        // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
-        const auto fast_gelu = [](float x) {
-            const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
-            const float emu = exp(-u);
-            const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
-            return x * cdf;
-        };
-
-        const float y = fast_gelu(c + type_convert<float>(d0) + type_convert<float>(d1));
+        const float y = GetFastGeLU(c + type_convert<float>(d0) + type_convert<float>(d1));
 
         e = type_convert<bhalf_t>(y);
     }
@@ -170,17 +161,7 @@ struct AddAddFastGelu
                                                                        const half_t& d0,
                                                                        const half_t& d1) const
     {
-        // Fast GeLU
-        // https://paperswithcode.com/method/gelu
-        // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
-        const auto fast_gelu = [](float x) {
-            const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
-            const float emu = exp(-u);
-            const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
-            return x * cdf;
-        };
-
-        const float y = fast_gelu(c + type_convert<float>(d0) + type_convert<float>(d1));
+        const float y = GetFastGeLU(c + type_convert<float>(d0) + type_convert<float>(d1));
 
         e = type_convert<half_t>(y);
     }
@@ -191,18 +172,8 @@ struct AddAddFastGelu
                                                                          const int8_t& d0,
                                                                          const int8_t& d1) const
     {
-        // Fast GeLU
-        // https://paperswithcode.com/method/gelu
-        // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
-        const auto fast_gelu = [](float x) {
-            const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
-            const float emu = exp(-u);
-            const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
-            return x * cdf;
-        };
-
         const float y =
-            fast_gelu(type_convert<float>(c) + type_convert<float>(d0) + type_convert<float>(d1));
+            GetFastGeLU(type_convert<float>(c) + type_convert<float>(d0) + type_convert<float>(d1));
 
         e = type_convert<int8_t>(y);
     }
