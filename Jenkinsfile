@@ -102,13 +102,9 @@ def buildHipClangJob(Map conf=[:]){
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1"
         }
-        def dockerArgs
-        if (params.USE_9110){
-            dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='9110' "
+        def dockerArgs = = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='${params.COMPILER_VERSION}' "
+        if (params.COMPILER_VERSION != "release"){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
-        }
-        else{
-            dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='release' "
         }
 
         def variant = env.STAGE_NAME
@@ -195,13 +191,9 @@ def runCKProfiler(Map conf=[:]){
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1"
         }
-        def dockerArgs
-        if (params.USE_9110){
-            dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='9110' "
+        def dockerArgs = = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='${params.COMPILER_VERSION}' "
+        if (params.COMPILER_VERSION != "release"){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
-        }
-        else{
-            dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='release' "
         }
 
         def variant = env.STAGE_NAME
@@ -248,12 +240,7 @@ def runCKProfiler(Map conf=[:]){
 					dir("script"){
                         if (params.RUN_FULL_QA){
                             def qa_log = "qa_${gpu_arch}.log"
-                            if (params.USE_9110){
-                                sh "./run_full_performance_tests.sh 1 QA_9110 ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
-                            }
-                            else{
-                                sh "./run_full_performance_tests.sh 1 QA_release ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
-                            }
+                            sh "./run_full_performance_tests.sh 1 QA_${params.COMPILER_VERSION} ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
                             archiveArtifacts "perf_gemm_${gpu_arch}.log"
                             archiveArtifacts "perf_resnet50_N256_${gpu_arch}.log"
                             archiveArtifacts "perf_resnet50_N4_${gpu_arch}.log"
@@ -276,12 +263,7 @@ def runCKProfiler(Map conf=[:]){
                             //we will process results on the master node
                         }
                         else{
-                            if (params.USE_9110){
-                                sh "./run_performance_tests.sh 0 CI_9110 ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
-                            }
-                            else{
-                                sh "./run_performance_tests.sh 0 CI_release ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
-                            }
+                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
                             archiveArtifacts "perf_gemm_${gpu_arch}.log"
                             archiveArtifacts "perf_resnet50_N256_${gpu_arch}.log"
                             archiveArtifacts "perf_resnet50_N4_${gpu_arch}.log"
@@ -378,7 +360,7 @@ def process_results(Map conf=[:]){
 }
 
 //launch develop branch daily at 23:00 in FULL_QA mode
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;USE_9110=true''' : ""
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true''' : ""
 
 pipeline {
     agent none
@@ -389,10 +371,10 @@ pipeline {
         parallelsAlwaysFailFast()
     }
     parameters {
-        booleanParam(
-            name: "USE_9110",
-            defaultValue: true,
-            description: "Select compiler version: 9110 (default) or release")
+        string(
+            name: 'COMPILER_VERSION', 
+            defaultValue: 'ck-9110', 
+            description: 'Specify which version of compiler to use: ck-9110 (default), release, or amd-mainline-open.')
         booleanParam(
             name: "RUN_FULL_QA",
             defaultValue: false,
