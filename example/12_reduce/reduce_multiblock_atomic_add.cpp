@@ -192,16 +192,21 @@ int main(int argc, char* argv[])
     }
     else
     {
-        SimpleAppArgs arg;
+        // for testing float
+        pass = pass && reduce_multiblock_atomic_add_test<float, float, ReduceOpId, PropagateNan>(
+                           true, 2, false, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
 
-        pass = reduce_multiblock_atomic_add_test<float, float, ReduceOpId, PropagateNan>(
-            arg.do_verification,
-            arg.init_method,
-            false,
-            arg.inLengths,
-            arg.reduceDims,
-            arg.scales[0],
-            arg.scales[1]);
+        // for testing double
+        pass = pass && reduce_multiblock_atomic_add_test<double, double, ReduceOpId, PropagateNan>(
+                           true, 2, false, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
+
+        // for testing 3D input
+        pass = pass && reduce_multiblock_atomic_add_test<float, float, ReduceOpId, PropagateNan>(
+                           true, 2, false, {16, 64, 960}, {0, 1}, 1.0f, 0.0f);
+
+        // for testing 5D input
+        pass = pass && reduce_multiblock_atomic_add_test<float, float, ReduceOpId, PropagateNan>(
+                           true, 2, false, {16, 64, 32, 2, 960}, {0, 1, 2, 3}, 1.0f, 0.0f);
     };
 
     return (pass ? 0 : 1);

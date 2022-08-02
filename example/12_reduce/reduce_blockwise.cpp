@@ -229,16 +229,36 @@ int main(int argc, char* argv[])
     }
     else
     {
-        SimpleAppArgs arg;
+        // for testing half_t
+        pass =
+            pass && reduce_blockwise_test<ck::half_t, float, ReduceOpId, PropagateNan, OutputIndex>(
+                        true, 2, true, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
 
-        pass = reduce_blockwise_test<ck::half_t, float, ReduceOpId, PropagateNan, OutputIndex>(
-            arg.do_verification,
-            arg.init_method,
-            arg.time_kernel,
-            arg.inLengths,
-            arg.reduceDims,
-            arg.scales[0],
-            arg.scales[1]);
+        // for testing float
+        pass = pass && reduce_blockwise_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(
+                           true, 2, true, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
+
+        // for testing double
+        pass = pass && reduce_blockwise_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(
+                           true, 2, true, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
+
+        // for testing bhalf_t
+        pass = pass &&
+               reduce_blockwise_test<ck::bhalf_t, float, ReduceOpId, PropagateNan, OutputIndex>(
+                   true, 2, true, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
+
+        // for testing int8_t
+        pass =
+            pass && reduce_blockwise_test<int8_t, int32_t, ReduceOpId, PropagateNan, OutputIndex>(
+                        true, 2, true, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
+
+        // for testing 3D input
+        pass = pass && reduce_blockwise_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(
+                           true, 2, true, {16, 64, 960}, {0, 1}, 1.0f, 0.0f);
+
+        // for testing 5D input
+        pass = pass && reduce_blockwise_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(
+                           true, 2, true, {16, 64, 32, 2, 960}, {0, 1, 2, 3}, 1.0f, 0.0f);
     };
 
     return (pass ? 0 : 1);
