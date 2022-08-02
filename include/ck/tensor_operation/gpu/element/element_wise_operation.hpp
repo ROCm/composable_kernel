@@ -115,7 +115,12 @@ struct AddHardswishAdd
 struct AddAddFastGelu
 {
     template <typename E, typename C, typename D0, typename D1>
-    __host__ __device__ void operator()(E&, const C&, const D0&, const D1&) const;
+    __host__ __device__ void operator()(E&, const C&, const D0&, const D1&) const
+    {
+        static_assert(
+            always_false<E, C, D0, D1>,
+            "this generic version operator() is forbidden, please provide a valid specialization");
+    }
 
     template <>
     __host__ __device__ void operator()<half_t, float, half_t, half_t>(half_t& e,
