@@ -132,13 +132,13 @@ struct AddAddFastGelu
         // https://paperswithcode.com/method/gelu
         // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
         const auto fast_gelu = [&](float x) {
-            const float u   = float(2) * x * (float(0.035677) * x * x + float(0.797885));
+            const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
             const float emu = exp(-u);
-            const float cdf = float(0.5) + float(0.5) * (float(2) / (float(1) + emu) - float(1));
+            const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
             return x * cdf;
         };
 
-        const float y = fast_gelu(c + float(d0) + float(d1));
+        const float y = fast_gelu(c + d0 + d1);
 
         e = y;
     }
@@ -153,9 +153,9 @@ struct AddAddFastGelu
         // https://paperswithcode.com/method/gelu
         // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
         const auto fast_gelu = [&](float x) {
-            const float u   = float(2) * x * (float(0.035677) * x * x + float(0.797885));
+            const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
             const float emu = exp(-u);
-            const float cdf = float(0.5) + float(0.5) * (float(2) / (float(1) + emu) - float(1));
+            const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
             return x * cdf;
         };
 
@@ -174,13 +174,13 @@ struct AddAddFastGelu
         // https://paperswithcode.com/method/gelu
         // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
         const auto fast_gelu = [&](float x) {
-            const float u   = float(2) * x * (float(0.035677) * x * x + float(0.797885));
+            const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
             const float emu = exp(-u);
-            const float cdf = float(0.5) + float(0.5) * (float(2) / (float(1) + emu) - float(1));
+            const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
             return x * cdf;
         };
 
-        const float y = fast_gelu(c + float(d0) + float(d1));
+        const float y = fast_gelu(c + type_convert<float>(d0) + type_convert<float>(d1));
 
         e = type_convert<half_t>(y);
     }
@@ -195,13 +195,14 @@ struct AddAddFastGelu
         // https://paperswithcode.com/method/gelu
         // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
         const auto fast_gelu = [&](float x) {
-            const float u   = float(2) * x * (float(0.035677) * x * x + float(0.797885));
+            const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
             const float emu = exp(-u);
-            const float cdf = float(0.5) + float(0.5) * (float(2) / (float(1) + emu) - float(1));
+            const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
             return x * cdf;
         };
 
-        const float y = fast_gelu(float(c) + float(d0) + float(d1));
+        const float y =
+            fast_gelu(type_convert<float>(c) + type_convert<float>(d0) + type_convert<float>(d1));
 
         e = type_convert<int8_t>(y);
     }
