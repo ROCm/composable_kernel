@@ -89,6 +89,15 @@ int main(int argc, char* argv[])
     int init_method      = 1;
     bool time_kernel     = false;
 
+    // conventional group conv definition
+    // G = 2
+    // [N, C, Hi, Wi] =  [128, 384, 71, 71]
+    // [K, C,  Y,  X] =  [256, 384,  3,  3]
+    // [N, K, Ho, Wo] =  [128, 512, 36, 36]
+    // CK group conv definition
+    // [G, N, C, Hi, Wi] =  [2, 128, 192, 71, 71]
+    // [G, K, C,  Y,  X] =  [2, 256, 192,  3,  3]
+    // [G, N, K, Ho, Wo] =  [2, 128, 256, 36, 36]
     ck::utils::conv::ConvParam conv_param{
         2, 2, 128, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
 
