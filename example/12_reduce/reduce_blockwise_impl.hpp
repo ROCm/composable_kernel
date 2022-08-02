@@ -4,10 +4,6 @@
 #pragma once
 
 #include <iostream>
-#include <numeric>
-#include <initializer_list>
-#include <cstdlib>
-#include <getopt.h>
 
 #include "ck/ck.hpp"
 #include "ck/utility/reduction_enums.hpp"
