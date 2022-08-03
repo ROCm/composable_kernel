@@ -2,6 +2,7 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstddef>
+#include <cstdlib>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -112,7 +113,7 @@ int main(int argc, char* argv[])
         printf("arg3: time kernel (0=no, 1=yes)\n");
         printf("arg4 to 10: M (256x), N(128x), K(32x), StrideA, StrideB, StrideD0, StrideD1, "
                "StrideE\n");
-        exit(0);
+        return EXIT_SUCCESS;
     }
 
     auto f_host_tensor_descriptor =
