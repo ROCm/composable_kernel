@@ -9,7 +9,6 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/utility/reduction_operator.hpp"
 
-
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 

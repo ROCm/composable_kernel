@@ -14,11 +14,11 @@
 #include "ck/tensor_operation/gpu/device/device_reduce_multiblock.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
-#include "ck/library/host_tensor/host_common_util.hpp"
-#include "ck/library/host_tensor/host_reduction.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/host_common_util.hpp"
+#include "ck/library/utility/host_reduction.hpp"
 
 using namespace ck;
 using namespace ck::tensor_operation::device;
@@ -171,13 +171,13 @@ int main(int argc, char* argv[])
         }
 
         if(beta != 0.0f)
-            for(size_t i = 0; i < out_ref.mDesc.GetElementSpace(); i++)
+            for(size_t i = 0; i < out_ref.mDesc.GetElementSpaceSize(); i++)
                 out.mData[i] = out_ref.mData[i];
     };
 
-    DeviceMem in_1_dev(sizeof(InOutDataType) * in_1.mDesc.GetElementSpace());
-    DeviceMem in_2_dev(sizeof(InOutDataType) * in_2.mDesc.GetElementSpace());
-    DeviceMem out_dev(sizeof(InOutDataType) * out.mDesc.GetElementSpace());
+    DeviceMem in_1_dev(sizeof(InOutDataType) * in_1.mDesc.GetElementSpaceSize());
+    DeviceMem in_2_dev(sizeof(InOutDataType) * in_2.mDesc.GetElementSpaceSize());
+    DeviceMem out_dev(sizeof(InOutDataType) * out.mDesc.GetElementSpaceSize());
 
     in_1_dev.ToDevice(in_1.mData.data());
 
