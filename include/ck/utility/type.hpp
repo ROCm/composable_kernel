@@ -57,7 +57,7 @@ __host__ __device__ constexpr Y bit_cast(const X& x)
 #endif
 }
 
-template <typename... Ts>
+template <typename...>
 inline constexpr bool always_false = false;
 
 } // namespace ck
