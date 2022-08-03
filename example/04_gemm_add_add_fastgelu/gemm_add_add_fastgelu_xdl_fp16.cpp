@@ -118,7 +118,7 @@ int main(int argc, char* argv[])
 
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            if constexpr(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
+            if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
             {
                 return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
