@@ -239,8 +239,6 @@ int main(int argc, char* argv[])
 
         e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
-        return ck::utils::check_err(e_m_n_device_result.mData, e_m_n_host_result.mData) ? 0 : 1;
+        return !ck::utils::check_err(e_m_n_device_result.mData, e_m_n_host_result.mData);
     }
-
-    return 0;
 }
