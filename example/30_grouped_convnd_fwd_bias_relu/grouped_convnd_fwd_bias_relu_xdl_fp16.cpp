@@ -144,10 +144,10 @@ int main(int argc, char* argv[])
         const auto wei_g_k_c_xs_desc = HostTensorDescriptor(
             {conv_param.G_, conv_param.K_, conv_param.C_, conv_param.filter_spatial_lengths_[0]},
             {
-                conv_param.C_,                                                         // g
-                conv_param.filter_spatial_lengths_[0] * conv_param.G_ * conv_param.C_, // k
+                conv_param.K_ * conv_param.filter_spatial_lengths_[0] * conv_param.C_, // g
+                conv_param.filter_spatial_lengths_[0] * conv_param.C_,                 // k
                 1,                                                                     // c
-                conv_param.G_ * conv_param.C_                                          // x
+                conv_param.C_                                                          // x
             });
 
         const auto bias_g_n_k_wos_desc = HostTensorDescriptor(
@@ -211,20 +211,21 @@ int main(int argc, char* argv[])
                 conv_param.G_ * conv_param.C_                                         // wi
             });
 
-        const auto wei_g_k_c_xs_desc = HostTensorDescriptor(
-            {conv_param.G_,
-             conv_param.K_,
-             conv_param.C_,
-             conv_param.filter_spatial_lengths_[0],
-             conv_param.filter_spatial_lengths_[1]},
-            {
-                conv_param.C_, // g
-                conv_param.filter_spatial_lengths_[0] * conv_param.filter_spatial_lengths_[1] *
-                    conv_param.G_ * conv_param.C_,                                     // k
-                1,                                                                     // c
-                conv_param.filter_spatial_lengths_[1] * conv_param.G_ * conv_param.C_, // y
-                conv_param.G_ * conv_param.C_                                          // x
-            });
+        const auto wei_g_k_c_xs_desc =
+            HostTensorDescriptor({conv_param.G_,
+                                  conv_param.K_,
+                                  conv_param.C_,
+                                  conv_param.filter_spatial_lengths_[0],
+                                  conv_param.filter_spatial_lengths_[1]},
+                                 {
+                                     conv_param.K_ * conv_param.filter_spatial_lengths_[0] *
+                                         conv_param.filter_spatial_lengths_[1] * conv_param.C_, // g
+                                     conv_param.filter_spatial_lengths_[0] *
+                                         conv_param.filter_spatial_lengths_[1] * conv_param.C_, // k
+                                     1,                                                         // c
+                                     conv_param.filter_spatial_lengths_[1] * conv_param.C_,     // y
+                                     conv_param.C_                                              // x
+                                 });
 
         const auto bias_g_n_k_wos_desc =
             HostTensorDescriptor({conv_param.G_,
@@ -309,14 +310,16 @@ int main(int argc, char* argv[])
              conv_param.filter_spatial_lengths_[1],
              conv_param.filter_spatial_lengths_[2]},
             {
-                conv_param.C_, // g
+                conv_param.K_ * conv_param.filter_spatial_lengths_[0] *
+                    conv_param.filter_spatial_lengths_[1] * conv_param.filter_spatial_lengths_[2] *
+                    conv_param.C_, // g
                 conv_param.filter_spatial_lengths_[0] * conv_param.filter_spatial_lengths_[1] *
-                    conv_param.filter_spatial_lengths_[2] * conv_param.G_ * conv_param.C_, // k
-                1,                                                                         // c
+                    conv_param.filter_spatial_lengths_[2] * conv_param.C_, // k
+                1,                                                         // c
                 conv_param.filter_spatial_lengths_[1] * conv_param.filter_spatial_lengths_[2] *
-                    conv_param.G_ * conv_param.C_,                                     // z
-                conv_param.filter_spatial_lengths_[2] * conv_param.G_ * conv_param.C_, // y
-                conv_param.G_ * conv_param.C_                                          // x
+                    conv_param.C_,                                     // z
+                conv_param.filter_spatial_lengths_[2] * conv_param.C_, // y
+                conv_param.C_                                          // x
             });
 
         const auto bias_g_n_k_wos_desc =
