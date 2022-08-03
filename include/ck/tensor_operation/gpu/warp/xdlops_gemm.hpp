@@ -30,17 +30,6 @@ enum struct MfmaInstr
     mfma_f64_16x16x4f64
 };
 
-// template <typename T, bool TransposeC>
-// struct mfma_base_type
-// {
-//     template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
-//     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
-//     {
-//         if constexpr (!TransposeC) T::run(a, b, reg_c);
-//         else T::run(b, a, reg_c);
-//     }
-// };
-
 template <MfmaInstr instr>
 struct mfma_type;
 

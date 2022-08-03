@@ -78,10 +78,4 @@ __host__ __device__ constexpr auto transform_tuples(F f, const X& x, const Y& y,
         f, x, y, z, typename arithmetic_sequence_gen<0, X::Size(), 1>::type{});
 }
 
-template <index_t... Is>
-__host__ __device__ constexpr Tuple<Number<Is>...> to_tuple(Sequence<Is...>)
-{
-    return Tuple<Number<Is>...>(Number<Is>{}...);
-}
-
 } // namespace ck
