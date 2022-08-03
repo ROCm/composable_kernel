@@ -11,7 +11,7 @@
 #include "ck/tensor_operation/gpu/device/device_reduce.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce_multiblock.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce_common.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_layernorm_naive_variance.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_layernorm_welford_variance.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_set_buffer_value.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -143,48 +143,48 @@ struct DeviceLayernorm : public BaseOperator
     using GridDesc_K   = decltype(MakeAffine1dDescriptor({1}, {1}, 1, 1));
 
     using GridwiseReduceLayernormGeneric =
-        GridwiseLayernormNaiveVariance_mk_to_mk<XDataType,
-                                                GammaDataType,
-                                                BetaDataType,
-                                                YDataType,
-                                                AccDataType,
-                                                AccElementwiseOperation,
-                                                GridDesc_M_K,
-                                                GridDesc_K,
-                                                BlockSize,
-                                                MThreadClusterSize,
-                                                KThreadClusterSize,
-                                                MThreadSliceSize,
-                                                KThreadSliceSize,
-                                                XYSrcVectorDim,
-                                                XSrcVectorSize,
-                                                GammaSrcVectorSize,
-                                                BetaSrcVectorSize,
-                                                XYSrcVectorDim,
-                                                YDstVectorSize,
-                                                false>;
+        GridwiseLayernormWelfordVariance_mk_to_mk<XDataType,
+                                                  GammaDataType,
+                                                  BetaDataType,
+                                                  YDataType,
+                                                  AccDataType,
+                                                  AccElementwiseOperation,
+                                                  GridDesc_M_K,
+                                                  GridDesc_K,
+                                                  BlockSize,
+                                                  MThreadClusterSize,
+                                                  KThreadClusterSize,
+                                                  MThreadSliceSize,
+                                                  KThreadSliceSize,
+                                                  XYSrcVectorDim,
+                                                  XSrcVectorSize,
+                                                  GammaSrcVectorSize,
+                                                  BetaSrcVectorSize,
+                                                  XYSrcVectorDim,
+                                                  YDstVectorSize,
+                                                  false>;
 
     using GridwiseReduceLayernormSweepOnce =
-        GridwiseLayernormNaiveVariance_mk_to_mk<XDataType,
-                                                GammaDataType,
-                                                BetaDataType,
-                                                YDataType,
-                                                AccDataType,
-                                                AccElementwiseOperation,
-                                                GridDesc_M_K,
-                                                GridDesc_K,
-                                                BlockSize,
-                                                MThreadClusterSize,
-                                                KThreadClusterSize,
-                                                MThreadSliceSize,
-                                                KThreadSliceSize,
-                                                XYSrcVectorDim,
-                                                XSrcVectorSize,
-                                                GammaSrcVectorSize,
-                                                BetaSrcVectorSize,
-                                                XYSrcVectorDim,
-                                                YDstVectorSize,
-                                                true>;
+        GridwiseLayernormWelfordVariance_mk_to_mk<XDataType,
+                                                  GammaDataType,
+                                                  BetaDataType,
+                                                  YDataType,
+                                                  AccDataType,
+                                                  AccElementwiseOperation,
+                                                  GridDesc_M_K,
+                                                  GridDesc_K,
+                                                  BlockSize,
+                                                  MThreadClusterSize,
+                                                  KThreadClusterSize,
+                                                  MThreadSliceSize,
+                                                  KThreadSliceSize,
+                                                  XYSrcVectorDim,
+                                                  XSrcVectorSize,
+                                                  GammaSrcVectorSize,
+                                                  BetaSrcVectorSize,
+                                                  XYSrcVectorDim,
+                                                  YDstVectorSize,
+                                                  true>;
 
     struct Argument : public Reduction::Argument
     {

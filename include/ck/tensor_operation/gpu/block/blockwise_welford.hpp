@@ -4,20 +4,18 @@
 #pragma once
 
 #include "ck/tensor_description/cluster_descriptor.hpp"
-#include "ck/utility/reduction_common.hpp"
-#include "ck/utility/reduction_functions_accumulate.hpp"
 
 namespace ck {
 
 // clang-format off
 // Assume:
 //  1) work_buffer is buffer (typically LDS) allocated outside as workspace
-//  2) work_buffer has AccDataType elements, and space size is no less than 3*BlockSize
+//  2) work_buffer has T elements, and space size is no less than 3*BlockSize
 //  3) mean_value, var_value and count is the input data in vgpr from each thread
 //  4) mean_value, var_value and count is the over-written reduced output in vgpr for each thread
 //  5) Merge mean and M from ThreadwiseWelford
 // clang-format on
-template <typename AccDataType,
+template <typename T,
           index_t BlockSize,
           typename ThreadClusterLengths_M_K,
           typename ThreadClusterArrangeOrder,
@@ -36,24 +34,23 @@ struct BlockwiseWelford
     static constexpr auto thread_cluster_desc =
         make_cluster_descriptor(ThreadClusterLengths_M_K{}, ThreadClusterArrangeOrder{});
 
-    __device__ static inline void Merge(AccDataType& mean_a,
-                                        AccDataType& var_a,
-                                        int& count_a,
-                                        AccDataType mean_b,
-                                        AccDataType var_b,
-                                        int count_b)
+    __device__ static inline void
+    Merge(T& mean_a, T& var_a, int& count_a, T mean_b, T var_b, int count_b)
     {
-        int count                      = count_a + count_b;
-        AccDataType count_b_over_count = count_b / count;
-        AccDataType delta              = mean_b - mean_a;
+        int count            = count_a + count_b;
+        T count_b_over_count = type_convert<T>(count_b) / count;
+        T delta              = mean_b - mean_a;
         mean_a += delta * count_b_over_count;
         var_a += var_b + delta * delta * count_a * count_b_over_count;
         count_a = count;
     }
 
-    __device__ static void
-    Run(AccDataType& work_buffer, AccDataType& mean_value, AccDataType& var_value, int& count)
+    __device__ static void Run(T& mean_value, T& var_value, int& count)
     {
+        __shared__ T mean_block_buf[BlockSize];
+        __shared__ T var_block_buf[BlockSize];
+        __shared__ T count_block_buf[BlockSize];
+
         constexpr auto cluster_len_shift = get_shift<BufferLength_K>();
 
         const auto thread_cluster_idx =
@@ -62,13 +59,11 @@ struct BlockwiseWelford
         const auto thread_m_cluster_id = thread_cluster_idx[Number<0>{}];
         const auto thread_k_cluster_id = thread_cluster_idx[Number<1>{}];
 
-        index_t mean_offset1  = block_buf_desc_m_k.CalculateOffset(thread_cluster_idx);
-        index_t var_offset1   = mean_offset1 + BlockSize;
-        index_t count_offset1 = var_offset1 + BlockSize;
+        index_t offset1 = block_buf_desc_m_k.CalculateOffset(thread_cluster_idx);
 
-        work_buffer(mean_offset1)  = mean_value;
-        work_buffer(var_offset1)   = var_value;
-        work_buffer(count_offset1) = count;
+        mean_block_buf[offset1]  = mean_value;
+        var_block_buf[offset1]   = var_value;
+        count_block_buf[offset1] = count;
 
         __syncthreads();
 
@@ -77,40 +72,36 @@ struct BlockwiseWelford
 
             if(thread_k_cluster_id < indOffset)
             {
-                index_t mean_offset2 = block_buf_desc_m_k.CalculateOffset(thread_cluster_idx) +
-                                       make_tuple(0, indOffset);
-                index_t var_offset2   = mean_offset2 + BlockSize;
-                index_t count_offset2 = var_offset2 + BlockSize;
+                index_t offset2 = block_buf_desc_m_k.CalculateOffset(thread_cluster_idx +
+                                                                     make_tuple(0, indOffset));
 
-                AccDataType mean1  = work_buffer[mean_offset1];
-                AccDataType var1   = work_buffer[var_offset1];
-                AccDataType count1 = work_buffer[count_offset1];
+                T mean1    = mean_block_buf[offset1];
+                T var1     = var_block_buf[offset1];
+                int count1 = count_block_buf[offset1];
 
-                AccDataType mean2  = work_buffer[mean_offset2];
-                AccDataType var2   = work_buffer[var_offset2];
-                AccDataType count2 = work_buffer[count_offset2];
+                T mean2    = mean_block_buf[offset2];
+                T var2     = var_block_buf[offset2];
+                int count2 = count_block_buf[offset2];
 
                 Merge(mean1, var1, count1, mean2, var2, count2);
 
-                work_buffer(mean_offset1)  = mean1;
-                work_buffer(var_offset1)   = var1;
-                work_buffer(count_offset1) = count1;
+                mean_block_buf[offset1]  = mean1;
+                var_block_buf[offset1]   = var1;
+                count_block_buf[offset1] = count1;
             }
 
             __syncthreads();
         });
 
-        index_t mean_offset =
-            block_buf_desc_m_k.CalculateOffset(make_tuple(thread_m_cluster_id, 0));
-        index_t var_offset   = mean_offset + BlockSize;
-        index_t count_offset = var_offset + BlockSize;
+        index_t offset = block_buf_desc_m_k.CalculateOffset(make_tuple(thread_m_cluster_id, 0));
 
-        mean_value = work_buffer[mean_offset];
+        count      = count_block_buf[offset];
+        mean_value = mean_block_buf[offset];
+
         if constexpr(GetActualVariance)
-            var_value = work_buffer[var_offset] / count;
+            var_value = var_block_buf[offset] / count;
         else
-            var_value = work_buffer[var_offset];
-        count = work_buffer[count_offset];
+            var_value = var_block_buf[offset];
     };
 };
 } // namespace ck

@@ -11,10 +11,7 @@ namespace ck {
 //  3) XBuffer is static buffer
 //  4) MeanBuffer is static buffer
 //  5) VarBuffer is static buffer
-template <typename AccDataType,
-          typename XThreadDesc_M_K,
-          typename MeanVarThreadDesc_M,
-          bool GetActualVariance = false>
+template <typename T, typename XThreadDesc_M_K, typename MeanVarThreadDesc_M>
 struct ThreadwiseWelford
 {
     static constexpr auto x_thread_desc_m_k      = XThreadDesc_M_K{};
@@ -29,7 +26,9 @@ struct ThreadwiseWelford
 
     static_assert(thread_x_length_k > 0, "lengths of k must greater than 0!");
 
-    __device__ static inline void Update(AccDataType& mean, AccDataType& var, AccDataType x, int K)
+    __device__ constexpr ThreadwiseWelford() : count_(0) {}
+
+    __device__ inline void Update(T& mean, T& var, T x)
     {
         using ck::math::isnan;
 
@@ -40,36 +39,33 @@ struct ThreadwiseWelford
         }
         else
         {
-            AccDataType delta = x - mean;
-            mean += delta / K;
-            AccDataType delta2 = x - mean;
+            ++count_;
+            T delta = x - mean;
+            mean += delta / count_;
+            T delta2 = x - mean;
             var += delta * delta2;
         }
     }
 
     template <typename XBufferType, typename MeanBufferType, typename VarBufferType>
-    __device__ static void
-    Run(const XBufferType& x_buf_m_k, MeanBufferType& mean_buf_m, VarBufferType& var_buf_m, int K)
+    __device__ void
+    Run(const XBufferType& x_buf_m_k, MeanBufferType& mean_buf_m, VarBufferType& var_buf_m)
     {
-        mean_buf_m(Number<0>{}) = x_buf_m_k(Number<0>{});
-        var_buf_m(Number<0>{})  = 0;
-
-        static_for<1, thread_x_length_m, 1>{}([&](auto iM) {
+        // FIXME - Better naming for var_buf_m
+        static_for<0, thread_x_length_m, 1>{}([&](auto iM) {
             constexpr index_t out_offset = mean_var_thread_desc_m.CalculateOffset(make_tuple(iM));
 
-            static_for<1, thread_x_length_k, 1>{}([&](auto iK) {
+            // TODO - tail case
+            static_for<0, thread_x_length_k, 1>{}([&](auto iK) {
                 constexpr auto in_offset = x_thread_desc_m_k.CalculateOffset(make_tuple(iM, iK));
                 Update(mean_buf_m(Number<out_offset>{}),
                        var_buf_m(Number<out_offset>{}),
-                       x_buf_m_k[Number<in_offset>{}],
-                       K);
+                       x_buf_m_k[Number<in_offset>{}]);
             });
-
-            // If we need to merge variance from other thread, we should not get actual variance now
-            if constexpr(GetActualVariance)
-                var_buf_m(Number<out_offset>{}) = var_buf_m(Number<out_offset>{}) / K;
         });
     };
+
+    int count_;
 };
 
 } // namespace ck
