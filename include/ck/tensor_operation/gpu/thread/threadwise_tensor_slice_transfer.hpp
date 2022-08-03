@@ -1145,10 +1145,6 @@ struct ThreadwiseTensorSliceTransfer_v4
                 src_desc, src_data_coord);
 
             // copy data from src_buf into src_tmp_vector
-#if 0
-            src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
-                src_buf.template Get<src_vector_t>(src_data_coord.GetOffset(), is_src_valid);
-#else
             if constexpr(SrcBuffer::IsDynamicBuffer())
             {
                 src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
@@ -1164,33 +1160,7 @@ struct ThreadwiseTensorSliceTransfer_v4
                     src_tmp_vector.template AsType<SrcData>()(i) =
                         src_buf[Number<src_offset>{}];
                 });
-                // if constexpr(StaticBufferTupleOfVector)
-                // {
-                //     // constexpr auto offset_nd = SrcRefToOriginDisplacement{} + data_to_origin_disp_idx;
-                //     // // offset_nd.foo();
-                //     // constexpr auto offset = src_desc.CalculateOffset(offset_nd);
-                //     // src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
-                //     //     src_buf.template GetAsType<src_vector_t>(Number<offset>{});
-                //     static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
-                //         // constexpr auto src_offset_nd = src_ref_to_origin_disp_idx +
-                //         //                                data_to_origin_disp_idx + i * src_scalar_step_in_vector;
-                //         // constexpr auto src_offset = src_desc.CalculateOffset(src_offset_nd);
-                //         constexpr auto src_offset = src_desc.CalculateOffset(SrcRefToOriginDisplacement{});
-
-                //         // SrcData s = src_buf[Number<src_offset>{}];
-                //         SrcData s = src_buf[Number<0>{}];
-                //         // apply type convert
-                //         src_tmp_vector.template AsType<SrcData>()(i) = s;
-                //     });
-                // }
-                // else
-                // {
-                //     src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
-                //         src_buf.template Get<src_vector_t>(src_data_coord.GetOffset(),
-                //                                            is_src_valid);
-                // }
             }
-#endif
             // copy data from src_tmp_vector to dst_tmp_vector (data cast data from SrcData to
             // DstData)
             vector_type_maker_t<DstData, SrcScalarPerVector> dst_tmp_vector;
@@ -1236,16 +1206,14 @@ template <typename SrcData,
           typename DimAccessOrder,
           index_t DstVectorDim,
           index_t DstScalarPerVector,
-        //   InMemoryDataOperationEnum DstInMemOp,
-        //   index_t DstScalarStrideInVector,
           typename enable_if<SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(), bool>::type = false>
-struct ThreadwiseTensorSliceTransfer_v1r3_Static
+struct ThreadwiseTensorSliceTransfer_StaticToStatic
 {
     static constexpr index_t nDim = SliceLengths::Size();
 
     using Index = MultiIndex<nDim>;
 
-    __device__ constexpr ThreadwiseTensorSliceTransfer_v1r3_Static()
+    __device__ constexpr ThreadwiseTensorSliceTransfer_StaticToStatic()
     {
         static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
                       "wrong! Desc need to known at compile-time");

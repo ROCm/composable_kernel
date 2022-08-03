@@ -50,7 +50,7 @@ template <typename FloatAB,
           index_t ABlockTransferSrcVectorDim,
           index_t ABlockTransferSrcScalarPerVector,
           index_t ABlockTransferDstScalarPerVector_AK1,
-          bool AThreadTransferSrcResetCoordinateAfterRun,
+          bool AThreadTransferSrcResetCoordinateAfterRun, // ignored
           index_t ABlockLdsExtraM,
           typename BBlockTransferThreadClusterLengths_BK0_N_BK1,
           typename BBlockTransferThreadClusterArrangeOrder,
@@ -58,7 +58,7 @@ template <typename FloatAB,
           index_t BBlockTransferSrcVectorDim,
           index_t BBlockTransferSrcScalarPerVector,
           index_t BBlockTransferDstScalarPerVector_BK1,
-          bool BThreadTransferSrcResetCoordinateAfterRun,
+          bool BThreadTransferSrcResetCoordinateAfterRun, // ignored
           index_t BBlockLdsExtraN,
           typename B1BlockTransferThreadClusterLengths_BK0_N_BK1,
           typename B1BlockTransferThreadClusterArrangeOrder,
@@ -75,6 +75,9 @@ template <typename FloatAB,
           LoopScheduler LoopSched>
 struct GridwiseBatchedGemmGemm_Xdl_CShuffle
 {
+    static_assert(LoopSched == LoopScheduler::Default,
+                  "Non-default loop scheduler is currently not supported");
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
@@ -91,8 +94,6 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
     static constexpr auto AK1 = Number<AK1Value>{};
     static constexpr auto BK1 = Number<BK1Value>{};
     // Gemm1
-    static constexpr auto AccK1 = Number<4>{}; // TODO ANT: get from mfma_type.mfma_group_size
-    static constexpr auto AccK0 = Number<NPerBlock / AccK1.value>{};
     static constexpr auto B1K0 = Number<Gemm1KPerBlock / B1K1Value>{};
     static constexpr auto B1K1 = Number<B1K1Value>{};
 
@@ -148,7 +149,6 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
     MakeGemm1BMmaTileDescriptor_N0_N1_N2_K(const BBlockDesc_BK0_N_BK1&)
     {
         constexpr index_t Gemm1NWaves = Gemm1NPerBlock / (Gemm1NXdlPerWave * NPerXdl);
-        // Sequence<Gemm1NXdlPerWave, Gemm1NWaves, NPerXdl>{}.foo(); // <2, 1, 32>
         return MakeGemmMmaTileDescriptor_MN0_MN1_MN2_K<Gemm1NXdlPerWave, Gemm1NWaves, NPerXdl>(
             BBlockDesc_BK0_N_BK1{});
     }
@@ -168,18 +168,6 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
             make_tuple(BK0, Number<NPerBlock>{}, BK1),
             make_tuple(Number<NPerBlock + BBlockLdsExtraN>{} * BK1, BK1, I1));
     }
-
-    // template <typename BlockwiseGemm>
-    // __host__ __device__ static constexpr auto
-    // GetAccBlockDescriptor_AK0PerBlock_MPerBlock_AK1(const BlockwiseGemm& blockwise_gemm)
-    // {
-    //     constexpr auto acc_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4 =
-    //         blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4();
-
-    //     return make_naive_tensor_descriptor(
-    //         make_tuple(B1K0, Number<Gemm1NPerBlock>{}, B1BK1),
-    //         make_tuple(Number<Gemm1NPerBlock + B1BlockLdsExtraN>{} * B1K1, B1K1, I1));
-    // }
 
     __host__ __device__ static constexpr auto GetB1BlockDescriptor_BK0PerBlock_NPerBlock_BK1()
     {
@@ -266,26 +254,21 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
             return false;
         }
 
-        if(!(NPerBlock % Gemm1KPerBlock == 0))
-        {
-            return false;
-        }
-
-        // check gridwise gemm pipeline
+        // check gemm0 gridwise gemm pipeline
         const auto num_gemm0_k_loop = K / KPerBlock;
         if(!GridwiseGemmPipe::IsSupported(num_gemm0_k_loop))
         {
             return false;
         }
 
-        const auto num_gemm1_k_inner_loop = NPerBlock / Gemm1KPerBlock;
-        if(!GridwiseGemmPipe::IsSupported(num_gemm1_k_inner_loop))
+        // check gemm1 gridwise gemm pipeline
+        if(!(NPerBlock % Gemm1KPerBlock == 0))
         {
             return false;
         }
 
-        const auto num_gemm1_k_outer_loop = N / NPerBlock;
-        if(!GridwiseGemmPipe::IsSupported(num_gemm1_k_outer_loop))
+        const auto num_gemm1_k_inner_loop = NPerBlock / Gemm1KPerBlock;
+        if(!GridwiseGemmPipe::IsSupported(num_gemm1_k_inner_loop))
         {
             return false;
         }
@@ -301,7 +284,6 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
         return true;
     }
 
-    // TODO ANT: also consider gemm1 loop
     __host__ __device__ static constexpr bool CalculateHasMainKBlockLoop(index_t K)
     {
         const index_t num_loop = K / KPerBlock;
@@ -395,11 +377,6 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
         // B matrix in LDS memory, dst of blockwise copy
         constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
 
-        // for n in N0:                   // gemm1 summation loop
-        //   for k in K0:                 // gemm0 summation loop
-        //     acc0 += A[m][k] * B0[k][n] // acc0[m][n]
-        //   acc1 += acc0 * B1[n][o]      // acc1[m][o]
-
         //
         // set up Gemm0
         //
@@ -425,8 +402,8 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
                                                 ABlockTransferDstScalarPerVector_AK1,
                                                 1,
                                                 1,
-                                                true, // TODO ANT: check if false
-                                                true,
+                                                true, // SrcResetCoord
+                                                true, // DstResetCoord
                                                 NumGemmKPrefetchStage>(
                 a_grid_desc_ak0_m_ak1,
                 make_multi_index(0, m_block_data_idx_on_grid, 0),
@@ -456,8 +433,8 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
                                                 BBlockTransferDstScalarPerVector_BK1,
                                                 1,
                                                 1,
-                                                true, // TODO ANT: check if false
-                                                true,
+                                                true, // SrcResetCoord
+                                                true, // DstResetCoord
                                                 NumGemmKPrefetchStage>(
                 b_grid_desc_bk0_n_bk1,
                 make_multi_index(0, 0, 0), // will loop over GemmN dimension
@@ -466,12 +443,17 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
                 make_multi_index(0, 0, 0),
                 tensor_operation::element_wise::PassThrough{});
 
+        // Fused Gemm+Gemm pipeline
+        // for n in N0:
+        //   for k in K0:
+        //     acc[m][n] += A[m][k] * B0[k][n]
+        //   acc1[m][o] += acc[m][n] * B1[n][o]
+
         // sanity check
         constexpr index_t KPack = math::max(
             math::lcm(AK1, BK1), MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
         // TODO ANT: to refactor: blockwise gemm output layout
-        // TODO ANT: interwave scheduling
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<
             BlockSize,
             FloatAB,
@@ -509,8 +491,9 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
         const auto b_block_reset_copy_step = make_multi_index(-b_grid_desc_bk0_n_bk1.GetLength(I0), NPerBlock, 0);
 
         // gridwise GEMM pipeline
+        // Only supports LoopScheduler::Default
         const auto gridwise_gemm_pipeline =
-            GridwiseGemmPipeline_v1_Selector<NumGemmKPrefetchStage, LoopSched>();
+            GridwiseGemmPipeline_v1_Selector<NumGemmKPrefetchStage, LoopScheduler::Default>();
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
@@ -520,7 +503,7 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
         // set up Gemm1
         //
 
-        // Acc matrix threadwise copy: AccVGPR to VGPR and downcast to A data type
+        // Acc matrix threadwise copy: AccVGPR to VGPR and downcast to XDL input data type
         constexpr auto acc_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4 =
             blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4();
 
@@ -533,47 +516,49 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
         constexpr auto n3 = acc_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I6);
         constexpr auto n4 = acc_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I7);
 
-        constexpr auto a1_block_slice_copy_step = make_multi_index(Gemm1KPerBlock / n4, 0, 0);
         constexpr auto b1_block_slice_copy_step = make_multi_index(Gemm1KPerBlock / B1K1, 0, 0);
 
         // acc_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4 to acc_thread_desc_k0_m_k1
         // n0_n1_n2_n3 -> k0
         // m0_m1_m2 -> m
         // n4 -> k1
+        // NOTE: had to use merge_v3 or will spit out compilation errors
         constexpr auto acc_thread_desc_k0_m_k1 = transform_tensor_descriptor(
             acc_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4,
-            make_tuple(make_merge_transform_v3_division_mod(make_tuple(n0, n1, n2, n3)), // NOTE: had to use merge_v3 or it will spit out weird errors
+            make_tuple(make_merge_transform_v3_division_mod(make_tuple(n0, n1, n2, n3)),
                        make_merge_transform_v3_division_mod(make_tuple(m0, m1, m2)),
                        make_pass_through_transform(n4)),
             make_tuple(Sequence<1, 3, 5, 6>{}, Sequence<0, 2, 4>{}, Sequence<7>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
-        // A1 thread descriptor for iterating Acc thread descriptor
-        // n2 num_groups_per_blk, n3 num_input_blks, n4 group_size // FIXME ANT: use block desc N3 instead of hardcoding
-        constexpr auto A1ThreadSlice = make_tuple(Number<Gemm1KPerBlock / n4 / 2>{}, Number<m0 * m1 * m2>{}, Number<n4>{});
-        constexpr index_t A1K0 = A1ThreadSlice[I0];
-        constexpr index_t A1K1 = A1ThreadSlice[I2];
+        // A1 matrix in AccVGPR
+        // N2 num_groups_per_blk, N3 num_input_blks, N4 group_size
+        constexpr auto AccN3 =
+            blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLength(I6);
+
+        constexpr auto A1ThreadSlice_K0_M_K1 =
+            make_tuple(Number<Gemm1KPerBlock / n4 / AccN3>{}, Number<m0 * m1 * m2>{}, Number<n4>{});
+
+        constexpr auto A1ThreadSliceK0        = A1ThreadSlice_K0_M_K1[I0];
+        constexpr auto A1ThreadSliceM         = A1ThreadSlice_K0_M_K1[I1];
+        constexpr auto A1ThreadSliceK1        = A1ThreadSlice_K0_M_K1[I2];
         constexpr auto a1_thread_desc_k0_m_k1 = make_naive_tensor_descriptor(
-            A1ThreadSlice,
-            make_tuple(A1ThreadSlice[I1] * A1ThreadSlice[I2], A1ThreadSlice[I2], I1));
-        // make_tuple(Number<A1K0>{}, Number<m0 * m1 * m2>{}, Number<n4>{}).foo(); // <8, 1, 4>
+            A1ThreadSlice_K0_M_K1,
+            make_tuple(A1ThreadSliceM * A1ThreadSliceK1, A1ThreadSliceK1, I1));
+
         // B1 matrix in LDS memory, dst of blockwise copy
         constexpr auto b1_block_desc_bk0_n_bk1 = GetB1BlockDescriptor_BK0PerBlock_NPerBlock_BK1();
 
         // A1 matrix blockwise copy
-        // actually a threadwise copy. this variant needs to support RunRead() and RunWrite()
-        // TODO ANT: real blockwise copy from c_block_desc to c_thread_desc
-        // FIXME: this cannot copy from static_buffer to static_buffer because v3r1 uses integer offset
-        // which is useless against static_buffer because it requires integral constant
-        auto a1_blockwise_copy =
-            ThreadwiseTensorSliceTransfer_v1r3_Static<FloatGemmAcc,
-                                             FloatAB,
-                                             decltype(acc_thread_desc_k0_m_k1),
-                                             decltype(a1_thread_desc_k0_m_k1),
-                                             Sequence<A1K0, m0 * m1 * m2, A1K1>,
-                                             Sequence<1, 0, 2>,
-                                             2,
-                                             n4>{};
+        auto a1_blockwise_copy = ThreadwiseTensorSliceTransfer_StaticToStatic<
+            FloatGemmAcc,
+            FloatAB,
+            decltype(acc_thread_desc_k0_m_k1),
+            decltype(a1_thread_desc_k0_m_k1),
+            Sequence<A1ThreadSliceK0, A1ThreadSliceM, A1ThreadSliceK1>,
+            Sequence<1, 0, 2>,
+            2,
+            n4>{};
 
         // B1 matrix blockwise copy
         auto b1_blockwise_copy =
@@ -596,8 +581,8 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
                                                 B1BlockTransferDstScalarPerVector_BK1,
                                                 1,
                                                 1,
-                                                true, // TODO ANT: check if false
-                                                true,
+                                                B1ThreadTransferSrcResetCoordinateAfterRun,
+                                                true, // DstResetCoord
                                                 NumGemmKPrefetchStage>(
                 b1_grid_desc_bk0_n_bk1,
                 make_multi_index(0, n_block_data_idx_on_grid, 0),
@@ -637,19 +622,19 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
             false,
             Gemm1KPack, // AMmaKStride
             Gemm1KPack * XdlopsGemm<FloatAB, MPerXdl, NPerXdl, Gemm1KPack, false>{}.K0PerXdlops>{
-                make_tuple(0, 0, 0, 0)
-                }; // TransposeC
+            make_tuple(0, 0, 0, 0)}; // TransposeC
 
         auto c_thread_buf = gemm1_blockwise_gemm.GetCThreadBuffer();
 
-        const index_t num_gemm1_k_block_outer_loop = b_grid_desc_bk0_n_bk1.GetLength(I1) / NPerBlock;
+        const index_t num_gemm1_k_block_outer_loop =
+            b_grid_desc_bk0_n_bk1.GetLength(I1) / NPerBlock;
         constexpr index_t num_gemm1_k_block_inner_loop = NPerBlock / Gemm1KPerBlock;
 
         // Initialize C
         c_thread_buf.Clear();
 
+        // gemm1 K loop
         index_t gemm1_k_block_outer_index = 0;
-        // j loop
         do
         {
             // gemm0
@@ -668,88 +653,40 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
                                                                    blockwise_gemm,
                                                                    acc_thread_buf,
                                                                    num_k_block_main_loop);
-#if 0
-            if(hipThreadIdx_x == 0)
-                printf("gemm1_k_block_outer_index %d, num_gemm1_k_block_outer_loop %d\n",
-                       gemm1_k_block_outer_index,
-                       num_gemm1_k_block_outer_loop);
-#endif
-#if 0
-            if (hipBlockIdx_x == 0 && hipBlockIdx_x == 0 && hipThreadIdx_x % 32 < 8) {
-                static_for<0, acc_thread_buf.Size(), 1>{}([&](auto I) {
-                    printf("bid %zd tid %zd, acc[%d] = %f\n", hipBlockIdx_x, hipThreadIdx_x, I.value, acc_thread_buf[I]);
-                });
-            }
-#endif
             // gemm1
             {
+                // TODO: explore using dynamic buffer for a1 thread buffer
+                // For a1_blockwise_copy, the goal is to satisfy pipeline requirements RunRead(),
+                // RunWrite(), and MoveSliceWindow(). But it is impossible to implement given that
+                // the A1 source buffer is static buffer holding the output of first GEMM and
+                // requires constexpr offset by design. Therefore, we pass tensor coordinate offset
+                // explicitly in Run() below.
+
                 // preload data into LDS
-                // FIXME ANT: do not need a1 copy here?
-                // a1_blockwise_copy.Run(acc_thread_desc_k0_m_k1,
-                //                       make_tuple(I0, I0, I0),
-                //                       acc_thread_buf,
-                //                       a1_thread_desc_k0_m_k1,
-                //                       make_tuple(I0, I0, I0),
-                //                       a1_thread_buf
-                //                       );
-#if 0
-                if (hipThreadIdx_x % 32 < 4) {
-                    static_for<0, a1_thread_buf.Size(), 1>{}([&](auto I) {
-                        printf("bid %zd tid %zd, iter %d, a1[%d] = %f\n", hipBlockIdx_x, hipThreadIdx_x, 0, I.value, (float)a1_thread_buf[I]);
-                    });
-                }
-#endif
                 b1_blockwise_copy.RunRead(b1_grid_desc_bk0_n_bk1, b1_grid_buf);
 
-                // TODO ANT: how to access static buffer while using tensor coordinate?
-                // a1_blockwise_copy.MoveSrcSliceWindow(acc_thread_desc_k0_m_k1,
-                //                                      a1_block_slice_copy_step);
                 b1_blockwise_copy.MoveSrcSliceWindow(b1_grid_desc_bk0_n_bk1,
                                                      b1_block_slice_copy_step);
 
-
                 b1_blockwise_copy.RunWrite(b1_block_desc_bk0_n_bk1, b1_block_buf);
-#if 0
-                if (hipBlockIdx_x == 0)
-                {
-                    debug::print_shared(b1_block_buf.p_data_, index_t(b1_block_desc_bk0_n_bk1.GetElementSpaceSize()));
-                }
-#endif
                 // main body
                 if constexpr(num_gemm1_k_block_inner_loop > 1)
                 {
 
                     static_for<0, num_gemm1_k_block_inner_loop - 1, 1>{}([&](auto i) {
                         a1_blockwise_copy.Run(acc_thread_desc_k0_m_k1,
-                                              make_tuple(Number<i * A1K0>{}, I0, I0),
+                                              make_tuple(Number<i * A1ThreadSliceK0>{}, I0, I0),
                                               acc_thread_buf,
                                               a1_thread_desc_k0_m_k1,
                                               make_tuple(I0, I0, I0),
-                                              a1_thread_buf
-                                              );
-#if 0
-                        if (hipBlockIdx_x == 0 && hipThreadIdx_x % 32 < 8) {
-                            static_for<0, a1_thread_buf.Size(), 1>{}([&](auto I) {
-                                printf("bid %zd tid %zd, iter %d, a1[%d] = %f\n", hipBlockIdx_x, hipThreadIdx_x, i.value, I.value, (float)a1_thread_buf[I]);
-                            });
-                        }
-#endif
+                                              a1_thread_buf);
                         b1_blockwise_copy.RunRead(b1_grid_desc_bk0_n_bk1, b1_grid_buf);
 
                         block_sync_lds();
 
                         gemm1_blockwise_gemm.Run(a1_thread_buf, b1_block_buf, c_thread_buf);
-#if 0
-                        if (hipThreadIdx_x % 32 < 8) {
-                            static_for<0, c_thread_buf.Size(), 1>{}([&](auto I) {
-                                printf("bid %zd tid %zd, iter %d, c[%d] = %f\n", hipBlockIdx_x, hipThreadIdx_x, i.value, I.value, c_thread_buf[I]);
-                            });
-                        }
-#endif
                         block_sync_lds();
 
-                        // a1_blockwise_copy.MoveSrcSliceWindow(acc_thread_desc_k0_m_k1,
-                        //                                      a1_block_slice_copy_step);
                         b1_blockwise_copy.MoveSrcSliceWindow(b1_grid_desc_bk0_n_bk1,
                                                              b1_block_slice_copy_step);
 
@@ -758,30 +695,26 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
                 }
                 // tail
                 {
-                    a1_blockwise_copy.Run(acc_thread_desc_k0_m_k1,
-                                          make_tuple(Number<(num_gemm1_k_block_inner_loop - 1) * A1K0>{}, I0, I0),
-                                          acc_thread_buf,
-                                          a1_thread_desc_k0_m_k1,
-                                          make_tuple(I0, I0, I0),
-                                          a1_thread_buf);
+                    a1_blockwise_copy.Run(
+                        acc_thread_desc_k0_m_k1,
+                        make_tuple(
+                            Number<(num_gemm1_k_block_inner_loop - 1) * A1ThreadSliceK0>{}, I0, I0),
+                        acc_thread_buf,
+                        a1_thread_desc_k0_m_k1,
+                        make_tuple(I0, I0, I0),
+                        a1_thread_buf);
                     block_sync_lds();
 
                     gemm1_blockwise_gemm.Run(a1_thread_buf, b1_block_buf, c_thread_buf);
                 }
             } // end gemm1
-#if 0
-            if (hipThreadIdx_x % 32 < 8) {
-                static_for<0, c_thread_buf.Size(), 1>{}([&](auto I) {
-                    printf("bid %zd tid %zd, iter %d, c[%d] = %f\n", hipBlockIdx_x, hipThreadIdx_x, num_gemm1_k_block_inner_loop - 1, I.value, c_thread_buf[I]);
-                });
-            }
-#endif
 
-            a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_ak0_m_ak1, a_block_reset_copy_step); // rewind K
-            b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_bk0_n_bk1, b_block_reset_copy_step); // rewind K and step N
-            // don't need to rewind b1
+            a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_ak0_m_ak1,
+                                                a_block_reset_copy_step); // rewind K
+            b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_bk0_n_bk1,
+                                                b_block_reset_copy_step); // rewind K and step N
 
-        } while (++gemm1_k_block_outer_index < num_gemm1_k_block_outer_loop); // end j loop
+        } while(++gemm1_k_block_outer_index < num_gemm1_k_block_outer_loop); // end j loop
 
         // shuffle C and write out
         {

@@ -162,7 +162,7 @@ template <typename ALayout,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
-          LoopScheduler LoopSched = make_default_loop_scheduler()>
+          LoopScheduler LoopSched = LoopScheduler::Default>
 struct DeviceGemmGemm_Xdl_CShuffle : public BaseOperator // TODO ANT: inherit from DeviceGemmGemm subtype
 {
     using DeviceOp = DeviceGemmGemm_Xdl_CShuffle;
@@ -553,7 +553,7 @@ struct DeviceGemmGemm_Xdl_CShuffle : public BaseOperator // TODO ANT: inherit fr
         ABlockTransferSrcVectorDim,
         ABlockTransferSrcScalarPerVector,
         ABlockTransferDstScalarPerVector_AK1,
-        false,
+        true,
         ABlockLdsExtraM,
         BBlockTransferThreadClusterLengths_BK0_N_BK1,
         BBlockTransferThreadClusterArrangeOrder,
@@ -561,7 +561,7 @@ struct DeviceGemmGemm_Xdl_CShuffle : public BaseOperator // TODO ANT: inherit fr
         BBlockTransferSrcVectorDim,
         BBlockTransferSrcScalarPerVector,
         BBlockTransferDstScalarPerVector_BK1,
-        false,
+        true,
         BBlockLdsExtraN,
         B1BlockTransferThreadClusterLengths_BK0_N_BK1,
         B1BlockTransferThreadClusterArrangeOrder,
@@ -655,24 +655,6 @@ struct DeviceGemmGemm_Xdl_CShuffle : public BaseOperator // TODO ANT: inherit fr
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-#if 0
-            {
-                std::cout << "arg.a_grid_desc_ak0_m_ak1_{"
-                          << arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) << ", "
-                          << arg.a_grid_desc_ak0_m_ak1_.GetLength(I1) << ", "
-                          << arg.a_grid_desc_ak0_m_ak1_.GetLength(I2) << "}" << std::endl;
-
-                std::cout << "arg.b_grid_desc_bk0_n_bk1_{"
-                          << arg.b_grid_desc_bk0_n_bk1_.GetLength(I0) << ", "
-                          << arg.b_grid_desc_bk0_n_bk1_.GetLength(I1) << ", "
-                          << arg.b_grid_desc_bk0_n_bk1_.GetLength(I2) << "}" << std::endl;
-
-                std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
-                          << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
-            }
-#endif
-
-            // TODO ANT: block id to ctilemap should infer acc0tile map
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
                                             arg.b_grid_desc_bk0_n_bk1_,
                                             arg.b1_grid_desc_bk0_n_bk1_,
@@ -685,7 +667,7 @@ struct DeviceGemmGemm_Xdl_CShuffle : public BaseOperator // TODO ANT: inherit fr
             const index_t grid_size =
                 arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_) * arg.batch_count_;
 
-            // TODO ANT: K for gemm1
+            // Gemm0_K
             const auto K =
                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
 
@@ -728,7 +710,8 @@ struct DeviceGemmGemm_Xdl_CShuffle : public BaseOperator // TODO ANT: inherit fr
                                               arg.compute_base_ptr_of_batch_);
             };
 
-            // TODO ANT: handle tail loops for gemm0 & gemm1
+            // Gemm1_K is split into Gemm1_K0/K1 where K1 is known at compile time, so we only need
+            // to concern Gemm0's loop
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
                 ave_time = launch_kernel(integral_constant<bool, true>{});

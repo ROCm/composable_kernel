@@ -158,22 +158,6 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
         Tuple4 b_origin = CalculateBThreadOriginDataIndex())
         : a_thread_copy_(a_origin), b_thread_copy_(b_origin)
     {
-#if 0
-        if(!TransposeC && hipThreadIdx_x % 32 < 8)
-        {
-            printf("bid %zd tid %zd, a_mma = %d, %d, %d, %d, b_mma = %d, %d, %d, %d\n",
-                   hipBlockIdx_x,
-                   hipThreadIdx_x,
-                   a_origin[Number<0>{}],
-                   a_origin[Number<1>{}],
-                   a_origin[Number<2>{}],
-                   a_origin[Number<3>{}],
-                   b_origin[Number<0>{}],
-                   b_origin[Number<1>{}],
-                   b_origin[Number<2>{}],
-                   b_origin[Number<3>{}]);
-        }
-#endif
         static_assert(AMmaTileDesc::IsKnownAtCompileTime() && BMmaTileDesc::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
 

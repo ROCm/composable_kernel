@@ -72,6 +72,7 @@ struct StaticBufferTupleOfVector
     __host__ __device__ static constexpr bool IsDynamicBuffer() { return false; }
 
     __host__ __device__ static constexpr index_t Size() { return s_per_buf; };
+
     // Get S
     // i is offset of S
     template <index_t I>
