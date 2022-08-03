@@ -11,10 +11,46 @@
 #include "ck/tensor_operation/gpu/device/device_reduce.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce_multiblock.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce_common.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_layernorm.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_layernorm_naive_variance.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_set_buffer_value.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
+
+namespace ck {
+template <typename GridwiseReduction,
+          typename XDataType,
+          typename GammaDataType,
+          typename BetaDataType,
+          typename YDataType,
+          typename AccDataType,
+          typename AccElementwiseOperation,
+          typename GridDesc_M_K,
+          typename GridDesc_K>
+__global__ void kernel_layernorm(const GridDesc_M_K x_grid_desc_m_k,
+                                 const GridDesc_K gamma_grid_desc_k,
+                                 const GridDesc_K beta_grid_desc_k,
+                                 const GridDesc_M_K y_grid_desc_m_k,
+                                 index_t num_k_block_tile_iteration,
+                                 AccDataType epsilon,
+                                 const XDataType* const __restrict__ p_x_global,
+                                 const GammaDataType* const __restrict__ p_gamma_global,
+                                 const BetaDataType* const __restrict__ p_beta_global,
+                                 YDataType* const __restrict__ p_y_global,
+                                 const AccElementwiseOperation acc_elementwise_op)
+{
+    GridwiseReduction::Run(x_grid_desc_m_k,
+                           gamma_grid_desc_k,
+                           beta_grid_desc_k,
+                           y_grid_desc_m_k,
+                           num_k_block_tile_iteration,
+                           epsilon,
+                           p_x_global,
+                           p_gamma_global,
+                           p_beta_global,
+                           p_y_global,
+                           acc_elementwise_op);
+};
+} // namespace ck
 
 namespace ck {
 namespace tensor_operation {
@@ -106,47 +142,49 @@ struct DeviceLayernorm : public BaseOperator
     using GridDesc_M_K = decltype(Reduction::MakeSrc2dDescriptor({1}, {1}, 1, 1));
     using GridDesc_K   = decltype(MakeAffine1dDescriptor({1}, {1}, 1, 1));
 
-    using GridwiseReduceLayernormGeneric = GridwiseLayernorm_mk_to_mk<XDataType,
-                                                                      GammaDataType,
-                                                                      BetaDataType,
-                                                                      YDataType,
-                                                                      AccDataType,
-                                                                      AccElementwiseOperation,
-                                                                      GridDesc_M_K,
-                                                                      GridDesc_K,
-                                                                      BlockSize,
-                                                                      MThreadClusterSize,
-                                                                      KThreadClusterSize,
-                                                                      MThreadSliceSize,
-                                                                      KThreadSliceSize,
-                                                                      XYSrcVectorDim,
-                                                                      XSrcVectorSize,
-                                                                      GammaSrcVectorSize,
-                                                                      BetaSrcVectorSize,
-                                                                      XYSrcVectorDim,
-                                                                      YDstVectorSize,
-                                                                      false>;
+    using GridwiseReduceLayernormGeneric =
+        GridwiseLayernormNaiveVariance_mk_to_mk<XDataType,
+                                                GammaDataType,
+                                                BetaDataType,
+                                                YDataType,
+                                                AccDataType,
+                                                AccElementwiseOperation,
+                                                GridDesc_M_K,
+                                                GridDesc_K,
+                                                BlockSize,
+                                                MThreadClusterSize,
+                                                KThreadClusterSize,
+                                                MThreadSliceSize,
+                                                KThreadSliceSize,
+                                                XYSrcVectorDim,
+                                                XSrcVectorSize,
+                                                GammaSrcVectorSize,
+                                                BetaSrcVectorSize,
+                                                XYSrcVectorDim,
+                                                YDstVectorSize,
+                                                false>;
 
-    using GridwiseReduceLayernormSweepOnce = GridwiseLayernorm_mk_to_mk<XDataType,
-                                                                        GammaDataType,
-                                                                        BetaDataType,
-                                                                        YDataType,
-                                                                        AccDataType,
-                                                                        AccElementwiseOperation,
-                                                                        GridDesc_M_K,
-                                                                        GridDesc_K,
-                                                                        BlockSize,
-                                                                        MThreadClusterSize,
-                                                                        KThreadClusterSize,
-                                                                        MThreadSliceSize,
-                                                                        KThreadSliceSize,
-                                                                        XYSrcVectorDim,
-                                                                        XSrcVectorSize,
-                                                                        GammaSrcVectorSize,
-                                                                        BetaSrcVectorSize,
-                                                                        XYSrcVectorDim,
-                                                                        YDstVectorSize,
-                                                                        true>;
+    using GridwiseReduceLayernormSweepOnce =
+        GridwiseLayernormNaiveVariance_mk_to_mk<XDataType,
+                                                GammaDataType,
+                                                BetaDataType,
+                                                YDataType,
+                                                AccDataType,
+                                                AccElementwiseOperation,
+                                                GridDesc_M_K,
+                                                GridDesc_K,
+                                                BlockSize,
+                                                MThreadClusterSize,
+                                                KThreadClusterSize,
+                                                MThreadSliceSize,
+                                                KThreadSliceSize,
+                                                XYSrcVectorDim,
+                                                XSrcVectorSize,
+                                                GammaSrcVectorSize,
+                                                BetaSrcVectorSize,
+                                                XYSrcVectorDim,
+                                                YDstVectorSize,
+                                                true>;
 
     struct Argument : public Reduction::Argument
     {
