@@ -17,5 +17,18 @@ bin/example_grouped_convnd_fwd_bias_relu_add_xdl_fp16 1 1 1
 
 Result (MI100)
 ```
-TBD
+in: dim 5, lengths {2, 128, 192, 71, 71}, strides {6912, 1935744, 1, 27264, 384}
+wei: dim 5, lengths {2, 256, 192, 3, 3}, strides {192, 3456, 1, 1152, 384}
+bias: dim 5, lengths {2, 128, 256, 36, 36}, strides {256, 0, 1, 0, 0}
+residual: dim 5, lengths {2, 128, 256, 36, 36}, strides {256, 0, 1, 0, 0}
+out: dim 5, lengths {2, 128, 256, 36, 36}, strides {256, 663552, 1, 18432, 512}
+A[M, K]: {165888, 1728}
+B[N, K]: {256, 1728}
+Ds[M, N]: {165888, 256}
+Ds[M, N]: {165888, 256}
+E[M, N]: {165888, 256}
+launch_and_time_kernel: grid_dim {2592, 1, 1}, block_dim {256, 1, 1}
+Warm up 1 time
+Start running 10 times...
+Perf: 2.5006 ms, 117.386 TFlops, 266.812 GB/s, DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<256, 128, 256, 32, Default>
 ```

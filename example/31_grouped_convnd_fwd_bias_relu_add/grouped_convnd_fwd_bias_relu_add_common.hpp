@@ -33,27 +33,30 @@ template <ck::index_t NDimSpatial,
           typename WeiElementOp,
           typename OutElementOp,
           typename DeviceConvNDFwdInstance>
-int run_grouped_conv_fwd_bias(bool do_verification,
-                              int init_method,
-                              bool time_kernel,
-                              const ck::utils::conv::ConvParam& conv_param,
-                              const HostTensorDescriptor& in_g_n_c_wis_desc,
-                              const HostTensorDescriptor& wei_g_k_c_xs_desc,
-                              const HostTensorDescriptor& bias_g_n_k_wos_desc,
-                              const HostTensorDescriptor& out_g_n_k_wos_desc,
-                              const InElementOp& in_element_op,
-                              const WeiElementOp& wei_element_op,
-                              const OutElementOp& out_element_op)
+int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
+                                       int init_method,
+                                       bool time_kernel,
+                                       const ck::utils::conv::ConvParam& conv_param,
+                                       const HostTensorDescriptor& in_g_n_c_wis_desc,
+                                       const HostTensorDescriptor& wei_g_k_c_xs_desc,
+                                       const HostTensorDescriptor& bias_g_n_k_wos_desc,
+                                       const HostTensorDescriptor& residual_g_n_k_wos_desc,
+                                       const HostTensorDescriptor& out_g_n_k_wos_desc,
+                                       const InElementOp& in_element_op,
+                                       const WeiElementOp& wei_element_op,
+                                       const OutElementOp& out_element_op)
 {
     Tensor<InDataType> in(in_g_n_c_wis_desc);
     Tensor<WeiDataType> wei(wei_g_k_c_xs_desc);
     Tensor<OutDataType> bias(bias_g_n_k_wos_desc);
+    Tensor<OutDataType> residual(residual_g_n_k_wos_desc);
     Tensor<OutDataType> out_host(out_g_n_k_wos_desc);
     Tensor<OutDataType> out_device(out_g_n_k_wos_desc);
 
     std::cout << "in: " << in.mDesc << std::endl;
     std::cout << "wei: " << wei.mDesc << std::endl;
     std::cout << "bias: " << bias.mDesc << std::endl;
+    std::cout << "residual: " << residual.mDesc << std::endl;
     std::cout << "out: " << out_host.mDesc << std::endl;
 
     switch(init_method)
@@ -73,11 +76,13 @@ int run_grouped_conv_fwd_bias(bool do_verification,
     DeviceMem in_device_buf(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
     DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
     DeviceMem bias_device_buf(sizeof(OutDataType) * bias.mDesc.GetElementSpaceSize());
+    DeviceMem residual_device_buf(sizeof(OutDataType) * residual.mDesc.GetElementSpaceSize());
     DeviceMem out_device_buf(sizeof(OutDataType) * out_device.mDesc.GetElementSpaceSize());
 
     in_device_buf.ToDevice(in.mData.data());
     wei_device_buf.ToDevice(wei.mData.data());
     bias_device_buf.ToDevice(bias.mData.data());
+    residual_device_buf.ToDevice(residual.mData.data());
 
     std::array<ck::index_t, NDimSpatial + 3> a_g_n_c_wis_lengths{};
     std::array<ck::index_t, NDimSpatial + 3> a_g_n_c_wis_strides{};
@@ -108,28 +113,31 @@ int run_grouped_conv_fwd_bias(bool do_verification,
     copy(conv_param.input_right_pads_, input_right_pads);
 
     // do Conv
-    auto conv     = DeviceConvNDFwdInstance{};
-    auto invoker  = conv.MakeInvoker();
-    auto argument = conv.MakeArgument(
-        in_device_buf.GetDeviceBuffer(),
-        wei_device_buf.GetDeviceBuffer(),
-        std::array<const void*, 1>{bias_device_buf.GetDeviceBuffer()},
-        out_device_buf.GetDeviceBuffer(),
-        a_g_n_c_wis_lengths,
-        a_g_n_c_wis_strides,
-        b_g_k_c_xs_lengths,
-        b_g_k_c_xs_strides,
-        std::array<std::array<ck::index_t, NDimSpatial + 3>, 1>{{d_g_n_k_wos_lengths}},
-        std::array<std::array<ck::index_t, NDimSpatial + 3>, 1>{{d_g_n_k_wos_strides}},
-        e_g_n_k_wos_lengths,
-        e_g_n_k_wos_strides,
-        conv_filter_strides,
-        conv_filter_dilations,
-        input_left_pads,
-        input_right_pads,
-        in_element_op,
-        wei_element_op,
-        out_element_op);
+    auto conv    = DeviceConvNDFwdInstance{};
+    auto invoker = conv.MakeInvoker();
+    auto argument =
+        conv.MakeArgument(in_device_buf.GetDeviceBuffer(),
+                          wei_device_buf.GetDeviceBuffer(),
+                          std::array<const void*, 2>{bias_device_buf.GetDeviceBuffer(),
+                                                     residual_device_buf.GetDeviceBuffer()},
+                          out_device_buf.GetDeviceBuffer(),
+                          a_g_n_c_wis_lengths,
+                          a_g_n_c_wis_strides,
+                          b_g_k_c_xs_lengths,
+                          b_g_k_c_xs_strides,
+                          std::array<std::array<ck::index_t, NDimSpatial + 3>, 2>{
+                              {d_g_n_k_wos_lengths, d_g_n_k_wos_lengths}},
+                          std::array<std::array<ck::index_t, NDimSpatial + 3>, 2>{
+                              {d_g_n_k_wos_strides, d_g_n_k_wos_strides}},
+                          e_g_n_k_wos_lengths,
+                          e_g_n_k_wos_strides,
+                          conv_filter_strides,
+                          conv_filter_dilations,
+                          input_left_pads,
+                          input_right_pads,
+                          in_element_op,
+                          wei_element_op,
+                          out_element_op);
 
     if(!conv.IsSupportedArgument(argument))
     {
@@ -177,8 +185,9 @@ int run_grouped_conv_fwd_bias(bool do_verification,
         ref_invoker.Run(ref_argument);
 
         // TODO: implement elementwise operation for host
-        out_host.ForEach(
-            [&](auto&, auto idx) { out_element_op(out_host(idx), c_host(idx), bias(idx)); });
+        out_host.ForEach([&](auto&, auto idx) {
+            out_element_op(out_host(idx), c_host(idx), bias(idx), residual(idx));
+        });
 
         out_device_buf.FromDevice(out_device.mData.data());
 

@@ -12,6 +12,7 @@ using WeiDataType      = ck::half_t;
 using AccDataType      = float;
 using CShuffleDataType = ck::half_t;
 using BiasDataType     = ck::half_t;
+using ResidualDataType = ck::half_t;
 using OutDataType      = ck::half_t;
 
 template <ck::index_t... Is>
@@ -19,7 +20,7 @@ using S = ck::Sequence<Is...>;
 
 using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
-using OutElementOp = ck::tensor_operation::element_wise::AddRelu;
+using OutElementOp = ck::tensor_operation::element_wise::AddReluAdd;
 
 static constexpr auto ConvSpec =
     ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
@@ -30,19 +31,20 @@ template <ck::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename BiasLayout,
+          typename ResidualLayout,
           typename OutLayout>
 using DeviceGroupedConvNDFwdInstance =
     ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<
         NDimSpatial,
         InLayout,
         WeiLayout,
-        ck::Tuple<BiasLayout>,
+        ck::Tuple<BiasLayout, ResidualLayout>,
         OutLayout,
         InDataType,
         WeiDataType,
         AccDataType,
         CShuffleDataType,
-        ck::Tuple<BiasDataType>,
+        ck::Tuple<BiasDataType, ResidualDataType>,
         OutDataType,
         InElementOp,
         WeiElementOp,
@@ -118,10 +120,11 @@ int main(int argc, char* argv[])
 
     if(conv_param.num_dim_spatial_ == 1)
     {
-        using InLayout   = ctc::G_NW_C;
-        using WeiLayout  = ctc::G_K_X_C;
-        using BiasLayout = ctc::G_NW_K;
-        using OutLayout  = ctc::G_NW_K;
+        using InLayout       = ctc::G_NW_C;
+        using WeiLayout      = ctc::G_K_X_C;
+        using BiasLayout     = ctc::G_NW_K;
+        using ResidualLayout = ctc::G_NW_K;
+        using OutLayout      = ctc::G_NW_K;
 
         const auto in_g_n_c_wis_desc = HostTensorDescriptor(
             {conv_param.G_, conv_param.N_, conv_param.C_, conv_param.input_spatial_lengths_[0]},
@@ -150,6 +153,15 @@ int main(int argc, char* argv[])
                 0              // x
             });
 
+        const auto residual_g_n_k_wos_desc = HostTensorDescriptor(
+            {conv_param.G_, conv_param.N_, conv_param.K_, conv_param.output_spatial_lengths_[0]},
+            {
+                conv_param.K_, // g
+                0,             // k
+                1,             // c
+                0              // x
+            });
+
         const auto out_g_n_k_wos_desc = HostTensorDescriptor(
             {conv_param.G_, conv_param.N_, conv_param.K_, conv_param.output_spatial_lengths_[0]},
             {
@@ -159,15 +171,19 @@ int main(int argc, char* argv[])
                 conv_param.G_ * conv_param.K_                                          // wo
             });
 
-        return run_grouped_conv_fwd_bias<
-            1,
-            InDataType,
-            WeiDataType,
-            OutDataType,
-            InElementOp,
-            WeiElementOp,
-            OutElementOp,
-            DeviceGroupedConvNDFwdInstance<1, InLayout, WeiLayout, BiasLayout, OutLayout>>(
+        return run_grouped_conv_fwd_bias_relu_add<1,
+                                                  InDataType,
+                                                  WeiDataType,
+                                                  OutDataType,
+                                                  InElementOp,
+                                                  WeiElementOp,
+                                                  OutElementOp,
+                                                  DeviceGroupedConvNDFwdInstance<1,
+                                                                                 InLayout,
+                                                                                 WeiLayout,
+                                                                                 BiasLayout,
+                                                                                 ResidualLayout,
+                                                                                 OutLayout>>(
             do_verification,
             init_method,
             time_kernel,
@@ -175,6 +191,7 @@ int main(int argc, char* argv[])
             in_g_n_c_wis_desc,
             wei_g_k_c_xs_desc,
             bias_g_n_k_wos_desc,
+            residual_g_n_k_wos_desc,
             out_g_n_k_wos_desc,
             in_element_op,
             wei_element_op,
@@ -182,10 +199,11 @@ int main(int argc, char* argv[])
     }
     else if(conv_param.num_dim_spatial_ == 2)
     {
-        using InLayout   = ctc::G_NHW_C;
-        using WeiLayout  = ctc::G_K_YX_C;
-        using BiasLayout = ctc::G_NHW_K;
-        using OutLayout  = ctc::G_NHW_K;
+        using InLayout       = ctc::G_NHW_C;
+        using WeiLayout      = ctc::G_K_YX_C;
+        using BiasLayout     = ctc::G_NHW_K;
+        using ResidualLayout = ctc::G_NHW_K;
+        using OutLayout      = ctc::G_NHW_K;
 
         const auto in_g_n_c_wis_desc = HostTensorDescriptor(
             {conv_param.G_,
@@ -231,6 +249,20 @@ int main(int argc, char* argv[])
                                      0              // wo
                                  });
 
+        const auto residual_g_n_k_wos_desc =
+            HostTensorDescriptor({conv_param.G_,
+                                  conv_param.N_,
+                                  conv_param.K_,
+                                  conv_param.output_spatial_lengths_[0],
+                                  conv_param.output_spatial_lengths_[1]},
+                                 {
+                                     conv_param.K_, // g
+                                     0,             // n
+                                     1,             // k
+                                     0,             // ho
+                                     0              // wo
+                                 });
+
         const auto out_g_n_k_wos_desc = HostTensorDescriptor(
             {conv_param.G_,
              conv_param.N_,
@@ -246,15 +278,19 @@ int main(int argc, char* argv[])
                 conv_param.G_ * conv_param.K_                                          // wo
             });
 
-        return run_grouped_conv_fwd_bias<
-            2,
-            InDataType,
-            WeiDataType,
-            OutDataType,
-            InElementOp,
-            WeiElementOp,
-            OutElementOp,
-            DeviceGroupedConvNDFwdInstance<2, InLayout, WeiLayout, BiasLayout, OutLayout>>(
+        return run_grouped_conv_fwd_bias_relu_add<2,
+                                                  InDataType,
+                                                  WeiDataType,
+                                                  OutDataType,
+                                                  InElementOp,
+                                                  WeiElementOp,
+                                                  OutElementOp,
+                                                  DeviceGroupedConvNDFwdInstance<2,
+                                                                                 InLayout,
+                                                                                 WeiLayout,
+                                                                                 BiasLayout,
+                                                                                 ResidualLayout,
+                                                                                 OutLayout>>(
             do_verification,
             init_method,
             time_kernel,
@@ -262,6 +298,7 @@ int main(int argc, char* argv[])
             in_g_n_c_wis_desc,
             wei_g_k_c_xs_desc,
             bias_g_n_k_wos_desc,
+            residual_g_n_k_wos_desc,
             out_g_n_k_wos_desc,
             in_element_op,
             wei_element_op,
@@ -269,10 +306,11 @@ int main(int argc, char* argv[])
     }
     else if(conv_param.num_dim_spatial_ == 3)
     {
-        using InLayout   = ctc::G_NDHW_C;
-        using WeiLayout  = ctc::G_K_ZYX_C;
-        using BiasLayout = ctc::G_NDHW_K;
-        using OutLayout  = ctc::G_NDHW_K;
+        using InLayout       = ctc::G_NDHW_C;
+        using WeiLayout      = ctc::G_K_ZYX_C;
+        using BiasLayout     = ctc::G_NDHW_K;
+        using ResidualLayout = ctc::G_NDHW_K;
+        using OutLayout      = ctc::G_NDHW_K;
 
         const auto in_g_n_c_wis_desc = HostTensorDescriptor(
             {conv_param.G_,
@@ -326,6 +364,22 @@ int main(int argc, char* argv[])
                                      0              // x
                                  });
 
+        const auto residual_g_n_k_wos_desc =
+            HostTensorDescriptor({conv_param.G_,
+                                  conv_param.N_,
+                                  conv_param.K_,
+                                  conv_param.output_spatial_lengths_[0],
+                                  conv_param.output_spatial_lengths_[1],
+                                  conv_param.output_spatial_lengths_[2]},
+                                 {
+                                     conv_param.K_, // g
+                                     0,             // n
+                                     1,             // k
+                                     0,             // z
+                                     0,             // y
+                                     0              // x
+                                 });
+
         const auto out_g_n_k_wos_desc = HostTensorDescriptor(
             {conv_param.G_,
              conv_param.N_,
@@ -344,15 +398,19 @@ int main(int argc, char* argv[])
                 conv_param.G_ * conv_param.K_                                          // wo
             });
 
-        return run_grouped_conv_fwd_bias<
-            3,
-            InDataType,
-            WeiDataType,
-            OutDataType,
-            InElementOp,
-            WeiElementOp,
-            OutElementOp,
-            DeviceGroupedConvNDFwdInstance<3, InLayout, WeiLayout, BiasLayout, OutLayout>>(
+        return run_grouped_conv_fwd_bias_relu_add<3,
+                                                  InDataType,
+                                                  WeiDataType,
+                                                  OutDataType,
+                                                  InElementOp,
+                                                  WeiElementOp,
+                                                  OutElementOp,
+                                                  DeviceGroupedConvNDFwdInstance<3,
+                                                                                 InLayout,
+                                                                                 WeiLayout,
+                                                                                 BiasLayout,
+                                                                                 ResidualLayout,
+                                                                                 OutLayout>>(
             do_verification,
             init_method,
             time_kernel,
@@ -360,6 +418,7 @@ int main(int argc, char* argv[])
             in_g_n_c_wis_desc,
             wei_g_k_c_xs_desc,
             bias_g_n_k_wos_desc,
+            residual_g_n_k_wos_desc,
             out_g_n_k_wos_desc,
             in_element_op,
             wei_element_op,
