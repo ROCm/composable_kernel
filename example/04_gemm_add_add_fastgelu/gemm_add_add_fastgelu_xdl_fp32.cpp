@@ -108,11 +108,13 @@ int main(int argc, char* argv[])
     }
     else
     {
-        printf("arg1: verification (0=no, 1=yes)\n");
-        printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 10: M (256x), N(128x), K(32x), StrideA, StrideB, StrideD0, StrideD1, "
-               "StrideE\n");
+        std::cout << "arg1: verification (0=no, 1=yes)" << std::endl
+                  << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)"
+                  << std::endl
+                  << "arg3: time kernel (0=no, 1=yes)" << std::endl
+                  << "arg4 to 10: M (256x), N(128x), K(32x), StrideA, StrideB, StrideD0, StrideD1, "
+                     "StrideE"
+                  << std::endl;
         return EXIT_SUCCESS;
     }
 
