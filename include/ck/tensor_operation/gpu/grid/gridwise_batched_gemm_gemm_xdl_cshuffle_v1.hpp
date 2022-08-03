@@ -101,22 +101,6 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
 
     using GridwiseGemmPipe = GridwiseGemmPipeline_v1<NumGemmKPrefetchStage>;
 
-    template <index_t MNXdlPerWave, index_t MNWaves, index_t MNPerXdl, typename BlockDesc_K0_MN_K1>
-    __host__ __device__ static constexpr auto
-    MakeGemmMmaTileDescriptor_MN0_MN1_MN2_K(const BlockDesc_K0_MN_K1&)
-    {
-        constexpr index_t K0 = BlockDesc_K0_MN_K1{}.GetLength(I0);
-        constexpr index_t K1 = BlockDesc_K0_MN_K1{}.GetLength(I2);
-
-        return transform_tensor_descriptor(
-            BlockDesc_K0_MN_K1{},
-            make_tuple(make_merge_transform_v3_division_mod(make_tuple(Number<K0>{}, Number<K1>{})),
-                       make_unmerge_transform(make_tuple(
-                           Number<MNXdlPerWave>{}, Number<MNWaves>{}, Number<MNPerXdl>{}))),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
-            make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
-    }
-
     template <typename ABlockDesc_AK0_M_AK1>
     __host__ __device__ static constexpr auto
     MakeGemm0AMmaTileDescriptor_M0_M1_M2_K(const ABlockDesc_AK0_M_AK1&)
@@ -453,8 +437,7 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
         constexpr index_t KPack = math::max(
             math::lcm(AK1, BK1), MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
-        // TODO ANT: to refactor: blockwise gemm output layout
-        auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<
+        auto blockwise_gemm = BlockwiseGemmXdlops_v2<
             BlockSize,
             FloatAB,
             FloatGemmAcc,
@@ -603,7 +586,7 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
             math::lcm(MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.group_size, B1K1),
             MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
-        auto gemm1_blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<
+        auto gemm1_blockwise_gemm = BlockwiseGemmXdlops_v2<
             BlockSize,
             FloatAB,
             FloatGemmAcc,
