@@ -139,16 +139,18 @@ struct AddAddFastGelu
                                                                               const float& d0,
                                                                               const float& d1) const
     {
-        const float y = GetFastGeLU(c + d0 + d1);
+        const float y =
+            GetFastGeLU(type_convert<float>(c) + type_convert<float>(d0) + type_convert<float>(d1));
 
-        e = y;
+        e = type_convert<float>(y);
     }
 
     template <>
     __host__ __device__ constexpr void operator()<bhalf_t, float, bhalf_t, bhalf_t>(
         bhalf_t& e, const float& c, const bhalf_t& d0, const bhalf_t& d1) const
     {
-        const float y = GetFastGeLU(c + type_convert<float>(d0) + type_convert<float>(d1));
+        const float y =
+            GetFastGeLU(type_convert<float>(c) + type_convert<float>(d0) + type_convert<float>(d1));
 
         e = type_convert<bhalf_t>(y);
     }
@@ -157,7 +159,8 @@ struct AddAddFastGelu
     __host__ __device__ constexpr void operator()<half_t, float, half_t, half_t>(
         half_t& e, const float& c, const half_t& d0, const half_t& d1) const
     {
-        const float y = GetFastGeLU(c + type_convert<float>(d0) + type_convert<float>(d1));
+        const float y =
+            GetFastGeLU(type_convert<float>(c) + type_convert<float>(d0) + type_convert<float>(d1));
 
         e = type_convert<half_t>(y);
     }
