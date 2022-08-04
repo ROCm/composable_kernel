@@ -48,10 +48,10 @@ using B0Layout = Col;
 using B1Layout = Row;
 using CLayout  = Row;
 
-using AElementOp = PassThrough;
+using AElementOp  = PassThrough;
 using B0ElementOp = PassThrough;
 using B1ElementOp = PassThrough;
-using CElementOp = PassThrough;
+using CElementOp  = PassThrough;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
@@ -113,14 +113,19 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmGemm_X
     8>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
 
 using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
-                                                                         B0DataType,
-                                                                         ADataType,
-                                                                         AccDataType,
-                                                                         AElementOp,
-                                                                         B0ElementOp,
-                                                                         CElementOp>;
-using ReferenceGemm1Instance = ck::tensor_operation::host::
-    ReferenceBatchedGemm<ADataType, B1DataType, CDataType, AccDataType, AElementOp, B1ElementOp, CElementOp>;
+                                                                                B0DataType,
+                                                                                ADataType,
+                                                                                AccDataType,
+                                                                                AElementOp,
+                                                                                B0ElementOp,
+                                                                                CElementOp>;
+using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
+                                                                                B1DataType,
+                                                                                CDataType,
+                                                                                AccDataType,
+                                                                                AElementOp,
+                                                                                B1ElementOp,
+                                                                                CElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -179,15 +184,15 @@ int main(int argc, char* argv[])
 
         BatchCount = std::stoi(argv[8]);
 
-        StrideA = std::stoi(argv[9]);
+        StrideA  = std::stoi(argv[9]);
         StrideB0 = std::stoi(argv[10]);
         StrideB1 = std::stoi(argv[11]);
-        StrideC = std::stoi(argv[12]);
+        StrideC  = std::stoi(argv[12]);
 
-        BatchStrideA = std::stoi(argv[13]);
+        BatchStrideA  = std::stoi(argv[13]);
         BatchStrideB0 = std::stoi(argv[14]);
         BatchStrideB1 = std::stoi(argv[15]);
-        BatchStrideC = std::stoi(argv[16]);
+        BatchStrideC  = std::stoi(argv[16]);
     }
     else
     {
@@ -282,35 +287,36 @@ int main(int argc, char* argv[])
     b0_g_k_n_device_buf.ToDevice(b0_g_k_n.mData.data());
     b1_g_n_o_device_buf.ToDevice(b1_g_n_o.mData.data());
 
-    auto a_element_op = AElementOp{};
+    auto a_element_op  = AElementOp{};
     auto b0_element_op = B0ElementOp{};
     auto b1_element_op = B1ElementOp{};
-    auto c_element_op = CElementOp{};
+    auto c_element_op  = CElementOp{};
 
     // do GEMM
-    auto gemm     = DeviceGemmInstance{};
-    auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_g_m_k_device_buf.GetDeviceBuffer()),
-                                      static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
-                                      static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
-                                      static_cast<CDataType*>(c_g_m_o_device_buf.GetDeviceBuffer()),
-                                      M,
-                                      N,
-                                      K,
-                                      O,
-                                      BatchCount,
-                                      StrideA,
-                                      StrideB0,
-                                      StrideB1,
-                                      StrideC,
-                                      BatchStrideA,
-                                      BatchStrideB0,
-                                      BatchStrideB1,
-                                      BatchStrideC,
-                                      a_element_op,
-                                      b0_element_op,
-                                      b1_element_op,
-                                      c_element_op);
+    auto gemm    = DeviceGemmInstance{};
+    auto invoker = gemm.MakeInvoker();
+    auto argument =
+        gemm.MakeArgument(static_cast<ADataType*>(a_g_m_k_device_buf.GetDeviceBuffer()),
+                          static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
+                          static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
+                          static_cast<CDataType*>(c_g_m_o_device_buf.GetDeviceBuffer()),
+                          M,
+                          N,
+                          K,
+                          O,
+                          BatchCount,
+                          StrideA,
+                          StrideB0,
+                          StrideB1,
+                          StrideC,
+                          BatchStrideA,
+                          BatchStrideB0,
+                          BatchStrideB1,
+                          BatchStrideC,
+                          a_element_op,
+                          b0_element_op,
+                          b1_element_op,
+                          c_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {

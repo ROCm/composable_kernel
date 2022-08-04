@@ -1154,11 +1154,11 @@ struct ThreadwiseTensorSliceTransfer_v4
             {
                 static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
                     constexpr index_t src_offset = src_desc.CalculateOffset(
-                        src_ref_to_origin_disp_idx + data_to_origin_disp_idx + i * src_scalar_step_in_vector);
+                        src_ref_to_origin_disp_idx + data_to_origin_disp_idx +
+                        i * src_scalar_step_in_vector);
 
                     // apply type convert
-                    src_tmp_vector.template AsType<SrcData>()(i) =
-                        src_buf[Number<src_offset>{}];
+                    src_tmp_vector.template AsType<SrcData>()(i) = src_buf[Number<src_offset>{}];
                 });
             }
             // copy data from src_tmp_vector to dst_tmp_vector (data cast data from SrcData to
@@ -1206,7 +1206,8 @@ template <typename SrcData,
           typename DimAccessOrder,
           index_t DstVectorDim,
           index_t DstScalarPerVector,
-          typename enable_if<SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(), bool>::type = false>
+          typename enable_if<SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
+                             bool>::type = false>
 struct ThreadwiseTensorSliceTransfer_StaticToStatic
 {
     static constexpr index_t nDim = SliceLengths::Size();
@@ -1222,7 +1223,10 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic
                       "wrong! Not divisible");
     }
 
-    template <typename SrcSliceOriginIdx, typename DstSliceOriginIdx, typename SrcBuffer, typename DstBuffer>
+    template <typename SrcSliceOriginIdx,
+              typename DstSliceOriginIdx,
+              typename SrcBuffer,
+              typename DstBuffer>
     __device__ void Run(const SrcDesc&,
                         const SrcSliceOriginIdx&,
                         const SrcBuffer& src_buf,
@@ -1277,7 +1281,6 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic
             });
         });
     }
-
 };
 
 } // namespace ck

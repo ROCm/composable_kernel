@@ -35,8 +35,8 @@ MakeGemmMmaTileDescriptor_MN0_MN1_MN2_K(const TileDesc_K0_MN_K1&)
     return transform_tensor_descriptor(
         TileDesc_K0_MN_K1{},
         make_tuple(make_merge_transform_v3_division_mod(make_tuple(Number<K0>{}, Number<K1>{})),
-                    make_unmerge_transform(make_tuple(
-                        Number<MNXdlPerWave>{}, Number<MNWaves>{}, Number<MNPerXdl>{}))),
+                   make_unmerge_transform(
+                       make_tuple(Number<MNXdlPerWave>{}, Number<MNWaves>{}, Number<MNPerXdl>{}))),
         make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
         make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
 }
@@ -694,7 +694,7 @@ struct BlockwiseGemmXdlops_v2
 
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
     __device__ static auto
-    CalculateCThreadOriginDataIndex(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
+        CalculateCThreadOriginDataIndex(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
     {
         const auto wave_idx = GetWaveIdx();
 
@@ -723,9 +723,8 @@ struct BlockwiseGemmXdlops_v2
 
     using Tuple4 = decltype(CalculateAThreadOriginDataIndex());
 
-    __host__ __device__ BlockwiseGemmXdlops_v2(
-        Tuple4 a_origin = CalculateAThreadOriginDataIndex(),
-        Tuple4 b_origin = CalculateBThreadOriginDataIndex())
+    __host__ __device__ BlockwiseGemmXdlops_v2(Tuple4 a_origin = CalculateAThreadOriginDataIndex(),
+                                               Tuple4 b_origin = CalculateBThreadOriginDataIndex())
         : a_thread_copy_(a_origin), b_thread_copy_(b_origin)
     {
         static_assert(AMmaTileDesc::IsKnownAtCompileTime() && BMmaTileDesc::IsKnownAtCompileTime(),
@@ -738,8 +737,7 @@ struct BlockwiseGemmXdlops_v2
                       "wrong!");
     }
 
-    __host__ __device__ BlockwiseGemmXdlops_v2(
-        const BlockwiseGemmXdlops_v2& other)
+    __host__ __device__ BlockwiseGemmXdlops_v2(const BlockwiseGemmXdlops_v2& other)
         : a_thread_copy_(other.a_origin), b_thread_copy_(other.b_origin)
     {
     }

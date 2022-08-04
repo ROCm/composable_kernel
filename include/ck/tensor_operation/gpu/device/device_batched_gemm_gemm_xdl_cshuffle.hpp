@@ -38,22 +38,23 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_gemm_xdl_cshuffle_v1(const FloatAB* __restrict__ p_a_grid,
-                                    const FloatAB* __restrict__ p_b_grid,
-                                    const FloatAB* __restrict__ p_b1_grid,
-                                    FloatC* __restrict__ p_c_grid,
-                                    const AElementwiseOperation a_element_op,
-                                    const BElementwiseOperation b_element_op,
-                                    const B1ElementwiseOperation b1_element_op,
-                                    const CElementwiseOperation c_element_op,
-                                    const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-                                    const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-                                    const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
-                                    const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                                        c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                    const Block2CTileMap block_2_ctile_map,
-                                    const index_t batch_count,
-                                    const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch)
+        kernel_gemm_gemm_xdl_cshuffle_v1(
+            const FloatAB* __restrict__ p_a_grid,
+            const FloatAB* __restrict__ p_b_grid,
+            const FloatAB* __restrict__ p_b1_grid,
+            FloatC* __restrict__ p_c_grid,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const B1ElementwiseOperation b1_element_op,
+            const CElementwiseOperation c_element_op,
+            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+            const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
+            const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                c_grid_desc_mblock_mperblock_nblock_nperblock,
+            const Block2CTileMap block_2_ctile_map,
+            const index_t batch_count,
+            const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -162,17 +163,17 @@ template <typename ALayout,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched = LoopScheduler::Default>
 struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout,
-                                                                   BLayout,
-                                                                   B1Layout,
-                                                                   CLayout,
-                                                                   ADataType,
-                                                                   BDataType,
-                                                                   B1DataType,
-                                                                   CDataType,
-                                                                   AElementwiseOperation,
-                                                                   BElementwiseOperation,
-                                                                   B1ElementwiseOperation,
-                                                                   CElementwiseOperation>
+                                                                         BLayout,
+                                                                         B1Layout,
+                                                                         CLayout,
+                                                                         ADataType,
+                                                                         BDataType,
+                                                                         B1DataType,
+                                                                         CDataType,
+                                                                         AElementwiseOperation,
+                                                                         BElementwiseOperation,
+                                                                         B1ElementwiseOperation,
+                                                                         CElementwiseOperation>
 {
     using DeviceOp = DeviceBatchedGemmGemm_Xdl_CShuffle;
 
@@ -405,12 +406,12 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
         {
             const auto B1K0 = KRaw / B1K1;
 
-            const auto b1_grid_desc_bk0_n_bk1 =
-                transform_tensor_descriptor(b1_grid_desc_nraw_kraw,
-                                            make_tuple(make_unmerge_transform(make_tuple(B1K0, B1K1)),
-                                                    make_pass_through_transform(NRaw)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+            const auto b1_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
+                b1_grid_desc_nraw_kraw,
+                make_tuple(make_unmerge_transform(make_tuple(B1K0, B1K1)),
+                           make_pass_through_transform(NRaw)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
             return b1_grid_desc_bk0_n_bk1;
         }
@@ -426,16 +427,15 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
                                             make_tuple(Sequence<0>{}, Sequence<1>{}),
                                             make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            const auto b1_grid_desc_bk0_n_bk1 =
-                transform_tensor_descriptor(b1_grid_desc_n_k,
-                                            make_tuple(make_unmerge_transform(make_tuple(B1K0, B1K1)),
-                                                       make_pass_through_transform(N)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+            const auto b1_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
+                b1_grid_desc_n_k,
+                make_tuple(make_unmerge_transform(make_tuple(B1K0, B1K1)),
+                           make_pass_through_transform(N)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
             return b1_grid_desc_bk0_n_bk1;
         }
-
     }
 
     static auto MakeCGridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t StrideC)
@@ -537,9 +537,9 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
     };
 
     using AGridDesc_AK0_M_AK1  = decltype(MakeAGridDescriptor_AK0_M_AK1(1, 1, 1));
-    using BGridDesc_BK0_N_BK1 = decltype(MakeBGridDescriptor_BK0_N_BK1(1, 1, 1));
+    using BGridDesc_BK0_N_BK1  = decltype(MakeBGridDescriptor_BK0_N_BK1(1, 1, 1));
     using B1GridDesc_BK0_N_BK1 = decltype(MakeB1GridDescriptor_BK0_N_BK1(1, 1, 1));
-    using CGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
+    using CGridDesc_M_N        = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseBatchedGemmGemm_Xdl_CShuffle<
@@ -809,26 +809,10 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
                              B1ElementwiseOperation b1_element_op,
                              CElementwiseOperation c_element_op)
     {
-        return Argument{p_a,
-                        p_b,
-                        p_b1,
-                        p_c,
-                        MRaw,
-                        NRaw,
-                        KRaw,
-                        Gemm1NRaw,
-                        Batch,
-                        StrideA,
-                        StrideB,
-                        StrideB1,
-                        StrideC,
-                        BatchStrideA,
-                        BatchStrideB,
-                        BatchStrideB1,
-                        BatchStrideC,
-                        a_element_op,
-                        b_element_op,
-                        b1_element_op,
+        return Argument{p_a,           p_b,          p_b1,         p_c,          MRaw,
+                        NRaw,          KRaw,         Gemm1NRaw,    Batch,        StrideA,
+                        StrideB,       StrideB1,     StrideC,      BatchStrideA, BatchStrideB,
+                        BatchStrideB1, BatchStrideC, a_element_op, b_element_op, b1_element_op,
                         c_element_op};
     }
 
