@@ -246,9 +246,9 @@ def runCKProfiler(Map conf=[:]){
                             archiveArtifacts "perf_resnet50_N4_${gpu_arch}.log"
                             archiveArtifacts "perf_batched_gemm_${gpu_arch}.log"
                             archiveArtifacts "perf_grouped_gemm_${gpu_arch}.log"
-                            archiveArtifacts "perf_fwd_conv_${gpu_arch}.log"
-                            archiveArtifacts "perf_bwd_conv_${gpu_arch}.log"
-                            archiveArtifacts "perf_fusion_${gpu_arch}.log"
+                            archiveArtifacts "perf_conv_fwd_${gpu_arch}.log"
+                            archiveArtifacts "perf_conv_bwd_${gpu_arch}.log"
+                            archiveArtifacts "perf_gemm_bilinear_${gpu_arch}.log"
                             archiveArtifacts "perf_reduction_${gpu_arch}.log"
                            // stash perf files to master
                             stash name: "perf_gemm_${gpu_arch}.log"
@@ -256,9 +256,9 @@ def runCKProfiler(Map conf=[:]){
                             stash name: "perf_resnet50_N4_${gpu_arch}.log"
                             stash name: "perf_batched_gemm_${gpu_arch}.log"
                             stash name: "perf_grouped_gemm_${gpu_arch}.log"
-                            stash name: "perf_fwd_conv_${gpu_arch}.log"
-                            stash name: "perf_bwd_conv_${gpu_arch}.log"
-                            stash name: "perf_fusion_${gpu_arch}.log"
+                            stash name: "perf_conv_fwd_${gpu_arch}.log"
+                            stash name: "perf_conv_bwd_${gpu_arch}.log"
+                            stash name: "perf_gemm_bilinear_${gpu_arch}.log"
                             stash name: "perf_reduction_${gpu_arch}.log"
                             //we will process results on the master node
                         }
@@ -335,9 +335,9 @@ def process_results(Map conf=[:]){
                         unstash "perf_resnet50_N4_${gpu_arch}.log"
                         unstash "perf_batched_gemm_${gpu_arch}.log"
                         unstash "perf_grouped_gemm_${gpu_arch}.log"
-                        unstash "perf_fwd_conv_${gpu_arch}.log"
-                        unstash "perf_bwd_conv_${gpu_arch}.log"
-                        unstash "perf_fusion_${gpu_arch}.log"
+                        unstash "perf_conv_fwd_${gpu_arch}.log"
+                        unstash "perf_conv_bwd${gpu_arch}.log"
+                        unstash "perf_gemm_bilinear_${gpu_arch}.log"
                         unstash "perf_reduction_${gpu_arch}.log"
                         sh "./process_qa_data.sh ${gpu_arch}"
                     }
