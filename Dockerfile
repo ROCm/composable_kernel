@@ -102,7 +102,7 @@ RUN sh -c "echo compiler version = '$compiler_version'"
 
 #git clone -b "$compiler_version" https://github.com/RadeonOpenCompute/llvm-project.git && \
 RUN if [ "$compiler_version" != "release" ]; then \
-        git clone -b "$compiler_version" ssh://okakarpa@git.amd.com:29418/lightning/ec/llvm-project && \
+        git clone -b "$compiler_version" ssh://jenkins@git.amd.com:29418/lightning/ec/llvm-project && \
         cd llvm-project && mkdir build && cd build && \
         cmake -DCMAKE_INSTALL_PREFIX=/opt/rocm/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=1 -DLLVM_TARGETS_TO_BUILD="AMDGPU;X86" -DLLVM_ENABLE_PROJECTS="clang;lld;compiler-rt" ../llvm && \
         make -j 8 ; \
