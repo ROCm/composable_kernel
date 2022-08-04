@@ -10,7 +10,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm.hpp"
+#include "ck/tensor_operation/gpu/device/device_batched_gemm_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_gemm_xdl_cshuffle_v1.hpp"
 #include "ck/device_utility/device_prop.hpp"
@@ -25,6 +25,7 @@ template <typename GridwiseGemm,
           typename FloatC,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
+          typename B1ElementwiseOperation,
           typename CElementwiseOperation,
           typename AGridDesc_AK0_M_AK1,
           typename BGridDesc_BK0_N_BK1,
@@ -43,6 +44,7 @@ __global__ void
                                     FloatC* __restrict__ p_c_grid,
                                     const AElementwiseOperation a_element_op,
                                     const BElementwiseOperation b_element_op,
+                                    const B1ElementwiseOperation b1_element_op,
                                     const CElementwiseOperation c_element_op,
                                     const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
                                     const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
@@ -68,14 +70,6 @@ __global__ void
     const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_base_ptr_of_batch.GetCBasePtr(g_idx)));
 
-    // if(threadIdx.x == 0)
-    //     printf("bid = %zd, offset a b c d = %zd, %zd, %zd, %zd\n",
-    //            hipBlockIdx_x,
-    //            a_batch_offset,
-    //            b_batch_offset,
-    //            b1_batch_offset,
-    //            c_batch_offset);
-
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
                                                   p_b_grid + b_batch_offset,
                                                   p_b1_grid + b1_batch_offset,
@@ -83,6 +77,7 @@ __global__ void
                                                   p_shared,
                                                   a_element_op,
                                                   b_element_op,
+                                                  b1_element_op,
                                                   c_element_op,
                                                   a_grid_desc_ak0_m_ak1,
                                                   b_grid_desc_bk0_n_bk1,
@@ -92,20 +87,21 @@ __global__ void
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
+    ignore = p_b1_grid;
     ignore = p_c_grid;
+    ignore = p_shared;
     ignore = a_element_op;
     ignore = b_element_op;
+    ignore = b1_element_op;
     ignore = c_element_op;
     ignore = a_grid_desc_ak0_m_ak1;
     ignore = b_grid_desc_bk0_n_bk1;
+    ignore = b1_grid_desc_bk0_n_bk1;
     ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
     ignore = block_2_ctile_map;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
-// Note: inter-wave loop scheduler is rolled out to c-shuffle version first. Becuase non c-shuffle
-// version currently has compiler issues with register spill which further causes validation
-// failures.
 // Computes C = A * B0 * B1
 //              ^^^^^^ (Acc0)
 //              ^^^^^^^^^^^ (Acc1)
@@ -114,12 +110,14 @@ template <typename ALayout,
           typename B1Layout,
           typename CLayout,
           typename ADataType,
-          typename BDataType, // NOTE: don't distinguish B0/B1 type just yet
+          typename BDataType,
+          typename B1DataType,
           typename CDataType,
           typename GemmAccDataType,
           typename CShuffleDataType,
           typename AElementwiseOperation,
-          typename BElementwiseOperation, // NOTE: don't distinguish B0/B1 type just yet
+          typename BElementwiseOperation,
+          typename B1ElementwiseOperation,
           typename CElementwiseOperation,
           GemmSpecialization GemmSpec,
           index_t NumGemmKPrefetchStage,
@@ -163,9 +161,20 @@ template <typename ALayout,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched = LoopScheduler::Default>
-struct DeviceGemmGemm_Xdl_CShuffle : public BaseOperator // TODO ANT: inherit from DeviceGemmGemm subtype
+struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout,
+                                                                   BLayout,
+                                                                   B1Layout,
+                                                                   CLayout,
+                                                                   ADataType,
+                                                                   BDataType,
+                                                                   B1DataType,
+                                                                   CDataType,
+                                                                   AElementwiseOperation,
+                                                                   BElementwiseOperation,
+                                                                   B1ElementwiseOperation,
+                                                                   CElementwiseOperation>
 {
-    using DeviceOp = DeviceGemmGemm_Xdl_CShuffle;
+    using DeviceOp = DeviceBatchedGemmGemm_Xdl_CShuffle;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -526,6 +535,7 @@ struct DeviceGemmGemm_Xdl_CShuffle : public BaseOperator // TODO ANT: inherit fr
         CDataType,
         AElementwiseOperation,
         BElementwiseOperation,
+        B1ElementwiseOperation,
         CElementwiseOperation,
         InMemoryDataOperationEnum::Set,
         AGridDesc_AK0_M_AK1,
@@ -582,20 +592,25 @@ struct DeviceGemmGemm_Xdl_CShuffle : public BaseOperator // TODO ANT: inherit fr
     {
         Argument(const ADataType* p_a_grid,
                  const BDataType* p_b_grid,
-                 const BDataType* p_b1_grid,
+                 const B1DataType* p_b1_grid,
                  CDataType* p_c_grid,
                  index_t MRaw,
                  index_t NRaw,
                  index_t KRaw,
                  index_t Gemm1NRaw, // = ORaw
+                 index_t Batch,
                  index_t StrideA,
                  index_t StrideB,
                  index_t StrideB1,
                  index_t StrideC,
+                 index_t BatchStrideA,
+                 index_t BatchStrideB,
+                 index_t BatchStrideB1,
+                 index_t BatchStrideC,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
-                 CElementwiseOperation c_element_op,
-                 index_t Batch)
+                 B1ElementwiseOperation b1_element_op,
+                 CElementwiseOperation c_element_op)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_b1_grid_{p_b1_grid},
@@ -609,13 +624,10 @@ struct DeviceGemmGemm_Xdl_CShuffle : public BaseOperator // TODO ANT: inherit fr
               block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
+              b1_element_op_{b1_element_op},
               c_element_op_{c_element_op},
               batch_count_(Batch),
-              compute_base_ptr_of_batch_{
-                  type_convert<index_t>(a_grid_desc_ak0_m_ak1_.GetElementSpaceSize()),
-                  type_convert<index_t>(b_grid_desc_bk0_n_bk1_.GetElementSpaceSize()),
-                  type_convert<index_t>(b1_grid_desc_bk0_n_bk1_.GetElementSpaceSize()),
-                  type_convert<index_t>(c_grid_desc_m_n_.GetElementSpaceSize())}
+              compute_base_ptr_of_batch_{BatchStrideA, BatchStrideB, BatchStrideB1, BatchStrideC}
         {
             if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
                                            b_grid_desc_bk0_n_bk1_,
@@ -632,7 +644,7 @@ struct DeviceGemmGemm_Xdl_CShuffle : public BaseOperator // TODO ANT: inherit fr
         //  private:
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
-        const BDataType* p_b1_grid_;
+        const B1DataType* p_b1_grid_;
         CDataType* p_c_grid_;
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
@@ -643,6 +655,7 @@ struct DeviceGemmGemm_Xdl_CShuffle : public BaseOperator // TODO ANT: inherit fr
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
+        B1ElementwiseOperation b1_element_op_;
         CElementwiseOperation c_element_op_;
         index_t batch_count_;
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
@@ -680,6 +693,7 @@ struct DeviceGemmGemm_Xdl_CShuffle : public BaseOperator // TODO ANT: inherit fr
                     CDataType,
                     AElementwiseOperation,
                     BElementwiseOperation,
+                    B1ElementwiseOperation,
                     CElementwiseOperation,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
@@ -700,6 +714,7 @@ struct DeviceGemmGemm_Xdl_CShuffle : public BaseOperator // TODO ANT: inherit fr
                                               arg.p_c_grid_,
                                               arg.a_element_op_,
                                               arg.b_element_op_,
+                                              arg.b1_element_op_,
                                               arg.c_element_op_,
                                               arg.a_grid_desc_ak0_m_ak1_,
                                               arg.b_grid_desc_bk0_n_bk1_,
@@ -760,20 +775,25 @@ struct DeviceGemmGemm_Xdl_CShuffle : public BaseOperator // TODO ANT: inherit fr
 
     static auto MakeArgument(const ADataType* p_a,
                              const BDataType* p_b,
-                             const BDataType* p_b1,
+                             const B1DataType* p_b1,
                              CDataType* p_c,
                              index_t MRaw,
                              index_t NRaw,
                              index_t KRaw,
                              index_t Gemm1NRaw,
+                             index_t Batch,
                              index_t StrideA,
                              index_t StrideB,
                              index_t StrideB1,
                              index_t StrideC,
+                             index_t BatchStrideA,
+                             index_t BatchStrideB,
+                             index_t BatchStrideB1,
+                             index_t BatchStrideC,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
-                             CElementwiseOperation c_element_op,
-                             index_t Batch)
+                             B1ElementwiseOperation b1_element_op,
+                             CElementwiseOperation c_element_op)
     {
         return Argument{p_a,
                         p_b,
@@ -783,14 +803,19 @@ struct DeviceGemmGemm_Xdl_CShuffle : public BaseOperator // TODO ANT: inherit fr
                         NRaw,
                         KRaw,
                         Gemm1NRaw,
+                        Batch,
                         StrideA,
                         StrideB,
                         StrideB1,
                         StrideC,
+                        BatchStrideA,
+                        BatchStrideB,
+                        BatchStrideB1,
+                        BatchStrideC,
                         a_element_op,
                         b_element_op,
-                        c_element_op,
-                        Batch};
+                        b1_element_op,
+                        c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -804,35 +829,45 @@ struct DeviceGemmGemm_Xdl_CShuffle : public BaseOperator // TODO ANT: inherit fr
                                                       index_t NRaw,
                                                       index_t KRaw,
                                                       index_t Gemm1NRaw,
+                                                      index_t Batch,
                                                       index_t StrideA,
                                                       index_t StrideB,
                                                       index_t StrideB1,
                                                       index_t StrideC,
+                                                      index_t BatchStrideA,
+                                                      index_t BatchStrideB,
+                                                      index_t BatchStrideB1,
+                                                      index_t BatchStrideC,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op,
-                                                      index_t Batch) /* override */
+                                                      B1ElementwiseOperation b1_element_op,
+                                                      CElementwiseOperation c_element_op) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
-                                          static_cast<const BDataType*>(p_b1),
+                                          static_cast<const B1DataType*>(p_b1),
                                           static_cast<CDataType*>(p_c),
                                           MRaw,
                                           NRaw,
                                           KRaw,
                                           Gemm1NRaw,
+                                          Batch,
                                           StrideA,
                                           StrideB,
                                           StrideB1,
                                           StrideC,
+                                          BatchStrideA,
+                                          BatchStrideB,
+                                          BatchStrideB1,
+                                          BatchStrideC,
                                           a_element_op,
                                           b_element_op,
-                                          c_element_op,
-                                          Batch);
+                                          b1_element_op,
+                                          c_element_op);
     }
 
     // polymorphic
-    std::unique_ptr<BaseInvoker> MakeInvokerPointer() /* override */
+    std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
     {
         return std::make_unique<Invoker>(Invoker{});
     }
@@ -843,7 +878,7 @@ struct DeviceGemmGemm_Xdl_CShuffle : public BaseOperator // TODO ANT: inherit fr
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGemmGemm_Xdl_CShuffle"
+        str << "DeviceBatchedGemmGemm_Xdl_CShuffle"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
@@ -851,7 +886,7 @@ struct DeviceGemmGemm_Xdl_CShuffle : public BaseOperator // TODO ANT: inherit fr
             << KPerBlock << ", "
             << AK1 << ", "
             << BK1 << ", "
-            << NPerBlock << ", "
+            << MPerBlock << ", "
             << Gemm1NPerBlock << ", "
             << Gemm1KPerBlock << ", "
             << B1K1 << ">";
