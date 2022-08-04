@@ -15,7 +15,7 @@ namespace device {
 template <index_t NumDTensor>
 struct ContractionDesc
 {
-    std::vector<index_t> a_ms_ns_lengths;
+    std::vector<index_t> a_ms_ks_lengths;
     std::vector<index_t> a_ms_ks_strides;
 
     std::vector<index_t> b_ns_ks_lengths;

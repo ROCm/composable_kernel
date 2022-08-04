@@ -87,6 +87,71 @@ __global__ void
 #endif
 }
 
+template <typename GridwiseGemm,
+          typename FloatAB,
+          typename FloatDsPointer,
+          typename FloatE,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CDEElementwiseOperation,
+          typename AGridDesc_AK0_M_AK1,
+          typename BGridDesc_BK0_N_BK1,
+          typename DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+          typename EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+          typename Block2ETileMap,
+          bool HasMainKBlockLoop>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+        kernel_contraction_multiple_d_xdl_cshuffle(
+            const FloatAB* __restrict__ p_a_grid,
+            const FloatAB* __restrict__ p_b_grid,
+            FloatDsPointer p_ds_grid,
+            FloatE* __restrict__ p_e_grid,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const CDEElementwiseOperation cde_element_op,
+            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+            const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                ds_grid_desc_mblock_mperblock_nblock_nperblock,
+            const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                e_grid_desc_mblock_mperblock_nblock_nperblock,
+            const Block2ETileMap block_2_etile_map)
+{
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
+    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+
+    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
+                                                  p_b_grid,
+                                                  p_ds_grid,
+                                                  p_e_grid,
+                                                  p_shared,
+                                                  a_element_op,
+                                                  b_element_op,
+                                                  cde_element_op,
+                                                  a_grid_desc_ak0_m_ak1,
+                                                  b_grid_desc_bk0_n_bk1,
+                                                  ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                  e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                  block_2_etile_map);
+#else
+    ignore = p_a_grid;
+    ignore = p_b_grid;
+    ignore = p_ds_grid;
+    ignore = p_e_grid;
+    ignore = a_element_op;
+    ignore = b_element_op;
+    ignore = cde_element_op;
+    ignore = a_grid_desc_ak0_m_ak1;
+    ignore = b_grid_desc_bk0_n_bk1;
+    ignore = ds_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = e_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = block_2_etile_map;
+#endif
+}
+
 } // namespace ck
 
 namespace ck {
@@ -186,7 +251,7 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
             return generate_tuple([&](auto i) { return vec[i]; }, num);
         };
 
-        const auto a_ms_ns_lengths = to_tuple(a_ms_ks_lengths_vec, Number<NumDimM + NumDimK>{});
+        const auto a_ms_ks_lengths = to_tuple(a_ms_ks_lengths_vec, Number<NumDimM + NumDimK>{});
         const auto a_ms_ks_strides = to_tuple(a_ms_ks_strides_vec, Number<NumDimM + NumDimK>{});
 
         // dimension Ids for M0, M1, ...
@@ -197,10 +262,10 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
             typename arithmetic_sequence_gen<NumDimM, NumDimM + NumDimK, 1>::type{};
 
         // lengths for M0, M1, ...
-        const auto mLengths = get_container_subset(a_ms_ns_lengths, mDimIds);
+        const auto mLengths = get_container_subset(a_ms_ks_lengths, mDimIds);
 
         // lengths for K0, K1, ...
-        const auto kLengths = get_container_subset(a_ms_ns_lengths, kDimIds);
+        const auto kLengths = get_container_subset(a_ms_ks_lengths, kDimIds);
 
         if constexpr(ASpec == TensorSpecialization::Packed)
         {
@@ -216,7 +281,7 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
         {
             // naive tensor A[M0, M1, M2, ..., K0, K1, K2...]
             const auto a_grid_desc_ms_ks =
-                make_naive_tensor_descriptor(a_ms_ns_lengths, a_ms_ks_strides);
+                make_naive_tensor_descriptor(a_ms_ks_lengths, a_ms_ks_strides);
 
             // transformed tensor A[MRaw = M0 * M1 * M2 * ... , KRaw = K0 * K1 * K2 * ...]
             const auto a_grid_desc_mraw_kraw = transform_tensor_descriptor(
@@ -407,25 +472,26 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
     using BGridDesc_BK0_N_BK1 = remove_cvref_t<decltype(
         GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(BGridDesc_N_K{}))>;
 
-    struct GroupedGemmBlock2ETileMap
-    {
-        using UnderlyingBlock2ETileMap = typename GridwiseGemm::DefaultBlock2ETileMap;
+    using Block2ETileMap = typename GridwiseGemm::DefaultBlock2ETileMap;
 
+    struct GroupedContractionBlock2ETileMap
+    {
         static_assert(
             std::is_same<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{})),
                          typename GridwiseGemm::DefaultBlock2ETileMap>::value,
             "Wrong! Should be the same type name");
 
-        GroupedGemmBlock2ETileMap(const EGridDesc_M_N& e_grid_desc_m_n, ck::index_t BlockStart)
+        GroupedContractionBlock2ETileMap(const EGridDesc_M_N& e_grid_desc_m_n,
+                                         ck::index_t BlockStart)
         {
-            block_2_etile_map_ = GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n);
-            block_start_        = BlockStart;
+            default_block_2_etile_map_ = GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n);
+            block_start_               = BlockStart;
         }
 
         template <typename TopIdx>
         __host__ __device__ constexpr auto CalculateBottomIndex(const TopIdx& idx_top) const
         {
-            return block_2_etile_map_.CalculateBottomIndex(
+            return default_block_2_etile_map_.CalculateBottomIndex(
                 make_multi_index(idx_top[I0] - block_start_));
         }
 
@@ -434,15 +500,15 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
         __host__ __device__ bool ValidCTileIndex(const CTileIdx& c_tile_idx,
                                                  const CTileDim& c_tile_dim) const
         {
-            return block_2_etile_map_.ValidCTileIndex(c_tile_idx, c_tile_dim);
+            return default_block_2_etile_map_.ValidCTileIndex(c_tile_idx, c_tile_dim);
         }
 
         __host__ bool CheckValidity(const EGridDesc_M_N& e_grid_desc_m_n) const
         {
-            return block_2_etile_map_.CheckValidity(e_grid_desc_m_n);
+            return default_block_2_etile_map_.CheckValidity(e_grid_desc_m_n);
         }
 
-        typename GridwiseGemm::DefaultBlock2ETileMap block_2_etile_map_;
+        typename GridwiseGemm::DefaultBlock2ETileMap default_block_2_etile_map_;
         ck::index_t block_start_;
     };
 
@@ -462,8 +528,8 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
         typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             e_grid_desc_mblock_mperblock_nblock_nperblock_;
 
-        // block-to-e-tile map
-        GroupedGemmBlock2ETileMap block_2_etile_map_;
+        // lock-to-e-tile map
+        GroupedContractionBlock2ETileMap block_2_etile_map_;
 
         ck::index_t block_start_, block_end_;
     };
@@ -521,7 +587,7 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
                 const auto p_e_grid = static_cast<EDataType*>(p_e_vec[i]);
 
                 const auto a_grid_desc_m_k = DeviceOp::MakeAGridDescriptor_M_K(
-                    contraction_descs[i].a_ms_ns_lengths, contraction_descs[i].a_ms_ks_strides);
+                    contraction_descs[i].a_ms_ks_lengths, contraction_descs[i].a_ms_ks_strides);
                 const auto b_grid_desc_n_k = DeviceOp::MakeBGridDescriptor_N_K(
                     contraction_descs[i].b_ns_ks_lengths, contraction_descs[i].b_ns_ks_strides);
 
@@ -549,13 +615,12 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
                 const auto b_grid_desc_bk0_n_bk1 =
                     GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k);
 
-                const auto e_grid_desc_mblock_mperblock_nblock_nperblock =
-                    GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                        e_grid_desc_m_n);
-
                 const auto ds_grid_desc_mblock_mperblock_nblock_nperblock =
                     GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         ds_grid_desc_m_n);
+                const auto e_grid_desc_mblock_mperblock_nblock_nperblock =
+                    GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                        e_grid_desc_m_n);
 
                 const index_t grid_size_grp =
                     GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n)
@@ -567,7 +632,7 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
                 grid_size_ += grid_size_grp;
 
                 const auto block_2_etile_map =
-                    GroupedGemmBlock2ETileMap(e_grid_desc_m_n, BlockStart);
+                    GroupedContractionBlock2ETileMap(e_grid_desc_m_n, BlockStart);
 
                 // for sanity check of vector memory access
                 const index_t a_mz_stride = contraction_descs[i].a_ms_ks_strides[NumDimM - 1];
@@ -621,24 +686,9 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
             }
         }
 
-        void Print(index_t i) const
-        {
-            //std::cout << "A[M, K]: " << contraction_multi_d_device_args_[i].a_grid_desc_m_k_
-                //<< std::endl;
-            //std::cout << "B[N, K]: " << contraction_multi_d_device_args_[i].b_grid_desc_n_k_
-                //<< std::endl;
-            //static_for<0, NumDTensor, 1>{}([&](auto j) {
-                    //std::cout << "Ds[M, N]: "
-                    //<< contraction_multi_d_device_args_[i].ds_grid_desc_m_n_[j] << std::endl;
-                    //});
-            //std::cout << "E[M, N]: " << contraction_multi_d_device_args_[i].e_grid_desc_m_n_
-                //<< std::endl;
-        }
-
         std::vector<ContractionMultiDKernelArg> contraction_multi_d_kernel_args_;
         std::vector<ContractionMultiDDeviceArg> contraction_multi_d_device_args_;
 
-        
         std::size_t group_count_;
         index_t grid_size_;
 
@@ -659,19 +709,6 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
 
             for(std::size_t i = 0; i < arg.group_count_; i++)
             {
-                arg.Print(i);
-
-                if(!GridwiseGemm::CheckValidity(
-                            arg.contraction_multi_d_device_args_[i].a_grid_desc_m_k_,
-                            arg.contraction_multi_d_device_args_[i].b_grid_desc_n_k_,
-                            arg.contraction_multi_d_device_args_[i].ds_grid_desc_m_n_,
-                            arg.contraction_multi_d_device_args_[i].e_grid_desc_m_n_,
-                            arg.contraction_multi_d_kernel_args_[i].block_2_etile_map_))
-                {
-                    throw std::runtime_error(
-                            "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
-                }
-
                 const auto K =
                     arg.contraction_multi_d_kernel_args_[i].a_grid_desc_ak0_m_ak1_.GetLength(I0) *
                     arg.contraction_multi_d_kernel_args_[i].a_grid_desc_ak0_m_ak1_.GetLength(I2);
@@ -690,7 +727,6 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
 
             float ave_time = 0;
 
-#if 1
             auto launch_kernel = [&](auto has_main_k_block_loop_) {
                 const auto kernel =
                     kernel_grouped_contraction_multiple_d_xdl_cshuffle<GridwiseGemm,
@@ -721,7 +757,6 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
             {
                 ave_time = launch_kernel(integral_constant<bool, false>{});
             }
-#endif
 
             return ave_time;
         }
@@ -741,84 +776,110 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
             return false;
         }
 
-#if 0
-        if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
-                                        arg.b_grid_desc_n_k_,
-                                        arg.ds_grid_desc_m_n_,
-                                        arg.e_grid_desc_m_n_,
-                                        arg.block_2_etile_map_))
+        for(std::size_t i = 0; i < arg.group_count_; i++)
         {
-            return false;
-        }
+            const auto a_grid_desc_m_k_ = arg.contraction_multi_d_device_args_[i].a_grid_desc_m_k_;
+            const auto b_grid_desc_n_k_ = arg.contraction_multi_d_device_args_[i].b_grid_desc_n_k_;
+            const auto ds_grid_desc_m_n_ =
+                arg.contraction_multi_d_device_args_[i].ds_grid_desc_m_n_;
+            const auto e_grid_desc_m_n_ = arg.contraction_multi_d_device_args_[i].e_grid_desc_m_n_;
+            const auto a_grid_desc_ak0_m_ak1_ =
+                arg.contraction_multi_d_kernel_args_[i].a_grid_desc_ak0_m_ak1_;
+            const auto b_grid_desc_bk0_n_bk1_ =
+                arg.contraction_multi_d_kernel_args_[i].b_grid_desc_bk0_n_bk1_;
+            const auto ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                arg.contraction_multi_d_kernel_args_[i]
+                    .ds_grid_desc_mblock_mperblock_nblock_nperblock_;
+            const auto e_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                arg.contraction_multi_d_kernel_args_[i]
+                    .e_grid_desc_mblock_mperblock_nblock_nperblock_;
 
-        // check vector access
-        static_assert((ABlockTransferSrcVectorDim == 1 || ABlockTransferSrcVectorDim == 2) &&
-                          (BBlockTransferSrcVectorDim == 1 || BBlockTransferSrcVectorDim == 2),
-                      "wrong!");
+            const auto block_2_etile_map_ =
+                arg.contraction_multi_d_kernel_args_[i].block_2_etile_map_;
 
-        // vector memory access of A: could be on M or AK1 dimension
-        if constexpr(ABlockTransferSrcVectorDim == 1)
-        {
-            if(!(arg.a_mz_stride_ == 1 &&
-                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I1) % ABlockTransferSrcScalarPerVector == 0))
+            const auto a_mz_stride_  = arg.contraction_multi_d_device_args_[i].a_mz_stride_;
+            const auto a_kz_stride_  = arg.contraction_multi_d_device_args_[i].a_kz_stride_;
+            const auto b_nz_stride_  = arg.contraction_multi_d_device_args_[i].b_nz_stride_;
+            const auto b_kz_stride_  = arg.contraction_multi_d_device_args_[i].b_kz_stride_;
+            const auto ds_nz_stride_ = arg.contraction_multi_d_device_args_[i].ds_nz_stride_;
+            const auto e_nz_stride_  = arg.contraction_multi_d_device_args_[i].e_nz_stride_;
+
+            if(!GridwiseGemm::CheckValidity(a_grid_desc_m_k_,
+                                            b_grid_desc_n_k_,
+                                            ds_grid_desc_m_n_,
+                                            e_grid_desc_m_n_,
+                                            block_2_etile_map_))
+            {
+                return false;
+            }
+
+            // check vector access
+            static_assert((ABlockTransferSrcVectorDim == 1 || ABlockTransferSrcVectorDim == 2) &&
+                              (BBlockTransferSrcVectorDim == 1 || BBlockTransferSrcVectorDim == 2),
+                          "wrong!");
+
+            // vector memory access of A: could be on M or AK1 dimension
+            if constexpr(ABlockTransferSrcVectorDim == 1)
+            {
+                if(!(a_mz_stride_ == 1 &&
+                     a_grid_desc_ak0_m_ak1_.GetLength(I1) % ABlockTransferSrcScalarPerVector == 0))
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                if(!(a_kz_stride_ == 1 &&
+                     a_grid_desc_ak0_m_ak1_.GetLength(I2) % ABlockTransferSrcScalarPerVector == 0))
+                {
+                    return false;
+                }
+            }
+
+            // vector memory access of B: could be on N or BK1 dimension
+            if constexpr(BBlockTransferSrcVectorDim == 1)
+            {
+                if(!(b_nz_stride_ == 1 &&
+                     b_grid_desc_bk0_n_bk1_.GetLength(I1) % BBlockTransferSrcScalarPerVector == 0))
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                if(!(b_kz_stride_ == 1 &&
+                     b_grid_desc_bk0_n_bk1_.GetLength(I2) % BBlockTransferSrcScalarPerVector == 0))
+                {
+                    return false;
+                }
+            }
+
+            // vector memory access of Ds: always on NPerBlock dimension
+            bool valid_d_access = true;
+
+            static_for<0, NumDTensor, 1>{}([&](auto j) {
+                if(!(ds_nz_stride_[j] == 1 &&
+                     ds_grid_desc_mblock_mperblock_nblock_nperblock_[j].GetLength(I3) %
+                             CDEBlockTransferScalarPerVector_NPerBlock ==
+                         0))
+                {
+                    valid_d_access = false;
+                }
+            });
+
+            if(valid_d_access == false)
+            {
+                return false;
+            }
+
+            // vector memory access of E: always on NPerBlock dimension
+            if(!(e_nz_stride_ == 1 && e_grid_desc_mblock_mperblock_nblock_nperblock_.GetLength(I3) %
+                                              CDEBlockTransferScalarPerVector_NPerBlock ==
+                                          0))
             {
                 return false;
             }
         }
-        else
-        {
-            if(!(arg.a_kz_stride_ == 1 &&
-                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I2) % ABlockTransferSrcScalarPerVector == 0))
-            {
-                return false;
-            }
-        }
-
-        // vector memory access of B: could be on N or BK1 dimension
-        if constexpr(BBlockTransferSrcVectorDim == 1)
-        {
-            if(!(arg.b_nz_stride_ == 1 &&
-                 arg.b_grid_desc_bk0_n_bk1_.GetLength(I1) % BBlockTransferSrcScalarPerVector == 0))
-            {
-                return false;
-            }
-        }
-        else
-        {
-            if(!(arg.b_kz_stride_ == 1 &&
-                 arg.b_grid_desc_bk0_n_bk1_.GetLength(I2) % BBlockTransferSrcScalarPerVector == 0))
-            {
-                return false;
-            }
-        }
-
-        // vector memory access of Ds: always on NPerBlock dimension
-        bool valid_d_access = true;
-
-        static_for<0, NumDTensor, 1>{}([&](auto i) {
-            if(!(arg.ds_nz_stride_[i] == 1 &&
-                 arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[i].GetLength(I3) %
-                         CDEBlockTransferScalarPerVector_NPerBlock ==
-                     0))
-            {
-                valid_d_access = false;
-            }
-        });
-
-        if(valid_d_access == false)
-        {
-            return false;
-        }
-
-        // vector memory access of E: always on NPerBlock dimension
-        if(!(arg.e_nz_stride_ == 1 &&
-             arg.e_grid_desc_mblock_mperblock_nblock_nperblock_.GetLength(I3) %
-                     CDEBlockTransferScalarPerVector_NPerBlock ==
-                 0))
-        {
-            return false;
-        }
-#endif
 
         return true;
     }
