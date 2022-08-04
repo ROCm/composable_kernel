@@ -739,13 +739,15 @@ struct XdlopsGemm
                       "base base_type must be double, float, half, bfloat16, and int8_t!");
 
         static_for<0, KPack / mfma_instr.k_per_blk, 1>{}([&](auto k) {
-            if constexpr (!TransposeC)
+            if constexpr(!TransposeC)
             {
-                mfma_instr.template run<MPerXdlops, NPerXdlops>(p_a_wave[k], p_b_wave[k], p_c_thread);
+                mfma_instr.template run<MPerXdlops, NPerXdlops>(
+                    p_a_wave[k], p_b_wave[k], p_c_thread);
             }
             else
             {
-                mfma_instr.template run<MPerXdlops, NPerXdlops>(p_b_wave[k], p_a_wave[k], p_c_thread);
+                mfma_instr.template run<MPerXdlops, NPerXdlops>(
+                    p_b_wave[k], p_a_wave[k], p_c_thread);
             }
         });
     }

@@ -161,9 +161,10 @@ struct GeneratorTensor_Diagonal
     T operator()(Ts... Xs) const
     {
         std::array<ck::index_t, sizeof...(Ts)> dims = {{static_cast<ck::index_t>(Xs)...}};
-        size_t start_dim = dims.size() - NumEffectiveDim;
-        bool pred = true;
-        for (size_t i = start_dim + 1; i < dims.size(); i++) {
+        size_t start_dim                            = dims.size() - NumEffectiveDim;
+        bool pred                                   = true;
+        for(size_t i = start_dim + 1; i < dims.size(); i++)
+        {
             pred &= (dims[start_dim] == dims[i]);
         }
         return pred ? value : T{0};

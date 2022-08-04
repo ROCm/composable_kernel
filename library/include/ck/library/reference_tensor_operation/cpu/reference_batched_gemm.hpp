@@ -69,7 +69,8 @@ struct ReferenceBatchedGemm : public device::BaseOperator
                     arg.a_element_op_(v_a, arg.a_g_m_k_(g, m, k));
                     arg.b_element_op_(v_b, arg.b_g_k_n_(g, k, n));
 
-                    v_acc += ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
+                    v_acc +=
+                        ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
                 }
 
                 AccDataType v_c;

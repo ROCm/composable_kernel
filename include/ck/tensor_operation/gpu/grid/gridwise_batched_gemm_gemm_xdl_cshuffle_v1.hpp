@@ -181,8 +181,8 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
         // LDS allocation for A and B: be careful of alignment
-        constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
-        constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
+        constexpr auto a_block_desc_ak0_m_ak1  = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
+        constexpr auto b_block_desc_bk0_n_bk1  = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
         constexpr auto b1_block_desc_bk0_n_bk1 = GetB1BlockDescriptor_BK0PerBlock_NPerBlock_BK1();
 
         // lds max alignment
@@ -207,7 +207,8 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
         constexpr auto c_block_size =
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
 
-        return math::max((a_block_space_size_aligned + b_block_space_size_aligned) * sizeof(FloatAB),
+        return math::max((a_block_space_size_aligned + b_block_space_size_aligned) *
+                             sizeof(FloatAB),
                          c_block_size * sizeof(FloatCShuffle));
     }
 
@@ -234,7 +235,8 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
             return false;
         }
 
-        if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K % KPerBlock == 0 && Gemm1N % Gemm1NPerBlock == 0))
+        if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K % KPerBlock == 0 &&
+             Gemm1N % Gemm1NPerBlock == 0))
         {
             return false;
         }
@@ -472,8 +474,10 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1, 0, 0);
-        const auto a_block_reset_copy_step = make_multi_index(-a_grid_desc_ak0_m_ak1.GetLength(I0), 0, 0);
-        const auto b_block_reset_copy_step = make_multi_index(-b_grid_desc_bk0_n_bk1.GetLength(I0), NPerBlock, 0);
+        const auto a_block_reset_copy_step =
+            make_multi_index(-a_grid_desc_ak0_m_ak1.GetLength(I0), 0, 0);
+        const auto b_block_reset_copy_step =
+            make_multi_index(-b_grid_desc_bk0_n_bk1.GetLength(I0), NPerBlock, 0);
 
         // gridwise GEMM pipeline
         // Only supports LoopScheduler::Default
