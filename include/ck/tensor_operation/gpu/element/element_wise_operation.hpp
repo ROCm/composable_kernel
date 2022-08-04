@@ -125,13 +125,17 @@ struct AddAddFastGelu
         return x * cdf;
     }
 
+    template <typename T>
+    static inline constexpr bool is_valid_param_type_v =
+        std::is_same_v<T, float> || std::is_same_v<T, half_t> || std::is_same_v<T, bhalf_t> ||
+        std::is_same_v<T, int32_t> || std::is_same_v<T, int8_t>;
+
     template <typename E, typename C, typename D0, typename D1>
     __host__ __device__ constexpr void
     operator()(E& e, const C& c, const D0& d0, const D1& d1) const
     {
-        static_assert(std::is_same_v<std::common_type_t<C, float>, float> &&
-                      std::is_same_v<std::common_type_t<D0, float>, float> &&
-                      std::is_same_v<std::common_type_t<D1, float>, float>);
+        static_assert(is_valid_param_type_v<E> && is_valid_param_type_v<C> &&
+                      is_valid_param_type_v<D0> && is_valid_param_type_v<D1>);
 
         const float y =
             GetFastGeLU(type_convert<float>(c) + type_convert<float>(d0) + type_convert<float>(d1));
