@@ -126,53 +126,17 @@ struct AddAddFastGelu
     }
 
     template <typename E, typename C, typename D0, typename D1>
-    __host__ __device__ constexpr void operator()(E&, const C&, const D0&, const D1&) const
+    __host__ __device__ constexpr void
+    operator()(E& e, const C& c, const D0& d0, const D1& d1) const
     {
-        static_assert(
-            always_false<E, C, D0, D1>,
-            "this generic version operator() is forbidden, please provide a valid specialization");
-    }
+        static_assert(std::is_same_v<std::common_type_t<C, float>, float> &&
+                      std::is_same_v<std::common_type_t<D0, float>, float> &&
+                      std::is_same_v<std::common_type_t<D1, float>, float>);
 
-    template <>
-    __host__ __device__ constexpr void operator()<float, float, float, float>(float& e,
-                                                                              const float& c,
-                                                                              const float& d0,
-                                                                              const float& d1) const
-    {
         const float y =
             GetFastGeLU(type_convert<float>(c) + type_convert<float>(d0) + type_convert<float>(d1));
 
-        e = type_convert<float>(y);
-    }
-
-    template <>
-    __host__ __device__ constexpr void operator()<bhalf_t, float, bhalf_t, bhalf_t>(
-        bhalf_t& e, const float& c, const bhalf_t& d0, const bhalf_t& d1) const
-    {
-        const float y =
-            GetFastGeLU(type_convert<float>(c) + type_convert<float>(d0) + type_convert<float>(d1));
-
-        e = type_convert<bhalf_t>(y);
-    }
-
-    template <>
-    __host__ __device__ constexpr void operator()<half_t, float, half_t, half_t>(
-        half_t& e, const float& c, const half_t& d0, const half_t& d1) const
-    {
-        const float y =
-            GetFastGeLU(type_convert<float>(c) + type_convert<float>(d0) + type_convert<float>(d1));
-
-        e = type_convert<half_t>(y);
-    }
-
-    template <>
-    __host__ __device__ constexpr void operator()<int8_t, int32_t, int8_t, int8_t>(
-        int8_t& e, const int32_t& c, const int8_t& d0, const int8_t& d1) const
-    {
-        const float y =
-            GetFastGeLU(type_convert<float>(c) + type_convert<float>(d0) + type_convert<float>(d1));
-
-        e = type_convert<int8_t>(y);
+        e = type_convert<E>(y);
     }
 };
 
