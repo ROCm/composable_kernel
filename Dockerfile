@@ -3,9 +3,12 @@ FROM ubuntu:18.04
 ARG ROCMVERSION=5.1
 ARG OSDB_BKC_VERSION
 ARG compiler_version
-ARG gerrit_key
+#ARG gerrit_key
 
 RUN set -xe
+
+# Mount ssh agent for install
+RUN --mount=type=ssh npm i
 
 ARG BUILD_THREADS=8
 ARG DEB_ROCM_REPO=http://repo.radeon.com/rocm/apt/.apt_$ROCMVERSION/
@@ -100,8 +103,8 @@ WORKDIR /
 
 ENV compiler_version=$compiler_version
 RUN sh -c "echo compiler version = '$compiler_version'"
-ENV gerrit_key=$gerrit_key
-RUN sh -c "echo gerrit key = '$gerrit_key'"
+#ENV gerrit_key=$gerrit_key
+#RUN sh -c "echo gerrit key = '$gerrit_key'"
 
 #git clone -b "$compiler_version" https://github.com/RadeonOpenCompute/llvm-project.git && \
 #ssh-agent $(ssh-add "$gerrit_key"; git clone -b "$compiler_version" ssh://illsilin@git.amd.com:29418/lightning/ec/llvm-project) && \

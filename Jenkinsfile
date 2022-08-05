@@ -102,7 +102,7 @@ def buildHipClangJob(Map conf=[:]){
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1"
         }
-        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg gerrit_key='${gerrit_cred}' --ssh default "
+        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='${params.COMPILER_VERSION}' --ssh default "
         if (params.COMPILER_VERSION != "release"){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
@@ -113,9 +113,7 @@ def buildHipClangJob(Map conf=[:]){
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
             try {
-                sshagent(['${gerrit_cred}']){
-                    retimage = docker.build("${image}", dockerArgs + '.')
-                }
+                retimage = docker.build("${image}", dockerArgs + '.')
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
@@ -133,9 +131,7 @@ def buildHipClangJob(Map conf=[:]){
                 throw e
             }
             catch(Exception ex) {
-                sshagent(['${gerrit_cred}']){
-                    retimage = docker.build("${image}", dockerArgs + " --no-cache .")
-                }
+                retimage = docker.build("${image}", dockerArgs + " --no-cache .")
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo |tee clinfo.log'
@@ -196,7 +192,7 @@ def runCKProfiler(Map conf=[:]){
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1"
         }
-        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg gerrit_key='${gerrit_cred}' --ssh default "
+        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='${params.COMPILER_VERSION}' --ssh default "
         if (params.COMPILER_VERSION != "release"){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
@@ -206,9 +202,7 @@ def runCKProfiler(Map conf=[:]){
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
             try {
-                sshagent(['${gerrit_cred}']){
-                    retimage = docker.build("${image}", dockerArgs + '.')
-                }
+                retimage = docker.build("${image}", dockerArgs + '.')
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
@@ -226,9 +220,7 @@ def runCKProfiler(Map conf=[:]){
                 throw e
             }
             catch(Exception ex) {
-                sshagent(['${gerrit_cred}']){
-                    retimage = docker.build("${image}", dockerArgs + " --no-cache .")
-                }
+                retimage = docker.build("${image}", dockerArgs + " --no-cache .")
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
@@ -428,7 +420,9 @@ pipeline {
                                 | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-10 -style=file {} | diff - {}\'"
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
+                        sshagent(['${gerrit_cred}']){
+                            buildHipClangJobAndReboot(setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
+                        }
                     }
                 }
             }
@@ -444,7 +438,9 @@ pipeline {
                         setup_args = """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
+                        sshagent(['${gerrit_cred}']){
+                            buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
+                        }
                     }
                 }
                 stage("Run Tests: gfx90a")
@@ -458,7 +454,9 @@ pipeline {
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
+                        sshagent(['${gerrit_cred}']){
+                            buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
+                        }
                     }
                 }
             }
@@ -475,7 +473,9 @@ pipeline {
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc .. && make -j """ 
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        sshagent(['${gerrit_cred}']){
+                            buildHipClangJobAndReboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        }
                     }
                 }
             }
@@ -495,7 +495,9 @@ pipeline {
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
                    }
                     steps{
-                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
+                        sshagent(['${gerrit_cred}']){
+                            runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
+                        }
                     }
                 }
                 stage("Run ckProfiler: gfx90a")
@@ -509,7 +511,9 @@ pipeline {
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
                    }
                     steps{
-                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
+                        sshagent(['${gerrit_cred}']){
+                            runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
+                        }
                     }
                 }
             }
