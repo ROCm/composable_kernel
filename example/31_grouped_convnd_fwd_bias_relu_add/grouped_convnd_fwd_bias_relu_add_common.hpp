@@ -28,6 +28,7 @@ void print_helper_msg()
 template <ck::index_t NDimSpatial,
           typename InDataType,
           typename WeiDataType,
+          typename CShuffleDataType,
           typename OutDataType,
           typename InElementOp,
           typename WeiElementOp,
@@ -160,12 +161,12 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
     {
         using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-        Tensor<OutDataType> c_host(out_g_n_k_wos_desc);
+        Tensor<CShuffleDataType> c_host(out_g_n_k_wos_desc);
 
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
                                                                      InDataType,
                                                                      WeiDataType,
-                                                                     OutDataType,
+                                                                     CShuffleDataType,
                                                                      InElementOp,
                                                                      WeiElementOp,
                                                                      PassThrough>();
