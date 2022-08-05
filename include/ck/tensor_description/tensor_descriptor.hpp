@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/utility/common_header.hpp"
+#include "ck/utility/sequence_helper.hpp"
 #include "ck/tensor_description/multi_index_transform.hpp"
 
 namespace ck {
@@ -157,6 +158,11 @@ struct TensorDescriptor
                       "wrong! not found matching transformation and upper-dimension");
 
         return transforms_[Number<itran>{}].GetUpperLengths()[Number<idim_up>{}];
+    }
+
+    __host__ __device__ constexpr auto GetLengths() const
+    {
+        return generate_sequence_v2([&](auto I) { return GetLength(I); }, Number<ndim_visible_>{});
     }
 
     __host__ __device__ constexpr auto GetElementSize() const { return element_size_; }

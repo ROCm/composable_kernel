@@ -17,6 +17,7 @@ namespace ck {
 //       static buffer will be two different classes with their own accessors
 template <index_t BlockSize,
           typename AccDataType,
+          typename ThreadClusterDesc,
           index_t MPerBlock,
           index_t MPerXDL,
           index_t NPerXDL,
@@ -35,20 +36,6 @@ struct BlockwiseSoftmax_V1
 
     // TODO: should not expose XDL details
     static_assert(MPerBlock == MPerXDL * BlockSize / WaveSize, "wave is only m direction");
-
-    // TODO: arbitrary reduction
-    struct BlockToMKMap_M0_K_M1Adapt
-    {
-        __host__ __device__ BlockToMKMap_M0_K_M1Adapt() = default;
-        template <typename TopIdx>
-        __host__ __device__ static constexpr auto CalculateBottomIndex(const TopIdx& idx_top)
-        {
-            const auto index = idx_top[I0];
-            const auto m     = (index / WaveSize) * MPerXDL + index % MPerXDL;
-            const auto k     = (index % WaveSize) / MPerXDL;
-            return make_tuple(m, k);
-        }
-    };
 
     constexpr static auto in_thread_desc = make_naive_tensor_descriptor_packed(
         make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, Number<RegSizePerXdlops>{}));
