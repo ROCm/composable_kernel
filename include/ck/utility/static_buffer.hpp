@@ -68,10 +68,7 @@ struct StaticBuffer : public StaticallyIndexedArray<T, N>
         static_for<0, N, 1>{}([&](auto i) { operator()(i) = T{x}; });
     }
 
-    __host__ __device__ void Clear()
-    {
-        Set(T{0});
-    }
+    __host__ __device__ void Clear() { Set(T{0}); }
 };
 
 // static buffer for vector
