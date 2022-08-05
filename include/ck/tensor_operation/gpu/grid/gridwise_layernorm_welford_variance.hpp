@@ -74,6 +74,25 @@ struct GridwiseLayernormWelfordVariance_mk_to_mk
     static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
+    __device__ static int GetKPerThread(const GridDesc_M_K& x_grid_desc_m_k,
+                                        int thread_k_cluster_id)
+    {
+        int kPerBlock = x_grid_desc_m_k.GetTransforms()[I0].GetUpperLengths()[I1];
+        int kPerThread =
+            kPerBlock < K_BlockTileSize ? 0 : KThreadSliceSize * (kPerBlock / K_BlockTileSize);
+        int kPerBlockTail = kPerBlock - kPerThread * KThreadClusterSize;
+
+        if(kPerBlockTail > 0)
+        {
+            int thread_max_len = (thread_k_cluster_id + 1) * KThreadSliceSize;
+            int delta          = thread_max_len - kPerBlockTail;
+            delta              = math::clip(thread_max_len - kPerBlockTail, 0, KThreadSliceSize);
+            kPerThread += KThreadSliceSize - delta;
+        }
+
+        return kPerThread;
+    }
+
     __device__ static void Run(const GridDesc_M_K& x_grid_desc_m_k,
                                const GridDesc_K& gamma_grid_desc_k,
                                const GridDesc_K& beta_grid_desc_k,
@@ -202,13 +221,8 @@ struct GridwiseLayernormWelfordVariance_mk_to_mk
         const auto beta_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_beta_global, beta_grid_desc_k.GetElementSpaceSize());
 
-        auto threaedwise_welford = ThreadwiseWelford();
-
-        int reduce_length_perblock = x_grid_desc_m_k.GetTransforms()[I0].GetUpperLengths()[I1];
-
-        // TODO - tail case
-        // bool is_tail_reduce_threrad = reduce_length_perblock % K_BlockTileSize > thread_local_id;
-        int reduce_length_perthread = reduce_length_perblock / KThreadClusterSize;
+        auto threadwise_welford       = ThreadwiseWelford();
+        threadwise_welford.max_count_ = GetKPerThread(x_grid_desc_m_k, thread_k_cluster_id);
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
             mean_thread_buf(I) = type_convert<AccDataType>(0.0f);
@@ -217,20 +231,22 @@ struct GridwiseLayernormWelfordVariance_mk_to_mk
 
         for(index_t reducedTiles = 0; reducedTiles < num_k_block_tile_iteration; ++reducedTiles)
         {
+
             threadwise_x_load.Run(x_grid_desc_m_k,
                                   x_global_val_buf,
                                   thread_buffer_desc_m_k,
                                   make_tuple(I0, I0),
                                   x_thread_buf);
             threadwise_x_load.MoveSrcSliceWindow(x_grid_desc_m_k, thread_copy_fwd_step_m_k);
-            threaedwise_welford.Run(x_thread_buf, mean_thread_buf, var_thread_buf);
+            threadwise_welford.Run(x_thread_buf, mean_thread_buf, var_thread_buf);
         }
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
             if constexpr(I > 0)
                 block_sync_lds();
 
-            BlockwiseWelford::Run(mean_thread_buf(I), var_thread_buf(I), reduce_length_perthread);
+            BlockwiseWelford::Run(
+                mean_thread_buf(I), var_thread_buf(I), threadwise_welford.cur_count_);
         });
 
         auto thread_copy_tail_m_k = (num_k_block_tile_iteration - 1) * thread_copy_fwd_step_m_k;

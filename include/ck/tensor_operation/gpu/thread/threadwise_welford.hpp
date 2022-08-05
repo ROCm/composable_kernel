@@ -26,24 +26,27 @@ struct ThreadwiseWelford
 
     static_assert(thread_x_length_k > 0, "lengths of k must greater than 0!");
 
-    __device__ constexpr ThreadwiseWelford() : count_(0) {}
+    __device__ constexpr ThreadwiseWelford() : cur_count_(0), max_count_(0) {}
 
     __device__ inline void Update(T& mean, T& var, T x)
     {
         using ck::math::isnan;
 
-        if(isnan(x))
+        if(cur_count_ < max_count_)
         {
-            mean = x;
-            var  = x;
-        }
-        else
-        {
-            ++count_;
-            T delta = x - mean;
-            mean += delta / count_;
-            T delta2 = x - mean;
-            var += delta * delta2;
+            if(isnan(x))
+            {
+                mean = x;
+                var  = x;
+            }
+            else
+            {
+                ++cur_count_;
+                T delta = x - mean;
+                mean += delta / cur_count_;
+                T delta2 = x - mean;
+                var += delta * delta2;
+            }
         }
     }
 
@@ -65,7 +68,8 @@ struct ThreadwiseWelford
         });
     };
 
-    int count_;
+    int cur_count_;
+    int max_count_;
 };
 
 } // namespace ck

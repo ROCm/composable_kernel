@@ -144,6 +144,12 @@ __host__ __device__ constexpr auto min(X x, Ys... ys)
     return min(x, min(ys...));
 }
 
+template <typename T>
+__host__ __device__ constexpr T clip(T x, T lowerbound, T upperbound)
+{
+    return min(max(x, lowerbound), upperbound);
+}
+
 // disallow implicit type casting
 template <typename T>
 __device__ T exp(T x);
