@@ -106,11 +106,11 @@ RUN sh -c "echo compiler version = '$compiler_version'"
 # Retrieve host ssh key
 RUN mkdir -p -m -0600 ~/.ssh && ssh-keyscan git.amd.com >> ~/.ssh/known_hosts
 # Mount ssh agent for install
-RUN --mount=type=ssh npm i
+#RUN --mount=type=ssh npm i
 
 #git clone -b "$compiler_version" https://github.com/RadeonOpenCompute/llvm-project.git && \
 #ssh-agent $(ssh-add "$gerrit_key"; git clone -b "$compiler_version" ssh://illsilin@git.amd.com:29418/lightning/ec/llvm-project) && \
-RUN if [ "$compiler_version" != "release" ]; then \
+RUN --mount=type=ssh if [ "$compiler_version" != "release" ]; then \
         git clone -b "$compiler_version" ssh://illsilin@git.amd.com:29418/lightning/ec/llvm-project && \
         cd llvm-project && mkdir build && cd build && \
         cmake -DCMAKE_INSTALL_PREFIX=/opt/rocm/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=1 -DLLVM_TARGETS_TO_BUILD="AMDGPU;X86" -DLLVM_ENABLE_PROJECTS="clang;lld;compiler-rt" ../llvm && \
