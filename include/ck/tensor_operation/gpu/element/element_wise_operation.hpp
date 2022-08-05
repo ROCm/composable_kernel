@@ -88,6 +88,16 @@ struct AddReluAdd
         float c = b + x2;
         y       = c;
     }
+
+    template <>
+    __host__ __device__ constexpr void operator()<int8_t, int8_t, int8_t, int8_t>(
+        int8_t& y, const int8_t& x0, const int8_t& x1, const int8_t& x2) const
+    {
+        int32_t a = x0 + x1;
+        int32_t b = a > 0 ? a : 0;
+        int32_t c = b + x2;
+        y         = c;
+    }
 };
 
 struct AddHardswishAdd
