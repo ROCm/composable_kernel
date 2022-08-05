@@ -97,7 +97,7 @@ template <typename AccDataType,
           bool PropagateNan,
           typename Accumulation =
               detail::AccumulateWithNanCheck<PropagateNan, OpReduce, AccDataType>>
-struct PartitionedBlockwiseReduction2
+struct PartitionedBlockwiseReduction_v2
 {
     static_assert(BlockSize == ThreadClusterLengths_M_K::At(0) * ThreadClusterLengths_M_K::At(1),
                   "The product of cluster lengths should be same as BlockSize!");

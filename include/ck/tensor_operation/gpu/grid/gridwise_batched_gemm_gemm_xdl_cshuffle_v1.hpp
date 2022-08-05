@@ -14,7 +14,7 @@
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/block/blockwise_softmax_v1.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_softmax.hpp"
 
 namespace ck {
 
@@ -653,16 +653,16 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
             chain_tensor_adaptors(m0_n_m1_to_m_n_adaptor,
                                   threadid_to_m0_n_m1_adaptor);
 
-        // FIXME: blockwise softmax assumes MPerBlock = 128
+        constexpr auto thread_cluster_desc_m_n =
+            make_naive_tensor_descriptor_packed(make_tuple(tm0 * tm1 * tm2, tn0 * tn1 * tn2 * tn3 * tn4));
+        constexpr auto thread_slice_desc_m_n =
+            make_naive_tensor_descriptor_packed(make_tuple(m0 * m1 * m2, n0 * n1 * n2 * n3 * n4));
+
         auto blockwise_softmax = BlockwiseSoftmax_V1<BlockSize,
                                                      FloatGemmAcc,
                                                      decltype(threadid_to_m_n_thread_cluster_adaptor),
-                                                     MPerBlock,
-                                                     MPerXdl,
-                                                     NPerXdl,
-                                                     MPerXdl * NPerXdl / 64,
-                                                     MXdlPerWave,
-                                                     NXdlPerWave>{};
+                                                     decltype(thread_cluster_desc_m_n),
+                                                     decltype(thread_slice_desc_m_n)>{};
 
         const index_t num_gemm1_k_block_outer_loop =
             b_grid_desc_bk0_n_bk1.GetLength(I1) / NPerBlock;
@@ -699,9 +699,10 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
                                                                    acc_thread_buf,
                                                                    num_k_block_main_loop);
             // softmax
-            FloatGemmAcc max, sum;
+            const FloatGemmAcc& max = blockwise_softmax.max_value_buf(I0);
+            const FloatGemmAcc& sum = blockwise_softmax.sum_value_buf(I0);
 
-            blockwise_softmax.Run(acc_thread_buf, sum, max, workspace_buf);
+            blockwise_softmax.Run(acc_thread_buf, workspace_buf);
 
             // TODO: may convert to log domain
             running_max_new = math::max(max, running_max);
