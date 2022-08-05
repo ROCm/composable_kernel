@@ -105,6 +105,7 @@ RUN sh -c "echo compiler version = '$compiler_version'"
 
 # Retrieve host ssh key
 RUN mkdir -p -m -0600 ~/.ssh && ssh-keyscan git.amd.com >> ~/.ssh/known_hosts
+RUN --mount=type=ssh ls -ltr ~/.ssh/
 # Mount ssh agent for install
 #RUN --mount=type=ssh npm i
 
