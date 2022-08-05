@@ -7,6 +7,9 @@ ARG compiler_version
 
 RUN set -xe
 
+# Retrieve host ssh key
+RUN mkdir -p -m -0600 ~/.ssh && ssh-keyscan amd.com >> ~/.ssh/known_hosts
+
 # Mount ssh agent for install
 RUN --mount=type=ssh npm i
 
