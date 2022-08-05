@@ -7,12 +7,6 @@ ARG compiler_version
 
 RUN set -xe
 
-# Retrieve host ssh key
-RUN mkdir -p -m -0600 ~/.ssh && ssh-keyscan amd.com >> ~/.ssh/known_hosts
-
-# Mount ssh agent for install
-RUN --mount=type=ssh npm i
-
 ARG BUILD_THREADS=8
 ARG DEB_ROCM_REPO=http://repo.radeon.com/rocm/apt/.apt_$ROCMVERSION/
 # Add rocm repository
@@ -108,6 +102,11 @@ ENV compiler_version=$compiler_version
 RUN sh -c "echo compiler version = '$compiler_version'"
 #ENV gerrit_key=$gerrit_key
 #RUN sh -c "echo gerrit key = '$gerrit_key'"
+
+# Retrieve host ssh key
+RUN mkdir -p -m -0600 ~/.ssh && ssh-keyscan git.amd.com >> ~/.ssh/known_hosts
+# Mount ssh agent for install
+RUN --mount=type=ssh npm i
 
 #git clone -b "$compiler_version" https://github.com/RadeonOpenCompute/llvm-project.git && \
 #ssh-agent $(ssh-add "$gerrit_key"; git clone -b "$compiler_version" ssh://illsilin@git.amd.com:29418/lightning/ec/llvm-project) && \
