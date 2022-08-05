@@ -20,6 +20,29 @@ struct StaticBuffer : public StaticallyIndexedArray<T, N>
 
     __host__ __device__ constexpr StaticBuffer() : base{} {}
 
+    __host__ __device__ constexpr StaticBuffer& operator=(StaticBuffer& y)
+    {
+        StaticBuffer& x = *this;
+        static_for<0, base::Size(), 1>{}([&](auto i) { x(i) = y[i]; });
+        return x;
+    }
+
+    template <typename... Ys>
+    __host__ __device__ constexpr StaticBuffer& operator=(const Tuple<Ys...>& y)
+    {
+        static_assert(base::Size() == sizeof...(Ys), "wrong! size not the same");
+        StaticBuffer& x = *this;
+        static_for<0, base::Size(), 1>{}([&](auto i) { x(i) = y[i]; });
+        return x;
+    }
+
+    __host__ __device__ constexpr StaticBuffer& operator=(const T& y)
+    {
+        StaticBuffer& x = *this;
+        static_for<0, base::Size(), 1>{}([&](auto i) { x(i) = y; });
+        return x;
+    }
+
     __host__ __device__ static constexpr AddressSpaceEnum GetAddressSpace() { return AddressSpace; }
 
     __host__ __device__ static constexpr bool IsStaticBuffer() { return true; }
@@ -40,9 +63,14 @@ struct StaticBuffer : public StaticallyIndexedArray<T, N>
         return base::operator()(i);
     }
 
+    __host__ __device__ void Set(T x)
+    {
+        static_for<0, N, 1>{}([&](auto i) { operator()(i) = T{x}; });
+    }
+
     __host__ __device__ void Clear()
     {
-        static_for<0, N, 1>{}([&](auto i) { operator()(i) = T{0}; });
+        Set(T{0});
     }
 };
 
