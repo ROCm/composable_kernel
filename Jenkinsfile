@@ -407,7 +407,8 @@ pipeline {
                 //     }
                 // }
                 stage('Clang Format') {
-                    agent{ label rocmnode("nogpu") }
+                    //agent{ label rocmnode("nogpu") }
+                    agent { label 'mici' }
                     environment{
                         execute_cmd = "find .. -iname \'*.h\' \
                                 -o -iname \'*.hpp\' \
