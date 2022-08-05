@@ -102,7 +102,7 @@ def buildHipClangJob(Map conf=[:]){
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1"
         }
-        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='${params.COMPILER_VERSION}' "
+        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg gerrit_key='${gerrit_cred}' "
         if (params.COMPILER_VERSION != "release"){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
@@ -191,7 +191,7 @@ def runCKProfiler(Map conf=[:]){
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1"
         }
-        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='${params.COMPILER_VERSION}' "
+        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg gerrit_key='${gerrit_cred}' "
         if (params.COMPILER_VERSION != "release"){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
@@ -388,6 +388,7 @@ pipeline {
         dbsshuser = "${dbsshuser}"
         dbsshpassword = "${dbsshpassword}"
         status_wrapper_creds = "${status_wrapper_creds}"
+        gerrit_cred="${gerrit_cred}"
     }
     stages{
         stage("Static checks") {
