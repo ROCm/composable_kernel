@@ -104,8 +104,9 @@ ENV gerrit_key=$gerrit_key
 RUN sh -c "echo gerrit key = '$gerrit_key'"
 
 #git clone -b "$compiler_version" https://github.com/RadeonOpenCompute/llvm-project.git && \
+#ssh-agent $(ssh-add "$gerrit_key"; git clone -b "$compiler_version" ssh://illsilin@git.amd.com:29418/lightning/ec/llvm-project) && \
 RUN if [ "$compiler_version" != "release" ]; then \
-        ssh-agent $(ssh-add "$gerrit_key"; git clone -b "$compiler_version" ssh://illsilin@git.amd.com:29418/lightning/ec/llvm-project) && \
+        git clone -b "$compiler_version" ssh://illsilin@git.amd.com:29418/lightning/ec/llvm-project && \
         cd llvm-project && mkdir build && cd build && \
         cmake -DCMAKE_INSTALL_PREFIX=/opt/rocm/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=1 -DLLVM_TARGETS_TO_BUILD="AMDGPU;X86" -DLLVM_ENABLE_PROJECTS="clang;lld;compiler-rt" ../llvm && \
         make -j 8 ; \
