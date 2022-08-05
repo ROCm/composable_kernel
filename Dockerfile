@@ -3,7 +3,6 @@ FROM ubuntu:18.04
 ARG ROCMVERSION=5.1
 ARG OSDB_BKC_VERSION
 ARG compiler_version
-#ARG gerrit_key
 
 RUN set -xe
 
@@ -17,7 +16,6 @@ RUN sh -c "echo deb [arch=amd64] $DEB_ROCM_REPO ubuntu main > /etc/apt/sources.l
 RUN wget --no-check-certificate -qO - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | apt-key add -
 RUN sh -c "echo deb https://apt.kitware.com/ubuntu/ bionic main | tee -a /etc/apt/sources.list"
 
-# ADD requirements.txt requirements.txt
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     apt-utils \
@@ -25,8 +23,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     cmake-data=3.15.1-0kitware1 \
     cmake=3.15.1-0kitware1 \
     curl \
-#   g++ \
-#   gdb \
     git \
     hip-rocclr \
     jq \
@@ -63,17 +59,7 @@ ENV UBSAN_OPTIONS=print_stacktrace=1
 RUN wget https://github.com/Yelp/dumb-init/releases/download/v1.2.0/dumb-init_1.2.0_amd64.deb
 RUN dpkg -i dumb-init_*.deb && rm dumb-init_*.deb
 
-# Install cget
-#RUN pip install cget
-
-# Install rclone
-#RUN pip install https://github.com/pfultz2/rclone/archive/master.tar.gz
-
 ARG PREFIX=/opt/rocm
-# Install dependencies
-#RUN cget install pfultz2/rocm-recipes
-# Install rbuild
-#RUN pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/6d78a0553babdaea8d2da5de15cbda7e869594b8.tar.gz
 # Install packages for processing the performance results
 RUN pip3 install --upgrade pip
 RUN pip3 install sqlalchemy
@@ -86,9 +72,7 @@ ENV UBSAN_OPTIONS=print_stacktrace=1
 
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
-#ADD rbuild.ini /rbuild.ini
 ADD dev-requirements.txt dev-requirements.txt
-#RUN rbuild prepare -s develop -d $PREFIX
 RUN groupadd -f render
 
 # Install the new rocm-cmake version
@@ -100,19 +84,9 @@ WORKDIR /
 
 ENV compiler_version=$compiler_version
 RUN sh -c "echo compiler version = '$compiler_version'"
-#ENV gerrit_key=$gerrit_key
-#RUN sh -c "echo gerrit key = '$gerrit_key'"
 
-# Retrieve host ssh key
-RUN mkdir -p -m -0600 ~/.ssh && ssh-keyscan git.amd.com >> ~/.ssh/known_hosts
-RUN --mount=type=ssh ls -ltr ~/.ssh/
-# Mount ssh agent for install
-#RUN --mount=type=ssh npm i
-
-#git clone -b "$compiler_version" https://github.com/RadeonOpenCompute/llvm-project.git && \
-#ssh-agent $(ssh-add "$gerrit_key"; git clone -b "$compiler_version" ssh://illsilin@git.amd.com:29418/lightning/ec/llvm-project) && \
 RUN --mount=type=ssh if [ "$compiler_version" != "release" ]; then \
-        git clone -b "$compiler_version" ssh://illsilin@git.amd.com:29418/lightning/ec/llvm-project && \
+        git clone -b "$compiler_version" https://github.com/RadeonOpenCompute/llvm-project.git && \
         cd llvm-project && mkdir build && cd build && \
         cmake -DCMAKE_INSTALL_PREFIX=/opt/rocm/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=1 -DLLVM_TARGETS_TO_BUILD="AMDGPU;X86" -DLLVM_ENABLE_PROJECTS="clang;lld;compiler-rt" ../llvm && \
         make -j 8 ; \

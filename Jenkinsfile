@@ -111,7 +111,7 @@ def buildHipClangJob(Map conf=[:]){
 
         def retimage
 
-        gitStatusWrapper(credentialsId: "${gerrit_cred}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
+        gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
             try {
                 retimage = docker.build("${image}", dockerArgs + '.')
                 withDockerContainer(image: image, args: dockerOpts) {
@@ -407,8 +407,7 @@ pipeline {
                 //     }
                 // }
                 stage('Clang Format') {
-                    //agent{ label rocmnode("nogpu") }
-                    agent { label 'mici' }
+                    agent{ label rocmnode("nogpu") }
                     environment{
                         execute_cmd = "find .. -iname \'*.h\' \
                                 -o -iname \'*.hpp\' \
@@ -421,9 +420,7 @@ pipeline {
                                 | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-10 -style=file {} | diff - {}\'"
                     }
                     steps{
-                        sshagent(['${gerrit_cred}']){
-                            buildHipClangJobAndReboot(setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
-                        }
+                        buildHipClangJobAndReboot(setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
                     }
                 }
             }
@@ -439,9 +436,7 @@ pipeline {
                         setup_args = """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
                     }
                     steps{
-                        sshagent(['${gerrit_cred}']){
-                            buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
-                        }
+                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
                     }
                 }
                 stage("Run Tests: gfx90a")
@@ -455,9 +450,7 @@ pipeline {
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
                     }
                     steps{
-                        sshagent(['${gerrit_cred}']){
-                            buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
-                        }
+                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
                     }
                 }
             }
@@ -474,9 +467,7 @@ pipeline {
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc .. && make -j """ 
                     }
                     steps{
-                        sshagent(['${gerrit_cred}']){
-                            buildHipClangJobAndReboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
-                        }
+                        buildHipClangJobAndReboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                     }
                 }
             }
@@ -496,9 +487,7 @@ pipeline {
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
                    }
                     steps{
-                        sshagent(['${gerrit_cred}']){
-                            runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
-                        }
+                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
                     }
                 }
                 stage("Run ckProfiler: gfx90a")
@@ -512,9 +501,7 @@ pipeline {
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
                    }
                     steps{
-                        sshagent(['${gerrit_cred}']){
-                            runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
-                        }
+                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
                     }
                 }
             }
