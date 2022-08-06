@@ -32,21 +32,17 @@ struct ThreadwiseWelford
     {
         using ck::math::isnan;
 
-        if(cur_count_ < max_count_)
+        if(isnan(x))
         {
-            if(isnan(x))
-            {
-                mean = x;
-                var  = x;
-            }
-            else
-            {
-                ++cur_count_;
-                T delta = x - mean;
-                mean += delta / cur_count_;
-                T delta2 = x - mean;
-                var += delta * delta2;
-            }
+            mean = x;
+            var  = x;
+        }
+        else
+        {
+            T delta = x - mean;
+            mean += delta / cur_count_;
+            T delta2 = x - mean;
+            var += delta * delta2;
         }
     }
 
@@ -55,16 +51,23 @@ struct ThreadwiseWelford
     Run(const XBufferType& x_buf_m_k, MeanBufferType& mean_buf_m, VarBufferType& var_buf_m)
     {
         // FIXME - Better naming for var_buf_m
-        static_for<0, thread_x_length_m, 1>{}([&](auto iM) {
-            constexpr index_t out_offset = mean_var_thread_desc_m.CalculateOffset(make_tuple(iM));
 
-            // TODO - tail case
-            static_for<0, thread_x_length_k, 1>{}([&](auto iK) {
-                constexpr auto in_offset = x_thread_desc_m_k.CalculateOffset(make_tuple(iM, iK));
-                Update(mean_buf_m(Number<out_offset>{}),
-                       var_buf_m(Number<out_offset>{}),
-                       x_buf_m_k[Number<in_offset>{}]);
-            });
+        static_for<0, thread_x_length_k, 1>{}([&](auto iK) {
+            if(cur_count_ < max_count_)
+            {
+                ++cur_count_;
+
+                static_for<0, thread_x_length_m, 1>{}([&](auto iM) {
+                    constexpr index_t out_offset =
+                        mean_var_thread_desc_m.CalculateOffset(make_tuple(iM));
+
+                    constexpr auto in_offset =
+                        x_thread_desc_m_k.CalculateOffset(make_tuple(iM, iK));
+                    Update(mean_buf_m(Number<out_offset>{}),
+                           var_buf_m(Number<out_offset>{}),
+                           x_buf_m_k[Number<in_offset>{}]);
+                });
+            }
         });
     };
 

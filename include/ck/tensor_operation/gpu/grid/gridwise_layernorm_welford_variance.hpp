@@ -245,8 +245,8 @@ struct GridwiseLayernormWelfordVariance_mk_to_mk
             if constexpr(I > 0)
                 block_sync_lds();
 
-            BlockwiseWelford::Run(
-                mean_thread_buf(I), var_thread_buf(I), threadwise_welford.cur_count_);
+            int count = threadwise_welford.cur_count_;
+            BlockwiseWelford::Run(mean_thread_buf(I), var_thread_buf(I), count);
         });
 
         auto thread_copy_tail_m_k = (num_k_block_tile_iteration - 1) * thread_copy_fwd_step_m_k;
