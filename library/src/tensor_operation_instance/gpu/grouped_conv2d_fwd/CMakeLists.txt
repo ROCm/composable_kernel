@@ -5,8 +5,8 @@ set(DEVICE_GROUPED_CONV2D_FWD_INSTANCE_SOURCE
    device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_f16_instance.cpp;
    device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_f32_instance.cpp;
    device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_int8_instance.cpp;
-   # NHWGC, KYXGC, NHWGK
-   device_grouped_conv2d_fwd_xdl_nhwgc_kyxgc_nhwgk_f16_instance.cpp;
+   # NHWGC, GKYXC, NHWGK
+   device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_instance.cpp;
 )
 
 add_library(device_grouped_conv2d_fwd_instance OBJECT ${DEVICE_GROUPED_CONV2D_FWD_INSTANCE_SOURCE}) 

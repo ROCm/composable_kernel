@@ -131,11 +131,11 @@ void add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_int8_instances(
                                                               PassThrough,
                                                               PassThrough>>>& instances);
 
-// grouped conv2d forward, NHWGC/KYXGC/NHWGK
-void add_device_grouped_conv2d_fwd_xdl_nhwgc_kyxgc_nhwgk_f16_instances(
+// grouped conv2d forward, NHWGC/GKYXC/NHWGK
+void add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
                                                               NHWGC,
-                                                              KYXGC,
+                                                              GKYXC,
                                                               Empty_Tuple,
                                                               NHWGK,
                                                               F16,
@@ -292,7 +292,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             }
         }
         else if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, NHWGC> &&
-                          is_same_v<WeiLayout, KYXGC> && is_same_v<OutLayout, NHWGK>)
+                          is_same_v<WeiLayout, GKYXC> && is_same_v<OutLayout, NHWGK>)
         {
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
@@ -302,7 +302,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             else if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
                               is_same_v<OutDataType, half_t>)
             {
-                add_device_grouped_conv2d_fwd_xdl_nhwgc_kyxgc_nhwgk_f16_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_instances(op_ptrs);
             }
             else if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
                               is_same_v<WeiDataType, ck::bhalf_t> &&
