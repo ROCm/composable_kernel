@@ -251,7 +251,7 @@ int main(int argc, char* argv[])
     Tensor<BDataType> b_ns_ks(
         std::vector<std::size_t>(b_ns_ks_lengths.begin(), b_ns_ks_lengths.end()),
         std::vector<std::size_t>(b_ns_ks_strides.begin(), b_ns_ks_strides.end()));
-    Tensor<EDataType> d_ms_ns(
+    Tensor<DDataType> d_ms_ns(
         std::vector<std::size_t>(d_ms_ns_lengths.begin(), d_ms_ns_lengths.end()),
         std::vector<std::size_t>(d_ms_ns_strides.begin(), d_ms_ns_strides.end()));
     Tensor<EDataType> e_ms_ns_host_result(
