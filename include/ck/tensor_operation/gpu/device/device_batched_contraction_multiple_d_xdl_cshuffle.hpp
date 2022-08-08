@@ -476,9 +476,11 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
     {
         ComputePtrOffsetOfStridedBatch(index_t batch_stride_A,
                                        index_t batch_stride_B,
+                                       DsGridDesc_G_M_N ds_grid_desc_g_m_n,
                                        EGridDesc_G_M_N e_grid_desc_g_m_n)
             : batch_stride_A_(batch_stride_A),
               batch_stride_B_(batch_stride_B),
+              ds_grid_desc_g_m_n_(ds_grid_desc_g_m_n),
               e_grid_desc_g_m_n_(e_grid_desc_g_m_n)
         {
         }
@@ -496,6 +498,7 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
         __host__ __device__ constexpr auto GetDsPtrOffset(index_t g_idx) const
         {
             std::array<long_index_t, NumDTensor> ds_offset;
+
             static_for<0, NumDTensor, 1>{}([&](auto i) {
                 if constexpr(NumDimG > 0)
                     ds_offset[i] =
@@ -503,6 +506,7 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
                 else
                     ds_offset[i] = 0;
             });
+
             return ds_offset;
         }
 
@@ -517,8 +521,8 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
         private:
         index_t batch_stride_A_;
         index_t batch_stride_B_;
-        EGridDesc_G_M_N e_grid_desc_g_m_n_;
         DsGridDesc_G_M_N ds_grid_desc_g_m_n_;
+        EGridDesc_G_M_N e_grid_desc_g_m_n_;
     };
 
     // GridwiseGemm
@@ -605,6 +609,8 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
               ds_grid_desc_m_n_{},
               e_grid_desc_m_n_{
                   DeviceOp::MakeEGridDescriptor_M_N(e_gs_ms_ns_lengths, e_gs_ms_ns_strides)},
+              ds_grid_desc_g_m_n_{
+                  DeviceOp::MakeDsGridDescriptor_G_M_N(ds_gs_ms_ns_lengths, ds_gs_ms_ns_strides)},
               e_grid_desc_g_m_n_{
                   DeviceOp::MakeEGridDescriptor_G_M_N(e_gs_ms_ns_lengths, e_gs_ms_ns_strides)},
               a_grid_desc_ak0_m_ak1_{
@@ -625,7 +631,8 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
               e_nz_stride_{},
               a_batch_stride_{a_gs_ms_ks_strides[NumDimG - 1]},
               b_batch_stride_{b_gs_ns_ks_strides[NumDimG - 1]},
-              compute_ptr_offset_of_batch_{a_batch_stride_, b_batch_stride_, e_grid_desc_g_m_n_}
+              compute_ptr_offset_of_batch_{
+                  a_batch_stride_, b_batch_stride_, ds_grid_desc_g_m_n_, e_grid_desc_g_m_n_}
         {
             // populate pointer, batch stride, desc for Ds
             static_for<0, NumDTensor, 1>{}([&](auto i) {
@@ -690,6 +697,8 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
         BGridDesc_N_K b_grid_desc_n_k_;
         DsGridDesc_M_N ds_grid_desc_m_n_;
         EGridDesc_M_N e_grid_desc_m_n_;
+
+        DsGridDesc_G_M_N ds_grid_desc_g_m_n_;
         EGridDesc_G_M_N e_grid_desc_g_m_n_;
 
         // tensor descriptors for block/thread-wise copy
