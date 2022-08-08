@@ -89,8 +89,10 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
     std::array<ck::index_t, NDimSpatial + 3> a_g_n_c_wis_strides{};
     std::array<ck::index_t, NDimSpatial + 3> b_g_k_c_xs_lengths{};
     std::array<ck::index_t, NDimSpatial + 3> b_g_k_c_xs_strides{};
-    std::array<ck::index_t, NDimSpatial + 3> d_g_n_k_wos_lengths{};
-    std::array<ck::index_t, NDimSpatial + 3> d_g_n_k_wos_strides{};
+    std::array<ck::index_t, NDimSpatial + 3> d0_g_n_k_wos_lengths{};
+    std::array<ck::index_t, NDimSpatial + 3> d0_g_n_k_wos_strides{};
+    std::array<ck::index_t, NDimSpatial + 3> d1_g_n_k_wos_lengths{};
+    std::array<ck::index_t, NDimSpatial + 3> d1_g_n_k_wos_strides{};
     std::array<ck::index_t, NDimSpatial + 3> e_g_n_k_wos_lengths{};
     std::array<ck::index_t, NDimSpatial + 3> e_g_n_k_wos_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
@@ -104,8 +106,10 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
     copy(in_g_n_c_wis_desc.GetStrides(), a_g_n_c_wis_strides);
     copy(wei_g_k_c_xs_desc.GetLengths(), b_g_k_c_xs_lengths);
     copy(wei_g_k_c_xs_desc.GetStrides(), b_g_k_c_xs_strides);
-    copy(bias_g_n_k_wos_desc.GetLengths(), d_g_n_k_wos_lengths);
-    copy(bias_g_n_k_wos_desc.GetStrides(), d_g_n_k_wos_strides);
+    copy(bias_g_n_k_wos_desc.GetLengths(), d0_g_n_k_wos_lengths);
+    copy(bias_g_n_k_wos_desc.GetStrides(), d0_g_n_k_wos_strides);
+    copy(residual_g_n_k_wos_desc.GetLengths(), d1_g_n_k_wos_lengths);
+    copy(residual_g_n_k_wos_desc.GetStrides(), d1_g_n_k_wos_strides);
     copy(out_g_n_k_wos_desc.GetLengths(), e_g_n_k_wos_lengths);
     copy(out_g_n_k_wos_desc.GetStrides(), e_g_n_k_wos_strides);
     copy(conv_param.conv_filter_strides_, conv_filter_strides);
@@ -127,9 +131,9 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
                           b_g_k_c_xs_lengths,
                           b_g_k_c_xs_strides,
                           std::array<std::array<ck::index_t, NDimSpatial + 3>, 2>{
-                              {d_g_n_k_wos_lengths, d_g_n_k_wos_lengths}},
+                              {d0_g_n_k_wos_lengths, d1_g_n_k_wos_lengths}},
                           std::array<std::array<ck::index_t, NDimSpatial + 3>, 2>{
-                              {d_g_n_k_wos_strides, d_g_n_k_wos_strides}},
+                              {d0_g_n_k_wos_strides, d1_g_n_k_wos_strides}},
                           e_g_n_k_wos_lengths,
                           e_g_n_k_wos_strides,
                           conv_filter_strides,
