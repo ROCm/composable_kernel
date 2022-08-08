@@ -447,8 +447,14 @@ struct GridwiseGemmReduce_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
         //       register
         // sanity check
+
+        // Workaround to have int4 MFMA on MI100 and MI200.
+        // Since MI100 and MI200 doesn't support int4 MFMA we have to convert input registers
+        // for MFMA instructions to int8 data type.
+        using MFMAType =
+            typename std::conditional_t<std::is_same_v<FloatAB, int4_t>, int8_t, FloatAB>;
         constexpr index_t KPack = math::max(
-            math::lcm(AK1, BK1), MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+            math::lcm(AK1, BK1), MfmaSelector<MFMAType, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,

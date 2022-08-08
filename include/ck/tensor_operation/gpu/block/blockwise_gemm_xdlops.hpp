@@ -34,7 +34,8 @@ template <index_t BlockSize,
           index_t NPerXDL,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPack>
+          index_t KPack,
+          typename MFMAType>
 struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 {
     static constexpr auto I0 = Number<0>{};
@@ -56,7 +57,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     static constexpr index_t A_K1 = AK0MK1BlockDesc{}.GetLength(I2);
     static constexpr index_t B_K1 = BK0NK1BlockDesc{}.GetLength(I2);
 
-    static constexpr auto xdlops_gemm = XdlopsGemm<FloatAB, MPerXDL, NPerXDL, KPack>{};
+    static constexpr auto xdlops_gemm = XdlopsGemm<MFMAType, MPerXDL, NPerXDL, KPack>{};
 
     static constexpr index_t KPerThread = KPerBlock / xdlops_gemm.K0PerXdlops;
 
@@ -295,18 +296,18 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                    b_thread_buf);
 
                 static_for<0, KPerThread, KPack>{}([&](auto k) {
-                    vector_type<FloatAB, KPack> a_thread_vec;
-                    vector_type<FloatAB, KPack> b_thread_vec;
+                    vector_type<MFMAType, KPack> a_thread_vec;
+                    vector_type<MFMAType, KPack> b_thread_vec;
 
                     static_for<0, KPack, 1>{}([&](auto i) {
-                        a_thread_vec.template AsType<FloatAB>()(i) = a_thread_buf
+                        a_thread_vec.template AsType<MFMAType>()(i) = a_thread_buf
                             [Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];
-                        b_thread_vec.template AsType<FloatAB>()(i) = b_thread_buf
+                        b_thread_vec.template AsType<MFMAType>()(i) = b_thread_buf
                             [Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];
                     });
 
                     using mfma_input_type =
-                        typename vector_type<FloatAB, xdlops_gemm.K1PerXdlops>::type;
+                        typename vector_type<MFMAType, xdlops_gemm.K1PerXdlops>::type;
 
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
@@ -371,6 +372,7 @@ template <index_t BlockSize,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPack,
+          typename MFMAType,
           index_t NumMacClusters = CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS>
 struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     : public BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
@@ -382,7 +384,8 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                                                  NPerXDL,
                                                                  MRepeat,
                                                                  NRepeat,
-                                                                 KPack>
+                                                                 KPack,
+                                                                 MFMAType>
 {
     using Base = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                                      FloatAB,
@@ -393,7 +396,8 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                                                      NPerXDL,
                                                                      MRepeat,
                                                                      NRepeat,
-                                                                     KPack>;
+                                                                     KPack,
+                                                                     MFMAType>;
 
 #if CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING
     using Base::a_block_desc_m0_m1_m2_k;
@@ -557,6 +561,11 @@ template <index_t BlockSize,
           LoopScheduler LoopSched>
 constexpr auto BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector()
 {
+    // Workaround to have int4 MFMA on MI100 and MI200.
+    // Since MI100 and MI200 doesn't support int4 MFMA we have to convert input registers
+    // for MFMA instructions to int8 data type.
+    using MFMAType = typename std::conditional_t<std::is_same_v<FloatAB, int4_t>, int8_t, FloatAB>;
+
     if constexpr(LoopSched == LoopScheduler::Default)
     {
         return BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
@@ -568,7 +577,8 @@ constexpr auto BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector()
                                                                    NPerXDL,
                                                                    MRepeat,
                                                                    NRepeat,
-                                                                   KPack>{};
+                                                                   KPack,
+                                                                   MFMAType>{};
     }
     else if constexpr(LoopSched == LoopScheduler::Interwave)
     {
@@ -581,7 +591,8 @@ constexpr auto BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector()
                                                                             NPerXDL,
                                                                             MRepeat,
                                                                             NRepeat,
-                                                                            KPack>{};
+                                                                            KPack,
+                                                                            MFMAType>{};
     }
 };
 
