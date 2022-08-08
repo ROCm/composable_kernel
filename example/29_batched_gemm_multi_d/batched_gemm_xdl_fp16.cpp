@@ -55,8 +55,13 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmMultiD
         < ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8>;
 // clang-format on
 
-using ReferenceBatchedGemmInstance = ck::tensor_operation::host::
-    ReferenceBatchedGemm<ADataType, BDataType, EDataType, AElementOp, BElementOp, CDEElementOp>;
+using ReferenceBatchedGemmInstance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
+                                                                                      BDataType,
+                                                                                      EDataType,
+                                                                                      AccDataType,
+                                                                                      AElementOp,
+                                                                                      BElementOp,
+                                                                                      CDEElementOp>;
 
 int main(int argc, char* argv[])
 {

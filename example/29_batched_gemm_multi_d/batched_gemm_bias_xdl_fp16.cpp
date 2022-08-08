@@ -212,6 +212,7 @@ int main(int argc, char* argv[])
             ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
                                                              BDataType,
                                                              EDataType,
+                                                             AccDataType,
                                                              AElementOp,
                                                              BElementOp,
                                                              PassThrough>;

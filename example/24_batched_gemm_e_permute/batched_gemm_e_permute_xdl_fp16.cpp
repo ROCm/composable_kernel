@@ -53,7 +53,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmEPermu
 
 using ReferenceBatchedGemmInstance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
                                                                                       BDataType,
-                                                                                      CDataType,
+                                                                                      EDataType,
                                                                                       AccDataType,
                                                                                       AElementOp,
                                                                                       BElementOp,
