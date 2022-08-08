@@ -8,6 +8,12 @@ set(UTILITY_SOURCE
 add_library(utility STATIC ${UTILITY_SOURCE})
 add_library(composable_kernel::utility ALIAS utility)
 
+list(APPEND UTILITY_CMAKE_CXX_FLAGS
+     -Wno-bit-int-extension
+)
+
+target_compile_options(utility PRIVATE ${UTILITY_CMAKE_CXX_FLAGS})
+
 target_include_directories(utility PUBLIC
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/utility>"

@@ -69,8 +69,8 @@ using DeviceGemmReduceInstance = ck::tensor_operation::device::DeviceGemmReduce_
          256,                       // MPerBlock
          128,                       // NPerBlock
          32,                        // KPerBlock
-         8,                         // AK1
-         8,                         // BK1
+         4,                         // AK1
+         4,                         // BK1
          32,                        // MPerXdl
          32,                        // NPerXdl
          4,                         // MXdlPerWave
@@ -79,20 +79,20 @@ using DeviceGemmReduceInstance = ck::tensor_operation::device::DeviceGemmReduce_
          S<1, 0, 2>,                // ABlockTransfer ThreadCluster ArrangeOrder
          S<1, 0, 2>,                // ABlockTransfer SrcAccessOrder
          2,                         // ABlockTransfer SrcVectorDim
-         8,                         // ABlockTransfer SrcScalarPerVector
-         8,                         // ABlockTransfer DstScalarPerVector_K1
+         4,                         // ABlockTransfer SrcScalarPerVector
+         4,                         // ABlockTransfer DstScalarPerVector_K1
          1,                         // ABlockLdsExtraM
          S<4, 64, 1>,               // BBlockTransfer ThreadCluster Lengths_K0_N_K1
          S<1, 0, 2>,                // BBlockTransfer ThreadCluster ArrangeOrder
          S<1, 0, 2>,                // BBlockTransfer SrcAccessOrder
          2,                         // BBlockTransfer SrcVectorDim
-         8,                         // BBlockTransfer SrcScalarPerVector
-         8,                         // BBlockTransfer DstScalarPerVector_K1
+         4,                         // BBlockTransfer SrcScalarPerVector
+         4,                         // BBlockTransfer DstScalarPerVector_K1
          1,                         // BBlockLdsExtraN
          1,                         // CShuffleMXdlPerWavePerShuffle
          1,                         // CShuffleNXdlPerWavePerShuffle
          S<1, 32, 1, 8>,            // CBlockTransferClusterLengths _MBlock_MPerBlock_NBlock_NPerBlock
-         8,                         // CBlockTransferScalarPerVector_NPerBlock
+         4,                         // CBlockTransferScalarPerVector_NPerBlock
          S<64, 4>,                  // CReduceThread ClusterLengths _MPerBlock_NPerBlock
          4,                         // CReduceThread Lds2VGprCopy SrcDstScalarPerVector _NPerBlock
          1>;                        // CReduceThread Vgpr2GlobalCopy SrcDstScalarPerVector _MPerBlock
