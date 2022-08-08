@@ -12,7 +12,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_gemm_xdl_cshuffle_v1.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_softmax_gemm_xdl_cshuffle_v1.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
@@ -39,7 +39,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_gemm_xdl_cshuffle_v1(
+        kernel_batched_gemm_softmax_gemm_xdl_cshuffle_v1(
             const FloatAB* __restrict__ p_a_grid,
             const FloatAB* __restrict__ p_b_grid,
             const FloatAB* __restrict__ p_b1_grid,
@@ -168,21 +168,22 @@ template <typename ALayout,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched = LoopScheduler::Default>
-struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout,
-                                                                         BLayout,
-                                                                         B1Layout,
-                                                                         CLayout,
-                                                                         ADataType,
-                                                                         BDataType,
-                                                                         B1DataType,
-                                                                         CDataType,
-                                                                         AElementwiseOperation,
-                                                                         BElementwiseOperation,
-                                                                         AccElementwiseOperation,
-                                                                         B1ElementwiseOperation,
-                                                                         CElementwiseOperation>
+struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
+    : public DeviceBatchedGemmGemm<ALayout,
+                                   BLayout,
+                                   B1Layout,
+                                   CLayout,
+                                   ADataType,
+                                   BDataType,
+                                   B1DataType,
+                                   CDataType,
+                                   AElementwiseOperation,
+                                   BElementwiseOperation,
+                                   AccElementwiseOperation,
+                                   B1ElementwiseOperation,
+                                   CElementwiseOperation>
 {
-    using DeviceOp = DeviceBatchedGemmGemm_Xdl_CShuffle;
+    using DeviceOp = DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -549,7 +550,7 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
     using CGridDesc_M_N        = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseBatchedGemmGemm_Xdl_CShuffle<
+    using GridwiseGemm = GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle<
         ADataType, // TODO: distinguish A/B datatype
         GemmAccDataType,
         CShuffleDataType,
@@ -712,7 +713,7 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
             float ave_time = 0;
 
             auto launch_kernel = [&](auto has_main_k_block_loop_) {
-                const auto kernel = kernel_gemm_gemm_xdl_cshuffle_v1<
+                const auto kernel = kernel_batched_gemm_softmax_gemm_xdl_cshuffle_v1<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     CDataType,
@@ -892,7 +893,7 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceBatchedGemmGemm_Xdl_CShuffle"
+        str << "DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
