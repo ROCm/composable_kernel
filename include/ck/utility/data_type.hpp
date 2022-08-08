@@ -74,24 +74,24 @@ template <typename X, typename Y, typename Enable = void>
 struct has_same_scalar_type
 {
     static constexpr bool value = false;
-}
+};
 
-template <typename X,
-          typename Y,
-          typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                     typename scalar_type<remove_cvref_t<Y>>::type>,
-                             bool>::type>
-struct has_same_scalar_type
+template <typename X, typename Y>
+struct has_same_scalar_type<
+    X,
+    Y,
+    typename std::enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                    typename scalar_type<remove_cvref_t<Y>>::type>::value>::type>
 {
     static constexpr bool value = true;
 };
 
-template <typename X,
-          typename Y,
-          typename enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type, int4_t> &&
-                                 is_same_v<typename scalar_type<remove_cvref_t<Y>>::type, int8_t>,
-                             bool>::type>
-struct has_same_scalar_type
+template <typename X, typename Y>
+struct has_same_scalar_type<
+    X,
+    Y,
+    typename std::enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type, int4_t> &&
+                            is_same_v<typename scalar_type<remove_cvref_t<Y>>::type, int8_t>>::type>
 {
     static constexpr bool value = true;
 };

@@ -51,15 +51,11 @@ struct DynamicBuffer
 
     __host__ __device__ constexpr T& operator()(index_t i) { return p_data_[i]; }
 
-    template <typename X,
-              typename enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type,
-                                           typename scalar_type<remove_cvref_t<T>>::type>,
-                                 bool>::type = false>
-    __host__ __device__ constexpr auto Get(index_t i, bool is_valid_element) const
+    template <typename X, index_t scalar_per_x_vector>
+    __host__ __device__ constexpr auto GetImpl(index_t i, bool is_valid_element) const
     {
         // X contains multiple T
         constexpr index_t scalar_per_t_vector = scalar_type<remove_cvref_t<T>>::vector_size;
-        constexpr index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size;
 
         static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
                       "wrong! X should contain multiple T");
@@ -114,72 +110,23 @@ struct DynamicBuffer
         }
     }
 
+    template <typename X, typename enable_if<has_same_scalar_type<T, X>::value, bool>::type = false>
+    __host__ __device__ constexpr auto Get(index_t i, bool is_valid_element) const
+    {
 #if CK_WORKAROUND_INT4_DYNAMIC_BUFFER_GMEM
-    template <
-        typename X,
-        typename enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type, int8_t> &&
-                               is_same_v<typename scalar_type<remove_cvref_t<T>>::type, int4_t>,
-                           bool>::type = false>
-    __host__ __device__ constexpr auto Get(index_t i, bool is_valid_element) const
-    {
-        // X contains multiple T
-        constexpr index_t scalar_per_t_vector = scalar_type<remove_cvref_t<T>>::vector_size;
-
-        constexpr index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size * 2;
-
-        static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
-                      "wrong! X should contain multiple T");
-
-#if CK_USE_AMD_BUFFER_LOAD
-        bool constexpr use_amd_buffer_addressing = true;
-#else
-        bool constexpr use_amd_buffer_addressing = false;
-#endif
-
-        if constexpr(GetAddressSpace() == AddressSpaceEnum::Global && use_amd_buffer_addressing)
+        if constexpr(is_same_v<typename scalar_type<remove_cvref_t<X>>::type, int8_t> &&
+                     is_same_v<typename scalar_type<remove_cvref_t<T>>::type, int4_t>)
         {
-            constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
-
-            if constexpr(InvalidElementUseNumericalZeroValue)
-            {
-                return amd_buffer_load_invalid_element_return_zero<remove_cvref_t<T>, t_per_x>(
-                    p_data_, i, is_valid_element, element_space_size_);
-            }
-            else
-            {
-                return amd_buffer_load_invalid_element_return_customized_value<remove_cvref_t<T>,
-                                                                               t_per_x>(
-                    p_data_, i, is_valid_element, element_space_size_, invalid_element_value_);
-            }
+            constexpr index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size * 2;
+            return GetImpl<X, scalar_per_x_vector>(i, is_valid_element);
         }
         else
+#endif // CK_WORKAROUND_INT4_DYNAMIC_BUFFER_GMEM
         {
-            if(is_valid_element)
-            {
-#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
-                X tmp;
-
-                __builtin_memcpy(&tmp, &(p_data_[i]), sizeof(X));
-
-                return tmp;
-#else
-                return *c_style_pointer_cast<const X*>(&p_data_[i]);
-#endif
-            }
-            else
-            {
-                if constexpr(InvalidElementUseNumericalZeroValue)
-                {
-                    return X{0};
-                }
-                else
-                {
-                    return X{invalid_element_value_};
-                }
-            }
+            constexpr index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size;
+            return GetImpl<X, scalar_per_x_vector>(i, is_valid_element);
         }
     }
-#endif // CK_WORKAROUND_INT4_DYNAMIC_BUFFER_GMEM
 
     template <InMemoryDataOperationEnum Op,
               typename X,
