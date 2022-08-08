@@ -58,9 +58,9 @@ using DeviceGemmReduceInstance = ck::tensor_operation::device::DeviceGemmReduce_
          256,                       // BlockSize
          256,                       // MPerBlock
          128,                       // NPerBlock
-         128,                       // KPerBlock
-         32,                        // AK1
-         32,                        // BK1
+         64,                        // KPerBlock
+         16,                        // AK1
+         16,                        // BK1
          32,                        // MPerXdl
          32,                        // NPerXdl
          4,                         // MXdlPerWave
@@ -69,20 +69,20 @@ using DeviceGemmReduceInstance = ck::tensor_operation::device::DeviceGemmReduce_
          S<1, 0, 2>,                // ABlockTransfer ThreadCluster ArrangeOrder
          S<1, 0, 2>,                // ABlockTransfer SrcAccessOrder
          2,                         // ABlockTransfer SrcVectorDim
-         32,                        // ABlockTransfer SrcScalarPerVector
-         32,                        // ABlockTransfer DstScalarPerVector_K1
+         16,                        // ABlockTransfer SrcScalarPerVector
+         16,                        // ABlockTransfer DstScalarPerVector_K1
          1,                         // ABlockLdsExtraM
          S<4, 64, 1>,               // BBlockTransfer ThreadCluster Lengths_K0_N_K1
          S<1, 0, 2>,                // BBlockTransfer ThreadCluster ArrangeOrder
          S<1, 0, 2>,                // BBlockTransfer SrcAccessOrder
          2,                         // BBlockTransfer SrcVectorDim
-         32,                        // BBlockTransfer SrcScalarPerVector
-         32,                        // BBlockTransfer DstScalarPerVector_K1
+         16,                        // BBlockTransfer SrcScalarPerVector
+         16,                        // BBlockTransfer DstScalarPerVector_K1
          1,                         // BBlockLdsExtraN
          1,                         // CShuffleMXdlPerWavePerShuffle
          1,                         // CShuffleNXdlPerWavePerShuffle
          S<1, 64, 1, 4>,            // CBlockTransferClusterLengths _MBlock_MPerBlock_NBlock_NPerBlock
-         32,                        // CBlockTransferScalarPerVector_NPerBlock
+         16,                        // CBlockTransferScalarPerVector_NPerBlock
          S<64, 4>,                  // CReduceThread ClusterLengths _MPerBlock_NPerBlock
          4,                         // CReduceThread Lds2VGprCopy SrcDstScalarPerVector _NPerBlock
          1>;                        // CReduceThread Vgpr2GlobalCopy SrcDstScalarPerVector _MPerBlock
