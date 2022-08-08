@@ -92,7 +92,7 @@ def buildHipClangJob(Map conf=[:]){
         env.HSA_ENABLE_SDMA=0
         checkout scm
 
-        def image = "composable_kernels"
+        def image = "composable_kernels_${params.COMPILER_VERSION}"
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
         def gpu_arch = conf.get("gpu_arch", "gfx908")
 
@@ -102,13 +102,9 @@ def buildHipClangJob(Map conf=[:]){
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1"
         }
-        def dockerArgs
-        if (params.USE_9110){
-            dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='9110' "
+        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='${params.COMPILER_VERSION}' "
+        if (params.COMPILER_VERSION != "release"){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
-        }
-        else{
-            dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='release' "
         }
 
         def variant = env.STAGE_NAME
@@ -185,7 +181,8 @@ def runCKProfiler(Map conf=[:]){
         env.HSA_ENABLE_SDMA=0
         checkout scm
 
-        def image = "composable_kernels"
+
+        def image = "composable_kernels_${params.COMPILER_VERSION}"
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
         def gpu_arch = conf.get("gpu_arch", "gfx908")
 
@@ -195,13 +192,9 @@ def runCKProfiler(Map conf=[:]){
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1"
         }
-        def dockerArgs
-        if (params.USE_9110){
-            dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='9110' "
+        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='${params.COMPILER_VERSION}' "
+        if (params.COMPILER_VERSION != "release"){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
-        }
-        else{
-            dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='release' "
         }
 
         def variant = env.STAGE_NAME
@@ -248,20 +241,15 @@ def runCKProfiler(Map conf=[:]){
 					dir("script"){
                         if (params.RUN_FULL_QA){
                             def qa_log = "qa_${gpu_arch}.log"
-                            if (params.USE_9110){
-                                sh "./run_full_performance_tests.sh 1 QA_9110 ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
-                            }
-                            else{
-                                sh "./run_full_performance_tests.sh 1 QA_release ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
-                            }
+                            sh "./run_full_performance_tests.sh 1 QA_${params.COMPILER_VERSION} ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
                             archiveArtifacts "perf_gemm_${gpu_arch}.log"
                             archiveArtifacts "perf_resnet50_N256_${gpu_arch}.log"
                             archiveArtifacts "perf_resnet50_N4_${gpu_arch}.log"
                             archiveArtifacts "perf_batched_gemm_${gpu_arch}.log"
                             archiveArtifacts "perf_grouped_gemm_${gpu_arch}.log"
-                            archiveArtifacts "perf_fwd_conv_${gpu_arch}.log"
-                            archiveArtifacts "perf_bwd_conv_${gpu_arch}.log"
-                            archiveArtifacts "perf_fusion_${gpu_arch}.log"
+                            archiveArtifacts "perf_conv_fwd_${gpu_arch}.log"
+                            archiveArtifacts "perf_conv_bwd_${gpu_arch}.log"
+                            archiveArtifacts "perf_gemm_bilinear_${gpu_arch}.log"
                             archiveArtifacts "perf_reduction_${gpu_arch}.log"
                            // stash perf files to master
                             stash name: "perf_gemm_${gpu_arch}.log"
@@ -269,19 +257,14 @@ def runCKProfiler(Map conf=[:]){
                             stash name: "perf_resnet50_N4_${gpu_arch}.log"
                             stash name: "perf_batched_gemm_${gpu_arch}.log"
                             stash name: "perf_grouped_gemm_${gpu_arch}.log"
-                            stash name: "perf_fwd_conv_${gpu_arch}.log"
-                            stash name: "perf_bwd_conv_${gpu_arch}.log"
-                            stash name: "perf_fusion_${gpu_arch}.log"
+                            stash name: "perf_conv_fwd_${gpu_arch}.log"
+                            stash name: "perf_conv_bwd_${gpu_arch}.log"
+                            stash name: "perf_gemm_bilinear_${gpu_arch}.log"
                             stash name: "perf_reduction_${gpu_arch}.log"
                             //we will process results on the master node
                         }
                         else{
-                            if (params.USE_9110){
-                                sh "./run_performance_tests.sh 0 CI_9110 ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
-                            }
-                            else{
-                                sh "./run_performance_tests.sh 0 CI_release ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
-                            }
+                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
                             archiveArtifacts "perf_gemm_${gpu_arch}.log"
                             archiveArtifacts "perf_resnet50_N256_${gpu_arch}.log"
                             archiveArtifacts "perf_resnet50_N4_${gpu_arch}.log"
@@ -318,7 +301,7 @@ def runPerfTest(Map conf=[:]){
 def process_results(Map conf=[:]){
     env.HSA_ENABLE_SDMA=0
     checkout scm
-    def image = "composable_kernels"
+    def image = "composable_kernels_${params.COMPILER_VERSION}"
     def prefixpath = "/opt/rocm"
     def gpu_arch = conf.get("gpu_arch", "gfx908")
 
@@ -353,9 +336,9 @@ def process_results(Map conf=[:]){
                         unstash "perf_resnet50_N4_${gpu_arch}.log"
                         unstash "perf_batched_gemm_${gpu_arch}.log"
                         unstash "perf_grouped_gemm_${gpu_arch}.log"
-                        unstash "perf_fwd_conv_${gpu_arch}.log"
-                        unstash "perf_bwd_conv_${gpu_arch}.log"
-                        unstash "perf_fusion_${gpu_arch}.log"
+                        unstash "perf_conv_fwd_${gpu_arch}.log"
+                        unstash "perf_conv_bwd${gpu_arch}.log"
+                        unstash "perf_gemm_bilinear_${gpu_arch}.log"
                         unstash "perf_reduction_${gpu_arch}.log"
                         sh "./process_qa_data.sh ${gpu_arch}"
                     }
@@ -378,7 +361,7 @@ def process_results(Map conf=[:]){
 }
 
 //launch develop branch daily at 23:00 in FULL_QA mode
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;USE_9110=true''' : ""
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true''' : ""
 
 pipeline {
     agent none
@@ -389,10 +372,10 @@ pipeline {
         parallelsAlwaysFailFast()
     }
     parameters {
-        booleanParam(
-            name: "USE_9110",
-            defaultValue: true,
-            description: "Select compiler version: 9110 (default) or release")
+        string(
+            name: 'COMPILER_VERSION', 
+            defaultValue: 'ck-9110', 
+            description: 'Specify which version of compiler to use: ck-9110 (default), release, or amd-mainline-open.')
         booleanParam(
             name: "RUN_FULL_QA",
             defaultValue: false,
@@ -406,6 +389,8 @@ pipeline {
         dbsshuser = "${dbsshuser}"
         dbsshpassword = "${dbsshpassword}"
         status_wrapper_creds = "${status_wrapper_creds}"
+        gerrit_cred="${gerrit_cred}"
+        DOCKER_BUILDKIT = "1"
     }
     stages{
         stage("Static checks") {
