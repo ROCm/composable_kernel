@@ -52,14 +52,13 @@ struct DynamicBuffer
     __host__ __device__ constexpr T& operator()(index_t i) { return p_data_[i]; }
 
     template <typename X,
-              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
+              typename enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type,
+                                           typename scalar_type<remove_cvref_t<T>>::type>,
                                  bool>::type = false>
     __host__ __device__ constexpr auto Get(index_t i, bool is_valid_element) const
     {
         // X contains multiple T
         constexpr index_t scalar_per_t_vector = scalar_type<remove_cvref_t<T>>::vector_size;
-
         constexpr index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size;
 
         static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
@@ -115,6 +114,73 @@ struct DynamicBuffer
         }
     }
 
+#if CK_WORKAROUND_INT4_DYNAMIC_BUFFER_GMEM
+    template <
+        typename X,
+        typename enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type, int8_t> &&
+                               is_same_v<typename scalar_type<remove_cvref_t<T>>::type, int4_t>,
+                           bool>::type = false>
+    __host__ __device__ constexpr auto Get(index_t i, bool is_valid_element) const
+    {
+        // X contains multiple T
+        constexpr index_t scalar_per_t_vector = scalar_type<remove_cvref_t<T>>::vector_size;
+
+        constexpr index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size * 2;
+
+        static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
+                      "wrong! X should contain multiple T");
+
+#if CK_USE_AMD_BUFFER_LOAD
+        bool constexpr use_amd_buffer_addressing = true;
+#else
+        bool constexpr use_amd_buffer_addressing = false;
+#endif
+
+        if constexpr(GetAddressSpace() == AddressSpaceEnum::Global && use_amd_buffer_addressing)
+        {
+            constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+
+            if constexpr(InvalidElementUseNumericalZeroValue)
+            {
+                return amd_buffer_load_invalid_element_return_zero<remove_cvref_t<T>, t_per_x>(
+                    p_data_, i, is_valid_element, element_space_size_);
+            }
+            else
+            {
+                return amd_buffer_load_invalid_element_return_customized_value<remove_cvref_t<T>,
+                                                                               t_per_x>(
+                    p_data_, i, is_valid_element, element_space_size_, invalid_element_value_);
+            }
+        }
+        else
+        {
+            if(is_valid_element)
+            {
+#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
+                X tmp;
+
+                __builtin_memcpy(&tmp, &(p_data_[i]), sizeof(X));
+
+                return tmp;
+#else
+                return *c_style_pointer_cast<const X*>(&p_data_[i]);
+#endif
+            }
+            else
+            {
+                if constexpr(InvalidElementUseNumericalZeroValue)
+                {
+                    return X{0};
+                }
+                else
+                {
+                    return X{invalid_element_value_};
+                }
+            }
+        }
+    }
+#endif // CK_WORKAROUND_INT4_DYNAMIC_BUFFER_GMEM
+
     template <InMemoryDataOperationEnum Op,
               typename X,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
@@ -142,6 +208,31 @@ struct DynamicBuffer
             // this->template Set<X>(i, is_valid_element, tmp);
         }
     }
+
+#if CK_WORKAROUND_INT4_DYNAMIC_BUFFER_GMEM
+    template <
+        InMemoryDataOperationEnum Op,
+        typename X,
+        typename enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type, int8_t> &&
+                               is_same_v<typename scalar_type<remove_cvref_t<T>>::type, int4_t>,
+                           bool>::type = false>
+    __host__ __device__ void Update(index_t i, bool is_valid_element, const X& x)
+    {
+        static_assert(Op == InMemoryDataOperationEnum::Set || Op == InMemoryDataOperationEnum::Add,
+                      "Update specialization for int4 and int8 data type supports only Set and Add"
+                      " memory operations!");
+
+        if constexpr(Op == InMemoryDataOperationEnum::Set)
+        {
+            this->template Set<X>(i, is_valid_element, x);
+        }
+        else if constexpr(Op == InMemoryDataOperationEnum::Add)
+        {
+            auto tmp = this->template Get<X>(i, is_valid_element);
+            this->template Set<X>(i, is_valid_element, x + tmp);
+        }
+    }
+#endif
 
     template <typename X,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
@@ -285,6 +376,152 @@ struct DynamicBuffer
             }
         }
     }
+
+#if CK_WORKAROUND_INT4_DYNAMIC_BUFFER_GMEM
+    template <
+        typename X,
+        typename enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type, int8_t> &&
+                               is_same_v<typename scalar_type<remove_cvref_t<T>>::type, int4_t>,
+                           bool>::type = false>
+    __host__ __device__ void Set(index_t i, bool is_valid_element, const X& x)
+    {
+        // X contains multiple T
+        constexpr index_t scalar_per_t_vector = scalar_type<remove_cvref_t<T>>::vector_size;
+
+        constexpr index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size * 2;
+
+        static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
+                      "wrong! X should contain multiple T");
+
+#if CK_USE_AMD_BUFFER_STORE
+        bool constexpr use_amd_buffer_addressing = true;
+#else
+        bool constexpr use_amd_buffer_addressing      = false;
+#endif
+
+#if CK_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE
+        bool constexpr workaround_int8_ds_write_issue = true;
+#else
+        bool constexpr workaround_int8_ds_write_issue = false;
+#endif
+
+        if constexpr(GetAddressSpace() == AddressSpaceEnum::Global && use_amd_buffer_addressing)
+        {
+            constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+
+            amd_buffer_store<remove_cvref_t<T>, t_per_x>(
+                x, p_data_, i, is_valid_element, element_space_size_);
+        }
+        else if constexpr(GetAddressSpace() == AddressSpaceEnum::Lds &&
+                          is_same<typename scalar_type<remove_cvref_t<T>>::type, int4_t>::value &&
+                          workaround_int8_ds_write_issue)
+        {
+            if(is_valid_element)
+            {
+                // HACK: compiler would lower IR "store<i8, 16> address_space(3)" into inefficient
+                // ISA, so I try to let compiler emit IR "store<i32, 4>" which would be lower to
+                // ds_write_b128
+                // TODO: remove this after compiler fix
+                static_assert((is_same<remove_cvref_t<T>, int4_t>::value &&
+                               is_same<remove_cvref_t<X>, int4_t>::value) ||
+                                  (is_same<remove_cvref_t<T>, int4_t>::value &&
+                                   is_same<remove_cvref_t<X>, int4x2_t>::value) ||
+                                  (is_same<remove_cvref_t<T>, int4_t>::value &&
+                                   is_same<remove_cvref_t<X>, int4x4_t>::value) ||
+                                  (is_same<remove_cvref_t<T>, int4_t>::value &&
+                                   is_same<remove_cvref_t<X>, int4x8_t>::value) ||
+                                  (is_same<remove_cvref_t<T>, int4_t>::value &&
+                                   is_same<remove_cvref_t<X>, int4x16_t>::value) ||
+                                  (is_same<remove_cvref_t<T>, int4x8_t>::value &&
+                                   is_same<remove_cvref_t<X>, int4x8_t>::value) ||
+                                  (is_same<remove_cvref_t<T>, int4x16_t>::value &&
+                                   is_same<remove_cvref_t<X>, int4x16_t>::value) ||
+                                  (is_same<remove_cvref_t<T>, int4x32_t>::value &&
+                                   is_same<remove_cvref_t<X>, int4x32_t>::value),
+                              "wrong! not implemented for this combination, please add "
+                              "implementation");
+
+                if constexpr(is_same<remove_cvref_t<T>, int4_t>::value &&
+                             is_same<remove_cvref_t<X>, int4_t>::value)
+                {
+                    // HACK: cast pointer of x is bad
+                    // TODO: remove this after compiler fix
+                    *c_style_pointer_cast<int4_t*>(&p_data_[i]) =
+                        *c_style_pointer_cast<const int4_t*>(&x);
+                }
+                else if constexpr(is_same<remove_cvref_t<T>, int4_t>::value &&
+                                  is_same<remove_cvref_t<X>, int4x2_t>::value)
+                {
+                    // HACK: cast pointer of x is bad
+                    // TODO: remove this after compiler fix
+                    *c_style_pointer_cast<int8_t*>(&p_data_[i]) =
+                        *c_style_pointer_cast<const int8_t*>(&x);
+                }
+                else if constexpr(is_same<remove_cvref_t<T>, int4_t>::value &&
+                                  is_same<remove_cvref_t<X>, int4x4_t>::value)
+                {
+                    // HACK: cast pointer of x is bad
+                    // TODO: remove this after compiler fix
+                    *c_style_pointer_cast<int16_t*>(&p_data_[i]) =
+                        *c_style_pointer_cast<const int16_t*>(&x);
+                }
+                else if constexpr(is_same<remove_cvref_t<T>, int4_t>::value &&
+                                  is_same<remove_cvref_t<X>, int4x8_t>::value)
+                {
+                    // HACK: cast pointer of x is bad
+                    // TODO: remove this after compiler fix
+                    *c_style_pointer_cast<int32_t*>(&p_data_[i]) =
+                        *c_style_pointer_cast<const int32_t*>(&x);
+                }
+                else if constexpr(is_same<remove_cvref_t<T>, int4_t>::value &&
+                                  is_same<remove_cvref_t<X>, int4x16_t>::value)
+                {
+                    // HACK: cast pointer of x is bad
+                    // TODO: remove this after compiler fix
+                    *c_style_pointer_cast<int32x2_t*>(&p_data_[i]) =
+                        *c_style_pointer_cast<const int32x2_t*>(&x);
+                }
+                else if constexpr(is_same<remove_cvref_t<T>, int4x8_t>::value &&
+                                  is_same<remove_cvref_t<X>, int4x8_t>::value)
+                {
+                    // HACK: cast pointer of x is bad
+                    // TODO: remove this after compiler fix
+                    *c_style_pointer_cast<int32_t*>(&p_data_[i]) =
+                        *c_style_pointer_cast<const int32_t*>(&x);
+                }
+                else if constexpr(is_same<remove_cvref_t<T>, int4x16_t>::value &&
+                                  is_same<remove_cvref_t<X>, int4x16_t>::value)
+                {
+                    // HACK: cast pointer of x is bad
+                    // TODO: remove this after compiler fix
+                    *c_style_pointer_cast<int32x2_t*>(&p_data_[i]) =
+                        *c_style_pointer_cast<const int32x2_t*>(&x);
+                }
+                else if constexpr(is_same<remove_cvref_t<T>, int4x32_t>::value &&
+                                  is_same<remove_cvref_t<X>, int4x32_t>::value)
+                {
+                    // HACK: cast pointer of x is bad
+                    // TODO: remove this after compiler fix
+                    *c_style_pointer_cast<int32x4_t*>(&p_data_[i]) =
+                        *c_style_pointer_cast<const int32x4_t*>(&x);
+                }
+            }
+        }
+        else
+        {
+            if(is_valid_element)
+            {
+#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
+                X tmp = x;
+
+                __builtin_memcpy(&(p_data_[i]), &tmp, sizeof(X));
+#else
+                *c_style_pointer_cast<X*>(&p_data_[i]) = x;
+#endif
+            }
+        }
+    }
+#endif // CK_WORKAROUND_INT4_DYNAMIC_BUFFER_GMEM
 
     template <typename X,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,

@@ -96,7 +96,9 @@ struct StaticBufferTupleOfVector
     // i is offset of S, not X. i should be aligned to X
     template <typename X,
               index_t I,
-              typename enable_if<has_same_scalar_type<S, X>::value, bool>::type = false>
+              typename enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type,
+                                           typename scalar_type<remove_cvref_t<S>>::type>,
+                                 bool>::type = false>
     __host__ __device__ constexpr auto GetAsType(Number<I> i) const
     {
         constexpr auto s_per_x = Number<scalar_type<remove_cvref_t<X>>::vector_size>{};
@@ -110,11 +112,34 @@ struct StaticBufferTupleOfVector
         return base::operator[](i_v).template AsType<X>()[i_x];
     }
 
+#if CK_WORKAROUND_INT4_STATIC_BUFFER_AS_TYPE
+    template <
+        typename X,
+        index_t I,
+        typename enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type, int8_t> &&
+                               is_same_v<typename scalar_type<remove_cvref_t<S>>::type, int4_t>,
+                           bool>::type = false>
+    __host__ __device__ constexpr auto GetAsType(Number<I> i) const
+    {
+        constexpr auto s_per_x = Number<scalar_type<remove_cvref_t<X>>::vector_size * 2>{};
+
+        static_assert(s_per_v % s_per_x == 0, "wrong! V must  one or multiple X");
+        static_assert(i % s_per_x == 0, "wrong!");
+
+        constexpr auto i_v = i / s_per_v;
+        constexpr auto i_x = (i % s_per_v) / s_per_x;
+
+        return base::operator[](i_v).template AsType<X>()[i_x];
+    }
+#endif // CK_WORKAROUND_INT4_STATIC_BUFFER_AS_TYPE
+
     // Set X
     // i is offset of S, not X. i should be aligned to X
     template <typename X,
               index_t I,
-              typename enable_if<has_same_scalar_type<S, X>::value, bool>::type = false>
+              typename enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type,
+                                           typename scalar_type<remove_cvref_t<S>>::type>,
+                                 bool>::type = false>
     __host__ __device__ constexpr void SetAsType(Number<I> i, X x)
     {
         constexpr auto s_per_x = Number<scalar_type<remove_cvref_t<X>>::vector_size>{};
@@ -127,6 +152,27 @@ struct StaticBufferTupleOfVector
 
         base::operator()(i_v).template AsType<X>()(i_x) = x;
     }
+
+#if CK_WORKAROUND_INT4_STATIC_BUFFER_AS_TYPE
+    template <
+        typename X,
+        index_t I,
+        typename enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type, int8_t> &&
+                               is_same_v<typename scalar_type<remove_cvref_t<S>>::type, int4_t>,
+                           bool>::type = false>
+    __host__ __device__ constexpr void SetAsType(Number<I> i, X x)
+    {
+        constexpr auto s_per_x = Number<scalar_type<remove_cvref_t<X>>::vector_size * 2>{};
+
+        static_assert(s_per_v % s_per_x == 0, "wrong! V must contain one or multiple X");
+        static_assert(i % s_per_x == 0, "wrong!");
+
+        constexpr auto i_v = i / s_per_v;
+        constexpr auto i_x = (i % s_per_v) / s_per_x;
+
+        base::operator()(i_v).template AsType<X>()(i_x) = x;
+    }
+#endif // CK_WORKAROUND_INT4_STATIC_BUFFER_AS_TYPE
 
     // Get read access to vector_type V
     // i is offset of S, not V. i should be aligned to V

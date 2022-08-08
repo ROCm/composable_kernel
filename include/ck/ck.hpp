@@ -144,6 +144,11 @@
 // workaround: compiler gnerating inefficient ds_write instructions
 #define CK_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE 1
 
+// workaround: for reading/writing from gmem int4 as a int8 vector type
+// currently compiler does not support int4 vector types thus they are represented as int8 vectors.
+#define CK_WORKAROUND_INT4_DYNAMIC_BUFFER_GMEM 1
+#define CK_WORKAROUND_INT4_STATIC_BUFFER_AS_TYPE 1
+
 // workaround: verifaction failure, due to compiler regression, for conv bwd-data fp16 using some
 // tuning parameter
 #define CK_WORKAROUND_SWDEV_325164 0
