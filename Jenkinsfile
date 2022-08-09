@@ -25,7 +25,7 @@ def getDockerImageName(prefixpath){
 
 def getDockerImage(Map conf=[:]){
     env.DOCKER_BUILDKIT=1
-    def prefixpath = conf.get("prefixpath", "/usr/local") // one image for each prefix 1: /usr/local 2:/opt/rocm
+    def prefixpath = conf.get("prefixpath", "/opt/rocm") // prefix:/opt/rocm
     def gpu_arch = conf.get("gpu_arch", "gfx908") // prebuilt dockers should have all the architectures enabled so one image can be used for all stages
     def no_cache = conf.get("no_cache", false)
     def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' "
@@ -66,6 +66,7 @@ def getDockerImage(Map conf=[:]){
 }
 
 def buildDocker(install_prefix){
+    show_node_info()
     env.DOCKER_BUILDKIT=1
     checkout scm
     def image_name = getDockerImageName(install_prefix)
@@ -491,18 +492,10 @@ pipeline {
             when {
                 expression { params.BUILD_DOCKER.toBoolean() }
             }
-            parallel{
-                stage('Docker /opt/rocm'){
-                    agent{ label rocmnode("nogpu") }
-                    steps{
-                        buildDocker('/opt/rocm')
-                    }
-                }
-                stage('Docker /usr/local'){
-                    agent{ label rocmnode("nogpu") }
-                    steps{
-                        buildDocker('/usr/local')
-                    }
+            stage('Docker /opt/rocm'){
+                agent{ label rocmnode("nogpu") }
+                steps{
+                    buildDocker('/opt/rocm')
                 }
             }
         }
