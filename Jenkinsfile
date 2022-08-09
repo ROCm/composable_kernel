@@ -18,6 +18,88 @@ def runShell(String command){
     return (output != "")
 }
 
+def getDockerImageName(prefixpath){
+    def image = "composable_kernels_${params.COMPILER_VERSION}"
+    return image
+}
+
+def getDockerImage(Map conf=[:]){
+    env.DOCKER_BUILDKIT=1
+    def prefixpath = conf.get("prefixpath", "/usr/local") // one image for each prefix 1: /usr/local 2:/opt/rocm
+    def gpu_arch = conf.get("gpu_arch", "gfx908") // prebuilt dockers should have all the architectures enabled so one image can be used for all stages
+    def no_cache = conf.get("no_cache", false)
+    def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' "
+    if(env.CCACHE_HOST)
+    {
+        def check_host = sh(script:"""(printf "PING\r\n";) | nc -N ${env.CCACHE_HOST} 6379 """, returnStdout: true).trim()
+        if(check_host == "+PONG")
+        {
+            echo "FOUND CCACHE SERVER: ${CCACHE_HOST}"
+        }
+        else 
+        {
+            echo "CCACHE SERVER: ${CCACHE_HOST} NOT FOUND, got ${check_host} response"
+        }
+        dockerArgs = dockerArgs + " --build-arg CCACHE_SECONDARY_STORAGE='redis://${env.CCACHE_HOST}' --build-arg COMPILER_LAUNCHER='ccache' "
+        env.CCACHE_DIR = """/tmp/ccache_store"""
+        env.CCACHE_SECONDARY_STORAGE="""redis://${env.CCACHE_HOST}"""
+    }
+    if(no_cache)
+    {
+        dockerArgs = dockerArgs + " --no-cache "
+    }
+    echo "Docker Args: ${dockerArgs}"
+    def image = getDockerImageName(prefixpath)
+    //Check if image exists 
+    def retimage
+    try 
+    {
+        echo "Pulling down image: ${image}"
+        retimage = docker.image("${image}")
+        retimage.pull()
+    }
+    catch(Exception ex)
+    {
+        error "Unable to locate image: ${image}"
+    }
+    return [retimage, image]
+}
+
+def buildDocker(install_prefix){
+    env.DOCKER_BUILDKIT=1
+    checkout scm
+    def image_name = getDockerImageName(install_prefix)
+    echo "Building Docker for ${image_name}"
+    def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${install_prefix} --build-arg compiler_version='${params.COMPILER_VERSION}' "
+    if(env.CCACHE_HOST)
+    {
+        def check_host = sh(script:"""(printf "PING\\r\\n";) | nc  -N ${env.CCACHE_HOST} 6379 """, returnStdout: true).trim()
+        if(check_host == "+PONG")
+        {
+            echo "FOUND CCACHE SERVER: ${CCACHE_HOST}"
+        }
+        else 
+        {
+            echo "CCACHE SERVER: ${CCACHE_HOST} NOT FOUND, got ${check_host} response"
+        }
+        dockerArgs = dockerArgs + " --build-arg CCACHE_SECONDARY_STORAGE='redis://${env.CCACHE_HOST}' --build-arg COMPILER_LAUNCHER='ccache' "
+        env.CCACHE_DIR = """/tmp/ccache_store"""
+        env.CCACHE_SECONDARY_STORAGE="""redis://${env.CCACHE_HOST}"""
+    }
+
+    echo "Build Args: ${dockerArgs}"
+    try{
+        echo "Checking for image: ${image_name}"
+        sh "docker manifest inspect --insecure ${image_name}"
+        echo "Image: ${image_name} found!! Skipping building image"
+    }
+    catch(Exception ex){
+        echo "Unable to locate image: ${image_name}. Building image now"
+        retimage = docker.build("${image_name}", dockerArgs + ' .')
+        retimage.push()
+    }
+}
+
 def cmake_build(Map conf=[:]){
 
     def compiler = conf.get("compiler","/opt/rocm/bin/hipcc")
@@ -100,9 +182,10 @@ def buildHipClangJob(Map conf=[:]){
         // def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
         def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
         if (conf.get("enforce_xnack_on", false)) {
-            dockerOpts = dockerOpts + " --env HSA_XNACK=1"
+            dockerOpts = dockerOpts + " --env HSA_XNACK=1 --env GPU_ARCH='${gpu_arch}' "
         }
-        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='${params.COMPILER_VERSION}' "
+        //def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='${params.COMPILER_VERSION}' "
+        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' "
         if (params.COMPILER_VERSION != "release"){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
@@ -113,7 +196,8 @@ def buildHipClangJob(Map conf=[:]){
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
             try {
-                retimage = docker.build("${image}", dockerArgs + '.')
+                //retimage = docker.build("${image}", dockerArgs + '.')
+                (retimage, image) = getDockerImage(conf)
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
@@ -190,9 +274,9 @@ def runCKProfiler(Map conf=[:]){
         // def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
         def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
         if (conf.get("enforce_xnack_on", false)) {
-            dockerOpts = dockerOpts + " --env HSA_XNACK=1"
+            dockerOpts = dockerOpts + " --env HSA_XNACK=1 --env GPU_ARCH='${gpu_arch}' "
         }
-        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='${params.COMPILER_VERSION}' "
+        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' "
         if (params.COMPILER_VERSION != "release"){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
@@ -202,7 +286,8 @@ def runCKProfiler(Map conf=[:]){
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
             try {
-                retimage = docker.build("${image}", dockerArgs + '.')
+                //retimage = docker.build("${image}", dockerArgs + '.')
+                (retimage, image) = getDockerImage(conf)
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
                         sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
@@ -308,16 +393,17 @@ def process_results(Map conf=[:]){
     // Jenkins is complaining about the render group 
     def dockerOpts="--cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
     if (conf.get("enforce_xnack_on", false)) {
-        dockerOpts = dockerOpts + " --env HSA_XNACK=1"
+        dockerOpts = dockerOpts + " --env HSA_XNACK=1 --env GPU_ARCH='${gpu_arch}' "
     }
-    def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='release' "
+    def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='release' "
 
     def variant = env.STAGE_NAME
     def retimage
 
     gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
         try {
-            retimage = docker.build("${image}", dockerArgs + '.')
+            //retimage = docker.build("${image}", dockerArgs + '.')
+            (retimage, image) = getDockerImage(conf)
         }
         catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
             echo "The job was cancelled or aborted"
@@ -372,14 +458,22 @@ pipeline {
         parallelsAlwaysFailFast()
     }
     parameters {
+        booleanParam(
+            name: "BUILD_DOCKER",
+            defaultValue: true,
+            description: "Force building docker image (default: true)")
         string(
             name: 'COMPILER_VERSION', 
             defaultValue: 'ck-9110', 
-            description: 'Specify which version of compiler to use: ck-9110 (default), release, or amd-mainline-open.')
+            description: 'Specify which version of compiler to use: ck-9110 (default), release, or amd-stg-open.')
         booleanParam(
             name: "RUN_FULL_QA",
             defaultValue: false,
             description: "Select whether to run small set of performance tests (default) or full QA")
+        booleanParam(
+            name: "TEST_NODE_PERFORMANCE",
+            defaultValue: false,
+            description: "Test the node GPU performance (default: false)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -393,7 +487,30 @@ pipeline {
         DOCKER_BUILDKIT = "1"
     }
     stages{
+        stage("Build Docker"){
+            when {
+                expression { params.BUILD_DOCKER.toBoolean() }
+            }
+            parallel{
+                stage('Docker /opt/rocm'){
+                    agent{ label rocmnode("nogpu") }
+                    steps{
+                        buildDocker('/opt/rocm')
+                    }
+                }
+                stage('Docker /usr/local'){
+                    agent{ label rocmnode("nogpu") }
+                    steps{
+                        buildDocker('/usr/local')
+                    }
+                }
+            }
+        }
         stage("Static checks") {
+            when {
+                beforeAgent true
+                expression { !params.TEST_NODE_PERFORMANCE.toBoolean() }
+            }
             parallel{
                 // enable after we move from hipcc to hip-clang
                 // stage('Tidy') {
@@ -427,6 +544,10 @@ pipeline {
         }
 		stage("Tests")
         {
+            when {
+                beforeAgent true
+                expression { !params.TEST_NODE_PERFORMANCE.toBoolean() }
+            }
             parallel
             {
                 stage("Run Tests: gfx908")
@@ -457,6 +578,10 @@ pipeline {
         }
         stage("Client App")
         {
+            when {
+                beforeAgent true
+                expression { !params.TEST_NODE_PERFORMANCE.toBoolean() }
+            }
             parallel
             {
                 stage("Run Client App")
@@ -480,7 +605,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { !params.RUN_FULL_QA.toBoolean() }
+                        expression { !params.RUN_FULL_QA.toBoolean() && !params.TEST_NODE_PERFORMANCE.toBoolean() }
                     }
                     agent{ label rocmnode("gfx908")}
                     environment{
@@ -494,7 +619,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_FULL_QA.toBoolean() }
+                        expression { params.RUN_FULL_QA.toBoolean() || params.TEST_NODE_PERFORMANCE.toBoolean() }
                     }
                     agent{ label rocmnode("gfx90a")}
                     environment{
@@ -513,7 +638,7 @@ pipeline {
                 stage("Process results for gfx908"){
                     when {
                         beforeAgent true
-                        expression { !params.RUN_FULL_QA.toBoolean() }
+                        expression { !params.RUN_FULL_QA.toBoolean() && !params.TEST_NODE_PERFORMANCE.toBoolean() }
                     }
                     agent { label 'mici' }
                     steps{
@@ -523,7 +648,7 @@ pipeline {
                 stage("Process results for gfx90a"){
                     when {
                         beforeAgent true
-                        expression { params.RUN_FULL_QA.toBoolean() }
+                        expression { params.RUN_FULL_QA.toBoolean() || params.TEST_NODE_PERFORMANCE.toBoolean() }
                     }
                     agent { label 'mici' }
                     steps{
