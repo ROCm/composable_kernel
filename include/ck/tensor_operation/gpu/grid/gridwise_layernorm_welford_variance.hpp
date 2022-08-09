@@ -86,7 +86,7 @@ struct GridwiseLayernormWelfordVariance_mk_to_mk
         {
             int thread_max_len = (thread_k_cluster_id + 1) * KThreadSliceSize;
             int delta          = thread_max_len - kPerBlockTail;
-            delta              = math::clip(thread_max_len - kPerBlockTail, 0, KThreadSliceSize);
+            delta              = math::clamp(thread_max_len - kPerBlockTail, 0, KThreadSliceSize);
             kPerThread += KThreadSliceSize - delta;
         }
 

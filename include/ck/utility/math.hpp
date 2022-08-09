@@ -145,7 +145,7 @@ __host__ __device__ constexpr auto min(X x, Ys... ys)
 }
 
 template <typename T>
-__host__ __device__ constexpr T clip(T x, T lowerbound, T upperbound)
+__host__ __device__ constexpr T clamp(const T& x, const T& lowerbound, const T& upperbound)
 {
     return min(max(x, lowerbound), upperbound);
 }
