@@ -10,7 +10,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_batched_gemm_gemm.hpp"
+#include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_softmax_gemm_xdl_cshuffle_v1.hpp"
 #include "ck/host_utility/device_prop.hpp"
@@ -169,19 +169,19 @@ template <typename ALayout,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched = LoopScheduler::Default>
 struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
-    : public DeviceBatchedGemmGemm<ALayout,
-                                   BLayout,
-                                   B1Layout,
-                                   CLayout,
-                                   ADataType,
-                                   BDataType,
-                                   B1DataType,
-                                   CDataType,
-                                   AElementwiseOperation,
-                                   BElementwiseOperation,
-                                   AccElementwiseOperation,
-                                   B1ElementwiseOperation,
-                                   CElementwiseOperation>
+    : public DeviceBatchedGemmSoftmaxGemm<ALayout,
+                                          BLayout,
+                                          B1Layout,
+                                          CLayout,
+                                          ADataType,
+                                          BDataType,
+                                          B1DataType,
+                                          CDataType,
+                                          AElementwiseOperation,
+                                          BElementwiseOperation,
+                                          AccElementwiseOperation,
+                                          B1ElementwiseOperation,
+                                          CElementwiseOperation>
 {
     using DeviceOp = DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle;
 
