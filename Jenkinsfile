@@ -492,10 +492,12 @@ pipeline {
             when {
                 expression { params.BUILD_DOCKER.toBoolean() }
             }
-            stage('Docker /opt/rocm'){
-                agent{ label rocmnode("nogpu") }
-                steps{
-                    buildDocker('/opt/rocm')
+            parallel{
+                stage('Docker /opt/rocm'){
+                    agent{ label rocmnode("nogpu") }
+                    steps{
+                        buildDocker('/opt/rocm')
+                    }
                 }
             }
         }
