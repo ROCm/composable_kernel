@@ -150,8 +150,9 @@ check_err(const std::vector<T>& out,
 }
 
 template <typename T>
-typename std::enable_if_t<(std::is_integral<T>::value && !std::is_same_v<T, bhalf_t>) || 
-                           std::is_same_v<T, int4_t>, bool>
+typename std::enable_if_t<(std::is_integral<T>::value && !std::is_same_v<T, bhalf_t>) ||
+                              std::is_same_v<T, int4_t>,
+                          bool>
 check_err(const std::vector<T>& out,
           const std::vector<T>& ref,
           const std::string& msg = "Error: Incorrect results!",

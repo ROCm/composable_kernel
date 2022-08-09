@@ -170,6 +170,6 @@ int main(int argc, char* argv[])
                                                ReduceOp0,
                                                ReduceOp1,
                                                DeviceGemmReduceInstance,
-                                               ReferenceGemmInstance>
-            (M, N, K, StrideA, StrideB, StrideC, do_verification, init_method, time_kernel);
+                                               ReferenceGemmInstance>(
+        M, N, K, StrideA, StrideB, StrideC, do_verification, init_method, time_kernel);
 }
