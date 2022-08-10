@@ -1420,20 +1420,6 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float 
     return uint16_t(u.int32 >> 16);
 }
 
-#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-template <>
-inline __host__ __device__ constexpr int8_t type_convert<int8_t, int4_t>(int4_t x)
-{
-    return int8_t(x);
-}
-
-template <>
-inline __host__ __device__ constexpr int4_t type_convert<int4_t, int8_t>(int8_t x)
-{
-    return int4_t(x & 0x7);
-}
-#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-
 template <typename T>
 struct NumericLimits
 {
@@ -1466,4 +1452,15 @@ struct NumericLimits<half_t>
     __host__ __device__ static constexpr half_t QuietNaN() { return bit_cast<half_t>(binary_qnan); }
 };
 
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+template <>
+struct NumericLimits<int4_t>
+{
+    __host__ __device__ static constexpr int4_t Min() { return int4_t(-7); }
+
+    __host__ __device__ static constexpr int4_t Max() { return int4_t(7); }
+
+    __host__ __device__ static constexpr int4_t Lowest() { return int4_t(-7); }
+};
+#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 } // namespace ck
