@@ -24,8 +24,6 @@ struct ThreadwiseWelford
     static_assert(thread_x_length_m == thread_mean_var_length_m,
                   "lengths of source and mean/var buffer must match!");
 
-    static_assert(thread_x_length_k > 0, "lengths of k must greater than 0!");
-
     __device__ constexpr ThreadwiseWelford() : cur_count_(0), max_count_(0) {}
 
     __device__ inline void Update(T& mean, T& var, T x)

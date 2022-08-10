@@ -49,7 +49,7 @@ struct BlockwiseWelford
     {
         __shared__ T mean_block_buf[BlockSize];
         __shared__ T var_block_buf[BlockSize];
-        __shared__ T count_block_buf[BlockSize];
+        __shared__ int count_block_buf[BlockSize];
 
         constexpr auto cluster_len_shift = get_shift<BufferLength_K>();
 
