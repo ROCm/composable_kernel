@@ -1260,10 +1260,6 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic
         static_assert(DstScalarPerVector == SpaceFillingCurve::ScalarPerVector,
                       "wrong!DstScalarPerVector != SpaceFillingCurve::ScalarPerVector");
 
-        typename vector_type_maker<DstData, DstScalarPerVector>::type dst_vector;
-
-        using dst_vector_t = typename vector_type_maker<DstData, DstScalarPerVector>::type::type;
-
         constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
 
         static_for<0, num_access, 1>{}([&](auto idx_1d) {
