@@ -204,9 +204,8 @@ auto run_gemm_reduce_max_xdl(ck::index_t M,
             reduce_m_host_result(m) = reduce_acc;
         }
 
-        pass = ck::utils::check_err(c_m_n_device_result.mData,
-                                    c_m_n_host_result.mData,
-                                    "Error: Incorrect results c");
+        pass = ck::utils::check_err(
+            c_m_n_device_result.mData, c_m_n_host_result.mData, "Error: Incorrect results c");
         pass = pass && ck::utils::check_err(reduce_m_device_result.mData,
                                             reduce_m_host_result.mData,
                                             "Error: Incorrect results d",
@@ -400,19 +399,18 @@ int run_gemm_reduce_mean_squaremean_xdl(ck::index_t M,
             reduce1_m_host_result(m) = ck::type_convert<ReduceDataType>(reduce1_acc);
         }
 
-        pass = ck::utils::check_err(c_m_n_device_result.mData,
-                                    c_m_n_host_result.mData,
-                                    "Error: Incorrect results c");
+        pass = ck::utils::check_err(
+            c_m_n_device_result.mData, c_m_n_host_result.mData, "Error: Incorrect results c");
         pass = pass && ck::utils::check_err(reduce0_m_device_result.mData,
-                                    reduce0_m_host_result.mData,
-                                    "Error: Incorrect results d0",
-                                    1e-4,
-                                    1e-5);
+                                            reduce0_m_host_result.mData,
+                                            "Error: Incorrect results d0",
+                                            1e-4,
+                                            1e-5);
         pass = pass && ck::utils::check_err(reduce1_m_device_result.mData,
-                                    reduce1_m_host_result.mData,
-                                    "Error: Incorrect results d1",
-                                    1e-3,
-                                    1e-5);
+                                            reduce1_m_host_result.mData,
+                                            "Error: Incorrect results d1",
+                                            1e-3,
+                                            1e-5);
     }
 
     if(time_kernel)
