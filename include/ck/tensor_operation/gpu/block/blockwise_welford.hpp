@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/tensor_description/cluster_descriptor.hpp"
+#include "ck/utility/reduction_common.hpp"
 
 namespace ck {
 

@@ -9,7 +9,6 @@
 #include "ck/utility/reduction_operator.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce.hpp"
-#include "ck/tensor_operation/gpu/device/device_reduce_multiblock.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce_common.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_layernorm_welford_variance.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_set_buffer_value.hpp"
@@ -87,27 +86,74 @@ struct DeviceLayernorm : public BaseOperator
 
     using PassThrough = tensor_operation::element_wise::PassThrough;
 
-    // Used for freeloading of some handy functions from DeviceReduceMultiBlock
-    using Reduction = DeviceReduceMultiBlock<XDataType,
-                                             AccDataType,
-                                             YDataType,
-                                             Rank,
-                                             NumReduceDim,
-                                             reduce::Add,
-                                             PassThrough,             // InElementwiseOperation
-                                             AccElementwiseOperation, // AccElementwiseOperation
-                                             InMemoryDataOperationEnum::Set,
-                                             false, // PropagateNan
-                                             false, // OutputIndex
-                                             false, // HaveIndexInputIfOutputIndex
-                                             BlockSize,
-                                             MThreadClusterSize,
-                                             KThreadClusterSize,
-                                             MThreadSliceSize,
-                                             KThreadSliceSize,
-                                             XYSrcVectorDim,
-                                             XSrcVectorSize,
-                                             1>; // YDstVectorSize
+    static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
+    static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
+
+    static auto MakeSrc2dDescriptor(const std::vector<index_t>& inLengths,
+                                    const std::vector<index_t>& inStrides,
+                                    int blkGroupSize,
+                                    int numBlockTileIteration)
+    {
+        constexpr index_t NumInvariantDim  = Rank - NumReduceDim;
+        static constexpr index_t numSrcDim = Rank;
+        static constexpr bool reduceAllDim = (NumInvariantDim == 0);
+
+        const auto tupleSrcLengths = make_tuple_from_array(inLengths, Number<numSrcDim>{});
+        const auto tupleSrcStrides = make_tuple_from_array(inStrides, Number<numSrcDim>{});
+
+        const auto inDesc = make_naive_tensor_descriptor(tupleSrcLengths, tupleSrcStrides);
+
+        const auto in_grid_desc_m_k = [&]() {
+            if constexpr(reduceAllDim)
+            {
+                const auto one_dim_inDesc = transform_tensor_descriptor(
+                    inDesc,
+                    make_tuple(make_merge_transform(tupleSrcLengths)),
+                    make_tuple(typename arithmetic_sequence_gen<0, numSrcDim, 1>::type{}),
+                    make_tuple(Sequence<0>{}));
+
+                return transform_tensor_descriptor(one_dim_inDesc,
+                                                   make_tuple(make_unmerge_transform(make_tuple(
+                                                       1, one_dim_inDesc.GetLength(Number<0>{})))),
+                                                   make_tuple(Sequence<0>{}),
+                                                   make_tuple(Sequence<0, 1>{}));
+            }
+            else
+            {
+                using InvariantDims = typename arithmetic_sequence_gen<0, NumInvariantDim, 1>::type;
+                using ReduceDims = typename arithmetic_sequence_gen<NumInvariantDim, Rank, 1>::type;
+
+                const auto reduceDimLengths =
+                    make_tuple_from_array_and_index_seq(inLengths, ReduceDims{});
+                const auto invariantDimLengths =
+                    make_tuple_from_array_and_index_seq(inLengths, InvariantDims{});
+
+                return transform_tensor_descriptor(
+                    inDesc,
+                    make_tuple(make_merge_transform(invariantDimLengths),
+                               make_merge_transform(reduceDimLengths)),
+                    make_tuple(InvariantDims{}, ReduceDims{}),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}));
+            }
+        }();
+
+        const auto invariantLength = in_grid_desc_m_k.GetLength(Number<0>{});
+        const auto reduceLength    = in_grid_desc_m_k.GetLength(Number<1>{});
+
+        const int reduceSizePerBlock = K_BlockTileSize * numBlockTileIteration;
+        const auto inPad_M =
+            math::integer_least_multiple(invariantLength, M_BlockTileSize) - invariantLength;
+        const auto inPad_K = reduceSizePerBlock * blkGroupSize - reduceLength;
+
+        auto in_grid_desc_m_k_padded = transform_tensor_descriptor(
+            in_grid_desc_m_k,
+            make_tuple(make_right_pad_transform(invariantLength, inPad_M),
+                       make_right_pad_transform(reduceLength, inPad_K)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+        return (in_grid_desc_m_k_padded);
+    };
 
     static auto MakeAffine1dDescriptor(const std::vector<index_t>& Lengths,
                                        const std::vector<index_t>& Strides,
@@ -126,7 +172,7 @@ struct DeviceLayernorm : public BaseOperator
             make_tuple(Sequence<0>{}));
 
         const auto reduceTotalLength = grid_desc_k.GetLength(Number<0>{});
-        const int reduceSizePerBlock = Reduction::K_BlockTileSize * numBlockTileIteration;
+        const int reduceSizePerBlock = K_BlockTileSize * numBlockTileIteration;
 
         const auto Pad_K = reduceSizePerBlock * blkGroupSize - reduceTotalLength;
 
@@ -139,7 +185,7 @@ struct DeviceLayernorm : public BaseOperator
         return (grid_desc_k_padded);
     };
 
-    using GridDesc_M_K = decltype(Reduction::MakeSrc2dDescriptor({1}, {1}, 1, 1));
+    using GridDesc_M_K = decltype(MakeSrc2dDescriptor({1}, {1}, 1, 1));
     using GridDesc_K   = decltype(MakeAffine1dDescriptor({1}, {1}, 1, 1));
 
     using GridwiseReduceLayernormGeneric =
@@ -186,7 +232,7 @@ struct DeviceLayernorm : public BaseOperator
                                                   YDstVectorSize,
                                                   true>;
 
-    struct Argument : public Reduction::Argument
+    struct Argument : public BaseArgument
     {
         Argument(const std::vector<index_t> lengths,
                  const std::vector<index_t> xStrides,
@@ -199,53 +245,74 @@ struct DeviceLayernorm : public BaseOperator
                  const GammaDataType* p_gamma,
                  const BetaDataType* p_beta,
                  YDataType* p_y)
-            : Reduction::Argument(lengths,
-                                  xStrides,
-                                  {},
-                                  {},
-                                  reduceDims,
-                                  0.0f, // alpha
-                                  0.0f, // beta
-                                  p_x,
-                                  nullptr,
-                                  p_y,
-                                  nullptr,
-                                  acc_elementwise_op,
-                                  PassThrough{}),
-              epsilon_(epsilon),
+            : epsilon_(epsilon),
+              p_x_(p_x),
               p_gamma_(p_gamma),
               p_beta_(p_beta),
+              p_y_(p_y),
               gammaStrides_(gammaStrides),
-              betaStrides_(betaStrides)
+              betaStrides_(betaStrides),
+              acc_elementwise_op_(acc_elementwise_op)
         {
-            reduceLength_.resize(NumReduceDim);
+            Lengths_  = shuffle_tensor_dimensions<Rank, NumReduceDim>(lengths, reduceDims);
+            xStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(xStrides, reduceDims);
+
+            long_index_t invariant_total_length;
+            long_index_t reduce_total_length;
+
+            std::tie(invariant_total_length, reduce_total_length) =
+                get_2d_lengths<Rank, NumReduceDim>(Lengths_);
+
+            blkGroupSize_          = 1;
+            numBlockTileIteration_ = (reduce_total_length + K_BlockTileSize - 1) / K_BlockTileSize;
+
+            gridSize_ = math::integer_least_multiple(invariant_total_length, M_BlockTileSize) /
+                        M_BlockTileSize * blkGroupSize_;
+
+            reduceLengths_.resize(NumReduceDim);
 
             for(int i = 0; i < NumReduceDim; ++i)
             {
-                reduceLength_[i] = lengths[reduceDims[i]];
+                reduceLengths_[i] = lengths[reduceDims[i]];
             }
         }
 
         AccDataType epsilon_;
+
+        const XDataType* p_x_;
         const GammaDataType* p_gamma_;
         const BetaDataType* p_beta_;
-        std::vector<index_t> reduceLength_;
+        YDataType* p_y_;
+
+        std::vector<index_t> Lengths_;
+        std::vector<index_t> xStrides_;
+        std::vector<index_t> reduceLengths_;
         std::vector<index_t> gammaStrides_;
         std::vector<index_t> betaStrides_;
+
+        AccElementwiseOperation acc_elementwise_op_;
+
+        int blkGroupSize_;
+        int numBlockTileIteration_;
+        size_t gridSize_;
     };
 
     struct Invoker : public BaseInvoker
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            const auto x_grid_desc_m_k = Reduction::MakeSrc2dDescriptor(
-                arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
-            const auto gamma_grid_desc_k = MakeAffine1dDescriptor(
-                arg.reduceLength_, arg.gammaStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
-            const auto beta_grid_desc_k = MakeAffine1dDescriptor(
-                arg.reduceLength_, arg.betaStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
-            const auto y_grid_desc_m_k = Reduction::MakeSrc2dDescriptor(
-                arg.inLengths_, arg.inStrides_, arg.blkGroupSize, arg.numBlockTileIteration);
+            const auto x_grid_desc_m_k = MakeSrc2dDescriptor(
+                arg.Lengths_, arg.xStrides_, arg.blkGroupSize_, arg.numBlockTileIteration_);
+            const auto gamma_grid_desc_k = MakeAffine1dDescriptor(arg.reduceLengths_,
+                                                                  arg.gammaStrides_,
+                                                                  arg.blkGroupSize_,
+                                                                  arg.numBlockTileIteration_);
+            const auto beta_grid_desc_k  = MakeAffine1dDescriptor(arg.reduceLengths_,
+                                                                 arg.betaStrides_,
+                                                                 arg.blkGroupSize_,
+                                                                 arg.numBlockTileIteration_);
+            const auto y_grid_desc_m_k   = MakeSrc2dDescriptor(
+                arg.Lengths_, arg.xStrides_, arg.blkGroupSize_, arg.numBlockTileIteration_);
 
             bool sweep_once =
                 x_grid_desc_m_k.GetLength(Number<1>{}) <= KThreadClusterSize * KThreadSliceSize;
@@ -272,19 +339,19 @@ struct DeviceLayernorm : public BaseOperator
             float avg_time = 0;
             avg_time += launch_and_time_kernel(stream_config,
                                                kernel_main,
-                                               dim3(arg.gridSize),
+                                               dim3(arg.gridSize_),
                                                dim3(BlockSize),
                                                0,
                                                x_grid_desc_m_k,
                                                gamma_grid_desc_k,
                                                beta_grid_desc_k,
                                                y_grid_desc_m_k,
-                                               arg.numBlockTileIteration,
+                                               arg.numBlockTileIteration_,
                                                arg.epsilon_,
-                                               arg.in_dev_,
+                                               arg.p_x_,
                                                arg.p_gamma_,
                                                arg.p_beta_,
-                                               arg.out_dev_,
+                                               arg.p_y_,
                                                arg.acc_elementwise_op_);
 
             return (avg_time);
@@ -301,12 +368,33 @@ struct DeviceLayernorm : public BaseOperator
     {
         const Argument* p_arg_ = dynamic_cast<const Argument*>(p_arg);
 
-        if(!Reduction::IsSupportedArgument(p_arg_))
-        {
-            return false;
-        }
+        constexpr index_t NumInvariantDim = Rank - NumReduceDim;
 
-        if(p_arg_->inLengths_[Rank - 1] % YDstVectorSize != 0)
+        if constexpr(XYSrcVectorDim == 0)
+        {
+            if constexpr(NumInvariantDim == 0)
+            {
+                return false;
+            }
+            else
+            {
+                if(p_arg_->xStrides_[NumInvariantDim - 1] != 1)
+                    return false;
+
+                if(p_arg_->invariant_lowest_length % XSrcVectorSize != 0)
+                    return false;
+            };
+        }
+        else
+        {
+            if(p_arg_->xStrides_[Rank - 1] != 1)
+                return false;
+
+            if(p_arg_->Lengths_[Rank - 1] % XSrcVectorSize != 0)
+                return false;
+        };
+
+        if(p_arg_->Lengths_[Rank - 1] % YDstVectorSize != 0)
         {
             return false;
         }
