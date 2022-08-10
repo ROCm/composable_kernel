@@ -7,13 +7,6 @@ add_custom_target(examples)
 
 set(EXAMPLES_CMAKE_CXX_FLAGS)
 
-if(USE_BITINT_EXTENSION_INT4)
-    list(APPEND EXAMPLES_CMAKE_CXX_FLAGS
-         -Wno-bit-int-extension
-    )
-endif()
-
-
 function(add_example_executable EXAMPLE_NAME FILE_NAME)
     message("adding example ${EXAMPLE_NAME}")
     add_executable(${EXAMPLE_NAME} ${FILE_NAME})

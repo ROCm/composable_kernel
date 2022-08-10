@@ -10,12 +10,6 @@ add_library(composable_kernel::utility ALIAS utility)
 
 set(UTILITY_CMAKE_CXX_FLAGS)
 
-if(USE_BITINT_EXTENSION_INT4)
-    list(APPEND UTILITY_CMAKE_CXX_FLAGS
-         -Wno-bit-int-extension
-    )
-endif()
-
 target_compile_options(utility PRIVATE ${UTILITY_CMAKE_CXX_FLAGS})
 
 target_include_directories(utility PUBLIC

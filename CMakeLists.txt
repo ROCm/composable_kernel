@@ -25,6 +25,7 @@ option(USE_BITINT_EXTENSION_INT4, "Whether to enable clang's BitInt extension to
 
 if(USE_BITINT_EXTENSION_INT4)
     add_compile_definitions(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
+    add_compile_options(-Wno-bit-int-extension)
     message("CK compiled with USE_BITINT_EXTENSION_INT4 set to ${USE_BITINT_EXTENSION_INT4}")
 endif()
 

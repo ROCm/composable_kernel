@@ -8,13 +8,6 @@ add_custom_target(tests)
 
 set(TEST_CMAKE_CXX_FLAGS)
 
-if(USE_BITINT_EXTENSION_INT4)
-    list(APPEND TEST_CMAKE_CXX_FLAGS
-         -Wno-bit-int-extension
-    )
-endif()
-
-
 function(add_test_executable TEST_NAME)
     message("adding test ${TEST_NAME}")
     add_executable(${TEST_NAME} ${ARGN})
