@@ -9,8 +9,8 @@
 #include "ck/stream_config.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/fill.hpp"
 #include "ck/library/utility/host_tensor.hpp"
-#include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
 template <ck::index_t... Is>
@@ -114,12 +114,12 @@ auto run_gemm_reduce_max_xdl(ck::index_t M,
     {
     case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        ck::utils::FillUniformDistributionIntegerValue<ADataType>{}(a_m_k.begin(), a_m_k.end());
+        ck::utils::FillUniformDistributionIntegerValue<BDataType>{}(b_k_n.begin(), b_k_n.end());
         break;
     default:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        ck::utils::FillUniformDistribution<ADataType>{0.f, 1.f}(a_m_k.begin(), a_m_k.end());
+        ck::utils::FillUniformDistribution<BDataType>{0.5f, 0.5f}(b_k_n.begin(), b_k_n.end());
         break;
     }
 
@@ -206,12 +206,12 @@ auto run_gemm_reduce_max_xdl(ck::index_t M,
 
         pass = ck::utils::check_err(c_m_n_device_result.mData,
                                     c_m_n_host_result.mData,
-                                    "Error: Incorrect results c") &&
-               ck::utils::check_err(reduce_m_device_result.mData,
-                                    reduce_m_host_result.mData,
-                                    "Error: Incorrect results d",
-                                    1e-3,
-                                    1e-3);
+                                    "Error: Incorrect results c");
+        pass = pass && ck::utils::check_err(reduce_m_device_result.mData,
+                                            reduce_m_host_result.mData,
+                                            "Error: Incorrect results d",
+                                            1e-3,
+                                            1e-3);
     }
 
     if(time_kernel)
@@ -291,12 +291,12 @@ int run_gemm_reduce_mean_squaremean_xdl(ck::index_t M,
     {
     case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        ck::utils::FillUniformDistributionIntegerValue<ADataType>{}(a_m_k.begin(), a_m_k.end());
+        ck::utils::FillUniformDistributionIntegerValue<BDataType>{}(b_k_n.begin(), b_k_n.end());
         break;
     default:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        ck::utils::FillUniformDistribution<ADataType>{0.f, 1.f}(a_m_k.begin(), a_m_k.end());
+        ck::utils::FillUniformDistribution<BDataType>{0.5f, 0.5f}(b_k_n.begin(), b_k_n.end());
         break;
     }
 
@@ -402,13 +402,13 @@ int run_gemm_reduce_mean_squaremean_xdl(ck::index_t M,
 
         pass = ck::utils::check_err(c_m_n_device_result.mData,
                                     c_m_n_host_result.mData,
-                                    "Error: Incorrect results c") &&
-               ck::utils::check_err(reduce0_m_device_result.mData,
+                                    "Error: Incorrect results c");
+        pass = pass && ck::utils::check_err(reduce0_m_device_result.mData,
                                     reduce0_m_host_result.mData,
                                     "Error: Incorrect results d0",
                                     1e-4,
-                                    1e-5) &&
-               ck::utils::check_err(reduce1_m_device_result.mData,
+                                    1e-5);
+        pass = pass && ck::utils::check_err(reduce1_m_device_result.mData,
                                     reduce1_m_host_result.mData,
                                     "Error: Incorrect results d1",
                                     1e-3,
