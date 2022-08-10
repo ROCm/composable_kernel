@@ -571,7 +571,7 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
                                                 NumGemmKPrefetchStage>(
                 b1_grid_desc_bk0_n_bk1,
                 make_multi_index(0, n_block_data_idx_on_grid, 0),
-                b_element_op,
+                b1_element_op,
                 b1_block_desc_bk0_n_bk1,
                 make_multi_index(0, 0, 0),
                 tensor_operation::element_wise::PassThrough{});
