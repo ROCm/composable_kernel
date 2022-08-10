@@ -90,7 +90,6 @@ __global__ void
     ignore = p_b_grid;
     ignore = p_b1_grid;
     ignore = p_c_grid;
-    ignore = p_shared;
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = b1_element_op;
@@ -100,6 +99,8 @@ __global__ void
     ignore = b1_grid_desc_bk0_n_bk1;
     ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
     ignore = block_2_ctile_map;
+    ignore = batch_count;
+    ignore = compute_base_ptr_of_batch;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
