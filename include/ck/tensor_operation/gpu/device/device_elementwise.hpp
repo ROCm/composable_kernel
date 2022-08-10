@@ -102,11 +102,11 @@ struct DeviceElementwise
             return PadDescriptor_M_1d(desc, gridSize, blockSize);
     }
 
-    static auto GenerateInGrid1dDescTuple()
+    template <index_t TupleSize>
+    static auto GenerateInOutGrid1dDescTuple(Number<TupleSize>)
     {
         return generate_tuple(
-            [&](auto I) {
-                (void)I;
+            [&](auto) {
                 if constexpr(NumDim > 1)
                 {
                     return MakeDescriptor_M({1, 1}, {1, 1}, 1, 1);
@@ -116,28 +116,11 @@ struct DeviceElementwise
                     return MakeDescriptor_M({1}, {1}, 1, 1);
                 };
             },
-            Number<NumInput>{});
+            Number<TupleSize>{});
     };
 
-    static auto GenerateOutGrid1dDescTuple()
-    {
-        return generate_tuple(
-            [&](auto I) {
-                (void)I;
-                if constexpr(NumDim > 1)
-                {
-                    return MakeDescriptor_M({1, 1}, {1, 1}, 1, 1);
-                }
-                else
-                {
-                    return MakeDescriptor_M({1}, {1}, 1, 1);
-                };
-            },
-            Number<NumOutput>{});
-    };
-
-    using InGrid1dDescTuple  = decltype(GenerateInGrid1dDescTuple());
-    using OutGrid1dDescTuple = decltype(GenerateOutGrid1dDescTuple());
+    using InGrid1dDescTuple  = decltype(GenerateInOutGrid1dDescTuple(Number<NumInput>{}));
+    using OutGrid1dDescTuple = decltype(GenerateInOutGrid1dDescTuple(Number<NumOutput>{}));
 
     using GridwiseElementwise = GridwiseElementwise_1D<InGrid1dDescTuple,
                                                        OutGrid1dDescTuple,
