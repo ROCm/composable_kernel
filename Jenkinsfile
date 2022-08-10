@@ -18,9 +18,9 @@ def runShell(String command){
     return (output != "")
 }
 
-def getDockerImageName(prefixpath){
-    def image = "composable_kernels_${params.COMPILER_VERSION}"
-    return image
+def getDockerImageName(){
+    def img = "${env.MIOPEN_IMAGE_URL}:composable_kernels_${params.COMPILER_VERSION}"
+    return img
 }
 
 def getDockerImage(Map conf=[:]){
@@ -49,7 +49,7 @@ def getDockerImage(Map conf=[:]){
         dockerArgs = dockerArgs + " --no-cache "
     }
     echo "Docker Args: ${dockerArgs}"
-    def image = getDockerImageName(prefixpath)
+    def image = getDockerImageName()
     //Check if image exists 
     def retimage
     try 
@@ -69,7 +69,7 @@ def buildDocker(install_prefix){
     show_node_info()
     env.DOCKER_BUILDKIT=1
     checkout scm
-    def image_name = getDockerImageName(install_prefix)
+    def image_name = getDockerImageName()
     echo "Building Docker for ${image_name}"
     def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${install_prefix} --build-arg compiler_version='${params.COMPILER_VERSION}' "
     if(env.CCACHE_HOST)
