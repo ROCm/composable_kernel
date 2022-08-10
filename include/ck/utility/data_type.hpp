@@ -9,7 +9,9 @@ namespace ck {
 
 using bhalf_t = ushort;
 using half_t  = _Float16;
-using int4_t  = _BitInt(4);
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+using int4_t = _BitInt(4);
+#endif
 
 // vector_type
 template <typename T, index_t N>
@@ -86,6 +88,7 @@ struct has_same_scalar_type<
     static constexpr bool value = true;
 };
 
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 template <typename X, typename Y>
 struct has_same_scalar_type<
     X,
@@ -95,6 +98,7 @@ struct has_same_scalar_type<
 {
     static constexpr bool value = true;
 };
+#endif
 
 template <typename T, index_t N>
 struct scalar_type<T __attribute__((ext_vector_type(N)))>
@@ -153,12 +157,14 @@ struct scalar_type<int8_t>
     static constexpr index_t vector_size = 1;
 };
 
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 template <>
 struct scalar_type<int4_t>
 {
     using type                           = int4_t;
     static constexpr index_t vector_size = 1;
 };
+#endif
 
 //
 template <typename T>
@@ -918,7 +924,7 @@ struct vector_type<T, 256>
 
 // Following vector_type specializations for int4_t is a hack to workaround
 // clang's lack of support for vector types of _BitInt(4).
-
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 template <>
 struct vector_type<int4_t, 2>
 {
@@ -1293,6 +1299,7 @@ struct vector_type<int4_t, 32>
         }
     }
 };
+#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 
 // fp64
 using double2_t = typename vector_type<double, 2>::type;
@@ -1339,11 +1346,13 @@ using int8x32_t = typename vector_type<int8_t, 32>::type;
 using int8x64_t = typename vector_type<int8_t, 64>::type;
 
 // i4
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 using int4x2_t  = typename vector_type<int4_t, 2>::type;
 using int4x4_t  = typename vector_type<int4_t, 4>::type;
 using int4x8_t  = typename vector_type<int4_t, 8>::type;
 using int4x16_t = typename vector_type<int4_t, 16>::type;
 using int4x32_t = typename vector_type<int4_t, 32>::type;
+#endif
 
 // Convert X to Y
 template <typename Y, typename X>
@@ -1411,6 +1420,7 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float 
     return uint16_t(u.int32 >> 16);
 }
 
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 template <>
 inline __host__ __device__ constexpr int8_t type_convert<int8_t, int4_t>(int4_t x)
 {
@@ -1422,6 +1432,7 @@ inline __host__ __device__ constexpr int4_t type_convert<int4_t, int8_t>(int8_t 
 {
     return int4_t(x & 0x7);
 }
+#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 
 template <typename T>
 struct NumericLimits

@@ -25,6 +25,9 @@ set(PROFILER_SOURCE
 )
 
 add_executable(ckProfiler ${PROFILER_SOURCE})
+if(USE_BITINT_EXTENSION_INT4)
+    target_compile_options(ckProfiler PRIVATE -Wno-bit-int-extension)
+endif()
 
 target_link_libraries(ckProfiler PRIVATE utility)
 target_link_libraries(ckProfiler PRIVATE device_gemm_instance)

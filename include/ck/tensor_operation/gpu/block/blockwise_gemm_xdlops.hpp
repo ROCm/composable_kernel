@@ -564,7 +564,11 @@ constexpr auto BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector()
     // Workaround to have int4 MFMA on MI100 and MI200.
     // Since MI100 and MI200 doesn't support int4 MFMA we have to convert input registers
     // for MFMA instructions to int8 data type.
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     using MFMAType = typename std::conditional_t<std::is_same_v<FloatAB, int4_t>, int8_t, FloatAB>;
+#else
+    using MFMAType = FloatAB;
+#endif
 
     if constexpr(LoopSched == LoopScheduler::Default)
     {

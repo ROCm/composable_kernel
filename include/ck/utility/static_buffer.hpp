@@ -144,6 +144,7 @@ struct StaticBufferTupleOfVector
         base::operator()(i_v).template AsType<X>()(i_x) = x;
     }
 
+#if CK_WORKAROUND_INT4_STATIC_BUFFER_AS_TYPE
     template <
         typename X,
         index_t I,
@@ -161,6 +162,7 @@ struct StaticBufferTupleOfVector
 
         base::operator()(i_v).template AsType<X>()(i_x) = x;
     }
+#endif // CK_WORKAROUND_INT4_STATIC_BUFFER_AS_TYPE
 
     // Get read access to vector_type V
     // i is offset of S, not V. i should be aligned to V

@@ -63,11 +63,13 @@ struct PassThrough
         y = type_convert<int8_t>(x);
     }
 
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     template <>
     __host__ __device__ void operator()<int4_t, int4_t>(int4_t& y, const int4_t& x) const
     {
         y = x;
     }
+#endif
 };
 
 struct UnaryConvert
@@ -118,8 +120,11 @@ struct UnarySquare
     __host__ __device__ void operator()(T& y, const T& x) const
     {
         static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, int32_t>::value || is_same<T, int8_t>::value ||
-                          is_same<T, int4_t>::value,
+                          is_same<T, int32_t>::value || is_same<T, int8_t>::value
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+                          || is_same<T, int4_t>::value
+#endif
+                      ,
                       "Data type is not supported by this operation!");
 
         y = x * x;

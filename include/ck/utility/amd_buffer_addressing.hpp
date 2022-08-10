@@ -282,8 +282,11 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
             (is_same<T, half_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (is_same<T, bhalf_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (is_same<T, int32_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
-            (is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
-            (is_same<T, int4_t>::value && (N == 2 || N == 4 || N == 8 || N == 16 || N == 32)),
+            (is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16))
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+            || (is_same<T, int4_t>::value && (N == 2 || N == 4 || N == 8 || N == 16 || N == 32))
+#endif
+            ,
         "wrong! not implemented");
 
     if constexpr(is_same<T, double>::value)
@@ -525,6 +528,7 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
 #endif
         }
     }
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     else if constexpr(is_same<T, int4_t>::value)
     {
         if constexpr(N == 2)
@@ -616,6 +620,7 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
 #endif
         }
     }
+#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 }
 
 template <typename T, index_t N>
@@ -630,8 +635,11 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
             (is_same<T, half_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (is_same<T, bhalf_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (is_same<T, int32_t>::value && (N == 1 || N == 2 || N == 4)) ||
-            (is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
-            (is_same<T, int4_t>::value && (N == 2 || N == 4 || N == 8 || N == 16 || N == 32)),
+            (is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16))
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+            || (is_same<T, int4_t>::value && (N == 2 || N == 4 || N == 8 || N == 16 || N == 32))
+#endif
+            ,
         "wrong! not implemented");
 
     if constexpr(is_same<T, double>::value)
@@ -861,6 +869,7 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
                                                0);
         }
     }
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     else if constexpr(is_same<T, int4_t>::value)
     {
         if constexpr(N == 2)
@@ -920,6 +929,7 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
                                                0);
         }
     }
+#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 }
 
 template <typename T, index_t N>

@@ -21,6 +21,13 @@ rocm_setup_version(VERSION 0.2.0)
 include(TargetFlags)
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip)
 
+option(USE_BITINT_EXTENSION_INT4, "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
+
+if(USE_BITINT_EXTENSION_INT4)
+    add_compile_definitions(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
+    message("CK compiled with USE_BITINT_EXTENSION_INT4 set to ${USE_BITINT_EXTENSION_INT4}")
+endif()
+
 ## C++
 enable_language(CXX)
 set(CMAKE_CXX_STANDARD 17)

@@ -6,10 +6,19 @@ include(googletest)
 
 add_custom_target(tests)
 
+set(TEST_CMAKE_CXX_FLAGS)
+
+if(USE_BITINT_EXTENSION_INT4)
+    list(APPEND TEST_CMAKE_CXX_FLAGS
+         -Wno-bit-int-extension
+    )
+endif()
+
 
 function(add_test_executable TEST_NAME)
     message("adding test ${TEST_NAME}")
     add_executable(${TEST_NAME} ${ARGN})
+    target_compile_options(${TEST_NAME} PRIVATE ${TEST_CMAKE_CXX_FLAGS})
     add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> )
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
@@ -19,12 +28,17 @@ endfunction(add_test_executable TEST_NAME)
 include(GoogleTest)
 
 function(add_gtest_executable TEST_NAME)
+    # suppress gtest warnings
+    list(APPEND GOOGLE_TEST_CMAKE_CXX_FLAGS
+            -Wno-global-constructors
+            -Wno-undef
+    )
+    list(APPEND GOOGLE_TEST_CMAKE_CXX_FLAGS ${TEST_CMAKE_CXX_FLAGS})
     message("adding gtest ${TEST_NAME}")
     add_executable(${TEST_NAME} ${ARGN})
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
-    # suppress gtest warnings
-    target_compile_options(${TEST_NAME} PRIVATE -Wno-global-constructors -Wno-undef)
+    target_compile_options(${TEST_NAME} PRIVATE ${GOOGLE_TEST_CMAKE_CXX_FLAGS})
     target_link_libraries(${TEST_NAME} PRIVATE gtest_main)
     gtest_discover_tests(${TEST_NAME})
     rocm_install(TARGETS ${TEST_NAME} COMPONENT tests)

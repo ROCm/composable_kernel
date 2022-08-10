@@ -150,8 +150,11 @@ check_err(const std::vector<T>& out,
 }
 
 template <typename T>
-typename std::enable_if_t<(std::is_integral<T>::value && !std::is_same_v<T, bhalf_t>) ||
-                              std::is_same_v<T, int4_t>,
+typename std::enable_if_t<(std::is_integral<T>::value && !std::is_same_v<T, bhalf_t>)
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+                              || std::is_same_v<T, int4_t>
+#endif
+                          ,
                           bool>
 check_err(const std::vector<T>& out,
           const std::vector<T>& ref,

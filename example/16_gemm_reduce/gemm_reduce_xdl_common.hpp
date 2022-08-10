@@ -16,11 +16,13 @@
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using F16   = ck::half_t;
-using BF16  = ck::bhalf_t;
-using F32   = float;
-using F64   = double;
-using INT4  = ck::int4_t;
+using F16  = ck::half_t;
+using BF16 = ck::bhalf_t;
+using F32  = float;
+using F64  = double;
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+using INT4 = ck::int4_t;
+#endif
 using INT8  = std::int8_t;
 using INT32 = std::int32_t;
 

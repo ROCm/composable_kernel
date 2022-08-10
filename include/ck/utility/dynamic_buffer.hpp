@@ -179,7 +179,7 @@ struct DynamicBuffer
             this->template Set<X>(i, is_valid_element, x + tmp);
         }
     }
-#endif
+#endif // CK_WORKAROUND_INT4_DYNAMIC_BUFFER_GMEM
 
     template <typename X,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,

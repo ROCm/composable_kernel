@@ -144,10 +144,16 @@
 // workaround: compiler gnerating inefficient ds_write instructions
 #define CK_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE 1
 
+// _BitInt() clang extension is working only in latest version (16.0)
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 // workaround: for reading/writing from gmem int4 as a int8 vector type
 // currently compiler does not support int4 vector types thus they are represented as int8 vectors.
 #define CK_WORKAROUND_INT4_DYNAMIC_BUFFER_GMEM 1
 #define CK_WORKAROUND_INT4_STATIC_BUFFER_AS_TYPE 1
+#else
+#define CK_WORKAROUND_INT4_DYNAMIC_BUFFER_GMEM 0
+#define CK_WORKAROUND_INT4_STATIC_BUFFER_AS_TYPE 0
+#endif
 
 // workaround: verifaction failure, due to compiler regression, for conv bwd-data fp16 using some
 // tuning parameter

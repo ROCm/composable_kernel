@@ -8,9 +8,13 @@ set(UTILITY_SOURCE
 add_library(utility STATIC ${UTILITY_SOURCE})
 add_library(composable_kernel::utility ALIAS utility)
 
-list(APPEND UTILITY_CMAKE_CXX_FLAGS
-     -Wno-bit-int-extension
-)
+set(UTILITY_CMAKE_CXX_FLAGS)
+
+if(USE_BITINT_EXTENSION_INT4)
+    list(APPEND UTILITY_CMAKE_CXX_FLAGS
+         -Wno-bit-int-extension
+    )
+endif()
 
 target_compile_options(utility PRIVATE ${UTILITY_CMAKE_CXX_FLAGS})
 

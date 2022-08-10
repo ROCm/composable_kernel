@@ -5,9 +5,19 @@ include_directories(BEFORE
 
 add_custom_target(examples)
 
+set(EXAMPLES_CMAKE_CXX_FLAGS)
+
+if(USE_BITINT_EXTENSION_INT4)
+    list(APPEND EXAMPLES_CMAKE_CXX_FLAGS
+         -Wno-bit-int-extension
+    )
+endif()
+
+
 function(add_example_executable EXAMPLE_NAME FILE_NAME)
     message("adding example ${EXAMPLE_NAME}")
     add_executable(${EXAMPLE_NAME} ${FILE_NAME})
+    target_compile_options(${EXAMPLE_NAME} PRIVATE ${EXAMPLES_CMAKE_CXX_FLAGS})
     target_link_libraries(${EXAMPLE_NAME} PRIVATE utility)
     add_test(NAME ${EXAMPLE_NAME} COMMAND $<TARGET_FILE:${EXAMPLE_NAME}> ${ARGN})
     add_dependencies(examples ${EXAMPLE_NAME})
@@ -17,6 +27,7 @@ endfunction(add_example_executable EXAMPLE_NAME)
 function(add_example_executable_no_testing EXAMPLE_NAME FILE_NAME)
     message("adding example ${EXAMPLE_NAME}")
     add_executable(${EXAMPLE_NAME} ${FILE_NAME})
+    target_compile_options(${EXAMPLE_NAME} PRIVATE ${EXAMPLES_CMAKE_CXX_FLAGS})
     target_link_libraries(${EXAMPLE_NAME} PRIVATE utility)
     add_dependencies(examples ${EXAMPLE_NAME})
 endfunction(add_example_executable_no_testing EXAMPLE_NAME)
