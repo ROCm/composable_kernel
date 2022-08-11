@@ -13,8 +13,7 @@ using ck::profiler::NormType;
 
 struct ArgParser
 {
-    std::unordered_map<std::string, NormType> norm_dict = {{"layernorm", NormType::LAYERNORM},
-                                                           {"batchnorm", NormType::BATCHNORM},
+    std::unordered_map<std::string, NormType> norm_dict = {{"batchnorm", NormType::BATCHNORM},
                                                            {"softmax", NormType::SOFTMAX}};
 
     std::unordered_map<std::string, std::vector<int>> long_opts = {
