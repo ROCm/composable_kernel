@@ -48,10 +48,11 @@ using B0Layout = Col;
 using B1Layout = Row;
 using CLayout  = Row;
 
-using AElementOp  = PassThrough;
-using B0ElementOp = PassThrough;
-using B1ElementOp = PassThrough;
-using CElementOp  = PassThrough;
+using AElementOp    = PassThrough;
+using B0ElementOp   = PassThrough;
+using Acc0ElementOp = PassThrough;
+using B1ElementOp   = PassThrough;
+using CElementOp    = PassThrough;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
@@ -68,6 +69,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmGemm_X
     CShuffleDataType,
     AElementOp,
     B0ElementOp,
+    Acc0ElementOp,
     B1ElementOp,
     CElementOp,
     GemmDefault,
@@ -287,10 +289,11 @@ int main(int argc, char* argv[])
     b0_g_k_n_device_buf.ToDevice(b0_g_k_n.mData.data());
     b1_g_n_o_device_buf.ToDevice(b1_g_n_o.mData.data());
 
-    auto a_element_op  = AElementOp{};
-    auto b0_element_op = B0ElementOp{};
-    auto b1_element_op = B1ElementOp{};
-    auto c_element_op  = CElementOp{};
+    auto a_element_op    = AElementOp{};
+    auto b0_element_op   = B0ElementOp{};
+    auto acc0_element_op = Acc0ElementOp{};
+    auto b1_element_op   = B1ElementOp{};
+    auto c_element_op    = CElementOp{};
 
     // do GEMM
     auto gemm    = DeviceGemmInstance{};
@@ -315,6 +318,7 @@ int main(int argc, char* argv[])
                           BatchStrideC,
                           a_element_op,
                           b0_element_op,
+                          acc0_element_op,
                           b1_element_op,
                           c_element_op);
 

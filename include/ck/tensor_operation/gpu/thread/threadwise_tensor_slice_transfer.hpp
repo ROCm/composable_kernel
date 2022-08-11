@@ -1202,6 +1202,7 @@ template <typename SrcData,
           typename DstData,
           typename SrcDesc,
           typename DstDesc,
+          typename ElementwiseOperation,
           typename SliceLengths,
           typename DimAccessOrder,
           index_t DstVectorDim,
@@ -1214,7 +1215,9 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic
 
     using Index = MultiIndex<nDim>;
 
-    __device__ constexpr ThreadwiseTensorSliceTransfer_StaticToStatic()
+    __device__ constexpr ThreadwiseTensorSliceTransfer_StaticToStatic(
+        const ElementwiseOperation& element_op)
+        : element_op_{element_op}
     {
         static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
                       "wrong! Desc need to known at compile-time");
@@ -1277,10 +1280,18 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic
                 constexpr index_t dst_offset = dst_desc.CalculateOffset(
                     dst_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
 
-                dst_buf(Number<dst_offset>{}) = src_buf[Number<src_offset>{}];
+                SrcData v;
+
+                // apply element-wise operation
+                element_op_(v, src_buf[Number<src_offset>{}]);
+
+                // apply type convert
+                dst_buf(Number<dst_offset>{}) = type_convert<DstData>(v);
             });
         });
     }
+
+    ElementwiseOperation element_op_;
 };
 
 } // namespace ck

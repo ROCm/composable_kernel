@@ -22,6 +22,7 @@ template <typename ALayout,
           typename CDataType,
           typename AElementwiseOperation,
           typename B0ElementwiseOperation,
+          typename Acc0ElementwiseOperation,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation>
 struct DeviceBatchedGemmGemm : public BaseOperator
@@ -46,6 +47,7 @@ struct DeviceBatchedGemmGemm : public BaseOperator
                         ck::index_t BatchStrideC,
                         AElementwiseOperation a_element_op,
                         B0ElementwiseOperation b0_element_op,
+                        Acc0ElementwiseOperation acc0_element_op,
                         B1ElementwiseOperation b1_element_op,
                         CElementwiseOperation c_element_op) = 0;
 
@@ -62,6 +64,7 @@ template <typename ALayout,
           typename CDataType,
           typename AElementwiseOperation,
           typename B0ElementwiseOperation,
+          typename Acc0ElementwiseOperation,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation>
 using DeviceBatchedGemmGemmPtr = std::unique_ptr<DeviceBatchedGemmGemm<ALayout,
@@ -74,6 +77,7 @@ using DeviceBatchedGemmGemmPtr = std::unique_ptr<DeviceBatchedGemmGemm<ALayout,
                                                                        CDataType,
                                                                        AElementwiseOperation,
                                                                        B0ElementwiseOperation,
+                                                                       Acc0ElementwiseOperation,
                                                                        B1ElementwiseOperation,
                                                                        CElementwiseOperation>>;
 

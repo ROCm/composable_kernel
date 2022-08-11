@@ -25,6 +25,7 @@ template <typename GridwiseGemm,
           typename FloatC,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
+          typename AccElementwiseOperation,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation,
           typename AGridDesc_AK0_M_AK1,
@@ -45,6 +46,7 @@ __global__ void
             FloatC* __restrict__ p_c_grid,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
+            const AccElementwiseOperation acc_element_op,
             const B1ElementwiseOperation b1_element_op,
             const CElementwiseOperation c_element_op,
             const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
@@ -78,6 +80,7 @@ __global__ void
                                                   p_shared,
                                                   a_element_op,
                                                   b_element_op,
+                                                  acc_element_op,
                                                   b1_element_op,
                                                   c_element_op,
                                                   a_grid_desc_ak0_m_ak1,
@@ -92,6 +95,7 @@ __global__ void
     ignore = p_c_grid;
     ignore = a_element_op;
     ignore = b_element_op;
+    ignore = acc_element_op;
     ignore = b1_element_op;
     ignore = c_element_op;
     ignore = a_grid_desc_ak0_m_ak1;
@@ -119,6 +123,7 @@ template <typename ALayout,
           typename CShuffleDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
+          typename AccElementwiseOperation,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation,
           GemmSpecialization GemmSpec,
@@ -173,6 +178,7 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
                                                                          CDataType,
                                                                          AElementwiseOperation,
                                                                          BElementwiseOperation,
+                                                                         AccElementwiseOperation,
                                                                          B1ElementwiseOperation,
                                                                          CElementwiseOperation>
 {
@@ -550,6 +556,7 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
         CDataType,
         AElementwiseOperation,
         BElementwiseOperation,
+        AccElementwiseOperation,
         B1ElementwiseOperation,
         CElementwiseOperation,
         InMemoryDataOperationEnum::Set,
@@ -624,6 +631,7 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
                  index_t BatchStrideC,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
+                 AccElementwiseOperation acc_element_op,
                  B1ElementwiseOperation b1_element_op,
                  CElementwiseOperation c_element_op)
             : p_a_grid_{p_a_grid},
@@ -639,6 +647,7 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
               block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
+              acc_element_op_{acc_element_op},
               b1_element_op_{b1_element_op},
               c_element_op_{c_element_op},
               batch_count_(Batch),
@@ -670,6 +679,7 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
         typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
+        AccElementwiseOperation acc_element_op_;
         B1ElementwiseOperation b1_element_op_;
         CElementwiseOperation c_element_op_;
         index_t batch_count_;
@@ -708,6 +718,7 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
                     CDataType,
                     AElementwiseOperation,
                     BElementwiseOperation,
+                    AccElementwiseOperation,
                     B1ElementwiseOperation,
                     CElementwiseOperation,
                     DeviceOp::AGridDesc_AK0_M_AK1,
@@ -729,6 +740,7 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
                                               arg.p_c_grid_,
                                               arg.a_element_op_,
                                               arg.b_element_op_,
+                                              arg.acc_element_op_,
                                               arg.b1_element_op_,
                                               arg.c_element_op_,
                                               arg.a_grid_desc_ak0_m_ak1_,
@@ -807,14 +819,15 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
                              index_t BatchStrideC,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
+                             AccElementwiseOperation acc_element_op,
                              B1ElementwiseOperation b1_element_op,
                              CElementwiseOperation c_element_op)
     {
         return Argument{p_a,           p_b,          p_b1,         p_c,          MRaw,
                         NRaw,          KRaw,         Gemm1NRaw,    Batch,        StrideA,
                         StrideB,       StrideB1,     StrideC,      BatchStrideA, BatchStrideB,
-                        BatchStrideB1, BatchStrideC, a_element_op, b_element_op, b1_element_op,
-                        c_element_op};
+                        BatchStrideB1, BatchStrideC, a_element_op, b_element_op, acc_element_op,
+                        b1_element_op, c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -839,6 +852,7 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
                                                       index_t BatchStrideC,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
+                                                      AccElementwiseOperation acc_element_op,
                                                       B1ElementwiseOperation b1_element_op,
                                                       CElementwiseOperation c_element_op) override
     {
@@ -861,6 +875,7 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
                                           BatchStrideC,
                                           a_element_op,
                                           b_element_op,
+                                          acc_element_op,
                                           b1_element_op,
                                           c_element_op);
     }

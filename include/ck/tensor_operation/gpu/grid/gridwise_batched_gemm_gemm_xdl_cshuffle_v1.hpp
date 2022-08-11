@@ -23,6 +23,7 @@ template <typename FloatAB,
           typename FloatC,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
+          typename AccElementwiseOperation,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
@@ -319,6 +320,7 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
                                void* __restrict__ p_shared,
                                const AElementwiseOperation& a_element_op,
                                const BElementwiseOperation& b_element_op,
+                               const AccElementwiseOperation& acc_element_op,
                                const B1ElementwiseOperation& b1_element_op,
                                const CElementwiseOperation& c_element_op,
                                const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
@@ -544,10 +546,11 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
             FloatAB,
             decltype(acc_thread_desc_k0_m_k1),
             decltype(a1_thread_desc_k0_m_k1),
+            decltype(acc_element_op),
             Sequence<A1ThreadSliceK0, A1ThreadSliceM, A1ThreadSliceK1>,
             Sequence<1, 0, 2>,
             2,
-            n4>{};
+            n4>{acc_element_op};
 
         // B1 matrix blockwise copy
         auto b1_blockwise_copy =
