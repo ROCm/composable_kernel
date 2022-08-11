@@ -547,11 +547,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                 static_cast<FloatC*>(p_shared_block),
                 c_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
-            static_assert(M1 == MWave, "");
-            static_assert(N1 == NWave, "");
-            static_assert(M2 * M3 * M4 == MPerXDL, "");
-            static_assert(N2 == NPerXDL, "");
-
             constexpr auto c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2 = transform_tensor_descriptor(
                 c_block_desc_mblock_mperblock_nblock_nperblock,
                 make_tuple(
