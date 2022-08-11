@@ -36,7 +36,6 @@ namespace profiler {
 
 enum struct NormType
 {
-    LAYERNORM,
     BATCHNORM,
     SOFTMAX,
 };
