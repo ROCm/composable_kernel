@@ -38,6 +38,49 @@ struct DeviceNormalization : public BaseOperator
 
 using DeviceNormalizationPtr = std::unique_ptr<DeviceNormalization>;
 
+template <typename XDataType,
+          typename GammaDataType,
+          typename BetaDataType,
+          typename AccDataType,
+          typename YDataType,
+          typename AccElementwiseOperation,
+          index_t Rank,
+          index_t NumReduceDim>
+struct DeviceNormalization2 : public BaseOperator
+{
+    virtual std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(const std::vector<index_t> lengths,
+                        const std::vector<index_t> xStrides,
+                        const std::vector<index_t> gammaStrides,
+                        const std::vector<index_t> betaStrides,
+                        const std::vector<index_t> reduceDims,
+                        AccDataType epsilon,
+                        const void* p_x,
+                        const void* p_gamma,
+                        const void* p_beta,
+                        void* p_y,
+                        AccElementwiseOperation acc_elementwise_op) = 0;
+
+    virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
+};
+
+template <typename XDataType,
+          typename GammaDataType,
+          typename BetaDataType,
+          typename AccDataType,
+          typename YDataType,
+          typename AccElementwiseOperation,
+          index_t Rank,
+          index_t NumReduceDim>
+using DeviceNormalization2Ptr = std::unique_ptr<DeviceNormalization2<XDataType,
+                                                                     GammaDataType,
+                                                                     BetaDataType,
+                                                                     AccDataType,
+                                                                     YDataType,
+                                                                     AccElementwiseOperation,
+                                                                     Rank,
+                                                                     NumReduceDim>>;
+
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
