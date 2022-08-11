@@ -660,11 +660,13 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
                 b1_blockwise_copy.MoveSrcSliceWindow(b1_grid_desc_bk0_n_bk1,
                                                      b1_block_slice_copy_step);
 
+                block_sync_lds(); // wait for gemm0 LDS read
+
                 b1_blockwise_copy.RunWrite(b1_block_desc_bk0_n_bk1, b1_block_buf);
+
                 // main body
                 if constexpr(num_gemm1_k_block_inner_loop > 1)
                 {
-
                     static_for<0, num_gemm1_k_block_inner_loop - 1, 1>{}([&](auto i) {
                         a1_blockwise_copy.Run(acc_thread_desc_k0_m_k1,
                                               make_tuple(Number<i * A1ThreadSliceK0>{}, I0, I0),
@@ -672,11 +674,13 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
                                               a1_thread_desc_k0_m_k1,
                                               make_tuple(I0, I0, I0),
                                               a1_thread_buf);
+
                         b1_blockwise_copy.RunRead(b1_grid_desc_bk0_n_bk1, b1_grid_buf);
 
                         block_sync_lds();
 
                         gemm1_blockwise_gemm.Run(a1_thread_buf, b1_block_buf, c_thread_buf);
+
                         block_sync_lds();
 
                         b1_blockwise_copy.MoveSrcSliceWindow(b1_grid_desc_bk0_n_bk1,
@@ -706,6 +710,7 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
             b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_bk0_n_bk1,
                                                 b_block_reset_copy_step); // rewind K and step N
 
+            block_sync_lds(); // wait for gemm1 LDS read
         } while(++gemm1_k_block_outer_index < num_gemm1_k_block_outer_loop); // end j loop
 
         // shuffle C and write out
