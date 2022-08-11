@@ -22,8 +22,8 @@
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using F16 = ck::half_t;
-using F32 = float;
+using BF16 = ck::bhalf_t;
+using F32  = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -31,14 +31,14 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 using PassThrough    = ck::tensor_operation::element_wise::PassThrough;
 using AddAddFastGelu = ck::tensor_operation::element_wise::AddAddFastGelu;
 
-using ADataType        = F16;
-using BDataType        = F16;
+using ADataType        = BF16;
+using BDataType        = BF16;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
-using D0DataType       = F16;
-using D1DataType       = F16;
+using D0DataType       = BF16;
+using D1DataType       = BF16;
 using DsDataType       = ck::Tuple<D0DataType, D1DataType>;
-using EDataType        = F16;
+using EDataType        = BF16;
 
 using ALayout  = Row;
 using BLayout  = Col;
