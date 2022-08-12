@@ -22,6 +22,8 @@ struct ExecutionConfig final
 
 bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionConfig& config)
 {
+    using namespace ck::literals;
+
     auto& [M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE] = problem_size;
 
     auto f_host_tensor_descriptor =
