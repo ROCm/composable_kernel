@@ -245,6 +245,7 @@ struct DeviceLayernorm : public DeviceNormalization2<XDataType,
                  const std::vector<index_t> xStrides,
                  const std::vector<index_t> gammaStrides,
                  const std::vector<index_t> betaStrides,
+                 const std::vector<index_t> yStrides,
                  const std::vector<index_t> reduceDims,
                  AccElementwiseOperation acc_elementwise_op,
                  AccDataType epsilon,
@@ -263,6 +264,7 @@ struct DeviceLayernorm : public DeviceNormalization2<XDataType,
         {
             Lengths_  = shuffle_tensor_dimensions<Rank, NumReduceDim>(lengths, reduceDims);
             xStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(xStrides, reduceDims);
+            yStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(yStrides, reduceDims);
 
             long_index_t invariant_total_length;
             long_index_t reduce_total_length;
@@ -296,6 +298,7 @@ struct DeviceLayernorm : public DeviceNormalization2<XDataType,
         std::vector<index_t> reduceLengths_;
         std::vector<index_t> gammaStrides_;
         std::vector<index_t> betaStrides_;
+        std::vector<index_t> yStrides_;
 
         AccElementwiseOperation acc_elementwise_op_;
 
@@ -319,7 +322,7 @@ struct DeviceLayernorm : public DeviceNormalization2<XDataType,
                                                                  arg.blkGroupSize_,
                                                                  arg.numBlockTileIteration_);
             const auto y_grid_desc_m_k   = MakeSrc2dDescriptor(
-                arg.Lengths_, arg.xStrides_, arg.blkGroupSize_, arg.numBlockTileIteration_);
+                arg.Lengths_, arg.yStrides_, arg.blkGroupSize_, arg.numBlockTileIteration_);
 
             bool sweep_once =
                 x_grid_desc_m_k.GetLength(Number<1>{}) <= KThreadClusterSize * KThreadSliceSize;
@@ -435,6 +438,7 @@ struct DeviceLayernorm : public DeviceNormalization2<XDataType,
                         const std::vector<index_t> xStrides,
                         const std::vector<index_t> gammaStrides,
                         const std::vector<index_t> betaStrides,
+                        const std::vector<index_t> yStrides,
                         const std::vector<index_t> reduceDims,
                         AccDataType epsilon,
                         const void* p_x,
@@ -447,6 +451,7 @@ struct DeviceLayernorm : public DeviceNormalization2<XDataType,
                                           xStrides,
                                           gammaStrides,
                                           betaStrides,
+                                          yStrides,
                                           reduceDims,
                                           acc_elementwise_op,
                                           epsilon,

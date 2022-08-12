@@ -119,6 +119,7 @@ class TestLayernorm : public ::testing::Test
                                      gamma.mDesc.GetStrides().end()},
             std::vector<ck::index_t>{beta.mDesc.GetStrides().begin(),
                                      beta.mDesc.GetStrides().end()},
+            std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
             reduceDims,
             1e-4,
             x_dev.GetDeviceBuffer(),
