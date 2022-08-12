@@ -544,7 +544,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                 GetCBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
 
             auto c_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-                static_cast<FloatC*>(p_shared_block),
+                reinterpret_cast<FloatC*>(p_shared_block),
                 c_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
             constexpr auto c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2 = transform_tensor_descriptor(

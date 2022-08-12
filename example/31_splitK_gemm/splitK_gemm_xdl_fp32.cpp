@@ -83,7 +83,7 @@ int main(int argc, char* argv[])
         time_kernel     = std::stoi(argv[3]);
         KBatch          = std::stoi(argv[4]);
     }
-    else if(argc == 10)
+    else if(argc == 11)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
@@ -103,7 +103,8 @@ int main(int argc, char* argv[])
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 10: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC, KBatch\n");
+        printf("arg4: KBatch\n");
+        printf("arg5 to 11: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC\n");
         exit(0);
     }
 
