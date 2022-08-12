@@ -46,7 +46,7 @@ using DeviceInstance = ck::tensor_operation::device::DeviceLayernorm<XDataType,
                                                                      8,   // SrcScalarPerVector
                                                                      8,   // GammaScalarPerVector
                                                                      8,   // BetaScalarPerVector
-                                                                     1>;  // OutScalarPerVector
+                                                                     8>;  // OutScalarPerVector
 
 int main()
 {

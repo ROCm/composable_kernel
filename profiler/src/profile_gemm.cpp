@@ -72,43 +72,43 @@ int profile_gemm(int argc, char* argv[])
     using Row = ck::tensor_layout::gemm::RowMajor;
     using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-    auto profile = [&](auto a_type,
+    auto profile = [&](auto a_layout,
+                       auto b_layout,
+                       auto c_layout,
+                       auto a_type,
                        auto b_type,
                        auto acc_type,
-                       auto c_type,
-                       auto a_layout,
-                       auto b_layout,
-                       auto c_layout) {
+                       auto c_type) {
+        using ALayout = decltype(a_layout);
+        using BLayout = decltype(b_layout);
+        using CLayout = decltype(c_layout);
+
         using ADataType   = decltype(a_type);
         using BDataType   = decltype(b_type);
         using AccDataType = decltype(acc_type);
         using CDataType   = decltype(c_type);
-
-        using ALayout = decltype(a_layout);
-        using BLayout = decltype(b_layout);
-        using CLayout = decltype(c_layout);
 
         const int DefaultStrideA = ck::is_same_v<ALayout, Row> ? K : M;
         const int DefaultStrideB = ck::is_same_v<BLayout, Row> ? N : K;
         const int DefaultStrideC = ck::is_same_v<CLayout, Row> ? N : M;
 
         bool pass =
-            ck::profiler::profile_gemm_impl<ADataType,
+            ck::profiler::profile_gemm_impl<ALayout,
+                                            BLayout,
+                                            CLayout,
+                                            ADataType,
                                             BDataType,
                                             AccDataType,
-                                            CDataType,
-                                            ALayout,
-                                            BLayout,
-                                            CLayout>(do_verification,
-                                                     init_method,
-                                                     do_log,
-                                                     time_kernel,
-                                                     M,
-                                                     N,
-                                                     K,
-                                                     (StrideA < 0) ? DefaultStrideA : StrideA,
-                                                     (StrideB < 0) ? DefaultStrideB : StrideB,
-                                                     (StrideC < 0) ? DefaultStrideC : StrideC);
+                                            CDataType>(do_verification,
+                                                       init_method,
+                                                       do_log,
+                                                       time_kernel,
+                                                       M,
+                                                       N,
+                                                       K,
+                                                       (StrideA < 0) ? DefaultStrideA : StrideA,
+                                                       (StrideB < 0) ? DefaultStrideB : StrideB,
+                                                       (StrideC < 0) ? DefaultStrideC : StrideC);
 
         return pass ? 0 : 1;
     };
