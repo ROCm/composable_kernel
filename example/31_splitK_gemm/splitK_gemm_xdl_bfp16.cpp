@@ -21,7 +21,7 @@ template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
 using BF16 = ck::bhalf_t;
-using F32 = float;
+using F32  = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
