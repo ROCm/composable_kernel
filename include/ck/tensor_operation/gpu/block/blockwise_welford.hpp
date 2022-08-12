@@ -66,7 +66,7 @@ struct BlockwiseWelford
         var_block_buf[offset1]   = var_value;
         count_block_buf[offset1] = count;
 
-        __syncthreads();
+        block_sync_lds();
 
         static_for<0, cluster_len_shift, 1>{}([&](auto I) {
             constexpr index_t indOffset = 1 << (cluster_len_shift - 1 - I());
@@ -91,7 +91,7 @@ struct BlockwiseWelford
                 count_block_buf[offset1] = count1;
             }
 
-            __syncthreads();
+            block_sync_lds();
         });
 
         index_t offset = block_buf_desc_m_k.CalculateOffset(make_tuple(thread_m_cluster_id, 0));
