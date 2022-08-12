@@ -7,7 +7,7 @@
 
 #include "ck/ck.hpp"
 #include "profiler/include/data_type_enum.hpp"
-#include "ck/tensor_operation/gpu/device/device_layernorm.hpp"
+#include "ck/tensor_operation/gpu/device/device_layernorm_impl.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -25,10 +25,10 @@ using F32         = float;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 void add_device_layernorm_f16_rank2_instances(
-    std::vector<DeviceNormalization2Ptr<F16, F16, F16, F32, F16, PassThrough, 2, 1>>&);
+    std::vector<DeviceLayernormPtr<F16, F16, F16, F32, F16, PassThrough, 2, 1>>&);
 
 void add_device_layernorm_f32_rank2_instances(
-    std::vector<DeviceNormalization2Ptr<F32, F32, F32, F32, F32, PassThrough, 2, 1>>&);
+    std::vector<DeviceLayernormPtr<F32, F32, F32, F32, F32, PassThrough, 2, 1>>&);
 
 } // namespace instance
 } // namespace device
@@ -105,14 +105,14 @@ void profile_layernorm_impl(int do_verification,
 
     // add device normalization instances
     constexpr int NumReduceDim = Rank - 1;
-    std::vector<tensor_operation::device::DeviceNormalization2Ptr<XDataType,
-                                                                  GammaDataType,
-                                                                  BetaDataType,
-                                                                  AccDataType,
-                                                                  YDataType,
-                                                                  PassThrough,
-                                                                  Rank,
-                                                                  NumReduceDim>>
+    std::vector<tensor_operation::device::DeviceLayernormPtr<XDataType,
+                                                             GammaDataType,
+                                                             BetaDataType,
+                                                             AccDataType,
+                                                             YDataType,
+                                                             PassThrough,
+                                                             Rank,
+                                                             NumReduceDim>>
         instances;
 
     if constexpr(is_same<XDataType, F16>::value && is_same<GammaDataType, F16>::value &&

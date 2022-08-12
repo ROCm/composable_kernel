@@ -74,14 +74,14 @@ template <typename XDataType,
           index_t GammaSrcVectorSize,
           index_t BetaSrcVectorSize,
           index_t YDstVectorSize>
-struct DeviceLayernorm : public DeviceNormalization2<XDataType,
-                                                     GammaDataType,
-                                                     BetaDataType,
-                                                     AccDataType,
-                                                     YDataType,
-                                                     AccElementwiseOperation,
-                                                     Rank,
-                                                     NumReduceDim>
+struct DeviceLayernormImpl : public DeviceLayernorm<XDataType,
+                                                    GammaDataType,
+                                                    BetaDataType,
+                                                    AccDataType,
+                                                    YDataType,
+                                                    AccElementwiseOperation,
+                                                    Rank,
+                                                    NumReduceDim>
 {
     static_assert(
         (KThreadSliceSize % GammaSrcVectorSize == 0),
@@ -471,7 +471,7 @@ struct DeviceLayernorm : public DeviceNormalization2<XDataType,
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceLayernorm<" << BlockSize << ",";
+        str << "DeviceLayernormImpl<" << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
         str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
         str << "XYSrcVectorDim_" << XYSrcVectorDim  << ",";
