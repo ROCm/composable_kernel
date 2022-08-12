@@ -33,7 +33,7 @@ using DDataType        = F16;
 using DsDataType       = ck::Tuple<DDataType>;
 using EDataType        = F16;
 
-static constexpr ck::index_t NumDimG = 0;
+static constexpr ck::index_t NumDimG = 1;
 static constexpr ck::index_t NumDimM = 3;
 static constexpr ck::index_t NumDimN = 2;
 static constexpr ck::index_t NumDimK = 1;
@@ -53,13 +53,13 @@ using DeviceOpInstanceKKNN = ck::tensor_operation::device::
         //############################################|        |        |        |        |  Type|  Type|    Type| DataType|       Type|  Type|  Elementwise| Elementwise|  Elementwise| Spacialization| Spacialization| Spacialization| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
         //############################################|        |        |        |        |      |      |        |         |           |      |    Operation|   Operation|    Operation|               |               |               |               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
         //############################################|        |        |        |        |      |      |        |         |           |      |             |            |             |               |               |               |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
-        DeviceBatchedContractionMultipleD_Xdl_CShuffle< NumDimG, NumDimM, NumDimN, NumDimK,   F16,   F16,     F32,      F16, DsDataType,   F16,   AElementOp,  BElementOp, CDEElementOp,       GemmSpec,         ABSpec,         ABSpec,         DESpec,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,              S<1, 32, 1, 4>,               1>;
+        DeviceBatchedContractionMultipleD_Xdl_CShuffle< NumDimG, NumDimM, NumDimN, NumDimK,   F16,   F16,     F32,      F16, DsDataType,   F16,   AElementOp,  BElementOp, CDEElementOp,       GemmSpec,         ABSpec,         ABSpec,         DESpec,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,              S<1, 32, 1, 4>,               8>;
 // clang-format on
 
 using DeviceOpInstance = DeviceOpInstanceKKNN;
 
-// hardcoded for NumDimM == NumDimN == NumDimK == 2
-template <ck::index_t NumDimM,
+template <ck::index_t NumDimG,
+          ck::index_t NumDimM,
           ck::index_t NumDimN,
           ck::index_t NumDimK,
           typename ADataType,
@@ -69,30 +69,31 @@ template <ck::index_t NumDimM,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
-          ck::enable_if_t<NumDimM == 3 && NumDimN == 2 && NumDimK == 1, bool> = false>
-struct ReferenceContraction_M3_N2_K1 : public ck::tensor_operation::device::BaseOperator
+          ck::enable_if_t<NumDimG == 1 && NumDimM == 3 && NumDimN == 2 && NumDimK == 1, bool> =
+              false>
+struct ReferenceContraction_G1_M3_N2_K1 : public ck::tensor_operation::device::BaseOperator
 {
     // Argument
     struct Argument : public ck::tensor_operation::device::BaseArgument
     {
-        Argument(const Tensor<ADataType>& a_ms_ks,
-                 const Tensor<BDataType>& b_ns_ks,
-                 Tensor<EDataType>& e_ms_ns,
+        Argument(const Tensor<ADataType>& a_gs_ms_ks,
+                 const Tensor<BDataType>& b_gs_ns_ks,
+                 Tensor<EDataType>& e_gs_ms_ns,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CDEElementwiseOperation cde_element_op)
-            : a_ms_ks_{a_ms_ks},
-              b_ns_ks_{b_ns_ks},
-              e_ms_ns_{e_ms_ns},
+            : a_gs_ms_ks_{a_gs_ms_ks},
+              b_gs_ns_ks_{b_gs_ns_ks},
+              e_gs_ms_ns_{e_gs_ms_ns},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op}
         {
         }
 
-        const Tensor<ADataType>& a_ms_ks_;
-        const Tensor<BDataType>& b_ns_ks_;
-        Tensor<EDataType>& e_ms_ns_;
+        const Tensor<ADataType>& a_gs_ms_ks_;
+        const Tensor<BDataType>& b_gs_ns_ks_;
+        Tensor<EDataType>& e_gs_ms_ns_;
 
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
@@ -102,12 +103,12 @@ struct ReferenceContraction_M3_N2_K1 : public ck::tensor_operation::device::Base
     // Invoker
     struct Invoker : public ck::tensor_operation::device::BaseInvoker
     {
-        using Argument = ReferenceContraction_M3_N2_K1::Argument;
+        using Argument = ReferenceContraction_G1_M3_N2_K1::Argument;
 
         float Run(const Argument& arg)
         {
-            auto f_ms_ns = [&](auto m0, auto m1, auto m2, auto n0, auto n1) {
-                const int K0 = arg.a_ms_ks_.mDesc.GetLengths()[3];
+            auto f_gs_ms_ns = [&](auto g0, auto m0, auto m1, auto m2, auto n0, auto n1) {
+                const int K0 = arg.a_gs_ms_ks_.mDesc.GetLengths()[4];
 
                 AccDataType v_acc = 0;
 
@@ -117,9 +118,10 @@ struct ReferenceContraction_M3_N2_K1 : public ck::tensor_operation::device::Base
                     AccDataType v_b;
 
                     arg.a_element_op_(
-                        v_a, ck::type_convert<const AccDataType>(arg.a_ms_ks_(m0, m1, m2, k0)));
+                        v_a,
+                        ck::type_convert<const AccDataType>(arg.a_gs_ms_ks_(g0, m0, m1, m2, k0)));
                     arg.b_element_op_(
-                        v_b, ck::type_convert<const AccDataType>(arg.b_ns_ks_(n0, n1, k0)));
+                        v_b, ck::type_convert<const AccDataType>(arg.b_gs_ns_ks_(g0, n0, n1, k0)));
 
                     v_acc += v_a * v_b;
                 }
@@ -128,15 +130,16 @@ struct ReferenceContraction_M3_N2_K1 : public ck::tensor_operation::device::Base
 
                 arg.cde_element_op_(v_c, v_acc);
 
-                arg.e_ms_ns_(m0, m1, m2, n0, n1) = v_c;
+                arg.e_gs_ms_ns_(g0, m0, m1, m2, n0, n1) = v_c;
             };
 
-            make_ParallelTensorFunctor(f_ms_ns,
-                                       arg.e_ms_ns_.mDesc.GetLengths()[0],
-                                       arg.e_ms_ns_.mDesc.GetLengths()[1],
-                                       arg.e_ms_ns_.mDesc.GetLengths()[2],
-                                       arg.e_ms_ns_.mDesc.GetLengths()[3],
-                                       arg.e_ms_ns_.mDesc.GetLengths()[4])(
+            make_ParallelTensorFunctor(f_gs_ms_ns,
+                                       arg.e_gs_ms_ns_.mDesc.GetLengths()[0],
+                                       arg.e_gs_ms_ns_.mDesc.GetLengths()[1],
+                                       arg.e_gs_ms_ns_.mDesc.GetLengths()[2],
+                                       arg.e_gs_ms_ns_.mDesc.GetLengths()[3],
+                                       arg.e_gs_ms_ns_.mDesc.GetLengths()[4],
+                                       arg.e_gs_ms_ns_.mDesc.GetLengths()[5])(
                 std::thread::hardware_concurrency());
 
             return 0;
@@ -160,14 +163,15 @@ struct ReferenceContraction_M3_N2_K1 : public ck::tensor_operation::device::Base
         return true;
     }
 
-    static auto MakeArgument(const Tensor<ADataType>& a_ms_ks,
-                             const Tensor<BDataType>& b_ns_ks,
-                             Tensor<EDataType>& e_ms_ns,
+    static auto MakeArgument(const Tensor<ADataType>& a_gs_ms_ks,
+                             const Tensor<BDataType>& b_gs_ns_ks,
+                             Tensor<EDataType>& e_gs_ms_ns,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CDEElementwiseOperation cde_element_op)
     {
-        return Argument{a_ms_ks, b_ns_ks, e_ms_ns, a_element_op, b_element_op, cde_element_op};
+        return Argument{
+            a_gs_ms_ks, b_gs_ns_ks, e_gs_ms_ns, a_element_op, b_element_op, cde_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -182,7 +186,7 @@ struct ReferenceContraction_M3_N2_K1 : public ck::tensor_operation::device::Base
         auto str = std::stringstream();
 
         // clang-format off
-        str << "ReferenceContraction_M3_N2_K1"
+        str << "ReferenceContraction_G1_M3_N2_K1"
             << std::endl;
         // clang-format on
 
@@ -196,36 +200,33 @@ int main(int argc, char* argv[])
     int init_method      = 1;
     bool time_kernel     = false;
 
+    ck::index_t G0 = 1;
+
     ck::index_t M0 = 4;
-    ck::index_t M1 = 32;
-    ck::index_t M2 = 128;
+    ck::index_t M1 = 8;
+    ck::index_t M2 = 256;
 
-    ck::index_t N0 = 16;
-    ck::index_t N1 = 256;
+    ck::index_t N0 = 32;
+    ck::index_t N1 = 128;
 
-    ck::index_t K0 = 256;
+    ck::index_t K0 = 1024;
 
     // A[M0, M1, M2, K0]
-    std::vector<ck::index_t> a_ms_ks_lengths{M0, M1, M2, K0};
-    std::vector<ck::index_t> a_ms_ks_strides{M1 * M2 * K0, M2 * K0, K0, 1};
+    std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, M0, M1, M2, K0};
+    std::vector<ck::index_t> a_gs_ms_ks_strides{M0 * M1 * M2 * K0, M1 * M2 * K0, M2 * K0, K0, 1};
+
     // B[N0, N1, K0]
-    std::vector<ck::index_t> b_ns_ks_lengths{N0, N1, K0};
-    std::vector<ck::index_t> b_ns_ks_strides{N1 * K0, K0, 1};
-#if 1
+    std::vector<ck::index_t> b_gs_ns_ks_lengths{G0, N0, N1, K0};
+    std::vector<ck::index_t> b_gs_ns_ks_strides{N0 * N1 * K0, N1 * K0, K0, 1};
+
     // D[M0, N0, M1, N1, M2]
-    std::vector<ck::index_t> d_ms_ns_lengths{M0, M1, M2, N0, N1};
-    std::vector<ck::index_t> d_ms_ns_strides{0, 0, 0, N1, 1};
-    // E[M0, N0, M1, N1, M2]
-    std::vector<ck::index_t> e_ms_ns_lengths{M0, M1, M2, N0, N1};
-    std::vector<ck::index_t> e_ms_ns_strides{N0 * M1 * N1 * M2, N1 * M2, 1, M1 * N1 * M2, M2};
-#else
-    // D[M0, N0, M1, N1, M2]
-    std::vector<ck::index_t> d_ms_ns_lengths{M0, M1, M2, N0, N1};
-    std::vector<ck::index_t> d_ms_ns_strides{0, 0, 0, N1, 1};
-    // E[M0, N0, M1, N1, M2]
-    std::vector<ck::index_t> e_ms_ns_lengths{M0, M1, M2, N0, N1};
-    std::vector<ck::index_t> e_ms_ns_strides{M1 * M2 * N0 * N1, M2 * N0 * N1, N0 * N1, N1, 1};
-#endif
+    std::vector<ck::index_t> d_gs_ms_ns_lengths{G0, M0, M1, M2, N0, N1};
+    std::vector<ck::index_t> d_gs_ms_ns_strides{N0 * N1, 0, 0, 0, N1, 1};
+
+    // E[M1, M0, N0, M1, N1]
+    std::vector<ck::index_t> e_gs_ms_ns_lengths{G0, M0, M1, M2, N0, N1};
+    std::vector<ck::index_t> e_gs_ms_ns_strides{
+        M0 * M1 * M2 * N1 * N0, N0 * M1 * N1, N1, M0 * N0 * M1 * N1, M1 * N1, 1};
 
     if(argc == 1)
     {
@@ -245,50 +246,51 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
-    Tensor<ADataType> a_ms_ks(
-        std::vector<std::size_t>(a_ms_ks_lengths.begin(), a_ms_ks_lengths.end()),
-        std::vector<std::size_t>(a_ms_ks_strides.begin(), a_ms_ks_strides.end()));
-    Tensor<BDataType> b_ns_ks(
-        std::vector<std::size_t>(b_ns_ks_lengths.begin(), b_ns_ks_lengths.end()),
-        std::vector<std::size_t>(b_ns_ks_strides.begin(), b_ns_ks_strides.end()));
-    Tensor<DDataType> d_ms_ns(
-        std::vector<std::size_t>(d_ms_ns_lengths.begin(), d_ms_ns_lengths.end()),
-        std::vector<std::size_t>(d_ms_ns_strides.begin(), d_ms_ns_strides.end()));
-    Tensor<EDataType> e_ms_ns_host_result(
-        std::vector<std::size_t>(e_ms_ns_lengths.begin(), e_ms_ns_lengths.end()),
-        std::vector<std::size_t>(e_ms_ns_strides.begin(), e_ms_ns_strides.end()));
-    Tensor<EDataType> e_ms_ns_device_result(
-        std::vector<std::size_t>(e_ms_ns_lengths.begin(), e_ms_ns_lengths.end()),
-        std::vector<std::size_t>(e_ms_ns_strides.begin(), e_ms_ns_strides.end()));
+    Tensor<ADataType> a_gs_ms_ks(
+        std::vector<std::size_t>(a_gs_ms_ks_lengths.begin(), a_gs_ms_ks_lengths.end()),
+        std::vector<std::size_t>(a_gs_ms_ks_strides.begin(), a_gs_ms_ks_strides.end()));
+    Tensor<BDataType> b_gs_ns_ks(
+        std::vector<std::size_t>(b_gs_ns_ks_lengths.begin(), b_gs_ns_ks_lengths.end()),
+        std::vector<std::size_t>(b_gs_ns_ks_strides.begin(), b_gs_ns_ks_strides.end()));
+    Tensor<DDataType> d_gs_ms_ns(
+        std::vector<std::size_t>(d_gs_ms_ns_lengths.begin(), d_gs_ms_ns_lengths.end()),
+        std::vector<std::size_t>(d_gs_ms_ns_strides.begin(), d_gs_ms_ns_strides.end()));
+    Tensor<EDataType> e_gs_ms_ns_host_result(
+        std::vector<std::size_t>(e_gs_ms_ns_lengths.begin(), e_gs_ms_ns_lengths.end()),
+        std::vector<std::size_t>(e_gs_ms_ns_strides.begin(), e_gs_ms_ns_strides.end()));
+    Tensor<EDataType> e_gs_ms_ns_device_result(
+        std::vector<std::size_t>(e_gs_ms_ns_lengths.begin(), e_gs_ms_ns_lengths.end()),
+        std::vector<std::size_t>(e_gs_ms_ns_strides.begin(), e_gs_ms_ns_strides.end()));
 
-    std::cout << "a_ms_ks: " << a_ms_ks.mDesc << std::endl;
-    std::cout << "b_ns_ks: " << b_ns_ks.mDesc << std::endl;
-    std::cout << "d_ms_ns: " << d_ms_ns.mDesc << std::endl;
-    std::cout << "e_ms_ns: " << e_ms_ns_host_result.mDesc << std::endl;
+    std::cout << "a_gs_ms_ks: " << a_gs_ms_ks.mDesc << std::endl;
+    std::cout << "b_gs_ns_ks: " << b_gs_ns_ks.mDesc << std::endl;
+    std::cout << "d_gs_ms_ns: " << d_gs_ms_ns.mDesc << std::endl;
+    std::cout << "e_gs_ms_ns: " << e_gs_ms_ns_host_result.mDesc << std::endl;
 
     switch(init_method)
     {
     case 0: break;
     case 1:
-        a_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b_ns_ks.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
-        d_ms_ns.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
+        b_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
         break;
     default:
-        a_ms_ks.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b_ns_ks.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
-        d_ms_ns.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+        b_gs_ns_ks.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
         break;
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_ms_ks.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_ns_ks.mDesc.GetElementSpaceSize());
-    DeviceMem d_device_buf(sizeof(DDataType) * d_ms_ns.mDesc.GetElementSpaceSize());
-    DeviceMem e_device_buf(sizeof(EDataType) * e_ms_ns_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(sizeof(ADataType) * a_gs_ms_ks.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_gs_ns_ks.mDesc.GetElementSpaceSize());
+    DeviceMem d_device_buf(sizeof(DDataType) * d_gs_ms_ns.mDesc.GetElementSpaceSize());
+    DeviceMem e_device_buf(sizeof(EDataType) *
+                           e_gs_ms_ns_device_result.mDesc.GetElementSpaceSize());
 
-    a_device_buf.ToDevice(a_ms_ks.mData.data());
-    b_device_buf.ToDevice(b_ns_ks.mData.data());
-    d_device_buf.ToDevice(d_ms_ns.mData.data());
+    a_device_buf.ToDevice(a_gs_ms_ks.mData.data());
+    b_device_buf.ToDevice(b_gs_ns_ks.mData.data());
+    d_device_buf.ToDevice(d_gs_ms_ns.mData.data());
 
     // set zero
     e_device_buf.SetZero();
@@ -304,14 +306,14 @@ int main(int argc, char* argv[])
                                     b_device_buf.GetDeviceBuffer(),
                                     std::array<const void*, 1>{d_device_buf.GetDeviceBuffer()},
                                     e_device_buf.GetDeviceBuffer(),
-                                    a_ms_ks_lengths,
-                                    a_ms_ks_strides,
-                                    b_ns_ks_lengths,
-                                    b_ns_ks_strides,
-                                    std::array<std::vector<ck::index_t>, 1>{d_ms_ns_lengths},
-                                    std::array<std::vector<ck::index_t>, 1>{d_ms_ns_strides},
-                                    e_ms_ns_lengths,
-                                    e_ms_ns_strides,
+                                    a_gs_ms_ks_lengths,
+                                    a_gs_ms_ks_strides,
+                                    b_gs_ns_ks_lengths,
+                                    b_gs_ns_ks_strides,
+                                    std::array<std::vector<ck::index_t>, 1>{d_gs_ms_ns_lengths},
+                                    std::array<std::vector<ck::index_t>, 1>{d_gs_ms_ns_strides},
+                                    e_gs_ms_ns_lengths,
+                                    e_gs_ms_ns_strides,
                                     a_element_op,
                                     b_element_op,
                                     cde_element_op);
@@ -325,18 +327,18 @@ int main(int argc, char* argv[])
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-    ck::index_t M = std::accumulate(e_ms_ns_lengths.begin(),
-                                    e_ms_ns_lengths.begin() + NumDimM,
+    ck::index_t M = std::accumulate(e_gs_ms_ns_lengths.begin(),
+                                    e_gs_ms_ns_lengths.begin() + NumDimM,
                                     ck::index_t{1},
                                     std::multiplies<ck::index_t>{});
 
-    ck::index_t N = std::accumulate(e_ms_ns_lengths.begin() + NumDimM,
-                                    e_ms_ns_lengths.begin() + NumDimM + NumDimN,
+    ck::index_t N = std::accumulate(e_gs_ms_ns_lengths.begin() + NumDimM,
+                                    e_gs_ms_ns_lengths.begin() + NumDimM + NumDimN,
                                     ck::index_t{1},
                                     std::multiplies<ck::index_t>{});
 
-    ck::index_t K = std::accumulate(a_ms_ks_lengths.begin() + NumDimM,
-                                    a_ms_ks_lengths.begin() + NumDimM + NumDimK,
+    ck::index_t K = std::accumulate(a_gs_ms_ks_lengths.begin() + NumDimM,
+                                    a_gs_ms_ks_lengths.begin() + NumDimM + NumDimK,
                                     ck::index_t{1},
                                     std::multiplies<ck::index_t>{});
 
@@ -351,53 +353,64 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << op.GetTypeString() << std::endl;
 
-    e_device_buf.FromDevice(e_ms_ns_device_result.mData.data());
+    e_device_buf.FromDevice(e_gs_ms_ns_device_result.mData.data());
 
     if(do_verification)
     {
-        Tensor<CShuffleDataType> c_ms_ns_host_result(
-            std::vector<std::size_t>(e_ms_ns_lengths.begin(), e_ms_ns_lengths.end()),
-            std::vector<std::size_t>(e_ms_ns_strides.begin(), e_ms_ns_strides.end()));
+        Tensor<CShuffleDataType> c_gs_ms_ns_host_result(
+            std::vector<std::size_t>(e_gs_ms_ns_lengths.begin(), e_gs_ms_ns_lengths.end()),
+            std::vector<std::size_t>(e_gs_ms_ns_strides.begin(), e_gs_ms_ns_strides.end()));
 
-        using ReferenceOpInstance = ReferenceContraction_M3_N2_K1<NumDimM,
-                                                                  NumDimN,
-                                                                  NumDimK,
-                                                                  ADataType,
-                                                                  BDataType,
-                                                                  CShuffleDataType,
-                                                                  AccDataType,
-                                                                  AElementOp,
-                                                                  BElementOp,
-                                                                  PassThrough>;
+        using ReferenceOpInstance = ReferenceContraction_G1_M3_N2_K1<NumDimG,
+                                                                     NumDimM,
+                                                                     NumDimN,
+                                                                     NumDimK,
+                                                                     ADataType,
+                                                                     BDataType,
+                                                                     CShuffleDataType,
+                                                                     AccDataType,
+                                                                     AElementOp,
+                                                                     BElementOp,
+                                                                     PassThrough>;
 
         auto ref_gemm    = ReferenceOpInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
 
-        auto ref_argument = ref_gemm.MakeArgument(
-            a_ms_ks, b_ns_ks, c_ms_ns_host_result, a_element_op, b_element_op, PassThrough{});
+        auto ref_argument = ref_gemm.MakeArgument(a_gs_ms_ks,
+                                                  b_gs_ns_ks,
+                                                  c_gs_ms_ns_host_result,
+                                                  a_element_op,
+                                                  b_element_op,
+                                                  PassThrough{});
 
         ref_invoker.Run(ref_argument);
 
-        for(size_t m0 = 0; m0 < e_ms_ns_host_result.mDesc.GetLengths()[0]; ++m0)
+        for(size_t g0 = 0; g0 < e_gs_ms_ns_host_result.mDesc.GetLengths()[0]; ++g0)
         {
-            for(size_t m1 = 0; m1 < e_ms_ns_host_result.mDesc.GetLengths()[1]; ++m1)
+            for(size_t m0 = 0; m0 < e_gs_ms_ns_host_result.mDesc.GetLengths()[1]; ++m0)
             {
-                for(size_t m2 = 0; m2 < e_ms_ns_host_result.mDesc.GetLengths()[2]; ++m2)
+                for(size_t m1 = 0; m1 < e_gs_ms_ns_host_result.mDesc.GetLengths()[2]; ++m1)
                 {
-                    for(size_t n0 = 0; n0 < e_ms_ns_host_result.mDesc.GetLengths()[3]; ++n0)
+                    for(size_t m2 = 0; m2 < e_gs_ms_ns_host_result.mDesc.GetLengths()[3]; ++m2)
                     {
-                        for(size_t n1 = 0; n1 < e_ms_ns_host_result.mDesc.GetLengths()[4]; ++n1)
+                        for(size_t n0 = 0; n0 < e_gs_ms_ns_host_result.mDesc.GetLengths()[4]; ++n0)
                         {
-                            cde_element_op(e_ms_ns_host_result(m0, m1, m2, n0, n1),
-                                           c_ms_ns_host_result(m0, m1, m2, n0, n1),
-                                           d_ms_ns(m0, m1, m2, n0, n1));
+                            for(size_t n1 = 0; n1 < e_gs_ms_ns_host_result.mDesc.GetLengths()[5];
+                                ++n1)
+                            {
+                                cde_element_op(e_gs_ms_ns_host_result(g0, m0, m1, m2, n0, n1),
+                                               c_gs_ms_ns_host_result(g0, m0, m1, m2, n0, n1),
+                                               d_gs_ms_ns(g0, m0, m1, m2, n0, n1));
+                            }
                         }
                     }
                 }
             }
         }
 
-        return ck::utils::check_err(e_ms_ns_device_result.mData, e_ms_ns_host_result.mData) ? 0 : 1;
+        return ck::utils::check_err(e_gs_ms_ns_device_result.mData, e_gs_ms_ns_host_result.mData)
+                   ? 0
+                   : 1;
     }
 
     return 0;
