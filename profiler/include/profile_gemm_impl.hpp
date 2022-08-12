@@ -15,21 +15,21 @@
 #include "ck/library/tensor_operation_instance/gpu/gemm.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 namespace ck {
 namespace profiler {
 
-template <typename ADataType,
+template <typename ALayout,
+          typename BLayout,
+          typename CLayout,
+          typename ADataType,
           typename BDataType,
           typename AccDataType,
-          typename CDataType,
-          typename ALayout,
-          typename BLayout,
-          typename CLayout>
+          typename CDataType>
 int profile_gemm_impl(int do_verification,
                       int init_method,
                       bool do_log,
@@ -86,13 +86,12 @@ int profile_gemm_impl(int do_verification,
     const auto b_element_op = BElementOp{};
     const auto c_element_op = CElementOp{};
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
-    DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpace());
+    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
-    c_device_buf.ToDevice(c_m_n_device_result.mData.data());
 
     using DeviceOp = ck::tensor_operation::device::DeviceGemm<ALayout,
                                                               BLayout,
@@ -110,7 +109,7 @@ int profile_gemm_impl(int do_verification,
 
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
-    // Run reference GEMM
+    // Run reference op
     if(do_verification)
     {
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
@@ -131,11 +130,11 @@ int profile_gemm_impl(int do_verification,
     }
 
     std::string best_op_name;
-    float best_ave_time   = 0;
+    float best_avg_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
 
-    // profile device GEMM instances
+    // profile device op instances
     for(auto& op_ptr : op_ptrs)
     {
         auto argument_ptr =
@@ -161,7 +160,7 @@ int profile_gemm_impl(int do_verification,
 
             std::string op_name = op_ptr->GetTypeString();
 
-            float ave_time =
+            float avg_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
             std::size_t flop = std::size_t(2) * M * N * K;
@@ -169,18 +168,18 @@ int profile_gemm_impl(int do_verification,
             std::size_t num_btype =
                 sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
 
-            float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+            float tflops = static_cast<float>(flop) / 1.E9 / avg_time;
 
-            float gb_per_sec = num_btype / 1.E6 / ave_time;
+            float gb_per_sec = num_btype / 1.E6 / avg_time;
 
-            std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops << " TFlops, "
+            std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << tflops << " TFlops, "
                       << gb_per_sec << " GB/s, " << op_name << std::endl;
 
             if(tflops > best_tflops)
             {
                 best_op_name    = op_name;
                 best_tflops     = tflops;
-                best_ave_time   = ave_time;
+                best_avg_time   = avg_time;
                 best_gb_per_sec = gb_per_sec;
             }
 
@@ -244,7 +243,7 @@ int profile_gemm_impl(int do_verification,
     }
 
     std::cout << " M = " << M << " N = " << N << " K = " << K << " StrideA = " << StrideA
-              << " StrideB = " << StrideB << " StrideC = " << StrideC << " : " << best_ave_time
+              << " StrideB = " << StrideB << " StrideC = " << StrideC << " : " << best_avg_time
               << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec << " GB/s, "
               << best_op_name << std::endl;
 

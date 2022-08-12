@@ -33,30 +33,31 @@ function print_log_header(){
 	echo 'Environment type: ' $2 >> $1;
 	/opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> $1;
 }
+
 #run gemm tests
 export gemm_log="perf_gemm_${gpu_arch}.log"
 print_log_header $gemm_log $env_type $branch $host_name
-./profile_gemm.sh gemm 0 0 $verify 1 0 5 | tee -a $gemm_log
-./profile_gemm.sh gemm 1 0 $verify 1 0 5 | tee -a $gemm_log
-./profile_gemm.sh gemm 2 0 $verify 1 0 5 | tee -a $gemm_log
-./profile_gemm.sh gemm 3 0 $verify 1 0 5 | tee -a $gemm_log
-./profile_gemm.sh gemm 0 1 $verify 1 0 5 | tee -a $gemm_log
-./profile_gemm.sh gemm 1 1 $verify 1 0 5 | tee -a $gemm_log
-./profile_gemm.sh gemm 2 1 $verify 1 0 5 | tee -a $gemm_log
-./profile_gemm.sh gemm 3 1 $verify 1 0 5 | tee -a $gemm_log
-./profile_gemm.sh gemm 0 2 $verify 1 0 5 | tee -a $gemm_log
-./profile_gemm.sh gemm 1 2 $verify 1 0 5 | tee -a $gemm_log
-./profile_gemm.sh gemm 2 2 $verify 1 0 5 | tee -a $gemm_log
-./profile_gemm.sh gemm 3 2 $verify 1 0 5 | tee -a $gemm_log
-./profile_gemm.sh gemm 0 3 $verify 1 0 5 | tee -a $gemm_log
-./profile_gemm.sh gemm 1 3 $verify 1 0 5 | tee -a $gemm_log
-./profile_gemm.sh gemm 2 3 $verify 1 0 5 | tee -a $gemm_log
-./profile_gemm.sh gemm 3 3 $verify 1 0 5 | tee -a $gemm_log
+./profile_gemm.sh gemm 0 0 $verify 1 0 1 | tee -a $gemm_log
+./profile_gemm.sh gemm 1 0 $verify 1 0 1 | tee -a $gemm_log
+./profile_gemm.sh gemm 2 0 $verify 1 0 1 | tee -a $gemm_log
+./profile_gemm.sh gemm 3 0 $verify 1 0 1 | tee -a $gemm_log
+./profile_gemm.sh gemm 0 1 $verify 1 0 1 | tee -a $gemm_log
+./profile_gemm.sh gemm 1 1 $verify 1 0 1 | tee -a $gemm_log
+./profile_gemm.sh gemm 2 1 $verify 1 0 1 | tee -a $gemm_log
+./profile_gemm.sh gemm 3 1 $verify 1 0 1 | tee -a $gemm_log
+./profile_gemm.sh gemm 0 2 $verify 1 0 1 | tee -a $gemm_log
+./profile_gemm.sh gemm 1 2 $verify 1 0 1 | tee -a $gemm_log
+./profile_gemm.sh gemm 2 2 $verify 1 0 1 | tee -a $gemm_log
+./profile_gemm.sh gemm 3 2 $verify 1 0 1 | tee -a $gemm_log
+./profile_gemm.sh gemm 0 3 $verify 1 0 1 | tee -a $gemm_log
+./profile_gemm.sh gemm 1 3 $verify 1 0 1 | tee -a $gemm_log
+./profile_gemm.sh gemm 2 3 $verify 1 0 1 | tee -a $gemm_log
+./profile_gemm.sh gemm 3 3 $verify 1 0 1 | tee -a $gemm_log
 
-#run resnet50 test
+#run resnet50 tests
 export resnet256_log="perf_resnet50_N256_${gpu_arch}.log"
 print_log_header $resnet256_log $env_type $branch $host_name
-./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 $verify 2 0 1 256 | tee -a $resnet256_log
+./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 $verify 1 0 1 256 | tee -a $resnet256_log
 export resnet4_log="perf_resnet50_N4_${gpu_arch}.log"
 print_log_header $resnet4_log $env_type $branch $host_name
-./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 $verify 2 0 1 4 | tee -a $resnet4_log
+./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 $verify 1 0 1 4 | tee -a $resnet4_log
