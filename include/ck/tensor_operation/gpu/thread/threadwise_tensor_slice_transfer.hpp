@@ -1192,6 +1192,10 @@ struct ThreadwiseTensorSliceTransfer_v4
 
         move_tensor_coordinate(SrcDesc{}, src_ref_coord_, src_slice_move_step_iter);
     }
+    __device__ void SetSrcCoord(const Index& src_ref_idx)
+    {
+        src_ref_coord_ = make_tensor_coordinate(SrcDesc{}, src_ref_idx);
+    }
 
     private:
     SrcCoord src_ref_coord_;
