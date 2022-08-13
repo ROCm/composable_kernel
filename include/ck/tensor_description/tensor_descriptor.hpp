@@ -162,6 +162,7 @@ struct TensorDescriptor
 
     __host__ __device__ constexpr auto GetLengths() const
     {
+        // FIXME: use Tuple of reference instead
         return generate_sequence_v2([&](auto I) { return GetLength(I); }, Number<ndim_visible_>{});
     }
 
