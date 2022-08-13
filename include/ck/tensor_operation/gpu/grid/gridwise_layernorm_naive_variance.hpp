@@ -14,40 +14,6 @@
 
 namespace ck {
 
-template <typename GridwiseReduction,
-          typename XDataType,
-          typename GammaDataType,
-          typename BetaDataType,
-          typename YDataType,
-          typename AccDataType,
-          typename AccElementwiseOperation,
-          typename GridDesc_M_K,
-          typename GridDesc_K>
-__global__ void kernel_layernorm(const GridDesc_M_K x_grid_desc_m_k,
-                                 const GridDesc_K gamma_grid_desc_k,
-                                 const GridDesc_K beta_grid_desc_k,
-                                 const GridDesc_M_K y_grid_desc_m_k,
-                                 index_t num_k_block_tile_iteration,
-                                 AccDataType epsilon,
-                                 const XDataType* const __restrict__ p_x_global,
-                                 const GammaDataType* const __restrict__ p_gamma_global,
-                                 const BetaDataType* const __restrict__ p_beta_global,
-                                 YDataType* const __restrict__ p_y_global,
-                                 const AccElementwiseOperation acc_elementwise_op)
-{
-    GridwiseReduction::Run(x_grid_desc_m_k,
-                           gamma_grid_desc_k,
-                           beta_grid_desc_k,
-                           y_grid_desc_m_k,
-                           num_k_block_tile_iteration,
-                           epsilon,
-                           p_x_global,
-                           p_gamma_global,
-                           p_beta_global,
-                           p_y_global,
-                           acc_elementwise_op);
-};
-
 // Y = LayerNorm(X, Beta, Gamma)
 template <typename XDataType,
           typename GammaDataType,
@@ -69,7 +35,7 @@ template <typename XDataType,
           index_t YDstVectorDim,
           index_t YDstVectorSize,
           bool SweepOnce>
-struct GridwiseLayernorm_mk_to_mk
+struct GridwiseLayernormNaiveVariance_mk_to_mk
 {
     static_assert((XSrcVectorDim == 0 && MThreadSliceSize % XSrcVectorSize == 0) ||
                       (XSrcVectorDim == 1 && KThreadSliceSize % XSrcVectorSize == 0),
