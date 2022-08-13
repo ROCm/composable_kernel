@@ -701,7 +701,9 @@ struct BlockwiseGemmXdlops_v2
         const auto waveId_m = wave_idx[I0];
         const auto waveId_n = wave_idx[I1];
 
-        const auto blk_idx = xdlops_gemm.GetBeginOfThreadBlk(xdlops_i, blk_i);
+        const auto tmp = xdlops_gemm.GetBeginOfThreadBlk(xdlops_i, blk_i);
+        const auto blk_idx =
+            TransposeC ? make_multi_index(tmp[I1], tmp[I0]) : make_multi_index(tmp[I0], tmp[I1]);
 
         constexpr auto mrepeat_mwave_mperxdl_to_m_adaptor = make_single_stage_tensor_adaptor(
             make_tuple(make_unmerge_transform(make_tuple(MRepeat, MWaves, MPerXDL))),
