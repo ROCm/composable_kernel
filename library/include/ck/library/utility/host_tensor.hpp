@@ -77,38 +77,36 @@ struct HostTensorDescriptor
 
     void CalculateStrides();
 
-    template <typename X>
+    template <typename X, typename = std::enable_if_t<std::is_convertible_v<X, std::size_t>>>
     HostTensorDescriptor(const std::initializer_list<X>& lens) : mLens(lens.begin(), lens.end())
     {
         this->CalculateStrides();
     }
 
-    template <typename X>
-    HostTensorDescriptor(const std::vector<X>& lens) : mLens(lens.begin(), lens.end())
-    {
-        this->CalculateStrides();
-    }
-
-    template <typename Range>
+    template <typename Range,
+              typename = std::enable_if_t<
+                  std::is_convertible_v<decltype(*std::begin(std::declval<Range>())), std::size_t>>>
     HostTensorDescriptor(const Range& lens) : mLens(lens.begin(), lens.end())
     {
         this->CalculateStrides();
     }
 
-    template <typename X, typename Y>
+    template <typename X,
+              typename Y,
+              typename = std::enable_if_t<std::is_convertible_v<X, std::size_t> &&
+                                          std::is_convertible_v<Y, std::size_t>>>
     HostTensorDescriptor(const std::initializer_list<X>& lens,
                          const std::initializer_list<Y>& strides)
         : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
     {
     }
 
-    template <typename X, typename Y>
-    HostTensorDescriptor(const std::vector<X>& lens, const std::vector<Y>& strides)
-        : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
-    {
-    }
-
-    template <typename Range1, typename Range2>
+    template <
+        typename Range1,
+        typename Range2,
+        typename = std::enable_if_t<
+            std::is_convertible_v<decltype(*std::begin(std::declval<Range1>())), std::size_t> &&
+            std::is_convertible_v<decltype(*std::begin(std::declval<Range2>())), std::size_t>>>
     HostTensorDescriptor(const Range1& lens, const Range2& strides)
         : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
     {
