@@ -66,8 +66,14 @@ using DeviceBatchedGemmReduceInstance = ck::tensor_operation::device::DeviceBatc
         <     Row,     Col,     Row,  F16,   F16,   F16,      F32,      F32,       F32,   ReducePtrsGlobal,  AElementOp,  BElementOp,  CElementOp, ReduceOps, ReduceInElementOps, ReduceOutElementOps, ReduceGlobalMemOps, GemmSpecialization,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8,             S<64, 4>,                         4,                            1>;
 // clang-format on
 
-using ReferenceBatchedGemmInstance = ck::tensor_operation::host::
-    ReferenceBatchedGemm<ADataType, BDataType, CDataType, AElementOp, BElementOp, CElementOp>;
+using ReferenceBatchedGemmInstance =
+    ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
+                                                     BDataType,
+                                                     CDataType,
+                                                     ReduceAccDataType,
+                                                     AElementOp,
+                                                     BElementOp,
+                                                     CElementOp>;
 
 int main(int argc, char* argv[])
 {
