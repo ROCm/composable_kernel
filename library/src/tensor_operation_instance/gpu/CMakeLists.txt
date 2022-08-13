@@ -3,6 +3,7 @@ function(add_instance_library INSTANCE_NAME)
     add_library(${INSTANCE_NAME} OBJECT ${ARGN})
     target_compile_features(${INSTANCE_NAME} PUBLIC)
     set_target_properties(${INSTANCE_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    clang_tidy_check(${INSTANCE_NAME})
 endfunction(add_instance_library INSTANCE_NAME)
 
 add_subdirectory(gemm)
