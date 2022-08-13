@@ -7,7 +7,7 @@
 #include <getopt.h>
 
 #include "ck/utility/reduction_enums.hpp"
-#include "reduce_blockwise_impl.hpp"
+#include "reduce_multiblock_atomic_add_impl.hpp"
 #include "reduce_example_common.hpp"
 
 using namespace ck;
@@ -44,8 +44,7 @@ class SimpleAppArgs
         std::cout << "--verify or -v, 1/0 to indicate whether to verify the reduction result by "
                      "comparing with the host-based reduction"
                   << std::endl;
-        std::cout << "Arg1: data type (0: fp16, 1: fp32, 3: int8, 5: bp16, 6: fp64, 7: int4)"
-                  << std::endl;
+        std::cout << "Arg1: data type (0: fp32, 1: fp64)" << std::endl;
         std::cout << "Arg2 -- init method (0=no init, 1=single integer value, 2=scope integer "
                      "value, 3=decimal value)"
                   << std::endl;
@@ -116,15 +115,14 @@ class SimpleAppArgs
 template <typename InOutDataType,
           typename AccDataType,
           ReduceTensorOp ReduceOpId,
-          index_t PropagateNan,
-          index_t OutputIndex>
-bool reduce_blockwise_test(bool do_verification,
-                           int init_method,
-                           bool time_kernel,
-                           const std::vector<size_t>& inLengths,
-                           const std::vector<int>& reduceDims,
-                           float alpha,
-                           float beta)
+          index_t PropagateNan>
+bool reduce_multiblock_atomic_add_test(bool do_verification,
+                                       int init_method,
+                                       bool time_kernel,
+                                       const std::vector<size_t>& inLengths,
+                                       const std::vector<int>& reduceDims,
+                                       float alpha,
+                                       float beta)
 {
     bool matched = false;
     int result   = 0;
@@ -140,13 +138,12 @@ bool reduce_blockwise_test(bool do_verification,
         if(ShapeType::Rank_ != inLengths.size() || ShapeType::NumReduceDim_ != reduceDims.size())
             return;
 
-        result = reduce_blockwise_impl<InOutDataType,
-                                       AccDataType,
-                                       ReduceOpId,
-                                       ShapeType::Rank_,
-                                       ShapeType::NumReduceDim_,
-                                       PropagateNan,
-                                       OutputIndex>(
+        result = reduce_multiblock_atomic_add_impl<InOutDataType,
+                                                   AccDataType,
+                                                   ReduceOpId,
+                                                   ShapeType::Rank_,
+                                                   ShapeType::NumReduceDim_,
+                                                   PropagateNan>(
             do_verification, init_method, time_kernel, inLengths, reduceDims, alpha, beta);
 
         matched = true;
@@ -157,7 +154,6 @@ bool reduce_blockwise_test(bool do_verification,
 
 constexpr ReduceTensorOp ReduceOpId = ReduceTensorOp::AVG;
 constexpr bool PropagateNan         = true;
-constexpr bool OutputIndex          = false;
 
 int main(int argc, char* argv[])
 {
@@ -172,7 +168,7 @@ int main(int argc, char* argv[])
 
         if(arg.data_type == 0)
         {
-            pass = reduce_blockwise_test<ck::half_t, float, ReduceOpId, PropagateNan, OutputIndex>(
+            pass = reduce_multiblock_atomic_add_test<float, float, ReduceOpId, PropagateNan>(
                 arg.do_verification,
                 arg.init_method,
                 arg.time_kernel,
@@ -183,40 +179,7 @@ int main(int argc, char* argv[])
         }
         else if(arg.data_type == 1)
         {
-            pass = reduce_blockwise_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(
-                arg.do_verification,
-                arg.init_method,
-                arg.time_kernel,
-                arg.inLengths,
-                arg.reduceDims,
-                arg.scales[0],
-                arg.scales[1]);
-        }
-        else if(arg.data_type == 3)
-        {
-            pass = reduce_blockwise_test<int8_t, float, ReduceOpId, PropagateNan, OutputIndex>(
-                arg.do_verification,
-                arg.init_method,
-                arg.time_kernel,
-                arg.inLengths,
-                arg.reduceDims,
-                arg.scales[0],
-                arg.scales[1]);
-        }
-        else if(arg.data_type == 5)
-        {
-            pass = reduce_blockwise_test<ck::bhalf_t, float, ReduceOpId, PropagateNan, OutputIndex>(
-                arg.do_verification,
-                arg.init_method,
-                arg.time_kernel,
-                arg.inLengths,
-                arg.reduceDims,
-                arg.scales[0],
-                arg.scales[1]);
-        }
-        else if(arg.data_type == 6)
-        {
-            pass = reduce_blockwise_test<double, double, ReduceOpId, PropagateNan, OutputIndex>(
+            pass = reduce_multiblock_atomic_add_test<double, double, ReduceOpId, PropagateNan>(
                 arg.do_verification,
                 arg.init_method,
                 arg.time_kernel,
@@ -228,36 +191,21 @@ int main(int argc, char* argv[])
     }
     else
     {
-        // for testing half_t
-        pass =
-            pass && reduce_blockwise_test<ck::half_t, float, ReduceOpId, PropagateNan, OutputIndex>(
-                        true, 2, true, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
-
         // for testing float
-        pass = pass && reduce_blockwise_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(
-                           true, 2, true, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
+        pass = pass && reduce_multiblock_atomic_add_test<float, float, ReduceOpId, PropagateNan>(
+                           true, 2, false, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
 
         // for testing double
-        pass = pass && reduce_blockwise_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(
-                           true, 2, true, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
-
-        // for testing bhalf_t
-        pass = pass &&
-               reduce_blockwise_test<ck::bhalf_t, float, ReduceOpId, PropagateNan, OutputIndex>(
-                   true, 2, true, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
-
-        // for testing int8_t
-        pass =
-            pass && reduce_blockwise_test<int8_t, int32_t, ReduceOpId, PropagateNan, OutputIndex>(
-                        true, 2, true, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
+        pass = pass && reduce_multiblock_atomic_add_test<double, double, ReduceOpId, PropagateNan>(
+                           true, 2, false, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
 
         // for testing 3D input
-        pass = pass && reduce_blockwise_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(
-                           true, 2, true, {16, 64, 960}, {0, 1}, 1.0f, 0.0f);
+        pass = pass && reduce_multiblock_atomic_add_test<float, float, ReduceOpId, PropagateNan>(
+                           true, 2, false, {16, 64, 960}, {0, 1}, 1.0f, 0.0f);
 
         // for testing 5D input
-        pass = pass && reduce_blockwise_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(
-                           true, 2, true, {16, 64, 32, 2, 960}, {0, 1, 2, 3}, 1.0f, 0.0f);
+        pass = pass && reduce_multiblock_atomic_add_test<float, float, ReduceOpId, PropagateNan>(
+                           true, 2, false, {16, 64, 32, 2, 960}, {0, 1, 2, 3}, 1.0f, 0.0f);
     };
 
     return (pass ? 0 : 1);
