@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#ifndef CK_STATIC_BUFFER_HPP
-#define CK_STATIC_BUFFER_HPP
+#pragma once
 
 #include "statically_indexed_array.hpp"
 
@@ -19,13 +18,6 @@ struct StaticBuffer : public StaticallyIndexedArray<T, N>
     using base = StaticallyIndexedArray<T, N>;
 
     __host__ __device__ constexpr StaticBuffer() : base{} {}
-
-    __host__ __device__ constexpr StaticBuffer& operator=(StaticBuffer& y)
-    {
-        StaticBuffer& x = *this;
-        static_for<0, base::Size(), 1>{}([&](auto i) { x(i) = y[i]; });
-        return x;
-    }
 
     template <typename... Ys>
     __host__ __device__ constexpr StaticBuffer& operator=(const Tuple<Ys...>& y)
@@ -201,4 +193,3 @@ __host__ __device__ constexpr auto make_static_buffer(LongNumber<N>)
 }
 
 } // namespace ck
-#endif
