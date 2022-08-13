@@ -18,23 +18,26 @@ struct DeviceMem
 {
     DeviceMem() = delete;
     DeviceMem(std::size_t mem_size);
-    void* GetDeviceBuffer();
-    std::size_t GetBufferSize();
-    void ToDevice(const void* p);
-    void FromDevice(void* p);
-    void SetZero();
+    void* GetDeviceBuffer() const;
+    std::size_t GetBufferSize() const;
+    void ToDevice(const void* p) const;
+    void FromDevice(void* p) const;
+    void SetZero() const;
     template <typename T>
-    void SetValue(T x)
-    {
-        if(mMemSize % sizeof(T) != 0)
-        {
-            throw std::runtime_error("wrong! not entire DeviceMem will be set");
-        }
-
-        set_buffer_value<T><<<1, 1024>>>(static_cast<T*>(mpDeviceBuf), x, mMemSize / sizeof(T));
-    }
+    void SetValue(T x) const;
     ~DeviceMem();
 
     void* mpDeviceBuf;
     std::size_t mMemSize;
 };
+
+template <typename T>
+void DeviceMem::SetValue(T x) const
+{
+    if(mMemSize % sizeof(T) != 0)
+    {
+        throw std::runtime_error("wrong! not entire DeviceMem will be set");
+    }
+
+    set_buffer_value<T><<<1, 1024>>>(static_cast<T*>(mpDeviceBuf), x, mMemSize / sizeof(T));
+}
