@@ -1,9 +1,0 @@
-# device_conv3d_fwd_instance
-set(DEVICE_CONV3D_FWD_INSTANCE_SOURCE
-   device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_f32_instance.cpp;
-   device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_f16_instance.cpp;
-   device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_bf16_instance.cpp;
-   device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk_int8_instance.cpp;
-)
-
-add_instance_library(device_conv3d_fwd_instance OBJECT ${DEVICE_CONV3D_FWD_INSTANCE_SOURCE})

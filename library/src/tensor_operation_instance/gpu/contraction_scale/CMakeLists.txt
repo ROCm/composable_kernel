@@ -1,9 +1,7 @@
-# device_contraction_scale_instance
-set(DEVICE_CONTRACTION_SCALE_INSTANCE_SOURCE
+add_instance_library(device_contraction_scale_instance
     device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_kkn_instance.cpp
     device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_knn_instance.cpp
     device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_mkn_instance.cpp
     device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_mnn_instance.cpp
 )
 
-add_instance_library(device_contraction_scale_instance OBJECT ${DEVICE_CONTRACTION_SCALE_INSTANCE_SOURCE})

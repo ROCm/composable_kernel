@@ -24,9 +24,9 @@ int profile_batched_gemm_reduce(int argc, char* argv[])
         F16_F16_F16_F32_F32, // 1
     };
 
-    if(!(argc == 15 || argc == 16))
+    if(argc != 15)
     {
-        printf("arg1: tensor operation (batched_gemm: BatchedGEMM+Reduce)\n");
+        printf("arg1: tensor operation (batched_gemm_reduce: BatchedGEMM+Reduce)\n");
         printf("arg2: data type (0: fp32; 1: fp16)\n");
         printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
         printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
@@ -37,7 +37,6 @@ int profile_batched_gemm_reduce(int argc, char* argv[])
         printf("arg6: print tensor value (0: no; 1: yes)\n");
         printf("arg7: time kernel (0=n0, 1=yes)\n");
         printf("arg8 to 14: M, N, K, StrideA, StrideB, StrideC, BatchCount\n");
-        printf("arg15: split k into  mulitiple batch\n");
         exit(1);
     }
 

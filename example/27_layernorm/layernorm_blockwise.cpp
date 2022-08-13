@@ -9,14 +9,14 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/reduction_enums.hpp"
-#include "ck/tensor_operation/gpu/device/device_layernorm.hpp"
+#include "ck/tensor_operation/gpu/device/device_layernorm_impl.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_common_util.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_common_util.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
 
 using XDataType     = ck::half_t;
@@ -29,24 +29,24 @@ using PassThrough   = ck::tensor_operation::element_wise::PassThrough;
 constexpr int Rank         = 2;
 constexpr int NumReduceDim = 1;
 
-using DeviceInstance = ck::tensor_operation::device::DeviceLayernorm<XDataType,
-                                                                     GammaDataType,
-                                                                     BetaDataType,
-                                                                     AccDataType,
-                                                                     YDataType,
-                                                                     PassThrough,
-                                                                     Rank,
-                                                                     NumReduceDim,
-                                                                     256, // BlockSize
-                                                                     8,   // ClusterM
-                                                                     32,  // ClusterK
-                                                                     1,   // SliceM
-                                                                     8,   // SliceK
-                                                                     1,   // SrcVecDim (0=M, 1=K)
-                                                                     8,   // SrcScalarPerVector
-                                                                     8,   // GammaScalarPerVector
-                                                                     8,   // BetaScalarPerVector
-                                                                     1>;  // OutScalarPerVector
+using DeviceInstance = ck::tensor_operation::device::DeviceLayernormImpl<XDataType,
+                                                                         GammaDataType,
+                                                                         BetaDataType,
+                                                                         AccDataType,
+                                                                         YDataType,
+                                                                         PassThrough,
+                                                                         Rank,
+                                                                         NumReduceDim,
+                                                                         256, // BlockSize
+                                                                         8,   // ClusterM
+                                                                         32,  // ClusterK
+                                                                         1,   // SliceM
+                                                                         8,   // SliceK
+                                                                         1,  // SrcVecDim (0=M, 1=K)
+                                                                         8,  // SrcScalarPerVector
+                                                                         8,  // GammaScalarPerVector
+                                                                         8,  // BetaScalarPerVector
+                                                                         8>; // OutScalarPerVector
 
 int main()
 {
@@ -75,10 +75,10 @@ int main()
     gamma.GenerateTensorValue(GeneratorTensor_3<GammaDataType>{0.0, 1.0});
     beta.GenerateTensorValue(GeneratorTensor_3<BetaDataType>{0.0, 1.0});
 
-    DeviceMem x_dev(sizeof(XDataType) * x.mDesc.GetElementSpace());
-    DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpace());
-    DeviceMem beta_dev(sizeof(BetaDataType) * beta.mDesc.GetElementSpace());
-    DeviceMem y_dev(sizeof(YDataType) * y.mDesc.GetElementSpace());
+    DeviceMem x_dev(sizeof(XDataType) * x.mDesc.GetElementSpaceSize());
+    DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpaceSize());
+    DeviceMem beta_dev(sizeof(BetaDataType) * beta.mDesc.GetElementSpaceSize());
+    DeviceMem y_dev(sizeof(YDataType) * y.mDesc.GetElementSpaceSize());
 
     x_dev.ToDevice(x.mData.data());
     gamma_dev.ToDevice(gamma.mData.data());
@@ -90,6 +90,7 @@ int main()
         std::vector<ck::index_t>{x.mDesc.GetStrides().begin(), x.mDesc.GetStrides().end()},
         std::vector<ck::index_t>{gamma.mDesc.GetStrides().begin(), gamma.mDesc.GetStrides().end()},
         std::vector<ck::index_t>{beta.mDesc.GetStrides().begin(), beta.mDesc.GetStrides().end()},
+        std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
         {1},
         1e-4,
         x_dev.GetDeviceBuffer(),

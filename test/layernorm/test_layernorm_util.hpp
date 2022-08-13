@@ -9,11 +9,11 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/number.hpp"
-#include "ck/tensor_operation/gpu/device/device_layernorm.hpp"
+#include "ck/tensor_operation/gpu/device/device_layernorm_impl.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/device_memory.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
 
 namespace ck {
@@ -63,24 +63,24 @@ class TestLayernorm : public ::testing::Test
                                                                          Rank,
                                                                          NumReduceDim>;
 
-    using DeviceInstance = tensor_operation::device::DeviceLayernorm<XDataType,
-                                                                     GammaDataType,
-                                                                     BetaDataType,
-                                                                     AccDataType,
-                                                                     YDataType,
-                                                                     PassThrough,
-                                                                     Rank,
-                                                                     NumReduceDim,
-                                                                     BlockSize,
-                                                                     MThreadClusterSize,
-                                                                     KThreadClusterSize,
-                                                                     MThreadSliceSize,
-                                                                     KThreadSliceSize,
-                                                                     XYSrcVectorDim,
-                                                                     XSrcVectorSize,
-                                                                     GammaSrcVectorSize,
-                                                                     BetaSrcVectorSize,
-                                                                     YDstVectorSize>;
+    using DeviceInstance = tensor_operation::device::DeviceLayernormImpl<XDataType,
+                                                                         GammaDataType,
+                                                                         BetaDataType,
+                                                                         AccDataType,
+                                                                         YDataType,
+                                                                         PassThrough,
+                                                                         Rank,
+                                                                         NumReduceDim,
+                                                                         BlockSize,
+                                                                         MThreadClusterSize,
+                                                                         KThreadClusterSize,
+                                                                         MThreadSliceSize,
+                                                                         KThreadSliceSize,
+                                                                         XYSrcVectorDim,
+                                                                         XSrcVectorSize,
+                                                                         GammaSrcVectorSize,
+                                                                         BetaSrcVectorSize,
+                                                                         YDstVectorSize>;
 
     TestLayernorm() : ref_instance_invoker_(ReferenceInstance{}.MakeInvoker()) {}
 
@@ -102,10 +102,10 @@ class TestLayernorm : public ::testing::Test
         gamma.GenerateTensorValue(GeneratorTensor_3<GammaDataType>{0.0, 1.0});
         beta.GenerateTensorValue(GeneratorTensor_3<BetaDataType>{0.0, 1.0});
 
-        DeviceMem x_dev(sizeof(XDataType) * x.mDesc.GetElementSpace());
-        DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpace());
-        DeviceMem beta_dev(sizeof(BetaDataType) * beta.mDesc.GetElementSpace());
-        DeviceMem y_dev(sizeof(YDataType) * y.mDesc.GetElementSpace());
+        DeviceMem x_dev(sizeof(XDataType) * x.mDesc.GetElementSpaceSize());
+        DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpaceSize());
+        DeviceMem beta_dev(sizeof(BetaDataType) * beta.mDesc.GetElementSpaceSize());
+        DeviceMem y_dev(sizeof(YDataType) * y.mDesc.GetElementSpaceSize());
 
         x_dev.ToDevice(x.mData.data());
         gamma_dev.ToDevice(gamma.mData.data());
@@ -119,6 +119,7 @@ class TestLayernorm : public ::testing::Test
                                      gamma.mDesc.GetStrides().end()},
             std::vector<ck::index_t>{beta.mDesc.GetStrides().begin(),
                                      beta.mDesc.GetStrides().end()},
+            std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
             reduceDims,
             1e-4,
             x_dev.GetDeviceBuffer(),
