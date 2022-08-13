@@ -4,5 +4,6 @@ add_example_executable(example_gemm_dl_int8 gemm_dl_int8.cpp)
 add_example_executable(example_gemm_xdl_fp16 gemm_xdl_fp16.cpp)
 add_example_executable(example_gemm_xdl_bf16 gemm_xdl_bf16.cpp)
 add_example_executable(example_gemm_xdl_int8 gemm_xdl_int8.cpp)
+add_example_executable(example_gemm_xdl_skip_b_lds_fp16 gemm_xdl_skip_b_lds_fp16.cpp)
 # FIXME: re-enable this exampe as test when SWDEV-335738 is fixed
 add_example_executable_no_testing(example_gemm_xdl_fp64 gemm_xdl_fp64.cpp)
