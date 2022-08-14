@@ -8,15 +8,15 @@
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_reduction.hpp"
-#include "ck/library/host_tensor/host_common_util.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_reduction.hpp"
+#include "ck/library/utility/host_common_util.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_reduce_instance {
+namespace instance {
 
 template <int Rank, int NumReduceDim, int ReduceOpId, bool PropagateNan, bool UseIndex>
 struct ReduceDescription
@@ -91,7 +91,7 @@ bool description_match(const DescriptionType& description,
     return (result);
 };
 
-} // namespace device_reduce_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
@@ -142,7 +142,7 @@ bool profile_reduce_impl_impl(bool do_verification,
                               float beta)
 {
     using namespace ck::tensor_operation::device;
-    using namespace ck::tensor_operation::device::device_reduce_instance;
+    using namespace ck::tensor_operation::device::instance;
     using ck::host_common::dumpBufferToFile;
 
     constexpr bool op_support_indices =
@@ -245,13 +245,13 @@ bool profile_reduce_impl_impl(bool do_verification,
             }
 
             if(beta != 0.0f)
-                for(size_t i = 0; i < out_ref.mDesc.GetElementSpace(); i++)
+                for(size_t i = 0; i < out_ref.mDesc.GetElementSpaceSize(); i++)
                     out.mData[i] = out_ref.mData[i];
         };
 
         // these buffers are usually provided by the user application
-        DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpace());
-        DeviceMem out_dev(sizeof(OutDataType) * out.mDesc.GetElementSpace());
+        DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
+        DeviceMem out_dev(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
 
         in_dev.ToDevice(in.mData.data());
 
@@ -464,7 +464,7 @@ bool profile_reduce_impl(bool do_verification,
     bool pass    = true;
 
     using tuple_of_description_instances =
-        tensor_operation::device::device_reduce_instance::reduce_description_instances;
+        tensor_operation::device::instance::reduce_description_instances;
 
     const auto tuple_object = tuple_of_description_instances{};
 

@@ -13,7 +13,9 @@
 #include <type_traits>
 #include <vector>
 
+#include "ck/ck.hpp"
 #include "ck/utility/data_type.hpp"
+#include "ck/host_utility/io.hpp"
 
 namespace ck {
 namespace utils {
@@ -29,9 +31,8 @@ check_err(const std::vector<T>& out,
 {
     if(out.size() != ref.size())
     {
-        std::cout << "out.size() != ref.size(), :" << out.size() << " != " << ref.size()
-                  << std::endl
-                  << msg << std::endl;
+        std::cout << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
+                  << std::endl;
         return false;
     }
 
@@ -48,9 +49,8 @@ check_err(const std::vector<T>& out,
             err_count++;
             if(err_count < 5)
             {
-                std::cout << std::setw(12) << std::setprecision(7) << "out[" << i << "] != ref["
-                          << i << "]: " << out[i] << " != " << ref[i] << std::endl
-                          << msg << std::endl;
+                std::cout << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                          << "] != ref[" << i << "]: " << out[i] << " != " << ref[i] << std::endl;
             }
             res = false;
         }
@@ -72,9 +72,8 @@ check_err(const std::vector<T>& out,
 {
     if(out.size() != ref.size())
     {
-        std::cout << "out.size() != ref.size(), :" << out.size() << " != " << ref.size()
-                  << std::endl
-                  << msg << std::endl;
+        std::cout << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
+                  << std::endl;
         return false;
     }
 
@@ -94,9 +93,8 @@ check_err(const std::vector<T>& out,
             err_count++;
             if(err_count < 5)
             {
-                std::cout << std::setw(12) << std::setprecision(7) << "out[" << i << "] != ref["
-                          << i << "]: " << o << " != " << r << std::endl
-                          << msg << std::endl;
+                std::cout << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                          << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
             }
             res = false;
         }
@@ -118,9 +116,8 @@ check_err(const std::vector<T>& out,
 {
     if(out.size() != ref.size())
     {
-        std::cout << "out.size() != ref.size(), :" << out.size() << " != " << ref.size()
-                  << std::endl
-                  << msg << std::endl;
+        std::cout << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
+                  << std::endl;
         return false;
     }
 
@@ -139,9 +136,8 @@ check_err(const std::vector<T>& out,
             err_count++;
             if(err_count < 5)
             {
-                std::cout << std::setw(12) << std::setprecision(7) << "out[" << i << "] != ref["
-                          << i << "]: " << o << " != " << r << std::endl
-                          << msg << std::endl;
+                std::cout << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                          << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
             }
             res = false;
         }
@@ -159,13 +155,12 @@ check_err(const std::vector<T>& out,
           const std::vector<T>& ref,
           const std::string& msg = "Error: Incorrect results!",
           double                 = 0,
-          double                 = 0)
+          double atol            = 0)
 {
     if(out.size() != ref.size())
     {
-        std::cout << "out.size() != ref.size(), :" << out.size() << " != " << ref.size()
-                  << std::endl
-                  << msg << std::endl;
+        std::cout << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
+                  << std::endl;
         return false;
     }
 
@@ -179,15 +174,15 @@ check_err(const std::vector<T>& out,
         int64_t r = ref[i];
         err       = std::abs(o - r);
 
-        if(err > 0)
+        if(err > atol)
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
             if(err_count < 5)
             {
-                std::cout << "out[" << i << "] != ref[" << i << "]: " << static_cast<int>(out[i])
-                          << " != " << static_cast<int>(ref[i]) << std::endl
-                          << msg << std::endl;
+                std::cout << msg << " out[" << i << "] != ref[" << i
+                          << "]: " << static_cast<int>(out[i]) << " != " << static_cast<int>(ref[i])
+                          << std::endl;
             }
             res = false;
         }
@@ -201,10 +196,3 @@ check_err(const std::vector<T>& out,
 
 } // namespace utils
 } // namespace ck
-
-template <typename T>
-std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
-{
-    std::copy(std::begin(v), std::end(v), std::ostream_iterator<T>(os, " "));
-    return os;
-}

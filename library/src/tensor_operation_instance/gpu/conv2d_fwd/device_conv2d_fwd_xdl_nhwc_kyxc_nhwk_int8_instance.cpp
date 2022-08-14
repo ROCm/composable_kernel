@@ -7,17 +7,19 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_conv2d_fwd_xdl_nhwc_kyxc_nhwk.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/library/tensor_operation_instance/device_operation_instance.hpp"
+#include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_conv2d_fwd_instance {
-
-using F32 = float;
+namespace instance {
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
+
+using NHWC = ck::tensor_layout::convolution::NHWC;
+using KYXC = ck::tensor_layout::convolution::KYXC;
+using NHWK = ck::tensor_layout::convolution::NHWK;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -98,7 +100,16 @@ using device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_s1_p0_int8_instances = std::tuple
     >;
 
 void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(
-    std::vector<DeviceConvFwdPtr<PassThrough, PassThrough, PassThrough>>& instances)
+    std::vector<std::unique_ptr<DeviceConvFwd<2,
+                                              NHWC,
+                                              KYXC,
+                                              NHWK,
+                                              int8_t,
+                                              int8_t,
+                                              int8_t,
+                                              PassThrough,
+                                              PassThrough,
+                                              PassThrough>>>& instances)
 {
     add_device_operation_instances(instances,
                                    device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances{});
@@ -108,7 +119,7 @@ void add_device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_int8_instances(
                                    device_conv2d_fwd_xdl_nhwc_kyxc_nhwk_1x1_s1_p0_int8_instances{});
 }
 
-} // namespace device_conv2d_fwd_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

@@ -13,8 +13,8 @@
 #include "ck/tensor_operation/gpu/device/device_gemm_splitk.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r4.hpp"
-#include "ck/device_utility/device_prop.hpp"
-#include "ck/device_utility/kernel_launch.hpp"
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -56,8 +56,15 @@ template <typename ADataType,
           bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
           ck::index_t CThreadTransferDstScalarPerVector>
-struct DeviceGemmXdlSplitK
-    : public DeviceGemmSplitK<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
+struct DeviceGemmXdlSplitK : public DeviceGemmSplitK<ALayout,
+                                                     BLayout,
+                                                     CLayout,
+                                                     ADataType,
+                                                     BDataType,
+                                                     CDataType,
+                                                     AElementwiseOperation,
+                                                     BElementwiseOperation,
+                                                     CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};

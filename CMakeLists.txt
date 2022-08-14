@@ -8,7 +8,7 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 enable_testing()
 
 set(ROCM_SYMLINK_LIBS OFF)
-find_package(ROCM 0.8 REQUIRED PATHS /opt/rocm)
+find_package(ROCM REQUIRED PATHS /opt/rocm)
 
 include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
@@ -70,13 +70,6 @@ if( DEFINED CK_OVERRIDE_HIP_VERSION_PATCH )
     message(STATUS "CK_HIP_VERSION_PATCH overriden with ${CK_OVERRIDE_HIP_VERSION_PATCH}")
 endif()
 message(STATUS "Build with HIP ${HIP_VERSION}")
-
-rocm_create_package(
-    NAME composablekernel
-    DESCRIPTION "High Performance Composable Kernel for AMD GPUs"
-    MAINTAINER "MIOpen Kernels Dev Team <dl.MIOpen@amd.com>"
-    LDCONFIG
-)
 
 ## tidy
 include(EnableCompilerWarnings)

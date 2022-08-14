@@ -8,6 +8,7 @@
 #include "ck/tensor_operation/gpu/device/device_conv_bwd_data.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/conv_util.hpp"
 #include "ck/library/host_tensor/device_memory.hpp"
 #include "ck/library/host_tensor/host_tensor.hpp"
@@ -22,7 +23,7 @@ using INT8 = int8_t;
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_conv2d_bwd_data_instance {
+namespace instance {
 
 using DeviceConvBwdDataNoOpPtr =
     DeviceConvBwdDataPtr<ck::tensor_operation::element_wise::PassThrough,
@@ -54,15 +55,14 @@ void add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_bf16_instances(
     std::vector<DeviceConvBwdDataNoOpPtr>&);
 void add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_int8_instances(
     std::vector<DeviceConvBwdDataNoOpPtr>&);
-} // namespace device_conv2d_bwd_data_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
 
 namespace ck {
 namespace profiler {
-using DeviceConvBwdDataNoOpPtr =
-    ck::tensor_operation::device::device_conv2d_bwd_data_instance::DeviceConvBwdDataNoOpPtr;
+using DeviceConvBwdDataNoOpPtr = ck::tensor_operation::device::instance::DeviceConvBwdDataNoOpPtr;
 
 template <typename InLayout>
 HostTensorDescriptor get_input_host_tensor_descriptor(const std::vector<std::size_t>& dims,
@@ -144,15 +144,15 @@ void get_device_conv_bwd_data_op_ptr(
     switch(num_dim_spatial)
     {
     case 1:
-        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        ck::tensor_operation::device::instance::
             add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_f32_instances(conv_ptrs);
         break;
     case 2:
-        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        ck::tensor_operation::device::instance::
             add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f32_instances(conv_ptrs);
         break;
     case 3:
-        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        ck::tensor_operation::device::instance::
             add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f32_instances(conv_ptrs);
         break;
     default: break;
@@ -165,15 +165,15 @@ void get_device_conv_bwd_data_op_ptr(
     switch(num_dim_spatial)
     {
     case 1:
-        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        ck::tensor_operation::device::instance::
             add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_f16_instances(conv_ptrs);
         break;
     case 2:
-        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        ck::tensor_operation::device::instance::
             add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f16_instances(conv_ptrs);
         break;
     case 3:
-        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        ck::tensor_operation::device::instance::
             add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f16_instances(conv_ptrs);
         break;
     default: break;
@@ -186,15 +186,15 @@ void get_device_conv_bwd_data_op_ptr(
     switch(num_dim_spatial)
     {
     case 1:
-        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        ck::tensor_operation::device::instance::
             add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_bf16_instances(conv_ptrs);
         break;
     case 2:
-        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        ck::tensor_operation::device::instance::
             add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_bf16_instances(conv_ptrs);
         break;
     case 3:
-        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        ck::tensor_operation::device::instance::
             add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_bf16_instances(conv_ptrs);
         break;
     default: break;
@@ -207,15 +207,15 @@ void get_device_conv_bwd_data_op_ptr(
     switch(num_dim_spatial)
     {
     case 1:
-        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        ck::tensor_operation::device::instance::
             add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_int8_instances(conv_ptrs);
         break;
     case 2:
-        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        ck::tensor_operation::device::instance::
             add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_int8_instances(conv_ptrs);
         break;
     case 3:
-        ck::tensor_operation::device::device_conv2d_bwd_data_instance::
+        ck::tensor_operation::device::instance::
             add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_int8_instances(conv_ptrs);
         break;
     default: break;
@@ -453,7 +453,7 @@ bool profile_convnd_bwd_data_impl(int do_verification,
                     std::cout << "Pass Info: " << conv_ptr->GetTypeString() << std::endl;
                 }
 
-                check_error(input_host_result, input_device_result);
+                success = ck::utils::check_err(input_host_result.mData, input_device_result.mData);
 
                 if(do_log)
                 {

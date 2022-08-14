@@ -13,8 +13,8 @@
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_common_util.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_common_util.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
 
 using namespace ck;
@@ -150,6 +150,9 @@ int main(int argc, char* argv[])
     AccDataType alpha = args.scales[0];
     AccDataType beta  = args.scales[1];
 
+    std::cout << "in: " << in.mDesc << std::endl;
+    std::cout << "out: " << out.mDesc << std::endl;
+
     std::size_t num_thread = 1;
 
     if(args.do_verification)
@@ -174,7 +177,7 @@ int main(int argc, char* argv[])
         }
 
         if(beta != 0.0f)
-            for(size_t i = 0; i < out_ref.mDesc.GetElementSpace(); i++)
+            for(size_t i = 0; i < out_ref.mDesc.GetElementSpaceSize(); i++)
                 out.mData[i] = out_ref.mData[i];
     };
     // std::cout << "beta = " << beta << std::endl;
@@ -182,8 +185,8 @@ int main(int argc, char* argv[])
     // LogRangeAsType<float>(std::cout << "tensor prior out: " , out.mData, ",") << std::endl;
 
     // these buffers are usually provided by the user application
-    DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpace());
-    DeviceMem out_dev(sizeof(OutDataType) * out.mDesc.GetElementSpace());
+    DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
+    DeviceMem out_dev(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
 
     in_dev.ToDevice(in.mData.data());
 
@@ -195,7 +198,7 @@ int main(int argc, char* argv[])
         using ReferenceInstance =
             tensor_operation::host::ReferenceSoftmax<InDataType, OutDataType, AccDataType>;
         ReferenceInstance ref;
-        auto ref_arg = ref.MakeArgument(in, out_ref, alpha, beta, Rank, reduceDims);
+        auto ref_arg = ref.MakeArgument(in, out_ref, alpha, beta, reduceDims);
         auto invoker = ref.MakeInvoker();
         invoker.Run(ref_arg);
         // LogRangeAsType<float>(std::cout << "tensor out_ref: ", out_ref.mData, ",") << std::endl;
@@ -209,11 +212,13 @@ int main(int argc, char* argv[])
 
     auto device_instance = DeviceInstance{};
 
+    std::cout << i_inLengths.size() << ", " << i_inStrides.size() << std::endl;
+
     auto argument_ptr = device_instance.MakeArgumentPointer(i_inLengths,
                                                             i_inStrides,
                                                             reduceDims,
-                                                            alpha,
-                                                            beta,
+                                                            &alpha,
+                                                            &beta,
                                                             in_dev.GetDeviceBuffer(),
                                                             out_dev.GetDeviceBuffer());
 

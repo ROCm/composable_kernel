@@ -13,8 +13,8 @@
 #include "ck/tensor_operation/gpu/device/device_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v1.hpp"
-#include "ck/device_utility/device_prop.hpp"
-#include "ck/device_utility/kernel_launch.hpp"
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -65,8 +65,15 @@ template <typename ALayout,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
-struct DeviceGemm_Xdl_CShuffle
-    : public DeviceGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
+struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
+                                                   BLayout,
+                                                   CLayout,
+                                                   ADataType,
+                                                   BDataType,
+                                                   CDataType,
+                                                   AElementwiseOperation,
+                                                   BElementwiseOperation,
+                                                   CElementwiseOperation>
 {
     using DeviceOp = DeviceGemm_Xdl_CShuffle;
 
@@ -622,8 +629,7 @@ struct DeviceGemm_Xdl_CShuffle
                                                       index_t StrideC,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op,
-                                                      index_t /* KBatch */ = 1) override
+                                                      CElementwiseOperation c_element_op) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),

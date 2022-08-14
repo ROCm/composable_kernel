@@ -13,9 +13,9 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 
 template <ck::index_t... Is>
@@ -66,8 +66,14 @@ using DeviceBatchedGemmReduceInstance = ck::tensor_operation::device::DeviceBatc
         <     Row,     Col,     Row,  F16,   F16,   F16,      F32,      F32,       F32,   ReducePtrsGlobal,  AElementOp,  BElementOp,  CElementOp, ReduceOps, ReduceInElementOps, ReduceOutElementOps, ReduceGlobalMemOps, GemmSpecialization,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8,             S<64, 4>,                         4,                            1>;
 // clang-format on
 
-using ReferenceBatchedGemmInstance = ck::tensor_operation::host::
-    ReferenceBatchedGemm<ADataType, BDataType, CDataType, AElementOp, BElementOp, CElementOp>;
+using ReferenceBatchedGemmInstance =
+    ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
+                                                     BDataType,
+                                                     CDataType,
+                                                     ReduceAccDataType,
+                                                     AElementOp,
+                                                     BElementOp,
+                                                     CElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -174,13 +180,13 @@ int main(int argc, char* argv[])
         break;
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpace());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_g_k_n.mDesc.GetElementSpace());
-    DeviceMem c_device_buf(sizeof(CDataType) * c_g_m_n_device_result.mDesc.GetElementSpace());
+    DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_g_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem c_device_buf(sizeof(CDataType) * c_g_m_n_device_result.mDesc.GetElementSpaceSize());
     DeviceMem reduce0_device_buf(sizeof(ReduceDataType) *
-                                 d0_g_m_device_result.mDesc.GetElementSpace());
+                                 d0_g_m_device_result.mDesc.GetElementSpaceSize());
     DeviceMem reduce1_device_buf(sizeof(ReduceDataType) *
-                                 d1_g_m_device_result.mDesc.GetElementSpace());
+                                 d1_g_m_device_result.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_g_m_k.mData.data());
     b_device_buf.ToDevice(b_g_k_n.mData.data());

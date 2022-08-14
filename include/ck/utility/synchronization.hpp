@@ -18,14 +18,15 @@ __device__ void block_sync_lds()
     __syncthreads();
 #endif
 }
-__device__ void block_lds()
+
+__device__ void s_nop()
 {
-#if CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM
+#if 1
     asm volatile("\
-    s_waitcnt lgkmcnt(0) \
+    s_nop 0 \n \
     " ::);
 #else
-    __syncthreads();
+    __builtin_amdgcn_sched_barrier(0);
 #endif
 }
 

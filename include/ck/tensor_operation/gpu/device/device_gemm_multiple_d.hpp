@@ -11,17 +11,29 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-// input : A[M, K], B[K, N],
-// input : D0[M, N], D1[M, N], ...
-// output : E[M, N]
-// C = a_op(A) * b_op(B)
-// E = cde_op(C, D0, D1, ...)
-template <ck::index_t NumDTensor,
+// GEMM:
+//   input : A[M, K], B[K, N],
+//   input : D0[M, N], D1[M, N], ...
+//   output : E[M, N]
+//   C = a_op(A) * b_op(B)
+//   E = cde_op(C, D0, D1, ...)
+// Assume:
+//   D0, D1, ... and E have the same layout
+template <typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename ELayout,
+          typename ADataType,
+          typename BDataType,
+          typename DsDataType,
+          typename EDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation>
 struct DeviceGemmMultipleD : public BaseOperator
 {
+    static constexpr index_t NumDTensor = DsDataType::Size();
+
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
@@ -40,15 +52,6 @@ struct DeviceGemmMultipleD : public BaseOperator
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
-
-template <ck::index_t NumDTensor,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation>
-using DeviceGemmMultipleDPtr = std::unique_ptr<DeviceGemmMultipleD<NumDTensor,
-                                                                   AElementwiseOperation,
-                                                                   BElementwiseOperation,
-                                                                   CElementwiseOperation>>;
 
 } // namespace device
 } // namespace tensor_operation

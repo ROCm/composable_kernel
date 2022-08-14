@@ -10,7 +10,7 @@
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_d.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/device_gemm_add_add_fastgelu_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/gemm_add_add_fastgelu.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -25,12 +25,11 @@ using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
 using CDEElementOp = AddAddFastGelu;
 
-using ADataType   = F16;
-using BDataType   = F16;
-using AccDataType = F32;
-using D0DataType  = F16;
-using D1DataType  = F16;
-using EDataType   = F16;
+using ADataType  = F16;
+using BDataType  = F16;
+using D0DataType = F16;
+using D1DataType = F16;
+using EDataType  = F16;
 
 using ALayout  = Row;
 using BLayout  = Col;
@@ -111,19 +110,22 @@ int main(int argc, char* argv[])
                                       f_matrix_space_size(M, N, StrideD1, D1Layout{}));
     SimpleDeviceMem e_device_buf(sizeof(EDataType) * f_matrix_space_size(M, N, StrideE, ELayout{}));
 
-    // add device op instances
-    const auto op_ptrs = ck::tensor_operation::device::device_gemm_instance::
-        get_device_gemm_add_add_fastgelu_instances<ADataType,
-                                                   BDataType,
-                                                   AccDataType,
-                                                   D0DataType,
-                                                   D1DataType,
-                                                   EDataType,
-                                                   ALayout,
-                                                   BLayout,
-                                                   D0Layout,
-                                                   D1Layout,
-                                                   ELayout>();
+    using DeviceOp = ck::tensor_operation::device::DeviceGemmMultipleD<
+        ALayout,
+        BLayout,
+        ck::Tuple<D0Layout, D1Layout>,
+        ELayout,
+        ADataType,
+        BDataType,
+        ck::Tuple<D0DataType, D1DataType>,
+        EDataType,
+        ck::tensor_operation::element_wise::PassThrough,
+        ck::tensor_operation::element_wise::PassThrough,
+        ck::tensor_operation::element_wise::AddAddFastGelu>;
+
+    // get device op instances
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
 
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
@@ -231,6 +233,8 @@ int main(int argc, char* argv[])
         {
             invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
         }
+
+        std::cout << "Done" << std::endl;
     }
 
     return 0;

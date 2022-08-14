@@ -10,13 +10,12 @@
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_d.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/device_gemm_add_add_fastgelu_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/gemm_add_add_fastgelu.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
-#include "ck/library/host_tensor/host_conv.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 namespace ck {
@@ -100,19 +99,22 @@ bool profile_gemm_add_add_fastgelu_impl(int do_verification,
     const auto b_element_op   = BElementOp{};
     const auto cde_element_op = CDEElementOp{};
 
-    // add device op instances
-    const auto op_ptrs = ck::tensor_operation::device::device_gemm_instance::
-        get_device_gemm_add_add_fastgelu_instances<ADataType,
-                                                   BDataType,
-                                                   AccDataType,
-                                                   D0DataType,
-                                                   D1DataType,
-                                                   EDataType,
-                                                   ALayout,
-                                                   BLayout,
-                                                   D0Layout,
-                                                   D1Layout,
-                                                   ELayout>();
+    using DeviceOp = ck::tensor_operation::device::DeviceGemmMultipleD<
+        ALayout,
+        BLayout,
+        ck::Tuple<D0Layout, D1Layout>,
+        ELayout,
+        ADataType,
+        BDataType,
+        ck::Tuple<D0DataType, D1DataType>,
+        EDataType,
+        ck::tensor_operation::element_wise::PassThrough,
+        ck::tensor_operation::element_wise::PassThrough,
+        ck::tensor_operation::element_wise::AddAddFastGelu>;
+
+    // get device op instances
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
 
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
@@ -147,11 +149,11 @@ bool profile_gemm_add_add_fastgelu_impl(int do_verification,
         }
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpace());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpace());
-    DeviceMem d0_m_n_device_buf(sizeof(D0DataType) * d0_m_n.mDesc.GetElementSpace());
-    DeviceMem d1_m_n_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpace());
-    DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpace());
+    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem d0_m_n_device_buf(sizeof(D0DataType) * d0_m_n.mDesc.GetElementSpaceSize());
+    DeviceMem d1_m_n_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
+    DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());

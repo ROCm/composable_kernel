@@ -11,6 +11,96 @@ def show_node_info() {
     """
 }
 
+def runShell(String command){
+    def responseCode = sh returnStatus: true, script: "${command} > tmp.txt"
+    def output = readFile(file: "tmp.txt")
+    echo "tmp.txt contents: $output"
+    return (output != "")
+}
+
+def getDockerImageName(){
+    def img = "${env.MIOPEN_IMAGE_URL}:composable_kernels_${params.COMPILER_VERSION}"
+    return img
+}
+
+def getDockerImage(Map conf=[:]){
+    env.DOCKER_BUILDKIT=1
+    def prefixpath = conf.get("prefixpath", "/opt/rocm") // prefix:/opt/rocm
+    def gpu_arch = conf.get("gpu_arch", "gfx908") // prebuilt dockers should have all the architectures enabled so one image can be used for all stages
+    def no_cache = conf.get("no_cache", false)
+    def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' "
+    if(env.CCACHE_HOST)
+    {
+        def check_host = sh(script:"""(printf "PING\r\n";) | nc -N ${env.CCACHE_HOST} 6379 """, returnStdout: true).trim()
+        if(check_host == "+PONG")
+        {
+            echo "FOUND CCACHE SERVER: ${CCACHE_HOST}"
+        }
+        else 
+        {
+            echo "CCACHE SERVER: ${CCACHE_HOST} NOT FOUND, got ${check_host} response"
+        }
+        dockerArgs = dockerArgs + " --build-arg CCACHE_SECONDARY_STORAGE='redis://${env.CCACHE_HOST}' --build-arg COMPILER_LAUNCHER='ccache' "
+        env.CCACHE_DIR = """/tmp/ccache_store"""
+        env.CCACHE_SECONDARY_STORAGE="""redis://${env.CCACHE_HOST}"""
+    }
+    if(no_cache)
+    {
+        dockerArgs = dockerArgs + " --no-cache "
+    }
+    echo "Docker Args: ${dockerArgs}"
+    def image = getDockerImageName()
+    //Check if image exists 
+    def retimage
+    try 
+    {
+        echo "Pulling down image: ${image}"
+        retimage = docker.image("${image}")
+        retimage.pull()
+    }
+    catch(Exception ex)
+    {
+        error "Unable to locate image: ${image}"
+    }
+    return [retimage, image]
+}
+
+def buildDocker(install_prefix){
+    show_node_info()
+    env.DOCKER_BUILDKIT=1
+    checkout scm
+    def image_name = getDockerImageName()
+    echo "Building Docker for ${image_name}"
+    def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${install_prefix} --build-arg compiler_version='${params.COMPILER_VERSION}' "
+    if(env.CCACHE_HOST)
+    {
+        def check_host = sh(script:"""(printf "PING\\r\\n";) | nc  -N ${env.CCACHE_HOST} 6379 """, returnStdout: true).trim()
+        if(check_host == "+PONG")
+        {
+            echo "FOUND CCACHE SERVER: ${CCACHE_HOST}"
+        }
+        else 
+        {
+            echo "CCACHE SERVER: ${CCACHE_HOST} NOT FOUND, got ${check_host} response"
+        }
+        dockerArgs = dockerArgs + " --build-arg CCACHE_SECONDARY_STORAGE='redis://${env.CCACHE_HOST}' --build-arg COMPILER_LAUNCHER='ccache' "
+        env.CCACHE_DIR = """/tmp/ccache_store"""
+        env.CCACHE_SECONDARY_STORAGE="""redis://${env.CCACHE_HOST}"""
+    }
+
+    echo "Build Args: ${dockerArgs}"
+    try{
+        echo "Checking for image: ${image_name}"
+        sh "docker manifest inspect --insecure ${image_name}"
+        echo "Image: ${image_name} found!! Skipping building image"
+    }
+    catch(Exception ex){
+        echo "Unable to locate image: ${image_name}. Building image now"
+        retimage = docker.build("${image_name}", dockerArgs + ' .')
+        retimage.push()
+    }
+}
+
 def cmake_build(Map conf=[:]){
 
     def compiler = conf.get("compiler","/opt/rocm/bin/hipcc")
@@ -60,7 +150,7 @@ def cmake_build(Map conf=[:]){
         """
     def setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
     // reduce parallelism when compiling, clang uses too much memory
-    def build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make  -j\$(( \$(nproc) / 1 )) ${config_targets}")
+    def build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make  -j\$(( \$(nproc) / 2 )) ${config_targets}")
     def execute_cmd = conf.get("execute_cmd", "")
 
     def cmd = conf.get("cmd", """
@@ -85,7 +175,7 @@ def buildHipClangJob(Map conf=[:]){
         env.HSA_ENABLE_SDMA=0
         checkout scm
 
-        def image = "composable_kernels"
+        def image = "composable_kernels_${params.COMPILER_VERSION}"
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
         def gpu_arch = conf.get("gpu_arch", "gfx908")
 
@@ -93,51 +183,56 @@ def buildHipClangJob(Map conf=[:]){
         // def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
         def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
         if (conf.get("enforce_xnack_on", false)) {
-            dockerOpts = dockerOpts + " --env HSA_XNACK=1"
+            dockerOpts = dockerOpts + " --env HSA_XNACK=1 --env GPU_ARCH='${gpu_arch}' "
         }
-        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' "
+        //def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='${params.COMPILER_VERSION}' "
+        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' "
+        if (params.COMPILER_VERSION != "release"){
+            dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
+        }
 
         def variant = env.STAGE_NAME
 
         def retimage
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
-            if (params.USE_DOCKERFILE){
-                try {
-                    retimage = docker.build("${image}", dockerArgs + '.')
-                    withDockerContainer(image: image, args: dockerOpts) {
-                        timeout(time: 5, unit: 'MINUTES')
-                        {
-                            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+            try {
+                //retimage = docker.build("${image}", dockerArgs + '.')
+                (retimage, image) = getDockerImage(conf)
+                withDockerContainer(image: image, args: dockerOpts) {
+                    timeout(time: 5, unit: 'MINUTES'){
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                            throw new Exception ("GPU not found")
                         }
-                    }
-                }
-                catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
-                    echo "The job was cancelled or aborted"
-                    throw e
-                }
-                catch(Exception ex) {
-                    retimage = docker.build("${image}", dockerArgs + "--no-cache .")
-                    withDockerContainer(image: image, args: dockerOpts) {
-                        timeout(time: 5, unit: 'MINUTES')
-                        {
-                            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                        else{
+                            echo "GPU is OK"
                         }
                     }
                 }
             }
-            else{
-                timeout(time: 3, unit: 'HOURS'){
-                    retimage = docker.image('compute-artifactory.amd.com:5000/rocm-plus-docker/framework/compute-rocm-dkms-no-npi-hipclang:9110_ubuntu18.04_py3.6_pytorch_rocm5.0_internal_testing_7ff5b54').pull()
-                    image="b56f8ac0d6ea"
-                    sh "docker images"
+            catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                echo "The job was cancelled or aborted"
+                throw e
+            }
+            catch(Exception ex) {
+                retimage = docker.build("${image}", dockerArgs + " --no-cache .")
+                withDockerContainer(image: image, args: dockerOpts) {
+                    timeout(time: 5, unit: 'MINUTES'){
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo |tee clinfo.log'
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                            throw new Exception ("GPU not found")
+                        }
+                        else{
+                            echo "GPU is OK"
+                        }
+                    }
                 }
             }
 
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 5, unit: 'HOURS')
                 {
-                    sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
                     cmake_build(conf)
                 }
             }
@@ -148,10 +243,6 @@ def buildHipClangJob(Map conf=[:]){
 def reboot(){
     build job: 'reboot-slaves', propagate: false , parameters: [string(name: 'server', value: "${env.NODE_NAME}"),]
 }
-
-
-
-
 
 def buildHipClangJobAndReboot(Map conf=[:]){
     try{
@@ -169,14 +260,14 @@ def buildHipClangJobAndReboot(Map conf=[:]){
     }
 }
 
-
 def runCKProfiler(Map conf=[:]){
         show_node_info()
 
         env.HSA_ENABLE_SDMA=0
         checkout scm
 
-        def image = "composable_kernels"
+
+        def image = "composable_kernels_${params.COMPILER_VERSION}"
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
         def gpu_arch = conf.get("gpu_arch", "gfx908")
 
@@ -184,105 +275,98 @@ def runCKProfiler(Map conf=[:]){
         // def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
         def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
         if (conf.get("enforce_xnack_on", false)) {
-            dockerOpts = dockerOpts + " --env HSA_XNACK=1"
+            dockerOpts = dockerOpts + " --env HSA_XNACK=1 --env GPU_ARCH='${gpu_arch}' "
         }
-        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' "
+        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' "
+        if (params.COMPILER_VERSION != "release"){
+            dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
+        }
 
         def variant = env.STAGE_NAME
-
         def retimage
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
-            if (params.USE_DOCKERFILE){
-                try {
-                    retimage = docker.build("${image}", dockerArgs + '.')
-                    withDockerContainer(image: image, args: dockerOpts) {
-                        timeout(time: 5, unit: 'MINUTES')
-                        {
-                            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+            try {
+                //retimage = docker.build("${image}", dockerArgs + '.')
+                (retimage, image) = getDockerImage(conf)
+                withDockerContainer(image: image, args: dockerOpts) {
+                    timeout(time: 5, unit: 'MINUTES'){
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                            throw new Exception ("GPU not found")
                         }
-                    }
-                }
-                catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
-                    echo "The job was cancelled or aborted"
-                    throw e
-                }
-                catch(Exception ex) {
-                    retimage = docker.build("${image}", dockerArgs + "--no-cache .")
-                    withDockerContainer(image: image, args: dockerOpts) {
-                        timeout(time: 5, unit: 'MINUTES')
-                        {
-                            sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo'
+                        else{
+                            echo "GPU is OK"
                         }
                     }
                 }
             }
-            else{
-                timeout(time: 3, unit: 'HOURS'){
-                    retimage = docker.image('compute-artifactory.amd.com:5000/rocm-plus-docker/framework/compute-rocm-dkms-no-npi-hipclang:9110_ubuntu18.04_py3.6_pytorch_rocm5.0_internal_testing_7ff5b54').pull()
-                    image="b56f8ac0d6ea"
-                    sh "docker images"
+            catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                echo "The job was cancelled or aborted"
+                throw e
+            }
+            catch(Exception ex) {
+                retimage = docker.build("${image}", dockerArgs + " --no-cache .")
+                withDockerContainer(image: image, args: dockerOpts) {
+                    timeout(time: 5, unit: 'MINUTES'){
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                            throw new Exception ("GPU not found")
+                        }
+                        else{
+                            echo "GPU is OK"
+                        }
+                    }
                 }
             }
 
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
-                timeout(time: 5, unit: 'HOURS')
+                timeout(time: 24, unit: 'HOURS')
                 {
                     cmake_build(conf)
 					dir("script"){
-                        //run gemm performance tests
-                        def gemm_log = "perf_gemm_${gpu_arch}.log"
-                        sh "rm -f ${gemm_log}"
-                        sh "echo Branch name: ${env.BRANCH_NAME} > ${gemm_log}"
-                        sh "echo Node name: ${NODE_NAME} >> ${gemm_log}"
-                        sh "echo GPU_arch name: ${gpu_arch}  >> ${gemm_log}"
-                        sh "rocminfo | grep 'Compute Unit:' >> ${gemm_log} "
-                        sh "hipcc --version | grep -e 'HIP version'  >> ${gemm_log}"
-                        sh "/opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 0 0 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 1 0 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 2 0 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 3 0 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 0 1 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 1 1 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 2 1 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 3 1 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 0 2 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 1 2 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 2 2 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 3 2 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 0 3 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 1 3 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 2 3 0 1 0 5 | tee -a ${gemm_log}"
-                        sh "./profile_gemm.sh gemm 3 3 0 1 0 5 | tee -a ${gemm_log}"
-                        //results will be parsed, stored, and analyzed within the python script
-                        //the script will return 0 if the performance criteria are met
-                        //or return 1 if the criteria are not met
-                        archiveArtifacts  "${gemm_log}"
-                        sh "python3 parse_perf_data.py ${gemm_log} "
-                        //run resnet50 test
-                        def resnet_log = "perf_resnet50_${gpu_arch}.log"
-                        sh "rm -f ${resnet_log}"
-                        sh "echo Branch name: ${env.BRANCH_NAME} > ${resnet_log}"
-                        sh "echo Node name: ${NODE_NAME} >> ${resnet_log}"
-                        sh "echo GPU_arch name: ${gpu_arch}  >> ${resnet_log}"
-                        sh "rocminfo | grep 'Compute Unit:' >> ${resnet_log} "
-                        sh "hipcc --version | grep -e 'HIP version'  >> ${resnet_log}"
-                        sh "/opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> ${resnet_log}"
-                        //first run tests with N=256
-                        sh "./profile_conv.sh conv_fwd_bias_relu 1 1 1 1 0 2 0 1 256 | tee -a ${resnet_log}"
-                        //then run with N=4
-                        sh "./profile_conv.sh conv_fwd_bias_relu 1 1 1 1 0 2 0 1 4 | tee -a ${resnet_log}"
-                        archiveArtifacts  "${resnet_log}"
-                        //the script will put the results from N=256 and N=4 runs into separate tables
-                        sh "python3 parse_perf_data.py ${resnet_log} "
+                        if (params.RUN_FULL_QA){
+                            def qa_log = "qa_${gpu_arch}.log"
+                            sh "./run_full_performance_tests.sh 1 QA_${params.COMPILER_VERSION} ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
+                            archiveArtifacts "perf_gemm_${gpu_arch}.log"
+                            archiveArtifacts "perf_resnet50_N256_${gpu_arch}.log"
+                            archiveArtifacts "perf_resnet50_N4_${gpu_arch}.log"
+                            archiveArtifacts "perf_batched_gemm_${gpu_arch}.log"
+                            archiveArtifacts "perf_grouped_gemm_${gpu_arch}.log"
+                            archiveArtifacts "perf_conv_fwd_${gpu_arch}.log"
+                            archiveArtifacts "perf_conv_bwd_data_${gpu_arch}.log"
+                            archiveArtifacts "perf_gemm_bilinear_${gpu_arch}.log"
+                            archiveArtifacts "perf_reduction_${gpu_arch}.log"
+                           // stash perf files to master
+                            stash name: "perf_gemm_${gpu_arch}.log"
+                            stash name: "perf_resnet50_N256_${gpu_arch}.log"
+                            stash name: "perf_resnet50_N4_${gpu_arch}.log"
+                            stash name: "perf_batched_gemm_${gpu_arch}.log"
+                            stash name: "perf_grouped_gemm_${gpu_arch}.log"
+                            stash name: "perf_conv_fwd_${gpu_arch}.log"
+                            stash name: "perf_conv_bwd_data_${gpu_arch}.log"
+                            stash name: "perf_gemm_bilinear_${gpu_arch}.log"
+                            stash name: "perf_reduction_${gpu_arch}.log"
+                            //we will process results on the master node
+                        }
+                        else{
+                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
+                            archiveArtifacts "perf_gemm_${gpu_arch}.log"
+                            archiveArtifacts "perf_resnet50_N256_${gpu_arch}.log"
+                            archiveArtifacts "perf_resnet50_N4_${gpu_arch}.log"
+                            // stash perf files to master
+                            stash name: "perf_gemm_${gpu_arch}.log"
+                            stash name: "perf_resnet50_N256_${gpu_arch}.log"
+                            stash name: "perf_resnet50_N4_${gpu_arch}.log"
+                            //we will process the results on the master node
+                        }
+
 					}
                 }
             }
         }
         return retimage
 }
-
 
 def runPerfTest(Map conf=[:]){
     try{
@@ -300,16 +384,97 @@ def runPerfTest(Map conf=[:]){
     }
 }
 
+def process_results(Map conf=[:]){
+    env.HSA_ENABLE_SDMA=0
+    checkout scm
+    def image = "composable_kernels_${params.COMPILER_VERSION}"
+    def prefixpath = "/opt/rocm"
+    def gpu_arch = conf.get("gpu_arch", "gfx908")
+
+    // Jenkins is complaining about the render group 
+    def dockerOpts="--cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+    if (conf.get("enforce_xnack_on", false)) {
+        dockerOpts = dockerOpts + " --env HSA_XNACK=1 --env GPU_ARCH='${gpu_arch}' "
+    }
+    def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='release' "
+
+    def variant = env.STAGE_NAME
+    def retimage
+
+    gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
+        try {
+            //retimage = docker.build("${image}", dockerArgs + '.')
+            (retimage, image) = getDockerImage(conf)
+        }
+        catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+            echo "The job was cancelled or aborted"
+            throw e
+        }
+    }
+
+    withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
+        timeout(time: 1, unit: 'HOURS'){
+            try{
+                dir("script"){
+                    if (params.RUN_FULL_QA){
+                        // unstash perf files to master
+                        unstash "perf_gemm_${gpu_arch}.log"
+                        unstash "perf_resnet50_N256_${gpu_arch}.log"
+                        unstash "perf_resnet50_N4_${gpu_arch}.log"
+                        unstash "perf_batched_gemm_${gpu_arch}.log"
+                        unstash "perf_grouped_gemm_${gpu_arch}.log"
+                        unstash "perf_conv_fwd_${gpu_arch}.log"
+                        unstash "perf_conv_bwd_data_${gpu_arch}.log"
+                        unstash "perf_gemm_bilinear_${gpu_arch}.log"
+                        unstash "perf_reduction_${gpu_arch}.log"
+                        sh "./process_qa_data.sh ${gpu_arch}"
+                    }
+                    else{
+                        // unstash perf files to master
+                        unstash "perf_gemm_${gpu_arch}.log"
+                        unstash "perf_resnet50_N256_${gpu_arch}.log"
+                        unstash "perf_resnet50_N4_${gpu_arch}.log"
+                        sh "./process_perf_data.sh ${gpu_arch}"
+                    }
+                }
+            }
+            catch(e){
+                echo "throwing error exception while processing performance test results"
+                echo 'Exception occurred: ' + e.toString()
+                throw e
+            }
+        }
+    }
+}
+
+//launch develop branch daily at 23:00 in FULL_QA mode
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true''' : ""
+
 pipeline {
     agent none
+    triggers {
+        parameterizedCron(CRON_SETTINGS)
+    }
     options {
         parallelsAlwaysFailFast()
     }
     parameters {
         booleanParam(
-            name: "USE_DOCKERFILE",
+            name: "BUILD_DOCKER",
             defaultValue: true,
-            description: "")
+            description: "Force building docker image (default: true)")
+        string(
+            name: 'COMPILER_VERSION', 
+            defaultValue: 'ck-9110', 
+            description: 'Specify which version of compiler to use: ck-9110 (default), release, or amd-stg-open.')
+        booleanParam(
+            name: "RUN_FULL_QA",
+            defaultValue: false,
+            description: "Select whether to run small set of performance tests (default) or full QA")
+        booleanParam(
+            name: "TEST_NODE_PERFORMANCE",
+            defaultValue: false,
+            description: "Test the node GPU performance (default: false)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -319,9 +484,28 @@ pipeline {
         dbsshuser = "${dbsshuser}"
         dbsshpassword = "${dbsshpassword}"
         status_wrapper_creds = "${status_wrapper_creds}"
+        gerrit_cred="${gerrit_cred}"
+        DOCKER_BUILDKIT = "1"
     }
     stages{
+        stage("Build Docker"){
+            when {
+                expression { params.BUILD_DOCKER.toBoolean() }
+            }
+            parallel{
+                stage('Docker /opt/rocm'){
+                    agent{ label rocmnode("nogpu") }
+                    steps{
+                        buildDocker('/opt/rocm')
+                    }
+                }
+            }
+        }
         stage("Static checks") {
+            when {
+                beforeAgent true
+                expression { !params.TEST_NODE_PERFORMANCE.toBoolean() }
+            }
             parallel{
                 // enable after we move from hipcc to hip-clang
                 // stage('Tidy') {
@@ -355,6 +539,10 @@ pipeline {
         }
 		stage("Tests")
         {
+            when {
+                beforeAgent true
+                expression { !params.TEST_NODE_PERFORMANCE.toBoolean() }
+            }
             parallel
             {
                 stage("Run Tests: gfx908")
@@ -369,6 +557,10 @@ pipeline {
                 }
                 stage("Run Tests: gfx90a")
                 {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_FULL_QA.toBoolean() }
+                    }
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
@@ -381,6 +573,10 @@ pipeline {
         }
         stage("Client App")
         {
+            when {
+                beforeAgent true
+                expression { !params.TEST_NODE_PERFORMANCE.toBoolean() }
+            }
             parallel
             {
                 stage("Run Client App")
@@ -402,6 +598,10 @@ pipeline {
             {
                 stage("Run ckProfiler: gfx908")
                 {
+                    when {
+                        beforeAgent true
+                        expression { !params.RUN_FULL_QA.toBoolean() && !params.TEST_NODE_PERFORMANCE.toBoolean() }
+                    }
                     agent{ label rocmnode("gfx908")}
                     environment{
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
@@ -412,6 +612,10 @@ pipeline {
                 }
                 stage("Run ckProfiler: gfx90a")
                 {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_FULL_QA.toBoolean() || params.TEST_NODE_PERFORMANCE.toBoolean() }
+                    }
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
@@ -422,6 +626,33 @@ pipeline {
                 }
             }
         }
+        stage("Process Performance Test Results")
+        {
+            parallel
+            {
+                stage("Process results for gfx908"){
+                    when {
+                        beforeAgent true
+                        expression { !params.RUN_FULL_QA.toBoolean() && !params.TEST_NODE_PERFORMANCE.toBoolean() }
+                    }
+                    agent { label 'mici' }
+                    steps{
+                        process_results(gpu_arch: "gfx908")
+                    }
+                }
+                stage("Process results for gfx90a"){
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_FULL_QA.toBoolean() || params.TEST_NODE_PERFORMANCE.toBoolean() }
+                    }
+                    agent { label 'mici' }
+                    steps{
+                        process_results(gpu_arch: "gfx90a")
+                    }
+                }
+            }
+        }
+
         /* enable after the cmake file supports packaging
         stage("Packages") {
             when {

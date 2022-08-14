@@ -9,15 +9,15 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/host_tensor/device_memory.hpp"
-#include "ck/library/host_tensor/host_tensor.hpp"
-#include "ck/library/host_tensor/host_tensor_generator.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd_bias_activation_add.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
-namespace device_conv2d_fwd_bias_activation_add_instance {
+namespace instance {
 
 using DeviceConvFwdBiasReluAddPtr =
     DeviceConvFwdBiasActivationAddPtr<ck::tensor_operation::element_wise::PassThrough,
@@ -27,7 +27,7 @@ using DeviceConvFwdBiasReluAddPtr =
 void add_device_conv2d_fwd_xdl_c_shuffle_bias_relu_add_nhwc_kyxc_nhwk_f16_instances(
     std::vector<DeviceConvFwdBiasReluAddPtr>&);
 
-} // namespace device_conv2d_fwd_bias_activation_add_instance
+} // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
@@ -157,12 +157,12 @@ void profile_conv_fwd_bias_relu_add_impl(int do_verification,
         ref_invoker.Run(ref_argument);
     }
 
-    DeviceMem in_device_buf(sizeof(InDataType) * in_n_c_hi_wi.mDesc.GetElementSpace());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_k_c_y_x.mDesc.GetElementSpace());
+    DeviceMem in_device_buf(sizeof(InDataType) * in_n_c_hi_wi.mDesc.GetElementSpaceSize());
+    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_k_c_y_x.mDesc.GetElementSpaceSize());
     DeviceMem out_device_buf(sizeof(OutDataType) *
-                             out_n_k_ho_wo_device_result.mDesc.GetElementSpace());
-    DeviceMem bias_device_buf(sizeof(OutDataType) * bias_k.mDesc.GetElementSpace());
-    DeviceMem resi_device_buf(sizeof(OutDataType) * resi_n_k_ho_wo.mDesc.GetElementSpace());
+                             out_n_k_ho_wo_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem bias_device_buf(sizeof(OutDataType) * bias_k.mDesc.GetElementSpaceSize());
+    DeviceMem resi_device_buf(sizeof(OutDataType) * resi_n_k_ho_wo.mDesc.GetElementSpaceSize());
 
     in_device_buf.ToDevice(in_n_c_hi_wi.mData.data());
     wei_device_buf.ToDevice(wei_k_c_y_x.mData.data());
@@ -179,7 +179,7 @@ void profile_conv_fwd_bias_relu_add_impl(int do_verification,
                  ck::is_same_v<ck::remove_cv_t<WeiDataType>, ck::half_t> &&
                  ck::is_same_v<ck::remove_cv_t<OutDataType>, ck::half_t>)
     {
-        ck::tensor_operation::device::device_conv2d_fwd_bias_activation_add_instance::
+        ck::tensor_operation::device::instance::
             add_device_conv2d_fwd_xdl_c_shuffle_bias_relu_add_nhwc_kyxc_nhwk_f16_instances(op_ptrs);
     }
 

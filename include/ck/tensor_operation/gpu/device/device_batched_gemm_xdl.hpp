@@ -13,8 +13,8 @@
 #include "ck/tensor_operation/gpu/device/device_batched_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r3.hpp"
-#include "ck/device_utility/device_prop.hpp"
-#include "ck/device_utility/kernel_launch.hpp"
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -113,7 +113,7 @@ __global__ void
     ignore = c_element_op;
     ignore = compute_ptr_offset_of_batch;
     ignore = block_2_ctile_map;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif
 }
 
 template <typename ADataType,
@@ -151,8 +151,15 @@ template <typename ADataType,
           bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
           ck::index_t CThreadTransferDstScalarPerVector>
-struct DeviceBatchedGemmXdl
-    : public DeviceBatchedGemm<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
+struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
+                                                       BLayout,
+                                                       CLayout,
+                                                       ADataType,
+                                                       BDataType,
+                                                       CDataType,
+                                                       AElementwiseOperation,
+                                                       BElementwiseOperation,
+                                                       CElementwiseOperation>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -334,12 +341,15 @@ struct DeviceBatchedGemmXdl
                  index_t StrideA,
                  index_t StrideB,
                  index_t StrideC,
+                 index_t BatchStrideA,
+                 index_t BatchStrideB,
+                 index_t BatchStrideC,
+                 index_t Batch,
                  index_t M01,
                  index_t N01,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
-                 CElementwiseOperation c_element_op,
-                 index_t Batch)
+                 CElementwiseOperation c_element_op)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
@@ -350,10 +360,7 @@ struct DeviceBatchedGemmXdl
                   DeviceBatchedGemmXdl::MakeBGridDescriptor_K0_N_K1(K, N, StrideB)},
               c_grid_desc_m_n_{DeviceBatchedGemmXdl::MakeCGridDescriptor_M_N(M, N, StrideC)},
               c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
-              compute_ptr_offset_of_batch_{
-                  type_convert<index_t>(a_grid_desc_k0_m_k1_.GetElementSpaceSize()),
-                  type_convert<index_t>(b_grid_desc_k0_n_k1_.GetElementSpaceSize()),
-                  type_convert<index_t>(c_grid_desc_m_n_.GetElementSpaceSize())},
+              compute_ptr_offset_of_batch_{BatchStrideA, BatchStrideB, BatchStrideC},
               block_2_ctile_map_{
                   GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01)},
               M01_{M01},
@@ -536,10 +543,13 @@ struct DeviceBatchedGemmXdl
                              index_t StrideA,
                              index_t StrideB,
                              index_t StrideC,
+                             index_t BatchStrideA,
+                             index_t BatchStrideB,
+                             index_t BatchStrideC,
+                             index_t Batch,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
-                             CElementwiseOperation c_element_op,
-                             index_t Batch)
+                             CElementwiseOperation c_element_op)
     {
         return Argument{p_a,
                         p_b,
@@ -550,12 +560,15 @@ struct DeviceBatchedGemmXdl
                         StrideA,
                         StrideB,
                         StrideC,
+                        BatchStrideA,
+                        BatchStrideB,
+                        BatchStrideC,
+                        Batch,
                         1,
                         1,
                         a_element_op,
                         b_element_op,
-                        c_element_op,
-                        Batch};
+                        c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -570,10 +583,13 @@ struct DeviceBatchedGemmXdl
                                                       index_t StrideA,
                                                       index_t StrideB,
                                                       index_t StrideC,
+                                                      index_t BatchStrideA,
+                                                      index_t BatchStrideB,
+                                                      index_t BatchStrideC,
+                                                      index_t Batch,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op,
-                                                      index_t Batch) override
+                                                      CElementwiseOperation c_element_op) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
@@ -584,12 +600,15 @@ struct DeviceBatchedGemmXdl
                                           StrideA,
                                           StrideB,
                                           StrideC,
+                                          BatchStrideA,
+                                          BatchStrideB,
+                                          BatchStrideC,
+                                          Batch,
                                           1,
                                           1,
                                           a_element_op,
                                           b_element_op,
-                                          c_element_op,
-                                          Batch);
+                                          c_element_op);
     }
 
     // polymorphic
