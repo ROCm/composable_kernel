@@ -5,7 +5,6 @@
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-#include <stdlib.h>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
@@ -183,9 +182,6 @@ int main(int argc, char* argv[])
     auto c_element_op = CElementOp{};
 
     // do GEMM
-    // replace DeviceGemmInstance_WaveletModel for
-    // wavelet gemm pipeline auto gemm     =
-    // DeviceGemmInstance_WaveletModel{};
     auto gemm     = DeviceGemmInstance{};
     auto invoker  = gemm.MakeInvoker();
     auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
