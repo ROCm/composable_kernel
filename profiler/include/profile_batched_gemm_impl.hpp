@@ -101,6 +101,7 @@ bool profile_batched_gemm_impl(int do_verification,
             ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
                                                              BDataType,
                                                              CDataType,
+                                                             float,
                                                              AElementOp,
                                                              BElementOp,
                                                              CElementOp>;
