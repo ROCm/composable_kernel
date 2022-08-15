@@ -6,7 +6,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/device_binary_elementwise.hpp"
+#include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -16,29 +16,21 @@
 using F16 = ck::half_t;
 using F32 = float;
 
-using ABDataType             = F16;
-using CDataType              = F16;
-using EltwiseComputeDataType = F32;
+using ABDataType = F16;
+using CDataType  = F16;
 
 using Add = ck::tensor_operation::element_wise::Add;
 
 using DeviceElementwiseAddInstance =
-    ck::tensor_operation::device::DeviceBinaryElementwise<ABDataType,
-                                                          ABDataType,
-                                                          CDataType,
-                                                          EltwiseComputeDataType,
-                                                          Add,
-                                                          4,
-                                                          8,
-                                                          8,
-                                                          8,
-                                                          8>;
+    ck::tensor_operation::device::DeviceElementwise<ck::Tuple<ABDataType, ABDataType>,
+                                                    ck::Tuple<CDataType>,
+                                                    Add,
+                                                    4,
+                                                    8,
+                                                    ck::Sequence<8, 8>,
+                                                    ck::Sequence<8>>;
 
-template <typename HostTensorA,
-          typename HostTensorB,
-          typename HostTensorC,
-          typename ComputeDataType,
-          typename Functor>
+template <typename HostTensorA, typename HostTensorB, typename HostTensorC, typename Functor>
 void host_elementwise4D(HostTensorC& C,
                         const HostTensorA& A,
                         const HostTensorB& B,
@@ -52,11 +44,11 @@ void host_elementwise4D(HostTensorC& C,
             for(std::size_t h = 0; h < shape[2]; ++h)
                 for(std::size_t w = 0; w < shape[3]; ++w)
                 {
-                    ComputeDataType a_val = ck::type_convert<ComputeDataType>(A(n, c, h, w));
-                    ComputeDataType b_val = ck::type_convert<ComputeDataType>(B(n, c, h, w));
-                    ComputeDataType c_val = 0;
+                    auto a_val  = A(n, c, h, w);
+                    auto b_val  = B(n, c, h, w);
+                    ctype c_val = 0;
                     functor(c_val, a_val, b_val);
-                    C(n, c, h, w) = ck::type_convert<ctype>(c_val);
+                    C(n, c, h, w) = c_val;
                 }
 }
 
@@ -85,23 +77,24 @@ int main()
                                         b_device_buf.GetDeviceBuffer()};
     std::array<void*, 1> output      = {c_device_buf.GetDeviceBuffer()};
 
-    std::vector<ck::index_t> a_strides{a.mDesc.GetStrides().begin(), a.mDesc.GetStrides().end()};
-    std::vector<ck::index_t> b_strides{b.mDesc.GetStrides().begin(), b.mDesc.GetStrides().end()};
-    std::vector<ck::index_t> c_strides{c.mDesc.GetStrides().begin(), c.mDesc.GetStrides().end()};
+    std::array<ck::index_t, 4> abc_lengths;
+    std::array<ck::index_t, 4> a_strides;
+    std::array<ck::index_t, 4> b_strides;
+    std::array<ck::index_t, 4> c_strides;
+
+    std::copy(nchw.begin(), nchw.end(), abc_lengths.begin());
+    std::copy(a.mDesc.GetStrides().begin(), a.mDesc.GetStrides().end(), a_strides.begin());
+    std::copy(b.mDesc.GetStrides().begin(), b.mDesc.GetStrides().end(), b_strides.begin());
+    std::copy(c.mDesc.GetStrides().begin(), c.mDesc.GetStrides().end(), c_strides.begin());
 
     auto broadcastAdd = DeviceElementwiseAddInstance{};
-    auto argument =
-        broadcastAdd.MakeArgumentPointer(input,
-                                         output,
-                                         std::vector<ck::index_t>{nchw.begin(), nchw.end()},
-                                         {{a_strides}, b_strides},
-                                         {c_strides},
-                                         Add{});
+    auto argument     = broadcastAdd.MakeArgumentPointer(
+        abc_lengths, {a_strides, b_strides}, {c_strides}, input, output, Add{});
 
     if(!broadcastAdd.IsSupportedArgument(argument.get()))
     {
-        throw std::runtime_error("The runtime parameters seems not supported by the "
-                                 "DeviceBinaryElementwise instance, exiting!");
+        throw std::runtime_error(
+            "The runtime parameters seems not supported by the device instance, exiting!");
     };
 
     auto broadcastAdd_invoker_ptr = broadcastAdd.MakeInvokerPointer();
@@ -116,11 +109,8 @@ int main()
         c_device_buf.FromDevice(c.mData.data());
         Tensor<CDataType> host_c(nchw);
 
-        host_elementwise4D<Tensor<ABDataType>,
-                           Tensor<ABDataType>,
-                           Tensor<CDataType>,
-                           EltwiseComputeDataType,
-                           Add>(host_c, a, b, nchw, Add{});
+        host_elementwise4D<Tensor<ABDataType>, Tensor<ABDataType>, Tensor<CDataType>, Add>(
+            host_c, a, b, nchw, Add{});
 
         pass &=
             ck::utils::check_err(c.mData, host_c.mData, "Error: Incorrect results c", 1e-3, 1e-3);

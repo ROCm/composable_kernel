@@ -10,7 +10,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_multiple_r_xdl_cshuffle.hpp"
-#include "ck/tensor_operation/gpu/device/device_5ary_elementwise.hpp"
+#include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/device_memory.hpp"
@@ -91,23 +91,20 @@ using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataTyp
 using NormalizeFunctor = ck::tensor_operation::element_wise::Normalize;
 
 // A:x, B:E[x], C:E[x^2], D:Gamma, E:Beta , F:y
-using DeviceNormalizeInstance =
-    ck::tensor_operation::device::Device5AryElementwise<EDataType,
-                                                        R0DataType,
-                                                        R1DataType,
-                                                        GammaDataType,
-                                                        BetaDataType,
-                                                        LayerNormOutDataType,
-                                                        NormalizeComputeDataType,
-                                                        NormalizeFunctor,
-                                                        2,
-                                                        8,
-                                                        8,  // scalarPerVector: gemm_out
-                                                        1,  // scalarPerVector: reduce_mean
-                                                        1,  // scalarPerVector: reduce_mean_square
-                                                        8,  // scalarPerVector: Gamma
-                                                        8,  // scalarPerVector: Beta
-                                                        8>; // scalarPerVector: LayerNorm_out
+using DeviceNormalizeInstance = ck::tensor_operation::device::DeviceElementwise<
+    ck::Tuple<EDataType,
+              R0DataType,
+              R1DataType,
+              GammaDataType,
+              BetaDataType>,         // x(gemm_out), mean,
+                                     // meansquare,
+                                     // gamma, beta
+    ck::Tuple<LayerNormOutDataType>, // y
+    NormalizeFunctor,
+    2,
+    8,                           // MPerthread
+    ck::Sequence<8, 1, 1, 8, 8>, // scalarPerVector: x(gemm_out), mean, meansquare, gamma, beta
+    ck::Sequence<8>>;            // scalarPerVector: y(layerNorm_out)
 
 auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
     return HostTensorDescriptor(std::vector<std::size_t>({len}),
@@ -139,7 +136,6 @@ void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
                          int M,
                          int N)
 {
-
     int StrideE = N;
     Tensor<EDataType> e_m_n(f_host_tensor_descriptor2d(M, N, StrideE, ELayout{}));
     Tensor<R0DataType> mean_m(f_host_tensor_descriptor1d(M, 1));
@@ -184,14 +180,9 @@ void host_gemm_layernorm(Tensor<LayerNormOutDataType>& out_m_n,
     {
         for(int n = 0; n < N; ++n)
         {
-            NormalizeComputeDataType out_acc = 0;
-            layerNormInst(out_acc,
-                          ck::type_convert<NormalizeComputeDataType>(e_m_n(m, n)),
-                          ck::type_convert<NormalizeComputeDataType>(mean_m(m)),
-                          ck::type_convert<NormalizeComputeDataType>(meanSquare_m(m)),
-                          ck::type_convert<NormalizeComputeDataType>(gamma_n(n)),
-                          ck::type_convert<NormalizeComputeDataType>(beta_n(n)));
-            out_m_n(m, n) = ck::type_convert<LayerNormOutDataType>(out_acc);
+            LayerNormOutDataType out_val = 0;
+            layerNormInst(out_val, e_m_n(m, n), mean_m(m), meanSquare_m(m), gamma_n(n), beta_n(n));
+            out_m_n(m, n) = out_val;
         }
     }
 }
@@ -314,28 +305,28 @@ int main()
                                         beta_device_buf.GetDeviceBuffer()};
     std::array<void*, 1> output      = {layerNorm_device_buf.GetDeviceBuffer()};
 
-    auto normalize          = DeviceNormalizeInstance{};
-    auto normalize_invoker  = normalize.MakeInvoker();
-    auto normalize_argument = normalize.MakeArgument(input,
-                                                     output,
-                                                     {M, N},
-                                                     {StrideE, 1},
-                                                     {1, 0},
-                                                     {1, 0},
-                                                     {0, 1},
-                                                     {0, 1},
-                                                     {StrideE, 1},
-                                                     NormalizeFunctor{});
+    std::array<ck::index_t, 2> xyLengths = {M, N};
+    std::array<ck::index_t, 2> xyStrides = {StrideE, 1};
 
-    if(!normalize.IsSupportedArgument(normalize_argument))
+    auto normalize         = DeviceNormalizeInstance{};
+    auto normalize_invoker = normalize.MakeInvoker();
+    auto normalize_argument_ptr =
+        normalize.MakeArgumentPointer(xyLengths,
+                                      {xyStrides, {1, 0}, {1, 0}, {0, 1}, {0, 1}},
+                                      {xyStrides},
+                                      input,
+                                      output,
+                                      NormalizeFunctor{});
+
+    if(!normalize.IsSupportedArgument(normalize_argument_ptr.get()))
     {
-        throw std::runtime_error("The runtime parameters seems not supported by the "
-                                 "Device5AryElementwise instance, exiting!");
+        throw std::runtime_error(
+            "The runtime parameters seems not supported by the device, exiting");
     }
 
     // run kernel
     gemmReduce_invoker.Run(gemmReduce_argument, StreamConfig{nullptr, false});
-    normalize_invoker.Run(normalize_argument, StreamConfig{nullptr, false});
+    normalize_invoker.Run(normalize_argument_ptr.get(), StreamConfig{nullptr, false});
 
     bool pass = true;
     {
@@ -369,7 +360,7 @@ int main()
         float gemm_reduce_mean_reduce_square_mean_ave_time =
             gemmReduce_invoker.Run(gemmReduce_argument, StreamConfig{nullptr, time_kernel});
         float normalize_ave_time =
-            normalize_invoker.Run(normalize_argument, StreamConfig{nullptr, time_kernel});
+            normalize_invoker.Run(normalize_argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
         if(time_kernel)
             DumpGemmLayerNormPerf<ADataType,
