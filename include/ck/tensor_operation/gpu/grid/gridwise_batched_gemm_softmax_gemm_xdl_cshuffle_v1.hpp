@@ -617,7 +617,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             true,       // TransposeC
             Gemm1KPack, // AMmaKStride
             Gemm1KPack * XdlopsGemm<FloatAB, MPerXdl, NPerXdl, Gemm1KPack, false>{}.K0PerXdlops>{
-            make_tuple(0, 0, 0, 0)}; // TransposeC
+            // BMmaKStride
+            make_tuple(0, 0, 0, 0)}; // A_origin
 
         auto acc1_thread_buf = gemm1_blockwise_gemm.GetCThreadBuffer();
 
@@ -735,7 +736,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                 b1_blockwise_copy.MoveSrcSliceWindow(b1_grid_desc_bk0_n_bk1,
                                                      b1_block_slice_copy_step);
 
-                block_sync_lds(); // wait for gemm0 LDS read
+                block_sync_lds(); // wait for reduction LDS read
 
                 b1_blockwise_copy.RunWrite(b1_block_desc_bk0_n_bk1, b1_block_buf);
 
@@ -774,6 +775,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                         a1_thread_desc_k0_m_k1,
                         make_tuple(I0, I0, I0),
                         a1_thread_buf);
+
                     block_sync_lds();
 
                     gemm1_blockwise_gemm.Run(a1_thread_buf, b1_block_buf, acc1_thread_buf);
