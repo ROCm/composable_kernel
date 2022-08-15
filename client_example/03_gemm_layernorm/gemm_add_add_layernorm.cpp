@@ -128,11 +128,14 @@ bool RunDeviceNormalize2D(normalize_op_ptr& p_op,
     std::array<void*, 1> output      = {p_y};
     auto normalize_functor           = ck::tensor_operation::element_wise::Normalize{};
 
-    auto argument_ptr = p_op->MakeArgumentPointer(input,
+    std::array<ck::index_t, 2> xyLengths = {M, N};
+    std::array<ck::index_t, 2> xyStrides = {StrideX, 1};
+
+    auto argument_ptr = p_op->MakeArgumentPointer(xyLengths,
+                                                  {xyStrides, {1, 0}, {1, 0}, {0, 1}, {0, 1}},
+                                                  {xyStrides},
+                                                  input,
                                                   output,
-                                                  {M, N},
-                                                  {{StrideX, 1}, {1, 0}, {1, 0}, {0, 1}, {0, 1}},
-                                                  {{StrideX, 1}},
                                                   ck::tensor_operation::element_wise::Normalize{});
 
     if(p_op->IsSupportedArgument(argument_ptr.get()))
