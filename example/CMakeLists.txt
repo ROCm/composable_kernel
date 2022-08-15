@@ -47,3 +47,6 @@ add_subdirectory(29_batched_gemm_bias_e_permute)
 add_subdirectory(30_grouped_convnd_fwd_bias_relu_add)
 add_subdirectory(31_batched_gemm_gemm)
 add_subdirectory(32_batched_gemm_softmax_gemm)
+add_subdirectory(33_multiple_reduce)
+add_subdirectory(34_batchnorm)
+
