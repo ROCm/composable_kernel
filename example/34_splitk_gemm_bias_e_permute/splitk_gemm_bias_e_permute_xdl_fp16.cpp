@@ -33,10 +33,11 @@ using DDataType        = F16;
 using DsDataType       = ck::Tuple<DDataType>;
 using EDataType        = F16;
 
-static constexpr ck::index_t NumDimG = 2;
-static constexpr ck::index_t NumDimM = 2;
-static constexpr ck::index_t NumDimN = 2;
-static constexpr ck::index_t NumDimK = 1;
+static constexpr ck::index_t NumDimG   = 2;
+static constexpr ck::index_t NumDimM   = 2;
+static constexpr ck::index_t NumDimN   = 2;
+static constexpr ck::index_t NumDimK   = 1;
+static constexpr ck::index_t NumSplitK = 2;
 
 using AElementOp   = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp   = ck::tensor_operation::element_wise::PassThrough;
@@ -211,7 +212,7 @@ int main(int argc, char* argv[])
     ck::index_t N0 = 16;
     ck::index_t N1 = 128;
 
-    ck::index_t K0 = 64*2;
+    ck::index_t K0 = 64 * NumSplitK;
 
     // A[G0, G1, M0, M1, K0]
     std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M0, M1, K0};
@@ -316,7 +317,8 @@ int main(int argc, char* argv[])
                                     e_gs_ms_ns_strides,
                                     a_element_op,
                                     b_element_op,
-                                    cde_element_op);
+                                    cde_element_op,
+                                    NumSplitK);
 
     if(!op.IsSupportedArgument(argument))
     {

@@ -10,7 +10,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_batched_contraction_multiple_d.hpp"
+#include "ck/tensor_operation/gpu/device/device_splitk_contraction_multiple_d.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
@@ -177,17 +177,17 @@ template <index_t NumDimG,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
 struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
-    : public DeviceBatchedContractionMultipleD<NumDimG,
-                                               NumDimM,
-                                               NumDimN,
-                                               NumDimK,
-                                               ADataType,
-                                               BDataType,
-                                               DsDataType,
-                                               EDataType,
-                                               AElementwiseOperation,
-                                               BElementwiseOperation,
-                                               CDEElementwiseOperation>
+    : public DeviceSplitKContractionMultipleD<NumDimG,
+                                              NumDimM,
+                                              NumDimN,
+                                              NumDimK,
+                                              ADataType,
+                                              BDataType,
+                                              DsDataType,
+                                              EDataType,
+                                              AElementwiseOperation,
+                                              BElementwiseOperation,
+                                              CDEElementwiseOperation>
 {
     using DeviceOp = DeviceSplitKContractionMultipleD_Xdl_CShuffle;
 
@@ -591,7 +591,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
                  const std::vector<index_t>& e_gs_ms_ns_strides,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
-                 CDEElementwiseOperation cde_element_op)
+                 CDEElementwiseOperation cde_element_op,
+                 index_t split_k)
             : p_a_grid_{static_cast<const ADataType*>(p_a_grid)},
               p_b_grid_{static_cast<const BDataType*>(p_b_grid)},
               p_ds_grid_{},
@@ -626,7 +627,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
               a_batch_stride_{a_gs_ms_ks_strides[NumDimG - 1]},
               b_batch_stride_{b_gs_ns_ks_strides[NumDimG - 1]},
               compute_ptr_offset_of_batch_{
-                  a_batch_stride_, b_batch_stride_, ds_grid_desc_g_m_n_, e_grid_desc_g_m_n_}
+                  a_batch_stride_, b_batch_stride_, ds_grid_desc_g_m_n_, e_grid_desc_g_m_n_},
+              split_k_{split_k}
         {
             static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0, "");
 
@@ -727,6 +729,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
         index_t b_batch_stride_;
 
         ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch_;
+
+        index_t split_k_;
     };
 
     // Invoker
@@ -921,7 +925,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
                  const std::vector<index_t>& e_gs_ms_ns_strides,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
-                 CDEElementwiseOperation cde_element_op)
+                 CDEElementwiseOperation cde_element_op,
+                 index_t split_k)
     {
         return Argument{p_a,
                         p_b,
@@ -937,7 +942,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
                         e_gs_ms_ns_strides,
                         a_element_op,
                         b_element_op,
-                        cde_element_op};
+                        cde_element_op,
+                        split_k};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -958,7 +964,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
                         const std::vector<index_t>& e_gs_ms_ns_strides,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
-                        CDEElementwiseOperation cde_element_op) override
+                        CDEElementwiseOperation cde_element_op,
+                        index_t split_k) override
     {
         return std::make_unique<Argument>(p_a,
                                           p_b,
@@ -974,7 +981,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
                                           e_gs_ms_ns_strides,
                                           a_element_op,
                                           b_element_op,
-                                          cde_element_op);
+                                          cde_element_op,
+                                          split_k);
     }
 
     // polymorphic
