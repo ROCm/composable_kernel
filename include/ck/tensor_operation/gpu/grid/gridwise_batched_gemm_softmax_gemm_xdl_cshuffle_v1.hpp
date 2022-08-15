@@ -186,7 +186,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                          SharedMemTrait::b_block_space_size_aligned) *
                                         sizeof(FloatAB);
         const index_t gemm1_bytes_end =
-            (SharedMemTrait::b1_block_space_offset + SharedMemTrait::b_block_space_size_aligned) *
+            (SharedMemTrait::b1_block_space_offset + SharedMemTrait::b1_block_space_size_aligned) *
             sizeof(FloatAB);
         const index_t softmax_bytes_end = (SharedMemTrait::reduction_space_offset +
                                            SharedMemTrait::reduction_space_size_aligned) *

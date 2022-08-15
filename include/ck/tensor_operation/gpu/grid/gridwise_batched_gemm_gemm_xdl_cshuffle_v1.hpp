@@ -185,7 +185,7 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
                                          SharedMemTrait::b_block_space_size_aligned) *
                                         sizeof(FloatAB);
         const index_t gemm1_bytes_end =
-            (SharedMemTrait::b1_block_space_offset + SharedMemTrait::b_block_space_size_aligned) *
+            (SharedMemTrait::b1_block_space_offset + SharedMemTrait::b1_block_space_size_aligned) *
             sizeof(FloatAB);
         const index_t c_block_bytes_end =
             SharedMemTrait::c_block_space_size * sizeof(FloatCShuffle);
