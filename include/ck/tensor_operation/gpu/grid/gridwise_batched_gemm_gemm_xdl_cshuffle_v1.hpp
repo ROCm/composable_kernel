@@ -315,12 +315,6 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
         static constexpr auto b_block_space_offset  = a_block_space_size_aligned.value;
         static constexpr auto b1_block_space_offset = 0;
 
-        // LDS allocation for reduction
-        static constexpr index_t reduction_space_size_aligned =
-            math::integer_least_multiple(BlockSize, max_lds_align);
-
-        static constexpr auto reduction_space_offset = 0;
-
         // LDS allocation for C shuffle in LDS
         static constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
             GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
