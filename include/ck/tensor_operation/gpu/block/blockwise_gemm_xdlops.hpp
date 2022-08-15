@@ -920,13 +920,13 @@ struct BlockwiseGemmXdlops_v2
     }
 
     protected:
-    // A[M0, M1, M2, KPerThread]
+    // A[M0, M1, M2, KPack]
     static constexpr auto a_thread_desc_ =
-        make_naive_tensor_descriptor_packed(make_tuple(I1, I1, I1, Number<KPerThread>{}));
+        make_naive_tensor_descriptor_packed(make_tuple(I1, I1, I1, Number<KPack>{}));
 
-    // B[N0, N1, N2, KPerThread]
+    // B[N0, N1, N2, KPack]
     static constexpr auto b_thread_desc_ =
-        make_naive_tensor_descriptor_packed(make_tuple(I1, I1, I1, Number<KPerThread>{}));
+        make_naive_tensor_descriptor_packed(make_tuple(I1, I1, I1, Number<KPack>{}));
 
     // C[M, N, NumRegXdlops]
     static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(
