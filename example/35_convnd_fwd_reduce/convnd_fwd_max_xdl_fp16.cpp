@@ -23,6 +23,7 @@ using S = ck::Sequence<Is...>;
 
 using F16 = ck::half_t;
 using F32 = float;
+using F64 = double;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -32,40 +33,30 @@ using ADataType         = F16;
 using BDataType         = F16;
 using GemmAccDataType   = F32;
 using CShuffleDataType  = F32;
-using D0DataType        = F16;
-using D1DataType        = F16;
-using DsDataType        = ck::Tuple<D0DataType, D1DataType>;
+using DsDataType        = ck::Tuple<>;
 using EDataType         = F16;
 using ReduceAccDataType = F32;
 using R0DataType        = F32;
-using R1DataType        = F32;
-using RsDataType        = ck::Tuple<R0DataType, R1DataType>;
+using RsDataType        = ck::Tuple<R0DataType>;
 
 // Layout
-using ALayout  = Row;
-using BLayout  = Col;
-using D1Layout = Row;
-using ELayout  = D1Layout;
+using ALayout = Row;
+using BLayout = Col;
+using ELayout = Row;
 
 // Elementwise op
 using PassThrough  = ck::tensor_operation::element_wise::PassThrough;
-using AddAdd       = ck::tensor_operation::element_wise::AddAdd;
-using Square       = ck::tensor_operation::element_wise::UnarySquare;
-using Div          = ck::tensor_operation::element_wise::UnaryDivide;
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
-using CDEElementOp = AddAdd;
-using QsElementOp  = ck::Tuple<PassThrough, Square>;
-using RsElementOp  = ck::Tuple<Div, Div>;
+using CDEElementOp = PassThrough;
+using QsElementOp  = ck::Tuple<PassThrough>;
+using RsElementOp  = ck::Tuple<PassThrough>;
 
 // ReduceOp
-using R0ThreadReduceOp = ck::reduce::Add;
-using R1ThreadReduceOp = ck::reduce::Add;
-using RsThreadReduceOp = ck::Tuple<R0ThreadReduceOp, R1ThreadReduceOp>;
+using RsThreadReduceOp = ck::Tuple<ck::reduce::Max>;
 
-static constexpr auto R0GlobalReduceOp = ck::InMemoryDataOperationEnum::AtomicAdd;
-static constexpr auto R1GlobalReduceOp = ck::InMemoryDataOperationEnum::AtomicAdd;
-using RsGlobalReduceOp = ck::InMemoryDataOperationEnumSequence<R0GlobalReduceOp, R1GlobalReduceOp>;
+using RsGlobalReduceOp =
+    ck::InMemoryDataOperationEnumSequence<ck::InMemoryDataOperationEnum::AtomicMax>;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
@@ -84,22 +75,14 @@ using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataTyp
                                                                         GemmAccDataType,
                                                                         AElementOp,
                                                                         BElementOp,
-                                                                        PassThrough>;
+                                                                        CDEElementOp>;
 
-template <typename ADataType,
-          typename BDataType,
-          typename D0DataType,
-          typename D1DataType,
-          typename EDataType,
-          typename R0DataType,
-          typename R1DataType>
+template <typename ADataType, typename BDataType, typename EDataType, typename R0DataType>
 void DumpPerf(float ave_time, int M, int N, int K)
 {
-    std::size_t flop          = std::size_t(2) * M * N * K + std::size_t(2) * M * N;
+    std::size_t flop          = std::size_t(2) * M * N * K;
     std::size_t gemm_num_byte = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
-                                sizeof(D0DataType) * M * N + sizeof(D1DataType) * M * N +
-                                sizeof(EDataType) * M * N + sizeof(R0DataType) * M +
-                                sizeof(R1DataType) * M;
+                                sizeof(EDataType) * M * N + sizeof(R0DataType) * M;
 
     float tflops          = static_cast<float>(flop) / 1.E9 / ave_time;
     float gemm_gb_per_sec = gemm_num_byte / 1.E6 / ave_time;
@@ -133,74 +116,61 @@ int main()
     ck::index_t N = 1024;
     ck::index_t K = 1024;
 
-    ck::index_t StrideA  = 1024;
-    ck::index_t StrideB  = 1024;
-    ck::index_t StrideD0 = 0;
-    ck::index_t StrideD1 = 1024;
-    ck::index_t StrideE  = 1024;
+    ck::index_t StrideA = 1024;
+    ck::index_t StrideB = 1024;
+    ck::index_t StrideE = 1024;
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor2d(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor2d(K, N, StrideB, BLayout{}));
-    Tensor<D0DataType> d0_n(f_host_tensor_descriptor1d(N, 1));
-    Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor2d(M, N, StrideD1, D1Layout{}));
     Tensor<EDataType> e_m_n(f_host_tensor_descriptor2d(M, N, StrideE, ELayout{}));
     Tensor<R0DataType> r0_m(f_host_tensor_descriptor1d(M, 1));
-    Tensor<R1DataType> r1_m(f_host_tensor_descriptor1d(M, 1));
 
     a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-1, 1});
     b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-1, 1});
-    d0_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{-1, 1});
-    d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{-1, 1});
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem d0_device_buf(sizeof(D0DataType) * d0_n.mDesc.GetElementSpaceSize());
-    DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_m_n.mDesc.GetElementSpaceSize());
     DeviceMem r0_device_buf(sizeof(R0DataType) * r0_m.mDesc.GetElementSpaceSize());
-    DeviceMem r1_device_buf(sizeof(R1DataType) * r1_m.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
-    d0_device_buf.ToDevice(d0_n.mData.data());
-    d1_device_buf.ToDevice(d1_m_n.mData.data());
 
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{};
     auto qs_element_op  = QsElementOp{};
-    auto rs_element_op  = RsElementOp{N, N};
+    auto rs_element_op  = RsElementOp{};
 
-    // Prepare GEMM, mean, mean_square
+    // Prepare GEMM, max
     auto device_op = DeviceOpInstance{};
     auto invoker   = device_op.MakeInvoker();
-    auto argument =
-        device_op.MakeArgument(a_device_buf.GetDeviceBuffer(),
-                               b_device_buf.GetDeviceBuffer(),
-                               {d0_device_buf.GetDeviceBuffer(), d1_device_buf.GetDeviceBuffer()},
-                               e_device_buf.GetDeviceBuffer(),
-                               {r0_device_buf.GetDeviceBuffer(), r1_device_buf.GetDeviceBuffer()},
-                               M,
-                               N,
-                               K,
-                               StrideA,
-                               StrideB,
-                               {StrideD0, StrideD1},
-                               StrideE,
-                               a_element_op,
-                               b_element_op,
-                               cde_element_op,
-                               qs_element_op,
-                               rs_element_op);
+    auto argument  = device_op.MakeArgument(a_device_buf.GetDeviceBuffer(),
+                                           b_device_buf.GetDeviceBuffer(),
+                                           {},
+                                           e_device_buf.GetDeviceBuffer(),
+                                           {r0_device_buf.GetDeviceBuffer()},
+                                           M,
+                                           N,
+                                           K,
+                                           StrideA,
+                                           StrideB,
+                                           {},
+                                           StrideE,
+                                           a_element_op,
+                                           b_element_op,
+                                           cde_element_op,
+                                           qs_element_op,
+                                           rs_element_op);
 
     if(!device_op.IsSupportedArgument(argument))
     {
         throw std::runtime_error("wrong! this device_op instance does not support this problem");
     }
 
-    // init reducetion buffer to 0
-    r0_device_buf.SetZero();
-    r1_device_buf.SetZero();
+    // [CAUSION]: launch_and_time_kernel will not initialize D.
+    // If we evaluate kernel multiple time but without initialize D. Verification will fail
+    r0_device_buf.SetValue(ck::NumericLimits<R0DataType>::Lowest());
 
     invoker.Run(argument, StreamConfig{nullptr, false});
 
@@ -210,69 +180,47 @@ int main()
     if(do_verification)
     {
         auto I0 = ck::Number<0>{};
-        auto I1 = ck::Number<1>{};
 
         Tensor<EDataType> e_m_n_host(e_m_n.mDesc);
         Tensor<R0DataType> r0_m_host(r0_m.mDesc);
-        Tensor<R1DataType> r1_m_host(r1_m.mDesc);
 
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
 
         auto ref_argument = ref_gemm.MakeArgument(
-            a_m_k, b_k_n, e_m_n_host, a_element_op, b_element_op, PassThrough{});
+            a_m_k, b_k_n, e_m_n_host, a_element_op, b_element_op, cde_element_op);
 
         ref_invoker.Run(ref_argument);
 
-        auto reduce0_op = R0ThreadReduceOp{};
-        auto reduce1_op = R1ThreadReduceOp{};
+        auto reduce0_op = RsThreadReduceOp{}[I0];
 
         for(int m = 0; m < M; ++m)
         {
             auto reduce0_acc = reduce0_op.GetIdentityValue<ReduceAccDataType>();
-            auto reduce1_acc = reduce1_op.GetIdentityValue<ReduceAccDataType>();
 
             for(int n = 0; n < N; ++n)
             {
-                ReduceAccDataType square_e_val;
+                auto e_val = ck::type_convert<ReduceAccDataType>(e_m_n_host(m, n));
+                reduce0_op(reduce0_acc, e_val);
+            };
 
-                auto e_val  = ck::type_convert<GemmAccDataType>(e_m_n_host(m, n));
-                auto d0_val = ck::type_convert<GemmAccDataType>(d0_n(n));
-                auto d1_val = ck::type_convert<GemmAccDataType>(d1_m_n(m, n));
-                cde_element_op(e_val, e_val, d0_val, d1_val);
-                e_m_n_host(m, n) = ck::type_convert<EDataType>(e_val);
-
-                auto e_val_reduce = ck::type_convert<ReduceAccDataType>(e_val);
-                qs_element_op[I1](square_e_val, e_val_reduce);
-
-                reduce0_op(reduce0_acc, e_val_reduce);
-                reduce1_op(reduce1_acc, square_e_val);
-            }
-
-            rs_element_op[I0](reduce0_acc, reduce0_acc);
-            rs_element_op[I1](reduce1_acc, reduce1_acc);
             r0_m_host(m) = ck::type_convert<R0DataType>(reduce0_acc);
-            r1_m_host(m) = ck::type_convert<R1DataType>(reduce1_acc);
         }
 
         e_device_buf.FromDevice(e_m_n.mData.data());
         r0_device_buf.FromDevice(r0_m.mData.data());
-        r1_device_buf.FromDevice(r1_m.mData.data());
 
         pass = ck::utils::check_err(
             e_m_n.mData, e_m_n_host.mData, "Error: Incorrect results c", 1e-2, 1e-2);
         pass &= ck::utils::check_err(
             r0_m.mData, r0_m_host.mData, "Error: Incorrect results d0", 1e-2, 1e-2);
-        pass &= ck::utils::check_err(
-            r1_m.mData, r1_m_host.mData, "Error: Incorrect results d1", 1e-2, 1e-2);
     }
 
     bool time_kernel = true;
     if(time_kernel)
     {
         float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
-        DumpPerf<ADataType, BDataType, D0DataType, D1DataType, EDataType, R0DataType, R1DataType>(
-            ave_time, M, N, K);
+        DumpPerf<ADataType, BDataType, EDataType, R0DataType>(ave_time, M, N, K);
     }
 
     return pass ? 0 : 1;
