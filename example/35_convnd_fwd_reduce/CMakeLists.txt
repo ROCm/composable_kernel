@@ -1,0 +1,1 @@
+add_example_executable(example_convnd_fwd_mean_xdl_fp16 convnd_fwd_mean_xdl_fp16.cpp)
