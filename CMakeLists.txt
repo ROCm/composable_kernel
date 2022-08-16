@@ -70,6 +70,8 @@ if( DEFINED CK_OVERRIDE_HIP_VERSION_PATCH )
     message(STATUS "CK_HIP_VERSION_PATCH overriden with ${CK_OVERRIDE_HIP_VERSION_PATCH}")
 endif()
 message(STATUS "Build with HIP ${HIP_VERSION}")
+link_libraries(hip::device)
+add_compile_definitions(__HIP_PLATFORM_HCC__=1)
 
 ## tidy
 include(EnableCompilerWarnings)
@@ -219,6 +221,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 include_directories(BEFORE
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/library/include
+    ${HIP_INCLUDE_DIRS}
 )
 
 

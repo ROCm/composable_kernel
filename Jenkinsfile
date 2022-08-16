@@ -103,7 +103,7 @@ def buildDocker(install_prefix){
 
 def cmake_build(Map conf=[:]){
 
-    def compiler = conf.get("compiler","/opt/rocm/bin/hipcc")
+    def compiler = conf.get("compiler","/opt/rocm/llvm/bin/clang++")
     def config_targets = conf.get("config_targets","check")
     def debug_flags = "-g -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined " + conf.get("extradebugflags", "")
     def build_envs = "CTEST_PARALLEL_LEVEL=4 " + conf.get("build_env","")
