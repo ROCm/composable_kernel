@@ -1,2 +1,0 @@
-# TODO: add example batched_gemm_gemm_xdl_fp16
-add_example_executable(example_batched_gemm_softmax_gemm_xdl_fp16 batched_gemm_softmax_gemm_xdl_fp16.cpp)
