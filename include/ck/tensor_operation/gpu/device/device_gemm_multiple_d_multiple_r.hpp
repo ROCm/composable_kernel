@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include <iostream>
+#include <array>
 
-#include "device_base.hpp"
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
 
 namespace ck {
 namespace tensor_operation {
