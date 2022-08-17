@@ -28,6 +28,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 message("CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
 
+## Threads
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+link_libraries(Threads::Threads)
+
 ## OpenMP
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 	# workaround issue hipcc in rocm3.5 cannot find openmp
