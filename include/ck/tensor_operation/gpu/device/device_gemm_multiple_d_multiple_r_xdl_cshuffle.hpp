@@ -569,10 +569,10 @@ struct DeviceGemmMultipleDMultipleR_Xdl_CShuffle
               p_rs_grid_{}, // FIXME
               a_grid_desc_ak0_m_ak1_{DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, KRaw, StrideA)},
               b_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1(KRaw, NRaw, StrideB)},
-              ds_grid_desc_mblock_mperblock_nblock_nperblock_{},
               e_grid_desc_m_n_{DeviceOp::MakeEGridDescriptor_M_N(MRaw, NRaw, StrideE)},
-              e_grid_desc_mblock_mperblock_nblock_nperblock_{},
               r_grid_desc_m_{DeviceOp::MakeRGridDescriptor_M(MRaw)},
+              ds_grid_desc_mblock_mperblock_nblock_nperblock_{},
+              e_grid_desc_mblock_mperblock_nblock_nperblock_{},
               rs_grid_desc_mblock_mperblock_{},
               block_2_etile_map_{GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_)},
               a_element_op_{a_element_op},
@@ -626,16 +626,18 @@ struct DeviceGemmMultipleDMultipleR_Xdl_CShuffle
         // tensor descriptors
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
+        EGridDesc_M_N e_grid_desc_m_n_;
+        RGridDesc_M r_grid_desc_m_;
+
+        // tensor descriptors for block/thread-wise copy
         StaticallyIndexedArray<
             typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
             NumDTensor>
             ds_grid_desc_mblock_mperblock_nblock_nperblock_; // FIXME: Ds desc may be of different
                                                              // type from E
-        EGridDesc_M_N e_grid_desc_m_n_;
         typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             e_grid_desc_mblock_mperblock_nblock_nperblock_;
 
-        RGridDesc_M r_grid_desc_m_;
         StaticallyIndexedArray<typename GridwiseGemm::RGridDescriptor_MBlock_MPerBlock, NumRTensor>
             rs_grid_desc_mblock_mperblock_;
 
