@@ -12,12 +12,12 @@ using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 // DataType
-using ADataType         = F16;
-using BDataType         = F16;
+using ADataType         = F32;
+using BDataType         = F32;
 using GemmAccDataType   = F32;
 using CShuffleDataType  = F32;
 using DsDataType        = ck::Tuple<>;
-using EDataType         = F16;
+using EDataType         = F32;
 using ReduceAccDataType = F32;
 using R0DataType        = F32;
 using RsDataType        = ck::Tuple<R0DataType>;
@@ -67,9 +67,9 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleDMultip
          256,                       // BlockSize
          256,                       // MPerBlock
          128,                       // NPerBlock
-         32,                        // KPerBlock
-         8,                         // AK1
-         8,                         // BK1
+         16,                        // KPerBlock
+         4,                         // AK1
+         4,                         // BK1
          32,                        // MPerXdl
          32,                        // NPerXdl
          4,                         // MXdlPerWave
@@ -78,15 +78,15 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleDMultip
          S<1, 0, 2>,                // ABlockTransfer ThreadCluster ArrangeOrder
          S<1, 0, 2>,                // ABlockTransfer SrcAccessOrder
          2,                         // ABlockTransfer SrcVectorDim
-         8,                         // ABlockTransfer SrcScalarPerVector
-         8,                         // ABlockTransfer DstScalarPerVector_K1
+         4,                         // ABlockTransfer SrcScalarPerVector
+         4,                         // ABlockTransfer DstScalarPerVector_K1
          1,                         // ABlockLdsExtraM
          S<4, 64, 1>,               // BBlockTransfer ThreadCluster Lengths_K0_N_K1
          S<1, 0, 2>,                // BBlockTransfer ThreadCluster ArrangeOrder
          S<1, 0, 2>,                // BBlockTransfer SrcAccessOrder
          2,                         // BBlockTransfer SrcVectorDim
-         8,                         // BBlockTransfer SrcScalarPerVector
-         8,                         // BBlockTransfer DstScalarPerVector_K1
+         4,                         // BBlockTransfer SrcScalarPerVector
+         4,                         // BBlockTransfer DstScalarPerVector_K1
          1,                         // BBlockLdsExtraN
          1,                         // CShuffleMXdlPerWavePerShuffle
          1,                         // CShuffleNXdlPerWavePerShuffle
@@ -144,12 +144,11 @@ int main(int argc, char* argv[])
     }
     else
     {
-        std::cout << "arg1: verification (0=no, 1=yes)\n"
-                  << " arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
-                  << " arg3: Measure kernel execution time (1=ON, 0=Off)\n"
-                  << " arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideE\n"
-                  << std::endl;
-        exit(EXIT_SUCCESS);
+        printf("arg1: verification (0=no, 1=yes)\n");
+        printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
+        printf("arg3: Measure kernel execution time (1=ON, 0=Off)\n");
+        printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideE\n");
+        exit(0);
     }
 
     return run_gemm_reduce_max_xdl<ADataType,
