@@ -19,7 +19,7 @@ def runShell(String command){
 }
 
 def getDockerImageName(){
-    def img = "${env.MIOPEN_IMAGE_URL}:composable_kernels_${params.COMPILER_VERSION}"
+    def img = "${env.CK_IMAGE_URL}:composable_kernels_${params.COMPILER_VERSION}"
     return img
 }
 
