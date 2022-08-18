@@ -6,10 +6,6 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_multiple_r_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using ADataType         = INT8;
 using BDataType         = INT8;
@@ -27,7 +23,6 @@ using BLayout = Col;
 using ELayout = Row;
 
 // Elementwise op
-using PassThrough  = ck::tensor_operation::element_wise::PassThrough;
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
 using CDEElementOp = PassThrough;

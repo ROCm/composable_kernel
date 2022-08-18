@@ -14,11 +14,16 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/fill.hpp"
 #include "ck/library/utility/host_tensor.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
+using Row = ck::tensor_layout::gemm::RowMajor;
+using Col = ck::tensor_layout::gemm::ColumnMajor;
+
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using F16  = ck::half_t;
 using BF16 = ck::bhalf_t;
 using F32  = float;
