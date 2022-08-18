@@ -111,7 +111,7 @@ struct UnarySquare
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
-        static_assert(is_same<T, float>::value || is_same<T, double>::value,
+        static_assert(is_same_v<T, float> || is_same_v<T, double> || is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
 
         y = x * x;
