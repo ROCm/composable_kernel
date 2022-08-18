@@ -579,7 +579,11 @@ struct MfmaSelector
     static constexpr index_t GetK1PerXdlops() { return selected_mfma.k_per_blk; }
 };
 
-template <typename base_type, index_t MPerXdlops, index_t NPerXdlops, index_t KPack>
+template <typename base_type,
+          index_t MPerXdlops,
+          index_t NPerXdlops,
+          index_t KPack,
+          bool TransposeC = false>
 struct XdlopsGemm
 {
     static constexpr auto I0 = Number<0>{};
@@ -612,6 +616,8 @@ struct XdlopsGemm
         static_assert(KPack % mfma_instr.k_per_blk == 0, "KPack cannot be divided by k_per_blk");
     }
 
+    // XDL output supporting C = A * B
+    // M2_N2 -> M2_M3_M4_N2
     template <typename CDesc_M0_N0_M1_N1_M2_N2>
     __host__ __device__ static constexpr auto
     MakeCDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(const CDesc_M0_N0_M1_N1_M2_N2& c_desc_m0_n0_m1_n1_m2_n2)
@@ -627,10 +633,10 @@ struct XdlopsGemm
                        make_pass_through_transform(N0),
                        make_pass_through_transform(M1),
                        make_pass_through_transform(N1),
-                       make_unmerge_transform(make_tuple(mfma_instr.num_groups_per_blk,
-                                                         mfma_instr.num_input_blks,
-                                                         mfma_instr.group_size)),
-                       make_pass_through_transform(mfma_instr.num_threads_per_blk)),
+                       make_unmerge_transform(make_tuple(Number<mfma_instr.num_groups_per_blk>{},
+                                                         Number<mfma_instr.num_input_blks>{},
+                                                         Number<mfma_instr.group_size>{})),
+                       make_pass_through_transform(Number<mfma_instr.num_threads_per_blk>{})),
             make_tuple(Sequence<0>{},
                        Sequence<1>{},
                        Sequence<2>{},
@@ -643,6 +649,41 @@ struct XdlopsGemm
                        Sequence<3>{},
                        Sequence<4, 5, 6>{},
                        Sequence<7>{}));
+    }
+
+    // transposed XDL output supporting C' = B' * A'
+    // M2_N2 -> M2_N2_N3_N4
+    template <typename CDesc_M0_N0_M1_N1_M2_N2>
+    __host__ __device__ static constexpr auto
+    MakeCDescriptor_M0_N0_M1_N1_M2_N2_N3_N4(const CDesc_M0_N0_M1_N1_M2_N2& c_desc_m0_n0_m1_n1_m2_n2)
+    {
+        const auto M0 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I0);
+        const auto N0 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I1);
+        const auto M1 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I2);
+        const auto N1 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I3);
+
+        return transform_tensor_descriptor(
+            c_desc_m0_n0_m1_n1_m2_n2,
+            make_tuple(make_pass_through_transform(M0),
+                       make_pass_through_transform(N0),
+                       make_pass_through_transform(M1),
+                       make_pass_through_transform(N1),
+                       make_pass_through_transform(Number<mfma_instr.num_threads_per_blk>{}),
+                       make_unmerge_transform(make_tuple(Number<mfma_instr.num_groups_per_blk>{},
+                                                         Number<mfma_instr.num_input_blks>{},
+                                                         Number<mfma_instr.group_size>{}))),
+            make_tuple(Sequence<0>{},
+                       Sequence<1>{},
+                       Sequence<2>{},
+                       Sequence<3>{},
+                       Sequence<4>{},
+                       Sequence<5>{}),
+            make_tuple(Sequence<0>{},
+                       Sequence<1>{},
+                       Sequence<2>{},
+                       Sequence<3>{},
+                       Sequence<4>{},
+                       Sequence<5, 6, 7>{}));
     }
 
     template <typename CDesc_G_M0_N0_M1_N1_M2_N2>
@@ -698,7 +739,16 @@ struct XdlopsGemm
                       "base base_type must be double, float, half, bfloat16, and int8_t!");
 
         static_for<0, KPack / mfma_instr.k_per_blk, 1>{}([&](auto k) {
-            mfma_instr.template run<MPerXdlops, NPerXdlops>(p_a_wave[k], p_b_wave[k], p_c_thread);
+            if constexpr(!TransposeC)
+            {
+                mfma_instr.template run<MPerXdlops, NPerXdlops>(
+                    p_a_wave[k], p_b_wave[k], p_c_thread);
+            }
+            else
+            {
+                mfma_instr.template run<MPerXdlops, NPerXdlops>(
+                    p_b_wave[k], p_a_wave[k], p_c_thread);
+            }
         });
     }
 
@@ -769,7 +819,7 @@ struct XdlopsGemm
         index_t n_offset = blk_i * mfma_instr.n_per_blk + blk_td;
         index_t m_offset = xdlops_i * mfma_instr.m_per_blk + blk_id * mfma_instr.group_size;
 
-        return CIndex{m_offset, n_offset};
+        return TransposeC ? CIndex{n_offset, m_offset} : CIndex{m_offset, n_offset};
     }
 
     static constexpr auto mfma = MfmaSelector<base_type, MPerXdlops, NPerXdlops>{};

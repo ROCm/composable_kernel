@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <numeric>
+#include <random>
 
 #include "ck/ck.hpp"
 
@@ -126,6 +127,23 @@ struct GeneratorTensor_3<ck::bhalf_t>
     }
 };
 
+template <typename T>
+struct GeneratorTensor_4
+{
+    std::default_random_engine generator;
+    std::normal_distribution<float> distribution;
+
+    GeneratorTensor_4(float mean, float stddev) : generator(1), distribution(mean, stddev){};
+
+    template <typename... Is>
+    T operator()(Is...)
+    {
+        float tmp = distribution(generator);
+
+        return ck::type_convert<T>(tmp);
+    }
+};
+
 struct GeneratorTensor_Checkboard
 {
     template <typename... Ts>
@@ -149,5 +167,24 @@ struct GeneratorTensor_Sequential
     {
         std::array<ck::index_t, sizeof...(Ts)> dims = {{static_cast<ck::index_t>(Xs)...}};
         return dims[Dim];
+    }
+};
+
+template <typename T, size_t NumEffectiveDim = 2>
+struct GeneratorTensor_Diagonal
+{
+    T value{1};
+
+    template <typename... Ts>
+    T operator()(Ts... Xs) const
+    {
+        std::array<ck::index_t, sizeof...(Ts)> dims = {{static_cast<ck::index_t>(Xs)...}};
+        size_t start_dim                            = dims.size() - NumEffectiveDim;
+        bool pred                                   = true;
+        for(size_t i = start_dim + 1; i < dims.size(); i++)
+        {
+            pred &= (dims[start_dim] == dims[i]);
+        }
+        return pred ? value : T{0};
     }
 };
