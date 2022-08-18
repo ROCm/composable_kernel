@@ -42,3 +42,8 @@ target_compile_options(gtest PRIVATE ${GTEST_CMAKE_CXX_FLAGS})
 target_compile_options(gtest_main PRIVATE ${GTEST_CMAKE_CXX_FLAGS})
 target_compile_options(gmock PRIVATE ${GTEST_CMAKE_CXX_FLAGS})
 target_compile_options(gmock_main PRIVATE ${GTEST_CMAKE_CXX_FLAGS})
+
+set_target_properties(gtest PROPERTIES POSITION_INDEPENDENT_CODE ON)
+set_target_properties(gtest_main PROPERTIES POSITION_INDEPENDENT_CODE ON)
+set_target_properties(gmock PROPERTIES POSITION_INDEPENDENT_CODE ON)
+set_target_properties(gmock_main PROPERTIES POSITION_INDEPENDENT_CODE ON)
