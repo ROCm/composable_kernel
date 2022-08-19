@@ -132,8 +132,10 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        a_m_k_user.GenerateTensorValue(GeneratorTensor_2<UserADataType>{ck::NumericLimits<UserADataType>::Min(), ck::NumericLimits<UserADataType>::Max()});
-        b_k_n_user.GenerateTensorValue(GeneratorTensor_2<UserBDataType>{ck::NumericLimits<UserBDataType>::Min(), ck::NumericLimits<UserBDataType>::Max()});
+        a_m_k_user.GenerateTensorValue(GeneratorTensor_2<UserADataType>{
+            ck::NumericLimits<UserADataType>::Min(), ck::NumericLimits<UserADataType>::Max()});
+        b_k_n_user.GenerateTensorValue(GeneratorTensor_2<UserBDataType>{
+            ck::NumericLimits<UserBDataType>::Min(), ck::NumericLimits<UserBDataType>::Max()});
         break;
     case 2:
         a_m_k_user.GenerateTensorValue(GeneratorTensor_3<UserADataType>{0.0, 1.0});
@@ -227,6 +229,7 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
 
-        return !ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
+        return !(ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData) &&
+                 ck::utils::check_err(c_m_n_user.mData, c_m_n_host_result.mData));
     }
 }
