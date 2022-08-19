@@ -87,7 +87,7 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     {
         std::cerr << gemm.GetTypeString() << " does not support this problem" << std::endl;
 
-        return false;
+        return true;
     }
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
