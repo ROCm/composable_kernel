@@ -57,4 +57,13 @@ __host__ __device__ constexpr Y bit_cast(const X& x)
 #endif
 }
 
+template <typename T>
+struct is_signed_integral
+    : public integral_constant<bool, std::is_signed_v<T> && std::is_integral_v<T>>
+{
+};
+
+template <typename T>
+inline constexpr bool is_signed_integral_v = is_signed_integral<T>::value;
+
 } // namespace ck
