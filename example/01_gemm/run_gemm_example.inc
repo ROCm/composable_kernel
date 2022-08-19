@@ -65,13 +65,13 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     auto invoker  = gemm.MakeInvoker();
     auto argument = gemm.MakeArgument(
 #ifdef BUILD_INT4_EXAMPLE
-        static_cast<KernelADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-        static_cast<KernelBDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-        static_cast<KernelCDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+        reinterpret_cast<KernelADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+        reinterpret_cast<KernelBDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+        reinterpret_cast<KernelCDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
 #else
-        static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-        static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-        static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+        reinterpret_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+        reinterpret_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+        reinterpret_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
 #endif
         M,
         N,
