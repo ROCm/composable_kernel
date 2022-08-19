@@ -11,12 +11,12 @@
 using ADataType         = INT8;
 using BDataType         = INT8;
 using GemmAccDataType   = INT32;
-using CShuffleDataType  = INT8;
+using CShuffleDataType  = INT32;
 using DsDataType        = ck::Tuple<>;
-using EDataType         = INT8;
+using EDataType         = INT32;
 using ReduceAccDataType = INT32;
-using R0DataType        = F32;
-using R1DataType        = F32;
+using R0DataType        = INT32;
+using R1DataType        = INT32;
 using RsDataType        = ck::Tuple<R0DataType, R1DataType>;
 
 // Layout
