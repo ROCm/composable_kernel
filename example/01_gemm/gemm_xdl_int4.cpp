@@ -21,35 +21,43 @@
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
+using Row = ck::tensor_layout::gemm::RowMajor;
+using Col = ck::tensor_layout::gemm::ColumnMajor;
+
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-using ADataType        = int8_t;
-using BDataType        = int8_t;
-using CDataType        = int8_t;
-using AccDataType      = int32_t;
-using CShuffleDataType = int8_t;
+using KernelADataType        = int8_t;
+using KernelBDataType        = int8_t;
+using KernelCDataType        = int8_t;
+using KernelAccDataType      = int32_t;
+using KernelCShuffleDataType = int8_t;
 
-using AElementOp = ck::tensor_operation::element_wise::PassThrough;
-using BElementOp = ck::tensor_operation::element_wise::PassThrough;
-using CElementOp = ck::tensor_operation::element_wise::PassThrough;
+using ALayout = Row;
+using BLayout = Col;
+using CLayout = Row;
 
-using ALayout = ck::tensor_layout::gemm::RowMajor;
-using BLayout = ck::tensor_layout::gemm::ColumnMajor;
-using CLayout = ck::tensor_layout::gemm::RowMajor;
+using AElementOp = PassThrough;
+using BElementOp = PassThrough;
+using CElementOp = PassThrough;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 // clang-format off
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle
-//######| ALayout| BLayout| CLayout|     AData|     BData|     CData|     AccData|         CShuffle|           A|           B|           C|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
-//######|        |        |        |      Type|      Type|      Type|        Type|         DataType| Elementwise| Elementwise| Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
-//######|        |        |        |          |          |          |            |                 |   Operation|   Operation|   Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-//######|        |        |        |          |          |          |            |                 |            |            |            |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
-        < ALayout, BLayout, CLayout, ADataType, BDataType, CDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        1,   256,   256,   128,    64,  16,  16,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,             16,             16,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,          1,          1,           1,               S<1, 64, 1, 4>,              16>;
+//######| ALayout| BLayout| CLayout|           AData|           BData|           CData|           AccData|               CShuffle|           A|           B|           C|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
+//######|        |        |        |            Type|            Type|            Type|              Type|               DataType| Elementwise| Elementwise| Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
+//######|        |        |        |                |                |                |                  |                       |   Operation|   Operation|   Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
+//######|        |        |        |                |                |                |                  |                       |            |            |            |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
+        < ALayout, BLayout, CLayout, KernelADataType, KernelBDataType, KernelCDataType, KernelAccDataType, KernelCShuffleDataType,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        1,   256,   256,   128,    64,  16,  16,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,             16,             16,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,          1,          1,           1,               S<1, 64, 1, 4>,              16>;
 // clang-format on
 
-using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
+using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<KernelADataType,
+                                                                        KernelBDataType,
+                                                                        KernelCDataType,
+                                                                        KernelAccDataType,
+                                                                        AElementOp,
+                                                                        BElementOp,
+                                                                        CElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -109,10 +117,14 @@ int main(int argc, char* argv[])
             }
         };
 
-    Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
-    Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-    Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-    Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    using UserADataType = int8_t;
+    using UserBDataType = int8_t;
+    using UserCDataType = int8_t;
+
+    Tensor<UserADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
+    Tensor<UserBDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
+    Tensor<UserCDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<UserCDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
@@ -122,17 +134,18 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<UserADataType>{-5, 5});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<UserBDataType>{-5, 5});
         break;
     default:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<UserADataType>{0.0, 1.0});
+        b_k_n.GenerateTensorValue(GeneratorTensor_3<UserBDataType>{-0.5, 0.5});
     }
 
-    DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_m_k_device_buf(sizeof(KernelADataType) * a_m_k.mDesc.GetElementSpaceSize());
+    DeviceMem b_k_n_device_buf(sizeof(KernelBDataType) * b_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem c_m_n_device_buf(sizeof(KernelCDataType) *
+                               c_m_n_device_result.mDesc.GetElementSpaceSize());
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
@@ -142,20 +155,21 @@ int main(int argc, char* argv[])
     auto c_element_op = PassThrough{};
 
     // do GEMM
-    auto gemm     = DeviceGemmInstance{};
-    auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-                                      static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-                                      static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-                                      M,
-                                      N,
-                                      K,
-                                      StrideA,
-                                      StrideB,
-                                      StrideC,
-                                      a_element_op,
-                                      b_element_op,
-                                      c_element_op);
+    auto gemm    = DeviceGemmInstance{};
+    auto invoker = gemm.MakeInvoker();
+    auto argument =
+        gemm.MakeArgument(static_cast<KernelADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+                          static_cast<KernelBDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+                          static_cast<KernelCDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+                          M,
+                          N,
+                          K,
+                          StrideA,
+                          StrideB,
+                          StrideC,
+                          a_element_op,
+                          b_element_op,
+                          c_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -166,9 +180,9 @@ int main(int argc, char* argv[])
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-    std::size_t flop = std::size_t(2) * M * N * K;
-    std::size_t num_btype =
-        sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
+    std::size_t flop      = std::size_t(2) * M * N * K;
+    std::size_t num_btype = sizeof(KernelADataType) * M * K + sizeof(KernelBDataType) * K * N +
+                            sizeof(KernelCDataType) * M * N;
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
