@@ -5,10 +5,10 @@
 #error Should compile this file with ck::int4_t support
 #endif
 
-#include <iostream>
-#include <numeric>
-#include <initializer_list>
 #include <cstdlib>
+#include <iostream>
+#include <initializer_list>
+#include <numeric>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
