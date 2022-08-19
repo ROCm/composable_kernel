@@ -40,6 +40,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle
 using ReferenceGemmInstance = ck::tensor_operation::host::
     ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
 
-#include "run_gemm_int4_example.inc"
+#define BUILD_INT4_EXAMPLE
+#include "run_gemm_example.inc"
 
-int main(int argc, char* argv[]) { return !run_gemm_int4_example(argc, argv); }
+int main(int argc, char* argv[]) { return !run_gemm_example(argc, argv); }
