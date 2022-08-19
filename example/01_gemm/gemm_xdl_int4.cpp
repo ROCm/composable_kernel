@@ -101,7 +101,8 @@ int main(int argc, char* argv[])
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=n0, 1=yes)\n");
         printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC\n");
-        exit(0);
+
+        return EXIT_SUCCESS;
     }
 
     auto f_host_tensor_descriptor =
@@ -120,27 +121,41 @@ int main(int argc, char* argv[])
 
     using UserADataType = ck::int4_t;
     using UserBDataType = ck::int4_t;
+    using UserCDataType = ck::int4_t;
 
-    Tensor<UserADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
-    Tensor<UserBDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
+    Tensor<UserADataType> a_m_k_user(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
+    Tensor<UserBDataType> b_k_n_user(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
+
+    switch(init_method)
+    {
+    case 0: break;
+    case 1:
+        a_m_k_user.GenerateTensorValue(GeneratorTensor_2<UserADataType>{ck::NumericLimits<UserADataType>::Min(), ck::NumericLimits<UserADataType>::Max()});
+        b_k_n_user.GenerateTensorValue(GeneratorTensor_2<UserBDataType>{ck::NumericLimits<UserBDataType>::Min(), ck::NumericLimits<UserBDataType>::Max()});
+        break;
+    default:
+        a_m_k_user.GenerateTensorValue(GeneratorTensor_3<UserADataType>{0.0, 1.0});
+        b_k_n_user.GenerateTensorValue(GeneratorTensor_3<UserBDataType>{-0.5, 0.5});
+    }
+
+    Tensor<KernelADataType> a_m_k(a_m_k_user);
+    Tensor<KernelBDataType> b_k_n(b_k_n_user);
+
+    if(!std::equal(std::begin(a_m_k), std::end(a_m_k), std::begin(a_m_k_user)) ||
+       !std::equal(std::begin(b_k_n), std::end(b_k_n), std::begin(b_k_n_user)))
+    {
+        std::cerr << "content are not identical while converting between different-typed "
+                     "\'Tensor<>\'s (martix A & B)"
+                  << std::endl;
+        return EXIT_FAILURE;
+    }
+
     Tensor<KernelCDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<KernelCDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
-
-    switch(init_method)
-    {
-    case 0: break;
-    case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<UserADataType>{-5, 5});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<UserBDataType>{-5, 5});
-        break;
-    default:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<UserADataType>{0.0, 1.0});
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<UserBDataType>{-0.5, 0.5});
-    }
 
     DeviceMem a_m_k_device_buf(sizeof(KernelADataType) * a_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b_k_n_device_buf(sizeof(KernelBDataType) * b_k_n.mDesc.GetElementSpaceSize());
@@ -175,7 +190,7 @@ int main(int argc, char* argv[])
     {
         std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
 
-        return 0;
+        return EXIT_SUCCESS;
     }
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
@@ -193,6 +208,9 @@ int main(int argc, char* argv[])
 
     c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
+    Tensor<UserCDataType> c_m_n_user(c_m_n_device_result);
+    // NOTE: do whatever we want to this converted tensor
+
     if(do_verification)
     {
         auto ref_gemm    = ReferenceGemmInstance{};
@@ -205,6 +223,4 @@ int main(int argc, char* argv[])
 
         return ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData) ? 0 : 1;
     }
-
-    return 0;
 }
