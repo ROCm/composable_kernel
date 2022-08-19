@@ -104,7 +104,7 @@ int main(int argc, char* argv[])
     {
         // use default case
     }
-    if(argc == 4)
+    else if(argc == 4)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
