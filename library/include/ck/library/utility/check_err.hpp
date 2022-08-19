@@ -15,6 +15,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/data_type.hpp"
+#include "ck/utility/type.hpp"
 #include "ck/host_utility/io.hpp"
 
 namespace ck {
@@ -149,14 +150,14 @@ check_err(const std::vector<T>& out,
     return res;
 }
 
-template <typename T, typename U>
-std::enable_if_t<
-    ((std::is_signed_v<T> && std::is_integral_v<T>) || std::is_same_v<T, ck::int4_t>)&&(
-        std::is_signed_v<U>&& std::is_integral_v<U>)&&(sizeof(T) <= sizeof(U)) &&
-        !std::is_same_v<T, bhalf_t>,
-    bool>
-check_err(const std::vector<T>& out,
-          const std::vector<U>& ref,
+template <typename Out, typename Ref>
+std::enable_if_t<((is_signed_integral_v<Out> ||
+                   std::is_same_v<Out, ck::int4_t>)&&is_signed_integral_v<Ref>)&&(sizeof(Out) <=
+                                                                                  sizeof(Ref)) &&
+                     (sizeof(Ref) <= sizeof(int64_t)) && !std::is_same_v<Out, bhalf_t>,
+                 bool>
+check_err(const std::vector<Out>& out,
+          const std::vector<Ref>& ref,
           const std::string& msg = "Error: Incorrect results!",
           double                 = 0,
           double atol            = 0)
