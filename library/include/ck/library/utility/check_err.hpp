@@ -169,7 +169,7 @@ check_err(const std::vector<Out>& out,
 {
     if(out.size() != ref.size())
     {
-        std::cout << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
+        std::cerr << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
                   << std::endl;
         return false;
     }
@@ -194,8 +194,7 @@ check_err(const std::vector<Out>& out,
             err_count++;
             if(err_count < 5)
             {
-                std::cout << "o(" << o << ") == r(" << r << "): " << (o == r) << std::endl;
-                std::cout << msg << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r
+                std::cerr << msg << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r
                           << std::endl;
             }
             res = false;
