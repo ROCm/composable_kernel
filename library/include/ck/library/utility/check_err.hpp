@@ -151,10 +151,10 @@ check_err(const std::vector<T>& out,
 }
 
 template <typename Out, typename Ref>
-std::enable_if_t<((is_signed_integral_v<Out> ||
-                   std::is_same_v<Out, ck::int4_t>)&&is_signed_integral_v<Ref>)&&(sizeof(Out) <=
-                                                                                  sizeof(Ref)) &&
-                     (sizeof(Ref) <= sizeof(int64_t)) && !std::is_same_v<Out, bhalf_t>,
+std::enable_if_t<(is_signed_integral_v<Out> ||
+                  std::is_same_v<Out, ck::int4_t>)&&is_signed_integral_v<Ref> &&
+                     (sizeof(Out) <= sizeof(Ref) && sizeof(Ref) <= sizeof(int64_t)) &&
+                     !std::is_same_v<Out, bhalf_t>,
                  bool>
 check_err(const std::vector<Out>& out,
           const std::vector<Ref>& ref,
@@ -175,8 +175,12 @@ check_err(const std::vector<Out>& out,
     int64_t max_err = std::numeric_limits<int64_t>::min();
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
+        constexpr bool should_downcast_ref =
+            (sizeof(Out) < sizeof(Ref) || !std::is_same_v<Out, Ref>);
+
         int64_t o = out[i];
-        int64_t r = ref[i];
+        /// TODO: clamp value if necessary
+        int64_t r = static_cast<std::conditional_t<should_downcast_ref, Out, Ref>>(ref[i]);
         err       = std::abs(o - r);
 
         if(err > atol)
@@ -185,8 +189,8 @@ check_err(const std::vector<Out>& out,
             err_count++;
             if(err_count < 5)
             {
-                std::cout << msg << " out[" << i << "] != ref[" << i
-                          << "]: " << static_cast<int>(out[i]) << " != " << static_cast<int>(ref[i])
+                std::cout << "o(" << o << ") == r(" << r << "): " << (o == r) << std::endl;
+                std::cout << msg << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r
                           << std::endl;
             }
             res = false;
