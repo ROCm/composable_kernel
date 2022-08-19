@@ -254,7 +254,7 @@ struct Tensor
     Tensor(const HostTensorDescriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpaceSize()) {}
 
     template <typename OutT>
-    Tensor<OutT> CopyAsType() const
+    std::enable_if_t<std::is_convertible_v<T, OutT>, Tensor<OutT>> CopyAsType() const
     {
         Tensor<OutT> ret(mDesc);
         for(size_t i = 0; i < mData.size(); i++)
@@ -268,8 +268,8 @@ struct Tensor
 
     Tensor(Tensor&& other) = default;
 
-    template <typename OtherT>
-    Tensor(const Tensor<OtherT>& other) : Tensor(other.template CopyAsType<T>())
+    template <typename FromT, typename = std::enable_if_t<std::is_convertible_v<FromT, T>>>
+    Tensor(const Tensor<FromT>& other) : Tensor(other.template CopyAsType<T>())
     {
     }
 
