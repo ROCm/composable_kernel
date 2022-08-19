@@ -153,11 +153,11 @@ check_err(const std::vector<T>& out,
 template <typename Out, typename Ref>
 std::enable_if_t<
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-    (is_signed_integral_v<Out> || std::is_same_v<Out, ck::int4_t>)&&
+    (is_signed_integral_v<Out> || std::is_same_v<Out, ck::int4_t>)&&(
+        is_signed_integral_v<Ref> || std::is_same_v<Ref, ck::int4_t>)&&
 #else
-    is_signed_integral_v<Out> &&
+    is_signed_integral_v<Out> && is_signed_integral_v<Ref> &&
 #endif
-        is_signed_integral_v<Ref> &&
         (sizeof(Out) <= sizeof(Ref) && sizeof(Ref) <= sizeof(int64_t)) &&
         !std::is_same_v<Out, bhalf_t>,
     bool>
