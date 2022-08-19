@@ -11,6 +11,7 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/utility/data_type.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -117,14 +118,13 @@ int main(int argc, char* argv[])
             }
         };
 
-    using UserADataType = int8_t;
-    using UserBDataType = int8_t;
-    using UserCDataType = int8_t;
+    using UserADataType = ck::int4_t;
+    using UserBDataType = ck::int4_t;
 
     Tensor<UserADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<UserBDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-    Tensor<UserCDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-    Tensor<UserCDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<KernelCDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<KernelCDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
