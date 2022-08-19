@@ -136,6 +136,9 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     {
         c_device_buf.FromDevice(e_g_m_n_device_result.mData.data());
 
+        using ReferenceBatchedGemmInstance = ck::tensor_operation::host::
+        ReferenceBatchedGemm<ADataType, BDataType, EDataType, AccDataType, AElementOp, BElementOp, CDEElementOp>;
+
         auto ref_batched_gemm = ReferenceBatchedGemmInstance{};
         auto ref_invoker      = ref_batched_gemm.MakeInvoker();
 

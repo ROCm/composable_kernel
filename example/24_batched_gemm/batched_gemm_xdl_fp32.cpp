@@ -53,6 +53,6 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmMultiD
         < ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   256,   256,   128,    16,   4,   4,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              4,              4,         1,           1,           1,               S<1, 32, 1, 8>,               4>;
 // clang-format on
 
-#include "batched_gemm_example.inc"
+#include "run_batched_gemm_example.inc"
 
-int main(int argc, char* argv[]) { run_batched_gemm_example(argc, argv); }
+int main(int argc, char* argv[]) { return !run_batched_gemm_example(argc, argv); }
