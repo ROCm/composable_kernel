@@ -254,7 +254,7 @@ struct Tensor
     Tensor(const HostTensorDescriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpaceSize()) {}
 
     template <typename OutT>
-    std::enable_if_t<std::is_convertible_v<T, OutT>, Tensor<OutT>> CopyAsType() const
+    Tensor<OutT> CopyAsType() const
     {
         Tensor<OutT> ret(mDesc);
         for(size_t i = 0; i < mData.size(); i++)
