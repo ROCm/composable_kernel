@@ -3,8 +3,6 @@
 
 #pragma once
 
-#include "gemm_common.inc"
-
 bool run_gemm_int4(const ProblemSize& problem_size, const ExecutionConfig& config)
 {
     using namespace ck::literals;
@@ -30,18 +28,14 @@ bool run_gemm_int4(const ProblemSize& problem_size, const ExecutionConfig& confi
     {
     case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{
-            ck::NumericLimits<ADataType>::Min(), ck::NumericLimits<ADataType>::Max()});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{
-            ck::NumericLimits<BDataType>::Min(), ck::NumericLimits<BDataType>::Max()});
-        break;
-    case 2:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k.begin(),
+                                                                             a_m_k.end());
+        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n.begin(),
+                                                                             b_k_n.end());
         break;
     default:
-        a_m_k.GenerateTensorValue(GeneratorTensor_Sequential<0>{});
-        b_k_n.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
+        ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k.begin(), a_m_k.end());
+        ck::utils::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n.begin(), b_k_n.end());
     }
 
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
@@ -82,9 +76,9 @@ bool run_gemm_int4(const ProblemSize& problem_size, const ExecutionConfig& confi
 
     if(!gemm.IsSupportedArgument(argument))
     {
-        std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
+        std::cerr << gemm.GetTypeString() << " does not support this problem" << std::endl;
 
-        return EXIT_SUCCESS;
+        return false;
     }
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});

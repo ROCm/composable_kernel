@@ -3,6 +3,26 @@
 
 #pragma once
 
+#include <cstdlib>
+#include <iostream>
+#include <initializer_list>
+#include <numeric>
+
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/utility/data_type.hpp"
+
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/fill.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+
+
 struct ProblemSize final
 {
     ck::index_t M = 3840;
@@ -21,7 +41,15 @@ struct ExecutionConfig final
     bool time_kernel     = false;
 };
 
-bool parse_cmd_args(int argc, char* argv[], ProblemSize& problem_size, ExecutionConfig& config)
+template <ck::index_t... Is>
+using S = ck::Sequence<Is...>;
+
+using Row = ck::tensor_layout::gemm::RowMajor;
+using Col = ck::tensor_layout::gemm::ColumnMajor;
+
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+
+inline bool parse_cmd_args(int argc, char* argv[], ProblemSize& problem_size, ExecutionConfig& config)
 {
     if(argc == 1)
     {
