@@ -266,13 +266,6 @@ struct Tensor
 
     Tensor(const Tensor& other) : mDesc(other.mDesc), mData(other.mData) {}
 
-    Tensor(Tensor&& other) = default;
-
-    template <typename FromT, typename = std::enable_if_t<std::is_convertible_v<FromT, T>>>
-    Tensor(const Tensor<FromT>& other) : Tensor(other.template CopyAsType<T>())
-    {
-    }
-
     Tensor& operator=(const Tensor& other)
     {
         mDesc = other.mDesc;
