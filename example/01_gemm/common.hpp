@@ -22,7 +22,6 @@
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
-
 struct ProblemSize final
 {
     ck::index_t M = 3840;
@@ -49,7 +48,8 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-inline bool parse_cmd_args(int argc, char* argv[], ProblemSize& problem_size, ExecutionConfig& config)
+inline bool
+parse_cmd_args(int argc, char* argv[], ProblemSize& problem_size, ExecutionConfig& config)
 {
     if(argc == 1)
     {
