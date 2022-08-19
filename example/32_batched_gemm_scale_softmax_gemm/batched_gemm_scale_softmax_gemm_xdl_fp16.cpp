@@ -51,7 +51,7 @@ using CLayout  = Row;
 
 using AElementOp    = PassThrough;
 using B0ElementOp   = PassThrough;
-using Acc0ElementOp = PassThrough;
+using Acc0ElementOp = ck::tensor_operation::element_wise::Scale;
 using B1ElementOp   = PassThrough;
 using CElementOp    = PassThrough;
 
@@ -122,7 +122,7 @@ using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
                                                                                 AccDataType,
                                                                                 AElementOp,
                                                                                 B0ElementOp,
-                                                                                CElementOp>;
+                                                                                Acc0ElementOp>;
 
 // Ref Softmax: fp32 in, fp16 out
 using ReferenceSoftmaxInstance =
@@ -157,6 +157,7 @@ int main(int argc, char* argv[])
     ck::index_t BatchStrideB0 = -1;
     ck::index_t BatchStrideB1 = -1;
     ck::index_t BatchStrideC  = -1;
+    float alpha               = 1;
 
     if(argc == 1)
     {
@@ -181,7 +182,7 @@ int main(int argc, char* argv[])
 
         BatchCount = std::stoi(argv[8]);
     }
-    else if(argc == 17)
+    else if(argc == 18)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
@@ -203,6 +204,8 @@ int main(int argc, char* argv[])
         BatchStrideB0 = std::stoi(argv[14]);
         BatchStrideB1 = std::stoi(argv[15]);
         BatchStrideC  = std::stoi(argv[16]);
+
+        alpha = std::stof(argv[17]);
     }
     else
     {
@@ -211,6 +214,7 @@ int main(int argc, char* argv[])
         printf("arg3: time kernel (0=no, 1=yes)\n");
         printf("arg4 to 17: M, N, K, O, Batch, StrideA, StrideB0, StrideB1, StrideC, BatchStrideA, "
                "BatchStrideB0, BatchStrideB1, BatchStrideC\n");
+        printf("arg18: alpha\n");
         exit(0);
     }
 
@@ -304,7 +308,7 @@ int main(int argc, char* argv[])
 
     auto a_element_op    = AElementOp{};
     auto b0_element_op   = B0ElementOp{};
-    auto acc0_element_op = Acc0ElementOp{};
+    auto acc0_element_op = Acc0ElementOp{alpha};
     auto b1_element_op   = B1ElementOp{};
     auto c_element_op    = CElementOp{};
 
@@ -368,7 +372,7 @@ int main(int argc, char* argv[])
         auto ref_gemm0          = ReferenceGemm0Instance{};
         auto ref_gemm0_invoker  = ref_gemm0.MakeInvoker();
         auto ref_gemm0_argument = ref_gemm0.MakeArgument(
-            a_g_m_k, b0_g_k_n, acc0_g_m_n, a_element_op, b0_element_op, PassThrough{});
+            a_g_m_k, b0_g_k_n, acc0_g_m_n, a_element_op, b0_element_op, acc0_element_op);
 
         ref_gemm0_invoker.Run(ref_gemm0_argument);
 

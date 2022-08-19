@@ -19,7 +19,7 @@ def runShell(String command){
 }
 
 def getDockerImageName(){
-    def img = "${env.MIOPEN_IMAGE_URL}:composable_kernels_${params.COMPILER_VERSION}"
+    def img = "${env.CK_IMAGE_URL}:composable_kernels_${params.COMPILER_VERSION}"
     return img
 }
 
@@ -561,6 +561,7 @@ pipeline {
                         beforeAgent true
                         expression { params.RUN_FULL_QA.toBoolean() }
                     }
+                    options { retry(2) }
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
@@ -602,6 +603,7 @@ pipeline {
                         beforeAgent true
                         expression { !params.RUN_FULL_QA.toBoolean() && !params.TEST_NODE_PERFORMANCE.toBoolean() }
                     }
+                    options { retry(2) }
                     agent{ label rocmnode("gfx908")}
                     environment{
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
@@ -616,6 +618,7 @@ pipeline {
                         beforeAgent true
                         expression { params.RUN_FULL_QA.toBoolean() || params.TEST_NODE_PERFORMANCE.toBoolean() }
                     }
+                    options { retry(2) }
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
