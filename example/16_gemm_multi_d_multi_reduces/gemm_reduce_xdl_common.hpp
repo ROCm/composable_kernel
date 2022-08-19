@@ -24,10 +24,13 @@ using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using F16  = ck::half_t;
-using BF16 = ck::bhalf_t;
-using F32  = float;
-using F64  = double;
+using F16         = ck::half_t;
+using BF16        = ck::bhalf_t;
+using F32         = float;
+using F64         = double;
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+using INT4 = ck::int4_t;
+#endif
 using INT8  = std::int8_t;
 using INT32 = std::int32_t;
 
