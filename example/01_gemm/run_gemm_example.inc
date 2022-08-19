@@ -5,7 +5,7 @@
 
 bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
 {
-#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+#if defined(BUILD_INT4_EXAMPLE) && defined(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
     static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
 #endif
 
