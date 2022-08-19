@@ -264,14 +264,13 @@ struct Tensor
         return ret;
     }
 
-    Tensor(const Tensor& other) : mDesc(other.mDesc), mData(other.mData) {}
+    Tensor(const Tensor&) = default;
+    Tensor(Tensor&&)      = default;
 
-    Tensor& operator=(const Tensor& other)
-    {
-        mDesc = other.mDesc;
-        mData = other.mData;
-        return *this;
-    }
+    ~Tensor() = default;
+
+    Tensor& operator=(const Tensor&) = default;
+    Tensor& operator=(Tensor&&) = default;
 
     const std::vector<std::size_t>& GetLengths() const { return mDesc.GetLengths(); }
 
