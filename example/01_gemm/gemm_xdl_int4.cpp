@@ -150,9 +150,9 @@ int main(int argc, char* argv[])
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
 
-    auto a_element_op = PassThrough{};
-    auto b_element_op = PassThrough{};
-    auto c_element_op = PassThrough{};
+    auto a_element_op = AElemenetOp{};
+    auto b_element_op = BElemenetOp{};
+    auto c_element_op = CElemenetOp{};
 
     // do GEMM
     auto gemm    = DeviceGemmInstance{};
