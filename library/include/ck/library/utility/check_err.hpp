@@ -150,8 +150,11 @@ check_err(const std::vector<T>& out,
 }
 
 template <typename T, typename U>
-std::enable_if_t<((std::is_signed_v<T> && std::is_integral_v<T>) || std::is_same_v<T, ck::int4_t>) && 
-                 (std::is_signed_v<U> && std::is_integral_v<U>) && (sizeof(T) <= sizeof(U)) && !std::is_same_v<T, bhalf_t>, bool>
+std::enable_if_t<
+    ((std::is_signed_v<T> && std::is_integral_v<T>) || std::is_same_v<T, ck::int4_t>)&&(
+        std::is_signed_v<U>&& std::is_integral_v<U>)&&(sizeof(T) <= sizeof(U)) &&
+        !std::is_same_v<T, bhalf_t>,
+    bool>
 check_err(const std::vector<T>& out,
           const std::vector<U>& ref,
           const std::string& msg = "Error: Incorrect results!",

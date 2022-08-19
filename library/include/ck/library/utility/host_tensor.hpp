@@ -266,8 +266,13 @@ struct Tensor
 
     Tensor(const Tensor& other) : mDesc(other.mDesc), mData(other.mData) {}
 
-    template <typename OtherT, typename = std::enable_if_t<sizeof(T) == sizeof(OtherT) && std::is_convertible_v<T, OtherT>>>
-    Tensor(const Tensor<OtherT>& other) : mDesc(other.mDesc), mData(std::begin(other.mData), std::end(other.mData)) {}
+    template <typename OtherT,
+              typename =
+                  std::enable_if_t<sizeof(T) == sizeof(OtherT) && std::is_convertible_v<T, OtherT>>>
+    Tensor(const Tensor<OtherT>& other)
+        : mDesc(other.mDesc), mData(std::begin(other.mData), std::end(other.mData))
+    {
+    }
 
     Tensor& operator=(const Tensor& other)
     {
