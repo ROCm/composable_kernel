@@ -115,7 +115,7 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
 
         ref_invoker.Run(ref_argument);
 
-        return !ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
+        return ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
     }
 
     return true;
@@ -126,5 +126,5 @@ bool run_gemm_example(int argc, char* argv[])
     ProblemSize problem_size;
     ExecutionConfig config;
 
-    return parse_cmd_args(argc, argv, problem_size, config) && run_gemm(problem_size, config);
+    return !parse_cmd_args(argc, argv, problem_size, config) || run_gemm(problem_size, config);
 }
