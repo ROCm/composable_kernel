@@ -100,6 +100,10 @@ int main(int argc, char* argv[])
     ck::index_t StrideC = 16;
 #endif
 
+    if(argc == 1)
+    {
+        // use default case
+    }
     if(argc == 4)
     {
         do_verification = std::stoi(argv[1]);
