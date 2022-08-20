@@ -23,6 +23,17 @@ def getDockerImageName(){
     return img
 }
 
+def compiler_path(){
+    def path
+    if (params.COMPILER_VERSION == "release"){
+        path = "/opt/rocm/llvm/bin"
+    }
+    else{
+        path = "/llvm-project/build/bin"
+    }
+    return path
+}
+
 def getDockerImage(Map conf=[:]){
     env.DOCKER_BUILDKIT=1
     def prefixpath = conf.get("prefixpath", "/opt/rocm") // prefix:/opt/rocm
@@ -103,7 +114,8 @@ def buildDocker(install_prefix){
 
 def cmake_build(Map conf=[:]){
 
-    def compiler = conf.get("compiler","/opt/rocm/bin/hipcc")
+    def path = compiler_path()
+    def compiler = conf.get("compiler","${path}/clang++")
     def config_targets = conf.get("config_targets","check")
     def debug_flags = "-g -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined " + conf.get("extradebugflags", "")
     def build_envs = "CTEST_PARALLEL_LEVEL=4 " + conf.get("build_env","")
@@ -585,7 +597,7 @@ pipeline {
                     agent{ label rocmnode("gfx908")}
                     environment{
                         setup_args = """ -D  -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " """
-                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc .. && make -j """ 
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DCMAKE_CXX_COMPILER="${compiler_path()}/clang++" .. && make -j """ 
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
