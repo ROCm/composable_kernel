@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
+#ifndef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+#error Should compile this file with ck::int4_t support
+#endif
+
 #include "common.hpp"
 
 using ADataType        = I8;
