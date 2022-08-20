@@ -87,3 +87,50 @@ parse_cmd_args(int argc, char* argv[], ProblemSize& problem_size, ExecutionConfi
 
     return true;
 }
+
+template <typename T>
+inline std::enable_if_t<!std::is_const_v<T> &&
+                        (std::is_same_v<T, int8_t> || std::is_same_v<T, ck::bhalf_t> ||
+                         std::is_same_v<T, ck::half_t> || std::is_same_v<T, float> ||
+                         std::is_same_v<T, double>)>
+copy(const DeviceMem& device, T* host)
+{
+    assert(device.GetBufferSize() % sizeof(T) == 0);
+
+    device.FromDevice(host);
+}
+
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+inline void copy(const DeviceMem& device, ck::int4_t* host)
+{
+    const std::size_t count = device.GetBufferSize();
+    const auto buffer       = std::make_unique<int8_t[]>(count);
+
+    device.FromDevice(buffer.get());
+
+    std::copy_n(buffer.get(), count, host);
+}
+#endif
+
+template <typename T>
+inline std::enable_if_t<std::is_same_v<T, int8_t> || std::is_same_v<T, ck::bhalf_t> ||
+                        std::is_same_v<T, ck::half_t> || std::is_same_v<T, ck::half_t> ||
+                        std::is_same_v<T, float> || std::is_same_v<T, double>>
+copy(const T* host, DeviceMem& device)
+{
+    assert(device.GetBufferSize() % sizeof(T) == 0);
+
+    device.ToDevice(host);
+}
+
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+inline void copy(const ck::int4_t* host, DeviceMem& device)
+{
+    const std::size_t count = device.GetBufferSize();
+    const auto buffer       = std::make_unique<int8_t[]>(count);
+
+    std::copy_n(host, count, buffer.get());
+
+    device.ToDevice(buffer.get());
+}
+#endif
