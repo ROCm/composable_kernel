@@ -132,7 +132,7 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
         return ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData) ? 0 : 1;
     }
 
-    return 0;
+    return true;
 }
 
 bool run_splitK_gemm_example(int argc, char* argv[])
