@@ -107,14 +107,6 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
     {
         Tensor<AccDataType> c_m_n(HostTensorDescriptor{M, N});
 
-        using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
-                                                                                BDataType,
-                                                                                AccDataType,
-                                                                                AccDataType,
-                                                                                AElementOp,
-                                                                                BElementOp,
-                                                                                PassThrough>;
-
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
 

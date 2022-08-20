@@ -34,6 +34,14 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleD_Xdl_C
         < ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              4,              4,         1,           1,           1,               S<1, 32, 1, 8>,               4>;
 // clang-format on
 
+using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                        BDataType,
+                                                                        AccDataType,
+                                                                        AccDataType,
+                                                                        AElementOp,
+                                                                        BElementOp,
+                                                                        PassThrough>;
+
 #include "run_gemm_add_add_fastgelu_example.inc"
 
 int main(int argc, char* argv[]) { return !run_gemm_add_add_fastgelu_example(argc, argv); }
