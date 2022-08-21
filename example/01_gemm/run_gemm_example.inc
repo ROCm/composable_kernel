@@ -53,8 +53,8 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
-    copy(a_m_k.mData.data(), a_m_k_device_buf);
-    copy(b_k_n.mData.data(), b_k_n_device_buf);
+    a_m_k_device_buf.ToDevice(a_m_k.mData.data());
+    b_k_n_device_buf.ToDevice(b_k_n.mData.data());
 
     auto a_element_op = AElementOp{};
     auto b_element_op = BElementOp{};
@@ -103,7 +103,7 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
-    copy(c_m_n_device_buf, c_m_n_device_result.mData.data());
+    c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
     if(config.do_verification)
     {
