@@ -56,10 +56,10 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
 
-    copy(a_m_k.mData.data(), a_device_buf);
-    copy(b_k_n.mData.data(), b_device_buf);
-    copy(d0_m_n.mData.data(), d0_device_buf);
-    copy(d1_m_n.mData.data(), d1_device_buf);
+    a_device_buf.ToDevice(a_m_k.mData.data());
+    b_device_buf.ToDevice(b_k_n.mData.data());
+    d0_device_buf.ToDevice(d0_m_n.mData.data());
+    d1_device_buf.ToDevice(d1_m_n.mData.data());
 
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
@@ -123,7 +123,7 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
             }
         }
 
-        copy(e_device_buf, e_m_n_device_result.mData.data());
+        e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
         return ck::utils::check_err(e_m_n_device_result.mData, e_m_n_host_result.mData);
     }
