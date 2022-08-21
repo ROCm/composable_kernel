@@ -178,7 +178,7 @@ struct AddAddFastGelu
     static inline constexpr bool is_valid_param_type_v =
         std::is_same_v<T, float> || std::is_same_v<T, half_t> || std::is_same_v<T, bhalf_t> ||
         std::is_same_v<T, int32_t> || std::is_same_v<T, int8_t>
-#if CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
         || std::is_same_v<T, ck::int4_t>
 #endif
         ;
