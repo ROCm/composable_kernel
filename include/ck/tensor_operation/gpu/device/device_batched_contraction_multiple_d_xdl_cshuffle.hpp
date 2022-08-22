@@ -129,6 +129,25 @@ namespace device {
 //   B[G0, G1, ..., N0, N1, N2, ..., K0, K1, K2, ...]
 //   D[G0, G1, ..., M0, M1, M2, ..., N0, N1, N2, ...]
 //   E[G0, G1, ..., M0, M1, M2, ..., N0, N1, N2, ...]
+
+// FIXME: TensorSpecialization::Packed specialization is does not cover all packed tensor cases, it
+// merely degenerates into TensorSpecialization::Default with NumDimG/M/N/K = 1
+//
+// Detail- Packed tensor satisfies
+//   stride_0 = 1
+//   stride_i = stride_{i - 1} * extent_{i - 1}
+// So tensor
+//   [G0, G1, G2, M, N]
+// transposed into tensor
+//   [G0, G2, G1, M, N]
+// with strides
+//   [G2 * G1 * M * N, G1 * M * N, M * N, N, 1]
+// is again a packed tensor. MakeGridDescriptor() currently just merges dimensions and ignores some
+// strides from input tensor extents so finer dimension information is lost. Merging dimensions is
+// essentially a degenerated case of TensorSpecialization::Default with NumDimG/M/N/K = 1.
+//
+// Might need to expose dimension order to the interface to fully support
+// TensorSpecialization::Packed.
 template <index_t NumDimG,
           index_t NumDimM,
           index_t NumDimN,
