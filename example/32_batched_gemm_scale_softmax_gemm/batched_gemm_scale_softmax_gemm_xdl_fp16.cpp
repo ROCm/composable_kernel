@@ -212,9 +212,9 @@ int main(int argc, char* argv[])
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 17: M, N, K, O, Batch, StrideA, StrideB0, StrideB1, StrideC, BatchStrideA, "
+        printf("arg4 to 16: M, N, K, O, Batch, StrideA, StrideB0, StrideB1, StrideC, BatchStrideA, "
                "BatchStrideB0, BatchStrideB1, BatchStrideC\n");
-        printf("arg18: alpha\n");
+        printf("arg17: scale (alpha)\n");
         exit(0);
     }
 
