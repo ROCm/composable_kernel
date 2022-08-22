@@ -58,17 +58,19 @@ int reduce_blockwise_impl(bool do_verification,
         std::is_same<InOutDataType, float>::value &&
         (op_support_indices && !std::is_same<AccDataType, float>::value);
 
-    // 1) If InOutDataType is int8_t, must use int8_t as AccDataType for indexable reduction
-    // operations 2) If InOutDataType is int8_t, must use int32_t as AccDataType for non-indexable
-    // reduction operations
+    // 1) If InOutDataType is int8_t or int4_t, must use int8_t as AccDataType for indexable
+    // reduction operations 2) If InOutDataType is int8_t or int4_t, must use int32_t as AccDataType
+    // for non-indexable reduction operations
     constexpr bool invalid_reduce_4 =
-        std::is_same<InOutDataType, int8_t>::value &&
+        (std::is_same<InOutDataType, int8_t>::value ||
+         std::is_same<InOutDataType, int4_t>::value) &&
         ((!op_support_indices && !std::is_same<AccDataType, int32_t>::value) ||
          (op_support_indices && !std::is_same<AccDataType, int8_t>::value));
 
-    // 1) If InOutDataType is int8_t, the supported operation must be either indexable operations or
-    // ADD/AVG
-    constexpr bool invalid_reduce_5 = std::is_same<InOutDataType, int8_t>::value &&
+    // 1) If InOutDataType is int8_t or int4_t, the supported operation must be either indexable
+    // operations or ADD/AVG
+    constexpr bool invalid_reduce_5 = (std::is_same<InOutDataType, int8_t>::value ||
+                                       std::is_same<InOutDataType, int4_t>::value) &&
                                       (!op_support_indices && ReduceOpId != ReduceTensorOp::ADD &&
                                        ReduceOpId != ReduceTensorOp::AVG);
 
@@ -91,10 +93,13 @@ int reduce_blockwise_impl(bool do_verification,
     using AccElementwiseOperation =
         typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation;
 
+    using InOutDataTypeInDevice = typename std::
+        conditional<std::is_same<InOutDataType, int4_t>::value, int8_t, InOutDataType>::type;
+
     using DeviceReduceInstance =
-        ck::tensor_operation::device::DeviceReduceMultiBlock<InOutDataType,
+        ck::tensor_operation::device::DeviceReduceMultiBlock<InOutDataTypeInDevice,
                                                              AccDataType,
-                                                             InOutDataType,
+                                                             InOutDataTypeInDevice,
                                                              Rank,
                                                              NumReduceDim,
                                                              ReduceOperation,
@@ -166,13 +171,31 @@ int reduce_blockwise_impl(bool do_verification,
     };
 
     // these buffers are usually provided by the user application
-    DeviceMem in_dev(sizeof(InOutDataType) * in.mDesc.GetElementSpaceSize());
-    DeviceMem out_dev(sizeof(InOutDataType) * out.mDesc.GetElementSpaceSize());
+    DeviceMem in_dev(sizeof(InOutDataTypeInDevice) * in.mDesc.GetElementSpaceSize());
+    DeviceMem out_dev(sizeof(InOutDataTypeInDevice) * out.mDesc.GetElementSpaceSize());
 
-    in_dev.ToDevice(in.mData.data());
+    if(std::is_same<InOutDataType, int4_t>::value)
+    {
+        std::vector<InOutDataTypeInDevice> tmp_buf(in.mData.size());
+
+        std::copy_n(in.mData.data(), in.mData.size(), tmp_buf.data());
+        in_dev.ToDevice(tmp_buf.data());
+    }
+    else
+        in_dev.ToDevice(in.mData.data());
 
     if(beta != 0.0f)
-        out_dev.ToDevice(out.mData.data());
+    {
+        if(std::is_same<InOutDataType, int4_t>::value)
+        {
+            std::vector<InOutDataTypeInDevice> tmp_buf(in.mData.size());
+
+            std::copy_n(out.mData.data(), out.mData.size(), tmp_buf.data());
+            out_dev.ToDevice(tmp_buf.data());
+        }
+        else
+            out_dev.ToDevice(out.mData.data());
+    };
 
     size_t indicesSizeInBytes = OutputIndex ? out.mDesc.GetElementSize() * sizeof(int32_t) : 0;
 
@@ -261,7 +284,17 @@ int reduce_blockwise_impl(bool do_verification,
 
     if(do_verification)
     {
-        out_dev.FromDevice(out.mData.data());
+        if(std::is_same<InOutDataType, int4_t>::value)
+        {
+            std::vector<InOutDataTypeInDevice> tmp_buf(out.mData.size());
+
+            out_dev.FromDevice(tmp_buf.data());
+
+            std::copy_n(tmp_buf.data(), out.mData.size(), out.mData.data());
+        }
+        else
+            out_dev.FromDevice(out.mData.data());
+
         pass = pass && ck::utils::check_err(out.mData, out_ref.mData);
 
         if(OutputIndex)
