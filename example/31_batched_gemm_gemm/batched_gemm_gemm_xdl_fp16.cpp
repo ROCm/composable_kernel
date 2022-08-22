@@ -36,43 +36,53 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-using ADataType        = F16;
-using B0DataType       = F16;
-using B1DataType       = F16;
-using AccDataType      = F32;
-using CShuffleDataType = F32;
-using CDataType        = F16;
+using A0DataType        = F16;
+using B0DataType        = F16;
+using Acc0DataType      = F32;
+using B1DataType        = F16;
+using Acc1DataType      = F32;
+using C1ShuffleDataType = F32;
+using C1DataType        = F16;
 
-using ALayout  = Row;
+using A0Layout = Row;
 using B0Layout = Col;
 using B1Layout = Row;
-using CLayout  = Row;
+using C1Layout = Row;
 
-using AElementOp    = PassThrough;
-using B0ElementOp   = PassThrough;
-using Acc0ElementOp = PassThrough;
-using B1ElementOp   = PassThrough;
-using CElementOp    = PassThrough;
+using A0ElementOp = PassThrough;
+using B0ElementOp = PassThrough;
+using C0ElementOp = PassThrough;
+using B1ElementOp = PassThrough;
+using C1ElementOp = PassThrough;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
+static constexpr bool PadGemm0M = false;
+static constexpr bool PadGemm0N = false;
+static constexpr bool PadGemm0K = false;
+static constexpr bool PadGemm1N = false;
+static constexpr bool PadGemm1K = false;
 
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmGemm_Xdl_CShuffle<
-    ALayout,
+    A0Layout,
     B0Layout,
     B1Layout,
-    CLayout,
-    ADataType,
+    C1Layout,
+    A0DataType,
     B0DataType,
+    Acc0DataType,
     B1DataType,
-    CDataType,
-    AccDataType,
-    CShuffleDataType,
-    AElementOp,
+    Acc1DataType,
+    C1ShuffleDataType,
+    C1DataType,
+    A0ElementOp,
     B0ElementOp,
-    Acc0ElementOp,
+    C0ElementOp,
     B1ElementOp,
-    CElementOp,
-    GemmDefault,
+    C1ElementOp,
+    PadGemm0M,
+    PadGemm0N,
+    PadGemm0K,
+    PadGemm1N,
+    PadGemm1K,
     1,
     256,
     128,         // MPerBlock
@@ -114,20 +124,21 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmGemm_X
     S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
     8>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
 
-using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
+using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<A0DataType,
                                                                                 B0DataType,
-                                                                                ADataType,
-                                                                                AccDataType,
-                                                                                AElementOp,
+                                                                                Acc0DataType,
+                                                                                Acc0DataType,
+                                                                                A0ElementOp,
                                                                                 B0ElementOp,
-                                                                                CElementOp>;
-using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
+                                                                                C0ElementOp>;
+
+using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<Acc0DataType,
                                                                                 B1DataType,
-                                                                                CDataType,
-                                                                                AccDataType,
-                                                                                AElementOp,
+                                                                                C1DataType,
+                                                                                Acc1DataType,
+                                                                                PassThrough,
                                                                                 B1ElementOp,
-                                                                                CElementOp>;
+                                                                                C1ElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -141,14 +152,14 @@ int main(int argc, char* argv[])
     ck::index_t K             = 64;
     ck::index_t O             = 128;
     ck::index_t BatchCount    = 4;
-    ck::index_t StrideA       = -1;
+    ck::index_t StrideA0      = -1;
     ck::index_t StrideB0      = -1;
     ck::index_t StrideB1      = -1;
-    ck::index_t StrideC       = -1;
-    ck::index_t BatchStrideA  = -1;
+    ck::index_t StrideC1      = -1;
+    ck::index_t BatchStrideA0 = -1;
     ck::index_t BatchStrideB0 = -1;
     ck::index_t BatchStrideB1 = -1;
-    ck::index_t BatchStrideC  = -1;
+    ck::index_t BatchStrideC1 = -1;
 
     if(argc == 1)
     {
@@ -186,45 +197,46 @@ int main(int argc, char* argv[])
 
         BatchCount = std::stoi(argv[8]);
 
-        StrideA  = std::stoi(argv[9]);
+        StrideA0 = std::stoi(argv[9]);
         StrideB0 = std::stoi(argv[10]);
         StrideB1 = std::stoi(argv[11]);
-        StrideC  = std::stoi(argv[12]);
+        StrideC1 = std::stoi(argv[12]);
 
-        BatchStrideA  = std::stoi(argv[13]);
+        BatchStrideA0 = std::stoi(argv[13]);
         BatchStrideB0 = std::stoi(argv[14]);
         BatchStrideB1 = std::stoi(argv[15]);
-        BatchStrideC  = std::stoi(argv[16]);
+        BatchStrideC1 = std::stoi(argv[16]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 17: M, N, K, O, Batch, StrideA, StrideB0, StrideB1, StrideC, BatchStrideA, "
-               "BatchStrideB0, BatchStrideB1, BatchStrideC\n");
+        printf(
+            "arg4 to 17: M, N, K, O, Batch, StrideA0, StrideB0, StrideB1, StrideC1, BatchStrideA0, "
+            "BatchStrideB0, BatchStrideB1, BatchStrideC1\n");
         exit(0);
     }
 
-    const int DefaultStrideA  = ck::is_same_v<ALayout, Row> ? K : M;
+    const int DefaultStrideA0 = ck::is_same_v<A0Layout, Row> ? K : M;
     const int DefaultStrideB0 = ck::is_same_v<B0Layout, Row> ? N : K;
     const int DefaultStrideB1 = ck::is_same_v<B1Layout, Row> ? O : N;
-    const int DefaultStrideC  = ck::is_same_v<CLayout, Row> ? O : M;
+    const int DefaultStrideC1 = ck::is_same_v<C1Layout, Row> ? O : M;
 
-    StrideA  = (StrideA < 0) ? DefaultStrideA : StrideA;
+    StrideA0 = (StrideA0 < 0) ? DefaultStrideA0 : StrideA0;
     StrideB0 = (StrideB0 < 0) ? DefaultStrideB0 : StrideB0;
     StrideB1 = (StrideB1 < 0) ? DefaultStrideB1 : StrideB1;
-    StrideC  = (StrideC < 0) ? DefaultStrideC : StrideC;
+    StrideC1 = (StrideC1 < 0) ? DefaultStrideC1 : StrideC1;
 
-    const int DefaultBatchStrideA  = (ck::is_same_v<ALayout, Col> ? K : M) * StrideA;
+    const int DefaultBatchStrideA0 = (ck::is_same_v<A0Layout, Col> ? K : M) * StrideA0;
     const int DefaultBatchStrideB0 = (ck::is_same_v<B0Layout, Col> ? N : K) * StrideB0;
     const int DefaultBatchStrideB1 = (ck::is_same_v<B1Layout, Col> ? O : N) * StrideB1;
-    const int DefaultBatchStrideC  = (ck::is_same_v<CLayout, Col> ? O : M) * StrideC;
+    const int DefaultBatchStrideC1 = (ck::is_same_v<C1Layout, Col> ? O : M) * StrideC1;
 
-    BatchStrideA  = BatchStrideA < 0 ? DefaultBatchStrideA : BatchStrideA;
+    BatchStrideA0 = BatchStrideA0 < 0 ? DefaultBatchStrideA0 : BatchStrideA0;
     BatchStrideB0 = BatchStrideB0 < 0 ? DefaultBatchStrideB0 : BatchStrideB0;
     BatchStrideB1 = BatchStrideB1 < 0 ? DefaultBatchStrideB1 : BatchStrideB1;
-    BatchStrideC  = BatchStrideC < 0 ? DefaultBatchStrideC : BatchStrideC;
+    BatchStrideC1 = BatchStrideC1 < 0 ? DefaultBatchStrideC1 : BatchStrideC1;
 
     auto f_host_tensor_descriptor = [](std::size_t batch_count,
                                        std::size_t row,
@@ -245,82 +257,83 @@ int main(int argc, char* argv[])
     };
 
     // C_m_o = A_m_k * B0_k_n * B1_n_o
-    Tensor<ADataType> a_g_m_k(
-        f_host_tensor_descriptor(BatchCount, M, K, StrideA, BatchStrideA, ALayout{}));
+    Tensor<A0DataType> a_g_m_k(
+        f_host_tensor_descriptor(BatchCount, M, K, StrideA0, BatchStrideA0, A0Layout{}));
     Tensor<B0DataType> b0_g_k_n(
         f_host_tensor_descriptor(BatchCount, K, N, StrideB0, BatchStrideB0, B0Layout{}));
     Tensor<B1DataType> b1_g_n_o(
         f_host_tensor_descriptor(BatchCount, N, O, StrideB1, BatchStrideB1, B1Layout{}));
-    Tensor<CDataType> c_g_m_o_host_result(
-        f_host_tensor_descriptor(BatchCount, M, O, StrideC, BatchStrideC, CLayout{}));
-    Tensor<CDataType> c_g_m_o_device_result(
-        f_host_tensor_descriptor(BatchCount, M, O, StrideC, BatchStrideC, CLayout{}));
+    Tensor<C1DataType> c0_g_m_o_host_result(
+        f_host_tensor_descriptor(BatchCount, M, O, StrideC1, BatchStrideC1, C1Layout{}));
+    Tensor<C1DataType> c0_g_m_o_device_result(
+        f_host_tensor_descriptor(BatchCount, M, O, StrideC1, BatchStrideC1, C1Layout{}));
 
     std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
     std::cout << "b0_g_k_n: " << b0_g_k_n.mDesc << std::endl;
     std::cout << "b1_g_n_o: " << b1_g_n_o.mDesc << std::endl;
-    std::cout << "c_g_m_o: " << c_g_m_o_host_result.mDesc << std::endl;
+    std::cout << "c0_g_m_o: " << c0_g_m_o_host_result.mDesc << std::endl;
 
     switch(init_method)
     {
     case 0: break;
     case 1:
-        a_g_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
+        a_g_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-5, 5});
         b0_g_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-5, 5});
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-5, 5});
         break;
     case 2:
-        a_g_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+        a_g_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
         b0_g_k_n.GenerateTensorValue(GeneratorTensor_3<B0DataType>{0.0, 1.0});
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_3<B1DataType>{-0.5, 0.5});
         break;
     default:
-        a_g_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
+        a_g_m_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{1});
         b0_g_k_n.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
     }
 
-    DeviceMem a_g_m_k_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSize());
+    DeviceMem a0_g_m_k_device_buf(sizeof(A0DataType) * a_g_m_k.mDesc.GetElementSize());
     DeviceMem b0_g_k_n_device_buf(sizeof(B0DataType) * b0_g_k_n.mDesc.GetElementSize());
     DeviceMem b1_g_n_o_device_buf(sizeof(B1DataType) * b1_g_n_o.mDesc.GetElementSize());
-    DeviceMem c_g_m_o_device_buf(sizeof(CDataType) * c_g_m_o_device_result.mDesc.GetElementSize());
+    DeviceMem c0_g_m_o_device_buf(sizeof(C1DataType) *
+                                  c0_g_m_o_device_result.mDesc.GetElementSize());
 
-    a_g_m_k_device_buf.ToDevice(a_g_m_k.mData.data());
+    a0_g_m_k_device_buf.ToDevice(a_g_m_k.mData.data());
     b0_g_k_n_device_buf.ToDevice(b0_g_k_n.mData.data());
     b1_g_n_o_device_buf.ToDevice(b1_g_n_o.mData.data());
 
-    auto a_element_op    = AElementOp{};
-    auto b0_element_op   = B0ElementOp{};
-    auto acc0_element_op = Acc0ElementOp{};
-    auto b1_element_op   = B1ElementOp{};
-    auto c_element_op    = CElementOp{};
+    auto a0_element_op = A0ElementOp{};
+    auto b0_element_op = B0ElementOp{};
+    auto c0_element_op = C0ElementOp{};
+    auto b1_element_op = B1ElementOp{};
+    auto c1_element_op = C1ElementOp{};
 
     // do GEMM
     auto gemm    = DeviceGemmInstance{};
     auto invoker = gemm.MakeInvoker();
     auto argument =
-        gemm.MakeArgument(static_cast<ADataType*>(a_g_m_k_device_buf.GetDeviceBuffer()),
+        gemm.MakeArgument(static_cast<A0DataType*>(a0_g_m_k_device_buf.GetDeviceBuffer()),
                           static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
                           static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
-                          static_cast<CDataType*>(c_g_m_o_device_buf.GetDeviceBuffer()),
+                          static_cast<C1DataType*>(c0_g_m_o_device_buf.GetDeviceBuffer()),
                           M,
                           N,
                           K,
                           O,
                           BatchCount,
-                          StrideA,
+                          StrideA0,
                           StrideB0,
                           StrideB1,
-                          StrideC,
-                          BatchStrideA,
+                          StrideC1,
+                          BatchStrideA0,
                           BatchStrideB0,
                           BatchStrideB1,
-                          BatchStrideC,
-                          a_element_op,
+                          BatchStrideC1,
+                          a0_element_op,
                           b0_element_op,
-                          acc0_element_op,
+                          c0_element_op,
                           b1_element_op,
-                          c_element_op);
+                          c1_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -332,8 +345,8 @@ int main(int argc, char* argv[])
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     std::size_t flop      = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * BatchCount;
-    std::size_t num_btype = (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
-                             sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O) *
+    std::size_t num_btype = (sizeof(A0DataType) * M * K + sizeof(B0DataType) * K * N +
+                             sizeof(B1DataType) * N * O + sizeof(C1DataType) * M * O) *
                             BatchCount;
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
@@ -343,28 +356,29 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
-    c_g_m_o_device_buf.FromDevice(c_g_m_o_device_result.mData.data());
+    c0_g_m_o_device_buf.FromDevice(c0_g_m_o_device_result.mData.data());
 
     if(do_verification)
     {
         // Output of Gemm0 is input A of Gemm1
-        Tensor<ADataType> a1_g_m_n(f_host_tensor_descriptor(BatchCount, M, N, N, M * N, Row{}));
+        Tensor<Acc0DataType> a1_g_m_n(f_host_tensor_descriptor(BatchCount, M, N, N, M * N, Row{}));
 
         auto ref_gemm0          = ReferenceGemm0Instance{};
         auto ref_gemm0_invoker  = ref_gemm0.MakeInvoker();
         auto ref_gemm0_argument = ref_gemm0.MakeArgument(
-            a_g_m_k, b0_g_k_n, a1_g_m_n, a_element_op, b0_element_op, PassThrough{});
+            a_g_m_k, b0_g_k_n, a1_g_m_n, a0_element_op, b0_element_op, c0_element_op);
 
         ref_gemm0_invoker.Run(ref_gemm0_argument);
 
         auto ref_gemm1          = ReferenceGemm1Instance{};
         auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
         auto ref_gemm1_argument = ref_gemm1.MakeArgument(
-            a1_g_m_n, b1_g_n_o, c_g_m_o_host_result, PassThrough{}, b1_element_op, c_element_op);
+            a1_g_m_n, b1_g_n_o, c0_g_m_o_host_result, PassThrough{}, b1_element_op, c1_element_op);
 
         ref_gemm1_invoker.Run(ref_gemm1_argument);
 
-        return ck::utils::check_err(c_g_m_o_device_result.mData, c_g_m_o_host_result.mData) ? 0 : 1;
+        return ck::utils::check_err(c0_g_m_o_device_result.mData, c0_g_m_o_host_result.mData) ? 0
+                                                                                              : 1;
     }
 
     return 0;
