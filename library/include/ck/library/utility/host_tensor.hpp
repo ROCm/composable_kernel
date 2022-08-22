@@ -264,6 +264,7 @@ struct Tensor
         return ret;
     }
 
+    Tensor()              = delete;
     Tensor(const Tensor&) = default;
     Tensor(Tensor&&)      = default;
 
@@ -271,6 +272,11 @@ struct Tensor
 
     Tensor& operator=(const Tensor&) = default;
     Tensor& operator=(Tensor&&) = default;
+
+    template <typename FromT>
+    explicit Tensor(const Tensor<FromT>& other) : Tensor(other.template CopyAsType<T>())
+    {
+    }
 
     const std::vector<std::size_t>& GetLengths() const { return mDesc.GetLengths(); }
 
