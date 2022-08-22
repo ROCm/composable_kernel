@@ -167,6 +167,32 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                          c_block_size * sizeof(FloatCShuffle));
     }
 
+    // A desc for source in blockwise copy
+    __host__ __device__ static constexpr auto
+    MakeDefaultAGridDescriptor_AK0_M_AK1(const AGridDesc_AK0_M_AK1& a_grid_desc_m_k)
+    {
+        const auto M = a_grid_desc_m_k.GetLength(I0);
+
+        return transform_tensor_descriptor(a_grid_desc_m_k,
+                                           make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
+                                                      make_pass_through_transform(M)),
+                                           make_tuple(Sequence<1>{}, Sequence<0>{}),
+                                           make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+    }
+
+    // B desc for source in blockwise copy
+    __host__ __device__ static constexpr auto
+    MakeDefaultBGridDescriptor_BK0_N_BK1(const BGridDesc_BK0_N_BK1& b_grid_desc_n_k)
+    {
+        const auto N = b_grid_desc_n_k.GetLength(I0);
+
+        return transform_tensor_descriptor(b_grid_desc_n_k,
+                                           make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
+                                                      make_pass_through_transform(N)),
+                                           make_tuple(Sequence<1>{}, Sequence<0>{}),
+                                           make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+    }
+
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Block2ETileMap>
     __host__ __device__ static constexpr bool
@@ -272,7 +298,10 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     using DsGridPointer = decltype(MakeTsGridPointer<DsDataType, true>());
     using RsGridPointer = decltype(MakeTsGridPointer<RsDataType, false>());
 
-    template <bool HasMainKBlockLoop, typename Block2ETileMap>
+    template <bool HasMainKBlockLoop,
+              typename OtherAGridDesc_AK0_M_AK1,
+              typename OtherBGridDesc_BK0_N_BK1,
+              typename Block2ETileMap>
     __device__ static void
     Run(const FloatAB* __restrict__ p_a_grid,
         const FloatAB* __restrict__ p_b_grid,
@@ -285,8 +314,8 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         const CDEElementwiseOperation& cde_element_op,
         const QsElementwiseOperation& qs_element_op,
         const RsElementwiseOperation& rs_element_op,
-        const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
-        const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
+        const OtherAGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
+        const OtherBGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
         const StaticallyIndexedArray<EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                                      NumDTensor>&
             ds_grid_desc_mblock_mperblock_nblock_nperblock, // FIXME: Ds desc may be of different
