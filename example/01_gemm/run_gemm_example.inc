@@ -53,8 +53,16 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
+#ifdef BUILD_INT4_EXAMPLE
+    const Tensor<KernelADataType> a_m_k_converted(a_m_k);
+    const Tensor<KernelBDataType> b_k_n_converted(b_k_n);
+
+    a_m_k_device_buf.ToDevice(a_m_k_converted.mData.data());
+    b_k_n_device_buf.ToDevice(b_k_n_converted.mData.data());
+#else
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
+#endif
 
     auto a_element_op = AElementOp{};
     auto b_element_op = BElementOp{};
