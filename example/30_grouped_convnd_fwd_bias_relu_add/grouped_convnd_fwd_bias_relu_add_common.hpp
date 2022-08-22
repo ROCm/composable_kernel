@@ -26,13 +26,16 @@ void print_helper_msg()
 }
 
 template <ck::index_t NDimSpatial,
-          typename InDataType,
-          typename WeiDataType,
+          typename InKernelDataType,
+          typename WeiKernelDataType,
           typename CShuffleDataType,
-          typename OutDataType,
+          typename OutKernelDataType,
           typename InElementOp,
           typename WeiElementOp,
           typename OutElementOp,
+          typename InUserDataType,
+          typename WeiUserDataType,
+          typename OutUserDataType,
           typename DeviceConvNDFwdInstance>
 int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
                                        int init_method,
@@ -47,12 +50,12 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
                                        const WeiElementOp& wei_element_op,
                                        const OutElementOp& out_element_op)
 {
-    Tensor<InDataType> in(in_g_n_c_wis_desc);
-    Tensor<WeiDataType> wei(wei_g_k_c_xs_desc);
-    Tensor<OutDataType> bias(bias_g_n_k_wos_desc);
-    Tensor<OutDataType> residual(residual_g_n_k_wos_desc);
-    Tensor<OutDataType> out_host(out_g_n_k_wos_desc);
-    Tensor<OutDataType> out_device(out_g_n_k_wos_desc);
+    Tensor<InUserDataType> in(in_g_n_c_wis_desc);
+    Tensor<WeiUserDataType> wei(wei_g_k_c_xs_desc);
+    Tensor<OutUserDataType> bias(bias_g_n_k_wos_desc);
+    Tensor<OutUserDataType> residual(residual_g_n_k_wos_desc);
+    Tensor<OutUserDataType> out_host(out_g_n_k_wos_desc);
+    Tensor<OutUserDataType> out_device(out_g_n_k_wos_desc);
 
     std::cout << "in: " << in.mDesc << std::endl;
     std::cout << "wei: " << wei.mDesc << std::endl;
@@ -64,21 +67,21 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
     {
     case 0: break;
     case 1:
-        in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
-        wei.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
-        bias.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
+        in.GenerateTensorValue(GeneratorTensor_2<InUserDataType>{-5, 5});
+        wei.GenerateTensorValue(GeneratorTensor_2<WeiUserDataType>{-5, 5});
+        bias.GenerateTensorValue(GeneratorTensor_2<OutUserDataType>{-5, 5});
         break;
     default:
-        in.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
-        wei.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
-        bias.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-0.5, 0.5});
+        in.GenerateTensorValue(GeneratorTensor_3<InUserDataType>{0.0, 1.0});
+        wei.GenerateTensorValue(GeneratorTensor_3<WeiUserDataType>{-0.5, 0.5});
+        bias.GenerateTensorValue(GeneratorTensor_3<OutUserDataType>{-0.5, 0.5});
     }
 
-    DeviceMem in_device_buf(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
-    DeviceMem bias_device_buf(sizeof(OutDataType) * bias.mDesc.GetElementSpaceSize());
-    DeviceMem residual_device_buf(sizeof(OutDataType) * residual.mDesc.GetElementSpaceSize());
-    DeviceMem out_device_buf(sizeof(OutDataType) * out_device.mDesc.GetElementSpaceSize());
+    DeviceMem in_device_buf(sizeof(InUserDataType) * in.mDesc.GetElementSpaceSize());
+    DeviceMem wei_device_buf(sizeof(WeiUserDataType) * wei.mDesc.GetElementSpaceSize());
+    DeviceMem bias_device_buf(sizeof(OutUserDataType) * bias.mDesc.GetElementSpaceSize());
+    DeviceMem residual_device_buf(sizeof(OutUserDataType) * residual.mDesc.GetElementSpaceSize());
+    DeviceMem out_device_buf(sizeof(OutUserDataType) * out_device.mDesc.GetElementSpaceSize());
 
     in_device_buf.ToDevice(in.mData.data());
     wei_device_buf.ToDevice(wei.mData.data());
@@ -154,7 +157,7 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
     float avg_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     std::size_t flop      = conv_param.GetFlops();
-    std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
+    std::size_t num_btype = conv_param.GetByte<InUserDataType, WeiUserDataType, OutUserDataType>();
 
     float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
     float gb_per_sec = num_btype / 1.E6 / avg_time;
@@ -168,8 +171,8 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
         Tensor<CShuffleDataType> c_host(out_g_n_k_wos_desc);
 
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
-                                                                     InDataType,
-                                                                     WeiDataType,
+                                                                     InUserDataType,
+                                                                     WeiUserDataType,
                                                                      CShuffleDataType,
                                                                      InElementOp,
                                                                      WeiElementOp,
