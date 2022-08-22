@@ -43,7 +43,14 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     }
 
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-    Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<
+#ifdef BUILD_INT4_EXAMPLE
+        KernelCDataType
+#else
+        CDataType
+#endif
+        >
+        c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
@@ -111,8 +118,6 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
-    c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
-
     if(config.do_verification)
     {
         auto ref_gemm    = ReferenceGemmInstance{};
@@ -123,7 +128,15 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
 
         ref_invoker.Run(ref_argument);
 
+        c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
+
+#ifdef BUILD_INT4_EXAMPLE
+        const Tensor<CDataType> c_m_n_device_result_converted(c_m_n_device_result);
+
+        return ck::utils::check_err(c_m_n_device_result_converted.mData, c_m_n_host_result.mData);
+#else
         return ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
+#endif
     }
 
     return true;
