@@ -10,7 +10,7 @@ struct ProblemSize final
     ck::index_t stride_B = K;
     ck::index_t stride_C = N;
 
-    ck::index_t k_batch = 16;
+    ck::index_t k_batch = 4;
 };
 
 struct ExecutionConfig final
@@ -118,8 +118,13 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
 
     if(config.do_verification)
     {
-        using ReferenceGemmInstance = ck::tensor_operation::host::
-        ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
+        using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                                BDataType,
+                                                                                CDataType,
+                                                                                AccDataType,
+                                                                                AElementOp,
+                                                                                BElementOp,
+                                                                                CElementOp>;
 
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
@@ -129,7 +134,14 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
 
         ref_invoker.Run(ref_argument);
 
-        return ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData) ? 0 : 1;
+        if(std::is_same<CDataType, ck::half_t>::value)
+            return ck::utils::check_err(c_m_n_device_result.mData,
+                                        c_m_n_host_result.mData,
+                                        "fp16 incorrect result",
+                                        1e-5,
+                                        config.init_method == 1 ? 16 : 0.1);
+        else
+            return ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
     }
 
     return true;
@@ -149,14 +161,14 @@ bool run_splitK_gemm_example(int argc, char* argv[])
         config.do_verification = std::stoi(argv[1]);
         config.init_method     = std::stoi(argv[2]);
         config.time_kernel     = std::stoi(argv[3]);
-        problem_size.k_batch         = std::stoi(argv[4]);
+        problem_size.k_batch   = std::stoi(argv[4]);
     }
     else if(argc == 11)
     {
         config.do_verification = std::stoi(argv[1]);
         config.init_method     = std::stoi(argv[2]);
         config.time_kernel     = std::stoi(argv[3]);
-        problem_size.k_batch         = std::stoi(argv[4]);
+        problem_size.k_batch   = std::stoi(argv[4]);
 
         problem_size.M = std::stoi(argv[5]);
         problem_size.N = std::stoi(argv[6]);
