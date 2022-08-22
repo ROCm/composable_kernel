@@ -124,7 +124,7 @@ TEST(Int4, DISABLED_CopyAsI8NegativeValue)
     }
 }
 
-TEST(Int4, BitwiseRepresentation)
+TEST(Int4, DISABLED_BitwiseRepresentation)
 {
     using bit8_t = std::bitset<8>;
 
