@@ -99,6 +99,7 @@ struct AddReluAdd
         y         = c;
     }
 
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     template <>
     __host__ __device__ constexpr void operator()<int4_t, int8_t, int4_t, int4_t>(
         int4_t& y, const int8_t& x0, const int4_t& x1, const int4_t& x2) const
@@ -108,6 +109,7 @@ struct AddReluAdd
         int32_t c = b + x2;
         y         = c;
     }
+#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 };
 
 struct AddHardswishAdd
