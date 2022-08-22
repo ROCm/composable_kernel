@@ -26,7 +26,14 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
     Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor(M, N, StrideD0, D0Layout{}));
     Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor(M, N, StrideD1, D1Layout{}));
     Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
-    Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
+    Tensor<
+#ifdef BUILD_INT4_EXAMPLE
+        KernelEDataType
+#else
+        EDataType
+#endif
+        >
+        e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
@@ -56,10 +63,22 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
 
+#ifdef BUILD_INT4_EXAMPLE
+    const Tensor<KernelADataType> a_m_k_converted(a_m_k);
+    const Tensor<KernelBDataType> b_k_n_converted(b_k_n);
+    const Tensor<KernelD0DataType> d0_m_n_converted(d0_m_n);
+    const Tensor<KernelD1DataType> d1_m_n_converted(d1_m_n);
+
+    a_device_buf.ToDevice(a_m_k_converted.mData.data());
+    b_device_buf.ToDevice(b_k_n_converted.mData.data());
+    d0_device_buf.ToDevice(d0_m_n_converted.mData.data());
+    d1_device_buf.ToDevice(d1_m_n_converted.mData.data());
+#else
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
     d0_device_buf.ToDevice(d0_m_n.mData.data());
     d1_device_buf.ToDevice(d1_m_n.mData.data());
+#endif
 
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
@@ -125,7 +144,13 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
 
         e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
+#ifdef BUILD_INT4_EXAMPLE
+        const Tensor<EDataType> e_m_n_device_result_converted(e_m_n_device_result);
+
+        return ck::utils::check_err(e_m_n_device_result_converted.mData, e_m_n_host_result.mData);
+#else
         return ck::utils::check_err(e_m_n_device_result.mData, e_m_n_host_result.mData);
+#endif
     }
 
     return true;
