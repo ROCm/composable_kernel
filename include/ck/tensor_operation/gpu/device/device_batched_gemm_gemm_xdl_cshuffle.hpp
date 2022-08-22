@@ -700,7 +700,8 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
             << MPerBlock << ", "
             << Gemm1NPerBlock << ", "
             << Gemm1KPerBlock << ", "
-            << B1K1 << ">";
+            << B1K1 << ", "
+            << getGemmSpecializationString(GemmSpec) << ">";
         // clang-format on
 
         return str.str();
