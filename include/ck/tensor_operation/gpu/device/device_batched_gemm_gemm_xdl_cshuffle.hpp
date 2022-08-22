@@ -128,11 +128,11 @@ template <typename A0Layout,
           typename C0ElementwiseOperation,
           typename B1ElementwiseOperation,
           typename C1ElementwiseOperation,
-          bool PadGemm0M,
-          bool PadGemm0N,
-          bool PadGemm0K,
-          bool PadGemm1N,
-          bool PadGemm1K,
+          bool Gemm0PadM,
+          bool Gemm0PadN,
+          bool Gemm0PadK,
+          bool Gemm1PadN,
+          bool Gemm1PadK,
           index_t NumGemm0KPrefetchStage,
           index_t BlockSize,
           index_t Gemm0MPerBlock,
@@ -195,11 +195,11 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<A0Layou
     static constexpr auto I2 = Number<2>{};
 
     static constexpr auto gemm0_padder =
-        MatrixPadder_v2<PadGemm0M, PadGemm0N, PadGemm0K, index_t, index_t, index_t>{
+        MatrixPadder_v2<Gemm0PadM, Gemm0PadN, Gemm0PadK, index_t, index_t, index_t>{
             Gemm0MPerBlock, Gemm0NPerBlock, Gemm0KPerBlock};
 
     static constexpr auto gemm1_padder =
-        MatrixPadder_v2<PadGemm0M, PadGemm1N, PadGemm1K, index_t, index_t, index_t>{
+        MatrixPadder_v2<Gemm0PadM, Gemm1PadN, Gemm1PadK, index_t, index_t, index_t>{
             Gemm0KPerBlock, Gemm1NPerBlock, Gemm1KPerBlock};
 
     // for Gemm0
