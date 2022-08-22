@@ -130,7 +130,7 @@ namespace device {
 //   D[G0, G1, ..., M0, M1, M2, ..., N0, N1, N2, ...]
 //   E[G0, G1, ..., M0, M1, M2, ..., N0, N1, N2, ...]
 
-// FIXME: TensorSpecialization::Packed specialization is does not cover all packed tensor cases, it
+// FIXME: TensorSpecialization::Packed specialization does not cover all packed tensor cases, it
 // merely degenerates into TensorSpecialization::Default with NumDimG/M/N/K = 1
 //
 // Detail- Packed tensor satisfies
