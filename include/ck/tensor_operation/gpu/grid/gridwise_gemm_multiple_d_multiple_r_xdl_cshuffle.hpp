@@ -776,8 +776,7 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to read from LDS
-                if constexpr(access_id > 0)
-                    block_sync_lds();
+                block_sync_lds();
 
                 // each thread shuffle data from VGPR to LDS
                 c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,

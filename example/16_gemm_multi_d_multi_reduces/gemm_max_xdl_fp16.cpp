@@ -211,7 +211,7 @@ int main()
         r0_device_buf.FromDevice(r0_m.mData.data());
 
         pass = ck::utils::check_err(
-            e_m_n.mData, e_m_n_host.mData, "Error: Incorrect results c", 1e-2, 1e-2);
+            e_m_n.mData, e_m_n_host.mData, "Error: Incorrect results e", 1e-2, 1e-2);
         pass &= ck::utils::check_err(
             r0_m.mData, r0_m_host.mData, "Error: Incorrect results d0", 1e-2, 1e-2);
     }
