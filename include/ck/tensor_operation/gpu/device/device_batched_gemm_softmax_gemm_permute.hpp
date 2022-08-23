@@ -15,7 +15,7 @@ namespace device {
 template <typename ALayout,
           typename B0Layout,
           typename B1Layout,
-          typename CLayout,
+          typename CPermuteNumDims_G_M_Gemm1N, // Sequence<>
           typename ADataType,
           typename B0DataType,
           typename B1DataType,
@@ -25,7 +25,7 @@ template <typename ALayout,
           typename Acc0ElementwiseOperation,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation>
-struct DeviceBatchedGemmSoftmaxGemm : public BaseOperator
+struct DeviceBatchedGemmSoftmaxGemmPermute : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
@@ -37,14 +37,14 @@ struct DeviceBatchedGemmSoftmaxGemm : public BaseOperator
                         ck::index_t K,
                         ck::index_t O,
                         ck::index_t Batch,
+                        std::vector<index_t> c_gs_ms_os_lengths,
+                        std::vector<index_t> c_gs_ms_os_strides,
                         ck::index_t StrideA,
                         ck::index_t StrideB0,
                         ck::index_t StrideB1,
-                        ck::index_t StrideC,
                         ck::index_t BatchStrideA,
                         ck::index_t BatchStrideB0,
                         ck::index_t BatchStrideB1,
-                        ck::index_t BatchStrideC,
                         AElementwiseOperation a_element_op,
                         B0ElementwiseOperation b0_element_op,
                         Acc0ElementwiseOperation acc0_element_op,
