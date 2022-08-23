@@ -49,3 +49,4 @@ add_subdirectory(31_batched_gemm_gemm)
 add_subdirectory(32_batched_gemm_scale_softmax_gemm)
 add_subdirectory(33_multiple_reduce)
 add_subdirectory(34_batchnorm)
+
