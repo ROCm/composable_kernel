@@ -162,7 +162,7 @@ struct joinable_thread : std::thread
     {
     }
 
-    joinable_thread(joinable_thread&&) = default;
+    joinable_thread(joinable_thread&&)            = default;
     joinable_thread& operator=(joinable_thread&&) = default;
 
     ~joinable_thread()
@@ -254,7 +254,7 @@ struct Tensor
     Tensor(const HostTensorDescriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpaceSize()) {}
 
     template <typename OutT>
-    Tensor<OutT> CopyAsType()
+    Tensor<OutT> CopyAsType() const
     {
         Tensor<OutT> ret(mDesc);
         for(size_t i = 0; i < mData.size(); i++)
@@ -264,13 +264,18 @@ struct Tensor
         return ret;
     }
 
-    Tensor(const Tensor& other) : mDesc(other.mDesc), mData(other.mData) {}
+    Tensor()              = delete;
+    Tensor(const Tensor&) = default;
+    Tensor(Tensor&&)      = default;
 
-    Tensor& operator=(const Tensor& other)
+    ~Tensor() = default;
+
+    Tensor& operator=(const Tensor&) = default;
+    Tensor& operator=(Tensor&&)      = default;
+
+    template <typename FromT>
+    explicit Tensor(const Tensor<FromT>& other) : Tensor(other.template CopyAsType<T>())
     {
-        mDesc = other.mDesc;
-        mData = other.mData;
-        return *this;
     }
 
     const std::vector<std::size_t>& GetLengths() const { return mDesc.GetLengths(); }
