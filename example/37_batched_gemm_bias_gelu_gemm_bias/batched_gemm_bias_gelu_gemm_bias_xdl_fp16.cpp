@@ -16,7 +16,7 @@ Gemm + Gemm fused operation. Computes C_m_o = A_m_k * B0_k_n * B1_n_o
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/device_batched_gemm_gemm_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/device_batched_gemm_bias_gelu_gemm_bias_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -39,6 +39,7 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using A0DataType        = F16;
 using B0DataType        = F16;
 using Acc0DataType      = F32;
+using D0DataType        = F16;
 using B1DataType        = F16;
 using Acc1DataType      = F32;
 using C1ShuffleDataType = F32;
@@ -49,9 +50,12 @@ using B0Layout = Col;
 using B1Layout = Row;
 using C1Layout = Row;
 
+using D0Layout = Row;
+
 using A0ElementOp = PassThrough;
 using B0ElementOp = PassThrough;
 using C0ElementOp = PassThrough;
+using D0ElementOp = ck::tensor_operation::element_wise::AddFastGelu;
 using B1ElementOp = PassThrough;
 using C1ElementOp = PassThrough;
 
@@ -61,68 +65,72 @@ static constexpr bool PadGemm0K = false;
 static constexpr bool PadGemm1N = false;
 static constexpr bool PadGemm1K = false;
 
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmGemm_Xdl_CShuffle<
-    A0Layout,
-    B0Layout,
-    B1Layout,
-    C1Layout,
-    A0DataType,
-    B0DataType,
-    Acc0DataType,
-    B1DataType,
-    Acc1DataType,
-    C1ShuffleDataType,
-    C1DataType,
-    A0ElementOp,
-    B0ElementOp,
-    C0ElementOp,
-    B1ElementOp,
-    C1ElementOp,
-    PadGemm0M,
-    PadGemm0N,
-    PadGemm0K,
-    PadGemm1N,
-    PadGemm1K,
-    1,
-    256,
-    128,         // MPerBlock
-    128,         // NPerBlock
-    32,          // KPerBlock
-    128,         // Gemm1NPerBlock
-    32,          // Gemm1KPerBlock
-    8,           // AK1
-    8,           // BK1
-    2,           // B1K1
-    32,          // MPerXDL
-    32,          // NPerXDL
-    1,           // MXdlPerWave
-    4,           // NXdlPerWave
-    4,           // Gemm1NXdlPerWave
-    S<4, 64, 1>, // ABlockTransfer
-    S<1, 0, 2>,
-    S<1, 0, 2>,
-    2,
-    8,
-    8,
-    true,
-    S<4, 64, 1>, // BBlockTransfer
-    S<1, 0, 2>,
-    S<1, 0, 2>,
-    2,
-    8,
-    8,
-    true,
-    S<8, 32, 1>, // B1BlockTransfer
-    S<0, 2, 1>,
-    S<0, 2, 1>,
-    1,
-    4,
-    2,
-    false,
-    1,              // CShuffleMXdlPerWavePerShuffle
-    2,              // CShuffleNXdlPerWavePerShuffle
-    S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-    8>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
+using DeviceGemmInstance =
+    ck::tensor_operation::device::DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle<
+        A0Layout,
+        B0Layout,
+        D0Layout,
+        B1Layout,
+        C1Layout,
+        A0DataType,
+        B0DataType,
+        Acc0DataType,
+        D0DataType,
+        B1DataType,
+        Acc1DataType,
+        C1ShuffleDataType,
+        C1DataType,
+        A0ElementOp,
+        B0ElementOp,
+        C0ElementOp,
+        D0ElementOp,
+        B1ElementOp,
+        C1ElementOp,
+        PadGemm0M,
+        PadGemm0N,
+        PadGemm0K,
+        PadGemm1N,
+        PadGemm1K,
+        1,
+        256,
+        128,         // MPerBlock
+        128,         // NPerBlock
+        32,          // KPerBlock
+        128,         // Gemm1NPerBlock
+        32,          // Gemm1KPerBlock
+        8,           // AK1
+        8,           // BK1
+        2,           // B1K1
+        32,          // MPerXDL
+        32,          // NPerXDL
+        1,           // MXdlPerWave
+        4,           // NXdlPerWave
+        4,           // Gemm1NXdlPerWave
+        S<4, 64, 1>, // ABlockTransfer
+        S<1, 0, 2>,
+        S<1, 0, 2>,
+        2,
+        8,
+        8,
+        true,
+        S<4, 64, 1>, // BBlockTransfer
+        S<1, 0, 2>,
+        S<1, 0, 2>,
+        2,
+        8,
+        8,
+        true,
+        S<8, 32, 1>, // B1BlockTransfer
+        S<0, 2, 1>,
+        S<0, 2, 1>,
+        1,
+        4,
+        2,
+        false,
+        1,              // CShuffleMXdlPerWavePerShuffle
+        2,              // CShuffleNXdlPerWavePerShuffle
+        S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+        8>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
 
 using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<A0DataType,
                                                                                 B0DataType,
@@ -261,6 +269,7 @@ int main(int argc, char* argv[])
         f_host_tensor_descriptor(BatchCount, M, K, StrideA0, BatchStrideA0, A0Layout{}));
     Tensor<B0DataType> b0_g_k_n(
         f_host_tensor_descriptor(BatchCount, K, N, StrideB0, BatchStrideB0, B0Layout{}));
+    Tensor<D0DataType> d0_g_m_n(f_host_tensor_descriptor(BatchCount, M, N, 0, N, D0Layout{}));
     Tensor<B1DataType> b1_g_n_o(
         f_host_tensor_descriptor(BatchCount, N, O, StrideB1, BatchStrideB1, B1Layout{}));
     Tensor<C1DataType> c0_g_m_o_host_result(
@@ -294,17 +303,20 @@ int main(int argc, char* argv[])
 
     DeviceMem a0_g_m_k_device_buf(sizeof(A0DataType) * a_g_m_k.mDesc.GetElementSize());
     DeviceMem b0_g_k_n_device_buf(sizeof(B0DataType) * b0_g_k_n.mDesc.GetElementSize());
+    DeviceMem d0_g_m_n_device_buf(sizeof(D0DataType) * d0_g_m_n.mDesc.GetElementSize());
     DeviceMem b1_g_n_o_device_buf(sizeof(B1DataType) * b1_g_n_o.mDesc.GetElementSize());
     DeviceMem c0_g_m_o_device_buf(sizeof(C1DataType) *
                                   c0_g_m_o_device_result.mDesc.GetElementSize());
 
     a0_g_m_k_device_buf.ToDevice(a_g_m_k.mData.data());
     b0_g_k_n_device_buf.ToDevice(b0_g_k_n.mData.data());
+    d0_g_m_n_device_buf.ToDevice(d0_g_m_n.mData.data());
     b1_g_n_o_device_buf.ToDevice(b1_g_n_o.mData.data());
 
     auto a0_element_op = A0ElementOp{};
     auto b0_element_op = B0ElementOp{};
     auto c0_element_op = C0ElementOp{};
+    auto d0_element_op = D0ElementOp{};
     auto b1_element_op = B1ElementOp{};
     auto c1_element_op = C1ElementOp{};
 
@@ -314,6 +326,7 @@ int main(int argc, char* argv[])
     auto argument =
         gemm.MakeArgument(static_cast<A0DataType*>(a0_g_m_k_device_buf.GetDeviceBuffer()),
                           static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
+                          static_cast<D0DataType*>(d0_g_m_n_device_buf.GetDeviceBuffer()),
                           static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
                           static_cast<C1DataType*>(c0_g_m_o_device_buf.GetDeviceBuffer()),
                           M,
@@ -332,6 +345,7 @@ int main(int argc, char* argv[])
                           a0_element_op,
                           b0_element_op,
                           c0_element_op,
+                          d0_element_op,
                           b1_element_op,
                           c1_element_op);
 
