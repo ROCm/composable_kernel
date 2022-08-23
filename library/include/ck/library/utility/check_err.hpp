@@ -15,6 +15,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/data_type.hpp"
+#include "ck/utility/type.hpp"
 #include "ck/host_utility/io.hpp"
 
 namespace ck {
@@ -164,7 +165,7 @@ check_err(const std::vector<T>& out,
 {
     if(out.size() != ref.size())
     {
-        std::cout << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
+        std::cerr << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
                   << std::endl;
         return false;
     }
@@ -185,8 +186,7 @@ check_err(const std::vector<T>& out,
             err_count++;
             if(err_count < 5)
             {
-                std::cout << msg << " out[" << i << "] != ref[" << i
-                          << "]: " << static_cast<int>(out[i]) << " != " << static_cast<int>(ref[i])
+                std::cerr << msg << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r
                           << std::endl;
             }
             res = false;
