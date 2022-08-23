@@ -68,7 +68,8 @@ TYPED_TEST(TestBatchedGemmGemmFP16, Test_FP16_OddN)
     this->Run();
 }
 
-TYPED_TEST(TestBatchedGemmGemmFP16, DISABLED_Test_FP16_OddK)
+// Currently expected that no kernels can support this case
+TYPED_TEST(TestBatchedGemmGemmFP16, Test_FP16_OddK)
 {
     this->lengths_ = std::vector<std::vector<int>>{
         {128, 128, 33, 128, 1},
@@ -108,7 +109,7 @@ using ck::tensor_operation::device::GemmSpecialization;
 
 TEST(TestBatchedGemmGemmInterface, GemmSpecializationSizeMatch)
 {
-    int P = 129; // requires padding
+    int P = 120; // requires padding
     int Q = 128; // do not require padding
 
     // IsSupported(M, N, K, O)
@@ -134,18 +135,11 @@ TEST(TestBatchedGemmGemmInterface, GemmSpecializationSizeMatch)
 
 TEST(TestBatchedGemmGemmInterface, GemmSpecializationSizeMismatch)
 {
-    int P = 129; // requires padding
-    int Q = 128; // do not require padding
-
     // IsSupported(M, N, K, O)
     // clang-format off
-    EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKPadding>{}.IsSupported(Q, Q, Q, P));
-    EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKPadding>{}.IsSupported(Q, Q, P, P));
-    EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKPadding>{}.IsSupported(Q, P, Q, P));
-    EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKPadding>{}.IsSupported(P, Q, Q, P));
-    EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKPadding>{}.IsSupported(Q, P, P, P));
-    EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKPadding>{}.IsSupported(P, P, Q, P));
-    EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKPadding>{}.IsSupported(P, Q, P, P));
-    EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKPadding>{}.IsSupported(P, P, P, P));
+    EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::Default>{}.IsSupported(128, 128, 120, 128));
+    EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKPadding>{}.IsSupported(128, 128, 128, 120));
+    // Kernel can't support odd K because K must be multiples of K1 values of either A or B
+    EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKOPadding>{}.IsSupported(128, 128, 129, 128));
     // clang-format on
 }

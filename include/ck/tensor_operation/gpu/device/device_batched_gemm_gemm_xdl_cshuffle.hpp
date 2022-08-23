@@ -448,13 +448,15 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
               b1_element_op_{b1_element_op},
               c_element_op_{c_element_op},
               batch_count_(Batch),
-              compute_base_ptr_of_batch_{BatchStrideA, BatchStrideB, BatchStrideB1, BatchStrideC}
+              compute_base_ptr_of_batch_{BatchStrideA, BatchStrideB, BatchStrideB1, BatchStrideC},
+              lengths_m_n_k_o_{MRaw, NRaw, KRaw, Gemm1NRaw}
         {
             if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
                                            b_grid_desc_bk0_n_bk1_,
                                            b1_grid_desc_bk0_n_bk1_,
                                            c_grid_desc_m_n_,
-                                           block_2_ctile_map_))
+                                           block_2_ctile_map_,
+                                           lengths_m_n_k_o_))
             {
                 c_grid_desc_mblock_mperblock_nblock_nperblock_ =
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
@@ -481,6 +483,9 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
         CElementwiseOperation c_element_op_;
         index_t batch_count_;
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
+
+        // For robust IsSupportedArgument() check
+        std::vector<index_t> lengths_m_n_k_o_;
     };
 
     // Invoker
@@ -494,7 +499,8 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
                                             arg.b_grid_desc_bk0_n_bk1_,
                                             arg.b1_grid_desc_bk0_n_bk1_,
                                             arg.c_grid_desc_m_n_,
-                                            arg.block_2_ctile_map_))
+                                            arg.block_2_ctile_map_,
+                                            arg.lengths_m_n_k_o_))
             {
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
@@ -588,7 +594,8 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
                                            arg.b_grid_desc_bk0_n_bk1_,
                                            arg.b1_grid_desc_bk0_n_bk1_,
                                            arg.c_grid_desc_m_n_,
-                                           arg.block_2_ctile_map_);
+                                           arg.block_2_ctile_map_,
+                                           arg.lengths_m_n_k_o_);
     }
 
     // polymorphic
