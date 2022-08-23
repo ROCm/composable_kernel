@@ -171,18 +171,19 @@ TEST(Int4, DISABLED_BitwiseRepresentation)
     int4_t a_i4{3};
     std::int8_t a_i8 = *reinterpret_cast<std::int8_t*>(&a_i4);
     std::int8_t b_i8{3};
-    // std::cout << std::hex << std::showbase << static_cast<int32_t>(a_i8)
-    //           << ", " << static_cast<int32_t>(b_i8) << std::endl;
-
+#if 0
+    std::cout << std::hex << std::showbase << static_cast<int32_t>(a_i8)
+              << ", " << static_cast<int32_t>(b_i8) << std::endl;
+#endif
     EXPECT_EQ(bit8_t{static_cast<std::uint64_t>(a_i8)}, bit8_t{static_cast<std::uint64_t>(b_i8)});
 
     a_i4 = int4_t{-3};
     a_i8 = *reinterpret_cast<std::int8_t*>(&a_i4);
     b_i8 = std::int8_t{-3};
-
-    // std::cout << std::hex << std::showbase << static_cast<int32_t>(a_i8)
-    //           << ", " << static_cast<int32_t>(b_i8) << std::endl;
-
+#if 0
+    std::cout << std::hex << std::showbase << static_cast<int32_t>(a_i8)
+              << ", " << static_cast<int32_t>(b_i8) << std::endl;
+#endif
     EXPECT_EQ(bit8_t{static_cast<std::uint64_t>(a_i8)}, bit8_t{static_cast<std::uint64_t>(b_i8)});
 }
 
@@ -193,17 +194,18 @@ TEST(Int4, BitwiseRepresentationStaticCast)
     int4_t a_i4{3};
     std::int8_t a_i8 = static_cast<std::int8_t>(a_i4);
     std::int8_t b_i8{3};
-    // std::cout << std::hex << std::showbase << static_cast<int32_t>(a_i8)
-    //           << ", " << static_cast<int32_t>(b_i8) << std::endl;
-
+#if 0
+    std::cout << std::hex << std::showbase << static_cast<int32_t>(a_i8)
+              << ", " << static_cast<int32_t>(b_i8) << std::endl;
+#endif
     EXPECT_EQ(bit8_t{static_cast<std::uint64_t>(a_i8)}, bit8_t{static_cast<std::uint64_t>(b_i8)});
 
     a_i4 = int4_t{-3};
     a_i8 = static_cast<std::int8_t>(a_i4);
     b_i8 = std::int8_t{-3};
-
-    // std::cout << std::hex << std::showbase << static_cast<int32_t>(a_i8)
-    //           << ", " << static_cast<int32_t>(b_i8) << std::endl;
-
+#if 0
+    std::cout << std::hex << std::showbase << static_cast<int32_t>(a_i8)
+              << ", " << static_cast<int32_t>(b_i8) << std::endl;
+#endif
     EXPECT_EQ(bit8_t{static_cast<std::uint64_t>(a_i8)}, bit8_t{static_cast<std::uint64_t>(b_i8)});
 }
