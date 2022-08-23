@@ -78,7 +78,8 @@ TYPED_TEST(TestBatchedGemmGemmFP16, Test_FP16_OddK)
     this->Run();
 }
 
-TYPED_TEST(TestBatchedGemmGemmFP16, DISABLED_Test_FP16_OddO)
+// If kernel B1Layout is RowMajor, expect not to support odd O size
+TYPED_TEST(TestBatchedGemmGemmFP16, Test_FP16_OddO)
 {
     this->lengths_ = std::vector<std::vector<int>>{
         {128, 128, 32, 129, 1},
@@ -141,5 +142,7 @@ TEST(TestBatchedGemmGemmInterface, GemmSpecializationSizeMismatch)
     EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKPadding>{}.IsSupported(128, 128, 128, 120));
     // Kernel can't support odd K because K must be multiples of K1 values of either A or B
     EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKOPadding>{}.IsSupported(128, 128, 129, 128));
+    // Kernel can't support odd O size because B1SrcScalarPerVector=8 and must satisfy SizeO % 8 == 0
+    EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKOPadding>{}.IsSupported(128, 128, 128, 129));
     // clang-format on
 }
