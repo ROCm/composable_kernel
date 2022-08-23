@@ -32,8 +32,8 @@ template <typename FloatAB,
           typename ThreadReduceOperations,
           InMemoryDataOperationEnum EGlobalMemoryDataOperation,
           typename RsGlobalMemoryDataOperation,
-          typename AGridDesc_AK0_M_AK1,
-          typename BGridDesc_BK0_N_BK1,
+          typename AGridDesc_M_K,
+          typename BGridDesc_N_K,
           typename EGridDesc_M_N,
           typename RGridDesc_M,
           index_t NumGemmKPrefetchStage,
@@ -84,10 +84,10 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     static constexpr auto I7 = Number<7>{};
 
     // K1 should be Number<...>
-    static constexpr auto AK0 = Number<KPerBlock / AK1Value>{};
-    static constexpr auto BK0 = Number<KPerBlock / BK1Value>{};
-    static constexpr auto AK1 = Number<AK1Value>{};
-    static constexpr auto BK1 = Number<BK1Value>{};
+    static constexpr auto AK1         = Number<AK1Value>{};
+    static constexpr auto BK1         = Number<BK1Value>{};
+    static constexpr auto AK0PerBlock = Number<KPerBlock / AK1Value>{};
+    static constexpr auto BK0PerBlock = Number<KPerBlock / BK1Value>{};
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -97,7 +97,7 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     {
         // A matrix in LDS memory, dst of blockwise copy
         return make_naive_tensor_descriptor(
-            make_tuple(AK0, Number<MPerBlock>{}, AK1),
+            make_tuple(AK0PerBlock, Number<MPerBlock>{}, AK1),
             make_tuple(Number<MPerBlock + ABlockLdsExtraM>{} * AK1, AK1, I1));
     }
 
@@ -105,7 +105,7 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     {
         // B matrix in LDS memory, dst of blockwise copy
         return make_naive_tensor_descriptor(
-            make_tuple(BK0, Number<NPerBlock>{}, BK1),
+            make_tuple(BK0PerBlock, Number<NPerBlock>{}, BK1),
             make_tuple(Number<NPerBlock + BBlockLdsExtraN>{} * BK1, BK1, I1));
     }
 
@@ -169,9 +169,12 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
     // A desc for source in blockwise copy
     __host__ __device__ static constexpr auto
-    MakeDefaultAGridDescriptor_AK0_M_AK1(const AGridDesc_AK0_M_AK1& a_grid_desc_m_k)
+    MakeDefaultAGridDescriptor_AK0_M_AK1(const AGridDesc_M_K& a_grid_desc_m_k)
     {
         const auto M = a_grid_desc_m_k.GetLength(I0);
+        const auto K = a_grid_desc_m_k.GetLength(I1);
+
+        const auto AK0 = K / AK1;
 
         return transform_tensor_descriptor(a_grid_desc_m_k,
                                            make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
@@ -182,9 +185,12 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
     // B desc for source in blockwise copy
     __host__ __device__ static constexpr auto
-    MakeDefaultBGridDescriptor_BK0_N_BK1(const BGridDesc_BK0_N_BK1& b_grid_desc_n_k)
+    MakeDefaultBGridDescriptor_BK0_N_BK1(const BGridDesc_N_K& b_grid_desc_n_k)
     {
         const auto N = b_grid_desc_n_k.GetLength(I0);
+        const auto K = b_grid_desc_n_k.GetLength(I1);
+
+        const auto BK0 = K / BK1;
 
         return transform_tensor_descriptor(b_grid_desc_n_k,
                                            make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
@@ -195,20 +201,23 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Block2ETileMap>
-    __host__ __device__ static constexpr bool
-    CheckValidity(const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
-                  const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
-                  const EGridDesc_M_N& e_grid_desc_m_n,
-                  const RGridDesc_M& r_grid_desc_m,
-                  const Block2ETileMap& block_2_etile_map)
+    __host__ __device__ static constexpr bool CheckValidity(const AGridDesc_M_K& a_grid_desc_m_k,
+                                                            const BGridDesc_N_K& b_grid_desc_n_k,
+                                                            const EGridDesc_M_N& e_grid_desc_m_n,
+                                                            const RGridDesc_M& r_grid_desc_m,
+                                                            const Block2ETileMap& block_2_etile_map)
     {
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
 
-        const auto M = a_grid_desc_ak0_m_ak1.GetLength(I1);
-        const auto N = b_grid_desc_bk0_n_bk1.GetLength(I1);
-        const auto K = a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2);
+        static_assert(AGridDesc_M_K::GetNumOfDimension() == 2);
+        static_assert(BGridDesc_N_K::GetNumOfDimension() == 2);
+        static_assert(EGridDesc_M_N::GetNumOfDimension() == 2);
+
+        const auto M = a_grid_desc_m_k.GetLength(I0);
+        const auto N = b_grid_desc_n_k.GetLength(I0);
+        const auto K = a_grid_desc_m_k.GetLength(I1);
 
         if(!(M == e_grid_desc_m_n.GetLength(I0) && N == e_grid_desc_m_n.GetLength(I1)))
             return false;
@@ -285,6 +294,10 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             e_grid_desc_m_n);
     }
 
+    using DefaultAGridDesc_AK0_M_AK1 =
+        remove_cvref_t<decltype(MakeDefaultAGridDescriptor_AK0_M_AK1(AGridDesc_M_K{}))>;
+    using DefaultBGridDesc_BK0_N_BK1 =
+        remove_cvref_t<decltype(MakeDefaultBGridDescriptor_BK0_N_BK1(BGridDesc_N_K{}))>;
     using EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
         MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(EGridDesc_M_N{}))>;
 
@@ -299,8 +312,8 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     using RsGridPointer = decltype(MakeTsGridPointer<RsDataType, false>());
 
     template <bool HasMainKBlockLoop,
-              typename OtherAGridDesc_AK0_M_AK1,
-              typename OtherBGridDesc_BK0_N_BK1,
+              typename AGridDesc_AK0_M_AK1,
+              typename BGridDesc_BK0_N_BK1,
               typename Block2ETileMap>
     __device__ static void
     Run(const FloatAB* __restrict__ p_a_grid,
@@ -314,8 +327,8 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
         const CDEElementwiseOperation& cde_element_op,
         const QsElementwiseOperation& qs_element_op,
         const RsElementwiseOperation& rs_element_op,
-        const OtherAGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
-        const OtherBGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
+        const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
+        const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
         const StaticallyIndexedArray<EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                                      NumDTensor>&
             ds_grid_desc_mblock_mperblock_nblock_nperblock, // FIXME: Ds desc may be of different
@@ -385,7 +398,7 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                                 AElementwiseOperation,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 InMemoryDataOperationEnum::Set,
-                                                Sequence<AK0, MPerBlock, AK1>,
+                                                Sequence<AK0PerBlock, MPerBlock, AK1>,
                                                 ABlockTransferThreadClusterLengths_AK0_M_AK1,
                                                 ABlockTransferThreadClusterArrangeOrder,
                                                 FloatAB,
@@ -416,7 +429,7 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                                                 BElementwiseOperation,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 InMemoryDataOperationEnum::Set,
-                                                Sequence<BK0, NPerBlock, BK1>,
+                                                Sequence<BK0PerBlock, NPerBlock, BK1>,
                                                 BBlockTransferThreadClusterLengths_BK0_N_BK1,
                                                 BBlockTransferThreadClusterArrangeOrder,
                                                 FloatAB,
