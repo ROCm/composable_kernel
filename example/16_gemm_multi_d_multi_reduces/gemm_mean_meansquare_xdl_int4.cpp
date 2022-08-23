@@ -172,6 +172,9 @@ int main(int argc, char* argv[])
                                                RsThreadReduceOp,
                                                ReduceAccDataType,
                                                DeviceOpInstance,
-                                               ReferenceGemmInstance>(
+                                               ReferenceGemmInstance,
+                                               ADataKernelType,
+                                               BDataKernelType,
+                                               EDataKernelType>(
         M, N, K, StrideA, StrideB, StrideE, do_verification, init_method, time_kernel);
 }

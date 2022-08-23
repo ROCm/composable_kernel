@@ -13,7 +13,7 @@ add_example_executable(example_gemm_add_add_mean_meansquare_xdl_fp16 gemm_add_ad
 add_example_executable(example_gemm_mean_meansquare_xdl_fp16 gemm_mean_meansquare_xdl_fp16.cpp)
 add_example_executable(example_gemm_mean_meansquare_xdl_fp32 gemm_mean_meansquare_xdl_fp32.cpp)
 add_example_executable(example_gemm_mean_meansquare_xdl_bf16 gemm_mean_meansquare_xdl_bf16.cpp)
-add_example_executable(example_gemm_mean_meansquare_xdl_int8 gemm_mean_meansquare_xdl_int8.cpp)
+add_example_executable_no_testing(example_gemm_mean_meansquare_xdl_int8 gemm_mean_meansquare_xdl_int8.cpp)
 
 add_dependencies(example_gemm_reduce_xdl_max example_gemm_max_xdl_bf16)
 add_dependencies(example_gemm_reduce_xdl_max example_gemm_max_xdl_fp16)
@@ -33,9 +33,6 @@ add_dependencies(example_gemm_reduce_xdl
                  example_gemm_add_add_mean_meansquare_xdl)
 
 if(USE_BITINT_EXTENSION_INT4)
-#exclude GEMM+max example from testing, since there is random failure on gfx908
-#https://github.com/ROCmSoftwarePlatform/composable_kernel/issues/358
-#TODO: fix the failure and re-enable this test
   add_example_executable(example_gemm_max_xdl_int4 gemm_max_xdl_int4.cpp)
   add_example_executable_no_testing(example_gemm_mean_meansquare_xdl_int4 gemm_mean_meansquare_xdl_int4.cpp)
   
