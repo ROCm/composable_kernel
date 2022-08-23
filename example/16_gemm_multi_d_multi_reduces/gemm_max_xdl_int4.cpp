@@ -17,7 +17,7 @@ using DsDataType        = ck::Tuple<>;
 using EDataType         = INT32;
 using EDataKernelType   = INT32;
 using ReduceAccDataType = INT32;
-using R0DataType        = F64;
+using R0DataType        = INT32;
 using RsDataType        = ck::Tuple<R0DataType>;
 
 // Layout
@@ -164,6 +164,9 @@ int main(int argc, char* argv[])
                                    RsThreadReduceOp,
                                    ReduceAccDataType,
                                    DeviceOpInstance,
-                                   ReferenceGemmInstance>(
+                                   ReferenceGemmInstance,
+                                   ADataKernelType,
+                                   BDataKernelType,
+                                   EDataKernelType>(
         M, N, K, StrideA, StrideB, StrideE, do_verification, init_method, time_kernel);
 }

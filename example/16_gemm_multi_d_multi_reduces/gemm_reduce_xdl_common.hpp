@@ -82,7 +82,10 @@ template <typename ADataType,
           typename RsThreadReduceOp,
           typename ReduceAccDataType,
           typename DeviceOpInstance,
-          typename ReferenceGemmInstance>
+          typename ReferenceGemmInstance,
+          typename ADataKernelType = ADataType,
+          typename BDataKernelType = BDataType,
+          typename EDataKernelType = EDataType>
 auto run_gemm_reduce_max_xdl(ck::index_t M,
                              ck::index_t N,
                              ck::index_t K,
@@ -114,7 +117,7 @@ auto run_gemm_reduce_max_xdl(ck::index_t M,
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor2d(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor2d(K, N, StrideB, BLayout{}));
-    Tensor<EDataType> e_m_n(f_host_tensor_descriptor2d(M, N, StrideE, ELayout{}));
+    Tensor<EDataKernelType> e_m_n(f_host_tensor_descriptor2d(M, N, StrideE, ELayout{}));
     Tensor<R0DataType> r0_m(f_host_tensor_descriptor1d(M, 1));
 
     switch(init_method)
@@ -132,13 +135,24 @@ auto run_gemm_reduce_max_xdl(ck::index_t M,
         break;
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem e_device_buf(sizeof(EDataType) * e_m_n.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(sizeof(ADataKernelType) * a_m_k.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(BDataKernelType) * b_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem e_device_buf(sizeof(EDataKernelType) * e_m_n.mDesc.GetElementSpaceSize());
     DeviceMem r0_device_buf(sizeof(R0DataType) * r0_m.mDesc.GetElementSpaceSize());
 
-    a_device_buf.ToDevice(a_m_k.mData.data());
-    b_device_buf.ToDevice(b_k_n.mData.data());
+    if constexpr(std::is_same_v<ADataType, ck::int4_t>)
+    {
+        Tensor<ADataKernelType> a_m_k_converted = a_m_k.template CopyAsType<ADataKernelType>();
+        Tensor<BDataKernelType> b_k_n_converted = b_k_n.template CopyAsType<BDataKernelType>();
+
+        a_device_buf.ToDevice(a_m_k_converted.mData.data());
+        b_device_buf.ToDevice(b_k_n_converted.mData.data());
+    }
+    else
+    {
+        a_device_buf.ToDevice(a_m_k.mData.data());
+        b_device_buf.ToDevice(b_k_n.mData.data());
+    }
 
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
@@ -211,10 +225,20 @@ auto run_gemm_reduce_max_xdl(ck::index_t M,
         }
 
         e_device_buf.FromDevice(e_m_n.mData.data());
-        r0_device_buf.FromDevice(r0_m.mData.data());
 
-        pass = ck::utils::check_err(
-            e_m_n.mData, e_m_n_host.mData, "Error: Incorrect results c", 1e-2, 1e-2);
+        if constexpr(std::is_same_v<ADataType, ck::int4_t>)
+        {
+            Tensor<EDataType> e_m_n_converted = e_m_n.template CopyAsType<EDataType>();
+            pass                              = ck::utils::check_err(
+                e_m_n_converted.mData, e_m_n_host.mData, "Error: Incorrect results c", 1e-2, 1e-2);
+        }
+        else
+        {
+            pass = ck::utils::check_err(
+                e_m_n.mData, e_m_n_host.mData, "Error: Incorrect results c", 1e-2, 1e-2);
+        }
+
+        r0_device_buf.FromDevice(r0_m.mData.data());
         pass &= ck::utils::check_err(
             r0_m.mData, r0_m_host.mData, "Error: Incorrect results d0", 1e-2, 1e-2);
 

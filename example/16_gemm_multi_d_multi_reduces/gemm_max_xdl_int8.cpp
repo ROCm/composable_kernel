@@ -14,7 +14,7 @@ using CShuffleDataType  = INT32;
 using DsDataType        = ck::Tuple<>;
 using EDataType         = INT32;
 using ReduceAccDataType = INT32;
-using R0DataType        = F64;
+using R0DataType        = INT32;
 using RsDataType        = ck::Tuple<R0DataType>;
 
 // Layout
