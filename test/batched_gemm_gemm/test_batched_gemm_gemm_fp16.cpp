@@ -140,9 +140,9 @@ TEST(TestBatchedGemmGemmInterface, GemmSpecializationSizeMismatch)
     // clang-format off
     EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::Default>{}.IsSupported(128, 128, 120, 128));
     EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKPadding>{}.IsSupported(128, 128, 128, 120));
-    // Kernel can't support odd K because K must be multiples of K1 values of either A or B
+    // Kernel can't support odd K because K must be integer multiples of K1 values of either A or B
     EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKOPadding>{}.IsSupported(128, 128, 129, 128));
-    // Kernel can't support odd O size because B1SrcScalarPerVector=8 and must satisfy SizeO % 8 == 0
+    // Kernel can't support odd O size because it must satisfy SizeO % B1SrcScalarPerVector == 0
     EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKOPadding>{}.IsSupported(128, 128, 128, 129));
     // clang-format on
 }
