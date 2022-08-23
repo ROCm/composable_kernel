@@ -196,7 +196,7 @@ bool profile_batched_gemm_gemm_impl(bool do_verification,
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     // early fail when no instances are found
-    if (op_ptrs.size() == 0)
+    if(op_ptrs.size() == 0)
     {
         return false;
     }
