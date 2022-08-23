@@ -59,7 +59,6 @@ static constexpr bool PadGemm0M = false;
 static constexpr bool PadGemm0N = false;
 static constexpr bool PadGemm0K = false;
 static constexpr bool PadGemm1N = false;
-static constexpr bool PadGemm1K = false;
 
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmGemm_Xdl_CShuffle<
     A0Layout,
@@ -82,7 +81,6 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmGemm_X
     PadGemm0N,
     PadGemm0K,
     PadGemm1N,
-    PadGemm1K,
     1,
     256,
     128,         // MPerBlock

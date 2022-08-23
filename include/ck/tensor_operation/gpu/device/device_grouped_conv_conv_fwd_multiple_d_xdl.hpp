@@ -109,29 +109,40 @@ __global__ void
 #endif
 }
 
-// Computes C = A * B0 * B1
-//              ^^^^^^ (Acc0)
-//              ^^^^^^^^^^^ (Acc1)
-template <typename A0Layout,
-          typename B0Layout, // B0Layout
+// Convolution Forward:
+//   input : input image A0[G, N, C0, Hi0, Wi0]
+//   input : weight B0[G, K0, C0, Y0, X0]
+//   input : residual D00[G, N, K0, Ho0, Wo0], D01[G, N, K0, Ho0, Wo0], ...
+//   input : weight B1[G, K1, C1, 1, 1], (1x1 only)
+//   input : residual D10[G, N, K1, Ho1, Wo1], D11[G, N, K1, Ho1, Wo1], ...
+//   output : output image E1[G, N, K1, Ho1, Wo1]
+//   C0 = a0_op(A0) * b0_op(B0)
+//   E0 = cde0_op(C0, D00, D01, ...)
+//   C1 = E0 * b1_op(B1)
+//   E1 = cde1_op(C1, D10, D11, ...)
+template <index_t NDimSpatial,
+          typename A0Layout,
+          typename B0Layout,
+          typename D0sLayout,
           typename B1Layout,
-          typename C1Layout,
+          typename D1sLayout,
+          typename E1Layout,
           typename A0DataType,
           typename B0DataType,
-          typename Acc0DataType,
+          typename D0sDataType,
           typename B1DataType,
-          typename Acc1DataType,
-          typename C1ShuffleDataType,
-          typename C1DataType,
+          typename D1sDataType,
+          typename E1DataType,
           typename A0ElementwiseOperation,
           typename B0ElementwiseOperation,
-          typename C0ElementwiseOperation,
+          typename CDE0ElementwiseOperation,
           typename B1ElementwiseOperation,
-          typename C1ElementwiseOperation,
+          typename CDE1ElementwiseOperation,
           bool Gemm0PadM,
           bool Gemm0PadN,
           bool Gemm0PadK,
           bool Gemm1PadN,
+          bool Gemm1PadK,
           index_t NumGemm0KPrefetchStage,
           index_t BlockSize,
           index_t Gemm0MPerBlock,
@@ -173,28 +184,30 @@ template <typename A0Layout,
           typename C1ShuffleBlockTransferClusterLengths_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock,
           index_t C1ShuffleBlockTransferScalarPerVector_Gemm0NPerBlock,
           LoopScheduler LoopSched = LoopScheduler::Default>
-struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<A0Layout,
-                                                                         B0Layout,
-                                                                         B1Layout,
-                                                                         C1Layout,
-                                                                         A0DataType,
-                                                                         B0DataType,
-                                                                         B1DataType,
-                                                                         C1DataType,
-                                                                         A0ElementwiseOperation,
-                                                                         B0ElementwiseOperation,
-                                                                         C0ElementwiseOperation,
-                                                                         B1ElementwiseOperation,
-                                                                         C1ElementwiseOperation>
+struct DeviceGroupedConvConvFwd_Xdl : public DeviceBatchedGemmGemm<NDimSpatial,
+                                                                   A0Layout,
+                                                                   B0Layout,
+                                                                   D0sLayout,
+                                                                   B1Layout,
+                                                                   D1sLayout,
+                                                                   E1Layout,
+                                                                   A0DataType,
+                                                                   B0DataType,
+                                                                   D0sDataType,
+                                                                   B1DataType,
+                                                                   D1sDataType,
+                                                                   E1DataType,
+                                                                   A0ElementwiseOperation,
+                                                                   B0ElementwiseOperation,
+                                                                   CDE0ElementwiseOperation,
+                                                                   B1ElementwiseOperation,
+                                                                   CDE1ElementwiseOperation>
 {
     using DeviceOp = DeviceBatchedGemmGemm_Xdl_CShuffle;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
-
-    // Gemm1's K is same as Gemm0's N
-    static constexpr bool Gemm1PadK = Gemm0PadN;
 
     static constexpr auto gemm0_padder =
         MatrixPadder_v2<Gemm0PadM, Gemm0PadN, Gemm0PadK, index_t, index_t, index_t>{
