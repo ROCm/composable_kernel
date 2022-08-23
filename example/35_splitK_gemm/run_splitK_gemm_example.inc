@@ -135,13 +135,17 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
         ref_invoker.Run(ref_argument);
 
         if(std::is_same<CDataType, ck::half_t>::value)
+        {
             return ck::utils::check_err(c_m_n_device_result.mData,
                                         c_m_n_host_result.mData,
                                         "fp16 incorrect result",
-                                        1e-5,
-                                        config.init_method == 1 ? 16 : 0.1);
+                                        3e-3,
+                                        1e-3);
+        }
         else
+        {
             return ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
+        }
     }
 
     return true;
