@@ -249,8 +249,6 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
             return false;
         }
 
-        assert(num_gemm1_k_outer_loop * num_gemm1_k_inner_loop == N / Gemm1KPerBlock);
-
         if(!block_2_ctile_map.CheckValidity(c_grid_desc_m_n))
         {
             return false;
