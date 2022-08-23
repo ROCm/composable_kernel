@@ -9,6 +9,7 @@ namespace device {
 
 enum struct GemmSpecialization
 {
+    // Gemm
     Default,
     MPadding,
     NPadding,
@@ -17,6 +18,15 @@ enum struct GemmSpecialization
     MKPadding,
     NKPadding,
     MNKPadding,
+    // Gemm + Gemm
+    OPadding,
+    MOPadding,
+    NOPadding,
+    KOPadding,
+    MNOPadding,
+    MKOPadding,
+    NKOPadding,
+    MNKOPadding,
 };
 
 inline std::string getGemmSpecializationString(const GemmSpecialization& s)
@@ -31,6 +41,14 @@ inline std::string getGemmSpecializationString(const GemmSpecialization& s)
     case GemmSpecialization::MKPadding: return "MKPadding";
     case GemmSpecialization::NKPadding: return "NKPadding";
     case GemmSpecialization::MNKPadding: return "MNKPadding";
+    case GemmSpecialization::OPadding: return "OPadding";
+    case GemmSpecialization::MOPadding: return "MOPadding";
+    case GemmSpecialization::NOPadding: return "NOPadding";
+    case GemmSpecialization::KOPadding: return "KOPadding";
+    case GemmSpecialization::MNOPadding: return "MNOPadding";
+    case GemmSpecialization::MKOPadding: return "MKOPadding";
+    case GemmSpecialization::NKOPadding: return "NKOPadding";
+    case GemmSpecialization::MNKOPadding: return "MNKOPadding";
     default: return "Unrecognized specialization!";
     }
 }
