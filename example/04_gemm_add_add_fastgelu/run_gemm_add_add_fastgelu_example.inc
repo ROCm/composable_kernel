@@ -1,27 +1,10 @@
 #pragma once
 
-struct ProblemSize final
-{
-    ck::index_t M = 3840;
-    ck::index_t N = 4096;
-    ck::index_t K = 4096;
-
-    ck::index_t StrideA  = 4096;
-    ck::index_t StrideB  = 4096;
-    ck::index_t StrideD0 = 0;
-    ck::index_t StrideD1 = 4096;
-    ck::index_t StrideE  = 4096;
-};
-
-struct ExecutionConfig final
-{
-    bool do_verification = true;
-    int init_method      = 1;
-    bool time_kernel     = false;
-};
-
 bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionConfig& config)
 {
+#if defined(BUILD_INT4_EXAMPLE) && defined(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
+    static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
+#endif
     using namespace ck::literals;
 
     auto& [M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE] = problem_size;
@@ -43,7 +26,14 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
     Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor(M, N, StrideD0, D0Layout{}));
     Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor(M, N, StrideD1, D1Layout{}));
     Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
-    Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
+    Tensor<
+#ifdef BUILD_INT4_EXAMPLE
+        KernelEDataType
+#else
+        EDataType
+#endif
+        >
+        e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
@@ -73,10 +63,22 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
 
+#ifdef BUILD_INT4_EXAMPLE
+    const Tensor<KernelADataType> a_m_k_converted(a_m_k);
+    const Tensor<KernelBDataType> b_k_n_converted(b_k_n);
+    const Tensor<KernelD0DataType> d0_m_n_converted(d0_m_n);
+    const Tensor<KernelD1DataType> d1_m_n_converted(d1_m_n);
+
+    a_device_buf.ToDevice(a_m_k_converted.mData.data());
+    b_device_buf.ToDevice(b_k_n_converted.mData.data());
+    d0_device_buf.ToDevice(d0_m_n_converted.mData.data());
+    d1_device_buf.ToDevice(d1_m_n_converted.mData.data());
+#else
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
     d0_device_buf.ToDevice(d0_m_n.mData.data());
     d1_device_buf.ToDevice(d1_m_n.mData.data());
+#endif
 
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
@@ -124,14 +126,6 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
     {
         Tensor<AccDataType> c_m_n(HostTensorDescriptor{M, N});
 
-        using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
-                                                                                BDataType,
-                                                                                AccDataType,
-                                                                                AccDataType,
-                                                                                AElementOp,
-                                                                                BElementOp,
-                                                                                PassThrough>;
-
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
 
@@ -150,7 +144,13 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
 
         e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
+#ifdef BUILD_INT4_EXAMPLE
+        const Tensor<EDataType> e_m_n_device_result_converted(e_m_n_device_result);
+
+        return ck::utils::check_err(e_m_n_device_result_converted.mData, e_m_n_host_result.mData);
+#else
         return ck::utils::check_err(e_m_n_device_result.mData, e_m_n_host_result.mData);
+#endif
     }
 
     return true;
@@ -161,43 +161,6 @@ bool run_gemm_add_add_fastgelu_example(int argc, char* argv[])
     ProblemSize problem_size;
     ExecutionConfig config;
 
-    if(argc == 1)
-    {
-        // use default case
-    }
-    else if(argc == 4)
-    {
-        config.do_verification = std::stoi(argv[1]);
-        config.init_method     = std::stoi(argv[2]);
-        config.time_kernel     = std::stoi(argv[3]);
-    }
-    else if(argc == 12)
-    {
-        config.do_verification = std::stoi(argv[1]);
-        config.init_method     = std::stoi(argv[2]);
-        config.time_kernel     = std::stoi(argv[3]);
-
-        problem_size.M = std::stoi(argv[4]);
-        problem_size.N = std::stoi(argv[5]);
-        problem_size.K = std::stoi(argv[6]);
-
-        problem_size.StrideA  = std::stoi(argv[7]);
-        problem_size.StrideB  = std::stoi(argv[8]);
-        problem_size.StrideD0 = std::stoi(argv[9]);
-        problem_size.StrideD1 = std::stoi(argv[10]);
-        problem_size.StrideE  = std::stoi(argv[11]);
-    }
-    else
-    {
-        std::cerr << "arg1: verification (0=no, 1=yes)" << std::endl
-                  << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)"
-                  << std::endl
-                  << "arg3: time kernel (0=no, 1=yes)" << std::endl
-                  << "arg4 to 10: M (256x), N(128x), K(32x), StrideA, StrideB, StrideD0, StrideD1, "
-                     "StrideE"
-                  << std::endl;
-        return true;
-    }
-
-    return run_gemm_add_add_fastgelu(problem_size, config);
+    return !parse_cmd_args(argc, argv, problem_size, config) ||
+           run_gemm_add_add_fastgelu(problem_size, config);
 }
