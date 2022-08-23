@@ -21,20 +21,20 @@
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using F16 = ck::half_t;
-using F32 = float;
+using BF16 = ck::bhalf_t;
+using F32  = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-using ADataType        = F16;
-using BDataType        = F16;
+using ADataType        = BF16;
+using BDataType        = BF16;
 using AccDataType      = F32;
-using CShuffleDataType = F16;
+using CShuffleDataType = BF16;
 using DsDataType       = ck::Tuple<>;
-using EDataType        = F16;
+using EDataType        = BF16;
 
 using ALayout  = Row;
 using BLayout  = Col;
