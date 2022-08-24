@@ -131,11 +131,9 @@ def buildDocker(install_prefix){
 def cmake_build(Map conf=[:]){
 
     def path = compiler_path()
-    if (params.BUILD_COMPILER == "hipcc"){
-        def compiler = conf.get("compiler","/opt/rocm/bin/hipcc")
-    }
-    else{
-        def compiler = conf.get("compiler","${path}/clang++")
+    def compiler = conf.get("compiler","/opt/rocm/bin/hipcc")
+    if (params.BUILD_COMPILER != "hipcc"){
+        compiler = conf.get("compiler","${path}/clang++")
     }
     def config_targets = conf.get("config_targets","check")
     def debug_flags = "-g -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined " + conf.get("extradebugflags", "")
