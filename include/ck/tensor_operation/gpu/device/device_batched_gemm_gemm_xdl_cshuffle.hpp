@@ -621,14 +621,6 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<A0Layou
             return false;
         }
 
-#if 0 // why we need this check?
-      // K is rounded to nearest multiples of K1 during tensor transformation so instead get KRaw
-        if(!(KRaw % AK1 == 0 && KRaw % BK1 == 0))
-        {
-            return false;
-        }
-#endif
-
         return GridwiseGemm::CheckValidity(arg.a0_grid_desc_m_k_,
                                            arg.b0_grid_desc_n_k_,
                                            arg.b1_grid_desc_n_k_,

@@ -11,8 +11,8 @@ namespace device {
 
 // Batched GEMM + GEMM
 //   input  : A0[Batch, M, K]
-//   input  : B0[Batch, N, K]
-//   input  : B1[Batch, M, N]
+//   input  : B0[Batch, K, N]
+//   input  : B1[Batch, N, O]
 //   output : C1[Batch, M, O]
 //
 //   C0 = a0_op(A0) * b0_op(B0)
