@@ -34,8 +34,5 @@ add_dependencies(example_gemm_reduce_xdl
 
 if(USE_BITINT_EXTENSION_INT4)
   add_example_executable(example_gemm_max_xdl_int4 gemm_max_xdl_int4.cpp)
-  add_example_executable_no_testing(example_gemm_mean_meansquare_xdl_int4 gemm_mean_meansquare_xdl_int4.cpp)
-  
   add_dependencies(example_gemm_reduce_xdl_max example_gemm_max_xdl_int4)
-  add_dependencies(example_gemm_reduce_xdl_mean_meansquare example_gemm_mean_meansquare_xdl_int4)
 endif()
