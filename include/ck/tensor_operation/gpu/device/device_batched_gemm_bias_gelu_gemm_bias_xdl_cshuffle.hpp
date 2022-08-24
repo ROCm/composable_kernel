@@ -12,7 +12,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_bias_gelu_gemm_bias.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_gemm_xdl_cshuffle_v1.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_bias_gelu_gemm_bias_xdl_cshuffle_v1.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
@@ -359,7 +359,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
     using C1GridDesc_M_N = decltype(MakeC1GridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseBatchedGemmGemm_Xdl_CShuffle<
+    using GridwiseGemm = GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle<
         A0DataType, // TODO: distinguish A/B datatype
         Acc0DataType,
         Acc1DataType,
