@@ -23,18 +23,7 @@ def getDockerImageName(){
     return img
 }
 
-def compiler_path(){
-    def path
-    if (params.COMPILER_VERSION == "release"){
-        path = "/opt/rocm/llvm/bin"
-    }
-    else{
-        path = "/llvm-project/build/bin"
-    }
-    return path
-}
-
-def build_compiler (){
+def build_compiler(){
     def compiler
     if (params.BUILD_COMPILER == "hipcc"){
         compiler = '/opt/rocm/bin/hipcc'
@@ -130,11 +119,7 @@ def buildDocker(install_prefix){
 
 def cmake_build(Map conf=[:]){
 
-    def path = compiler_path()
-    def compiler = conf.get("compiler","/opt/rocm/bin/hipcc")
-    if (params.BUILD_COMPILER != "hipcc"){
-        compiler = conf.get("compiler","${path}/clang++")
-    }
+    def compiler = build_compiler()
     def config_targets = conf.get("config_targets","check")
     def debug_flags = "-g -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined " + conf.get("extradebugflags", "")
     def build_envs = "CTEST_PARALLEL_LEVEL=4 " + conf.get("build_env","")
