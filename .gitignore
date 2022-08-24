@@ -46,3 +46,4 @@ build*
 
 # GDB temporary files
 .gdb_history
+install.dir*
