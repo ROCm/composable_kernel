@@ -55,7 +55,7 @@ template <typename ADataType,
           typename R1DataType>
 void DumpGemmReduceMeanSquareMeanPerf(float ave_time, int M, int N, int K)
 {
-    std::size_t flop          = std::size_t(2) * M * N * K;
+    std::size_t flop          = std::size_t(2) * M * N * K + M * (3 * N + 2);
     std::size_t gemm_num_byte = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
                                 sizeof(EDataType) * M * N + sizeof(R0DataType) * M +
                                 sizeof(R1DataType) * M;
@@ -450,6 +450,11 @@ int run_gemm_reduce_mean_meansquare_xdl(ck::index_t M,
             r0_m.mData, r0_m_host.mData, "Error: Incorrect results d0", 1e-2, 1e-2);
         pass &= ck::utils::check_err(
             r1_m.mData, r1_m_host.mData, "Error: Incorrect results d1", 1e-2, 1e-2);
+
+        if(pass)
+        {
+            std::cout << "Success!" << std::endl;
+        }
     }
 
     if(time_kernel)
