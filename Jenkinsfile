@@ -34,6 +34,22 @@ def compiler_path(){
     return path
 }
 
+def build_compiler (){
+    def compiler
+    if (params.BUILD_COMPILER == "hipcc"){
+        compiler = '/opt/rocm/bin/hipcc'
+    }
+    else{
+        if (params.COMPILER_VERSION == "release"){
+            compiler = "/opt/rocm/llvm/bin/clang++"
+        }
+        else{
+            compiler = "/llvm-project/build/bin/clang++"
+        }        
+    }
+    return compiler
+}
+
 def getDockerImage(Map conf=[:]){
     env.DOCKER_BUILDKIT=1
     def prefixpath = conf.get("prefixpath", "/opt/rocm") // prefix:/opt/rocm
@@ -605,12 +621,7 @@ pipeline {
                     agent{ label rocmnode("gfx908")}
                     environment{
                         setup_args = """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " """
-                        if (params.BUILD_COMPILER == "hipcc" ){
-                            execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3" -D CMAKE_CXX_COMPILER="/opt/rocm/bin/hipcc" .. && make -j """ 
-                        }
-                        else{
-                            execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3" -D CMAKE_CXX_COMPILER="${compiler_path()}/clang++" .. && make -j """ 
-                        }
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ 
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
