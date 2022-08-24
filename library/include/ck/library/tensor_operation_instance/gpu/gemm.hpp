@@ -4,6 +4,8 @@
 #pragma once
 
 #include <cstdlib>
+#include <memory>
+#include <vector>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"

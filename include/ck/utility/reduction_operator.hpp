@@ -79,7 +79,7 @@ struct SquaredAdd
         static_assert(is_same<T, float>::value || is_same<T, double>::value ||
                           is_same<T, half_t>::value || is_same<T, int32_t>::value ||
                           is_same<T, int8_t>::value,
-                      "The data type is not supported by the Max accumulator!");
+                      "The data type is not supported by the SquaredAdd accumulator!");
 
         a = a + b * b;
     }
