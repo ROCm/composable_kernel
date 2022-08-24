@@ -54,34 +54,6 @@ struct DeviceBatchedGemmSoftmaxGemm : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <typename ALayout,
-          typename B0Layout,
-          typename B1Layout,
-          typename CLayout,
-          typename ADataType,
-          typename B0DataType,
-          typename B1DataType,
-          typename CDataType,
-          typename AElementwiseOperation,
-          typename B0ElementwiseOperation,
-          typename Acc0ElementwiseOperation,
-          typename B1ElementwiseOperation,
-          typename CElementwiseOperation>
-using DeviceBatchedGemmSoftmaxGemmPtr =
-    std::unique_ptr<DeviceBatchedGemmSoftmaxGemm<ALayout,
-                                                 B0Layout,
-                                                 B1Layout,
-                                                 CLayout,
-                                                 ADataType,
-                                                 B0DataType,
-                                                 B1DataType,
-                                                 CDataType,
-                                                 AElementwiseOperation,
-                                                 B0ElementwiseOperation,
-                                                 Acc0ElementwiseOperation,
-                                                 B1ElementwiseOperation,
-                                                 CElementwiseOperation>>;
-
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

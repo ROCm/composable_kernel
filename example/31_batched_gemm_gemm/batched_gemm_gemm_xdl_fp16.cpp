@@ -255,48 +255,48 @@ int main(int argc, char* argv[])
     };
 
     // C_m_o = A_m_k * B0_k_n * B1_n_o
-    Tensor<A0DataType> a_g_m_k(
+    Tensor<A0DataType> a0_g_m_k(
         f_host_tensor_descriptor(BatchCount, M, K, StrideA0, BatchStrideA0, A0Layout{}));
     Tensor<B0DataType> b0_g_k_n(
         f_host_tensor_descriptor(BatchCount, K, N, StrideB0, BatchStrideB0, B0Layout{}));
     Tensor<B1DataType> b1_g_n_o(
         f_host_tensor_descriptor(BatchCount, N, O, StrideB1, BatchStrideB1, B1Layout{}));
-    Tensor<C1DataType> c0_g_m_o_host_result(
+    Tensor<C1DataType> c1_g_m_o_host_result(
         f_host_tensor_descriptor(BatchCount, M, O, StrideC1, BatchStrideC1, C1Layout{}));
-    Tensor<C1DataType> c0_g_m_o_device_result(
+    Tensor<C1DataType> c1_g_m_o_device_result(
         f_host_tensor_descriptor(BatchCount, M, O, StrideC1, BatchStrideC1, C1Layout{}));
 
-    std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
+    std::cout << "a0_g_m_k: " << a0_g_m_k.mDesc << std::endl;
     std::cout << "b0_g_k_n: " << b0_g_k_n.mDesc << std::endl;
     std::cout << "b1_g_n_o: " << b1_g_n_o.mDesc << std::endl;
-    std::cout << "c0_g_m_o: " << c0_g_m_o_host_result.mDesc << std::endl;
+    std::cout << "c1_g_m_o: " << c1_g_m_o_host_result.mDesc << std::endl;
 
     switch(init_method)
     {
     case 0: break;
     case 1:
-        a_g_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-5, 5});
+        a0_g_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-5, 5});
         b0_g_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-5, 5});
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-5, 5});
         break;
     case 2:
-        a_g_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
+        a0_g_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
         b0_g_k_n.GenerateTensorValue(GeneratorTensor_3<B0DataType>{0.0, 1.0});
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_3<B1DataType>{-0.5, 0.5});
         break;
     default:
-        a_g_m_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{1});
+        a0_g_m_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{1});
         b0_g_k_n.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
     }
 
-    DeviceMem a0_g_m_k_device_buf(sizeof(A0DataType) * a_g_m_k.mDesc.GetElementSize());
-    DeviceMem b0_g_k_n_device_buf(sizeof(B0DataType) * b0_g_k_n.mDesc.GetElementSize());
-    DeviceMem b1_g_n_o_device_buf(sizeof(B1DataType) * b1_g_n_o.mDesc.GetElementSize());
-    DeviceMem c0_g_m_o_device_buf(sizeof(C1DataType) *
-                                  c0_g_m_o_device_result.mDesc.GetElementSize());
+    DeviceMem a0_g_m_k_device_buf(sizeof(A0DataType) * a0_g_m_k.mDesc.GetElementSpaceSize());
+    DeviceMem b0_g_k_n_device_buf(sizeof(B0DataType) * b0_g_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem b1_g_n_o_device_buf(sizeof(B1DataType) * b1_g_n_o.mDesc.GetElementSpaceSize());
+    DeviceMem c1_g_m_o_device_buf(sizeof(C1DataType) *
+                                  c1_g_m_o_device_result.mDesc.GetElementSpaceSize());
 
-    a0_g_m_k_device_buf.ToDevice(a_g_m_k.mData.data());
+    a0_g_m_k_device_buf.ToDevice(a0_g_m_k.mData.data());
     b0_g_k_n_device_buf.ToDevice(b0_g_k_n.mData.data());
     b1_g_n_o_device_buf.ToDevice(b1_g_n_o.mData.data());
 
@@ -313,7 +313,7 @@ int main(int argc, char* argv[])
         gemm.MakeArgument(static_cast<A0DataType*>(a0_g_m_k_device_buf.GetDeviceBuffer()),
                           static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
                           static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
-                          static_cast<C1DataType*>(c0_g_m_o_device_buf.GetDeviceBuffer()),
+                          static_cast<C1DataType*>(c1_g_m_o_device_buf.GetDeviceBuffer()),
                           M,
                           N,
                           K,
@@ -354,7 +354,7 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
-    c0_g_m_o_device_buf.FromDevice(c0_g_m_o_device_result.mData.data());
+    c1_g_m_o_device_buf.FromDevice(c1_g_m_o_device_result.mData.data());
 
     if(do_verification)
     {
@@ -364,18 +364,18 @@ int main(int argc, char* argv[])
         auto ref_gemm0          = ReferenceGemm0Instance{};
         auto ref_gemm0_invoker  = ref_gemm0.MakeInvoker();
         auto ref_gemm0_argument = ref_gemm0.MakeArgument(
-            a_g_m_k, b0_g_k_n, a1_g_m_n, a0_element_op, b0_element_op, c0_element_op);
+            a0_g_m_k, b0_g_k_n, a1_g_m_n, a0_element_op, b0_element_op, c0_element_op);
 
         ref_gemm0_invoker.Run(ref_gemm0_argument);
 
         auto ref_gemm1          = ReferenceGemm1Instance{};
         auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
         auto ref_gemm1_argument = ref_gemm1.MakeArgument(
-            a1_g_m_n, b1_g_n_o, c0_g_m_o_host_result, PassThrough{}, b1_element_op, c1_element_op);
+            a1_g_m_n, b1_g_n_o, c1_g_m_o_host_result, PassThrough{}, b1_element_op, c1_element_op);
 
         ref_gemm1_invoker.Run(ref_gemm1_argument);
 
-        return ck::utils::check_err(c0_g_m_o_device_result.mData, c0_g_m_o_host_result.mData) ? 0
+        return ck::utils::check_err(c1_g_m_o_device_result.mData, c1_g_m_o_host_result.mData) ? 0
                                                                                               : 1;
     }
 
