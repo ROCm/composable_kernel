@@ -340,6 +340,7 @@ int main(int argc, char* argv[])
                           BatchCount,
                           StrideA0,
                           StrideB0,
+                          StrideD0,
                           StrideB1,
                           StrideC1,
                           BatchStrideA0,

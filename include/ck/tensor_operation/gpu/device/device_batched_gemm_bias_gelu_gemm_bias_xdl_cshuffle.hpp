@@ -247,6 +247,25 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
         return gemm0_padder.PadBDescriptor_N_K(b0_grid_desc_nraw_kraw);
     }
 
+    // for Gemm0
+    static auto MakeD0GridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t StrideD0)
+    {
+        const auto d0_grid_desc_mraw_nraw = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, D0Layout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
+                                                    make_tuple(StrideD0, I1));
+            }
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, D0Layout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
+                                                    make_tuple(I1, StrideD0));
+            }
+        }();
+
+        return gemm0_padder.PadCDescriptor_M_N(d0_grid_desc_mraw_nraw);
+    }
+
     // for Gemm1
     static auto MakeB1GridDescriptor_N_K(index_t KRaw, index_t NRaw, index_t StrideB)
     {
@@ -289,10 +308,12 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
     {
         ComputeBasePtrOfStridedBatch(index_t BatchStrideA0,
                                      index_t BatchStrideB0,
+                                     index_t BatchStrideD0,
                                      index_t BatchStrideB1,
                                      index_t BatchStrideC1)
             : BatchStrideA0_(BatchStrideA0),
               BatchStrideB0_(BatchStrideB0),
+              BatchStrideD0_(BatchStrideD0),
               BatchStrideB1_(BatchStrideB1),
               BatchStrideC1_(BatchStrideC1)
         {
@@ -308,6 +329,11 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
             return g_idx * static_cast<long_index_t>(BatchStrideB0_);
         }
 
+        __host__ __device__ constexpr long_index_t GetD0BasePtr(index_t g_idx) const
+        {
+            return g_idx * static_cast<long_index_t>(BatchStrideD0_);
+        }
+
         __host__ __device__ constexpr long_index_t GetB1BasePtr(index_t g_idx) const
         {
             return g_idx * static_cast<long_index_t>(BatchStrideB1_);
@@ -321,12 +347,14 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
         private:
         index_t BatchStrideA0_;
         index_t BatchStrideB0_;
+        index_t BatchStrideD0_;
         index_t BatchStrideB1_;
         index_t BatchStrideC1_;
     };
 
     using A0GridDesc_M_K = decltype(MakeA0GridDescriptor_M_K(1, 1, 1));
     using B0GridDesc_N_K = decltype(MakeB0GridDescriptor_N_K(1, 1, 1));
+    using D0GridDesc_M_N = decltype(MakeD0GridDescriptor_M_N(1, 1, 1));
     using B1GridDesc_N_K = decltype(MakeB1GridDescriptor_N_K(1, 1, 1));
     using C1GridDesc_M_N = decltype(MakeC1GridDescriptor_M_N(1, 1, 1));
 
@@ -414,6 +442,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                  index_t Batch,
                  index_t StrideA0,
                  index_t StrideB0,
+                 index_t StrideD0,
                  index_t StrideB1,
                  index_t StrideC1,
                  index_t BatchStrideA0,
@@ -434,6 +463,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
               p_c1_grid_{p_c1_grid},
               a0_grid_desc_m_k_{DeviceOp::MakeA0GridDescriptor_M_K(MRaw, KRaw, StrideA0)},
               b0_grid_desc_n_k_{DeviceOp::MakeB0GridDescriptor_N_K(KRaw, NRaw, StrideB0)},
+              d0_grid_desc_m_n_{DeviceOp::MakeD0GridDescriptor_M_N(MRaw, NRaw, StrideD0)},
               b1_grid_desc_n_k_{DeviceOp::MakeB1GridDescriptor_N_K(NRaw, Gemm1NRaw, StrideB1)},
               c1_grid_desc_m_n_{DeviceOp::MakeC1GridDescriptor_M_N(MRaw, Gemm1NRaw, StrideC1)},
               a0_grid_desc_ak0_m_ak1_{
@@ -451,7 +481,8 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
               b1_element_op_{b1_element_op},
               c1_element_op_{c1_element_op},
               batch_count_(Batch),
-              compute_base_ptr_of_batch_{BatchStrideA0, BatchStrideB0, BatchStrideB1, BatchStrideC1}
+              compute_base_ptr_of_batch_{
+                  BatchStrideA0, BatchStrideB0, BatchStrideD0, BatchStrideB1, BatchStrideC1}
         {
             ignore = BatchStrideD0;
             if(GridwiseGemm::CheckValidity(a0_grid_desc_m_k_,
@@ -477,6 +508,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
         // tensor descriptors for problem definiton
         A0GridDesc_M_K a0_grid_desc_m_k_;
         B0GridDesc_N_K b0_grid_desc_n_k_;
+        D0GridDesc_M_N d0_grid_desc_m_n_;
         B1GridDesc_N_K b1_grid_desc_n_k_;
         C1GridDesc_M_N c1_grid_desc_m_n_;
 
@@ -626,6 +658,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                              index_t Batch,
                              index_t StrideA0,
                              index_t StrideB0,
+                             index_t StrideD0,
                              index_t StrideB1,
                              index_t StrideC1,
                              index_t BatchStrideA0,
@@ -642,9 +675,10 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
     {
         return Argument{p_a0,          p_b0,          p_d0,          p_b1,          p_c1,
                         MRaw,          NRaw,          KRaw,          Gemm1NRaw,     Batch,
-                        StrideA0,      StrideB0,      StrideB1,      StrideC1,      BatchStrideA0,
-                        BatchStrideB0, BatchStrideD0, BatchStrideB1, BatchStrideC1, a0_element_op,
-                        b0_element_op, c0_element_op, d0_element_op, b1_element_op, c1_element_op};
+                        StrideA0,      StrideB0,      StrideD0,      StrideB1,      StrideC1,
+                        BatchStrideA0, BatchStrideB0, BatchStrideD0, BatchStrideB1, BatchStrideC1,
+                        a0_element_op, b0_element_op, c0_element_op, d0_element_op, b1_element_op,
+                        c1_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -662,6 +696,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                                                       index_t Batch,
                                                       index_t StrideA0,
                                                       index_t StrideB0,
+                                                      index_t StrideD0,
                                                       index_t StrideB1,
                                                       index_t StrideC1,
                                                       index_t BatchStrideA0,
@@ -688,6 +723,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                                           Batch,
                                           StrideA0,
                                           StrideB0,
+                                          StrideD0,
                                           StrideB1,
                                           StrideC1,
                                           BatchStrideA0,
