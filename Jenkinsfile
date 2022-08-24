@@ -115,7 +115,12 @@ def buildDocker(install_prefix){
 def cmake_build(Map conf=[:]){
 
     def path = compiler_path()
-    def compiler = conf.get("compiler","${path}/clang++")
+    if (params.BUILD_COMPILER == "hipcc"){
+        def compiler = conf.get("compiler","/opt/rocm/bin/hipcc")
+    }
+    else{
+        def compiler = conf.get("compiler","${path}/clang++")
+    }
     def config_targets = conf.get("config_targets","check")
     def debug_flags = "-g -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined " + conf.get("extradebugflags", "")
     def build_envs = "CTEST_PARALLEL_LEVEL=4 " + conf.get("build_env","")
@@ -197,7 +202,6 @@ def buildHipClangJob(Map conf=[:]){
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 --env GPU_ARCH='${gpu_arch}' "
         }
-        //def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='${params.COMPILER_VERSION}' "
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' "
         if (params.COMPILER_VERSION != "release"){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
@@ -479,6 +483,10 @@ pipeline {
             name: 'COMPILER_VERSION', 
             defaultValue: 'ck-9110', 
             description: 'Specify which version of compiler to use: ck-9110 (default), release, or amd-stg-open.')
+        string(
+            name: 'BUILD_COMPILER', 
+            defaultValue: 'hipcc', 
+            description: 'Specify whether to build CK with hipcc (default) or with clang.')
         booleanParam(
             name: "RUN_FULL_QA",
             defaultValue: false,
@@ -597,7 +605,12 @@ pipeline {
                     agent{ label rocmnode("gfx908")}
                     environment{
                         setup_args = """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " """
-                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3" -D CMAKE_CXX_COMPILER="${compiler_path()}/clang++" .. && make -j """ 
+                        if (params.BUILD_COMPILER == "hipcc" ){
+                            execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3" -D CMAKE_CXX_COMPILER="/opt/rocm/bin/hipcc" .. && make -j """ 
+                        }
+                        else{
+                            execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3" -D CMAKE_CXX_COMPILER="${compiler_path()}/clang++" .. && make -j """ 
+                        }
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
