@@ -246,6 +246,9 @@ int main(int argc, char* argv[])
     BatchStrideB1 = BatchStrideB1 < 0 ? DefaultBatchStrideB1 : BatchStrideB1;
     BatchStrideC1 = BatchStrideC1 < 0 ? DefaultBatchStrideC1 : BatchStrideC1;
 
+    const int StrideD0      = 0;
+    const int BatchStrideD0 = ck::is_same_v<D0Layout, Col> ? M : N;
+
     auto f_host_tensor_descriptor = [](std::size_t batch_count,
                                        std::size_t row,
                                        std::size_t col,
@@ -269,7 +272,8 @@ int main(int argc, char* argv[])
         f_host_tensor_descriptor(BatchCount, M, K, StrideA0, BatchStrideA0, A0Layout{}));
     Tensor<B0DataType> b0_g_k_n(
         f_host_tensor_descriptor(BatchCount, K, N, StrideB0, BatchStrideB0, B0Layout{}));
-    Tensor<D0DataType> d0_g_m_n(f_host_tensor_descriptor(BatchCount, M, N, 0, N, D0Layout{}));
+    Tensor<D0DataType> d0_g_m_n(
+        f_host_tensor_descriptor(BatchCount, M, N, StrideD0, BatchStrideD0, D0Layout{}));
     Tensor<B1DataType> b1_g_n_o(
         f_host_tensor_descriptor(BatchCount, N, O, StrideB1, BatchStrideB1, B1Layout{}));
     Tensor<C1DataType> c0_g_m_o_host_result(
@@ -340,6 +344,7 @@ int main(int argc, char* argv[])
                           StrideC1,
                           BatchStrideA0,
                           BatchStrideB0,
+                          BatchStrideD0,
                           BatchStrideB1,
                           BatchStrideC1,
                           a0_element_op,

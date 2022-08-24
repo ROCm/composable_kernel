@@ -418,6 +418,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                  index_t StrideC1,
                  index_t BatchStrideA0,
                  index_t BatchStrideB0,
+                 index_t BatchStrideD0,
                  index_t BatchStrideB1,
                  index_t BatchStrideC1,
                  A0ElementwiseOperation a0_element_op,
@@ -452,6 +453,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
               batch_count_(Batch),
               compute_base_ptr_of_batch_{BatchStrideA0, BatchStrideB0, BatchStrideB1, BatchStrideC1}
         {
+            ignore = BatchStrideD0;
             if(GridwiseGemm::CheckValidity(a0_grid_desc_m_k_,
                                            b0_grid_desc_n_k_,
                                            b1_grid_desc_n_k_,
@@ -628,6 +630,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                              index_t StrideC1,
                              index_t BatchStrideA0,
                              index_t BatchStrideB0,
+                             index_t BatchStrideD0,
                              index_t BatchStrideB1,
                              index_t BatchStrideC1,
                              A0ElementwiseOperation a0_element_op,
@@ -640,8 +643,8 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
         return Argument{p_a0,          p_b0,          p_d0,          p_b1,          p_c1,
                         MRaw,          NRaw,          KRaw,          Gemm1NRaw,     Batch,
                         StrideA0,      StrideB0,      StrideB1,      StrideC1,      BatchStrideA0,
-                        BatchStrideB0, BatchStrideB1, BatchStrideC1, a0_element_op, b0_element_op,
-                        c0_element_op, d0_element_op, b1_element_op, c1_element_op};
+                        BatchStrideB0, BatchStrideD0, BatchStrideB1, BatchStrideC1, a0_element_op,
+                        b0_element_op, c0_element_op, d0_element_op, b1_element_op, c1_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -663,6 +666,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                                                       index_t StrideC1,
                                                       index_t BatchStrideA0,
                                                       index_t BatchStrideB0,
+                                                      index_t BatchStrideD0,
                                                       index_t BatchStrideB1,
                                                       index_t BatchStrideC1,
                                                       A0ElementwiseOperation a0_element_op,
@@ -688,6 +692,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                                           StrideC1,
                                           BatchStrideA0,
                                           BatchStrideB0,
+                                          BatchStrideD0,
                                           BatchStrideB1,
                                           BatchStrideC1,
                                           a0_element_op,

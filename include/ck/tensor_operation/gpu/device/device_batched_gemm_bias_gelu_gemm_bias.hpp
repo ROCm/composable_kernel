@@ -47,6 +47,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias : public BaseOperator
                         ck::index_t StrideC,
                         ck::index_t BatchStrideA,
                         ck::index_t BatchStrideB0,
+                        ck::index_t BatchStrideD0,
                         ck::index_t BatchStrideB1,
                         ck::index_t BatchStrideC,
                         AElementwiseOperation a_element_op,
