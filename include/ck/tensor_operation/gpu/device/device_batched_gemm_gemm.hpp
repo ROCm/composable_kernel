@@ -10,12 +10,10 @@ namespace tensor_operation {
 namespace device {
 
 // Batched GEMM + GEMM
-//   input  : A0[Batch, Gemm0M, Gemm0K]
-//   input  : B0[Batch, Gemm0N, Gemm0K]
-//   input  : B1[Batch, Gemm0M, Gemm0N]
-//   output : C1[Batch, Gemm0M, Gemm1N], where:
-//      Gemm0M == Gemm1M
-//      Gemm0N == Gemm1K
+//   input  : A0[Batch, M, K]
+//   input  : B0[Batch, N, K]
+//   input  : B1[Batch, M, N]
+//   output : C1[Batch, M, O]
 //
 //   C0 = a0_op(A0) * b0_op(B0)
 //   C1 = c0_op(C0) * b1_op(B1)
@@ -39,10 +37,10 @@ struct DeviceBatchedGemmGemm : public BaseOperator
                         const void* p_b0,
                         const void* p_b1,
                         void* p_c1,
-                        ck::index_t Gemm0M,
-                        ck::index_t Gemm0N,
-                        ck::index_t Gemm0K,
-                        ck::index_t Gemm1N,
+                        ck::index_t M,
+                        ck::index_t N,
+                        ck::index_t K,
+                        ck::index_t O,
                         ck::index_t Batch,
                         ck::index_t StrideA0,
                         ck::index_t StrideB0,
