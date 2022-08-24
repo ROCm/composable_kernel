@@ -271,8 +271,7 @@ struct Tensor
     ~Tensor() = default;
 
     Tensor& operator=(const Tensor&) = default;
-
-    Tensor& operator=(Tensor&&) = default;
+    Tensor& operator=(Tensor&&)      = default;
 
     template <typename FromT>
     explicit Tensor(const Tensor<FromT>& other) : Tensor(other.template CopyAsType<T>())
