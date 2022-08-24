@@ -62,26 +62,43 @@ int reduce_blockwise_impl(bool do_verification,
     // reduction operations 2) If InOutDataType is int8_t or int4_t, must use int32_t as AccDataType
     // for non-indexable reduction operations
     constexpr bool invalid_reduce_4 =
-        (std::is_same<InOutDataType, int8_t>::value ||
-         std::is_same<InOutDataType, int4_t>::value) &&
+        std::is_same<InOutDataType, int8_t>::value &&
         ((!op_support_indices && !std::is_same<AccDataType, int32_t>::value) ||
          (op_support_indices && !std::is_same<AccDataType, int8_t>::value));
 
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+    constexpr bool invalid_reduce_4_2 =
+        std::is_same<InOutDataType, int4_t>::value &&
+        ((!op_support_indices && !std::is_same<AccDataType, int32_t>::value) ||
+         (op_support_indices && !std::is_same<AccDataType, int8_t>::value));
+#endif
+
     // 1) If InOutDataType is int8_t or int4_t, the supported operation must be either indexable
     // operations or ADD/AVG
-    constexpr bool invalid_reduce_5 = (std::is_same<InOutDataType, int8_t>::value ||
-                                       std::is_same<InOutDataType, int4_t>::value) &&
+    constexpr bool invalid_reduce_5 = std::is_same<InOutDataType, int8_t>::value &&
                                       (!op_support_indices && ReduceOpId != ReduceTensorOp::ADD &&
                                        ReduceOpId != ReduceTensorOp::AVG);
+
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+    constexpr bool invalid_reduce_5_2 = std::is_same<InOutDataType, int4_t>::value &&
+                                        (!op_support_indices && ReduceOpId != ReduceTensorOp::ADD &&
+                                         ReduceOpId != ReduceTensorOp::AVG);
+#endif
 
     // 1) If InOutDataType is bhalf_t, must use float as AccDataType for all reduction operations
     constexpr bool invalid_reduce_6 =
         std::is_same<InOutDataType, bhalf_t>::value && !std::is_same<AccDataType, float>::value;
 
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+    constexpr bool invalid_reduce =
+        (invalid_reduce_1 || invalid_reduce_2 || invalid_reduce_3 || invalid_reduce_4 ||
+         invalid_reduce_5 || invalid_reduce_6 || invalid_reduce_4_2 || invalid_reduce_5_2);
+#else
     constexpr bool invalid_reduce = (invalid_reduce_1 || invalid_reduce_2 || invalid_reduce_3 ||
                                      invalid_reduce_4 || invalid_reduce_5 || invalid_reduce_6);
+#endif
 
-    if(invalid_reduce)
+    if constexpr(invalid_reduce)
     {
         std::cerr << "The reduction setting is invalid, exiting!" << std::endl;
         return (-1);
@@ -93,8 +110,12 @@ int reduce_blockwise_impl(bool do_verification,
     using AccElementwiseOperation =
         typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation;
 
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     using InOutDataTypeInDevice = typename std::
         conditional<std::is_same<InOutDataType, int4_t>::value, int8_t, InOutDataType>::type;
+#else
+    using InOutDataTypeInDevice   = InOutDataType;
+#endif
 
     using DeviceReduceInstance =
         ck::tensor_operation::device::DeviceReduceMultiBlock<InOutDataTypeInDevice,
@@ -174,6 +195,7 @@ int reduce_blockwise_impl(bool do_verification,
     DeviceMem in_dev(sizeof(InOutDataTypeInDevice) * in.mDesc.GetElementSpaceSize());
     DeviceMem out_dev(sizeof(InOutDataTypeInDevice) * out.mDesc.GetElementSpaceSize());
 
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     if(std::is_same<InOutDataType, int4_t>::value)
     {
         std::vector<InOutDataTypeInDevice> tmp_buf(in.mData.size());
@@ -182,10 +204,12 @@ int reduce_blockwise_impl(bool do_verification,
         in_dev.ToDevice(tmp_buf.data());
     }
     else
+#endif
         in_dev.ToDevice(in.mData.data());
 
     if(beta != 0.0f)
     {
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
         if(std::is_same<InOutDataType, int4_t>::value)
         {
             std::vector<InOutDataTypeInDevice> tmp_buf(in.mData.size());
@@ -194,6 +218,7 @@ int reduce_blockwise_impl(bool do_verification,
             out_dev.ToDevice(tmp_buf.data());
         }
         else
+#endif
             out_dev.ToDevice(out.mData.data());
     };
 
@@ -284,6 +309,7 @@ int reduce_blockwise_impl(bool do_verification,
 
     if(do_verification)
     {
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
         if(std::is_same<InOutDataType, int4_t>::value)
         {
             std::vector<InOutDataTypeInDevice> tmp_buf(out.mData.size());
@@ -293,6 +319,7 @@ int reduce_blockwise_impl(bool do_verification,
             std::copy_n(tmp_buf.data(), out.mData.size(), out.mData.data());
         }
         else
+#endif
             out_dev.FromDevice(out.mData.data());
 
         pass = pass && ck::utils::check_err(out.mData, out_ref.mData);

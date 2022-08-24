@@ -225,9 +225,9 @@ int main(int argc, char* argv[])
                 arg.scales[0],
                 arg.scales[1]);
         }
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
         else if(arg.data_type == 7)
         {
-#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
             pass = reduce_blockwise_test<int4_t, int32_t, ReduceTensorOp::AVG, false, false>(
                 arg.do_verification,
                 arg.init_method,
@@ -245,10 +245,8 @@ int main(int argc, char* argv[])
                                arg.reduceDims,
                                arg.scales[0],
                                arg.scales[1]);
-#else
-#error "To use int4_t, build the codes with CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4!!!"
-#endif
         }
+#endif
     }
     else
     {
