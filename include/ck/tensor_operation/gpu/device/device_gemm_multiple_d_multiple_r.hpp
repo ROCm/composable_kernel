@@ -3,15 +3,27 @@
 
 #pragma once
 
-#include <iostream>
+#include <array>
 
-#include "device_base.hpp"
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 
 // FIXME: DeviceGemmReduce type need to well define the problem
+// GEMM:
+//   input : A[AK0, M, AK1]
+//   input : B[AK0, N, AK1]
+//   input : D0[M, N], D1[M, N], ...
+//   output : E[M, N]
+//   output : R0[M], R1[M], ...
+//   C = a_op(A) * b_op(B)
+//   E = cde_op(C, D0, D1, ...)
+//   Q0 = reduce0(q_op0(E)), Q1 = reduce1(q_op0(E)), ...
+//   R0 = r_op0(Q0), R1 = r_op1(Q1), ...
+// Assume:
+//   D0, D1, ... and E have the same layout
 template <typename ALayout,
           typename BLayout,
           typename DELayout,
