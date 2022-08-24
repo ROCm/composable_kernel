@@ -2,11 +2,11 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 /*
-Gemm + Gemm fused operation. Computes C_m_o = A_m_k * B0_k_n * B1_n_o
-                                              |------------|
-                                                   Gemm0
-                                              |---------------------|
-                                                       Gemm1
+Batched Gemm + Gemm fused operation. Computes C1_g_m_o = A0_g_m_k * B0_g_k_n * B1_g_n_o
+                                                         |-----------------|
+                                                                Gemm0
+                                                         |----------------------------|
+                                                                     Gemm1
 */
 
 #include <iostream>

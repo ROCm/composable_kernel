@@ -109,9 +109,9 @@ __global__ void
 #endif
 }
 
-// Computes C = A * B0 * B1
-//              ^^^^^^ (Acc0)
-//              ^^^^^^^^^^^ (Acc1)
+// Computes C1 = A0 * B0 * B1
+//               ^^^^^^^ (Acc0)
+//               ^^^^^^^^^^^^ (Acc1)
 template <typename A0Layout,
           typename B0Layout, // B0Layout
           typename B1Layout,
@@ -128,10 +128,10 @@ template <typename A0Layout,
           typename C0ElementwiseOperation,
           typename B1ElementwiseOperation,
           typename C1ElementwiseOperation,
-          bool Gemm0PadM,
-          bool Gemm0PadN,
-          bool Gemm0PadK,
-          bool Gemm1PadN,
+          bool PadM, // Gemm0PadM
+          bool PadN, // Gemm0PadN
+          bool PadK, // Gemm0PadK
+          bool PadO, // Gemm1PadN
           index_t NumGemm0KPrefetchStage,
           index_t BlockSize,
           index_t Gemm0MPerBlock,
@@ -193,8 +193,13 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<A0Layou
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
+    // Gemm1's M is same as Gemm0's M
     // Gemm1's K is same as Gemm0's N
-    static constexpr bool Gemm1PadK = Gemm0PadN;
+    static constexpr bool Gemm0PadM = PadM;
+    static constexpr bool Gemm0PadN = PadN;
+    static constexpr bool Gemm0PadK = PadK;
+    static constexpr bool Gemm1PadK = PadN;
+    static constexpr bool Gemm1PadN = PadO;
 
     static constexpr auto gemm0_padder =
         GemmPadder_v2<Gemm0PadM, Gemm0PadN, Gemm0PadK, index_t, index_t, index_t>{
@@ -728,10 +733,10 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<A0Layou
         // clang-format off
         str << "DeviceBatchedGemmGemm_Xdl_CShuffle"
             << "<"
-            << Gemm0PadM << ", "
-            << Gemm0PadN << ", "
-            << Gemm0PadK << ", "
-            << Gemm1PadN << ", "
+            << PadM << ", "
+            << PadN << ", "
+            << PadK << ", "
+            << PadO << ", "
             << BlockSize << ", "
             << Gemm0MPerBlock << ", "
             << Gemm0NPerBlock << ", "
