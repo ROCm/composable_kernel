@@ -21,14 +21,14 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 template <typename Tuple>
 struct TestBatchedGemmGemm : public ::testing::Test
 {
-    using ADataType  = std::tuple_element_t<0, Tuple>;
+    using A0DataType = std::tuple_element_t<0, Tuple>;
     using B0DataType = std::tuple_element_t<1, Tuple>;
     using B1DataType = std::tuple_element_t<2, Tuple>;
-    using CDataType  = std::tuple_element_t<3, Tuple>;
-    using ALayout    = std::tuple_element_t<4, Tuple>;
+    using C1DataType = std::tuple_element_t<3, Tuple>;
+    using A0Layout   = std::tuple_element_t<4, Tuple>;
     using B0Layout   = std::tuple_element_t<5, Tuple>;
     using B1Layout   = std::tuple_element_t<6, Tuple>;
-    using CLayout    = std::tuple_element_t<7, Tuple>;
+    using C1Layout   = std::tuple_element_t<7, Tuple>;
 
     std::vector<std::vector<int>> lengths_ = {
         {256, 256, 64, 64, 4},
@@ -43,14 +43,14 @@ struct TestBatchedGemmGemm : public ::testing::Test
 
     void RunSingle(int M, int N, int K, int O, int BatchCount)
     {
-        bool pass = ck::profiler::profile_batched_gemm_gemm_impl<ADataType,
+        bool pass = ck::profiler::profile_batched_gemm_gemm_impl<A0DataType,
                                                                  B0DataType,
                                                                  B1DataType,
-                                                                 CDataType,
-                                                                 ALayout,
+                                                                 C1DataType,
+                                                                 A0Layout,
                                                                  B0Layout,
                                                                  B1Layout,
-                                                                 CLayout>(
+                                                                 C1Layout>(
             verify_, 1, false, bench_, M, N, K, O, BatchCount);
 
         EXPECT_TRUE(pass);
@@ -71,51 +71,54 @@ struct TestBatchedGemmGemm : public ::testing::Test
     }
 };
 
-template <GemmSpecialization GemmSpec>
+template <bool PadGemm0M, bool PadGemm0N, bool PadGemm0K, bool PadGemm1N>
 struct DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128
 {
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-    using ALayout  = Row;
+    using A0Layout = Row;
     using B0Layout = Col;
     using B1Layout = Row;
-    using CLayout  = Row;
+    using C1Layout = Row;
 
-    using ADataType        = F16;
-    using B0DataType       = F16;
-    using B1DataType       = F16;
-    using AccDataType      = float;
-    using CShuffleDataType = float;
-    using CDataType        = F16;
+    using A0DataType        = F16;
+    using B0DataType        = F16;
+    using Acc0DataType      = float;
+    using B1DataType        = F16;
+    using Acc1DataType      = float;
+    using C1ShuffleDataType = float;
+    using C1DataType        = F16;
 
-    using AElementOp    = PassThrough;
-    using B0ElementOp   = PassThrough;
-    using Acc0ElementOp = PassThrough;
-    using B1ElementOp   = PassThrough;
-    using CElementOp    = PassThrough;
+    using A0ElementOp = PassThrough;
+    using B0ElementOp = PassThrough;
+    using C0ElementOp = PassThrough;
+    using B1ElementOp = PassThrough;
+    using C1ElementOp = PassThrough;
 
     template <ck::index_t... Is>
     using S = ck::Sequence<Is...>;
 
-    // static constexpr auto GemmSpec = std::tuple_element_t<0, Tuple>::value;
-
     using DeviceGemmGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmGemm_Xdl_CShuffle<
-        ALayout,
+        A0Layout,
         B0Layout,
         B1Layout,
-        CLayout,
-        ADataType,
+        C1Layout,
+        A0DataType,
         B0DataType,
+        Acc0DataType,
         B1DataType,
-        CDataType,
-        AccDataType,
-        CShuffleDataType,
-        AElementOp,
+        Acc1DataType,
+        C1ShuffleDataType,
+        C1DataType,
+        A0ElementOp,
         B0ElementOp,
-        Acc0ElementOp,
+        C0ElementOp,
         B1ElementOp,
-        CElementOp,
-        GemmSpec,
+        C1ElementOp,
+        PadGemm0M,
+        PadGemm0N,
+        PadGemm0K,
+        PadGemm1N,
         1,
         256,
         128,         // MPerBlock
@@ -161,10 +164,10 @@ struct DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128
     {
         auto gemm     = DeviceGemmGemmInstance{};
         auto invoker  = gemm.MakeInvoker();
-        auto argument = gemm.MakeArgument(static_cast<ADataType*>(nullptr),
+        auto argument = gemm.MakeArgument(static_cast<A0DataType*>(nullptr),
                                           static_cast<B0DataType*>(nullptr),
                                           static_cast<B1DataType*>(nullptr),
-                                          static_cast<CDataType*>(nullptr),
+                                          static_cast<C1DataType*>(nullptr),
                                           M,
                                           N,
                                           K,

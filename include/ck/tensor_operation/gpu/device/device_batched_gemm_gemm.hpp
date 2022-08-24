@@ -3,53 +3,60 @@
 
 #pragma once
 
-#include <iostream>
-#include <vector>
-
 #include "device_base.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename ALayout,
+// Batched GEMM + GEMM
+//   input  : A0[Batch, Gemm0M, Gemm0K]
+//   input  : B0[Batch, Gemm0N, Gemm0K]
+//   input  : B1[Batch, Gemm0M, Gemm0N]
+//   output : C1[Batch, Gemm0M, Gemm1N], where:
+//      Gemm0M == Gemm1M
+//      Gemm0N == Gemm1K
+//
+//   C0 = a0_op(A0) * b0_op(B0)
+//   C1 = c0_op(C0) * b1_op(B1)
+template <typename A0Layout,
           typename B0Layout,
           typename B1Layout,
-          typename CLayout,
-          typename ADataType,
+          typename C1Layout,
+          typename A0DataType,
           typename B0DataType,
           typename B1DataType,
-          typename CDataType,
-          typename AElementwiseOperation,
+          typename C1DataType,
+          typename A0ElementwiseOperation,
           typename B0ElementwiseOperation,
-          typename Acc0ElementwiseOperation,
+          typename C0ElementwiseOperation,
           typename B1ElementwiseOperation,
-          typename CElementwiseOperation>
+          typename C1ElementwiseOperation>
 struct DeviceBatchedGemmGemm : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const void* p_a,
+    MakeArgumentPointer(const void* p_a0,
                         const void* p_b0,
                         const void* p_b1,
-                        void* p_c,
-                        ck::index_t M,
-                        ck::index_t N,
-                        ck::index_t K,
-                        ck::index_t O,
+                        void* p_c1,
+                        ck::index_t Gemm0M,
+                        ck::index_t Gemm0N,
+                        ck::index_t Gemm0K,
+                        ck::index_t Gemm1N,
                         ck::index_t Batch,
-                        ck::index_t StrideA,
+                        ck::index_t StrideA0,
                         ck::index_t StrideB0,
                         ck::index_t StrideB1,
-                        ck::index_t StrideC,
-                        ck::index_t BatchStrideA,
+                        ck::index_t StrideC1,
+                        ck::index_t BatchStrideA0,
                         ck::index_t BatchStrideB0,
                         ck::index_t BatchStrideB1,
-                        ck::index_t BatchStrideC,
-                        AElementwiseOperation a_element_op,
+                        ck::index_t BatchStrideC1,
+                        A0ElementwiseOperation a0_element_op,
                         B0ElementwiseOperation b0_element_op,
-                        Acc0ElementwiseOperation acc0_element_op,
+                        C0ElementwiseOperation c0_element_op,
                         B1ElementwiseOperation b1_element_op,
-                        CElementwiseOperation c_element_op) = 0;
+                        C1ElementwiseOperation c1_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };

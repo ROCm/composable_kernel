@@ -114,35 +114,45 @@ TEST(TestBatchedGemmGemmInterface, GemmSpecializationSizeMatch)
     int Q = 128; // do not require padding
 
     // IsSupported(M, N, K, O)
-    // clang-format off
-    EXPECT_TRUE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::Default>{}.IsSupported(Q, Q, Q, Q));
-    EXPECT_TRUE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MPadding>{}.IsSupported(P, Q, Q, Q));
-    EXPECT_TRUE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::NPadding>{}.IsSupported(Q, P, Q, Q));
-    EXPECT_TRUE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::KPadding>{}.IsSupported(Q, Q, P, Q));
-    EXPECT_TRUE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNPadding>{}.IsSupported(P, P, Q, Q));
-    EXPECT_TRUE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MKPadding>{}.IsSupported(P, Q, P, Q));
-    EXPECT_TRUE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::NKPadding>{}.IsSupported(Q, P, P, Q));
-    EXPECT_TRUE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKPadding>{}.IsSupported(P, P, P, Q));
-    EXPECT_TRUE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::OPadding>{}.IsSupported(Q, Q, Q, P));
-    EXPECT_TRUE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MOPadding>{}.IsSupported(P, Q, Q, P));
-    EXPECT_TRUE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::NOPadding>{}.IsSupported(Q, P, Q, P));
-    EXPECT_TRUE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::KOPadding>{}.IsSupported(Q, Q, P, P));
-    EXPECT_TRUE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNOPadding>{}.IsSupported(P, P, Q, P));
-    EXPECT_TRUE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MKOPadding>{}.IsSupported(P, Q, P, P));
-    EXPECT_TRUE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::NKOPadding>{}.IsSupported(Q, P, P, P));
-    EXPECT_TRUE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKOPadding>{}.IsSupported(P, P, P, P));
+    bool all_pass =
+        // clang-format off
+        // ###############################################     Pad|    Pad|    Pad|    Pad|
+        // ###############################################  Gemm0M| Gemm0N| Gemm0K| Gemm1N|
+        DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<  false,  false,  false,  false>{}.IsSupported(Q, Q, Q, Q) &&
+        DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<   true,  false,  false,  false>{}.IsSupported(P, Q, Q, Q) &&
+        DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<  false,   true,  false,  false>{}.IsSupported(Q, P, Q, Q) &&
+        DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<  false,  false,   true,  false>{}.IsSupported(Q, Q, P, Q) &&
+        DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<   true,   true,  false,  false>{}.IsSupported(P, P, Q, Q) &&
+        DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<   true,  false,   true,  false>{}.IsSupported(P, Q, P, Q) &&
+        DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<  false,   true,   true,  false>{}.IsSupported(Q, P, P, Q) &&
+        DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<   true,   true,   true,  false>{}.IsSupported(P, P, P, Q) &&
+        DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<  false,  false,  false,   true>{}.IsSupported(Q, Q, Q, P) &&
+        DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<   true,  false,  false,   true>{}.IsSupported(P, Q, Q, P) &&
+        DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<  false,   true,  false,   true>{}.IsSupported(Q, P, Q, P) &&
+        DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<  false,  false,   true,   true>{}.IsSupported(Q, Q, P, P) &&
+        DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<   true,   true,  false,   true>{}.IsSupported(P, P, Q, P) &&
+        DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<   true,  false,   true,   true>{}.IsSupported(P, Q, P, P) &&
+        DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<  false,   true,   true,   true>{}.IsSupported(Q, P, P, P) &&
+        DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<   true,   true,   true,   true>{}.IsSupported(P, P, P, P);
     // clang-format on
+
+    EXPECT_TRUE(all_pass);
 }
 
 TEST(TestBatchedGemmGemmInterface, GemmSpecializationSizeMismatch)
 {
     // IsSupported(M, N, K, O)
-    // clang-format off
-    EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::Default>{}.IsSupported(128, 128, 120, 128));
-    EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKPadding>{}.IsSupported(128, 128, 128, 120));
-    // Kernel can't support odd K because K must be integer multiples of K1 values of either A or B
-    EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKOPadding>{}.IsSupported(128, 128, 129, 128));
-    // Kernel can't support odd O size because it must satisfy SizeO % B1SrcScalarPerVector == 0
-    EXPECT_FALSE(DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<GemmSpecialization::MNKOPadding>{}.IsSupported(128, 128, 128, 129));
+    bool any_pass =
+        // clang-format off
+        // ###############################################     Pad|    Pad|    Pad|    Pad|
+        // ###############################################  Gemm0M| Gemm0N| Gemm0K| Gemm1N|
+        DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128< false,  false,  false,  false>{}.IsSupported(128, 128, 120, 128) ||
+        DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<  true,   true,   true,  false>{}.IsSupported(128, 128, 128, 120) ||
+        // Kernel can't support odd K because K must be integer multiples of K1 values of either A or B
+        DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<  true,   true,   true,   true>{}.IsSupported(128, 128, 129, 128) ||
+        // Kernel can't support odd O size because it must satisfy SizeO % B1SrcScalarPerVector == 0
+        DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128<  true,   true,   true,   true>{}.IsSupported(128, 128, 128, 129);
     // clang-format on
+
+    EXPECT_FALSE(any_pass);
 }
