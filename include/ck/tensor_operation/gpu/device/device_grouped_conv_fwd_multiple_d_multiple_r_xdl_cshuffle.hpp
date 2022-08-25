@@ -394,6 +394,7 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
     }
 
     template <typename ELay>
+    static auto
     MakeEGridDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
                             const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides)
     {
