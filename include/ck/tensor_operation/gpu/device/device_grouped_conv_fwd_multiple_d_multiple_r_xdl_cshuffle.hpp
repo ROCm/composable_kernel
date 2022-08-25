@@ -17,7 +17,7 @@
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_conv_fwd_multiple_d_multiple_r_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_multiple_r_xdl_cshuffle.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/io.hpp"
@@ -1290,7 +1290,7 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
     using RGridDesc_M   = remove_cvref_t<decltype(MakeRGridDescriptor_M(1))>;
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseConvFwdMultipleDMultipleR_xdl_cshuffle<
+    using GridwiseGemm = GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1<
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
         CShuffleDataType,
