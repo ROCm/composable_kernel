@@ -145,18 +145,7 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             "not support this GEMM problem");
     }
 
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
-
-    std::size_t flop      = std::size_t(2) * batch_count * M * N * K;
-    std::size_t num_btype = sizeof(ADataType) * batch_count * M * K +
-                            sizeof(BDataType) * batch_count * K * N +
-                            sizeof(EDataType) * batch_count * M * N;
-
-    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
-    float gb_per_sec = num_btype / 1.E6 / ave_time;
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << gemm.GetTypeString() << std::endl;
-
+    invoker.Run(argument, StreamConfig{nullptr, false});
     bool pass = true;
 
     if(config.do_verification)
@@ -191,6 +180,21 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         pass = ck::utils::check_err(
             e_g_m_n_device_result.mData, e_g_m_n_host_result.mData, "Error: Incorrect results c");
 #endif
+    }
+
+    if(config.time_kernel)
+    {
+        float ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+
+        std::size_t flop      = std::size_t(2) * batch_count * M * N * K;
+        std::size_t num_btype = sizeof(ADataType) * batch_count * M * K +
+                                sizeof(BDataType) * batch_count * K * N +
+                                sizeof(EDataType) * batch_count * M * N;
+
+        float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
+        float gb_per_sec = num_btype / 1.E6 / ave_time;
+        std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+                  << " GB/s, " << gemm.GetTypeString() << std::endl;
     }
 
     return pass ? 0 : 1;

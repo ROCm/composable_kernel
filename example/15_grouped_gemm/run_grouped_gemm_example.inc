@@ -178,12 +178,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             "not support this GEMM problem");
     }
 
-    float ave_time   = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
-    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
-    float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << gemm.GetTypeString() << std::endl;
+    invoker.Run(argument, StreamConfig{nullptr, false});
 
     bool pass = true;
     if(config.do_verification)
@@ -221,7 +216,17 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         }
     }
 
-    return pass ? 0 : 1;
+    if(config.time_kernel)
+    {
+        float ave_time   = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+        float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
+        float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+        std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+                  << " GB/s, " << gemm.GetTypeString() << std::endl;
+    }
+
+    return pass;
 }
 
 bool run_grouped_gemm_example(int argc, char* argv[])
