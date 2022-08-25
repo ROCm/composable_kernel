@@ -130,17 +130,19 @@ bool run_cgemm_xdl(ck::index_t M,
         Tensor<KernelBDataType> b_k_n_real_converted(b_k_n_real);
         Tensor<KernelBDataType> b_k_n_imag_converted(b_k_n_imag);
 
-        a_m_k_real = a_m_k_real_converted;
-        a_m_k_imag = a_m_k_imag_converted;
-        b_k_n_real = b_k_n_real_converted;
-        b_k_n_imag = b_k_n_imag_converted;
+        a_m_k_real_device_buf.ToDevice(a_m_k_real_converted.mData.data());
+        a_m_k_imag_device_buf.ToDevice(a_m_k_imag_converted.mData.data());
+        b_k_n_real_device_buf.ToDevice(b_k_n_real_converted.mData.data());
+        b_k_n_imag_device_buf.ToDevice(b_k_n_imag_converted.mData.data());
     }
+    else
 #endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-
-    a_m_k_real_device_buf.ToDevice(a_m_k_real.mData.data());
-    a_m_k_imag_device_buf.ToDevice(a_m_k_imag.mData.data());
-    b_k_n_real_device_buf.ToDevice(b_k_n_real.mData.data());
-    b_k_n_imag_device_buf.ToDevice(b_k_n_imag.mData.data());
+    {
+        a_m_k_real_device_buf.ToDevice(a_m_k_real.mData.data());
+        a_m_k_imag_device_buf.ToDevice(a_m_k_imag.mData.data());
+        b_k_n_real_device_buf.ToDevice(b_k_n_real.mData.data());
+        b_k_n_imag_device_buf.ToDevice(b_k_n_imag.mData.data());
+    }
 
     auto a_element_op = AElementwiseOperation{};
     auto b_element_op = BElementwiseOperation{};
@@ -217,21 +219,33 @@ bool run_cgemm_xdl(ck::index_t M,
             const Tensor<CDataType> c_m_n_real_device_result_converted(c_m_n_real_device_result);
             const Tensor<CDataType> c_m_n_imag_device_result_converted(c_m_n_imag_device_result);
 
-            c_m_n_real_device_result = c_m_n_real_device_result_converted;
-            c_m_n_imag_device_result = c_m_n_imag_device_result_converted;
+            result = ck::utils::check_err(c_m_n_real_device_result_converted.mData,
+                                          c_m_n_real_host_result.mData,
+                                          "Verification error: incorrect results in real part!",
+                                          1e-2f,
+                                          1e-1f);
+            result = result && ck::utils::check_err(
+                                   c_m_n_imag_device_result_converted.mData,
+                                   c_m_n_imag_host_result.mData,
+                                   "Verification error: incorrect results in imaginary part!",
+                                   1e-2f,
+                                   1e-1f);
         }
+        else
 #endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-        result = ck::utils::check_err(c_m_n_real_device_result.mData,
-                                      c_m_n_real_host_result.mData,
-                                      "Verification error: incorrect results in real part!",
-                                      1e-2f,
-                                      1e-1f);
-        result = result &&
-                 ck::utils::check_err(c_m_n_imag_device_result.mData,
-                                      c_m_n_imag_host_result.mData,
-                                      "Verification error: incorrect results in imaginary part!",
-                                      1e-2f,
-                                      1e-1f);
+        {
+            result = ck::utils::check_err(c_m_n_real_device_result.mData,
+                                          c_m_n_real_host_result.mData,
+                                          "Verification error: incorrect results in real part!",
+                                          1e-2f,
+                                          1e-1f);
+            result = result && ck::utils::check_err(
+                                   c_m_n_imag_device_result.mData,
+                                   c_m_n_imag_host_result.mData,
+                                   "Verification error: incorrect results in imaginary part!",
+                                   1e-2f,
+                                   1e-1f);
+        }
 
         return result;
     }
