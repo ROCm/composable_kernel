@@ -56,6 +56,8 @@ struct DeviceGroupedConvFwdMultipleDMultipleR : public BaseOperator
         const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides,
         const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
         const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+        const std::array<index_t, NDimSpatial + 2>& r_g_n_wos_lengths,
+        const std::array<index_t, NDimSpatial + 2>& r_g_n_wos_strides,
         const std::array<index_t, NDimSpatial>& conv_filter_strides,
         const std::array<index_t, NDimSpatial>& conv_filter_dilations,
         const std::array<index_t, NDimSpatial>& input_left_pads,

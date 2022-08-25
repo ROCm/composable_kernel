@@ -408,36 +408,59 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
         return out_gemmm_gemmn_desc;
     }
 
-    static auto MakeRGridDescriptor_M(index_t MRaw)
+    template <typename ELay,
+              typename std::enable_if<is_same_v<ELay, tensor_layout::convolution::GNWK> ||
+                                          is_same_v<ELay, tensor_layout::convolution::GNHWK> ||
+                                          is_same_v<ELay, tensor_layout::convolution::GNDHWK>,
+                                      bool>::type = false>
+    static auto
+    MakeRGridDescriptor_M(const std::array<index_t, NDimSpatial + 2>& r_g_n_wos_lengths,
+                          const std::array<index_t, NDimSpatial + 2>& /* r_g_n_wos_strides */)
     {
-        const auto r_grid_desc_mraw = make_naive_tensor_descriptor_packed(make_tuple(MRaw));
+        const index_t N = r_g_n_wos_lengths[1];
 
-        const auto M    = math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
-        const auto MPad = M - MRaw;
+        const index_t NHoWo = N * std::accumulate(r_g_n_wos_lengths.begin() + 2,
+                                                  r_g_n_wos_lengths.begin() + 2 + NDimSpatial,
+                                                  index_t{1},
+                                                  std::multiplies<index_t>());
 
-        if constexpr(GemmSpec == GemmSpecialization::MPadding ||
-                     GemmSpec == GemmSpecialization::MNPadding ||
-                     GemmSpec == GemmSpecialization::MKPadding ||
-                     GemmSpec == GemmSpecialization::MNKPadding)
-        {
-            // pad M
-            return transform_tensor_descriptor(r_grid_desc_mraw,
-                                               make_tuple(make_right_pad_transform(MRaw, MPad)),
-                                               make_tuple(Sequence<0>{}),
-                                               make_tuple(Sequence<0>{}));
-        }
-        else
-        {
-            // not pad M
-            return r_grid_desc_mraw;
-        }
+        const auto out_gemmm_gemmn_desc = make_naive_tensor_descriptor_packed(make_tuple(NHoWo));
+
+        return out_gemmm_gemmn_desc;
+    }
+
+    template <typename ELay,
+              typename std::enable_if<is_same_v<ELay, tensor_layout::convolution::G_NW_K> ||
+                                          is_same_v<ELay, tensor_layout::convolution::G_NHW_K> ||
+                                          is_same_v<ELay, tensor_layout::convolution::G_NDHW_K> ||
+                                          is_same_v<ELay, tensor_layout::convolution::NWGK> ||
+                                          is_same_v<ELay, tensor_layout::convolution::NHWGK> ||
+                                          is_same_v<ELay, tensor_layout::convolution::NDHWGK>,
+                                      bool>::type = false>
+    static auto
+    MakeRGridDescriptor_M_N(const std::array<index_t, NDimSpatial + 2>& r_g_n_wos_lengths,
+                            const std::array<index_t, NDimSpatial + 2>& r_g_n_wos_strides)
+    {
+        const index_t N = r_g_n_wos_lengths[1];
+
+        const index_t WoStride = r_g_n_wos_strides[NDimSpatial + 2];
+
+        const index_t NHoWo = N * std::accumulate(r_g_n_wos_lengths.begin() + 2,
+                                                  r_g_n_wos_lengths.begin() + 2 + NDimSpatial,
+                                                  index_t{1},
+                                                  std::multiplies<index_t>());
+
+        const auto out_gemmm_gemmn_desc =
+            make_naive_tensor_descriptor(make_tuple(NHoWo), make_tuple(WoStride));
+
+        return out_gemmm_gemmn_desc;
     }
 
     using AGridDesc_M_K = remove_cvref_t<decltype(
         MakeAGridDescriptor_M_K<ALayout>({}, {}, {}, {}, {}, {}, {}, {}, {}, {}))>;
     using BGridDesc_N_K = remove_cvref_t<decltype(MakeBGridDescriptor_N_K<BLayout>({}, {}))>;
     using EGridDesc_M_N = remove_cvref_t<decltype(MakeEGridDescriptor_M_N<DELayout>({}, {}))>;
-    using RGridDesc_M   = remove_cvref_t<decltype(MakeRGridDescriptor_M(1))>;
+    using RGridDesc_M   = remove_cvref_t<decltype(MakeRGridDescriptor_M<DELayout>({}, {}))>;
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1<
@@ -519,6 +542,8 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
                      ds_g_n_k_wos_strides,
                  const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
                  const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+                 const std::array<index_t, NDimSpatial + 2>& r_g_n_wos_lengths,
+                 const std::array<index_t, NDimSpatial + 2>& r_g_n_wos_strides,
                  const std::array<index_t, NDimSpatial>& conv_filter_strides,
                  const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                  const std::array<index_t, NDimSpatial>& input_left_pads,
@@ -548,7 +573,8 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
               ds_grid_desc_m_n_{},
               e_grid_desc_m_n_{DeviceOp::MakeEGridDescriptor_M_N<DELayout>(e_g_n_k_wos_lengths,
                                                                            e_g_n_k_wos_strides)},
-              r_grid_desc_m_{DeviceOp::MakeRGridDescriptor_M(a_g_n_c_wis_lengths[0])},
+              r_grid_desc_m_{
+                  DeviceOp::MakeRGridDescriptor_M<DELayout>(r_g_n_wos_lengths, r_g_n_wos_strides)},
               a_grid_desc_ak0_m_ak1_{
                   GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_)},
               b_grid_desc_bk0_n_bk1_{
@@ -976,6 +1002,8 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
         const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides,
         const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
         const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+        const std::array<index_t, NDimSpatial + 2>& r_g_n_wos_lengths,
+        const std::array<index_t, NDimSpatial + 2>& r_g_n_wos_strides,
         const std::array<index_t, NDimSpatial>& conv_filter_strides,
         const std::array<index_t, NDimSpatial>& conv_filter_dilations,
         const std::array<index_t, NDimSpatial>& input_left_pads,
@@ -999,6 +1027,8 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
                         ds_g_n_k_wos_strides,
                         e_g_n_k_wos_lengths,
                         e_g_n_k_wos_strides,
+                        r_g_n_wos_lengths,
+                        r_g_n_wos_strides,
                         conv_filter_strides,
                         conv_filter_dilations,
                         input_left_pads,
@@ -1026,6 +1056,8 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
         const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides,
         const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
         const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+        const std::array<index_t, NDimSpatial + 2>& r_g_n_wos_lengths,
+        const std::array<index_t, NDimSpatial + 2>& r_g_n_wos_strides,
         const std::array<index_t, NDimSpatial>& conv_filter_strides,
         const std::array<index_t, NDimSpatial>& conv_filter_dilations,
         const std::array<index_t, NDimSpatial>& input_left_pads,
@@ -1049,6 +1081,8 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
                                           ds_g_n_k_wos_strides,
                                           e_g_n_k_wos_lengths,
                                           e_g_n_k_wos_strides,
+                                          r_g_n_wos_lengths,
+                                          r_g_n_wos_strides,
                                           conv_filter_strides,
                                           conv_filter_dilations,
                                           input_left_pads,
