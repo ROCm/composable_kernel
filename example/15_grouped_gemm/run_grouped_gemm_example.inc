@@ -22,6 +22,12 @@ struct ExecutionConfig final
 
 bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
 {
+#if defined(BUILD_INT4_EXAMPLE) && defined(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
+    static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
+    static_assert(sizeof(ADataType) == sizeof(KernelADataType));
+    static_assert(sizeof(BDataType) == sizeof(KernelBDataType));
+    static_assert(sizeof(EDataType) == sizeof(KernelEDataType));
+#endif
     int group_count = problem_size.group_count;
 
     // GEMM shape
@@ -61,7 +67,11 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     std::vector<Tensor<ADataType>> a_tensors;
     std::vector<Tensor<BDataType>> b_tensors;
     std::vector<Tensor<EDataType>> c_host_tensors;
+#ifdef BUILD_INT4_EXAMPLE
+    std::vector<Tensor<KernelEDataType>> c_device_tensors;
+#else
     std::vector<Tensor<EDataType>> c_device_tensors;
+#endif
 
     a_tensors.reserve(group_count);
     b_tensors.reserve(group_count);
@@ -86,9 +96,13 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             gemm_descs[i].K_, gemm_descs[i].N_, gemm_descs[i].stride_B_, BLayout{})));
         c_host_tensors.push_back(Tensor<EDataType>(f_host_tensor_descriptor(
             gemm_descs[i].M_, gemm_descs[i].N_, gemm_descs[i].stride_C_, ELayout{})));
+#ifdef BUILD_INT4_EXAMPLE
+        c_device_tensors.push_back(Tensor<KernelEDataType>(f_host_tensor_descriptor(
+            gemm_descs[i].M_, gemm_descs[i].N_, gemm_descs[i].stride_C_, ELayout{})));
+#else
         c_device_tensors.push_back(Tensor<EDataType>(f_host_tensor_descriptor(
             gemm_descs[i].M_, gemm_descs[i].N_, gemm_descs[i].stride_C_, ELayout{})));
-
+#endif
         std::cout << "gemm[" << i << "] a_m_k: " << a_tensors[i].mDesc
                   << " b_k_n: " << b_tensors[i].mDesc << " c_m_n: " << c_device_tensors[i].mDesc
                   << std::endl;
@@ -124,8 +138,16 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         c_tensors_device.emplace_back(std::make_unique<DeviceMem>(
             sizeof(EDataType) * c_device_tensors[i].mDesc.GetElementSpaceSize()));
 
+#ifdef BUILD_INT4_EXAMPLE
+        const Tensor<KernelADataType> a_converted(a_tensors[i]);
+        const Tensor<KernelBDataType> b_converted(b_tensors[i]);
+
+        a_tensors_device[i]->ToDevice(a_converted.mData.data());
+        b_tensors_device[i]->ToDevice(b_converted.mData.data());
+#else
         a_tensors_device[i]->ToDevice(a_tensors[i].mData.data());
         b_tensors_device[i]->ToDevice(b_tensors[i].mData.data());
+#endif
 
         p_a.push_back(a_tensors_device[i]->GetDeviceBuffer());
         p_b.push_back(b_tensors_device[i]->GetDeviceBuffer());
@@ -156,14 +178,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             "not support this GEMM problem");
     }
 
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
-
-    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
-    float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << gemm.GetTypeString() << std::endl;
+    invoker.Run(argument, StreamConfig{nullptr, false});
 
     bool pass = true;
     if(config.do_verification)
@@ -190,11 +205,28 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                                                       c_element_op);
 
             ref_invoker.Run(ref_argument);
+
+#ifdef BUILD_INT4_EXAMPLE
+            const Tensor<EDataType> c_device_result_converted(c_device_tensors[i]);
+            pass &= ck::utils::check_err(c_device_result_converted.mData, c_host_tensors[i].mData);
+
+#else
             pass &= ck::utils::check_err(c_device_tensors[i].mData, c_host_tensors[i].mData);
+#endif
         }
     }
 
-    return pass ? 0 : 1;
+    if(config.time_kernel)
+    {
+        float ave_time   = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+        float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
+        float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+        std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+                  << " GB/s, " << gemm.GetTypeString() << std::endl;
+    }
+
+    return pass;
 }
 
 bool run_grouped_gemm_example(int argc, char* argv[])
@@ -208,7 +240,7 @@ bool run_grouped_gemm_example(int argc, char* argv[])
     {
         problem_size.Ms.push_back(256 + 256 * i);
         problem_size.Ns.push_back(128 + 128 * i);
-        problem_size.Ks.push_back(64 + 64 * i);
+        problem_size.Ks.push_back(128 + 64 * i);
 
         problem_size.stride_As.push_back(problem_size.Ks[i]);
         problem_size.stride_Bs.push_back(problem_size.Ks[i]);
