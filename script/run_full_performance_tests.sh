@@ -122,3 +122,17 @@ export reduction_log="perf_reduction_${gpu_arch}.log"
 print_log_header $reduction_log $env_type $branch $host_name
 ./profile_reduce_with_index.sh $verify 2 10 --half | tee -a $reduction_log
 ./profile_reduce_no_index.sh $verify 2 10 --half | tee -a $reduction_log
+
+#run splitK_gemm tests
+export splitK_gemm_log="perf_splitK_gemm_${gpu_arch}.log"
+print_log_header $splitK_gemm_log $env_type $branch $host_name
+
+#../script/profile_splitK_gemm.sh gemm_splitk 0 0 $verify 1 0 1 4 | tee -a $splitK_gemm_log
+#../script/profile_splitK_gemm.sh gemm_splitk 0 1 $verify 1 0 1 4 | tee -a $splitK_gemm_log
+#../script/profile_splitK_gemm.sh gemm_splitk 0 2 $verify 1 0 1 4 | tee -a $splitK_gemm_log
+#../script/profile_splitK_gemm.sh gemm_splitk 0 3 $verify 1 0 1 4 | tee -a $splitK_gemm_log
+
+../script/profile_splitK_gemm.sh gemm_splitk 1 0 $verify 1 0 1 4 | tee -a $splitK_gemm_log
+../script/profile_splitK_gemm.sh gemm_splitk 1 1 $verify 1 0 1 4 | tee -a $splitK_gemm_log
+../script/profile_splitK_gemm.sh gemm_splitk 1 2 $verify 1 0 1 4 | tee -a $splitK_gemm_log
+../script/profile_splitK_gemm.sh gemm_splitk 1 3 $verify 1 0 1 4 | tee -a $splitK_gemm_log
