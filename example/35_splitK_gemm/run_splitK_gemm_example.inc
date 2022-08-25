@@ -24,6 +24,12 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
 {
     using namespace ck::literals;
 
+#if defined(BUILD_INT4_EXAMPLE) && defined(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
+    static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
+    static_assert(sizeof(ADataType) == sizeof(KernelADataType));
+    static_assert(sizeof(BDataType) == sizeof(KernelBDataType));
+#endif
+
     auto& [M, N, K, StrideA, StrideB, StrideC, KBatch] = problem_size;
 
     auto f_host_tensor_descriptor =
@@ -42,12 +48,11 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-    Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
-    std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
+    std::cout << "c_m_n: " << c_m_n_device_result.mDesc << std::endl;
 
     switch(config.init_method)
     {
@@ -69,8 +74,16 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
+#ifdef BUILD_INT4_EXAMPLE
+    const Tensor<KernelADataType> a_m_k_converted(a_m_k);
+    const Tensor<KernelBDataType> b_k_n_converted(b_k_n);
+
+    a_m_k_device_buf.ToDevice(a_m_k_converted.mData.data());
+    b_k_n_device_buf.ToDevice(b_k_n_converted.mData.data());
+#else
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
+#endif
     c_m_n_device_buf.SetZero();
 
     auto a_element_op = AElementOp{};
@@ -80,19 +93,25 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
     // do GEMM
     auto gemm     = DeviceGemmInstance{};
     auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-                                      static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-                                      static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-                                      M,
-                                      N,
-                                      K,
-                                      StrideA,
-                                      StrideB,
-                                      StrideC,
-                                      a_element_op,
-                                      b_element_op,
-                                      c_element_op,
-                                      KBatch);
+    auto argument = gemm.MakeArgument(
+#ifdef BUILD_INT4_EXAMPLE
+        static_cast<KernelADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+        static_cast<KernelBDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+#else
+        static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+        static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+#endif
+        static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+        M,
+        N,
+        K,
+        StrideA,
+        StrideB,
+        StrideC,
+        a_element_op,
+        b_element_op,
+        c_element_op,
+        KBatch);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -101,23 +120,12 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
         return 0;
     }
 
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
-
-    std::size_t flop = std::size_t(2) * M * N * K;
-    std::size_t num_btype =
-        sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
-
-    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
-    float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << gemm.GetTypeString() << std::endl;
-
-    c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
+    invoker.Run(argument, StreamConfig{nullptr, false});
+    bool pass = true;
 
     if(config.do_verification)
     {
+        c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                                 BDataType,
                                                                                 CDataType,
@@ -129,6 +137,8 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
 
+        Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+
         auto ref_argument = ref_gemm.MakeArgument(
             a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
 
@@ -136,19 +146,33 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
 
         if(std::is_same<CDataType, ck::half_t>::value)
         {
-            return ck::utils::check_err(c_m_n_device_result.mData,
-                                        c_m_n_host_result.mData,
-                                        "fp16 incorrect result",
-                                        3e-3,
-                                        1e-3);
+            pass &= ck::utils::check_err(c_m_n_device_result.mData,
+                                         c_m_n_host_result.mData,
+                                         "fp16 incorrect result",
+                                         3e-3,
+                                         1e-3);
         }
         else
         {
-            return ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
+            pass &= ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
         }
     }
 
-    return true;
+    if(config.time_kernel)
+    {
+        float ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+
+        std::size_t flop = std::size_t(2) * M * N * K;
+        std::size_t num_btype =
+            sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
+
+        float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
+        float gb_per_sec = num_btype / 1.E6 / ave_time;
+        std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+                  << " GB/s, " << gemm.GetTypeString() << std::endl;
+    }
+
+    return pass;
 }
 
 bool run_splitK_gemm_example(int argc, char* argv[])

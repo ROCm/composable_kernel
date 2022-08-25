@@ -117,16 +117,16 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
-    return run_cgemm_xdl<ADataType,
-                         BDataType,
-                         CDataType,
-                         ALayout,
-                         BLayout,
-                         CLayout,
-                         PassThrough,
-                         PassThrough,
-                         PassThrough,
-                         DeviceCGemmInstance,
-                         ReferenceCGemmInstance>(
+    return !run_cgemm_xdl<ADataType,
+                          BDataType,
+                          CDataType,
+                          ALayout,
+                          BLayout,
+                          CLayout,
+                          PassThrough,
+                          PassThrough,
+                          PassThrough,
+                          DeviceCGemmInstance,
+                          ReferenceCGemmInstance>(
         M, N, K, StrideA, StrideB, StrideC, do_verification, init_method, time_kernel);
 }
