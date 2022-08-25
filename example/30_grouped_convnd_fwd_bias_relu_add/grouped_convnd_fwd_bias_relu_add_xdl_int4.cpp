@@ -8,18 +8,18 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 
 // kernel data types
-using InKernelDataType       = ck::bhalf_t;
-using WeiKernelDataType      = ck::bhalf_t;
-using AccDataType            = float;
-using CShuffleDataType       = float;
-using BiasKernelDataType     = ck::bhalf_t;
-using ResidualKernelDataType = ck::bhalf_t;
-using OutKernelDataType      = ck::bhalf_t;
+using InKernelDataType       = int8_t;
+using WeiKernelDataType      = int8_t;
+using AccDataType            = int32_t;
+using CShuffleDataType       = int8_t;
+using BiasKernelDataType     = int8_t;
+using ResidualKernelDataType = int8_t;
+using OutKernelDataType      = int8_t;
 
 // tensor data types
-using InUserDataType  = InKernelDataType;
-using WeiUserDataType = WeiKernelDataType;
-using OutUserDataType = OutKernelDataType;
+using InUserDataType  = ck::int4_t;
+using WeiUserDataType = ck::int4_t;
+using OutUserDataType = ck::int4_t;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -61,9 +61,9 @@ using DeviceGroupedConvNDFwdInstance =
         256,         // BlockSize
         128,         // MPerBlock
         256,         // NPerBlock
-        32,          // KPerBlock
-        8,           // AK1
-        8,           // BK1
+        64,          // KPerBlock
+        16,          // AK1
+        16,          // BK1
         32,          // MPerXdl
         32,          // NPerXdl
         2,           // MXdlPerWave
@@ -72,20 +72,20 @@ using DeviceGroupedConvNDFwdInstance =
         S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
         2,           // ABlockTransferSrcVectorDim
-        8,           // ABlockTransferSrcScalarPerVector
-        8,           // ABlockTransferDstScalarPerVector_AK1
+        16,          // ABlockTransferSrcScalarPerVector
+        16,          // ABlockTransferDstScalarPerVector_AK1
         1,           // ABlockLdsExtraM
         S<4, 64, 1>, // BBlockTransferThreadClusterLengths_BK0_N_BK1
         S<1, 0, 2>,  // BBlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // BBlockTransferSrcAccessOrder
         2,           // BBlockTransferSrcVectorDim
-        8,           // BBlockTransferSrcScalarPerVector
-        8,           // BBlockTransferDstScalarPerVector_BK1
+        16,          // BBlockTransferSrcScalarPerVector
+        16,          // BBlockTransferDstScalarPerVector_BK1
         1,           // BBlockLdsExtraN
         1,
         1,
-        S<1, 32, 1, 8>,
-        8>;
+        S<1, 64, 1, 4>,
+        16>;
 
 int main(int argc, char* argv[])
 {
