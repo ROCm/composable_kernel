@@ -67,7 +67,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     std::vector<Tensor<ADataType>> a_tensors;
     std::vector<Tensor<BDataType>> b_tensors;
     std::vector<Tensor<EDataType>> c_host_tensors;
-#ifdef BUILD_INT4_EXAMPLE 
+#ifdef BUILD_INT4_EXAMPLE
     std::vector<Tensor<KernelEDataType>> c_device_tensors;
 #else
     std::vector<Tensor<EDataType>> c_device_tensors;
@@ -96,7 +96,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             gemm_descs[i].K_, gemm_descs[i].N_, gemm_descs[i].stride_B_, BLayout{})));
         c_host_tensors.push_back(Tensor<EDataType>(f_host_tensor_descriptor(
             gemm_descs[i].M_, gemm_descs[i].N_, gemm_descs[i].stride_C_, ELayout{})));
-#ifdef BUILD_INT4_EXAMPLE    
+#ifdef BUILD_INT4_EXAMPLE
         c_device_tensors.push_back(Tensor<KernelEDataType>(f_host_tensor_descriptor(
             gemm_descs[i].M_, gemm_descs[i].N_, gemm_descs[i].stride_C_, ELayout{})));
 #else
@@ -178,8 +178,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             "not support this GEMM problem");
     }
 
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
-    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+    float ave_time   = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
@@ -235,11 +235,7 @@ bool run_grouped_gemm_example(int argc, char* argv[])
     {
         problem_size.Ms.push_back(256 + 256 * i);
         problem_size.Ns.push_back(128 + 128 * i);
-#ifdef BUILD_INT4_EXAMPLE
         problem_size.Ks.push_back(128 + 64 * i);
-#else
-        problem_size.Ks.push_back(64 + 64 * i);
-#endif
 
         problem_size.stride_As.push_back(problem_size.Ks[i]);
         problem_size.stride_Bs.push_back(problem_size.Ks[i]);
