@@ -25,11 +25,13 @@ template <typename A0B0B1DataType, // FIXME: don't assume A0/B0/B1 have same dat
           typename A0ElementwiseOperation,
           typename B0ElementwiseOperation,
           typename C0ElementwiseOperation,
+          typename D0ElementwiseOperation,
           typename B1ElementwiseOperation,
           typename C1ElementwiseOperation,
           InMemoryDataOperationEnum C1GlobalMemoryDataOperation,
           typename A0GridDesc_M_K,
           typename B0GridDesc_N_K,
+          typename D0GridDesc_M_N,
           typename B1GridDesc_N_K,
           typename C1GridDesc_M_N,
           index_t NumGemm0KPrefetchStage,
@@ -383,21 +385,27 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
               typename Block2C1TileMap>
     __device__ static void Run(const A0B0B1DataType* __restrict__ p_a0_grid,
                                const A0B0B1DataType* __restrict__ p_b0_grid,
+                               const A0B0B1DataType* __restrict__ p_d0_grid,
                                const A0B0B1DataType* __restrict__ p_b1_grid,
                                C1DataType* __restrict__ p_c1_grid,
                                void* __restrict__ p_shared,
                                const A0ElementwiseOperation& a0_element_op,
                                const B0ElementwiseOperation& b0_element_op,
                                const C0ElementwiseOperation& c0_element_op,
+                               const D0ElementwiseOperation& d0_element_op,
                                const B1ElementwiseOperation& b1_element_op,
                                const C1ElementwiseOperation& c1_element_op,
                                const A0GridDesc_AK0_M_AK1& a0_grid_desc_ak0_m_ak1,
                                const B0GridDesc_BK0_N_BK1& b0_grid_desc_bk0_n_bk1,
+                               const D0GridDesc_M_N& d0_grid_desc_m_n,
                                const B1GridDesc_BK0_N_BK1& b1_grid_desc_bk0_n_bk1,
                                const C1GridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock&
                                    c1_grid_desc_mblock_mperblock_nblock_nperblock,
                                const Block2C1TileMap& block_2_c1tile_map)
     {
+        ignore                 = p_d0_grid;
+        ignore                 = d0_element_op;
+        ignore                 = d0_grid_desc_m_n;
         const auto a0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a0_grid, a0_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
