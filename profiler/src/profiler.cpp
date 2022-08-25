@@ -46,6 +46,7 @@ static void print_helper_message()
 
 int main(int argc, char* argv[])
 {
+#if 0
     if(argc == 1)
     {
         print_helper_message();
@@ -123,6 +124,11 @@ int main(int argc, char* argv[])
     else if(strcmp(argv[1], "layernorm") == 0)
     {
         return profile_layernorm(argc, argv);
+    }
+#endif
+    if(strcmp(argv[1], "gemm_splitk") == 0)
+    {
+        return profile_gemm_splitk(argc, argv);
     }
     else
     {
