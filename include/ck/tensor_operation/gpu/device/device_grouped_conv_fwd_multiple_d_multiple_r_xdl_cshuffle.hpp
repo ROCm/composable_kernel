@@ -426,9 +426,9 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
                                                   index_t{1},
                                                   std::multiplies<index_t>());
 
-        const auto out_gemmm_gemmn_desc = make_naive_tensor_descriptor_packed(make_tuple(NHoWo));
+        const auto out_gemmm_desc = make_naive_tensor_descriptor_packed(make_tuple(NHoWo));
 
-        return out_gemmm_gemmn_desc;
+        return out_gemmm_desc;
     }
 
     template <typename RLay,
@@ -452,10 +452,10 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
                                                   index_t{1},
                                                   std::multiplies<index_t>());
 
-        const auto out_gemmm_gemmn_desc =
+        const auto out_gemmm_desc =
             make_naive_tensor_descriptor(make_tuple(NHoWo), make_tuple(WoStride));
 
-        return out_gemmm_gemmn_desc;
+        return out_gemmm_desc;
     }
 
     using AGridDesc_M_K = remove_cvref_t<decltype(
