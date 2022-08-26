@@ -3,9 +3,6 @@
 
 #pragma once
 
-#include <iostream>
-#include <vector>
-
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 
 namespace ck {

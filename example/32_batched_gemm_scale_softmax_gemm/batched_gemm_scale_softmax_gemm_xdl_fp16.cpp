@@ -2,11 +2,11 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 /*
-Gemm + Gemm fused operation. Computes C_m_o = A_m_k * B0_k_n * B1_n_o
-                                              |------------|
-                                                   Gemm0
-                                              |---------------------|
-                                                       Gemm1
+Gemm + Softmax + Gemm fused operation. Computes C_g_m_o = Softmax(A_g_m_k * B0_g_k_n) * B1_g_n_o
+                                                                  |-----------------|
+                                                                          Gemm0
+                                                          |-------------------------------------|
+                                                                          Gemm1
 */
 
 #include <iostream>
@@ -215,9 +215,9 @@ int main(int argc, char* argv[])
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 17: M, N, K, O, Batch, StrideA, StrideB0, StrideB1, StrideC, BatchStrideA, "
+        printf("arg4 to 16: M, N, K, O, Batch, StrideA, StrideB0, StrideB1, StrideC, BatchStrideA, "
                "BatchStrideB0, BatchStrideB1, BatchStrideC\n");
-        printf("arg18: alpha\n");
+        printf("arg17: scale (alpha)\n");
         exit(0);
     }
 
@@ -300,10 +300,11 @@ int main(int argc, char* argv[])
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
     }
 
-    DeviceMem a_g_m_k_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSize());
-    DeviceMem b0_g_k_n_device_buf(sizeof(B0DataType) * b0_g_k_n.mDesc.GetElementSize());
-    DeviceMem b1_g_n_o_device_buf(sizeof(B1DataType) * b1_g_n_o.mDesc.GetElementSize());
-    DeviceMem c_g_m_o_device_buf(sizeof(CDataType) * c_g_m_o_device_result.mDesc.GetElementSize());
+    DeviceMem a_g_m_k_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpaceSize());
+    DeviceMem b0_g_k_n_device_buf(sizeof(B0DataType) * b0_g_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem b1_g_n_o_device_buf(sizeof(B1DataType) * b1_g_n_o.mDesc.GetElementSpaceSize());
+    DeviceMem c_g_m_o_device_buf(sizeof(CDataType) *
+                                 c_g_m_o_device_result.mDesc.GetElementSpaceSize());
 
     a_g_m_k_device_buf.ToDevice(a_g_m_k.mData.data());
     b0_g_k_n_device_buf.ToDevice(b0_g_k_n.mData.data());
