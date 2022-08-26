@@ -51,11 +51,11 @@ using CLayout  = Row;
 
 using AElementOp    = PassThrough;
 using B0ElementOp   = PassThrough;
-using Acc0ElementOp = ck::tensor_operation::element_wise::Scale;
+using Acc0ElementOp = ck::tensor_operation::element_wise::ScaleAndResetNaN;
 using B1ElementOp   = PassThrough;
 using CElementOp    = PassThrough;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
+static constexpr auto MNPadding = ck::tensor_operation::device::GemmSpecialization::MNPadding;
 
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle<
     ALayout,
@@ -73,7 +73,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmSoftma
     Acc0ElementOp,
     B1ElementOp,
     CElementOp,
-    GemmDefault,
+    MNPadding,
     1,
     256,
     128,         // MPerBlock
@@ -144,8 +144,8 @@ int main(int argc, char* argv[])
     bool time_kernel     = false;
 
     // GEMM shape
-    ck::index_t M             = 1024;
-    ck::index_t N             = 1024;
+    ck::index_t M             = 1020;
+    ck::index_t N             = 1020;
     ck::index_t K             = 64;
     ck::index_t O             = 128;
     ck::index_t BatchCount    = 4;
