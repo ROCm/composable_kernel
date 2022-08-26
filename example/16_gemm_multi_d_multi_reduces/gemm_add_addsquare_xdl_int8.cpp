@@ -26,7 +26,6 @@ using ELayout = Row;
 
 // Elementwise op
 using Square       = ck::tensor_operation::element_wise::UnarySquare;
-// using Div          = ck::tensor_operation::element_wise::UnaryDivide;
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
 using CDEElementOp = PassThrough;
@@ -122,14 +121,14 @@ template <typename ADataType,
           typename DeviceOpInstance,
           typename ReferenceGemmInstance>
 bool run_gemm_reduce_add_addsquare_xdl(ck::index_t M,
-                                      ck::index_t N,
-                                      ck::index_t K,
-                                      ck::index_t StrideA,
-                                      ck::index_t StrideB,
-                                      ck::index_t StrideE,
-                                      bool do_verification,
-                                      int init_method,
-                                      bool time_kernel)
+                                       ck::index_t N,
+                                       ck::index_t K,
+                                       ck::index_t StrideA,
+                                       ck::index_t StrideB,
+                                       ck::index_t StrideE,
+                                       bool do_verification,
+                                       int init_method,
+                                       bool time_kernel)
 {
 
     auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
@@ -181,7 +180,7 @@ bool run_gemm_reduce_add_addsquare_xdl(ck::index_t M,
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
 
-    auto a_element_op = AElementOp{};
+    auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{};
     auto qs_element_op  = QsElementOp{};
@@ -283,7 +282,7 @@ bool run_gemm_reduce_add_addsquare_xdl(ck::index_t M,
 
     if(time_kernel)
     {
-        float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
+        float ave_time            = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
         std::size_t flop          = std::size_t(2) * M * N * K + M * 3 * N;
         std::size_t gemm_num_byte = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
                                     sizeof(EDataType) * M * N + sizeof(R0DataType) * M +
@@ -349,21 +348,21 @@ int main(int argc, char* argv[])
     }
 
     return !run_gemm_reduce_add_addsquare_xdl<ADataType,
-                                               BDataType,
-                                               EDataType,
-                                               R0DataType,
-                                               R1DataType,
-                                               ALayout,
-                                               BLayout,
-                                               ELayout,
-                                               AElementOp,
-                                               BElementOp,
-                                               CDEElementOp,
-                                               QsElementOp,
-                                               RsElementOp,
-                                               RsThreadReduceOp,
-                                               ReduceAccDataType,
-                                               DeviceOpInstance,
-                                               ReferenceGemmInstance>(
+                                              BDataType,
+                                              EDataType,
+                                              R0DataType,
+                                              R1DataType,
+                                              ALayout,
+                                              BLayout,
+                                              ELayout,
+                                              AElementOp,
+                                              BElementOp,
+                                              CDEElementOp,
+                                              QsElementOp,
+                                              RsElementOp,
+                                              RsThreadReduceOp,
+                                              ReduceAccDataType,
+                                              DeviceOpInstance,
+                                              ReferenceGemmInstance>(
         M, N, K, StrideA, StrideB, StrideE, do_verification, init_method, time_kernel);
 }
