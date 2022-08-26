@@ -847,10 +847,14 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
                                 constexpr index_t c_offset =
                                     acc0_thread_desc.CalculateOffset(make_tuple(mr, nr, 0)) +
                                     groupid * n4 + i;
-                                acc0_thread_buf(Number<c_offset>{}) = 0;
+                                if(get_thread_local_1d_id() == 0)
+                                {
+                                    printf("groupid: %d, i: %d n4: %d \n", groupid,i,n4);
+                                }
+                                /*acc0_thread_buf(Number<c_offset>{}) = 0;
                                 d0_element_op(acc0_thread_buf(Number<c_offset>{}),
                                               acc0_thread_buf[Number<c_offset>{}],
-                                              d0_thread_buf[i]);
+                                              d0_thread_buf[i]);*/
                             });
                         });
                     });
