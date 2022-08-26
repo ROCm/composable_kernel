@@ -39,7 +39,7 @@ using D0DataType       = F16;
 using D1DataType       = F16;
 using DsDataType       = ck::Tuple<D0DataType, D1DataType>;
 using EDataType        = F16;
-using FDataType        = F16;
+using HDataType        = F16;
 
 // Layout
 using ALayout  = Row;
@@ -48,22 +48,22 @@ using D0Layout = Row;
 using D1Layout = Row;
 using DsLayout = ck::Tuple<D0Layout, D1Layout>;
 using ELayout  = Row;
-using FLayout  = Row;
+using HLayout  = Row;
 
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
 using CDEElementOp = AddReluAdd;
-using FElementOp   = PassThrough;
+using HElementOp   = PassThrough;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 // clang-format off
 using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleDLayernorm_Xdl_CShuffle
-//######| ALayout| BLayout| DsLayout| ELayout| FLayout|     AData|     BData|     AccData|         CShuffle|     DsData|     EData|     FData|           A|           B|          CDE|            F|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|  ReduceThreadTransfer|                     |
+//######| ALayout| BLayout| DsLayout| ELayout| HLayout|     AData|     BData|     AccData|         CShuffle|     DsData|     EData|     HData|           A|           B|          CDE|            H|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|  ReduceThreadTransfer|                     |
 //######|        |        |         |        |        |      Type|      Type|        Type|         DataType|       Type|      Type|      Type| Elementwise| Elementwise|  Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|        ClusterLengths| ReduceThreadTransfer|
 //######|        |        |         |        |        |          |          |            |                 |           |          |          |   Operation|   Operation|    Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|  _MPerBlock_NPerBlock|      ScalarPerVector|
 //######|        |        |         |        |        |          |          |            |                 |           |          |          |            |            |             |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                      |           _NPerBlock|
-        < ALayout, BLayout, DsLayout, ELayout, FLayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType, FDataType,  AElementOp,  BElementOp, CDEElementOp,   FElementOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,              S<64, 4>,                    4>;
+        < ALayout, BLayout, DsLayout, ELayout, HLayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType, HDataType,  AElementOp,  BElementOp, CDEElementOp,   HElementOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,              S<64, 4>,                    4>;
 // clang-format on
 
 auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
@@ -97,7 +97,7 @@ int main()
     ck::index_t StrideD0 = 0;
     ck::index_t StrideD1 = 1024;
     ck::index_t StrideE  = 1024;
-    ck::index_t StrideF  = 1024;
+    ck::index_t StrideH  = 1024;
 
     // TODO - gamma and beta
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor2d(M, K, StrideA, ALayout{}));
@@ -105,7 +105,7 @@ int main()
     Tensor<D0DataType> d0_n(f_host_tensor_descriptor1d(N, 1));
     Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor2d(M, N, StrideD1, D1Layout{}));
     Tensor<EDataType> e_m_n(f_host_tensor_descriptor2d(M, N, StrideE, ELayout{}));
-    Tensor<FDataType> f_m_n(f_host_tensor_descriptor2d(M, N, StrideF, FLayout{}));
+    Tensor<HDataType> h_m_n(f_host_tensor_descriptor2d(M, N, StrideH, HLayout{}));
 
     a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-1, 1});
     b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-1, 1});
@@ -117,7 +117,7 @@ int main()
     DeviceMem d0_device_buf(sizeof(D0DataType) * d0_n.mDesc.GetElementSpaceSize());
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem f_device_buf(sizeof(FDataType) * f_m_n.mDesc.GetElementSpaceSize());
+    DeviceMem h_device_buf(sizeof(HDataType) * h_m_n.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
@@ -127,7 +127,7 @@ int main()
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{};
-    auto f_element_op   = FElementOp{};
+    auto h_element_op   = HElementOp{};
 
     auto device_op = DeviceOpInstance{};
     auto invoker   = device_op.MakeInvoker();
@@ -136,7 +136,7 @@ int main()
                                b_device_buf.GetDeviceBuffer(),
                                {d0_device_buf.GetDeviceBuffer(), d1_device_buf.GetDeviceBuffer()},
                                e_device_buf.GetDeviceBuffer(),
-                               f_device_buf.GetDeviceBuffer(),
+                               h_device_buf.GetDeviceBuffer(),
                                M,
                                N,
                                K,
@@ -144,11 +144,11 @@ int main()
                                StrideB,
                                {StrideD0, StrideD1},
                                StrideE,
-                               StrideF,
+                               StrideH,
                                a_element_op,
                                b_element_op,
                                cde_element_op,
-                               f_element_op);
+                               h_element_op);
 
     if(!device_op.IsSupportedArgument(argument))
     {
