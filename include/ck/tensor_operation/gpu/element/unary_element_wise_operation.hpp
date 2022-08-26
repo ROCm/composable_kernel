@@ -97,9 +97,9 @@ struct Scale
     float scale_;
 };
 
-struct ScaleAndResetNaN
+struct ScaleAndResetNaNToMinusInfinity
 {
-    __host__ __device__ ScaleAndResetNaN(float scale) : scale_(scale) {}
+    __host__ __device__ ScaleAndResetNaNToMinusInfinity(float scale) : scale_(scale) {}
 
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const;
@@ -107,10 +107,7 @@ struct ScaleAndResetNaN
     template <>
     __host__ __device__ void operator()<float, float>(float& y, const float& x) const
     {
-        if(!ck::math::isnan(x))
-            y = scale_ * x;
-        else
-            y = -INFINITY;
+        y = ck::math::isnan(x) ? -ck::NumericLimits<float>::Infinity() : scale_ * x;
     };
 
     float scale_;

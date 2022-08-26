@@ -51,7 +51,7 @@ using CLayout  = Row;
 
 using AElementOp    = PassThrough;
 using B0ElementOp   = PassThrough;
-using Acc0ElementOp = ck::tensor_operation::element_wise::ScaleAndResetNaN;
+using Acc0ElementOp = ck::tensor_operation::element_wise::ScaleAndResetNaNToMinusInfinity;
 using B1ElementOp   = PassThrough;
 using CElementOp    = PassThrough;
 
