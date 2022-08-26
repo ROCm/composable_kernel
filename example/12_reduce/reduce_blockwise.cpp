@@ -225,6 +225,28 @@ int main(int argc, char* argv[])
                 arg.scales[0],
                 arg.scales[1]);
         }
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+        else if(arg.data_type == 7)
+        {
+            pass = reduce_blockwise_test<int4_t, int32_t, ReduceTensorOp::AVG, false, false>(
+                arg.do_verification,
+                arg.init_method,
+                arg.time_kernel,
+                arg.inLengths,
+                arg.reduceDims,
+                arg.scales[0],
+                arg.scales[1]);
+
+            pass = pass && reduce_blockwise_test<int4_t, int8_t, ReduceTensorOp::MAX, false, false>(
+                               arg.do_verification,
+                               arg.init_method,
+                               arg.time_kernel,
+                               arg.inLengths,
+                               arg.reduceDims,
+                               arg.scales[0],
+                               arg.scales[1]);
+        }
+#endif
     }
     else
     {
@@ -251,6 +273,15 @@ int main(int argc, char* argv[])
             pass && reduce_blockwise_test<int8_t, int32_t, ReduceOpId, PropagateNan, OutputIndex>(
                         true, 2, true, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
 
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+        // for testing int4_t using AVG operation
+        pass = pass && reduce_blockwise_test<int4_t, int32_t, ReduceTensorOp::AVG, false, false>(
+                           true, 2, true, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
+
+        // for testing int4_t using MAX operation
+        pass = pass && reduce_blockwise_test<int4_t, int8_t, ReduceTensorOp::MAX, false, false>(
+                           true, 2, true, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
+#endif
         // for testing 3D input
         pass = pass && reduce_blockwise_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(
                            true, 2, true, {16, 64, 960}, {0, 1}, 1.0f, 0.0f);
