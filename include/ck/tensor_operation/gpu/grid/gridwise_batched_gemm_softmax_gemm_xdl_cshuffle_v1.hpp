@@ -349,9 +349,13 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                const Block2CTileMap& block_2_ctile_map)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize(), NumericLimits<FloatAB>::QuietNaN());
+            p_a_grid,
+            a_grid_desc_ak0_m_ak1.GetElementSpaceSize(),
+            NumericLimits<FloatAB>::QuietNaN());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize(), NumericLimits<FloatAB>::QuietNaN());
+            p_b_grid,
+            b_grid_desc_bk0_n_bk1.GetElementSpaceSize(),
+            NumericLimits<FloatAB>::QuietNaN());
         const auto b1_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b1_grid, b1_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
