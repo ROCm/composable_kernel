@@ -410,6 +410,31 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
         return out_gemmm_gemmn_desc;
     }
 
+    template <typename Descriptor>
+    static auto GetPaddedRGridDescriptor(Descriptor descriptor, index_t MRaw)
+    {
+        const auto M    = math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
+        const auto MPad = M - MRaw;
+
+        if constexpr(GemmSpec == GemmSpecialization::MPadding ||
+                     GemmSpec == GemmSpecialization::MNPadding ||
+                     GemmSpec == GemmSpecialization::MKPadding ||
+                     GemmSpec == GemmSpecialization::MNKPadding)
+        {
+            // pad M
+            return transform_tensor_descriptor(
+                descriptor,
+                make_tuple(make_right_pad_transform(descriptor, MPad)),
+                make_tuple(Sequence<0>{}),
+                make_tuple(Sequence<0>{}));
+        }
+        else
+        {
+            // not pad M
+            return descriptor;
+        }
+    }
+
     template <typename RLay,
               typename std::enable_if<is_same_v<RLay, tensor_layout::convolution::GNW> ||
                                           is_same_v<RLay, tensor_layout::convolution::GNHW> ||
@@ -428,25 +453,7 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
 
         const auto r_grid_desc_mraw = make_naive_tensor_descriptor_packed(make_tuple(NHoWo));
 
-        const auto M    = math::integer_divide_ceil(NHoWo, MPerBlock) * MPerBlock;
-        const auto MPad = M - NHoWo;
-
-        if constexpr(GemmSpec == GemmSpecialization::MPadding ||
-                     GemmSpec == GemmSpecialization::MNPadding ||
-                     GemmSpec == GemmSpecialization::MKPadding ||
-                     GemmSpec == GemmSpecialization::MNKPadding)
-        {
-            // pad M
-            return transform_tensor_descriptor(r_grid_desc_mraw,
-                                               make_tuple(make_right_pad_transform(NHoWo, MPad)),
-                                               make_tuple(Sequence<0>{}),
-                                               make_tuple(Sequence<0>{}));
-        }
-        else
-        {
-            // not pad M
-            return r_grid_desc_mraw;
-        }
+        return GetPaddedRGridDescriptor(r_grid_desc_mraw, NHoWo);
     }
 
     template <typename RLay,
@@ -472,25 +479,7 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
         const auto r_grid_desc_mraw =
             make_naive_tensor_descriptor(make_tuple(NHoWo), make_tuple(WoStride));
 
-        const auto M    = math::integer_divide_ceil(NHoWo, MPerBlock) * MPerBlock;
-        const auto MPad = M - NHoWo;
-
-        if constexpr(GemmSpec == GemmSpecialization::MPadding ||
-                     GemmSpec == GemmSpecialization::MNPadding ||
-                     GemmSpec == GemmSpecialization::MKPadding ||
-                     GemmSpec == GemmSpecialization::MNKPadding)
-        {
-            // pad M
-            return transform_tensor_descriptor(r_grid_desc_mraw,
-                                               make_tuple(make_right_pad_transform(NHoWo, MPad)),
-                                               make_tuple(Sequence<0>{}),
-                                               make_tuple(Sequence<0>{}));
-        }
-        else
-        {
-            // not pad M
-            return r_grid_desc_mraw;
-        }
+        return GetPaddedRGridDescriptor(r_grid_desc_mraw, NHoWo);
     }
 
     using AGridDesc_M_K = remove_cvref_t<decltype(
