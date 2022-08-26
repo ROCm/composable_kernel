@@ -21,6 +21,9 @@ using F32   = float;
 using BF16  = ck::bhalf_t;
 using INT8  = std::int8_t;
 using INT32 = std::int32_t;
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+using INT4 = ck::int4_t;
+#endif
 
 template <typename ADataType,
           typename BDataType,
@@ -32,17 +35,31 @@ template <typename ADataType,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           typename DeviceCGemmInstance,
-          typename ReferenceCGemmInstance>
-int run_cgemm_xdl(ck::index_t M,
-                  ck::index_t N,
-                  ck::index_t K,
-                  ck::index_t StrideA,
-                  ck::index_t StrideB,
-                  ck::index_t StrideC,
-                  bool do_verification,
-                  int init_method,
-                  bool time_kernel)
+          typename ReferenceCGemmInstance,
+          typename KernelADataType = ADataType,
+          typename KernelBDataType = BDataType,
+          typename KernelCDataType = CDataType>
+bool run_cgemm_xdl(ck::index_t M,
+                   ck::index_t N,
+                   ck::index_t K,
+                   ck::index_t StrideA,
+                   ck::index_t StrideB,
+                   ck::index_t StrideC,
+                   bool do_verification,
+                   int init_method,
+                   bool time_kernel)
 {
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+    static_assert(sizeof(ck::int4_t) == sizeof(int8_t),
+                  "sizeof ck::int4_t and int8_t is different!");
+    static_assert(sizeof(ADataType) == sizeof(KernelADataType),
+                  "sizeof ADataType and KernelADataType is different!");
+    static_assert(sizeof(BDataType) == sizeof(KernelBDataType),
+                  "sizeof BDataType and KernelBDataType is different!");
+    static_assert(sizeof(CDataType) == sizeof(KernelCDataType),
+                  "sizeof CDataType and KernelCDataType is different!");
+#endif
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
@@ -61,8 +78,10 @@ int run_cgemm_xdl(ck::index_t M,
     Tensor<ADataType> a_m_k_imag(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n_real(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
     Tensor<BDataType> b_k_n_imag(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-    Tensor<CDataType> c_m_n_real_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-    Tensor<CDataType> c_m_n_imag_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<KernelCDataType> c_m_n_real_device_result(
+        f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<KernelCDataType> c_m_n_imag_device_result(
+        f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
     std::cout << "a_m_k_real: " << a_m_k_real.mDesc << std::endl;
     std::cout << "a_m_k_imag: " << a_m_k_imag.mDesc << std::endl;
@@ -89,20 +108,41 @@ int run_cgemm_xdl(ck::index_t M,
 
     auto cgemm = DeviceCGemmInstance{};
 
-    DeviceMem a_m_k_real_device_buf(sizeof(ADataType) * a_m_k_real.mDesc.GetElementSpaceSize());
-    DeviceMem a_m_k_imag_device_buf(sizeof(ADataType) * a_m_k_imag.mDesc.GetElementSpaceSize());
-    DeviceMem b_k_n_real_device_buf(sizeof(BDataType) * b_k_n_real.mDesc.GetElementSpaceSize());
-    DeviceMem b_k_n_imag_device_buf(sizeof(BDataType) * b_k_n_imag.mDesc.GetElementSpaceSize());
-    DeviceMem c_m_n_real_device_buf(sizeof(CDataType) *
+    DeviceMem a_m_k_real_device_buf(sizeof(KernelADataType) *
+                                    a_m_k_real.mDesc.GetElementSpaceSize());
+    DeviceMem a_m_k_imag_device_buf(sizeof(KernelADataType) *
+                                    a_m_k_imag.mDesc.GetElementSpaceSize());
+    DeviceMem b_k_n_real_device_buf(sizeof(KernelBDataType) *
+                                    b_k_n_real.mDesc.GetElementSpaceSize());
+    DeviceMem b_k_n_imag_device_buf(sizeof(KernelBDataType) *
+                                    b_k_n_imag.mDesc.GetElementSpaceSize());
+    DeviceMem c_m_n_real_device_buf(sizeof(KernelCDataType) *
                                     c_m_n_real_device_result.mDesc.GetElementSpaceSize());
-    DeviceMem c_m_n_imag_device_buf(sizeof(CDataType) *
+    DeviceMem c_m_n_imag_device_buf(sizeof(KernelCDataType) *
                                     c_m_n_imag_device_result.mDesc.GetElementSpaceSize());
     DeviceMem workspace_device_buf(cgemm.GetWorkspaceSize(M, N, K, StrideA, StrideB, StrideC));
 
-    a_m_k_real_device_buf.ToDevice(a_m_k_real.mData.data());
-    a_m_k_imag_device_buf.ToDevice(a_m_k_imag.mData.data());
-    b_k_n_real_device_buf.ToDevice(b_k_n_real.mData.data());
-    b_k_n_imag_device_buf.ToDevice(b_k_n_imag.mData.data());
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+    if constexpr(std::is_same_v<ADataType, ck::int4_t>)
+    {
+        Tensor<KernelADataType> a_m_k_real_converted(a_m_k_real);
+        Tensor<KernelADataType> a_m_k_imag_converted(a_m_k_imag);
+        Tensor<KernelBDataType> b_k_n_real_converted(b_k_n_real);
+        Tensor<KernelBDataType> b_k_n_imag_converted(b_k_n_imag);
+
+        a_m_k_real_device_buf.ToDevice(a_m_k_real_converted.mData.data());
+        a_m_k_imag_device_buf.ToDevice(a_m_k_imag_converted.mData.data());
+        b_k_n_real_device_buf.ToDevice(b_k_n_real_converted.mData.data());
+        b_k_n_imag_device_buf.ToDevice(b_k_n_imag_converted.mData.data());
+    }
+    else
+#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+    {
+        a_m_k_real_device_buf.ToDevice(a_m_k_real.mData.data());
+        a_m_k_imag_device_buf.ToDevice(a_m_k_imag.mData.data());
+        b_k_n_real_device_buf.ToDevice(b_k_n_real.mData.data());
+        b_k_n_imag_device_buf.ToDevice(b_k_n_imag.mData.data());
+    }
 
     auto a_element_op = AElementwiseOperation{};
     auto b_element_op = BElementwiseOperation{};
@@ -111,13 +151,13 @@ int run_cgemm_xdl(ck::index_t M,
     // do GEMM
     auto invoker = cgemm.MakeInvoker();
     auto argument =
-        cgemm.MakeArgument(static_cast<ADataType*>(a_m_k_real_device_buf.GetDeviceBuffer()),
-                           static_cast<ADataType*>(a_m_k_imag_device_buf.GetDeviceBuffer()),
-                           static_cast<BDataType*>(b_k_n_real_device_buf.GetDeviceBuffer()),
-                           static_cast<BDataType*>(b_k_n_imag_device_buf.GetDeviceBuffer()),
-                           static_cast<CDataType*>(c_m_n_real_device_buf.GetDeviceBuffer()),
-                           static_cast<CDataType*>(c_m_n_imag_device_buf.GetDeviceBuffer()),
-                           static_cast<CDataType*>(workspace_device_buf.GetDeviceBuffer()),
+        cgemm.MakeArgument(static_cast<KernelADataType*>(a_m_k_real_device_buf.GetDeviceBuffer()),
+                           static_cast<KernelADataType*>(a_m_k_imag_device_buf.GetDeviceBuffer()),
+                           static_cast<KernelBDataType*>(b_k_n_real_device_buf.GetDeviceBuffer()),
+                           static_cast<KernelBDataType*>(b_k_n_imag_device_buf.GetDeviceBuffer()),
+                           static_cast<KernelCDataType*>(c_m_n_real_device_buf.GetDeviceBuffer()),
+                           static_cast<KernelCDataType*>(c_m_n_imag_device_buf.GetDeviceBuffer()),
+                           static_cast<KernelCDataType*>(workspace_device_buf.GetDeviceBuffer()),
                            M,
                            N,
                            K,
@@ -142,15 +182,11 @@ int run_cgemm_xdl(ck::index_t M,
         std::size_t(2) *
         (sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N);
 
-    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
+    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << cgemm.GetTypeString() << std::endl;
-
-    c_m_n_real_device_buf.FromDevice(c_m_n_real_device_result.mData.data());
-    c_m_n_imag_device_buf.FromDevice(c_m_n_imag_device_result.mData.data());
 
     if(do_verification)
     {
@@ -159,9 +195,8 @@ int run_cgemm_xdl(ck::index_t M,
         Tensor<CDataType> c_m_n_imag_host_result(
             f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
-        auto ref_cgemm   = ReferenceCGemmInstance{};
-        auto ref_invoker = ref_cgemm.MakeInvoker();
-
+        auto ref_cgemm    = ReferenceCGemmInstance{};
+        auto ref_invoker  = ref_cgemm.MakeInvoker();
         auto ref_argument = ref_cgemm.MakeArgument(a_m_k_real,
                                                    a_m_k_imag,
                                                    b_k_n_real,
@@ -174,19 +209,45 @@ int run_cgemm_xdl(ck::index_t M,
 
         ref_invoker.Run(ref_argument);
 
+        c_m_n_real_device_buf.FromDevice(c_m_n_real_device_result.mData.data());
+        c_m_n_imag_device_buf.FromDevice(c_m_n_imag_device_result.mData.data());
+
         bool result = true;
-        result      = ck::utils::check_err(c_m_n_real_device_result.mData,
-                                      c_m_n_real_host_result.mData,
-                                      "Verification error: incorrect results in real part!",
-                                      1e-2f,
-                                      1e-1f);
-        result      = result &&
-                 ck::utils::check_err(c_m_n_imag_device_result.mData,
-                                      c_m_n_imag_host_result.mData,
-                                      "Verification error: incorrect results in imaginary part!",
-                                      1e-2f,
-                                      1e-1f);
-        return result ? 0 : 1;
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+        if constexpr(std::is_same_v<ADataType, ck::int4_t>)
+        {
+            const Tensor<CDataType> c_m_n_real_device_result_converted(c_m_n_real_device_result);
+            const Tensor<CDataType> c_m_n_imag_device_result_converted(c_m_n_imag_device_result);
+
+            result = ck::utils::check_err(c_m_n_real_device_result_converted.mData,
+                                          c_m_n_real_host_result.mData,
+                                          "Verification error: incorrect results in real part!",
+                                          1e-2f,
+                                          1e-1f);
+            result = result && ck::utils::check_err(
+                                   c_m_n_imag_device_result_converted.mData,
+                                   c_m_n_imag_host_result.mData,
+                                   "Verification error: incorrect results in imaginary part!",
+                                   1e-2f,
+                                   1e-1f);
+        }
+        else
+#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+        {
+            result = ck::utils::check_err(c_m_n_real_device_result.mData,
+                                          c_m_n_real_host_result.mData,
+                                          "Verification error: incorrect results in real part!",
+                                          1e-2f,
+                                          1e-1f);
+            result = result && ck::utils::check_err(
+                                   c_m_n_imag_device_result.mData,
+                                   c_m_n_imag_host_result.mData,
+                                   "Verification error: incorrect results in imaginary part!",
+                                   1e-2f,
+                                   1e-1f);
+        }
+
+        return result;
     }
-    return 0;
+    return true;
 }
