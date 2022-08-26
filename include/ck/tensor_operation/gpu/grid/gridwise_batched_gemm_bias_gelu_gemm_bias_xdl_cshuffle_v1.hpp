@@ -403,18 +403,20 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
                                    c1_grid_desc_mblock_mperblock_nblock_nperblock,
                                const Block2C1TileMap& block_2_c1tile_map)
     {
-        ignore                 = p_d0_grid;
-        ignore                 = d0_element_op;
-        ignore                 = d0_grid_desc_m_n;
+        ignore = p_d0_grid;
+        ignore = d0_element_op;
+
         const auto a0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a0_grid, a0_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b0_grid, b0_grid_desc_bk0_n_bk1.GetElementSpaceSize());
+        const auto d0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_d0_grid, d0_grid_desc_m_n.GetElementSpaceSize());
         const auto b1_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b1_grid, b1_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c1_grid, c1_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
-
+        ignore = d0_grid_buf;
         // divide block work by [M, N]
         const auto block_work_idx =
             block_2_c1tile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
@@ -580,7 +582,33 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
         constexpr auto n4 = acc0_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I7);
 
         constexpr auto b1_block_slice_copy_step = make_multi_index(Gemm1KPerBlock / B1K1, 0, 0);
+        // change d0 tensor
+        auto create_gemm0_dlayout = [&]() {
+            constexpr auto WaveSize    = 64;
+            constexpr auto Gemm0MWaves = Gemm0MPerBlock / (Gemm0MPerXdl * Gemm0MXdlPerWave);
+            constexpr auto Gemm0NWaves = Gemm0NPerBlock / (Gemm0NPerXdl * Gemm0NXdlPerWave);
+            const auto Gemm0M          = a0_grid_desc_ak0_m_ak1.GetLength(I1);
+            const auto Gemm0N          = b0_grid_desc_bk0_n_bk1.GetLength(I1);
 
+            //if(get_thread_local_1d_id() == 0)
+            //    printf("Gemm0MWaves: %d, Gemm0NWaves: %d \n", Gemm0MWaves, Gemm0NWaves);
+            const auto d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 = transform_tensor_descriptor(
+                d0_grid_desc_m_n,
+                make_tuple(
+                    make_unmerge_transform(make_tuple(
+                        Gemm0M / Gemm0MPerBlock, Gemm0MXdlPerWave, Gemm0MWaves, Gemm0MPerXdl)),
+                    make_unmerge_transform(make_tuple(Gemm0N / Gemm0NPerBlock,
+                                                      Gemm0NXdlPerWave,
+                                                      Gemm0NWaves,
+                                                      n2,
+                                                      WaveSize / Gemm0NPerXdl,
+                                                      n4))),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 2, 4, 6>{}, Sequence<1, 3, 5, 7, 8, 9>{}));
+            return d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5;
+        };
+        const auto d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 = create_gemm0_dlayout();
+        ignore = d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5;
         // acc0_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4 to acc0_thread_desc_k0_m_k1
         // n0_n1_n2_n3 -> k0
         // m0_m1_m2 -> m
@@ -719,6 +747,10 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
                                                                     blockwise_gemm0,
                                                                     acc0_thread_buf,
                                                                     num_k_block_main_loop);
+            // bias+gelu
+            {
+                static_for<0, n0 * n1 * n2 * n3, 1>{}([&](auto I) { ignore = I; });
+            }
             // gemm1
             {
                 // TODO: explore using dynamic buffer for a1 thread buffer
