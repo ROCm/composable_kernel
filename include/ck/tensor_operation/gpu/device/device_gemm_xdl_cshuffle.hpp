@@ -64,7 +64,8 @@ template <typename ALayout,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
-          LoopScheduler LoopSched = make_default_loop_scheduler()>
+          LoopScheduler LoopSched = make_default_loop_scheduler(),
+          index_t PipelineVersion = 1>
 struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                                                    BLayout,
                                                    CLayout,
@@ -393,7 +394,8 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         CShuffleNXdlPerWavePerShuffle,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
-        LoopSched>;
+        LoopSched,
+        PipelineVersion>;
 
     // Argument
     struct Argument : public BaseArgument

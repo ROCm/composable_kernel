@@ -15,7 +15,14 @@ constexpr auto GridwiseGemmPipeline_Selector()
 {
     if constexpr(PipelineVersion == 1)
     {
-        return GridwiseGemmPipeline_v1_Selector<NumPrefetch, LoopSched>{};
+        if constexpr(LoopSched == LoopScheduler::Default)
+        {
+            return GridwiseGemmPipeline_v1<NumPrefetch>{};
+        }
+        else if constexpr(LoopSched == LoopScheduler::Interwave)
+        {
+            return GridwiseGemmPipelineInterwave_v1<NumPrefetch>{};
+        }
     }
     else if constexpr(PipelineVersion == 2)
     {
@@ -23,7 +30,7 @@ constexpr auto GridwiseGemmPipeline_Selector()
     }
     else
     {
-        // put some error message here
+        std::cerr << "GridwiseGemmPipeline configuration is not available" << std::endl;
     }
 }
 
