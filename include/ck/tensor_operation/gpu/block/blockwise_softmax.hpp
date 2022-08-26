@@ -74,16 +74,7 @@ struct BlockwiseSoftmax
         static_for<0, MRepeat, 1>{}([&](auto iM) {
             static_for<0, KRepeat, 1>{}([&](auto iK) {
                 auto offset = Number<ThreadSliceDesc_M_K{}.CalculateOffset(make_tuple(iM, iK))>{};
-                //if(offset == 128)
-                {
-                    //printf("in_thread_buf=%f\n", in_thread_buf[offset]);
-                }
                 in_thread_buf(offset) = math::exp(in_thread_buf[offset] - max_value_buf(iM));
-                in_thread_buf(offset) = std::floor(in_thread_buf(offset));
-                //if(offset == 128)
-                {
-                    //printf("exp in_thread_buf=%f\n", in_thread_buf[offset]);
-                }
             });
         });
 

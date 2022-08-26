@@ -130,12 +130,11 @@ check_err(const std::vector<T>& out,
         double o = type_convert<float>(out[i]);
         double r = type_convert<float>(ref[i]);
         err      = std::abs(o - r);
-        if(err > 0)
-        //if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
+        if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            //if(err_count < 5)
+            if(err_count < 5)
             {
                 std::cout << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;

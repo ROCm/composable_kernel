@@ -89,8 +89,6 @@ struct ReferenceSoftmax : public device::BaseOperator
                 // numerator = exp(x - max(x))
                 self(idx) = std::exp(static_cast<AccDataType>(arg.in_(idx)) -
                                      reduce_max(to_sm_scalar_idx(idx)));
-
-                self(idx) = std::floor(self(idx));
             });
 
             // LogRangeAsType<float>(std::cout << "in_stable: ", in_stable.mData, ",") << std::endl;
