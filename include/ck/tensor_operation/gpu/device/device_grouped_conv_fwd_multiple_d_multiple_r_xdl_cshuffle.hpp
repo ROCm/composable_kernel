@@ -426,9 +426,27 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
                                                   index_t{1},
                                                   std::multiplies<index_t>());
 
-        const auto out_gemmm_desc = make_naive_tensor_descriptor_packed(make_tuple(NHoWo));
+        const auto r_grid_desc_mraw = make_naive_tensor_descriptor_packed(make_tuple(NHoWo));
 
-        return out_gemmm_desc;
+        const auto M    = math::integer_divide_ceil(NHoWo, MPerBlock) * MPerBlock;
+        const auto MPad = M - NHoWo;
+
+        if constexpr(GemmSpec == GemmSpecialization::MPadding ||
+                     GemmSpec == GemmSpecialization::MNPadding ||
+                     GemmSpec == GemmSpecialization::MKPadding ||
+                     GemmSpec == GemmSpecialization::MNKPadding)
+        {
+            // pad M
+            return transform_tensor_descriptor(r_grid_desc_mraw,
+                                               make_tuple(make_right_pad_transform(NHoWo, MPad)),
+                                               make_tuple(Sequence<0>{}),
+                                               make_tuple(Sequence<0>{}));
+        }
+        else
+        {
+            // not pad M
+            return r_grid_desc_mraw;
+        }
     }
 
     template <typename RLay,
@@ -439,9 +457,8 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
                                           is_same_v<RLay, tensor_layout::convolution::NHWG> ||
                                           is_same_v<RLay, tensor_layout::convolution::NDHWG>,
                                       bool>::type = false>
-    static auto
-    MakeRGridDescriptor_M_N(const std::array<index_t, NDimSpatial + 2>& r_g_n_wos_lengths,
-                            const std::array<index_t, NDimSpatial + 2>& r_g_n_wos_strides)
+    static auto MakeRGridDescriptor_M(const std::array<index_t, NDimSpatial + 2>& r_g_n_wos_lengths,
+                                      const std::array<index_t, NDimSpatial + 2>& r_g_n_wos_strides)
     {
         const index_t N = r_g_n_wos_lengths[1];
 
@@ -452,10 +469,28 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
                                                   index_t{1},
                                                   std::multiplies<index_t>());
 
-        const auto out_gemmm_desc =
+        const auto r_grid_desc_mraw =
             make_naive_tensor_descriptor(make_tuple(NHoWo), make_tuple(WoStride));
 
-        return out_gemmm_desc;
+        const auto M    = math::integer_divide_ceil(NHoWo, MPerBlock) * MPerBlock;
+        const auto MPad = M - NHoWo;
+
+        if constexpr(GemmSpec == GemmSpecialization::MPadding ||
+                     GemmSpec == GemmSpecialization::MNPadding ||
+                     GemmSpec == GemmSpecialization::MKPadding ||
+                     GemmSpec == GemmSpecialization::MNKPadding)
+        {
+            // pad M
+            return transform_tensor_descriptor(r_grid_desc_mraw,
+                                               make_tuple(make_right_pad_transform(NHoWo, MPad)),
+                                               make_tuple(Sequence<0>{}),
+                                               make_tuple(Sequence<0>{}));
+        }
+        else
+        {
+            // not pad M
+            return r_grid_desc_mraw;
+        }
     }
 
     using AGridDesc_M_K = remove_cvref_t<decltype(
