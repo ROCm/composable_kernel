@@ -267,6 +267,7 @@ template <index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
           typename DELayout,
+          typename RLayout,
           typename ADataType,
           typename BDataType,
           typename AccDataType,
@@ -320,6 +321,7 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
                                                     ALayout,
                                                     BLayout,
                                                     DELayout,
+                                                    RLayout,
                                                     ADataType,
                                                     BDataType,
                                                     DsDataType,
@@ -408,10 +410,10 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
         return out_gemmm_gemmn_desc;
     }
 
-    template <typename ELay,
-              typename std::enable_if<is_same_v<ELay, tensor_layout::convolution::GNWK> ||
-                                          is_same_v<ELay, tensor_layout::convolution::GNHWK> ||
-                                          is_same_v<ELay, tensor_layout::convolution::GNDHWK>,
+    template <typename RLay,
+              typename std::enable_if<is_same_v<RLay, tensor_layout::convolution::GNW> ||
+                                          is_same_v<RLay, tensor_layout::convolution::GNHW> ||
+                                          is_same_v<RLay, tensor_layout::convolution::GNDHW>,
                                       bool>::type = false>
     static auto
     MakeRGridDescriptor_M(const std::array<index_t, NDimSpatial + 2>& r_g_n_wos_lengths,
@@ -429,13 +431,13 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
         return out_gemmm_gemmn_desc;
     }
 
-    template <typename ELay,
-              typename std::enable_if<is_same_v<ELay, tensor_layout::convolution::G_NW_K> ||
-                                          is_same_v<ELay, tensor_layout::convolution::G_NHW_K> ||
-                                          is_same_v<ELay, tensor_layout::convolution::G_NDHW_K> ||
-                                          is_same_v<ELay, tensor_layout::convolution::NWGK> ||
-                                          is_same_v<ELay, tensor_layout::convolution::NHWGK> ||
-                                          is_same_v<ELay, tensor_layout::convolution::NDHWGK>,
+    template <typename RLay,
+              typename std::enable_if<is_same_v<RLay, tensor_layout::convolution::G_NW> ||
+                                          is_same_v<RLay, tensor_layout::convolution::G_NHW> ||
+                                          is_same_v<RLay, tensor_layout::convolution::G_NDHW> ||
+                                          is_same_v<RLay, tensor_layout::convolution::NWG> ||
+                                          is_same_v<RLay, tensor_layout::convolution::NHWG> ||
+                                          is_same_v<RLay, tensor_layout::convolution::NDHWG>,
                                       bool>::type = false>
     static auto
     MakeRGridDescriptor_M_N(const std::array<index_t, NDimSpatial + 2>& r_g_n_wos_lengths,
@@ -460,7 +462,7 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
         MakeAGridDescriptor_M_K<ALayout>({}, {}, {}, {}, {}, {}, {}, {}, {}, {}))>;
     using BGridDesc_N_K = remove_cvref_t<decltype(MakeBGridDescriptor_N_K<BLayout>({}, {}))>;
     using EGridDesc_M_N = remove_cvref_t<decltype(MakeEGridDescriptor_M_N<DELayout>({}, {}))>;
-    using RGridDesc_M   = remove_cvref_t<decltype(MakeRGridDescriptor_M<DELayout>({}, {}))>;
+    using RGridDesc_M   = remove_cvref_t<decltype(MakeRGridDescriptor_M<RLayout>({}, {}))>;
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1<
@@ -574,7 +576,7 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
               e_grid_desc_m_n_{DeviceOp::MakeEGridDescriptor_M_N<DELayout>(e_g_n_k_wos_lengths,
                                                                            e_g_n_k_wos_strides)},
               r_grid_desc_m_{
-                  DeviceOp::MakeRGridDescriptor_M<DELayout>(r_g_n_wos_lengths, r_g_n_wos_strides)},
+                  DeviceOp::MakeRGridDescriptor_M<RLayout>(r_g_n_wos_lengths, r_g_n_wos_strides)},
               a_grid_desc_ak0_m_ak1_{
                   GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_)},
               b_grid_desc_bk0_n_bk1_{
