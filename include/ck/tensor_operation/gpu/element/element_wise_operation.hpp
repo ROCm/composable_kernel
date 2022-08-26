@@ -223,6 +223,14 @@ struct AddFastGelu
 
         e = type_convert<E>(y);
     }
+
+    template <typename D>
+    __host__ __device__ constexpr void operator()(float& e, const float& c, const D& d) const
+    {
+        static_assert(is_valid_param_type_v<D>);
+
+        e = GetFastGeLU(c + type_convert<float>(d));
+    }
 };
 
 struct Normalize

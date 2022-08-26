@@ -429,8 +429,6 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
                                    c1_grid_desc_mblock_mperblock_nblock_nperblock,
                                const Block2C1TileMap& block_2_c1tile_map)
     {
-        ignore = d0_element_op;
-
         const auto a0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a0_grid, a0_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -441,7 +439,7 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
             p_b1_grid, b1_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c1_grid, c1_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
-        ignore = d0_grid_buf;
+
         // divide block work by [M, N]
         const auto block_work_idx =
             block_2_c1tile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
@@ -645,11 +643,13 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
                          A0B0B1DataType,
                          d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetElementSpaceSize(),
                          true>{};
-        ignore                 = d0_thread_buf;
         const auto wave_id     = GetGemm0WaveIdx();
         const auto wave_m_n_id = GetGemm0WaveMNIdx(wave_id[I2]); // I2: 0~63
 
-#if 1
+        constexpr auto acc0_thread_desc = make_naive_tensor_descriptor_packed(
+            make_tuple(Number<Gemm0MXdlPerWave>{}, Number<Gemm0NXdlPerWave>{}, n2 * n4));
+
+#if 0
         const index_t block_id  = get_block_1d_id();
         const index_t thread_id = get_thread_local_1d_id();
         if(block_id == 11)
@@ -678,19 +678,18 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
                                              Sequence<0, 1, 2, 3, 4, 5, 6, 7, 8, 9>,
                                              9,
                                              n4,
-                                             false,
+                                             true,
                                              true>(d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
                                                    make_multi_index(block_work_idx[I0],
                                                                     block_work_idx[I1],
-                                                                    0,
-                                                                    0, // repeat
+                                                                    0, // mrepeat
+                                                                    0, // nrepeat
                                                                     wave_id[I0],
                                                                     wave_id[I1],
                                                                     wave_m_n_id[I1],
                                                                     0, // group
                                                                     wave_m_n_id[I0],
-                                                                    0)); // register
-        ignore = d0_threadwise_copy;
+                                                                    0)); // register number
         // acc0_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4 to acc0_thread_desc_k0_m_k1
         // n0_n1_n2_n3 -> k0
         // m0_m1_m2 -> m
@@ -831,7 +830,31 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
                                                                     num_k_block_main_loop);
             // bias+gelu
             {
-                static_for<0, n0 * n1 * n2 * n3, 1>{}([&](auto I) { ignore = I; });
+                static_for<0, Gemm0MXdlPerWave, 1>{}([&](auto mr) {
+                    static_for<0, Gemm0NXdlPerWave, 1>{}([&](auto nr) {
+                        static_for<0, n2, 1>{}([&](auto groupid) {
+                            d0_threadwise_copy.Run(
+                                d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                d0_grid_buf,
+                                d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
+                                d0_thread_buf);
+                            d0_threadwise_copy.MoveSrcSliceWindow(
+                                d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                make_multi_index(0, 0, mr, nr, 0, 0, 0, groupid, 0, 0));
+
+                            static_for<0, n4, 1>{}([&](auto i) {
+                                constexpr index_t c_offset =
+                                    acc0_thread_desc.CalculateOffset(make_tuple(mr, nr, 0)) +
+                                    groupid * n4 + i;
+                                acc0_thread_buf(Number<c_offset>{}) = 0;
+                                d0_element_op(acc0_thread_buf(Number<c_offset>{}),
+                                              acc0_thread_buf[Number<c_offset>{}],
+                                              d0_thread_buf[i]);
+                            });
+                        });
+                    });
+                });
             }
             // gemm1
             {
