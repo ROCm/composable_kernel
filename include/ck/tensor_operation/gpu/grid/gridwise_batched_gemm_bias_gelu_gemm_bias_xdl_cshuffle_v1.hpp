@@ -698,6 +698,33 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
                                                                      0, // group
                                                                      wave_m_n_id[I0],
                                                                      0)); // register number
+        if(get_thread_local_1d_id() == 32)
+        {
+
+            index_t c_offset = d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.CalculateOffset(
+                make_tuple(block_work_idx[I0],
+                           block_work_idx[I1],
+                           0, // mrepeat
+                           0, // nrepeat
+                           wave_id[I0],
+                           wave_id[I1],
+                           wave_m_n_id[I1],
+                           0, // group
+                           wave_m_n_id[I0],
+                           0));
+            printf("blockid:%d, block_work_idx[I0]:%d ,block_work_idx[I1]: %d, wave_id[I0]: %d, "
+                   "wave_id[I1]: "
+                   "%d, wave_m_n_id[I1]: %d,wave_m_n_id[I0]:%d, address:%d \n",
+                   get_block_1d_id(),
+                   block_work_idx[I0],
+                   block_work_idx[I1],
+                   wave_id[I0],
+                   wave_id[I1],
+                   wave_m_n_id[I1],
+                   wave_m_n_id[I0],
+                   c_offset);
+        }
+
         // acc0_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4 to acc0_thread_desc_k0_m_k1
         // n0_n1_n2_n3 -> k0
         // m0_m1_m2 -> m
@@ -852,7 +879,7 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
                                 constexpr index_t c_offset = acc0_thread_desc.CalculateOffset(
                                     make_tuple(mr, nr, groupid, i));
 #if 0
-                                acc0_thread_buf(Number<c_offset>{}) = d0_thread_buf(i);
+                                acc0_thread_buf(Number<c_offset>{}) = 0; // d0_thread_buf(i);
                                 d0_thread_buf(i)                    = 0;
                                 ignore                              = d0_element_op;
 #else

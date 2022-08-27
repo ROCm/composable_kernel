@@ -55,7 +55,7 @@ __global__ void
             const C1ElementwiseOperation c1_element_op,
             const A0GridDesc_AK0_M_AK1 a0_grid_desc_ak0_m_ak1,
             const B0GridDesc_BK0_N_BK1 b0_grid_desc_bk0_n_bk1,
-            const D0GridDesc_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5&
+            const D0GridDesc_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
                 d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
             const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
             const C1GridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock
@@ -212,6 +212,13 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
+    static constexpr auto I3 = Number<3>{};
+    static constexpr auto I4 = Number<4>{};
+    static constexpr auto I5 = Number<5>{};
+    static constexpr auto I6 = Number<6>{};
+    static constexpr auto I7 = Number<7>{};
+    static constexpr auto I8 = Number<8>{};
+    static constexpr auto I9 = Number<9>{};
 
     static constexpr auto gemm0_padder =
         MatrixPadder_v2<PadGemm0M, PadGemm0N, PadGemm0K, index_t, index_t, index_t>{
@@ -503,6 +510,19 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
               compute_base_ptr_of_batch_{
                   BatchStrideA0, BatchStrideB0, BatchStrideD0, BatchStrideB1, BatchStrideC1}
         {
+            std::cout << "d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_{"
+                      << d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_.GetLength(I0) << ", "
+                      << d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_.GetLength(I1) << ", "
+                      << d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_.GetLength(I2) << ", "
+                      << d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_.GetLength(I3) << ", "
+                      << d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_.GetLength(I4) << ", "
+                      << d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_.GetLength(I5) << ", "
+                      << d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_.GetLength(I6) << ", "
+                      << d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_.GetLength(I7) << ", "
+                      << d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_.GetLength(I8) << ", "
+                      << d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_.GetLength(I9) << "}"
+                      << std::endl;
+
             if(GridwiseGemm::CheckValidity(a0_grid_desc_m_k_,
                                            b0_grid_desc_n_k_,
                                            b1_grid_desc_n_k_,
