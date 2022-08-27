@@ -393,6 +393,17 @@ int main(int argc, char* argv[])
 
         ref_gemm0_invoker.Run(ref_gemm0_argument);
 
+        for(int b = 0; b < BatchCount; ++b)
+        {
+            for(int m = 0; m < M; ++m)
+            {
+                for(int n = 0; n < N; ++n)
+                {
+                    d0_element_op(a1_g_m_n(b, m, n), a1_g_m_n(b, m, n), d0_g_m_n(b, m, n));
+                }
+            }
+        }
+
         auto ref_gemm1          = ReferenceGemm1Instance{};
         auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
         auto ref_gemm1_argument = ref_gemm1.MakeArgument(
