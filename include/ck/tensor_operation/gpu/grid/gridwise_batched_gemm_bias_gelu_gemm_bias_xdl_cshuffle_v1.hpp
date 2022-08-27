@@ -606,25 +606,22 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
 
         constexpr auto b1_block_slice_copy_step = make_multi_index(Gemm1KPerBlock / B1K1, 0, 0);
         // change d0 tensor
-        const auto Gemm0M         = a0_grid_desc_ak0_m_ak1.GetLength(I1);
-        const auto Gemm0N         = b0_grid_desc_bk0_n_bk1.GetLength(I1);
-        auto create_gemm0_dlayout = [&]() {
-            const auto d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 = transform_tensor_descriptor(
-                d0_grid_desc_m_n,
-                make_tuple(
-                    make_unmerge_transform(make_tuple(
-                        Gemm0M / Gemm0MPerBlock, Gemm0MXdlPerWave, Gemm0MWaves, Gemm0MPerXdl)),
-                    make_unmerge_transform(make_tuple(Gemm0N / Gemm0NPerBlock,
-                                                      Gemm0NXdlPerWave,
-                                                      Gemm0NWaves,
-                                                      n2,
-                                                      WaveSize / Gemm0NPerXdl,
-                                                      n4))),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2, 4, 6>{}, Sequence<1, 3, 5, 7, 8, 9>{}));
-            return d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5;
-        };
-        const auto d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 = create_gemm0_dlayout();
+        const auto Gemm0M = a0_grid_desc_ak0_m_ak1.GetLength(I1);
+        const auto Gemm0N = b0_grid_desc_bk0_n_bk1.GetLength(I1);
+
+        const auto d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 = transform_tensor_descriptor(
+            d0_grid_desc_m_n,
+            make_tuple(make_unmerge_transform(make_tuple(
+                           Gemm0M / Gemm0MPerBlock, Gemm0MXdlPerWave, Gemm0MWaves, Gemm0MPerXdl)),
+                       make_unmerge_transform(make_tuple(Gemm0N / Gemm0NPerBlock,
+                                                         Gemm0NXdlPerWave,
+                                                         Gemm0NWaves,
+                                                         n2,
+                                                         WaveSize / Gemm0NPerXdl,
+                                                         n4))),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0, 2, 4, 6>{}, Sequence<1, 3, 5, 7, 8, 9>{}));
+
         // d0 matrix threadwise copy
         constexpr auto d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
             make_naive_tensor_descriptor_packed(make_tuple(I1,   // MBlockId
@@ -638,16 +635,16 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
                                                            I1,   // NInputNum
                                                            n4)); // registerNum
 
-        auto d0_thread_buf =
-            StaticBuffer<AddressSpaceEnum::Vgpr,
-                         A0B0B1DataType,
-                         d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetElementSpaceSize(),
-                         true>{};
+        StaticBuffer<AddressSpaceEnum::Vgpr,
+                     A0B0B1DataType,
+                     d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetElementSpaceSize(),
+                     true>
+            d0_thread_buf;
         const auto wave_id     = GetGemm0WaveIdx();
         const auto wave_m_n_id = GetGemm0WaveMNIdx(wave_id[I2]); // I2: 0~63
 
         constexpr auto acc0_thread_desc = make_naive_tensor_descriptor_packed(
-            make_tuple(Number<Gemm0MXdlPerWave>{}, Number<Gemm0NXdlPerWave>{}, n2 * n4));
+            make_tuple(Number<Gemm0MXdlPerWave>{}, Number<Gemm0NXdlPerWave>{}, n2, n4));
 
 #if 0
         const index_t block_id  = get_block_1d_id();
@@ -678,18 +675,18 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
                                              Sequence<0, 1, 2, 3, 4, 5, 6, 7, 8, 9>,
                                              9,
                                              n4,
-                                             true,
-                                             true>(d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                                                   make_multi_index(block_work_idx[I0],
-                                                                    block_work_idx[I1],
-                                                                    0, // mrepeat
-                                                                    0, // nrepeat
-                                                                    wave_id[I0],
-                                                                    wave_id[I1],
-                                                                    wave_m_n_id[I1],
-                                                                    0, // group
-                                                                    wave_m_n_id[I0],
-                                                                    0)); // register number
+                                             1,
+                                             false>(d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                                    make_multi_index(block_work_idx[I0],
+                                                                     block_work_idx[I1],
+                                                                     0, // mrepeat
+                                                                     0, // nrepeat
+                                                                     wave_id[I0],
+                                                                     wave_id[I1],
+                                                                     wave_m_n_id[I1],
+                                                                     0, // group
+                                                                     wave_m_n_id[I0],
+                                                                     0)); // register number
         // acc0_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4 to acc0_thread_desc_k0_m_k1
         // n0_n1_n2_n3 -> k0
         // m0_m1_m2 -> m
@@ -844,20 +841,24 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
                                 make_multi_index(0, 0, mr, nr, 0, 0, 0, groupid, 0, 0));
 
                             static_for<0, n4, 1>{}([&](auto i) {
-                                constexpr index_t c_offset =
-                                    acc0_thread_desc.CalculateOffset(make_tuple(mr, nr, 0)) +
-                                    groupid * n4 + i;
-                                if(get_thread_local_1d_id() == 0)
-                                {
-                                    printf("groupid: %d, i: %d n4: %d \n", groupid,i,n4);
-                                }
-                                /*acc0_thread_buf(Number<c_offset>{}) = 0;
+                                constexpr index_t c_offset = acc0_thread_desc.CalculateOffset(
+                                    make_tuple(mr, nr, groupid, i));
+
                                 d0_element_op(acc0_thread_buf(Number<c_offset>{}),
                                               acc0_thread_buf[Number<c_offset>{}],
-                                              d0_thread_buf[i]);*/
+                                              d0_thread_buf[i]);
                             });
+                            d0_threadwise_copy.MoveSrcSliceWindow(
+                                d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                                make_multi_index(0, 0, 0, 0, 0, 0, 0, 1, 0, 0));
                         });
+                        d0_threadwise_copy.MoveSrcSliceWindow(
+                            d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                            make_multi_index(0, 0, 0, 1, 0, 0, 0, 0, 0, 0));
                     });
+                    d0_threadwise_copy.MoveSrcSliceWindow(
+                        d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                        make_multi_index(0, 0, 1, 0, 0, 0, 0, 0, 0, 0));
                 });
             }
             // gemm1
