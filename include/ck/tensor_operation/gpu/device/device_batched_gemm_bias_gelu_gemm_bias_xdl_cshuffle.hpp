@@ -31,7 +31,7 @@ template <typename GridwiseGemm,
           typename C1ElementwiseOperation,
           typename A0GridDesc_AK0_M_AK1,
           typename B0GridDesc_BK0_N_BK1,
-          typename D0GridDesc_M_N,
+          typename D0GridDesc_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
           typename B1GridDesc_BK0_N_BK1,
           typename C1GridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock,
           typename Block2C1TileMap,
@@ -55,7 +55,8 @@ __global__ void
             const C1ElementwiseOperation c1_element_op,
             const A0GridDesc_AK0_M_AK1 a0_grid_desc_ak0_m_ak1,
             const B0GridDesc_BK0_N_BK1 b0_grid_desc_bk0_n_bk1,
-            const D0GridDesc_M_N& d0_grid_desc_m_n,
+            const D0GridDesc_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5&
+                d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
             const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
             const C1GridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock
                 c1_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock,
@@ -95,7 +96,7 @@ __global__ void
         c1_element_op,
         a0_grid_desc_ak0_m_ak1,
         b0_grid_desc_bk0_n_bk1,
-        d0_grid_desc_m_n,
+        d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
         b1_grid_desc_bk0_n_bk1,
         c1_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock,
         block_2_c1tile_map);
@@ -433,11 +434,13 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
         C1ShuffleBlockTransferScalarPerVector_Gemm0NPerBlock,
         LoopSched>;
 
-    using A0GridDesc_AK0_M_AK1 = remove_cvref_t<decltype(
+    using A0GridDesc_AK0_M_AK1                     = remove_cvref_t<decltype(
         GridwiseGemm::MakeDefaultA0GridDescriptor_AK0_M_AK1(A0GridDesc_M_K{}))>;
-    using B0GridDesc_BK0_N_BK1 = remove_cvref_t<decltype(
+    using B0GridDesc_BK0_N_BK1                     = remove_cvref_t<decltype(
         GridwiseGemm::MakeDefaultB0GridDescriptor_BK0_N_BK1(B0GridDesc_N_K{}))>;
-    using B1GridDesc_BK0_N_BK1 = remove_cvref_t<decltype(
+    using D0GridDesc_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5 = remove_cvref_t<decltype(
+        GridwiseGemm::MakeGemm0D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(D0GridDesc_M_N{}))>;
+    using B1GridDesc_BK0_N_BK1                     = remove_cvref_t<decltype(
         GridwiseGemm::MakeDefaultB1GridDescriptor_BK0_N_BK1(B1GridDesc_N_K{}))>;
 
     // Argument
@@ -483,6 +486,9 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                   GridwiseGemm::MakeDefaultA0GridDescriptor_AK0_M_AK1(a0_grid_desc_m_k_)},
               b0_grid_desc_bk0_n_bk1_{
                   GridwiseGemm::MakeDefaultB0GridDescriptor_BK0_N_BK1(b0_grid_desc_n_k_)},
+              d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_{
+                  GridwiseGemm::MakeGemm0D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
+                      d0_grid_desc_m_n_)},
               b1_grid_desc_bk0_n_bk1_{
                   GridwiseGemm::MakeDefaultB1GridDescriptor_BK0_N_BK1(b1_grid_desc_n_k_)},
               c1_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock_{},
@@ -497,7 +503,6 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
               compute_base_ptr_of_batch_{
                   BatchStrideA0, BatchStrideB0, BatchStrideD0, BatchStrideB1, BatchStrideC1}
         {
-            ignore = BatchStrideD0;
             if(GridwiseGemm::CheckValidity(a0_grid_desc_m_k_,
                                            b0_grid_desc_n_k_,
                                            b1_grid_desc_n_k_,
@@ -528,6 +533,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
         // tensor descriptors for block/thread-wise copy
         A0GridDesc_AK0_M_AK1 a0_grid_desc_ak0_m_ak1_;
         B0GridDesc_BK0_N_BK1 b0_grid_desc_bk0_n_bk1_;
+        D0GridDesc_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5 d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_;
         B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1_;
         typename GridwiseGemm::C1GridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock
             c1_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock_;
@@ -583,7 +589,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                     C1ElementwiseOperation,
                     DeviceOp::A0GridDesc_AK0_M_AK1,
                     DeviceOp::B0GridDesc_BK0_N_BK1,
-                    DeviceOp::D0GridDesc_M_N,
+                    DeviceOp::D0GridDesc_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
                     DeviceOp::B1GridDesc_BK0_N_BK1,
                     typename GridwiseGemm::
                         C1GridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock,
@@ -610,7 +616,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                     arg.c1_element_op_,
                     arg.a0_grid_desc_ak0_m_ak1_,
                     arg.b0_grid_desc_bk0_n_bk1_,
-                    arg.d0_grid_desc_m_n_,
+                    arg.d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
                     arg.b1_grid_desc_bk0_n_bk1_,
                     arg.c1_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock_,
                     arg.block_2_c1tile_map_,

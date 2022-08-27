@@ -322,6 +322,31 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
             make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
+    // D0 desc for source in blockwise copy
+    __host__ __device__ static constexpr auto
+    MakeGemm0D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(const D0GridDesc_M_N& d0_grid_desc_m_n)
+    {
+        const auto M = d0_grid_desc_m_n.GetLength(I0);
+        const auto N = d0_grid_desc_m_n.GetLength(I1);
+
+        constexpr auto mfma =
+            MfmaSelector<A0B0B1DataType, Gemm0MPerXdl, Gemm0NPerXdl>::selected_mfma;
+        constexpr auto N3 = mfma.num_groups_per_blk;
+        constexpr auto N5 = mfma.group_size;
+        return transform_tensor_descriptor(
+            d0_grid_desc_m_n,
+            make_tuple(make_unmerge_transform(make_tuple(
+                           M / Gemm0MPerBlock, Gemm0MXdlPerWave, Gemm0MWaves, Gemm0MPerXdl)),
+                       make_unmerge_transform(make_tuple(N / Gemm0NPerBlock,
+                                                         Gemm0NXdlPerWave,
+                                                         Gemm0NWaves,
+                                                         N3,
+                                                         WaveSize / Gemm0NPerXdl,
+                                                         N5))),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0, 2, 4, 6>{}, Sequence<1, 3, 5, 7, 8, 9>{}));
+    }
+
     // B1 desc for source in blockwise copy
     __host__ __device__ static constexpr auto
     MakeDefaultB1GridDescriptor_BK0_N_BK1(const B1GridDesc_N_K& b1_grid_desc_n_k)
@@ -407,34 +432,36 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
     template <bool HasMainKBlockLoop,
               typename A0GridDesc_AK0_M_AK1,
               typename B0GridDesc_BK0_N_BK1,
+              typename D0GridDesc_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
               typename B1GridDesc_BK0_N_BK1,
               typename Block2C1TileMap>
-    __device__ static void Run(const A0B0B1DataType* __restrict__ p_a0_grid,
-                               const A0B0B1DataType* __restrict__ p_b0_grid,
-                               const A0B0B1DataType* __restrict__ p_d0_grid,
-                               const A0B0B1DataType* __restrict__ p_b1_grid,
-                               C1DataType* __restrict__ p_c1_grid,
-                               void* __restrict__ p_shared,
-                               const A0ElementwiseOperation& a0_element_op,
-                               const B0ElementwiseOperation& b0_element_op,
-                               const C0ElementwiseOperation& c0_element_op,
-                               const D0ElementwiseOperation& d0_element_op,
-                               const B1ElementwiseOperation& b1_element_op,
-                               const C1ElementwiseOperation& c1_element_op,
-                               const A0GridDesc_AK0_M_AK1& a0_grid_desc_ak0_m_ak1,
-                               const B0GridDesc_BK0_N_BK1& b0_grid_desc_bk0_n_bk1,
-                               const D0GridDesc_M_N& d0_grid_desc_m_n,
-                               const B1GridDesc_BK0_N_BK1& b1_grid_desc_bk0_n_bk1,
-                               const C1GridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock&
-                                   c1_grid_desc_mblock_mperblock_nblock_nperblock,
-                               const Block2C1TileMap& block_2_c1tile_map)
+    __device__ static void
+    Run(const A0B0B1DataType* __restrict__ p_a0_grid,
+        const A0B0B1DataType* __restrict__ p_b0_grid,
+        const A0B0B1DataType* __restrict__ p_d0_grid,
+        const A0B0B1DataType* __restrict__ p_b1_grid,
+        C1DataType* __restrict__ p_c1_grid,
+        void* __restrict__ p_shared,
+        const A0ElementwiseOperation& a0_element_op,
+        const B0ElementwiseOperation& b0_element_op,
+        const C0ElementwiseOperation& c0_element_op,
+        const D0ElementwiseOperation& d0_element_op,
+        const B1ElementwiseOperation& b1_element_op,
+        const C1ElementwiseOperation& c1_element_op,
+        const A0GridDesc_AK0_M_AK1& a0_grid_desc_ak0_m_ak1,
+        const B0GridDesc_BK0_N_BK1& b0_grid_desc_bk0_n_bk1,
+        const D0GridDesc_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5& d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+        const B1GridDesc_BK0_N_BK1& b1_grid_desc_bk0_n_bk1,
+        const C1GridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock&
+            c1_grid_desc_mblock_mperblock_nblock_nperblock,
+        const Block2C1TileMap& block_2_c1tile_map)
     {
         const auto a0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a0_grid, a0_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b0_grid, b0_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         const auto d0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_d0_grid, d0_grid_desc_m_n.GetElementSpaceSize());
+            p_d0_grid, d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5.GetElementSpaceSize());
         const auto b1_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b1_grid, b1_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -605,22 +632,6 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
         constexpr auto n4 = acc0_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I7);
 
         constexpr auto b1_block_slice_copy_step = make_multi_index(Gemm1KPerBlock / B1K1, 0, 0);
-        // change d0 tensor
-        const auto Gemm0M = a0_grid_desc_ak0_m_ak1.GetLength(I1);
-        const auto Gemm0N = b0_grid_desc_bk0_n_bk1.GetLength(I1);
-
-        const auto d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 = transform_tensor_descriptor(
-            d0_grid_desc_m_n,
-            make_tuple(make_unmerge_transform(make_tuple(
-                           Gemm0M / Gemm0MPerBlock, Gemm0MXdlPerWave, Gemm0MWaves, Gemm0MPerXdl)),
-                       make_unmerge_transform(make_tuple(Gemm0N / Gemm0NPerBlock,
-                                                         Gemm0NXdlPerWave,
-                                                         Gemm0NWaves,
-                                                         n2,
-                                                         WaveSize / Gemm0NPerXdl,
-                                                         n4))),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0, 2, 4, 6>{}, Sequence<1, 3, 5, 7, 8, 9>{}));
 
         // d0 matrix threadwise copy
         constexpr auto d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
@@ -836,17 +847,19 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
                                 d0_thread_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
                                 make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0, I0),
                                 d0_thread_buf);
-                            d0_threadwise_copy.MoveSrcSliceWindow(
-                                d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                                make_multi_index(0, 0, mr, nr, 0, 0, 0, groupid, 0, 0));
 
                             static_for<0, n4, 1>{}([&](auto i) {
                                 constexpr index_t c_offset = acc0_thread_desc.CalculateOffset(
                                     make_tuple(mr, nr, groupid, i));
-
+#if 0
+                                acc0_thread_buf(Number<c_offset>{}) = d0_thread_buf(i);
+                                d0_thread_buf(i)                    = 0;
+                                ignore                              = d0_element_op;
+#else
                                 d0_element_op(acc0_thread_buf(Number<c_offset>{}),
                                               acc0_thread_buf[Number<c_offset>{}],
                                               d0_thread_buf[i]);
+#endif
                             });
                             d0_threadwise_copy.MoveSrcSliceWindow(
                                 d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
