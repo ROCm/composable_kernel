@@ -83,7 +83,8 @@ struct ReferenceBatchedGemm : public device::BaseOperator
             make_ParallelTensorFunctor(f_gmk_gkn_gmn,
                                        arg.c_g_m_n_.mDesc.GetLengths()[0],
                                        arg.c_g_m_n_.mDesc.GetLengths()[1],
-                                       arg.c_g_m_n_.mDesc.GetLengths()[2])();
+                                       arg.c_g_m_n_.mDesc.GetLengths()[2])(
+		std::thread::hardware_concurrency());
 
             return 0;
         }
