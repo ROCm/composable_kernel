@@ -307,7 +307,21 @@ int main(int argc, char* argv[])
         d0_g_m_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{1});
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
     }
-
+#if 0
+    std::cout << std::endl;
+    for(int b = 0; b < BatchCount; b++)
+    {
+        for(int n = 0; n < N; n = n + 4)
+        {
+            std::cout << "(" << b << "," << n << "): ";
+            for(int i = 0; i < 4; i++)
+            {
+                std::cout << ck::type_convert<float>(d0_g_m_n(b, 0, n)) << "   ";
+            }
+            std::cout << std::endl;
+        }
+    }
+#endif
     DeviceMem a0_g_m_k_device_buf(sizeof(A0DataType) * a_g_m_k.mDesc.GetElementSize());
     DeviceMem b0_g_k_n_device_buf(sizeof(B0DataType) * b0_g_k_n.mDesc.GetElementSize());
     DeviceMem d0_g_m_n_device_buf(sizeof(D0DataType) * d0_g_m_n.mDesc.GetElementSize());
@@ -392,7 +406,7 @@ int main(int argc, char* argv[])
             a_g_m_k, b0_g_k_n, a1_g_m_n, a0_element_op, b0_element_op, c0_element_op);
 
         ref_gemm0_invoker.Run(ref_gemm0_argument);
-
+        // bias+gelu
         for(int b = 0; b < BatchCount; ++b)
         {
             for(int m = 0; m < M; ++m)
