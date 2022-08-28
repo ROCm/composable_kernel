@@ -26,17 +26,26 @@ static constexpr auto ConvSpec =
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 // clang-format off
-template <ck::index_t NDimSpatial, typename ALayout, typename BLayout, typename DELayout, typename RLayout>
-using DeviceGroupedConvNDFwdInstance =
+template <ck::index_t NDimSpatial>
+using DeviceInstance =
     ck::tensor_operation::device::DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
-//######| NDimSpatial| ALayout| BLayout| DELayout| RLayout|     AData|     BData|     AccData|         CShuffle|     DsData|     EData|     ReduceAccData|     RsData|           A|           B|          CDE|          Qs|          Rs|           Thread|           Global|           Conv|          GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|    CDRThreadTransfer|                  CDE|    RThreadTransfer|
-//######|            |        |        |         |        |      Type|      Type|        Type|         DataType|       Type|      Type|              Type|       Type| Elementwise| Elementwise|  Elementwise| Elementwise| Elementwise|           Reduce|           Reduce|            Fwd|Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|       ClusterLengths| ReduceThreadTransfer| DstScalarPerVector|
-//######|            |        |        |         |        |          |          |            |                 |           |          |                  |           |   Operation|   Operation|    Operation|   Operation|   Operation|        Operation|        Operation| Specialization|              |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| _MPerBlock_NPerBlock|      ScalarPerVector|         _MPerBlock|
-//######|            |        |        |         |        |          |          |            |                 |           |          |                  |           |            |            |             |            |            |                 |                 |               |              |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                     |           _NPerBlock|                   |
-        < NDimSpatial, ALayout, BLayout, DELayout, RLayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType, ReduceAccDataType, RsDataType,  AElementOp,  BElementOp, CDEElementOp, QsElementOp, RsElementOp, RsThreadReduceOp, RsGlobalReduceOp,       ConvSpec,   GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,             S<64, 4>,                    4,                  1>;
+//######| NDimSpatial|              ALayout|              BLayout|              DELayout|              RLayout|     AData|     BData|     AccData|         CShuffle|     DsData|     EData|     ReduceAccData|     RsData|           A|           B|          CDE|          Qs|          Rs|           Thread|           Global|           Conv|          GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|    CDRThreadTransfer|                  CDE|    RThreadTransfer|
+//######|            |                     |                     |                      |                     |      Type|      Type|        Type|         DataType|       Type|      Type|              Type|       Type| Elementwise| Elementwise|  Elementwise| Elementwise| Elementwise|           Reduce|           Reduce|            Fwd|Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|       ClusterLengths| ReduceThreadTransfer| DstScalarPerVector|
+//######|            |                     |                     |                      |                     |          |          |            |                 |           |          |                  |           |   Operation|   Operation|    Operation|   Operation|   Operation|        Operation|        Operation| Specialization|              |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| _MPerBlock_NPerBlock|      ScalarPerVector|         _MPerBlock|
+//######|            |                     |                     |                      |                     |          |          |            |                 |           |          |                  |           |            |            |             |            |            |                 |                 |               |              |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                     |           _NPerBlock|                   |
+        < NDimSpatial, ALayout<NDimSpatial>, BLayout<NDimSpatial>, DELayout<NDimSpatial>, RLayout<NDimSpatial>, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType, ReduceAccDataType, RsDataType,  AElementOp,  BElementOp, CDEElementOp, QsElementOp, RsElementOp, RsThreadReduceOp, RsGlobalReduceOp,       ConvSpec,   GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,             S<64, 4>,                    4,                  1>;
 // clang-format on
 
-template <ck::index_t NDimSpatial, typename DeviceConvNDFwdInstance>
+template <ck::index_t NDimSpatial>
+using HostInstance = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
+                                                                  ADataType,
+                                                                  BDataType,
+                                                                  EDataType,
+                                                                  AElementOp,
+                                                                  BElementOp,
+                                                                  PassThrough>;
+
+template <ck::index_t NDimSpatial>
 bool run_conv_fwd_max(const ck::utils::conv::ConvParam& problem_size,
                       const ExecutionConfig& config,
                       const HostTensorDescriptor& in_g_n_c_wis_desc,
@@ -101,8 +110,8 @@ bool run_conv_fwd_max(const ck::utils::conv::ConvParam& problem_size,
     copy(problem_size.input_left_pads_, input_left_pads);
     copy(problem_size.input_right_pads_, input_right_pads);
 
-    // do Conv
-    auto conv     = DeviceConvNDFwdInstance{};
+    // run Conv + Reduction on device
+    auto conv     = DeviceInstance<NDimSpatial>{};
     auto invoker  = conv.MakeInvoker();
     auto argument = conv.MakeArgument(in_device_buf.GetDeviceBuffer(),
                                       wei_device_buf.GetDeviceBuffer(),
@@ -149,14 +158,8 @@ bool run_conv_fwd_max(const ck::utils::conv::ConvParam& problem_size,
 
     if(config.do_verification)
     {
-        auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
-                                                                     ADataType,
-                                                                     BDataType,
-                                                                     EDataType,
-                                                                     AElementOp,
-                                                                     BElementOp,
-                                                                     PassThrough>();
-
+        // run Conv + Reduction on host
+        auto ref_conv     = HostInstance<NDimSpatial>{};
         auto ref_invoker  = ref_conv.MakeInvoker();
         auto ref_argument = ref_conv.MakeArgument(in,
                                                   wei,
@@ -228,8 +231,6 @@ bool run_conv_fwd_max_example(int argc, char* argv[])
         return false;
     }
 
-    namespace ctc = ck::tensor_layout::convolution;
-
     // if(problem_size.num_dim_spatial_ == 1)
     // {
     //     using ALayout  = ctc::GNWC;
@@ -277,21 +278,16 @@ bool run_conv_fwd_max_example(int argc, char* argv[])
     // }
     if(problem_size.num_dim_spatial_ == 2)
     {
-        using ALayout = ctc::GNHWC;
-        using BLayout = ctc::GKYXC;
-        using ELayout = ctc::GNHWK;
-        using RLayout = ctc::GNHW;
-
         const auto in_g_n_c_wis_desc =
-            ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<ALayout>(
+            ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<ALayout<2>>(
                 problem_size);
 
         const auto wei_g_k_c_xs_desc =
-            ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<BLayout>(
+            ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<BLayout<2>>(
                 problem_size);
 
         const auto out_g_n_k_wos_desc =
-            ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<ELayout>(
+            ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<DELayout<2>>(
                 problem_size);
 
         const ck::index_t output_height = problem_size.output_spatial_lengths_[0];
@@ -300,15 +296,12 @@ bool run_conv_fwd_max_example(int argc, char* argv[])
         const auto r0_g_wos_desc =
             HostTensorDescriptor({problem_size.G_, problem_size.N_, output_height, output_width});
 
-        return run_conv_fwd_max<
-            2,
-            DeviceGroupedConvNDFwdInstance<2, ALayout, BLayout, ELayout, RLayout>>(
-            problem_size,
-            config,
-            in_g_n_c_wis_desc,
-            wei_g_k_c_xs_desc,
-            out_g_n_k_wos_desc,
-            r0_g_wos_desc);
+        return run_conv_fwd_max<2>(problem_size,
+                                   config,
+                                   in_g_n_c_wis_desc,
+                                   wei_g_k_c_xs_desc,
+                                   out_g_n_k_wos_desc,
+                                   r0_g_wos_desc);
     }
     // else if(problem_size.num_dim_spatial_ == 3)
     // {

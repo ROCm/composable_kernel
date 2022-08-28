@@ -22,6 +22,98 @@
 using FP16 = ck::half_t;
 using FP32 = float;
 
+template <typename Ret>
+struct type_function
+{
+    using type = Ret;
+};
+
+template <ck::index_t>
+struct ALayoutSelector;
+
+template <ck::index_t>
+struct BLayoutSelector;
+
+template <ck::index_t>
+struct DELayoutSelector;
+
+template <ck::index_t>
+struct RLayoutSelector;
+
+namespace ctl = ck::tensor_layout::convolution;
+
+template <>
+struct ALayoutSelector<1> : type_function<ctl::GNWC>
+{
+};
+
+template <>
+struct BLayoutSelector<1> : type_function<ctl::GKXC>
+{
+};
+
+template <>
+struct DELayoutSelector<1> : type_function<ctl::GNWK>
+{
+};
+
+template <>
+struct RLayoutSelector<1> : type_function<ctl::GNW>
+{
+};
+
+template <>
+struct ALayoutSelector<2> : type_function<ctl::GNHWC>
+{
+};
+
+template <>
+struct BLayoutSelector<2> : type_function<ctl::GKYXC>
+{
+};
+
+template <>
+struct DELayoutSelector<2> : type_function<ctl::GNHWK>
+{
+};
+
+template <>
+struct RLayoutSelector<2> : type_function<ctl::GNHW>
+{
+};
+
+template <>
+struct ALayoutSelector<3> : type_function<ctl::GNDHWC>
+{
+};
+
+template <>
+struct BLayoutSelector<3> : type_function<ctl::GKZYXC>
+{
+};
+
+template <>
+struct DELayoutSelector<3> : type_function<ctl::GNDHWK>
+{
+};
+
+template <>
+struct RLayoutSelector<3> : type_function<ctl::GNDHW>
+{
+};
+
+template <ck::index_t NDimSpatial>
+using ALayout = typename ALayoutSelector<NDimSpatial>::type;
+
+template <ck::index_t NDimSpatial>
+using BLayout = typename BLayoutSelector<NDimSpatial>::type;
+
+template <ck::index_t NDimSpatial>
+using DELayout = typename DELayoutSelector<NDimSpatial>::type;
+
+template <ck::index_t NDimSpatial>
+using RLayout = typename RLayoutSelector<NDimSpatial>::type;
+
 struct ExecutionConfig final
 {
     bool do_verification = true;
