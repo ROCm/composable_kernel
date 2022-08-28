@@ -9,6 +9,8 @@
     {                                                         \
         static constexpr const char* name = #layout;          \
     }
+#else
+#error PP_DEFINE_LAYOUT_TYPE() was already defined in other place
 #endif
 
 namespace ck {
@@ -162,3 +164,5 @@ std::ostream& operator<<(std::ostream& os, const Layout&)
 
 } // namespace tensor_layout
 } // namespace ck
+
+#undef PP_DEFINE_LAYOUT_TYPE
