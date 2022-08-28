@@ -74,12 +74,16 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
     {
     case 0: break;
     case 1:
-        conv_input.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        conv_weight.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-8, 7}(conv_input.begin(),
+                                                                         conv_input.end());
+        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-8, 7}(conv_weight.begin(),
+                                                                         conv_weight.end());
         break;
     default:
-        conv_input.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        conv_weight.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        ck::utils::FillUniformDistribution<ADataType>{0.0, 1.0}(conv_input.begin(),
+                                                                conv_input.end());
+        ck::utils::FillUniformDistribution<BDataType>{-0.5, 0.5}(conv_weight.begin(),
+                                                                 conv_weight.end());
     }
 
     DeviceMem conv_input_device_buf(sizeof(ADataType) * conv_input.mDesc.GetElementSpaceSize());

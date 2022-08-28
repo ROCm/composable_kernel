@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <iterator>
@@ -19,6 +20,7 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/fill.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
@@ -26,6 +28,8 @@
 using BF16 = ck::bhalf_t;
 using FP16 = ck::half_t;
 using FP32 = float;
+using I8   = std::int8_t;
+using I32  = std::int32_t;
 
 template <typename Ret>
 struct type_function
