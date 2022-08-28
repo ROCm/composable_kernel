@@ -46,14 +46,21 @@ using HostInstance = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
                                                                   PassThrough>;
 
 template <ck::index_t NDimSpatial>
-bool run_conv_fwd_max(const ck::utils::conv::ConvParam& problem_size,
-                      const ExecutionConfig& config,
-                      const HostTensorDescriptor& in_g_n_c_wis_desc,
-                      const HostTensorDescriptor& wei_g_k_c_xs_desc,
-                      const HostTensorDescriptor& out_g_n_k_wos_desc,
-                      const HostTensorDescriptor& r0_g_wos_desc)
+bool run_conv_fwd_max(const ck::utils::conv::ConvParam& problem_size, const ExecutionConfig& config)
 {
-    static_assert(NDimSpatial == 2);
+    const auto in_g_n_c_wis_desc =
+        ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<ALayout<NDimSpatial>>(
+            problem_size);
+
+    const auto wei_g_k_c_xs_desc =
+        ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<BLayout<NDimSpatial>>(
+            problem_size);
+
+    const auto out_g_n_k_wos_desc =
+        ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<DELayout<NDimSpatial>>(
+            problem_size);
+
+    const auto r0_g_wos_desc = make_r0_host_tensor_descriptor(problem_size);
 
     Tensor<ADataType> in(in_g_n_c_wis_desc);
     Tensor<BDataType> wei(wei_g_k_c_xs_desc);
@@ -231,123 +238,12 @@ bool run_conv_fwd_max_example(int argc, char* argv[])
         return false;
     }
 
-    // if(problem_size.num_dim_spatial_ == 1)
-    // {
-    //     using ALayout  = ctc::GNWC;
-    //     using BLayout = ctc::GKXC;
-    //     using ELayout = ctc::GNWK;
-
-    //     const auto in_g_n_c_wis_desc =
-    //         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<ALayout>(
-    //             problem_size);
-
-    //     const auto wei_g_k_c_xs_desc =
-    //         ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<BLayout>(
-    //             problem_size);
-
-    //     const auto out_g_n_k_wos_desc =
-    //         ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<ELayout>(
-    //             problem_size);
-
-    //     const auto r0_g_wos_desc = f_host_tensor_descriptor1d(problem_size.G_, 1);
-
-    //     return run_grouped_conv_fwd<
-    //         1,
-    //         ADataType,
-    //         BDataType,
-    //         EDataType,
-    //         R0DataType,
-    //         AElementOp,
-    //         BElementOp,
-    //         CDEElementOp,
-    //         QsElementOp,
-    //         RsElementOp,
-    //         DeviceGroupedConvNDFwdInstance<1, ALayout, BLayout, ELayout>>(do_verification,
-    //                                                                            init_method,
-    //                                                                            time_kernel,
-    //                                                                            problem_size,
-    //                                                                            in_g_n_c_wis_desc,
-    //                                                                            wei_g_k_c_xs_desc,
-    //                                                                            out_g_n_k_wos_desc,
-    //                                                                            r0_g_wos_desc,
-    //                                                                            in_element_op,
-    //                                                                            wei_element_op,
-    //                                                                            out_element_op,
-    //                                                                            qs_element_op,
-    //                                                                            rs_element_op);
-    // }
-    if(problem_size.num_dim_spatial_ == 2)
+    switch(problem_size.num_dim_spatial_)
     {
-        const auto in_g_n_c_wis_desc =
-            ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<ALayout<2>>(
-                problem_size);
-
-        const auto wei_g_k_c_xs_desc =
-            ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<BLayout<2>>(
-                problem_size);
-
-        const auto out_g_n_k_wos_desc =
-            ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<DELayout<2>>(
-                problem_size);
-
-        const ck::index_t output_height = problem_size.output_spatial_lengths_[0];
-        const ck::index_t output_width  = problem_size.output_spatial_lengths_[1];
-
-        const auto r0_g_wos_desc =
-            HostTensorDescriptor({problem_size.G_, problem_size.N_, output_height, output_width});
-
-        return run_conv_fwd_max<2>(problem_size,
-                                   config,
-                                   in_g_n_c_wis_desc,
-                                   wei_g_k_c_xs_desc,
-                                   out_g_n_k_wos_desc,
-                                   r0_g_wos_desc);
+    case 1: return run_conv_fwd_max<1>(problem_size, config);
+    case 2: return run_conv_fwd_max<2>(problem_size, config);
+    case 3: return run_conv_fwd_max<3>(problem_size, config);
     }
-    // else if(problem_size.num_dim_spatial_ == 3)
-    // {
-    //     using ALayout  = ctc::GNDHWC;
-    //     using BLayout = ctc::GKZYXC;
-    //     using ELayout = ctc::GNDHWK;
 
-    //     const auto in_g_n_c_wis_desc =
-    //         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<ALayout>(
-    //             problem_size);
-
-    //     const auto wei_g_k_c_xs_desc =
-    //         ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<BLayout>(
-    //             problem_size);
-
-    //     const auto out_g_n_k_wos_desc =
-    //         ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<ELayout>(
-    //             problem_size);
-
-    //     const auto r0_g_wos_desc = f_host_tensor_descriptor1d(problem_size.G_, 1);
-
-    //     return run_grouped_conv_fwd<
-    //         3,
-    //         ADataType,
-    //         BDataType,
-    //         EDataType,
-    //         R0DataType,
-    //         AElementOp,
-    //         BElementOp,
-    //         CDEElementOp,
-    //         QsElementOp,
-    //         RsElementOp,
-    //         DeviceGroupedConvNDFwdInstance<3, ALayout, BLayout, ELayout>>(do_verification,
-    //                                                                            init_method,
-    //                                                                            time_kernel,
-    //                                                                            problem_size,
-    //                                                                            in_g_n_c_wis_desc,
-    //                                                                            wei_g_k_c_xs_desc,
-    //                                                                            out_g_n_k_wos_desc,
-    //                                                                            r0_g_wos_desc,
-    //                                                                            in_element_op,
-    //                                                                            wei_element_op,
-    //                                                                            out_element_op,
-    //                                                                            qs_element_op,
-    //                                                                            rs_element_op);
-    // }
-
-    return true;
+    return false;
 }

@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
+#include <iterator>
 #include <numeric>
 #include <type_traits>
+#include <vector>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_d_multiple_r_xdl_cshuffle.hpp"
@@ -160,4 +163,16 @@ inline bool parse_cmd_args(int argc,
     }
 
     return true;
+}
+
+inline HostTensorDescriptor
+make_r0_host_tensor_descriptor(const ck::utils::conv::ConvParam& problem_size)
+{
+    std::vector<ck::index_t> dimensions{problem_size.G_, problem_size.N_};
+
+    std::copy(begin(problem_size.output_spatial_lengths_),
+              end(problem_size.output_spatial_lengths_),
+              std::back_inserter(dimensions));
+
+    return HostTensorDescriptor(dimensions);
 }
