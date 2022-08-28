@@ -13,6 +13,6 @@ using ReduceAccDataType = FP32;
 using R0DataType        = FP32;
 using RsDataType        = ck::Tuple<R0DataType>;
 
-#include "run_conv_fwd_max_example.inc"
+#include "run_convnd_fwd_max_example.inc"
 
-int main(int argc, char* argv[]) { return !run_conv_fwd_max_example(argc, argv); }
+int main(int argc, char* argv[]) { return !run_convnd_fwd_max_example(argc, argv); }

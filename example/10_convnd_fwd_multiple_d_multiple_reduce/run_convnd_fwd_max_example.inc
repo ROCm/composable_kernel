@@ -46,7 +46,8 @@ using HostInstance = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
                                                                   PassThrough>;
 
 template <ck::index_t NDimSpatial>
-bool run_conv_fwd_max(const ck::utils::conv::ConvParam& problem_size, const ExecutionConfig& config)
+bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
+                        const ExecutionConfig& config)
 {
     const auto in_g_n_c_wis_desc =
         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<ALayout<NDimSpatial>>(
@@ -227,7 +228,7 @@ bool run_conv_fwd_max(const ck::utils::conv::ConvParam& problem_size, const Exec
     return true;
 }
 
-bool run_conv_fwd_max_example(int argc, char* argv[])
+bool run_convnd_fwd_max_example(int argc, char* argv[])
 {
     ck::utils::conv::ConvParam problem_size{
         2, 1, 128, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
@@ -240,9 +241,9 @@ bool run_conv_fwd_max_example(int argc, char* argv[])
 
     switch(problem_size.num_dim_spatial_)
     {
-    case 1: return run_conv_fwd_max<1>(problem_size, config);
-    case 2: return run_conv_fwd_max<2>(problem_size, config);
-    case 3: return run_conv_fwd_max<3>(problem_size, config);
+    case 1: return run_convnd_fwd_max<1>(problem_size, config);
+    case 2: return run_convnd_fwd_max<2>(problem_size, config);
+    case 3: return run_convnd_fwd_max<3>(problem_size, config);
     }
 
     return false;
