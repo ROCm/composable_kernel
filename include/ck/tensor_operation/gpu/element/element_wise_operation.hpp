@@ -193,46 +193,6 @@ struct AddAddFastGelu
     }
 };
 
-// C = A * B
-// E = FastGelu(C + D)
-struct AddFastGelu
-{
-    // Fast GeLU
-    // https://paperswithcode.com/method/gelu
-    // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
-    __host__ __device__ static constexpr float GetFastGeLU(float x)
-    {
-        const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
-        const float emu = exp(-u);
-        const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
-        return x * cdf;
-    }
-
-    template <typename T>
-    static inline constexpr bool is_valid_param_type_v =
-        std::is_same_v<T, float> || std::is_same_v<T, half_t> || std::is_same_v<T, bhalf_t> ||
-        std::is_same_v<T, int32_t> || std::is_same_v<T, int8_t>;
-
-    template <typename E, typename C, typename D>
-    __host__ __device__ constexpr void operator()(E& e, const C& c, const D& d) const
-    {
-        static_assert(is_valid_param_type_v<E> && is_valid_param_type_v<C> &&
-                      is_valid_param_type_v<D>);
-
-        const float y = GetFastGeLU(type_convert<float>(c) + type_convert<float>(d));
-
-        e = type_convert<E>(y);
-    }
-
-    template <typename D>
-    __host__ __device__ constexpr void operator()(float& e, const float& c, const D& d) const
-    {
-        static_assert(is_valid_param_type_v<D>);
-
-        e = GetFastGeLU(c + type_convert<float>(d));
-    }
-};
-
 struct Normalize
 {
     // FIXME: is double absolutely necessary?
