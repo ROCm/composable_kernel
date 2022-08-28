@@ -78,8 +78,8 @@ bool run_conv_fwd_max(const ck::utils::conv::ConvParam& problem_size,
     std::array<ck::index_t, NDimSpatial + 3> b_g_k_c_xs_strides{};
     std::array<ck::index_t, NDimSpatial + 3> e_g_n_k_wos_lengths{};
     std::array<ck::index_t, NDimSpatial + 3> e_g_n_k_wos_strides{};
-    std::array<ck::index_t, NDimSpatial + 2> r_g_n_k_wos_lengths{1, 128, 36, 36};
-    std::array<ck::index_t, NDimSpatial + 2> r_g_n_k_wos_strides{1, 128, 36, 36};
+    std::array<ck::index_t, NDimSpatial + 2> r_g_n_k_wos_lengths;
+    std::array<ck::index_t, NDimSpatial + 2> r_g_n_k_wos_strides;
     std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
     std::array<ck::index_t, NDimSpatial> input_left_pads{};
@@ -93,6 +93,8 @@ bool run_conv_fwd_max(const ck::utils::conv::ConvParam& problem_size,
     copy(wei_g_k_c_xs_desc.GetStrides(), b_g_k_c_xs_strides);
     copy(out_g_n_k_wos_desc.GetLengths(), e_g_n_k_wos_lengths);
     copy(out_g_n_k_wos_desc.GetStrides(), e_g_n_k_wos_strides);
+    copy(r0_g_wos_desc.GetLengths(), r_g_n_k_wos_lengths);
+    copy(r0_g_wos_desc.GetStrides(), r_g_n_k_wos_strides);
 
     copy(problem_size.conv_filter_strides_, conv_filter_strides);
     copy(problem_size.conv_filter_dilations_, conv_filter_dilations);
@@ -169,10 +171,47 @@ bool run_conv_fwd_max(const ck::utils::conv::ConvParam& problem_size,
 
         ref_invoker.Run(ref_argument);
 
-        out_device_buf.FromDevice(out_device.mData.data());
+        Tensor<R0DataType> r0_g_host(r0_g.mDesc);
 
-        return ck::utils::check_err(
-            out_device.mData, out_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
+        auto reduce0_op = RsThreadReduceOp{}[ck::Number<0>{}];
+
+        auto& output_dims = out_g_n_k_wos_desc.GetLengths();
+
+        for(std::size_t g = 0; g < output_dims[0]; ++g)
+        {
+            for(std::size_t n = 0; n < output_dims[1]; ++n)
+            {
+                for(std::size_t h = 0; h < output_dims[3]; ++h)
+                {
+                    for(std::size_t w = 0; w < output_dims[4]; ++w)
+                    {
+                        auto reduce0_acc = reduce0_op.GetIdentityValue<ReduceAccDataType>();
+                        for(std::size_t k = 0; k < output_dims[2]; ++k)
+                        {
+
+                            auto e_val =
+                                ck::type_convert<ReduceAccDataType>(out_host(g, n, k, h, w));
+                            reduce0_op(reduce0_acc, e_val);
+                        }
+                        r0_g_host(g, n, h, w) = ck::type_convert<R0DataType>(reduce0_acc);
+                    }
+                }
+            }
+        }
+
+        out_device_buf.FromDevice(out_device.mData.data());
+        r0_device_buf.FromDevice(r0_g.mData.data());
+
+        return ck::utils::check_err(out_device.mData,
+                                    out_host.mData,
+                                    "Error: incorrect results! (Matrix C)",
+                                    1e-5f,
+                                    1e-4f) &&
+               ck::utils::check_err(r0_g.mData,
+                                    r0_g_host.mData,
+                                    "Error: incorrect results! (Matrix R0)",
+                                    1e-5f,
+                                    1e-4f);
     }
 
     return true;
@@ -255,8 +294,11 @@ bool run_conv_fwd_max_example(int argc, char* argv[])
             ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<ELayout>(
                 problem_size);
 
+        const ck::index_t output_height = problem_size.output_spatial_lengths_[0];
+        const ck::index_t output_width  = problem_size.output_spatial_lengths_[1];
+
         const auto r0_g_wos_desc =
-            f_host_tensor_descriptor2d(problem_size.G_, problem_size.K_, problem_size.G_);
+            HostTensorDescriptor({problem_size.G_, problem_size.N_, output_height, output_width});
 
         return run_conv_fwd_max<
             2,

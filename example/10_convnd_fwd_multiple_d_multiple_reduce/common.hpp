@@ -17,7 +17,6 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 
 using FP16 = ck::half_t;
@@ -70,11 +69,3 @@ inline bool parse_cmd_args(int argc,
 
     return true;
 }
-
-inline HostTensorDescriptor
-f_host_tensor_descriptor2d(std::size_t row, std::size_t col, std::size_t stride)
-{
-    using namespace ck::literals;
-
-    return HostTensorDescriptor({row, col}, {stride, 1_uz});
-};
