@@ -7,8 +7,10 @@
 
 #include "common.hpp"
 
-using ADataType         = I8;
-using BDataType         = I8;
+using ADataType         = I4;
+using BDataType         = I4;
+using KernelADataType   = I8;
+using KernelBDataType   = I8;
 using AccDataType       = I32;
 using CShuffleDataType  = I32;
 using DsDataType        = ck::Tuple<>;

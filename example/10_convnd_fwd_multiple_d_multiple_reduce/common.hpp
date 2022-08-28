@@ -28,8 +28,11 @@
 using BF16 = ck::bhalf_t;
 using FP16 = ck::half_t;
 using FP32 = float;
-using I8   = std::int8_t;
-using I32  = std::int32_t;
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+using I4 = ck::int4_t;
+#endif
+using I8  = std::int8_t;
+using I32 = std::int32_t;
 
 template <typename Ret>
 struct type_function
