@@ -51,6 +51,10 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
 {
     static_assert(1 <= NDimSpatial && NDimSpatial <= 3, "Unsupported NDimSpatial");
 
+#if defined(BUILD_INT4_EXAMPLE) && defined(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
+    static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
+#endif
+
     const auto conv_input_g_n_c_wis_desc =
         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<ALayout<NDimSpatial>>(
             problem_size);
