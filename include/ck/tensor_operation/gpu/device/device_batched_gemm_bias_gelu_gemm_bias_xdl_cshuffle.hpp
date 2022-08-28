@@ -129,6 +129,7 @@ template <typename A0Layout,
           typename D0Layout,
           typename B1Layout,
           typename C1Layout,
+          typename D1sLayout,
           typename A0DataType,
           typename B0DataType,
           typename Acc0DataType,
@@ -137,12 +138,14 @@ template <typename A0Layout,
           typename Acc1DataType,
           typename C1ShuffleDataType,
           typename C1DataType,
+          typename D1sDataType,
           typename A0ElementwiseOperation,
           typename B0ElementwiseOperation,
           typename C0ElementwiseOperation,
           typename D0ElementwiseOperation,
           typename B1ElementwiseOperation,
           typename C1ElementwiseOperation,
+          typename D1ElementwiseOperation,
           bool PadGemm0M,
           bool PadGemm0N,
           bool PadGemm0K,
@@ -195,19 +198,24 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                                                D0Layout,
                                                B1Layout,
                                                C1Layout,
+                                               D1sLayout,
                                                A0DataType,
                                                B0DataType,
                                                D0DataType,
                                                B1DataType,
                                                C1DataType,
+                                               D1sDataType,
                                                A0ElementwiseOperation,
                                                B0ElementwiseOperation,
                                                C0ElementwiseOperation,
                                                D0ElementwiseOperation,
                                                B1ElementwiseOperation,
-                                               C1ElementwiseOperation>
+                                               C1ElementwiseOperation,
+                                               D1ElementwiseOperation>
 {
     using DeviceOp = DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle;
+
+    static constexpr index_t NumDTensor = D1sDataType::Size();
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -458,6 +466,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                  const D0DataType* p_d0_grid,
                  const B1DataType* p_b1_grid,
                  C1DataType* p_c1_grid,
+                 std::array<const void*, NumDTensor> p_d1s_grid,
                  index_t MRaw,
                  index_t NRaw,
                  index_t KRaw,
@@ -468,17 +477,20 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                  index_t StrideD0,
                  index_t StrideB1,
                  index_t StrideC1,
+                 std::array<index_t, NumDTensor> StrideD1s,
                  index_t BatchStrideA0,
                  index_t BatchStrideB0,
                  index_t BatchStrideD0,
                  index_t BatchStrideB1,
                  index_t BatchStrideC1,
+                 std::array<index_t, NumDTensor> BatchStrideD1s,
                  A0ElementwiseOperation a0_element_op,
                  B0ElementwiseOperation b0_element_op,
                  C0ElementwiseOperation c0_element_op,
                  D0ElementwiseOperation d0_element_op,
                  B1ElementwiseOperation b1_element_op,
-                 C1ElementwiseOperation c1_element_op)
+                 C1ElementwiseOperation c1_element_op,
+                 D1ElementwiseOperation d1_element_op)
             : p_a0_grid_{p_a0_grid},
               p_b0_grid_{p_b0_grid},
               p_d0_grid_{p_d0_grid},
@@ -510,6 +522,10 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
               compute_base_ptr_of_batch_{
                   BatchStrideA0, BatchStrideB0, BatchStrideD0, BatchStrideB1, BatchStrideC1}
         {
+            ignore = p_d1s_grid;
+            ignore = StrideD1s;
+            ignore = BatchStrideD1s;
+            ignore = d1_element_op;
             std::cout << "d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_{"
                       << d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_.GetLength(I0) << ", "
                       << d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_.GetLength(I1) << ", "
@@ -695,6 +711,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                              const D0DataType* p_d0,
                              const B1DataType* p_b1,
                              C1DataType* p_c1,
+                             std::array<const void*, NumDTensor> p_d1s,
                              index_t MRaw,
                              index_t NRaw,
                              index_t KRaw,
@@ -705,61 +722,70 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                              index_t StrideD0,
                              index_t StrideB1,
                              index_t StrideC1,
+                             std::array<index_t, NumDTensor> StrideD1s,
                              index_t BatchStrideA0,
                              index_t BatchStrideB0,
                              index_t BatchStrideD0,
                              index_t BatchStrideB1,
                              index_t BatchStrideC1,
+                             std::array<index_t, NumDTensor> BatchStrideD1s,
                              A0ElementwiseOperation a0_element_op,
                              B0ElementwiseOperation b0_element_op,
                              C0ElementwiseOperation c0_element_op,
                              D0ElementwiseOperation d0_element_op,
                              B1ElementwiseOperation b1_element_op,
-                             C1ElementwiseOperation c1_element_op)
+                             C1ElementwiseOperation c1_element_op,
+                             D1ElementwiseOperation d1_element_op)
     {
-        return Argument{p_a0,          p_b0,          p_d0,          p_b1,          p_c1,
-                        MRaw,          NRaw,          KRaw,          Gemm1NRaw,     Batch,
-                        StrideA0,      StrideB0,      StrideD0,      StrideB1,      StrideC1,
-                        BatchStrideA0, BatchStrideB0, BatchStrideD0, BatchStrideB1, BatchStrideC1,
-                        a0_element_op, b0_element_op, c0_element_op, d0_element_op, b1_element_op,
-                        c1_element_op};
+        return Argument{p_a0,          p_b0,          p_d0,           p_b1,          p_c1,
+                        p_d1s,         MRaw,          NRaw,           KRaw,          Gemm1NRaw,
+                        Batch,         StrideA0,      StrideB0,       StrideD0,      StrideB1,
+                        StrideC1,      StrideD1s,     BatchStrideA0,  BatchStrideB0, BatchStrideD0,
+                        BatchStrideB1, BatchStrideC1, BatchStrideD1s, a0_element_op, b0_element_op,
+                        c0_element_op, d0_element_op, b1_element_op,  c1_element_op, d1_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
 
     // polymorphic
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a0,
-                                                      const void* p_b0,
-                                                      const void* p_d0,
-                                                      const void* p_b1,
-                                                      void* p_c1,
-                                                      index_t MRaw,
-                                                      index_t NRaw,
-                                                      index_t KRaw,
-                                                      index_t Gemm1NRaw,
-                                                      index_t Batch,
-                                                      index_t StrideA0,
-                                                      index_t StrideB0,
-                                                      index_t StrideD0,
-                                                      index_t StrideB1,
-                                                      index_t StrideC1,
-                                                      index_t BatchStrideA0,
-                                                      index_t BatchStrideB0,
-                                                      index_t BatchStrideD0,
-                                                      index_t BatchStrideB1,
-                                                      index_t BatchStrideC1,
-                                                      A0ElementwiseOperation a0_element_op,
-                                                      B0ElementwiseOperation b0_element_op,
-                                                      C0ElementwiseOperation c0_element_op,
-                                                      D0ElementwiseOperation d0_element_op,
-                                                      B1ElementwiseOperation b1_element_op,
-                                                      C1ElementwiseOperation c1_element_op) override
+    std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(const void* p_a0,
+                        const void* p_b0,
+                        const void* p_d0,
+                        const void* p_b1,
+                        void* p_c1,
+                        std::array<const void*, NumDTensor> p_d1s,
+                        index_t MRaw,
+                        index_t NRaw,
+                        index_t KRaw,
+                        index_t Gemm1NRaw,
+                        index_t Batch,
+                        index_t StrideA0,
+                        index_t StrideB0,
+                        index_t StrideD0,
+                        index_t StrideB1,
+                        index_t StrideC1,
+                        std::array<ck::index_t, NumDTensor> StrideD1s,
+                        index_t BatchStrideA0,
+                        index_t BatchStrideB0,
+                        index_t BatchStrideD0,
+                        index_t BatchStrideB1,
+                        index_t BatchStrideC1,
+                        std::array<ck::index_t, NumDTensor> BatchStrideD1s,
+                        A0ElementwiseOperation a0_element_op,
+                        B0ElementwiseOperation b0_element_op,
+                        C0ElementwiseOperation c0_element_op,
+                        D0ElementwiseOperation d0_element_op,
+                        B1ElementwiseOperation b1_element_op,
+                        C1ElementwiseOperation c1_element_op,
+                        D1ElementwiseOperation d1_element_op) override
     {
         return std::make_unique<Argument>(static_cast<const A0DataType*>(p_a0),
                                           static_cast<const B0DataType*>(p_b0),
                                           static_cast<const B0DataType*>(p_d0),
                                           static_cast<const B1DataType*>(p_b1),
                                           static_cast<C1DataType*>(p_c1),
+                                          p_d1s,
                                           MRaw,
                                           NRaw,
                                           KRaw,
@@ -770,17 +796,20 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                                           StrideD0,
                                           StrideB1,
                                           StrideC1,
+                                          StrideD1s,
                                           BatchStrideA0,
                                           BatchStrideB0,
                                           BatchStrideD0,
                                           BatchStrideB1,
                                           BatchStrideC1,
+                                          BatchStrideD1s,
                                           a0_element_op,
                                           b0_element_op,
                                           c0_element_op,
                                           d0_element_op,
                                           b1_element_op,
-                                          c1_element_op);
+                                          c1_element_op,
+                                          d1_element_op);
     }
 
     // polymorphic
