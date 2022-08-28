@@ -23,6 +23,7 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 
+using BF16 = ck::bhalf_t;
 using FP16 = ck::half_t;
 using FP32 = float;
 

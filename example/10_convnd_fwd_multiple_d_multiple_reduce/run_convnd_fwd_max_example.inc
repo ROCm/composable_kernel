@@ -49,6 +49,8 @@ template <ck::index_t NDimSpatial>
 bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
                         const ExecutionConfig& config)
 {
+    static_assert(1 <= NDimSpatial && NDimSpatial <= 3, "Unsupported NDimSpatial");
+
     const auto conv_input_g_n_c_wis_desc =
         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<ALayout<NDimSpatial>>(
             problem_size);
