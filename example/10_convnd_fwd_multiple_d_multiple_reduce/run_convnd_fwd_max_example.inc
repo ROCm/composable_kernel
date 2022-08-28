@@ -184,23 +184,74 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
 
         auto& output_dims = conv_output_g_n_k_wos_desc.GetLengths();
 
-        for(std::size_t g = 0; g < output_dims[0]; ++g)
+        if constexpr(NDimSpatial == 1)
         {
-            for(std::size_t n = 0; n < output_dims[1]; ++n)
+            for(std::size_t g = 0; g < output_dims[0]; ++g)
             {
-                for(std::size_t h = 0; h < output_dims[3]; ++h)
+                for(std::size_t n = 0; n < output_dims[1]; ++n)
                 {
-                    for(std::size_t w = 0; w < output_dims[4]; ++w)
+                    for(std::size_t w = 0; w < output_dims[3]; ++w)
                     {
                         auto reduce0_acc = reduce0_op.GetIdentityValue<ReduceAccDataType>();
                         for(std::size_t k = 0; k < output_dims[2]; ++k)
                         {
 
-                            auto e_val = ck::type_convert<ReduceAccDataType>(
-                                conv_output_host(g, n, k, h, w));
+                            auto e_val =
+                                ck::type_convert<ReduceAccDataType>(conv_output_host(g, n, k, w));
                             reduce0_op(reduce0_acc, e_val);
                         }
-                        r0_host(g, n, h, w) = ck::type_convert<R0DataType>(reduce0_acc);
+                        r0_host(g, n, w) = ck::type_convert<R0DataType>(reduce0_acc);
+                    }
+                }
+            }
+        }
+        else if constexpr(NDimSpatial == 2)
+        {
+            for(std::size_t g = 0; g < output_dims[0]; ++g)
+            {
+                for(std::size_t n = 0; n < output_dims[1]; ++n)
+                {
+                    for(std::size_t h = 0; h < output_dims[3]; ++h)
+                    {
+                        for(std::size_t w = 0; w < output_dims[4]; ++w)
+                        {
+                            auto reduce0_acc = reduce0_op.GetIdentityValue<ReduceAccDataType>();
+                            for(std::size_t k = 0; k < output_dims[2]; ++k)
+                            {
+
+                                auto e_val = ck::type_convert<ReduceAccDataType>(
+                                    conv_output_host(g, n, k, h, w));
+                                reduce0_op(reduce0_acc, e_val);
+                            }
+                            r0_host(g, n, h, w) = ck::type_convert<R0DataType>(reduce0_acc);
+                        }
+                    }
+                }
+            }
+        }
+        else if constexpr(NDimSpatial == 3)
+        {
+            for(std::size_t g = 0; g < output_dims[0]; ++g)
+            {
+                for(std::size_t n = 0; n < output_dims[1]; ++n)
+                {
+                    for(std::size_t d = 0; d < output_dims[3]; ++d)
+                    {
+                        for(std::size_t h = 0; h < output_dims[4]; ++h)
+                        {
+                            for(std::size_t w = 0; w < output_dims[5]; ++w)
+                            {
+                                auto reduce0_acc = reduce0_op.GetIdentityValue<ReduceAccDataType>();
+                                for(std::size_t k = 0; k < output_dims[2]; ++k)
+                                {
+
+                                    auto e_val = ck::type_convert<ReduceAccDataType>(
+                                        conv_output_host(g, n, k, d, h, w));
+                                    reduce0_op(reduce0_acc, e_val);
+                                }
+                                r0_host(g, n, d, h, w) = ck::type_convert<R0DataType>(reduce0_acc);
+                            }
+                        }
                     }
                 }
             }
