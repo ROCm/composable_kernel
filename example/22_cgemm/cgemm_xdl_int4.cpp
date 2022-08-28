@@ -11,10 +11,15 @@
 #include "ck/tensor_operation/gpu/device/device_cgemm_4gemm_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 
-using ADataType   = BF16;
-using BDataType   = BF16;
-using CDataType   = BF16;
-using AccDataType = F32;
+using ADataType        = INT4;
+using BDataType        = INT4;
+using CDataType        = INT4;
+using AccDataType      = INT32;
+using CShuffleDataType = INT32;
+
+using KernelADataType = INT8;
+using KernelBDataType = INT8;
+using KernelCDataType = INT8;
 
 using ALayout = ck::tensor_layout::gemm::RowMajor;
 using BLayout = ck::tensor_layout::gemm::ColumnMajor;
@@ -32,11 +37,11 @@ using DeviceCGemmInstance = ck::tensor_operation::device::DeviceCGemm_4Gemm_Xdl_
     <ALayout,                    // typename ALayout
      BLayout,                    // typename BLayout
      CLayout,                    // typename CLayout
-     ADataType,                  // typename ADataType
-     BDataType,                  // typename BDataType
-     CDataType,                  // typename CDataType
+     KernelADataType,            // typename ADataType
+     KernelBDataType,            // typename BDataType
+     KernelCDataType,            // typename CDataType
      AccDataType,                // typename GemmAccDataType
-     CDataType,                  // typename CShuffleDataType
+     CShuffleDataType,           // typename CShuffleDataType
      PassThrough,                // typename AElementwiseOperation
      PassThrough,                // typename BElementwiseOperation
      PassThrough,                // typename CElementwiseOperation
@@ -45,9 +50,9 @@ using DeviceCGemmInstance = ck::tensor_operation::device::DeviceCGemm_4Gemm_Xdl_
      256,                        // index_t BlockSize
      256,                        // index_t MPerBlock
      128,                        // index_t NPerBlock
-     32,                         // index_t KPerBlock
-     8,                          // index_t AK1
-     8,                          // index_t BK1
+     64,                         // index_t KPerBlock
+     16,                         // index_t AK1
+     16,                         // index_t BK1
      32,                         // index_t MPerXDL
      32,                         // index_t NPerXDL
      4,                          // index_t MXdlPerWave
@@ -56,8 +61,8 @@ using DeviceCGemmInstance = ck::tensor_operation::device::DeviceCGemm_4Gemm_Xdl_
      S<1, 0, 2>,                 // typename ABlockTransferThreadClusterArrangeOrder
      S<1, 0, 2>,                 // typename ABlockTransferSrcAccessOrder
      2,                          // index_t ABlockTransferSrcVectorDim
-     8,                          // index_t ABlockTransferSrcScalarPerVector
-     8,                          // index_t ABlockTransferDstScalarPerVector_AK1
+     16,                         // index_t ABlockTransferSrcScalarPerVector
+     16,                         // index_t ABlockTransferDstScalarPerVector_AK1
      1,                          // index_t ABlockLdsExtraM
      S<4, 64, 1>,                // typename BBlockTransferThreadClusterLengths_BK0_N_BK1
      S<1, 0, 2>,                 // typename BBlockTransferThreadClusterArrangeOrder
@@ -68,24 +73,24 @@ using DeviceCGemmInstance = ck::tensor_operation::device::DeviceCGemm_4Gemm_Xdl_
      1,                          // index_t BBlockLdsExtraN
      1,                          // index_t CShuffleMXdlPerWavePerShuffle
      1,                          // index_t CShuffleNXdlPerWavePerShuffle
-     S<1, 32, 1, 8>,             // typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-     8>;                         // index_t CShuffleBlockTransferScalarPerVector_NPerBlock
+     S<1, 64, 1, 4>,             // typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+     16>;                        // index_t CShuffleBlockTransferScalarPerVector_NPerBlock
 // clang-format on
 
 int main(int argc, char* argv[])
 {
     bool do_verification = true;
     int init_method      = 1;
-    bool time_kernel     = false;
+    bool time_kernel     = true;
 
     // CGEMM shape
-    ck::index_t M = 3840;
-    ck::index_t N = 4096;
-    ck::index_t K = 416;
+    ck::index_t M = 1024;
+    ck::index_t N = 1152;
+    ck::index_t K = 512;
 
-    ck::index_t StrideA = 4096;
-    ck::index_t StrideB = 4096;
-    ck::index_t StrideC = 4096;
+    ck::index_t StrideA = K;
+    ck::index_t StrideB = K;
+    ck::index_t StrideC = N;
 
     if(argc == 4)
     {
@@ -111,10 +116,10 @@ int main(int argc, char* argv[])
     {
         std::cout << "arg1: verification (0=no, 1=yes)\n"
                   << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
-                  << "arg3: run kernel # of times (>1)\n"
+                  << "arg3: time kernel (0=no, 1=yes)\n"
                   << "arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC\n"
                   << std::endl;
-        exit(0);
+        exit(EXIT_SUCCESS);
     }
 
     return !run_cgemm_xdl<ADataType,
@@ -127,6 +132,9 @@ int main(int argc, char* argv[])
                           PassThrough,
                           PassThrough,
                           DeviceCGemmInstance,
-                          ReferenceCGemmInstance>(
+                          ReferenceCGemmInstance,
+                          KernelADataType,
+                          KernelBDataType,
+                          KernelCDataType>(
         M, N, K, StrideA, StrideB, StrideC, do_verification, init_method, time_kernel);
 }

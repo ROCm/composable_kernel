@@ -26,13 +26,16 @@ void print_helper_msg()
 }
 
 template <ck::index_t NDimSpatial,
-          typename InDataType,
-          typename WeiDataType,
+          typename InKernelDataType,
+          typename WeiKernelDataType,
           typename CShuffleDataType,
-          typename OutDataType,
+          typename OutKernelDataType,
           typename InElementOp,
           typename WeiElementOp,
           typename OutElementOp,
+          typename InUserDataType,
+          typename WeiUserDataType,
+          typename OutUserDataType,
           typename DeviceConvNDFwdInstance>
 int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
                                        int init_method,
@@ -47,12 +50,12 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
                                        const WeiElementOp& wei_element_op,
                                        const OutElementOp& out_element_op)
 {
-    Tensor<InDataType> in(in_g_n_c_wis_desc);
-    Tensor<WeiDataType> wei(wei_g_k_c_xs_desc);
-    Tensor<OutDataType> bias(bias_g_n_k_wos_desc);
-    Tensor<OutDataType> residual(residual_g_n_k_wos_desc);
-    Tensor<OutDataType> out_host(out_g_n_k_wos_desc);
-    Tensor<OutDataType> out_device(out_g_n_k_wos_desc);
+    Tensor<InUserDataType> in(in_g_n_c_wis_desc);
+    Tensor<WeiUserDataType> wei(wei_g_k_c_xs_desc);
+    Tensor<OutUserDataType> bias(bias_g_n_k_wos_desc);
+    Tensor<OutUserDataType> residual(residual_g_n_k_wos_desc);
+    Tensor<OutUserDataType> out_host(out_g_n_k_wos_desc);
+    Tensor<OutKernelDataType> out_device(out_g_n_k_wos_desc);
 
     std::cout << "in: " << in.mDesc << std::endl;
     std::cout << "wei: " << wei.mDesc << std::endl;
@@ -64,26 +67,38 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
     {
     case 0: break;
     case 1:
-        in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
-        wei.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
-        bias.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
+        in.GenerateTensorValue(GeneratorTensor_2<InUserDataType>{-5, 5});
+        wei.GenerateTensorValue(GeneratorTensor_2<WeiUserDataType>{-5, 5});
+        bias.GenerateTensorValue(GeneratorTensor_2<OutUserDataType>{-5, 5});
         break;
     default:
-        in.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
-        wei.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
-        bias.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-0.5, 0.5});
+        in.GenerateTensorValue(GeneratorTensor_3<InUserDataType>{0.0, 1.0});
+        wei.GenerateTensorValue(GeneratorTensor_3<WeiUserDataType>{-0.5, 0.5});
+        bias.GenerateTensorValue(GeneratorTensor_3<OutUserDataType>{-0.5, 0.5});
     }
 
-    DeviceMem in_device_buf(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
-    DeviceMem bias_device_buf(sizeof(OutDataType) * bias.mDesc.GetElementSpaceSize());
-    DeviceMem residual_device_buf(sizeof(OutDataType) * residual.mDesc.GetElementSpaceSize());
-    DeviceMem out_device_buf(sizeof(OutDataType) * out_device.mDesc.GetElementSpaceSize());
+    DeviceMem in_device_buf(sizeof(InKernelDataType) * in.mDesc.GetElementSpaceSize());
+    DeviceMem wei_device_buf(sizeof(WeiKernelDataType) * wei.mDesc.GetElementSpaceSize());
+    DeviceMem bias_device_buf(sizeof(OutKernelDataType) * bias.mDesc.GetElementSpaceSize());
+    DeviceMem residual_device_buf(sizeof(OutKernelDataType) * residual.mDesc.GetElementSpaceSize());
+    DeviceMem out_device_buf(sizeof(OutKernelDataType) * out_device.mDesc.GetElementSpaceSize());
 
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+    const Tensor<InKernelDataType> in_converted(in);
+    const Tensor<WeiKernelDataType> wei_converted(wei);
+    const Tensor<OutKernelDataType> bias_converted(bias);
+    const Tensor<OutKernelDataType> residual_converted(residual);
+
+    in_device_buf.ToDevice(in_converted.mData.data());
+    wei_device_buf.ToDevice(wei_converted.mData.data());
+    bias_device_buf.ToDevice(bias_converted.mData.data());
+    residual_device_buf.ToDevice(residual_converted.mData.data());
+#else  // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     in_device_buf.ToDevice(in.mData.data());
     wei_device_buf.ToDevice(wei.mData.data());
     bias_device_buf.ToDevice(bias.mData.data());
     residual_device_buf.ToDevice(residual.mData.data());
+#endif //  CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 
     std::array<ck::index_t, NDimSpatial + 3> a_g_n_c_wis_lengths{};
     std::array<ck::index_t, NDimSpatial + 3> a_g_n_c_wis_strides{};
@@ -154,7 +169,7 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
     float avg_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
     std::size_t flop      = conv_param.GetFlops();
-    std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
+    std::size_t num_btype = conv_param.GetByte<InUserDataType, WeiUserDataType, OutUserDataType>();
 
     float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
     float gb_per_sec = num_btype / 1.E6 / avg_time;
@@ -168,8 +183,8 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
         Tensor<CShuffleDataType> c_host(out_g_n_k_wos_desc);
 
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
-                                                                     InDataType,
-                                                                     WeiDataType,
+                                                                     InUserDataType,
+                                                                     WeiUserDataType,
                                                                      CShuffleDataType,
                                                                      InElementOp,
                                                                      WeiElementOp,
@@ -196,10 +211,22 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
 
         out_device_buf.FromDevice(out_device.mData.data());
 
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+        const Tensor<OutUserDataType> out_device_converted(out_device);
+
+        return ck::utils::check_err(out_device_converted.mData,
+                                    out_host.mData,
+                                    "Error: incorrect results!",
+                                    1e-5f,
+                                    1e-4f)
+                   ? 0
+                   : 1;
+#else  // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
         return ck::utils::check_err(
                    out_device.mData, out_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f)
                    ? 0
                    : 1;
+#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     }
 
     return 0;
