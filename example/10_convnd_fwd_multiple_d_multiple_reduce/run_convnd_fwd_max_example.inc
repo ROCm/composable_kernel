@@ -49,93 +49,87 @@ template <ck::index_t NDimSpatial>
 bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
                         const ExecutionConfig& config)
 {
-    const auto in_g_n_c_wis_desc =
+    const auto conv_input_g_n_c_wis_desc =
         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<ALayout<NDimSpatial>>(
             problem_size);
 
-    const auto wei_g_k_c_xs_desc =
+    const auto conv_weight_g_k_c_xs_desc =
         ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<BLayout<NDimSpatial>>(
             problem_size);
 
-    const auto out_g_n_k_wos_desc =
+    const auto conv_output_g_n_k_wos_desc =
         ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<DELayout<NDimSpatial>>(
             problem_size);
 
-    const auto r0_g_wos_desc = make_r0_host_tensor_descriptor(problem_size);
+    const auto r0_desc = make_r0_host_tensor_descriptor(problem_size);
 
-    Tensor<ADataType> in(in_g_n_c_wis_desc);
-    Tensor<BDataType> wei(wei_g_k_c_xs_desc);
-    Tensor<EDataType> out_host(out_g_n_k_wos_desc);
-    Tensor<EDataType> out_device(out_g_n_k_wos_desc);
-    Tensor<R0DataType> r0_g(r0_g_wos_desc);
+    Tensor<ADataType> conv_input(conv_input_g_n_c_wis_desc);
+    Tensor<BDataType> conv_weight(conv_weight_g_k_c_xs_desc);
+    Tensor<EDataType> conv_output_device(conv_output_g_n_k_wos_desc);
+    Tensor<R0DataType> r0_device(r0_desc);
 
     switch(config.init_method)
     {
     case 0: break;
     case 1:
-        in.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        wei.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        conv_input.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
+        conv_weight.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
         break;
     default:
-        in.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        wei.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        conv_input.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+        conv_weight.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
     }
 
-    DeviceMem in_device_buf(sizeof(ADataType) * in.mDesc.GetElementSpaceSize());
-    DeviceMem wei_device_buf(sizeof(BDataType) * wei.mDesc.GetElementSpaceSize());
-    DeviceMem out_device_buf(sizeof(EDataType) * out_device.mDesc.GetElementSpaceSize());
-    DeviceMem r0_device_buf(sizeof(R0DataType) * r0_g.mDesc.GetElementSpaceSize());
+    DeviceMem conv_input_device_buf(sizeof(ADataType) * conv_input.mDesc.GetElementSpaceSize());
+    DeviceMem conv_weight_device_buf(sizeof(BDataType) * conv_weight.mDesc.GetElementSpaceSize());
+    DeviceMem conv_output_device_buf(sizeof(EDataType) *
+                                     conv_output_device.mDesc.GetElementSpaceSize());
+    DeviceMem r0_device_buf(sizeof(R0DataType) * r0_device.mDesc.GetElementSpaceSize());
 
-    in_device_buf.ToDevice(in.mData.data());
-    wei_device_buf.ToDevice(wei.mData.data());
+    conv_input_device_buf.ToDevice(conv_input.mData.data());
+    conv_weight_device_buf.ToDevice(conv_weight.mData.data());
 
-    std::array<ck::index_t, NDimSpatial + 3> a_g_n_c_wis_lengths{};
-    std::array<ck::index_t, NDimSpatial + 3> a_g_n_c_wis_strides{};
-    std::array<ck::index_t, NDimSpatial + 3> b_g_k_c_xs_lengths{};
-    std::array<ck::index_t, NDimSpatial + 3> b_g_k_c_xs_strides{};
-    std::array<ck::index_t, NDimSpatial + 3> e_g_n_k_wos_lengths{};
-    std::array<ck::index_t, NDimSpatial + 3> e_g_n_k_wos_strides{};
-    std::array<ck::index_t, NDimSpatial + 2> r_g_n_k_wos_lengths;
-    std::array<ck::index_t, NDimSpatial + 2> r_g_n_k_wos_strides;
-    std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
-    std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
-    std::array<ck::index_t, NDimSpatial> input_left_pads{};
-    std::array<ck::index_t, NDimSpatial> input_right_pads{};
+    std::array<ck::index_t, NDimSpatial + 3> conv_input_g_n_c_wis_lengths{},
+        conv_input_g_n_c_wis_strides{};
+    std::array<ck::index_t, NDimSpatial + 3> conv_weight_g_k_c_xs_lengths{},
+        conv_weight_g_k_c_xs_strides{};
+    std::array<ck::index_t, NDimSpatial + 3> conv_output_g_n_k_wos_lengths{},
+        conv_output_g_n_k_wos_strides{};
+    std::array<ck::index_t, NDimSpatial + 2> r0_lengths{}, r0_strides{};
+    std::array<ck::index_t, NDimSpatial> conv_filter_strides{}, conv_filter_dilations{};
+    std::array<ck::index_t, NDimSpatial> input_left_pads{}, input_right_pads{};
 
-    auto copy = [](auto& x, auto& y) { std::copy(x.begin(), x.end(), y.begin()); };
+    unpack_host_tensor_descriptor(
+        conv_input_g_n_c_wis_desc, conv_input_g_n_c_wis_lengths, conv_input_g_n_c_wis_strides);
+    unpack_host_tensor_descriptor(
+        conv_weight_g_k_c_xs_desc, conv_weight_g_k_c_xs_lengths, conv_weight_g_k_c_xs_strides);
+    unpack_host_tensor_descriptor(
+        conv_output_g_n_k_wos_desc, conv_output_g_n_k_wos_lengths, conv_output_g_n_k_wos_strides);
+    unpack_host_tensor_descriptor(r0_desc, r0_lengths, r0_strides);
 
-    copy(in_g_n_c_wis_desc.GetLengths(), a_g_n_c_wis_lengths);
-    copy(in_g_n_c_wis_desc.GetStrides(), a_g_n_c_wis_strides);
-    copy(wei_g_k_c_xs_desc.GetLengths(), b_g_k_c_xs_lengths);
-    copy(wei_g_k_c_xs_desc.GetStrides(), b_g_k_c_xs_strides);
-    copy(out_g_n_k_wos_desc.GetLengths(), e_g_n_k_wos_lengths);
-    copy(out_g_n_k_wos_desc.GetStrides(), e_g_n_k_wos_strides);
-    copy(r0_g_wos_desc.GetLengths(), r_g_n_k_wos_lengths);
-    copy(r0_g_wos_desc.GetStrides(), r_g_n_k_wos_strides);
-
-    copy(problem_size.conv_filter_strides_, conv_filter_strides);
-    copy(problem_size.conv_filter_dilations_, conv_filter_dilations);
-    copy(problem_size.input_left_pads_, input_left_pads);
-    copy(problem_size.input_right_pads_, input_right_pads);
+    copy(problem_size.conv_filter_strides_, begin(conv_filter_strides));
+    copy(problem_size.conv_filter_dilations_, begin(conv_filter_dilations));
+    copy(problem_size.input_left_pads_, begin(input_left_pads));
+    copy(problem_size.input_right_pads_, begin(input_right_pads));
 
     // run Conv + Reduction on device
     auto conv     = DeviceInstance<NDimSpatial>{};
     auto invoker  = conv.MakeInvoker();
-    auto argument = conv.MakeArgument(in_device_buf.GetDeviceBuffer(),
-                                      wei_device_buf.GetDeviceBuffer(),
+    auto argument = conv.MakeArgument(conv_input_device_buf.GetDeviceBuffer(),
+                                      conv_weight_device_buf.GetDeviceBuffer(),
                                       std::array<const void*, 0>{},
-                                      out_device_buf.GetDeviceBuffer(),
+                                      conv_output_device_buf.GetDeviceBuffer(),
                                       {r0_device_buf.GetDeviceBuffer()},
-                                      a_g_n_c_wis_lengths,
-                                      a_g_n_c_wis_strides,
-                                      b_g_k_c_xs_lengths,
-                                      b_g_k_c_xs_strides,
+                                      conv_input_g_n_c_wis_lengths,
+                                      conv_input_g_n_c_wis_strides,
+                                      conv_weight_g_k_c_xs_lengths,
+                                      conv_weight_g_k_c_xs_strides,
                                       std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{{}},
                                       std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{{}},
-                                      e_g_n_k_wos_lengths,
-                                      e_g_n_k_wos_strides,
-                                      r_g_n_k_wos_lengths,
-                                      r_g_n_k_wos_strides,
+                                      conv_output_g_n_k_wos_lengths,
+                                      conv_output_g_n_k_wos_strides,
+                                      r0_lengths,
+                                      r0_strides,
                                       conv_filter_strides,
                                       conv_filter_dilations,
                                       input_left_pads,
@@ -154,24 +148,26 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
         return false;
     }
 
-    float avg_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+    const float avg_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
 
-    std::size_t flop      = problem_size.GetFlops();
-    std::size_t num_btype = problem_size.GetByte<ADataType, BDataType, EDataType>();
+    const std::size_t flop      = problem_size.GetFlops();
+    const std::size_t num_btype = problem_size.GetByte<ADataType, BDataType, EDataType>();
 
-    float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
-    float gb_per_sec = num_btype / 1.E6 / avg_time;
-    std::cerr << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+    const float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
+    const float gb_per_sec = num_btype / 1.E6 / avg_time;
+    std::cout << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << conv.GetTypeString() << std::endl;
 
     if(config.do_verification)
     {
+        Tensor<EDataType> conv_output_host(conv_output_g_n_k_wos_desc);
+
         // run Conv + Reduction on host
         auto ref_conv     = HostInstance<NDimSpatial>{};
         auto ref_invoker  = ref_conv.MakeInvoker();
-        auto ref_argument = ref_conv.MakeArgument(in,
-                                                  wei,
-                                                  out_host,
+        auto ref_argument = ref_conv.MakeArgument(conv_input,
+                                                  conv_weight,
+                                                  conv_output_host,
                                                   problem_size.conv_filter_strides_,
                                                   problem_size.conv_filter_dilations_,
                                                   problem_size.input_left_pads_,
@@ -182,11 +178,11 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
 
         ref_invoker.Run(ref_argument);
 
-        Tensor<R0DataType> r0_g_host(r0_g.mDesc);
+        Tensor<R0DataType> r0_host(r0_device.mDesc);
 
         auto reduce0_op = RsThreadReduceOp{}[ck::Number<0>{}];
 
-        auto& output_dims = out_g_n_k_wos_desc.GetLengths();
+        auto& output_dims = conv_output_g_n_k_wos_desc.GetLengths();
 
         for(std::size_t g = 0; g < output_dims[0]; ++g)
         {
@@ -200,26 +196,26 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
                         for(std::size_t k = 0; k < output_dims[2]; ++k)
                         {
 
-                            auto e_val =
-                                ck::type_convert<ReduceAccDataType>(out_host(g, n, k, h, w));
+                            auto e_val = ck::type_convert<ReduceAccDataType>(
+                                conv_output_host(g, n, k, h, w));
                             reduce0_op(reduce0_acc, e_val);
                         }
-                        r0_g_host(g, n, h, w) = ck::type_convert<R0DataType>(reduce0_acc);
+                        r0_host(g, n, h, w) = ck::type_convert<R0DataType>(reduce0_acc);
                     }
                 }
             }
         }
 
-        out_device_buf.FromDevice(out_device.mData.data());
-        r0_device_buf.FromDevice(r0_g.mData.data());
+        conv_output_device_buf.FromDevice(conv_output_device.mData.data());
+        r0_device_buf.FromDevice(r0_device.mData.data());
 
-        return ck::utils::check_err(out_device.mData,
-                                    out_host.mData,
+        return ck::utils::check_err(conv_output_device.mData,
+                                    conv_output_host.mData,
                                     "Error: incorrect results! (Matrix C)",
                                     1e-5f,
                                     1e-4f) &&
-               ck::utils::check_err(r0_g.mData,
-                                    r0_g_host.mData,
+               ck::utils::check_err(r0_device.mData,
+                                    r0_host.mData,
                                     "Error: incorrect results! (Matrix R0)",
                                     1e-5f,
                                     1e-4f);

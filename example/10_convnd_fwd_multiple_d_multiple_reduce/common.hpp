@@ -2,6 +2,7 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <algorithm>
+#include <cassert>
 #include <cstdlib>
 #include <iostream>
 #include <iterator>
@@ -175,4 +176,23 @@ make_r0_host_tensor_descriptor(const ck::utils::conv::ConvParam& problem_size)
               std::back_inserter(dimensions));
 
     return HostTensorDescriptor(dimensions);
+}
+
+template <typename Lengths, typename Strides>
+void unpack_host_tensor_descriptor(const HostTensorDescriptor& descriptor,
+                                   Lengths& lengths,
+                                   Strides& strides)
+{
+    assert(size(descriptor.GetLengths()) == size(lengths));
+    std::copy_n(begin(descriptor.GetLengths()), size(descriptor.GetLengths()), begin(lengths));
+
+    assert(size(descriptor.GetStrides()) == size(strides));
+    std::copy_n(begin(descriptor.GetStrides()), size(descriptor.GetStrides()), begin(strides));
+}
+
+template <typename Range, typename OutputIterator>
+auto copy(const Range& range, OutputIterator iter)
+    -> decltype(std::copy(std::begin(range), std::end(range), iter))
+{
+    return std::copy(std::begin(range), std::end(range), iter);
 }
