@@ -146,24 +146,35 @@ inline bool parse_cmd_args(int argc,
                            ck::utils::conv::ConvParam& problem_size,
                            ExecutionConfig& config)
 {
+    constexpr int num_execution_config_args =
+        3; // arguments for do_verification, init_method, time_kernel
+    constexpr int num_conv_param_leading_args = 5; // arguments for num_dim_spatial_, G_, N_, K_, C_
+
+    constexpr int threshold_to_catch_partial_args = 1 + num_execution_config_args;
+    constexpr int threshold_to_catch_all_args =
+        threshold_to_catch_partial_args + num_conv_param_leading_args;
+
     if(argc == 1)
     {
         // use default
     }
-    else if(argc == 4)
+    // catch only ExecutionConfig arguments
+    else if(argc == threshold_to_catch_partial_args)
     {
         config.do_verification = std::stoi(argv[1]);
         config.init_method     = std::stoi(argv[2]);
         config.time_kernel     = std::stoi(argv[3]);
     }
-    else if((5 + 4) < argc && ((argc - (5 + 4)) % 3 == 0))
+    // catch both ExecutionConfig & ConvParam arguments
+    else if(threshold_to_catch_all_args < argc && ((argc - threshold_to_catch_all_args) % 3 == 0))
     {
         config.do_verification = std::stoi(argv[1]);
         config.init_method     = std::stoi(argv[2]);
         config.time_kernel     = std::stoi(argv[3]);
 
         const ck::index_t num_dim_spatial = std::stoi(argv[4]);
-        problem_size = ck::utils::conv::parse_conv_param(num_dim_spatial, 5, argv);
+        problem_size                      = ck::utils::conv::parse_conv_param(
+            num_dim_spatial, threshold_to_catch_partial_args, argv);
     }
     else
     {
