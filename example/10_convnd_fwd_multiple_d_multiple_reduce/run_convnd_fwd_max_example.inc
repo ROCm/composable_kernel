@@ -41,11 +41,7 @@ using DeviceInstance =
 
 template <ck::index_t NDimSpatial>
 using HostInstance = ck::tensor_operation::host::ReferenceConvFwd
-#ifdef BUILD_INT4_EXAMPLE
-        <NDimSpatial, KernelADataType, KernelBDataType, EDataType, AElementOp, BElementOp, PassThrough>;
-#else
-        <NDimSpatial,       ADataType,       BDataType, EDataType, AElementOp, BElementOp, PassThrough>;
-#endif
+        <NDimSpatial, ADataType, BDataType, EDataType, AElementOp, BElementOp, PassThrough>;
 // clang-format on
 
 template <ck::index_t NDimSpatial>
@@ -186,22 +182,16 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
         // run Conv + Reduction on host
         auto ref_conv     = HostInstance<NDimSpatial>{};
         auto ref_invoker  = ref_conv.MakeInvoker();
-        auto ref_argument = ref_conv.MakeArgument(
-#ifdef BUILD_INT4_EXAMPLE
-            conv_input_converted,
-            conv_weight_converted,
-#else
-            conv_input,
-            conv_weight,
-#endif
-            conv_output_host,
-            problem_size.conv_filter_strides_,
-            problem_size.conv_filter_dilations_,
-            problem_size.input_left_pads_,
-            problem_size.input_right_pads_,
-            AElementOp{},
-            BElementOp{},
-            PassThrough{});
+        auto ref_argument = ref_conv.MakeArgument(conv_input,
+                                                  conv_weight,
+                                                  conv_output_host,
+                                                  problem_size.conv_filter_strides_,
+                                                  problem_size.conv_filter_dilations_,
+                                                  problem_size.input_left_pads_,
+                                                  problem_size.input_right_pads_,
+                                                  AElementOp{},
+                                                  BElementOp{},
+                                                  PassThrough{});
 
         ref_invoker.Run(ref_argument);
 
