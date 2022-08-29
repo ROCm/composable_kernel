@@ -445,6 +445,20 @@ int main(int argc, char* argv[])
 
         ref_gemm1_invoker.Run(ref_gemm1_argument);
 
+        // bias
+        for(int b = 0; b < BatchCount; ++b)
+        {
+            for(int m = 0; m < M; ++m)
+            {
+                for(int o = 0; o < O; ++o)
+                {
+                    d1_element_op(c0_g_m_o_host_result(b, m, o),
+                                  c0_g_m_o_host_result(b, m, o),
+                                  d1_g_m_o(b, m, o));
+                }
+            }
+        }
+
         return ck::utils::check_err(c0_g_m_o_device_result.mData, c0_g_m_o_host_result.mData) ? 0
                                                                                               : 1;
     }
