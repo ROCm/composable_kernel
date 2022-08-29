@@ -49,17 +49,18 @@ struct LayoutSettingSelector;
 namespace ctl = ck::tensor_layout::convolution;
 
 template <>
-struct LayoutSettingSelector<1> : LayoutSetting<ctl::GNWC, ctl::GKXC, ctl::GNWK, ctl::GNW>
+struct LayoutSettingSelector<1> final : LayoutSetting<ctl::GNWC, ctl::GKXC, ctl::GNWK, ctl::GNW>
 {
 };
 
 template <>
-struct LayoutSettingSelector<2> : LayoutSetting<ctl::GNHWC, ctl::GKYXC, ctl::GNHWK, ctl::GNHW>
+struct LayoutSettingSelector<2> final : LayoutSetting<ctl::GNHWC, ctl::GKYXC, ctl::GNHWK, ctl::GNHW>
 {
 };
 
 template <>
-struct LayoutSettingSelector<3> : LayoutSetting<ctl::GNDHWC, ctl::GKZYXC, ctl::GNDHWK, ctl::GNDHW>
+struct LayoutSettingSelector<3> final
+    : LayoutSetting<ctl::GNDHWC, ctl::GKZYXC, ctl::GNDHWK, ctl::GNDHW>
 {
 };
 
