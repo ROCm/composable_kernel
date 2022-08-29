@@ -34,97 +34,46 @@ using I4 = ck::int4_t;
 using I8  = std::int8_t;
 using I32 = std::int32_t;
 
-template <typename Ret>
-struct type_function
+template <typename ALay, typename BLay, typename DELay, typename RLay>
+struct LayoutSetting
 {
-    using type = Ret;
+    using ALayout  = ALay;
+    using BLayout  = BLay;
+    using DELayout = DELay;
+    using RLayout  = RLay;
 };
 
-template <ck::index_t>
-struct ALayoutSelector;
-
-template <ck::index_t>
-struct BLayoutSelector;
-
-template <ck::index_t>
-struct DELayoutSelector;
-
-template <ck::index_t>
-struct RLayoutSelector;
+template <ck::index_t NDimSpatial>
+struct LayoutSettingSelector;
 
 namespace ctl = ck::tensor_layout::convolution;
 
 template <>
-struct ALayoutSelector<1> : type_function<ctl::GNWC>
+struct LayoutSettingSelector<1> : LayoutSetting<ctl::GNWC, ctl::GKXC, ctl::GNWK, ctl::GNW>
 {
 };
 
 template <>
-struct BLayoutSelector<1> : type_function<ctl::GKXC>
+struct LayoutSettingSelector<2> : LayoutSetting<ctl::GNHWC, ctl::GKYXC, ctl::GNHWK, ctl::GNHW>
 {
 };
 
 template <>
-struct DELayoutSelector<1> : type_function<ctl::GNWK>
-{
-};
-
-template <>
-struct RLayoutSelector<1> : type_function<ctl::GNW>
-{
-};
-
-template <>
-struct ALayoutSelector<2> : type_function<ctl::GNHWC>
-{
-};
-
-template <>
-struct BLayoutSelector<2> : type_function<ctl::GKYXC>
-{
-};
-
-template <>
-struct DELayoutSelector<2> : type_function<ctl::GNHWK>
-{
-};
-
-template <>
-struct RLayoutSelector<2> : type_function<ctl::GNHW>
-{
-};
-
-template <>
-struct ALayoutSelector<3> : type_function<ctl::GNDHWC>
-{
-};
-
-template <>
-struct BLayoutSelector<3> : type_function<ctl::GKZYXC>
-{
-};
-
-template <>
-struct DELayoutSelector<3> : type_function<ctl::GNDHWK>
-{
-};
-
-template <>
-struct RLayoutSelector<3> : type_function<ctl::GNDHW>
+struct LayoutSettingSelector<3> : LayoutSetting<ctl::GNDHWC, ctl::GKZYXC, ctl::GNDHWK, ctl::GNDHW>
 {
 };
 
 template <ck::index_t NDimSpatial>
-using ALayout = typename ALayoutSelector<NDimSpatial>::type;
+using ALayout = typename LayoutSettingSelector<NDimSpatial>::ALayout;
 
 template <ck::index_t NDimSpatial>
-using BLayout = typename BLayoutSelector<NDimSpatial>::type;
+using BLayout = typename LayoutSettingSelector<NDimSpatial>::BLayout;
 
 template <ck::index_t NDimSpatial>
-using DELayout = typename DELayoutSelector<NDimSpatial>::type;
+using DELayout = typename LayoutSettingSelector<NDimSpatial>::DELayout;
 
 template <ck::index_t NDimSpatial>
-using RLayout = typename RLayoutSelector<NDimSpatial>::type;
+using RLayout = typename LayoutSettingSelector<NDimSpatial>::RLayout;
 
 struct ExecutionConfig final
 {
