@@ -720,6 +720,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             static_for<0, acc_thread_buf.Size(), 1>{}(
                 [&](auto i) { acc_element_op(acc_thread_buf(i), acc_thread_buf[i]); });
 
+            block_sync_lds(); // wait for lds read in gemm0 blockwise gemm
+
             // softmax
             SoftmaxBuf& max = blockwise_softmax.max_value_buf;
             SoftmaxBuf& sum = blockwise_softmax.sum_value_buf;
