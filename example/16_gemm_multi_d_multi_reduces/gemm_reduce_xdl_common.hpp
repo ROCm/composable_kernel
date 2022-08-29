@@ -282,15 +282,15 @@ template <typename ADataType,
           typename ADataKernelType = ADataType,
           typename BDataKernelType = BDataType,
           typename EDataKernelType = EDataType>
-int run_gemm_reduce_mean_meansquare_xdl(ck::index_t M,
-                                        ck::index_t N,
-                                        ck::index_t K,
-                                        ck::index_t StrideA,
-                                        ck::index_t StrideB,
-                                        ck::index_t StrideE,
-                                        bool do_verification,
-                                        int init_method,
-                                        bool time_kernel)
+bool run_gemm_reduce_mean_meansquare_xdl(ck::index_t M,
+                                         ck::index_t N,
+                                         ck::index_t K,
+                                         ck::index_t StrideA,
+                                         ck::index_t StrideB,
+                                         ck::index_t StrideE,
+                                         bool do_verification,
+                                         int init_method,
+                                         bool time_kernel)
 {
 
     auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
@@ -475,5 +475,5 @@ int run_gemm_reduce_mean_meansquare_xdl(ck::index_t M,
             ave_time, M, N, K);
     }
 
-    return pass ? 0 : 1;
+    return pass;
 }

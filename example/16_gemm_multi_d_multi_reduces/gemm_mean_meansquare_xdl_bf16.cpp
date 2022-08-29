@@ -153,22 +153,22 @@ int main(int argc, char* argv[])
         exit(EXIT_SUCCESS);
     }
 
-    return run_gemm_reduce_mean_meansquare_xdl<ADataType,
-                                               BDataType,
-                                               EDataType,
-                                               R0DataType,
-                                               R1DataType,
-                                               ALayout,
-                                               BLayout,
-                                               ELayout,
-                                               AElementOp,
-                                               BElementOp,
-                                               CDEElementOp,
-                                               QsElementOp,
-                                               RsElementOp,
-                                               RsThreadReduceOp,
-                                               ReduceAccDataType,
-                                               DeviceOpInstance,
-                                               ReferenceGemmInstance>(
+    return !run_gemm_reduce_mean_meansquare_xdl<ADataType,
+                                                BDataType,
+                                                EDataType,
+                                                R0DataType,
+                                                R1DataType,
+                                                ALayout,
+                                                BLayout,
+                                                ELayout,
+                                                AElementOp,
+                                                BElementOp,
+                                                CDEElementOp,
+                                                QsElementOp,
+                                                RsElementOp,
+                                                RsThreadReduceOp,
+                                                ReduceAccDataType,
+                                                DeviceOpInstance,
+                                                ReferenceGemmInstance>(
         M, N, K, StrideA, StrideB, StrideE, do_verification, init_method, time_kernel);
 }
