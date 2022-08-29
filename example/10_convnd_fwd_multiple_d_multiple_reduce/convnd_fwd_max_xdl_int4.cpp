@@ -5,6 +5,8 @@
 #error Should compile this file with ck::int4_t support
 #endif
 
+#define BUILD_INT4_EXAMPLE
+
 #include "common.hpp"
 
 using ADataType         = I4;
@@ -19,7 +21,6 @@ using ReduceAccDataType = I32;
 using R0DataType        = I32;
 using RsDataType        = ck::Tuple<R0DataType>;
 
-#define BUILD_INT4_EXAMPLE
 #include "run_convnd_fwd_max_example.inc"
 
 int main(int argc, char* argv[]) { return !run_convnd_fwd_max_example(argc, argv); }
