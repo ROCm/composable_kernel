@@ -844,7 +844,6 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, float> ||
                            is_same_v<AccDataType, int32_t>))
             {
-                std::cerr << "return false at line: " << __LINE__ << std::endl;
                 return false;
             }
         }
@@ -853,13 +852,11 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, float> ||
                            is_same_v<AccDataType, int32_t> || is_same_v<AccDataType, double>))
             {
-                std::cerr << "return false at line: " << __LINE__ << std::endl;
                 return false;
             }
         }
         else
         {
-            std::cerr << "return false at line: " << __LINE__ << std::endl;
             return false;
         }
 
@@ -877,7 +874,6 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
 
                 if(!(X == 1 && ConvStride == 1 && LeftPad == 0 && RightPad == 0))
                 {
-                    std::cerr << "return false at line: " << __LINE__ << std::endl;
                     return false;
                 }
             }
@@ -894,7 +890,6 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
 
                 if(!(X == 1 && LeftPad == 0 && RightPad == 0))
                 {
-                    std::cerr << "return false at line: " << __LINE__ << std::endl;
                     return false;
                 }
             }
@@ -912,13 +907,11 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
 
             if(!(ABlockTransferSrcVectorDim == 2 && C % ABlockTransferSrcScalarPerVector == 0))
             {
-                std::cerr << "return false at line: " << __LINE__ << std::endl;
                 return false;
             }
         }
         else
         {
-            std::cerr << "return false at line: " << __LINE__ << std::endl;
             return false;
         }
 
@@ -935,13 +928,11 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
 
             if(!(BBlockTransferSrcVectorDim == 2 && C % BBlockTransferSrcScalarPerVector == 0))
             {
-                std::cerr << "return false at line: " << __LINE__ << std::endl;
                 return false;
             }
         }
         else
         {
-            std::cerr << "return false at line: " << __LINE__ << std::endl;
             return false;
         }
 
@@ -960,20 +951,17 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
 
                 if(!(K % CDEBlockTransferScalarPerVector_NPerBlock == 0))
                 {
-                    std::cerr << "return false at line: " << __LINE__ << std::endl;
                     valid = false;
                 }
             }
             else
             {
-                std::cerr << "return false at line: " << __LINE__ << std::endl;
                 valid = false;
             }
         });
 
         if(!valid)
         {
-            std::cerr << "return false at line: " << __LINE__ << std::endl;
             return false;
         }
 
@@ -988,13 +976,11 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
 
             if(!(K % CDEBlockTransferScalarPerVector_NPerBlock == 0))
             {
-                std::cerr << "return false at line: " << __LINE__ << std::endl;
                 return false;
             }
         }
         else
         {
-            std::cerr << "return false at line: " << __LINE__ << std::endl;
             return false;
         }
 
