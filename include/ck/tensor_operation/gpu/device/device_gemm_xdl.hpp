@@ -56,7 +56,9 @@ template <typename ADataType,
           bool BBlockLdsAddExtraN,
           ck::index_t CThreadTransferSrcDstVectorDim,
           ck::index_t CThreadTransferDstScalarPerVector,
-          ck::index_t NumPrefetch = 1>
+          ck::index_t NumPrefetch     = 1,
+          ck::LoopScheduler LoopSched = make_default_loop_scheduler(),
+          index_t PipelineVersion     = 1>
 struct DeviceGemmXdl : public DeviceGemm<ALayout,
                                          BLayout,
                                          CLayout,
@@ -230,7 +232,9 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
         Sequence<0, 2, 4, 5, 6, 1, 3, 7>, // CThreadTransferSrcDstAccessOrder,
         CThreadTransferSrcDstVectorDim,
         CThreadTransferDstScalarPerVector,
-        NumPrefetch>;
+        NumPrefetch,
+        LoopSched,
+        PipelineVersion>;
 
     // Argument
     struct Argument : public BaseArgument

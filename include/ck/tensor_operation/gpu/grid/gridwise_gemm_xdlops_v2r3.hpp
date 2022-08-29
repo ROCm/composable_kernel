@@ -110,6 +110,7 @@ template <index_t BlockSize,
           index_t CThreadTransferSrcDstVectorDim,
           index_t CThreadTransferDstScalarPerVector,
           index_t NumGemmKPrefetchStage = 1,
+          LoopScheduler LoopSched       = make_default_loop_scheduler(),
           index_t PipelineVersion       = 1>
 struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 {
@@ -128,7 +129,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     using GridwiseGemmPipe = remove_cvref_t<decltype(
-        GridwiseGemmPipeline_Selector<PipelineVersion, NumGemmKPrefetchStage>())>;
+        GridwiseGemmPipeline_Selector<PipelineVersion, NumGemmKPrefetchStage, LoopSched>())>;
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_K0PerBlock_MPerBlock_K1()
     {
