@@ -142,6 +142,7 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
     std::cout << "b1_g_n_o: " << b1_g_n_o.mDesc << std::endl;
     std::cout << "c_g_m_o: " << c_g_m_o_host_result.mDesc << std::endl;
 
+    std::srand(1); // work around test flakiness
     switch(init_method)
     {
     case 0: break;
