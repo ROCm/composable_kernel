@@ -23,17 +23,20 @@ namespace device {
 template <typename GridwiseGemm,
           typename A0B0D0B1DataType,
           typename C1DataType,
+          typename DsPointer,
           typename A0ElementwiseOperation,
           typename B0ElementwiseOperation,
           typename C0ElementwiseOperation,
           typename D0ElementwiseOperation,
           typename B1ElementwiseOperation,
           typename C1ElementwiseOperation,
+          typename D1ElementwiseOperation,
           typename A0GridDesc_AK0_M_AK1,
           typename B0GridDesc_BK0_N_BK1,
           typename D0GridDesc_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
           typename B1GridDesc_BK0_N_BK1,
           typename C1GridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock,
+          typename D1sGridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock,
           typename Block2C1TileMap,
           typename ComputeBasePtrOfStridedBatch,
           bool HasMainKBlockLoop>
@@ -47,12 +50,14 @@ __global__ void
             const A0B0D0B1DataType* __restrict__ p_d0_grid,
             const A0B0D0B1DataType* __restrict__ p_b1_grid,
             C1DataType* __restrict__ p_c1_grid,
+            DsPointer p_d1s_grid,
             const A0ElementwiseOperation a0_element_op,
             const B0ElementwiseOperation b0_element_op,
             const C0ElementwiseOperation c0_element_op,
             const D0ElementwiseOperation d0_element_op,
             const B1ElementwiseOperation b1_element_op,
             const C1ElementwiseOperation c1_element_op,
+            const D1ElementwiseOperation d1_element_op,
             const A0GridDesc_AK0_M_AK1 a0_grid_desc_ak0_m_ak1,
             const B0GridDesc_BK0_N_BK1 b0_grid_desc_bk0_n_bk1,
             const D0GridDesc_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
@@ -60,6 +65,8 @@ __global__ void
             const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
             const C1GridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock
                 c1_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock,
+            const D1sGridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock
+                d1s_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock,
             const Block2C1TileMap block_2_c1tile_map,
             const index_t batch_count,
             const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch)
@@ -81,12 +88,19 @@ __global__ void
     const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_base_ptr_of_batch.GetCBasePtr(g_idx)));
 
+    static_for<0, p_d1s_grid.Size(), 1>{}([&](auto In) {
+        const long_index_t d1_batch_offset = __builtin_amdgcn_readfirstlane(
+            static_cast<long_index_t>(compute_base_ptr_of_batch.GetD1BasePtr(g_idx, In)));
+        p_d1s_grid(In) = p_d1s_grid(In) + d1_batch_offset;
+    });
+
     GridwiseGemm::template Run<HasMainKBlockLoop>(
         p_a0_grid + a_batch_offset,
         p_b0_grid + b_batch_offset,
         p_d0_grid + d0_batch_offset,
         p_b1_grid + b1_batch_offset,
         p_c1_grid + c_batch_offset,
+        p_d1s_grid,
         p_shared,
         a0_element_op,
         b0_element_op,
@@ -94,27 +108,32 @@ __global__ void
         d0_element_op,
         b1_element_op,
         c1_element_op,
+        d1_element_op,
         a0_grid_desc_ak0_m_ak1,
         b0_grid_desc_bk0_n_bk1,
         d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
         b1_grid_desc_bk0_n_bk1,
         c1_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock,
+        d1s_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock,
         block_2_c1tile_map);
 #else
     ignore = p_a0_grid;
     ignore = p_b0_grid;
     ignore = p_b1_grid;
     ignore = p_c1_grid;
+    ignore = p_d1s_grid;
     ignore = a0_element_op;
     ignore = b0_element_op;
     ignore = c0_element_op;
     ignore = b1_element_op;
     ignore = c1_element_op;
+    ignore = d1_element_op;
     ignore = a0_grid_desc_ak0_m_ak1;
     ignore = b0_grid_desc_bk0_n_bk1;
     ignore = d0_grid_desc_m_n;
     ignore = b1_grid_desc_bk0_n_bk1;
     ignore = c1_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock;
+    ignore = d1s_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock;
     ignore = block_2_c1tile_map;
     ignore = batch_count;
     ignore = compute_base_ptr_of_batch;
@@ -387,11 +406,10 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
             return g_idx * static_cast<long_index_t>(BatchStrideC1_);
         }
 
-        __host__ __device__ constexpr auto GetD1BasePtr(index_t g_idx) const
+        template <index_t I>
+        __host__ __device__ constexpr auto GetD1BasePtr(index_t g_idx, Number<I> d1_idx) const
         {
-            return generate_tuple(
-                [&](auto i) { return g_idx * static_cast<long_index_t>(BatchStrideD1s_[i]); },
-                Number<NumD1Tensor>{});
+            return g_idx * static_cast<long_index_t>(BatchStrideD1s_[d1_idx]);
         }
 
         private:
@@ -424,6 +442,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
         D0ElementwiseOperation,
         B1ElementwiseOperation,
         C1ElementwiseOperation,
+        D1ElementwiseOperation,
         InMemoryDataOperationEnum::Set,
         A0GridDesc_M_K,
         B0GridDesc_N_K,
@@ -670,18 +689,22 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                     GridwiseGemm,
                     A0DataType, // TODO: distiguish A/B datatype
                     C1DataType,
+                    typename GridwiseGemm::D1sGridPointer,
                     A0ElementwiseOperation,
                     B0ElementwiseOperation,
                     C0ElementwiseOperation,
                     D0ElementwiseOperation,
                     B1ElementwiseOperation,
                     C1ElementwiseOperation,
+                    D1ElementwiseOperation,
                     DeviceOp::A0GridDesc_AK0_M_AK1,
                     DeviceOp::B0GridDesc_BK0_N_BK1,
                     DeviceOp::D0GridDesc_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
                     DeviceOp::B1GridDesc_BK0_N_BK1,
                     typename GridwiseGemm::
                         C1GridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock,
+                    typename GridwiseGemm::
+                        D1sGridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock,
                     typename GridwiseGemm::DefaultBlock2C1TileMap,
                     ComputeBasePtrOfStridedBatch,
                     has_main_k_block_loop_>;
@@ -697,17 +720,20 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                     arg.p_d0_grid_,
                     arg.p_b1_grid_,
                     arg.p_c1_grid_,
+                    arg.p_d1s_grid_,
                     arg.a0_element_op_,
                     arg.b0_element_op_,
                     arg.c0_element_op_,
                     arg.d0_element_op_,
                     arg.b1_element_op_,
                     arg.c1_element_op_,
+                    arg.d1_element_op_,
                     arg.a0_grid_desc_ak0_m_ak1_,
                     arg.b0_grid_desc_bk0_n_bk1_,
                     arg.d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
                     arg.b1_grid_desc_bk0_n_bk1_,
                     arg.c1_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock_,
+                    arg.d1s_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock_,
                     arg.block_2_c1tile_map_,
                     arg.batch_count_,
                     arg.compute_base_ptr_of_batch_);

@@ -29,6 +29,7 @@ template <typename A0B0B1DataType, // FIXME: don't assume A0/B0/B1 have same dat
           typename D0ElementwiseOperation,
           typename B1ElementwiseOperation,
           typename C1ElementwiseOperation,
+          typename D1ElementwiseOperation,
           InMemoryDataOperationEnum C1GlobalMemoryDataOperation,
           typename A0GridDesc_M_K,
           typename B0GridDesc_N_K,
@@ -475,6 +476,7 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
         const A0B0B1DataType* __restrict__ p_d0_grid,
         const A0B0B1DataType* __restrict__ p_b1_grid,
         C1DataType* __restrict__ p_c1_grid,
+        D1sGridPointer p_d1s_grid,
         void* __restrict__ p_shared,
         const A0ElementwiseOperation& a0_element_op,
         const B0ElementwiseOperation& b0_element_op,
@@ -482,14 +484,21 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
         const D0ElementwiseOperation& d0_element_op,
         const B1ElementwiseOperation& b1_element_op,
         const C1ElementwiseOperation& c1_element_op,
+        const D1ElementwiseOperation& d1_element_op,
         const A0GridDesc_AK0_M_AK1& a0_grid_desc_ak0_m_ak1,
         const B0GridDesc_BK0_N_BK1& b0_grid_desc_bk0_n_bk1,
         const D0GridDesc_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5& d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
         const B1GridDesc_BK0_N_BK1& b1_grid_desc_bk0_n_bk1,
         const C1GridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock&
             c1_grid_desc_mblock_mperblock_nblock_nperblock,
+        const D1sGridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock&
+            d1s_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock,
         const Block2C1TileMap& block_2_c1tile_map)
     {
+        ignore = p_d1s_grid;
+        ignore = d1_element_op;
+        ignore = d1s_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock;
+
         const auto a0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a0_grid, a0_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
