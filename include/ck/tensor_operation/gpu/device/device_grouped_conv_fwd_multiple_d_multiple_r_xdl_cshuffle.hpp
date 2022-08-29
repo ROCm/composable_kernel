@@ -984,6 +984,16 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
             return false;
         }
 
+        // check vector access of R
+        if constexpr(!(is_same_v<RLayout, ctc::G_NW> || is_same_v<RLayout, ctc::G_NHW> ||
+                       is_same_v<RLayout, ctc::G_NDHW> || is_same_v<RLayout, ctc::GNW> ||
+                       is_same_v<RLayout, ctc::GNHW> || is_same_v<RLayout, ctc::GNDHW> ||
+                       is_same_v<RLayout, ctc::NWG> || is_same_v<RLayout, ctc::NHWG> ||
+                       is_same_v<RLayout, ctc::NDHWG>))
+        {
+            return false;
+        }
+
         // check Gridwise GEMM
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
                                            arg.b_grid_desc_n_k_,
