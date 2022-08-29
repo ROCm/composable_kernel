@@ -22,6 +22,7 @@ template <typename A0B0B1DataType, // FIXME: don't assume A0/B0/B1 have same dat
           typename Acc1DataType,
           typename C1ShuffleDataType,
           typename C1DataType,
+          typename D1sDataType,
           typename A0ElementwiseOperation,
           typename B0ElementwiseOperation,
           typename C0ElementwiseOperation,
@@ -34,6 +35,7 @@ template <typename A0B0B1DataType, // FIXME: don't assume A0/B0/B1 have same dat
           typename D0GridDesc_M_N,
           typename B1GridDesc_N_K,
           typename C1GridDesc_M_N,
+          typename D1sGridDesc_M_N,
           index_t NumGemm0KPrefetchStage,
           index_t BlockSize,
           index_t Gemm0MPerBlock,
@@ -83,6 +85,8 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
     static_assert(LoopSched == LoopScheduler::Default,
                   "Non-default loop scheduler is currently not supported");
 
+    static constexpr index_t NumD1Tensor = D1sDataType::Size();
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
@@ -110,6 +114,18 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     using GridwiseGemmPipe = GridwiseGemmPipeline_v1<NumGemm0KPrefetchStage>;
+
+    // ck::Tuple<const D1DataType1*, const D1DataType2*, ...>
+    static constexpr auto MakeD1sGridPointer()
+    {
+        return generate_tuple(
+            [&](auto i) {
+                using D1DataType = remove_cvref_t<tuple_element_t<i.value, D1sDataType>>;
+
+                return static_cast<const D1DataType*>(nullptr);
+            },
+            Number<NumD1Tensor>{});
+    }
 
     __device__ static auto GetGemm0WaveIdx()
     {
@@ -384,6 +400,19 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
 
         return c1_grid_desc_mblock_mperblock_nblock_nperblock;
     }
+    // Ds desc for source in blockwise copy
+    template <typename DsGridDescriptor_M_N>
+    __host__ __device__ static constexpr auto
+    MakeD1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+        const DsGridDescriptor_M_N& ds_grid_desc_m_n)
+    {
+        return generate_tuple(
+            [&](auto i) {
+                return MakeC1GridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock(
+                    ds_grid_desc_m_n[i]);
+            },
+            Number<NumD1Tensor>{});
+    }
 
     // return block_id to C1 matrix tile idx (m0, n0) mapping
     __host__ __device__ static constexpr auto
@@ -395,6 +424,9 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
 
     using C1GridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock = remove_cvref_t<decltype(
         MakeC1GridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock(C1GridDesc_M_N{}))>;
+
+    using D1sGridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock = remove_cvref_t<decltype(
+        MakeD1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(D1sGridDesc_M_N{}))>;
 
     using DefaultBlock2C1TileMap =
         remove_cvref_t<decltype(MakeDefaultBlock2C1TileMap(C1GridDesc_M_N{}))>;
@@ -428,6 +460,8 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
         static constexpr auto c1_block_space_size =
             c1_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
     };
+
+    using D1sGridPointer = decltype(MakeD1sGridPointer());
 
     template <bool HasMainKBlockLoop,
               typename A0GridDesc_AK0_M_AK1,
