@@ -7,15 +7,14 @@
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_multiple_r_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 
-// DataType
-using ADataType         = F16;
-using BDataType         = F16;
-using GemmAccDataType   = F32;
-using CShuffleDataType  = F32;
+using ADataType         = INT8;
+using BDataType         = INT8;
+using GemmAccDataType   = INT32;
+using CShuffleDataType  = INT32;
 using DsDataType        = ck::Tuple<>;
-using EDataType         = F16;
-using ReduceAccDataType = F32;
-using R0DataType        = F32;
+using EDataType         = INT8;
+using ReduceAccDataType = INT32;
+using R0DataType        = INT32;
 using RsDataType        = ck::Tuple<R0DataType>;
 
 // Layout
@@ -62,9 +61,9 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleDMultip
          256,                       // BlockSize
          256,                       // MPerBlock
          128,                       // NPerBlock
-         32,                        // KPerBlock
-         8,                         // AK1
-         8,                         // BK1
+         64,                        // KPerBlock
+         16,                        // AK1
+         16,                        // BK1
          32,                        // MPerXdl
          32,                        // NPerXdl
          4,                         // MXdlPerWave
@@ -73,15 +72,15 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleDMultip
          S<1, 0, 2>,                // ABlockTransfer ThreadCluster ArrangeOrder
          S<1, 0, 2>,                // ABlockTransfer SrcAccessOrder
          2,                         // ABlockTransfer SrcVectorDim
-         8,                         // ABlockTransfer SrcScalarPerVector
-         8,                         // ABlockTransfer DstScalarPerVector_K1
+         16,                        // ABlockTransfer SrcScalarPerVector
+         16,                        // ABlockTransfer DstScalarPerVector_K1
          1,                         // ABlockLdsExtraM
          S<4, 64, 1>,               // BBlockTransfer ThreadCluster Lengths_K0_N_K1
          S<1, 0, 2>,                // BBlockTransfer ThreadCluster ArrangeOrder
          S<1, 0, 2>,                // BBlockTransfer SrcAccessOrder
          2,                         // BBlockTransfer SrcVectorDim
-         8,                         // BBlockTransfer SrcScalarPerVector
-         8,                         // BBlockTransfer DstScalarPerVector_K1
+         16,                        // BBlockTransfer SrcScalarPerVector
+         16,                        // BBlockTransfer DstScalarPerVector_K1
          1,                         // BBlockLdsExtraN
          1,                         // CShuffleMXdlPerWavePerShuffle
          1,                         // CShuffleNXdlPerWavePerShuffle
@@ -106,12 +105,12 @@ int main(int argc, char* argv[])
 
     // GEMM shape
     ck::index_t M = 1024;
-    ck::index_t N = 1024;
-    ck::index_t K = 1024;
+    ck::index_t N = 1152;
+    ck::index_t K = 512;
 
-    ck::index_t StrideA = 1024;
-    ck::index_t StrideB = 1024;
-    ck::index_t StrideE = 1024;
+    ck::index_t StrideA = 512;
+    ck::index_t StrideB = 512;
+    ck::index_t StrideE = 1152;
 
     if(argc == 1)
     {

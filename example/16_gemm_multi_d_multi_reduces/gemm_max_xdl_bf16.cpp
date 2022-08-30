@@ -8,12 +8,12 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 
 // DataType
-using ADataType         = F16;
-using BDataType         = F16;
+using ADataType         = BF16;
+using BDataType         = BF16;
 using GemmAccDataType   = F32;
 using CShuffleDataType  = F32;
 using DsDataType        = ck::Tuple<>;
-using EDataType         = F16;
+using EDataType         = BF16;
 using ReduceAccDataType = F32;
 using R0DataType        = F32;
 using RsDataType        = ck::Tuple<R0DataType>;
@@ -106,12 +106,12 @@ int main(int argc, char* argv[])
 
     // GEMM shape
     ck::index_t M = 1024;
-    ck::index_t N = 1024;
-    ck::index_t K = 1024;
+    ck::index_t N = 1152;
+    ck::index_t K = 256;
 
-    ck::index_t StrideA = 1024;
-    ck::index_t StrideB = 1024;
-    ck::index_t StrideE = 1024;
+    ck::index_t StrideA = 256;
+    ck::index_t StrideB = 256;
+    ck::index_t StrideE = 1152;
 
     if(argc == 1)
     {
