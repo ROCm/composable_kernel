@@ -658,6 +658,9 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
     {
         auto str = std::stringstream();
 
+        std::map<LoopScheduler, std::string> LoopSchedToString{
+            {LoopScheduler::Default, "Default"}, {LoopScheduler::Interwave, "Interwave"}};
+
         // clang-format off
         str << "DeviceGemm_Xdl_CShuffle"
             << "<"
@@ -667,7 +670,11 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
             << KPerBlock << ", "
             << AK1 << ", "
             << BK1
-            << ">";
+            << ">"
+            << " LoopScheduler: "
+            << LoopSchedToString[LoopSched] << ", "
+            << "PipelineVersion: "
+            << PipelineVersion;;
         // clang-format on
 
         return str.str();

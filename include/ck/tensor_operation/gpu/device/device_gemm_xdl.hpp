@@ -546,7 +546,7 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
             << " NumPrefetch: "
             << NumPrefetch << ", "
             << "LoopScheduler: "
-            << LoopSchedToString[LoopSched].c_str() << ", "
+            << LoopSchedToString[LoopSched] << ", "
             << "PipelineVersion: "
             << PipelineVersion;
         // clang-format on
