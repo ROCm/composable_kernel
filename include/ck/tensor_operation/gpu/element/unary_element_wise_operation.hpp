@@ -97,6 +97,22 @@ struct Scale
     float scale_;
 };
 
+struct ScaleAndResetNaNToMinusInfinity
+{
+    __host__ __device__ ScaleAndResetNaNToMinusInfinity(float scale) : scale_(scale) {}
+
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const;
+
+    template <>
+    __host__ __device__ void operator()<float, float>(float& y, const float& x) const
+    {
+        y = ck::math::isnan(x) ? -ck::NumericLimits<float>::Infinity() : scale_ * x;
+    };
+
+    float scale_;
+};
+
 struct UnaryDivide
 {
     __host__ __device__ UnaryDivide(const int32_t divider = 1) : divider_(divider) {}

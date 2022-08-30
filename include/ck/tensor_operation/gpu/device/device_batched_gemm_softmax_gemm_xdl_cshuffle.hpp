@@ -111,6 +111,15 @@ __global__ void
 // Computes C = A * B0 * B1
 //              ^^^^^^ (Acc0)
 //              ^^^^^^^^^^^ (Acc1)
+
+// When using NPadding as GemmSpecialization, AccElementwiseOperation should be set to
+// ScaleAndResetNaNToMinusInfinity.
+// if !isNan(AccElement)
+//     AccElement *= scale
+// else
+//     AccElement = -INFINITY
+// Otherwise, result may be wrong.
+
 template <typename ALayout,
           typename BLayout, // B0Layout
           typename B1Layout,
