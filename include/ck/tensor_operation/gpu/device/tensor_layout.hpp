@@ -3,16 +3,6 @@
 
 #pragma once
 
-#ifndef PP_DEFINE_LAYOUT_TYPE
-#define PP_DEFINE_LAYOUT_TYPE(layout)                         \
-    struct layout final : ck::tensor_layout::BaseTensorLayout \
-    {                                                         \
-        static constexpr const char* name = #layout;          \
-    }
-#else
-#error PP_DEFINE_LAYOUT_TYPE() was already defined in other place
-#endif
-
 namespace ck {
 namespace tensor_layout {
 
@@ -22,134 +12,371 @@ struct BaseTensorLayout
 
 namespace gemm {
 
-PP_DEFINE_LAYOUT_TYPE(RowMajor);
-PP_DEFINE_LAYOUT_TYPE(ColumnMajor);
+struct RowMajor : public BaseTensorLayout
+{
+    static constexpr const char* name = "RowMajor";
+};
 
+struct ColumnMajor : public BaseTensorLayout
+{
+    static constexpr const char* name = "ColumnMajor";
+};
 } // namespace gemm
 
 namespace convolution {
 
 // input tensor
 // packed NCW/NCHW/NCDHW
-PP_DEFINE_LAYOUT_TYPE(NCW);
-PP_DEFINE_LAYOUT_TYPE(NCHW);
-PP_DEFINE_LAYOUT_TYPE(NCDHW);
+struct NCW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NCW";
+};
+
+struct NCHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NCHW";
+};
+
+struct NCDHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NCDHW";
+};
 
 // packed GNCW/GNCHW/GNCDHW
-PP_DEFINE_LAYOUT_TYPE(GNCW);
-PP_DEFINE_LAYOUT_TYPE(GNCHW);
-PP_DEFINE_LAYOUT_TYPE(GNCDHW);
+struct GNCW : public BaseTensorLayout
+{
+    static constexpr const char* name = "GNCW";
+};
+
+struct GNCHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "GNCHW";
+};
+
+struct GNCDHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "GNCDHW";
+};
 
 // input tensor
 // packed NWC/NHWC/NDHWC
-PP_DEFINE_LAYOUT_TYPE(NWC);
-PP_DEFINE_LAYOUT_TYPE(NHWC);
-PP_DEFINE_LAYOUT_TYPE(NDHWC);
+struct NWC : public BaseTensorLayout
+{
+    static constexpr const char* name = "NWC";
+};
+
+struct NHWC : public BaseTensorLayout
+{
+    static constexpr const char* name = "NHWC";
+};
+
+struct NDHWC : public BaseTensorLayout
+{
+    static constexpr const char* name = "NDHWC";
+};
+
+// input tensor
+// packed NWGC/NHWGC/NDHWG
+struct GNWC : public BaseTensorLayout
+{
+    static constexpr const char* name = "GNWC";
+};
+
+struct GNHWC : public BaseTensorLayout
+{
+    static constexpr const char* name = "GNHWC";
+};
+
+struct GNDHWC : public BaseTensorLayout
+{
+    static constexpr const char* name = "GNDHWC";
+};
 
 // input tensor
 // packed GNWC/GNHWC/GNDHWC
-PP_DEFINE_LAYOUT_TYPE(GNWC);
-PP_DEFINE_LAYOUT_TYPE(GNHWC);
-PP_DEFINE_LAYOUT_TYPE(GNDHWC);
+struct NWGC : public BaseTensorLayout
+{
+    static constexpr const char* name = "NWGC";
+};
 
-// input tensor
-// packed NWGC/NHWGC/NDHWGC
-PP_DEFINE_LAYOUT_TYPE(NWGC);
-PP_DEFINE_LAYOUT_TYPE(NHWGC);
-PP_DEFINE_LAYOUT_TYPE(NDHWGC);
+struct NHWGC : public BaseTensorLayout
+{
+    static constexpr const char* name = "NHWGC";
+};
+
+struct NDHWGC : public BaseTensorLayout
+{
+    static constexpr const char* name = "NDHWGC";
+};
 
 // input tensor
 // strided layout
-PP_DEFINE_LAYOUT_TYPE(G_NW_C);
-PP_DEFINE_LAYOUT_TYPE(G_NHW_C);
-PP_DEFINE_LAYOUT_TYPE(G_NDHW_C);
+struct G_NW_C : public BaseTensorLayout
+{
+    static constexpr const char* name = "G_NW_C";
+};
+
+struct G_NHW_C : public BaseTensorLayout
+{
+    static constexpr const char* name = "G_NHW_C";
+};
+
+struct G_NDHW_C : public BaseTensorLayout
+{
+    static constexpr const char* name = "G_NDHW_C";
+};
 
 // weight tensor
 // packed KCX/KCYX/KCZYX
-PP_DEFINE_LAYOUT_TYPE(KCX);
-PP_DEFINE_LAYOUT_TYPE(KCYX);
-PP_DEFINE_LAYOUT_TYPE(KCZYX);
+struct KCX : public BaseTensorLayout
+{
+    static constexpr const char* name = "KCX";
+};
+
+struct KCYX : public BaseTensorLayout
+{
+    static constexpr const char* name = "KCYX";
+};
+
+struct KCZYX : public BaseTensorLayout
+{
+    static constexpr const char* name = "KCZYX";
+};
 
 // weight tensor
-// packed GKCX/GKCYX/GKCZYX
-PP_DEFINE_LAYOUT_TYPE(GKCX);
-PP_DEFINE_LAYOUT_TYPE(GKCYX);
-PP_DEFINE_LAYOUT_TYPE(GKCZYX);
+// packed KCX/KCYX/KCZYX
+struct GKCX : public BaseTensorLayout
+{
+    static constexpr const char* name = "GKCX";
+};
+
+struct GKCYX : public BaseTensorLayout
+{
+    static constexpr const char* name = "GKCYX";
+};
+
+struct GKCZYX : public BaseTensorLayout
+{
+    static constexpr const char* name = "GKCZYX";
+};
 
 // weight tensor
 // packed KXC/KYXC/KZYXC
-PP_DEFINE_LAYOUT_TYPE(KXC);
-PP_DEFINE_LAYOUT_TYPE(KYXC);
-PP_DEFINE_LAYOUT_TYPE(KZYXC);
+struct KXC : public BaseTensorLayout
+{
+    static constexpr const char* name = "KXC";
+};
+
+struct KYXC : public BaseTensorLayout
+{
+    static constexpr const char* name = "KYXC";
+};
+
+struct KZYXC : public BaseTensorLayout
+{
+    static constexpr const char* name = "KZYXC";
+};
 
 // weight tensor
 // packed GKXC/GKYXC/GKZYXC
-PP_DEFINE_LAYOUT_TYPE(GKXC);
-PP_DEFINE_LAYOUT_TYPE(GKYXC);
-PP_DEFINE_LAYOUT_TYPE(GKZYXC);
+struct GKXC : public BaseTensorLayout
+{
+    static constexpr const char* name = "GKXC";
+};
+
+struct GKYXC : public BaseTensorLayout
+{
+    static constexpr const char* name = "GKYXC";
+};
+
+struct GKZYXC : public BaseTensorLayout
+{
+    static constexpr const char* name = "GKZYXC";
+};
 
 // weight tensor
 // packed KXGC/KYXGC/KZYXGC
-PP_DEFINE_LAYOUT_TYPE(KXGC);
-PP_DEFINE_LAYOUT_TYPE(KYXGC);
-PP_DEFINE_LAYOUT_TYPE(KZYXGC);
+struct KXGC : public BaseTensorLayout
+{
+    static constexpr const char* name = "KXGC";
+};
+
+struct KYXGC : public BaseTensorLayout
+{
+    static constexpr const char* name = "KYXGC";
+};
+
+struct KZYXGC : public BaseTensorLayout
+{
+    static constexpr const char* name = "KZYXGC";
+};
 
 // weight tensor
 // strided
-PP_DEFINE_LAYOUT_TYPE(G_K_X_C);
-PP_DEFINE_LAYOUT_TYPE(G_K_YX_C);
-PP_DEFINE_LAYOUT_TYPE(G_K_ZYX_C);
+struct G_K_X_C : public BaseTensorLayout
+{
+    static constexpr const char* name = "G_K_X_C";
+};
+
+struct G_K_YX_C : public BaseTensorLayout
+{
+    static constexpr const char* name = "G_K_YX_C";
+};
+
+struct G_K_ZYX_C : public BaseTensorLayout
+{
+    static constexpr const char* name = "G_K_ZYX_C";
+};
 
 // output tensor
 // packed NKW/NKHW/NKDHW
-PP_DEFINE_LAYOUT_TYPE(NKW);
-PP_DEFINE_LAYOUT_TYPE(NKHW);
-PP_DEFINE_LAYOUT_TYPE(NKDHW);
+struct NKW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NKW";
+};
+
+struct NKHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NKHW";
+};
+
+struct NKDHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NKDHW";
+};
 
 // output tensor
 // packed GNKW/GNKHW/GNKDHW
-PP_DEFINE_LAYOUT_TYPE(GNKW);
-PP_DEFINE_LAYOUT_TYPE(GNKHW);
-PP_DEFINE_LAYOUT_TYPE(GNKDHW);
+struct GNKW : public BaseTensorLayout
+{
+    static constexpr const char* name = "GNKW";
+};
+
+struct GNKHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "GNKHW";
+};
+
+struct GNKDHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "GNKDHW";
+};
 
 // output tensor
 // packed NWK/NHWK/NDHWK
-PP_DEFINE_LAYOUT_TYPE(NWK);
-PP_DEFINE_LAYOUT_TYPE(NHWK);
-PP_DEFINE_LAYOUT_TYPE(NDHWK);
+struct NWK : public BaseTensorLayout
+{
+    static constexpr const char* name = "NWK";
+};
+
+struct NHWK : public BaseTensorLayout
+{
+    static constexpr const char* name = "NHWK";
+};
+
+struct NDHWK : public BaseTensorLayout
+{
+    static constexpr const char* name = "NDHWK";
+};
 
 // output tensor
 // packed GNWK/GNHWK/GNDHWK
-PP_DEFINE_LAYOUT_TYPE(GNWK);
-PP_DEFINE_LAYOUT_TYPE(GNHWK);
-PP_DEFINE_LAYOUT_TYPE(GNDHWK);
+struct GNWK : public BaseTensorLayout
+{
+    static constexpr const char* name = "GNWK";
+};
+
+struct GNHWK : public BaseTensorLayout
+{
+    static constexpr const char* name = "GNHWK";
+};
+
+struct GNDHWK : public BaseTensorLayout
+{
+    static constexpr const char* name = "GNDHWK";
+};
 
 // output tensor
 // packed NWGK/NHWGK/NDHWGK
-PP_DEFINE_LAYOUT_TYPE(NWGK);
-PP_DEFINE_LAYOUT_TYPE(NHWGK);
-PP_DEFINE_LAYOUT_TYPE(NDHWGK);
+struct NWGK : public BaseTensorLayout
+{
+    static constexpr const char* name = "NWGK";
+};
+
+struct NHWGK : public BaseTensorLayout
+{
+    static constexpr const char* name = "NHWGK";
+};
+
+struct NDHWGK : public BaseTensorLayout
+{
+    static constexpr const char* name = "NDHWGK";
+};
 
 // output tensor
 // strided layout
-PP_DEFINE_LAYOUT_TYPE(G_NW_K);
-PP_DEFINE_LAYOUT_TYPE(G_NHW_K);
-PP_DEFINE_LAYOUT_TYPE(G_NDHW_K);
+struct G_NW_K : public BaseTensorLayout
+{
+    static constexpr const char* name = "G_NW_K";
+};
+
+struct G_NHW_K : public BaseTensorLayout
+{
+    static constexpr const char* name = "G_NHW_K";
+};
+
+struct G_NDHW_K : public BaseTensorLayout
+{
+    static constexpr const char* name = "G_NDHW_K";
+};
 
 // K-reduced output tensor (packed)
-PP_DEFINE_LAYOUT_TYPE(GNW);
-PP_DEFINE_LAYOUT_TYPE(GNHW);
-PP_DEFINE_LAYOUT_TYPE(GNDHW);
+struct GNW : public BaseTensorLayout
+{
+    static constexpr const char* name = "GNW";
+};
+
+struct GNHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "GNHW";
+};
+
+struct GNDHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "GNDHW";
+};
 
 // K-reduced output tensor (packed)
-PP_DEFINE_LAYOUT_TYPE(NWG);
-PP_DEFINE_LAYOUT_TYPE(NHWG);
-PP_DEFINE_LAYOUT_TYPE(NDHWG);
+struct NWG : public BaseTensorLayout
+{
+    static constexpr const char* name = "NWG";
+};
+
+struct NHWG : public BaseTensorLayout
+{
+    static constexpr const char* name = "NHWG";
+};
+
+struct NDHWG : public BaseTensorLayout
+{
+    static constexpr const char* name = "NDHWG";
+};
 
 // K-reduced output tensor (strided)
-PP_DEFINE_LAYOUT_TYPE(G_NW);
-PP_DEFINE_LAYOUT_TYPE(G_NHW);
-PP_DEFINE_LAYOUT_TYPE(G_NDHW);
+struct G_NW : public BaseTensorLayout
+{
+    static constexpr const char* name = "G_NW";
+};
+
+struct G_NHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "G_NHW";
+};
+
+struct G_NDHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "G_NDHW";
+};
 
 } // namespace convolution
 
@@ -164,5 +391,3 @@ std::ostream& operator<<(std::ostream& os, const Layout&)
 
 } // namespace tensor_layout
 } // namespace ck
-
-#undef PP_DEFINE_LAYOUT_TYPE
