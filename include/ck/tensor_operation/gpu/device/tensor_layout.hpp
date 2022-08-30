@@ -76,7 +76,7 @@ struct NDHWC : public BaseTensorLayout
 };
 
 // input tensor
-// packed NWGC/NHWGC/NDHWG
+// packed GNWC/GNHWC/GNDHWC
 struct GNWC : public BaseTensorLayout
 {
     static constexpr const char* name = "GNWC";
@@ -93,7 +93,7 @@ struct GNDHWC : public BaseTensorLayout
 };
 
 // input tensor
-// packed GNWC/GNHWC/GNDHWC
+// packed NWGC/NHWGC/NDHWGC
 struct NWGC : public BaseTensorLayout
 {
     static constexpr const char* name = "NWGC";
