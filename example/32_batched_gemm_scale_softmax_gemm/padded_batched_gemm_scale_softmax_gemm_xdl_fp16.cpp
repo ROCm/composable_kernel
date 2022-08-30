@@ -49,6 +49,11 @@ using B0Layout = Col;
 using B1Layout = Row;
 using CLayout  = Row;
 
+// When using padded DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle kernel, 2 specs should be set:
+// 1. GemmSpecialization should be set to MNPadding(or NPadding in future)
+// 2. Acc0ElementOp should be set to ScaleAndResetNaNToMinusInfinity
+// Otherwise, wrong result may be produced.
+
 using AElementOp    = PassThrough;
 using B0ElementOp   = PassThrough;
 using Acc0ElementOp = ck::tensor_operation::element_wise::ScaleAndResetNaNToMinusInfinity;
