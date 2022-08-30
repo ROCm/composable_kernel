@@ -12,6 +12,7 @@ set(PROFILER_SOURCE
     src/profile_gemm_add_add_fastgelu.cpp
     src/profile_gemm_reduce.cpp
     src/profile_batched_gemm.cpp
+    src/profile_batched_gemm_bias_gelu_gemm_bias.cpp
     src/profile_batched_gemm_reduce.cpp
     src/profile_grouped_gemm.cpp
     src/profile_conv_fwd.cpp
