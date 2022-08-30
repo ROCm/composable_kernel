@@ -94,7 +94,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     using GridwiseGemmPipe = remove_cvref_t<decltype(
-        GridwiseGemmPipeline_Selector<PipelineVersion, NumGemmKPrefetchStage>())>;
+        GridwiseGemmPipeline_Selector<PipelineVersion, NumGemmKPrefetchStage, LoopSched>())>;
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {

@@ -141,7 +141,8 @@ template <typename ALayout,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
-          LoopScheduler LoopSched = make_default_loop_scheduler()>
+          LoopScheduler LoopSched = make_default_loop_scheduler(),
+          index_t PipelineVersion = 1>
 struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
                                                                      BLayout,
                                                                      DsLayout,
@@ -285,7 +286,8 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         CShuffleNXdlPerWavePerShuffle,
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CDEBlockTransferScalarPerVector_NPerBlock,
-        LoopSched>;
+        LoopSched,
+        PipelineVersion>;
 
     using AGridDesc_AK0_M_AK1 = remove_cvref_t<decltype(
         GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(AGridDesc_M_K{}))>;
@@ -573,6 +575,9 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
     {
         auto str = std::stringstream();
 
+        std::map<LoopScheduler, std::string> LoopSchedToString{
+            {LoopScheduler::Default, "Default"}, {LoopScheduler::Interwave, "Interwave"}};
+
         // clang-format off
         str << "DeviceGemmMultipleD_Xdl_CShuffle"
             << "<"
@@ -583,7 +588,11 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
             << AK1 << ", "
             << BK1 << ", "
             << getGemmSpecializationString(GemmSpec)
-            << ">";
+            << ">"
+            << " LoopScheduler: "
+            << LoopSchedToString[LoopSched] << ", "
+            << "PipelineVersion: "
+            << PipelineVersion;;
         // clang-format on
 
         return str.str();
