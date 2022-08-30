@@ -98,7 +98,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleDMultip
 // clang-format on
 using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                         BDataType,
-                                                                        INT32,
+                                                                        ReduceAccDataType,
                                                                         GemmAccDataType,
                                                                         AElementOp,
                                                                         BElementOp,
@@ -226,7 +226,7 @@ bool run_gemm_reduce_add_addsquare_xdl(ck::index_t M,
         auto I0 = ck::Number<0>{};
         auto I1 = ck::Number<1>{};
 
-        Tensor<INT32> e_m_n_host(e_m_n.mDesc);
+        Tensor<ReduceAccDataType> e_m_n_host(e_m_n.mDesc);
         Tensor<R0DataType> r0_m_host(r0_m.mDesc);
         Tensor<R1DataType> r1_m_host(r1_m.mDesc);
 
@@ -261,10 +261,10 @@ bool run_gemm_reduce_add_addsquare_xdl(ck::index_t M,
         }
         e_device_buf.FromDevice(e_m_n.mData.data());
 
-        Tensor<INT32> e_m_n_converted(e_m_n_host);
+        Tensor<EDataType> e_m_n_host_converted(e_m_n_host);
 
         pass = ck::utils::check_err(
-            e_m_n_converted.mData, e_m_n_host.mData, "Error: Incorrect results c", 1e-2, 1e-2);
+            e_m_n.mData, e_m_n_host_converted.mData, "Error: Incorrect results c", 1e-2, 1e-2);
 
         r0_device_buf.FromDevice(r0_m.mData.data());
         r1_device_buf.FromDevice(r1_m.mData.data());

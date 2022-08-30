@@ -12,7 +12,7 @@ using BDataType         = INT8;
 using GemmAccDataType   = INT32;
 using CShuffleDataType  = INT32;
 using DsDataType        = ck::Tuple<>;
-using EDataType         = INT32;
+using EDataType         = INT8;
 using ReduceAccDataType = INT32;
 using R0DataType        = INT32;
 using RsDataType        = ck::Tuple<R0DataType>;
@@ -91,7 +91,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleDMultip
 
 using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                         BDataType,
-                                                                        EDataType,
+                                                                        ReduceAccDataType,
                                                                         GemmAccDataType,
                                                                         AElementOp,
                                                                         BElementOp,

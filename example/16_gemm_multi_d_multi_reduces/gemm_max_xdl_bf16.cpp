@@ -92,7 +92,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleDMultip
 
 using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                         BDataType,
-                                                                        EDataType,
+                                                                        ReduceAccDataType,
                                                                         GemmAccDataType,
                                                                         AElementOp,
                                                                         BElementOp,

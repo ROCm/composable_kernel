@@ -98,7 +98,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleDMultip
 // clang-format on
 using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                         BDataType,
-                                                                        EDataType,
+                                                                        ReduceAccDataType,
                                                                         GemmAccDataType,
                                                                         AElementOp,
                                                                         BElementOp,

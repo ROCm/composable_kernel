@@ -101,6 +101,12 @@ auto run_gemm_reduce_max_xdl(ck::index_t M,
                              int init_method,
                              bool time_kernel)
 {
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+    static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
+    static_assert(sizeof(ADataType) == sizeof(ADataKernelType));
+    static_assert(sizeof(BDataType) == sizeof(BDataKernelType));
+    static_assert(sizeof(EDataType) == sizeof(EDataKernelType));
+#endif
     using namespace ck::literals;
 
     auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
@@ -154,14 +160,13 @@ auto run_gemm_reduce_max_xdl(ck::index_t M,
         b_device_buf.ToDevice(b_k_n_converted.mData.data());
     }
     else
-#else
+#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     {
         a_device_buf.ToDevice(a_m_k.mData.data());
         b_device_buf.ToDevice(b_k_n.mData.data());
     }
-#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 
-        auto a_element_op = AElementOp{};
+    auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{};
     auto qs_element_op  = QsElementOp{};
@@ -205,7 +210,7 @@ auto run_gemm_reduce_max_xdl(ck::index_t M,
     {
         auto I0 = ck::Number<0>{};
 
-        Tensor<EDataType> e_m_n_host(e_m_n.mDesc);
+        Tensor<ReduceAccDataType> e_m_n_host(e_m_n.mDesc);
         Tensor<R0DataType> r0_m_host(r0_m.mDesc);
 
         auto ref_gemm    = ReferenceGemmInstance{};
@@ -224,7 +229,7 @@ auto run_gemm_reduce_max_xdl(ck::index_t M,
 
             for(int n = 0; n < N; ++n)
             {
-                auto e_val = ck::type_convert<ReduceAccDataType>(e_m_n_host(m, n));
+                auto e_val = e_m_n_host(m, n);
                 reduce0_op(reduce0_acc, e_val);
             };
 
@@ -232,22 +237,26 @@ auto run_gemm_reduce_max_xdl(ck::index_t M,
         }
 
         e_device_buf.FromDevice(e_m_n.mData.data());
+        Tensor<EDataType> e_m_n_host_converted(e_m_n_host);
 
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
         if constexpr(std::is_same_v<ADataType, ck::int4_t>)
         {
-            Tensor<EDataType> e_m_n_converted = e_m_n.template CopyAsType<EDataType>();
-            pass                              = ck::utils::check_err(
-                e_m_n_converted.mData, e_m_n_host.mData, "Error: Incorrect results c", 1e-2, 1e-2);
+            Tensor<EDataType> e_m_n_device_converted(e_m_n);
+            pass = ck::utils::check_err(e_m_n_device_converted.mData,
+                                        e_m_n_host_converted.mData,
+                                        "Error: Incorrect results c",
+                                        1e-2,
+                                        1e-2);
         }
         else
-#else
+#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
         {
             pass = ck::utils::check_err(
-                e_m_n.mData, e_m_n_host.mData, "Error: Incorrect results c", 1e-2, 1e-2);
+                e_m_n.mData, e_m_n_host_converted.mData, "Error: Incorrect results c", 1e-2, 1e-2);
         }
-#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-            r0_device_buf.FromDevice(r0_m.mData.data());
+
+        r0_device_buf.FromDevice(r0_m.mData.data());
         pass &= ck::utils::check_err(
             r0_m.mData, r0_m_host.mData, "Error: Incorrect results d0", 1e-2, 1e-2);
 
@@ -296,6 +305,12 @@ bool run_gemm_reduce_mean_meansquare_xdl(ck::index_t M,
                                          int init_method,
                                          bool time_kernel)
 {
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+    static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
+    static_assert(sizeof(ADataType) == sizeof(ADataKernelType));
+    static_assert(sizeof(BDataType) == sizeof(BDataKernelType));
+    static_assert(sizeof(EDataType) == sizeof(EDataKernelType));
+#endif
     using namespace ck::literals;
 
     auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
@@ -351,14 +366,13 @@ bool run_gemm_reduce_mean_meansquare_xdl(ck::index_t M,
         b_device_buf.ToDevice(b_k_n_converted.mData.data());
     }
     else
-#else
+#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     {
         a_device_buf.ToDevice(a_m_k.mData.data());
         b_device_buf.ToDevice(b_k_n.mData.data());
     }
-#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 
-        auto a_element_op = AElementOp{};
+    auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{};
     auto qs_element_op  = QsElementOp{};
@@ -404,7 +418,7 @@ bool run_gemm_reduce_mean_meansquare_xdl(ck::index_t M,
         auto I0 = ck::Number<0>{};
         auto I1 = ck::Number<1>{};
 
-        Tensor<EDataType> e_m_n_host(e_m_n.mDesc);
+        Tensor<ReduceAccDataType> e_m_n_host(e_m_n.mDesc);
         Tensor<R0DataType> r0_m_host(r0_m.mDesc);
         Tensor<R1DataType> r1_m_host(r1_m.mDesc);
 
@@ -440,23 +454,26 @@ bool run_gemm_reduce_mean_meansquare_xdl(ck::index_t M,
             r1_m_host(m) = ck::type_convert<R1DataType>(reduce1_acc);
         }
         e_device_buf.FromDevice(e_m_n.mData.data());
+        Tensor<EDataType> e_m_n_host_converted(e_m_n_host);
 
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
         if constexpr(std::is_same_v<ADataType, ck::int4_t>)
         {
-            Tensor<EDataType> e_m_n_converted = e_m_n.template CopyAsType<EDataType>();
-            pass                              = ck::utils::check_err(
-                e_m_n_converted.mData, e_m_n_host.mData, "Error: Incorrect results c", 1e-2, 1e-2);
+            Tensor<EDataType> e_m_n_device_converted(e_m_n);
+            pass = ck::utils::check_err(e_m_n_device_converted.mData,
+                                        e_m_n_host_converted.mData,
+                                        "Error: Incorrect results c",
+                                        1e-2,
+                                        1e-2);
         }
         else
-#else
+#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
         {
             pass = ck::utils::check_err(
-                e_m_n.mData, e_m_n_host.mData, "Error: Incorrect results c", 1e-2, 1e-2);
+                e_m_n.mData, e_m_n_host_converted.mData, "Error: Incorrect results c", 1e-2, 1e-2);
         }
-#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 
-            r0_device_buf.FromDevice(r0_m.mData.data());
+        r0_device_buf.FromDevice(r0_m.mData.data());
         r1_device_buf.FromDevice(r1_m.mData.data());
 
         pass &= ck::utils::check_err(
