@@ -527,6 +527,9 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
     {
         auto str = std::stringstream();
 
+        std::map<LoopScheduler, std::string> LoopSchedToString{
+            {LoopScheduler::Default, "Default"}, {LoopScheduler::Interwave, "Interwave"}};
+
         // clang-format off
         str << "DeviceGemmXdl"
             << "<"
@@ -539,7 +542,13 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
             << NPerXDL << ", "
             << MXdlPerWave << ", "
             << NXdlPerWave
-            << ">";
+            << ">"
+            << " NumPrefetch: "
+            << NumPrefetch << ", "
+            << "LoopScheduler: "
+            << LoopSchedToString[LoopSched].c_str() << ", "
+            << "PipelineVersion: "
+            << PipelineVersion;
         // clang-format on
 
         return str.str();
