@@ -7,13 +7,19 @@
 
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 
-using InDataType       = ck::half_t;
-using WeiDataType      = ck::half_t;
-using AccDataType      = float;
-using CShuffleDataType = ck::half_t;
-using BiasDataType     = ck::half_t;
-using ResidualDataType = ck::half_t;
-using OutDataType      = ck::half_t;
+// kernel data types
+using InKernelDataType       = ck::half_t;
+using WeiKernelDataType      = ck::half_t;
+using AccDataType            = float;
+using CShuffleDataType       = ck::half_t;
+using BiasKernelDataType     = ck::half_t;
+using ResidualKernelDataType = ck::half_t;
+using OutKernelDataType      = ck::half_t;
+
+// tensor data types
+using InUserDataType  = InKernelDataType;
+using WeiUserDataType = WeiKernelDataType;
+using OutUserDataType = OutKernelDataType;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -40,12 +46,12 @@ using DeviceGroupedConvNDFwdInstance =
         WeiLayout,
         ck::Tuple<BiasLayout, ResidualLayout>,
         OutLayout,
-        InDataType,
-        WeiDataType,
+        InKernelDataType,
+        WeiKernelDataType,
         AccDataType,
         CShuffleDataType,
-        ck::Tuple<BiasDataType, ResidualDataType>,
-        OutDataType,
+        ck::Tuple<BiasKernelDataType, ResidualKernelDataType>,
+        OutKernelDataType,
         InElementOp,
         WeiElementOp,
         OutElementOp,
@@ -181,13 +187,16 @@ int main(int argc, char* argv[])
             });
 
         return run_grouped_conv_fwd_bias_relu_add<1,
-                                                  InDataType,
-                                                  WeiDataType,
+                                                  InKernelDataType,
+                                                  WeiKernelDataType,
                                                   CShuffleDataType,
-                                                  OutDataType,
+                                                  OutKernelDataType,
                                                   InElementOp,
                                                   WeiElementOp,
                                                   OutElementOp,
+                                                  InUserDataType,
+                                                  WeiUserDataType,
+                                                  OutUserDataType,
                                                   DeviceGroupedConvNDFwdInstance<1,
                                                                                  InLayout,
                                                                                  WeiLayout,
@@ -290,13 +299,16 @@ int main(int argc, char* argv[])
             });
 
         return run_grouped_conv_fwd_bias_relu_add<2,
-                                                  InDataType,
-                                                  WeiDataType,
+                                                  InKernelDataType,
+                                                  WeiKernelDataType,
                                                   CShuffleDataType,
-                                                  OutDataType,
+                                                  OutKernelDataType,
                                                   InElementOp,
                                                   WeiElementOp,
                                                   OutElementOp,
+                                                  InUserDataType,
+                                                  WeiUserDataType,
+                                                  OutUserDataType,
                                                   DeviceGroupedConvNDFwdInstance<2,
                                                                                  InLayout,
                                                                                  WeiLayout,
@@ -413,13 +425,16 @@ int main(int argc, char* argv[])
             });
 
         return run_grouped_conv_fwd_bias_relu_add<3,
-                                                  InDataType,
-                                                  WeiDataType,
+                                                  InKernelDataType,
+                                                  WeiKernelDataType,
                                                   CShuffleDataType,
-                                                  OutDataType,
+                                                  OutKernelDataType,
                                                   InElementOp,
                                                   WeiElementOp,
                                                   OutElementOp,
+                                                  InUserDataType,
+                                                  WeiUserDataType,
+                                                  OutUserDataType,
                                                   DeviceGroupedConvNDFwdInstance<3,
                                                                                  InLayout,
                                                                                  WeiLayout,
