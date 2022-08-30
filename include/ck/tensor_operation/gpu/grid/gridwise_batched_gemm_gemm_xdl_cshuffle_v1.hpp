@@ -200,8 +200,7 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
                   const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
                   const B1GridDesc_BK0_N_BK1& b1_grid_desc_bk0_n_bk1,
                   const CGridDesc_M_N& c_grid_desc_m_n,
-                  const Block2CTileMap& block_2_ctile_map,
-                  const std::vector<index_t>& lengths_m_n_k_o)
+                  const Block2CTileMap& block_2_ctile_map)
     {
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
@@ -213,13 +212,6 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
         const auto Gemm1N = b1_grid_desc_bk0_n_bk1.GetLength(I1);
 
         if(!(M == c_grid_desc_m_n.GetLength(I0) && Gemm1N == c_grid_desc_m_n.GetLength(I1)))
-        {
-            return false;
-        }
-
-        // K is rounded to nearest multiples of K1 during tensor transformation so instead get KRaw
-        const auto KRaw = lengths_m_n_k_o[2];
-        if(!(KRaw % AK1 == 0 && KRaw % BK1 == 0))
         {
             return false;
         }
