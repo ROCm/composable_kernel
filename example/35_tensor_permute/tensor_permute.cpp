@@ -24,7 +24,7 @@ using DeviceElementwisePermuteInstance =
                                                     4,
                                                     8,
                                                     ck::Sequence<8>,
-                                                    ck::Sequence<8>>;
+                                                    ck::Sequence<1>>;
 
 template <typename HostTensorA, typename HostTensorB, typename Functor>
 void host_elementwise4D(HostTensorB& B,
@@ -52,7 +52,7 @@ int main()
 
     std::vector<std::size_t> nchw = {4, 16, 32, 32};
     Tensor<ADataType> a(nchw);
-    Tensor<BDataType> b(nchw);
+    Tensor<BDataType> b(nhwc);
 
     a.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
 
@@ -92,9 +92,9 @@ int main()
     if(do_verification)
     {
         b_device_buf.FromDevice(b.mData.data());
-        Tensor<BDataType> host_b(nchw);
+        Tensor<BDataType> host_b(nhwc);
         host_elementwise4D<Tensor<ADataType>, Tensor<BDataType>, PassThrough>(
-            host_b, a, nchw, PassThrough{});
+            host_b, a, nhwc, PassThrough{});
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
     }
