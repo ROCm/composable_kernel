@@ -259,7 +259,7 @@ struct Tensor
         Tensor<OutT> ret(mDesc);
         for(size_t i = 0; i < mData.size(); i++)
         {
-            ret.mData[i] = static_cast<OutT>(mData[i]);
+            ret.mData[i] = ck::type_convert<OutT>(mData[i]);
         }
         return ret;
     }

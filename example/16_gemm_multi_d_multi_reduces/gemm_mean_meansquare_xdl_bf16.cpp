@@ -8,15 +8,16 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 
 // DataType
-using ADataType         = F16;
-using BDataType         = F16;
+using ADataType         = BF16;
+using BDataType         = BF16;
 using GemmAccDataType   = F32;
 using CShuffleDataType  = F32;
 using DsDataType        = ck::Tuple<>;
-using EDataType         = F16;
+using EDataType         = BF16;
 using ReduceAccDataType = F32;
 using R0DataType        = F32;
-using RsDataType        = ck::Tuple<R0DataType>;
+using R1DataType        = F32;
+using RsDataType        = ck::Tuple<R0DataType, R1DataType>;
 
 // Layout
 using ALayout = Row;
@@ -24,16 +25,22 @@ using BLayout = Col;
 using ELayout = Row;
 
 // Elementwise op
+using Square       = ck::tensor_operation::element_wise::UnarySquare;
+using Div          = ck::tensor_operation::element_wise::UnaryDivide;
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
 using CDEElementOp = PassThrough;
-using QsElementOp  = ck::Tuple<PassThrough>;
-using RsElementOp  = ck::Tuple<PassThrough>;
+using QsElementOp  = ck::Tuple<PassThrough, Square>;
+using RsElementOp  = ck::Tuple<Div, Div>;
 
 // ReduceOp
-using RsThreadReduceOp = ck::Tuple<ck::reduce::Max>;
-using RsGlobalReduceOp =
-    ck::InMemoryDataOperationEnumSequence<ck::InMemoryDataOperationEnum::AtomicMax>;
+using R0ThreadReduceOp = ck::reduce::Add;
+using R1ThreadReduceOp = ck::reduce::Add;
+using RsThreadReduceOp = ck::Tuple<R0ThreadReduceOp, R1ThreadReduceOp>;
+
+static constexpr auto R0GlobalReduceOp = ck::InMemoryDataOperationEnum::AtomicAdd;
+static constexpr auto R1GlobalReduceOp = ck::InMemoryDataOperationEnum::AtomicAdd;
+using RsGlobalReduceOp = ck::InMemoryDataOperationEnumSequence<R0GlobalReduceOp, R1GlobalReduceOp>;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
@@ -89,7 +96,6 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleDMultip
          4,                         // CDE ReduceThreadTransfer ScalarPerVector _NPerBlock
          1>;                        // RThread DstScalarPerVector _MPerBlock
 // clang-format on
-
 using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                         BDataType,
                                                                         ReduceAccDataType,
@@ -106,12 +112,12 @@ int main(int argc, char* argv[])
 
     // GEMM shape
     ck::index_t M = 1024;
-    ck::index_t N = 1024;
-    ck::index_t K = 1024;
+    ck::index_t N = 1152;
+    ck::index_t K = 192;
 
-    ck::index_t StrideA = 1024;
-    ck::index_t StrideB = 1024;
-    ck::index_t StrideE = 1024;
+    ck::index_t StrideA = 192;
+    ck::index_t StrideB = 192;
+    ck::index_t StrideE = 1152;
 
     if(argc == 1)
     {
@@ -147,21 +153,22 @@ int main(int argc, char* argv[])
         exit(EXIT_SUCCESS);
     }
 
-    return run_gemm_reduce_max_xdl<ADataType,
-                                   BDataType,
-                                   EDataType,
-                                   R0DataType,
-                                   ALayout,
-                                   BLayout,
-                                   ELayout,
-                                   AElementOp,
-                                   BElementOp,
-                                   CDEElementOp,
-                                   QsElementOp,
-                                   RsElementOp,
-                                   RsThreadReduceOp,
-                                   ReduceAccDataType,
-                                   DeviceOpInstance,
-                                   ReferenceGemmInstance>(
+    return !run_gemm_reduce_mean_meansquare_xdl<ADataType,
+                                                BDataType,
+                                                EDataType,
+                                                R0DataType,
+                                                R1DataType,
+                                                ALayout,
+                                                BLayout,
+                                                ELayout,
+                                                AElementOp,
+                                                BElementOp,
+                                                CDEElementOp,
+                                                QsElementOp,
+                                                RsElementOp,
+                                                RsThreadReduceOp,
+                                                ReduceAccDataType,
+                                                DeviceOpInstance,
+                                                ReferenceGemmInstance>(
         M, N, K, StrideA, StrideB, StrideE, do_verification, init_method, time_kernel);
 }
