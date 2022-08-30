@@ -4,6 +4,7 @@
 #include "gemm_reduce_xdl_common.hpp"
 
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_multiple_r_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 
@@ -103,6 +104,8 @@ using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataTyp
                                                                         BElementOp,
                                                                         CDEElementOp>;
 
+using namespace ck::literals;
+
 template <typename ADataType,
           typename BDataType,
           typename EDataType,
@@ -132,21 +135,18 @@ bool run_gemm_reduce_add_addsquare_xdl(ck::index_t M,
 {
 
     auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
-        return HostTensorDescriptor(std::vector<std::size_t>({len}),
-                                    std::vector<std::size_t>({stride}));
+        return HostTensorDescriptor({len}, {stride});
     };
 
     auto f_host_tensor_descriptor2d =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
+                return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
             else
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
+                return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
 
@@ -283,7 +283,7 @@ bool run_gemm_reduce_add_addsquare_xdl(ck::index_t M,
     if(time_kernel)
     {
         float ave_time            = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
-        std::size_t flop          = std::size_t(2) * M * N * K + M * 3 * N;
+        std::size_t flop          = 2_uz * M * N * K + 3_uz * M * N;
         std::size_t gemm_num_byte = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
                                     sizeof(EDataType) * M * N + sizeof(R0DataType) * M +
                                     sizeof(R1DataType) * M;

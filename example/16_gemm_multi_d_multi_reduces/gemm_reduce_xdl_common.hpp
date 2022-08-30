@@ -14,6 +14,7 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/fill.hpp"
 #include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
@@ -37,7 +38,9 @@ using INT32 = std::int32_t;
 template <typename ADataType, typename BDataType, typename EDataType, typename R0DataType>
 void DumpGemmReduceMaxPerf(float ave_time, int M, int N, int K)
 {
-    std::size_t flop          = std::size_t(2) * M * N * K;
+    using namespace ck::literals;
+
+    std::size_t flop          = 2_uz * M * N * K;
     std::size_t gemm_num_byte = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
                                 sizeof(EDataType) * M * N + sizeof(R0DataType) * M;
 
@@ -55,7 +58,9 @@ template <typename ADataType,
           typename R1DataType>
 void DumpGemmReduceMeanSquareMeanPerf(float ave_time, int M, int N, int K)
 {
-    std::size_t flop          = std::size_t(2) * M * N * K + M * (3 * N + 2);
+    using namespace ck::literals;
+
+    std::size_t flop          = 2_uz * M * N * K + M * (3_uz * N + 2_uz);
     std::size_t gemm_num_byte = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
                                 sizeof(EDataType) * M * N + sizeof(R0DataType) * M +
                                 sizeof(R1DataType) * M;
@@ -96,22 +101,21 @@ auto run_gemm_reduce_max_xdl(ck::index_t M,
                              int init_method,
                              bool time_kernel)
 {
+    using namespace ck::literals;
+
     auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
-        return HostTensorDescriptor(std::vector<std::size_t>({len}),
-                                    std::vector<std::size_t>({stride}));
+        return HostTensorDescriptor({len}, {stride});
     };
 
     auto f_host_tensor_descriptor2d =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
+                return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
             else
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
+                return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
 
@@ -292,23 +296,21 @@ bool run_gemm_reduce_mean_meansquare_xdl(ck::index_t M,
                                          int init_method,
                                          bool time_kernel)
 {
+    using namespace ck::literals;
 
     auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
-        return HostTensorDescriptor(std::vector<std::size_t>({len}),
-                                    std::vector<std::size_t>({stride}));
+        return HostTensorDescriptor({len}, {stride});
     };
 
     auto f_host_tensor_descriptor2d =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
+                return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
             else
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
+                return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
 
