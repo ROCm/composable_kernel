@@ -56,7 +56,7 @@ using D1Layout = Row;
 using A0ElementOp = PassThrough;
 using B0ElementOp = PassThrough;
 using C0ElementOp = PassThrough;
-using D0ElementOp = ck::tensor_operation::element_wise::AddFastGelu;
+using D0ElementOp = ck::tensor_operation::element_wise::AddRelu;
 using B1ElementOp = PassThrough;
 using C1ElementOp = PassThrough;
 using D1ElementOp = ck::tensor_operation::element_wise::Add;
@@ -288,11 +288,13 @@ int main(int argc, char* argv[])
         f_host_tensor_descriptor(BatchCount, M, O, StrideC1, BatchStrideC1, C1Layout{}));
     Tensor<C1DataType> c0_g_m_o_device_result(
         f_host_tensor_descriptor(BatchCount, M, O, StrideC1, BatchStrideC1, C1Layout{}));
-    Tensor<D0DataType> d1_g_m_o(
+    Tensor<D1DataType> d1_g_m_o(
         f_host_tensor_descriptor(BatchCount, M, O, StrideD1, BatchStrideD1, D1Layout{}));
 
     std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
     std::cout << "b0_g_k_n: " << b0_g_k_n.mDesc << std::endl;
+    std::cout << "d0_g_m_n: " << d0_g_m_n.mDesc << " size: " << d0_g_m_n.mDesc.GetElementSpaceSize()
+              << std::endl;
     std::cout << "b1_g_n_o: " << b1_g_n_o.mDesc << std::endl;
     std::cout << "c0_g_m_o: " << c0_g_m_o_host_result.mDesc << std::endl;
 
@@ -318,30 +320,33 @@ int main(int argc, char* argv[])
         b0_g_k_n.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
         d0_g_m_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{1});
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
-        d1_g_m_o.GenerateTensorValue(GeneratorTensor_1<D1DataType>{1});
+        // d1_g_m_o.GenerateTensorValue(GeneratorTensor_1<D1DataType>{1});
+        d1_g_m_o.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-5, 5});
     }
 #if 0
-    std::cout << std::endl;
-    for(int b = 0; b < BatchCount; b++)
-    {
-        for(int n = 0; n < N; n = n + 4)
-        {
-            std::cout << "(" << b << "," << n << "): ";
-            for(int i = 0; i < 4; i++)
-            {
-                std::cout << ck::type_convert<float>(d0_g_m_n(b, 0, n)) << "   ";
-            }
+        auto print = [&](int colLenght, auto matrix) {
             std::cout << std::endl;
-        }
-    }
+            for(int b = 0; b < BatchCount; b++)
+            {
+                for(int n = 0; n < colLenght; n = n + 4)
+                {
+                    std::cout << "(" << b << "," << n << "): ";
+                    for(int i = 0; i < 4; i++)
+                    {
+                        std::cout << ck::type_convert<float>(matrix(b, 0, n+i)) << "   ";
+                    }
+                    std::cout << std::endl;
+                }
+            }
+        };
 #endif
     DeviceMem a0_g_m_k_device_buf(sizeof(A0DataType) * a_g_m_k.mDesc.GetElementSize());
     DeviceMem b0_g_k_n_device_buf(sizeof(B0DataType) * b0_g_k_n.mDesc.GetElementSize());
-    DeviceMem d0_g_m_n_device_buf(sizeof(D0DataType) * d0_g_m_n.mDesc.GetElementSize());
+    DeviceMem d0_g_m_n_device_buf(sizeof(D0DataType) * d0_g_m_n.mDesc.GetElementSpaceSize());
     DeviceMem b1_g_n_o_device_buf(sizeof(B1DataType) * b1_g_n_o.mDesc.GetElementSize());
     DeviceMem c0_g_m_o_device_buf(sizeof(C1DataType) *
                                   c0_g_m_o_device_result.mDesc.GetElementSize());
-    DeviceMem d1_g_m_o_device_buf(sizeof(D1DataType) * d1_g_m_o.mDesc.GetElementSize());
+    DeviceMem d1_g_m_o_device_buf(sizeof(D1DataType) * d1_g_m_o.mDesc.GetElementSpaceSize());
 
     a0_g_m_k_device_buf.ToDevice(a_g_m_k.mData.data());
     b0_g_k_n_device_buf.ToDevice(b0_g_k_n.mData.data());

@@ -30,6 +30,13 @@ struct Add
 
     template <>
     __host__ __device__ constexpr void
+    operator()<float>(float& y, const float& x0, const half_t& x1) const
+    {
+        y = x0 + type_convert<half_t>(x1);
+    };
+
+    template <>
+    __host__ __device__ constexpr void
     operator()<half_t>(half_t& y, const float& x0, const half_t& x1) const
     {
         y = type_convert<half_t>(x0) + x1;
@@ -171,6 +178,14 @@ struct AddRelu
     {
         const float a = x0 + x1;
         y             = a > type_convert<half_t>(0.0f) ? a : type_convert<half_t>(0.0f);
+    };
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<float, float, half_t>(float& y, const float& x0, const half_t& x1) const
+    {
+        const float a = x0 + type_convert<float>(x1);
+        y             = a > 0.0f ? a : 0.0f;
     };
 };
 
