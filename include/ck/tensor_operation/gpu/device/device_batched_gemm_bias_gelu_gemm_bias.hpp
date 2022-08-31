@@ -12,28 +12,28 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename ALayout,
+template <typename A0Layout,
           typename B0Layout,
           typename D0Layout,
           typename B1Layout,
-          typename CLayout,
+          typename C1Layout,
           typename D1sLayout,
-          typename ADataType,
+          typename A0DataType,
           typename B0DataType,
           typename D0DataType,
           typename B1DataType,
-          typename CDataType,
+          typename C1DataType,
           typename D1sDataType,
-          typename AElementwiseOperation,
+          typename A0ElementwiseOperation,
           typename B0ElementwiseOperation,
           typename Acc0ElementwiseOperation,
           typename D0ElementwiseOperation,
           typename B1ElementwiseOperation,
-          typename CElementwiseOperation,
+          typename C1ElementwiseOperation,
           typename D1ElementwiseOperation>
 struct DeviceBatchedGemmBiasGeluGemmBias : public BaseOperator
 {
-    static constexpr index_t NumDTensor = D1sDataType::Size();
+    static constexpr index_t NumD1Tensor = D1sDataType::Size();
 
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
@@ -41,7 +41,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias : public BaseOperator
                         const void* p_d0,
                         const void* p_b1,
                         void* p_c,
-                        std::array<const void*, NumDTensor> p_ds,
+                        std::array<const void*, NumD1Tensor> p_ds,
                         ck::index_t M,
                         ck::index_t N,
                         ck::index_t K,
@@ -52,19 +52,19 @@ struct DeviceBatchedGemmBiasGeluGemmBias : public BaseOperator
                         ck::index_t StrideD0,
                         ck::index_t StrideB1,
                         ck::index_t StrideC,
-                        std::array<ck::index_t, NumDTensor> StrideD1s,
-                        ck::index_t BatchStrideA,
+                        std::array<ck::index_t, NumD1Tensor> StrideD1s,
+                        ck::index_t BatchStrideA0,
                         ck::index_t BatchStrideB0,
                         ck::index_t BatchStrideD0,
                         ck::index_t BatchStrideB1,
-                        ck::index_t BatchStrideC,
-                        std::array<ck::index_t, NumDTensor> BatchStrideD1s,
-                        AElementwiseOperation a_element_op,
+                        ck::index_t BatchStrideC1,
+                        std::array<ck::index_t, NumD1Tensor> BatchStrideD1s,
+                        A0ElementwiseOperation a0_element_op,
                         B0ElementwiseOperation b0_element_op,
                         Acc0ElementwiseOperation acc0_element_op,
                         D0ElementwiseOperation d0_element_op,
                         B1ElementwiseOperation b1_element_op,
-                        CElementwiseOperation c_element_op,
+                        C1ElementwiseOperation c1_element_op,
                         D1ElementwiseOperation d1_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;

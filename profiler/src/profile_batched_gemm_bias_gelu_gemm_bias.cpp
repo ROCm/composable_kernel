@@ -78,7 +78,7 @@ int profile_batched_gemm_bias_gelu_gemm_bias(int argc, char* argv[])
                                                                     F16,            // B0DataType,
                                                                     F16,            // D0DataType,
                                                                     F16,            // B1DataType,
-                                                                    F32,            // CDataType,
+                                                                    F16,            // C1DataType,
                                                                     ck::Tuple<F16>  // D1sDataType
                                                                     >(do_verification,
                                                                       init_method,

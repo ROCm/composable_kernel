@@ -284,9 +284,9 @@ int main(int argc, char* argv[])
         f_host_tensor_descriptor(BatchCount, M, N, StrideD0, BatchStrideD0, D0Layout{}));
     Tensor<B1DataType> b1_g_n_o(
         f_host_tensor_descriptor(BatchCount, N, O, StrideB1, BatchStrideB1, B1Layout{}));
-    Tensor<C1DataType> c0_g_m_o_host_result(
+    Tensor<C1DataType> c1_g_m_o_host_result(
         f_host_tensor_descriptor(BatchCount, M, O, StrideC1, BatchStrideC1, C1Layout{}));
-    Tensor<C1DataType> c0_g_m_o_device_result(
+    Tensor<C1DataType> c1_g_m_o_device_result(
         f_host_tensor_descriptor(BatchCount, M, O, StrideC1, BatchStrideC1, C1Layout{}));
     Tensor<D1DataType> d1_g_m_o(
         f_host_tensor_descriptor(BatchCount, M, O, StrideD1, BatchStrideD1, D1Layout{}));
@@ -296,7 +296,7 @@ int main(int argc, char* argv[])
     std::cout << "d0_g_m_n: " << d0_g_m_n.mDesc << " size: " << d0_g_m_n.mDesc.GetElementSpaceSize()
               << std::endl;
     std::cout << "b1_g_n_o: " << b1_g_n_o.mDesc << std::endl;
-    std::cout << "c0_g_m_o: " << c0_g_m_o_host_result.mDesc << std::endl;
+    std::cout << "c1_g_m_o: " << c1_g_m_o_host_result.mDesc << std::endl;
 
     switch(init_method)
     {
@@ -344,8 +344,8 @@ int main(int argc, char* argv[])
     DeviceMem b0_g_k_n_device_buf(sizeof(B0DataType) * b0_g_k_n.mDesc.GetElementSize());
     DeviceMem d0_g_m_n_device_buf(sizeof(D0DataType) * d0_g_m_n.mDesc.GetElementSpaceSize());
     DeviceMem b1_g_n_o_device_buf(sizeof(B1DataType) * b1_g_n_o.mDesc.GetElementSize());
-    DeviceMem c0_g_m_o_device_buf(sizeof(C1DataType) *
-                                  c0_g_m_o_device_result.mDesc.GetElementSize());
+    DeviceMem c1_g_m_o_device_buf(sizeof(C1DataType) *
+                                  c1_g_m_o_device_result.mDesc.GetElementSize());
     DeviceMem d1_g_m_o_device_buf(sizeof(D1DataType) * d1_g_m_o.mDesc.GetElementSpaceSize());
 
     a0_g_m_k_device_buf.ToDevice(a_g_m_k.mData.data());
@@ -370,7 +370,7 @@ int main(int argc, char* argv[])
                           static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
                           static_cast<D0DataType*>(d0_g_m_n_device_buf.GetDeviceBuffer()),
                           static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
-                          static_cast<C1DataType*>(c0_g_m_o_device_buf.GetDeviceBuffer()),
+                          static_cast<C1DataType*>(c1_g_m_o_device_buf.GetDeviceBuffer()),
                           std::array<const void*, 1>{d1_g_m_o_device_buf.GetDeviceBuffer()},
                           M,
                           N,
@@ -418,7 +418,7 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
-    c0_g_m_o_device_buf.FromDevice(c0_g_m_o_device_result.mData.data());
+    c1_g_m_o_device_buf.FromDevice(c1_g_m_o_device_result.mData.data());
 
     if(do_verification)
     {
@@ -446,7 +446,7 @@ int main(int argc, char* argv[])
         auto ref_gemm1          = ReferenceGemm1Instance{};
         auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
         auto ref_gemm1_argument = ref_gemm1.MakeArgument(
-            a1_g_m_n, b1_g_n_o, c0_g_m_o_host_result, PassThrough{}, b1_element_op, c1_element_op);
+            a1_g_m_n, b1_g_n_o, c1_g_m_o_host_result, PassThrough{}, b1_element_op, c1_element_op);
 
         ref_gemm1_invoker.Run(ref_gemm1_argument);
 
@@ -457,14 +457,14 @@ int main(int argc, char* argv[])
             {
                 for(int o = 0; o < O; ++o)
                 {
-                    d1_element_op(c0_g_m_o_host_result(b, m, o),
-                                  c0_g_m_o_host_result(b, m, o),
+                    d1_element_op(c1_g_m_o_host_result(b, m, o),
+                                  c1_g_m_o_host_result(b, m, o),
                                   d1_g_m_o(b, m, o));
                 }
             }
         }
 
-        return ck::utils::check_err(c0_g_m_o_device_result.mData, c0_g_m_o_host_result.mData) ? 0
+        return ck::utils::check_err(c1_g_m_o_device_result.mData, c1_g_m_o_host_result.mData) ? 0
                                                                                               : 1;
     }
 

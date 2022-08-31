@@ -33,7 +33,6 @@ static constexpr bool PadGemm0K = false;
 static constexpr bool PadGemm1N = false;
 static constexpr bool PadGemm1K = false;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 // c[g, m, n] = a[g, m, k] * b[g, n, k]
 using device_batched_gemm_bias_gelu_gemm_bias_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances =
@@ -51,19 +50,25 @@ using device_batched_gemm_bias_gelu_gemm_bias_xdl_cshuffle_f16_f16_f16_f16_gmk_g
         >;
 
 void add_device_batched_gemm_bias_gelu_gemm_bias_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instance(
-    std::vector<std::unique_ptr<DeviceBatchedGemmGemm<Row,
-                                                      Col,
-                                                      Row,
-                                                      Row,
-                                                      F16,
-                                                      F16,
-                                                      F16,
-                                                      F16,
-                                                      PassThrough,
-                                                      PassThrough,
-                                                      PassThrough,
-                                                      PassThrough,
-                                                      PassThrough>>>& instances)
+    std::vector<std::unique_ptr<DeviceBatchedGemmBiasGeluGemmBias<Row,
+                                                                  Col,
+                                                                  Row,
+                                                                  Row,
+                                                                  Row,
+                                                                  ck::Tuple<Row>,
+                                                                  F16,
+                                                                  F16,
+                                                                  F16,
+                                                                  F16,
+                                                                  F16,
+                                                                  ck::Tuple<F16>,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  D0ElementOp,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  D1ElementOp>>>& instances)
 {
     add_device_operation_instances(
         instances,
