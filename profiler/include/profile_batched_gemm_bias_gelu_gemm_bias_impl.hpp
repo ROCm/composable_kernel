@@ -173,11 +173,6 @@ bool profile_batched_gemm_bias_gelu_gemm_bias_impl(bool do_verification,
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_3<B1DataType>{-0.5, 0.5});
         d1_g_m_o.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
         break;
-    case 3:
-        a0_g_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
-        b0_g_k_n.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
-        b1_g_n_o.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
-        break;
     default:
         a0_g_m_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{1});
         b0_g_k_n.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
@@ -241,6 +236,17 @@ bool profile_batched_gemm_bias_gelu_gemm_bias_impl(bool do_verification,
         auto ref_gemm0_argument = ref_gemm0.MakeArgument(
             a0_g_m_k, b0_g_k_n, acc0_g_m_n, a0_element_op, b0_element_op, PassThrough{});
 
+        // bias+gelu
+        for(int b = 0; b < BatchCount; ++b)
+        {
+            for(int m = 0; m < M; ++m)
+            {
+                for(int n = 0; n < N; ++n)
+                {
+                    d0_element_op(acc0_g_m_n(b, m, n), acc0_g_m_n(b, m, n), d0_g_m_n(b, m, n));
+                }
+            }
+        }
         ref_gemm0_invoker.Run(ref_gemm0_argument);
 
         auto ref_gemm1          = ReferenceGemm1Instance{};
@@ -253,6 +259,20 @@ bool profile_batched_gemm_bias_gelu_gemm_bias_impl(bool do_verification,
                                                          c1_element_op);
 
         ref_gemm1_invoker.Run(ref_gemm1_argument);
+
+        // bias
+        for(int b = 0; b < BatchCount; ++b)
+        {
+            for(int m = 0; m < M; ++m)
+            {
+                for(int o = 0; o < O; ++o)
+                {
+                    d1_element_op(c1_g_m_o_host_result(b, m, o),
+                                  c1_g_m_o_host_result(b, m, o),
+                                  d1_g_m_o(b, m, o));
+                }
+            }
+        }
     }
 
     std::string best_op_name;
