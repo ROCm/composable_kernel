@@ -37,3 +37,15 @@ TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, DISABLED_Bench_FP16)
     this->verify_ = false;
     this->Run();
 }
+
+TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, AdhocTest)
+{
+    this->lengths_ = std::vector<std::vector<int>>{
+        {49, 49, 64, 64, 24},
+        {64, 49, 64, 64, 24},
+        {1020, 1020, 64, 128, 24},
+        {576, 576, 64, 64, 24},
+    };
+    this->bench_ = true;
+    this->Run();
+}
