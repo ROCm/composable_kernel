@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
 #pragma once
 
 bool run_convnd_fwd_example(int argc, char* argv[])
@@ -79,15 +82,15 @@ bool run_convnd_fwd_example(int argc, char* argv[])
 
     if(conv_param.num_dim_spatial_ == 1)
     {
-        run(ck::Number<1>{}, ctc::GNWC{}, ctc::GKXC{}, ctc::GNWK{});
+        return run(ck::Number<1>{}, ctc::GNWC{}, ctc::GKXC{}, ctc::GNWK{});
     }
     else if(conv_param.num_dim_spatial_ == 2)
     {
-        run(ck::Number<2>{}, ctc::GNHWC{}, ctc::GKYXC{}, ctc::GNHWK{});
+        return run(ck::Number<2>{}, ctc::GNHWC{}, ctc::GKYXC{}, ctc::GNHWK{});
     }
     else if(conv_param.num_dim_spatial_ == 3)
     {
-        run(ck::Number<3>{}, ctc::GNDHWC{}, ctc::GKZYXC{}, ctc::GNDHWK{});
+        return run(ck::Number<3>{}, ctc::GNDHWC{}, ctc::GKZYXC{}, ctc::GNDHWK{});
     }
 
     return true;
