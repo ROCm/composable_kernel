@@ -12,6 +12,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_softmax_gemm_xdl_cshuffle_v1.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -197,6 +198,10 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
+
+    static constexpr auto matrix_padder =
+        GemmGemmPadder<GemmSpec, index_t, index_t, index_t, index_t>{
+            MPerBlock, NPerBlock, KPerBlock, Gemm1NPerBlock};
 
     static auto MakeAGridDescriptor_AK0_M_AK1(index_t MRaw, index_t KRaw, index_t StrideA)
     {
@@ -617,7 +622,8 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         CShuffleNXdlPerWavePerShuffle,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
-        LoopSched>;
+        LoopSched,
+        matrix_padder.PadN>;
 
     // Argument
     struct Argument : public BaseArgument

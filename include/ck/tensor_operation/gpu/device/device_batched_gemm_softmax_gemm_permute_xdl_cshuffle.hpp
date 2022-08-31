@@ -662,7 +662,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         CShuffleNXdlPerWavePerShuffle,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
-        LoopSched>;
+        LoopSched,
+        matrix_padder.PadN>;
 
     // Argument
     // FIXME: constness

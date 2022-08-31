@@ -75,7 +75,8 @@ template <typename FloatAB,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
-          LoopScheduler LoopSched>
+          LoopScheduler LoopSched,
+          bool PadN>
 struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
 {
     static_assert(LoopSched == LoopScheduler::Default,
@@ -330,6 +331,36 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
     };
 
+    template <bool Pred>
+    struct ElementOpPredicatedResetNaNToMinusInf;
+
+    template <>
+    struct ElementOpPredicatedResetNaNToMinusInf<true>
+    {
+        template <typename ElementOp, typename OutT, typename InT>
+        __host__ __device__ void Run(OutT& y, const ElementOp& op, const InT& x)
+        {
+            if(ck::math::isnan(x))
+            {
+                y = -ck::NumericLimits<float>::Infinity();
+            }
+            else
+            {
+                op(y, x);
+            }
+        }
+    };
+
+    template <>
+    struct ElementOpPredicatedResetNaNToMinusInf<false>
+    {
+        template <typename ElementOp, typename OutT, typename InT>
+        __host__ __device__ void Run(OutT& y, const ElementOp& op, const InT& x)
+        {
+            op(y, x);
+        }
+    };
+
     template <bool HasMainKBlockLoop, typename Block2CTileMap>
     __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
                                const FloatAB* __restrict__ p_b_grid,
@@ -348,14 +379,20 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
                                const Block2CTileMap& block_2_ctile_map)
     {
-        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_a_grid,
-            a_grid_desc_ak0_m_ak1.GetElementSpaceSize(),
-            NumericLimits<FloatAB>::QuietNaN());
-        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_grid,
-            b_grid_desc_bk0_n_bk1.GetElementSpaceSize(),
-            NumericLimits<FloatAB>::QuietNaN());
+        const auto a_grid_buf =
+            conditional_expr<PadN>(make_dynamic_buffer<AddressSpaceEnum::Global>(
+                                       p_a_grid,
+                                       a_grid_desc_ak0_m_ak1.GetElementSpaceSize(),
+                                       NumericLimits<FloatAB>::QuietNaN()),
+                                   make_dynamic_buffer<AddressSpaceEnum::Global>(
+                                       p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize()));
+        const auto b_grid_buf =
+            conditional_expr<PadN>(make_dynamic_buffer<AddressSpaceEnum::Global>(
+                                       p_b_grid,
+                                       b_grid_desc_bk0_n_bk1.GetElementSpaceSize(),
+                                       NumericLimits<FloatAB>::QuietNaN()),
+                                   make_dynamic_buffer<AddressSpaceEnum::Global>(
+                                       p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize()));
         const auto b1_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b1_grid, b1_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -721,8 +758,10 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                                                    num_k_block_main_loop);
 
             // Acc0 elementwise Op
-            static_for<0, acc_thread_buf.Size(), 1>{}(
-                [&](auto i) { acc_element_op(acc_thread_buf(i), acc_thread_buf[i]); });
+            static_for<0, acc_thread_buf.Size(), 1>{}([&](auto i) {
+                ElementOpPredicatedResetNaNToMinusInf<PadN>{}.Run(
+                    acc_thread_buf(i), acc_element_op, acc_thread_buf[i]);
+            });
 
             block_sync_lds(); // wait for lds read in gemm0 blockwise gemm
 
