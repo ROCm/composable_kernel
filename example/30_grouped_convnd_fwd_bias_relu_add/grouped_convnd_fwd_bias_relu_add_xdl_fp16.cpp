@@ -163,9 +163,9 @@ int main(int argc, char* argv[])
             {conv_param.G_, conv_param.N_, conv_param.K_, conv_param.output_spatial_lengths_[0]},
             {
                 conv_param.K_, // g
-                0,             // k
-                1,             // c
-                0              // x
+                0,             // n
+                1,             // k
+                0              // wo
             });
 
         const auto residual_g_n_k_wos_desc = HostTensorDescriptor(
