@@ -11,7 +11,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-// Convolution Forward:
+// Grouped Convolution Forward:
 //   input : input image A[G, N, C, Hi, Wi],
 //   input : weight B[G, K, C, Y, X],
 //   input : D0[G, N, K, Ho, Wo], D1[G, N, K, Ho, Wo], ...
