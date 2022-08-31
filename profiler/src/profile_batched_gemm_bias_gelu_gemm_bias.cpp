@@ -47,8 +47,7 @@ int profile_batched_gemm_bias_gelu_gemm_bias(int argc, char* argv[])
     ck::index_t BatchStrideB1 = -1;
     ck::index_t BatchStrideC1 = -1;
 
-    if(argc == 2) {}
-    else if(argc == 8)
+    if(argc == 8)
     {
         data_type       = static_cast<GemmDataType>(std::stoi(argv[2]));
         layout          = static_cast<GemmMatrixLayout>(std::stoi(argv[3]));
