@@ -68,7 +68,6 @@ TYPED_TEST(TestBatchedGemmGemmFP16, Test_FP16_OddN)
     this->Run();
 }
 
-// Currently expected that no kernels can support this case
 TYPED_TEST(TestBatchedGemmGemmFP16, Test_FP16_OddK)
 {
     this->lengths_ = std::vector<std::vector<int>>{
