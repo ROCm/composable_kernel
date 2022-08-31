@@ -164,7 +164,7 @@ bool profile_batched_gemm_bias_gelu_gemm_bias_impl(bool do_verification,
         b0_g_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 3});
         d0_g_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 3});
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 3});
-        d1_g_m_o.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-5, 5});
+        d1_g_m_o.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-2, 3});
         break;
     case 2:
         a0_g_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
@@ -236,6 +236,8 @@ bool profile_batched_gemm_bias_gelu_gemm_bias_impl(bool do_verification,
         auto ref_gemm0_argument = ref_gemm0.MakeArgument(
             a0_g_m_k, b0_g_k_n, acc0_g_m_n, a0_element_op, b0_element_op, PassThrough{});
 
+        ref_gemm0_invoker.Run(ref_gemm0_argument);
+
         // bias+gelu
         for(int b = 0; b < BatchCount; ++b)
         {
@@ -247,7 +249,6 @@ bool profile_batched_gemm_bias_gelu_gemm_bias_impl(bool do_verification,
                 }
             }
         }
-        ref_gemm0_invoker.Run(ref_gemm0_argument);
 
         auto ref_gemm1          = ReferenceGemm1Instance{};
         auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
