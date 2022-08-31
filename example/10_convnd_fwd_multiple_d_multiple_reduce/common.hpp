@@ -79,12 +79,8 @@ using RLayout = typename LayoutSettingSelector<NDimSpatial>::RLayout;
 struct ExecutionConfig final
 {
     bool do_verification = true;
-#if defined(BUILD_INT4_EXAMPLE) || defined(BUILD_INT8_EXAMPLE)
-    int init_method = 1;
-#else
-    int init_method = 2;
-#endif
-    bool time_kernel = false;
+    int init_method      = 1;
+    bool time_kernel     = false;
 };
 
 inline void print_help_msg()
