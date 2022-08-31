@@ -4,6 +4,15 @@
 #ifndef UTILITY_DEBUG_HPP
 #define UTILITY_DEBUG_HPP
 
+#ifdef ENABLE_CK_DEBUG
+#define CK_DEBUG(stmts) \
+    {                   \
+        stmts           \
+    }
+#else
+#define CK_DEBUG(stmts)
+#endif
+
 namespace ck {
 namespace debug {
 

@@ -41,6 +41,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 message("CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
 
+## Debug Usage
+option(ENABLE_CK_DEBUG, "Whether to compile CK as debug message enabled." OFF)
+
+if(ENABLE_CK_DEBUG)
+    add_compile_definitions(ENABLE_CK_DEBUG)
+    message("Debug message enabled. This may slow down execution.")
+endif(ENABLE_CK_DEBUG)
+
 ## OpenMP
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 	# workaround issue hipcc in rocm3.5 cannot find openmp
