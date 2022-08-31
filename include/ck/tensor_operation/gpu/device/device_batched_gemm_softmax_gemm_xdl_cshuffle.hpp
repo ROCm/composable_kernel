@@ -459,7 +459,8 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
               b1_element_op_{b1_element_op},
               c_element_op_{c_element_op},
               batch_count_(Batch),
-              compute_base_ptr_of_batch_{BatchStrideA, BatchStrideB, BatchStrideB1, BatchStrideC}
+              compute_base_ptr_of_batch_{BatchStrideA, BatchStrideB, BatchStrideB1, BatchStrideC},
+              raw_lengths_m_n_k_o_{MRaw, NRaw, KRaw, Gemm1NRaw}
         {
             if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
                                            b_grid_desc_bk0_n_bk1_,
@@ -492,6 +493,9 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         CElementwiseOperation c_element_op_;
         index_t batch_count_;
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
+
+        // For robust IsSupportedArgument() check
+        std::vector<index_t> raw_lengths_m_n_k_o_;
     };
 
     // Invoker
@@ -591,6 +595,31 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
     static bool IsSupportedArgument(const Argument& arg)
     {
         if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a"))
+        {
+            return false;
+        }
+
+        // Note: we need raw lengths since threadwise copy can not handle vector load when part of
+        // vector is out of bounds
+        const auto MRaw      = arg.raw_lengths_m_n_k_o_[0];
+        const auto NRaw      = arg.raw_lengths_m_n_k_o_[1];
+        const auto KRaw      = arg.raw_lengths_m_n_k_o_[2];
+        const auto Gemm1NRaw = arg.raw_lengths_m_n_k_o_[3];
+
+        // Check scalar per vector requirement
+        const auto a_extent_lowest =
+            is_same_v<tensor_layout::gemm::RowMajor, ALayout> ? KRaw : MRaw;
+        const auto b_extent_lowest =
+            is_same_v<tensor_layout::gemm::RowMajor, BLayout> ? NRaw : KRaw;
+        const auto b1_extent_lowest =
+            is_same_v<tensor_layout::gemm::RowMajor, B1Layout> ? Gemm1NRaw : NRaw;
+        const auto c_extent_lowest =
+            is_same_v<tensor_layout::gemm::RowMajor, CLayout> ? Gemm1NRaw : MRaw;
+
+        if(!(a_extent_lowest % ABlockTransferSrcScalarPerVector == 0 &&
+             b_extent_lowest % BBlockTransferSrcScalarPerVector == 0 &&
+             b1_extent_lowest % B1BlockTransferSrcScalarPerVector == 0 &&
+             c_extent_lowest % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
         {
             return false;
         }
