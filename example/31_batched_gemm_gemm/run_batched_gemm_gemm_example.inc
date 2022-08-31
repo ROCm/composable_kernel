@@ -5,10 +5,6 @@
 
 bool run_batched_gemm_gemm_example(int argc, char* argv[])
 {
-#if defined(BUILD_INT4_EXAMPLE) && defined(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
-    static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
-#endif
-
     bool do_verification = true;
     int init_method      = 1;
     bool time_kernel     = false;
@@ -265,19 +261,16 @@ bool run_batched_gemm_gemm_example(int argc, char* argv[])
         ref_gemm1_invoker.Run(ref_gemm1_argument);
 
 #ifdef BUILD_INT4_EXAMPLE
-        Tensor<CDataType> c_g_m_o_device_result_converted(c_g_m_o_host_result.mDesc);
+        Tensor<KernelCDataType> c_g_m_o_device_result_converted(c_g_m_o_host_result.mDesc);
 
         c_g_m_o_device_buf.FromDevice(c_g_m_o_device_result_converted.mData.data());
 
         c_g_m_o_device_result = c_g_m_o_device_result_converted.CopyAsType<CDataType>();
-
-        return ck::utils::check_err(c_g_m_o_device_result_converted.mData,
-                                    c_g_m_o_host_result.mData);
 #else
         c_g_m_o_device_buf.FromDevice(c_g_m_o_device_result.mData.data());
+#endif
 
         return ck::utils::check_err(c_g_m_o_device_result.mData, c_g_m_o_host_result.mData);
-#endif
     }
 
     return true;

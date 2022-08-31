@@ -138,4 +138,8 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
 #define BUILD_INT4_EXAMPLE
 #include "run_batched_gemm_gemm_example.inc"
 
+#if defined(BUILD_INT4_EXAMPLE) && defined(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
+static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
+#endif
+
 int main(int argc, char* argv[]) { return run_batched_gemm_gemm_example(argc, argv) ? 0 : 1; }
