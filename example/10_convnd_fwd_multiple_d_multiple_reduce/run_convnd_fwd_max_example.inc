@@ -83,10 +83,9 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
                                                                          conv_weight.end());
         break;
     default:
-        ck::utils::FillUniformDistribution<ADataType>{0.0, 1.0}(conv_input.begin(),
-                                                                conv_input.end());
-        ck::utils::FillUniformDistribution<BDataType>{-0.5, 0.5}(conv_weight.begin(),
-                                                                 conv_weight.end());
+        ck::utils::FillUniformDistribution<ADataType>{-5, 5}(conv_input.begin(), conv_input.end());
+        ck::utils::FillUniformDistribution<BDataType>{-5, 5}(conv_weight.begin(),
+                                                             conv_weight.end());
     }
 
     DeviceMem conv_input_device_buf(sizeof(ADataType) * conv_input.mDesc.GetElementSpaceSize());
