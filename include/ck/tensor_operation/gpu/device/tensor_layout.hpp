@@ -93,7 +93,7 @@ struct GNDHWC : public BaseTensorLayout
 };
 
 // input tensor
-// packed GNWC/GNHWC/GNDHWC
+// packed NWGC/NHWGC/NDHWGC
 struct NWGC : public BaseTensorLayout
 {
     static constexpr const char* name = "NWGC";
@@ -328,6 +328,54 @@ struct G_NHW_K : public BaseTensorLayout
 struct G_NDHW_K : public BaseTensorLayout
 {
     static constexpr const char* name = "G_NDHW_K";
+};
+
+// K-reduced output tensor (packed)
+struct GNW : public BaseTensorLayout
+{
+    static constexpr const char* name = "GNW";
+};
+
+struct GNHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "GNHW";
+};
+
+struct GNDHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "GNDHW";
+};
+
+// K-reduced output tensor (packed)
+struct NWG : public BaseTensorLayout
+{
+    static constexpr const char* name = "NWG";
+};
+
+struct NHWG : public BaseTensorLayout
+{
+    static constexpr const char* name = "NHWG";
+};
+
+struct NDHWG : public BaseTensorLayout
+{
+    static constexpr const char* name = "NDHWG";
+};
+
+// K-reduced output tensor (strided)
+struct G_NW : public BaseTensorLayout
+{
+    static constexpr const char* name = "G_NW";
+};
+
+struct G_NHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "G_NHW";
+};
+
+struct G_NDHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "G_NDHW";
 };
 
 } // namespace convolution
