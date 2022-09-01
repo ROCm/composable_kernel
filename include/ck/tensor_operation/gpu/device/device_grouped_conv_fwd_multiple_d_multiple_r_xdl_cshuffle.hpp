@@ -892,9 +892,11 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
                      is_same_v<ALayout, ctc::NWGC> || is_same_v<ALayout, ctc::NHWGC> ||
                      is_same_v<ALayout, ctc::NDHWGC>)
         {
+            static_assert(ABlockTransferSrcVectorDim == 2);
+
             const index_t C = arg.a_g_n_c_wis_lengths_[2];
 
-            if(!(ABlockTransferSrcVectorDim == 2 && C % ABlockTransferSrcScalarPerVector == 0))
+            if(!(C % ABlockTransferSrcScalarPerVector == 0))
             {
                 CK_DEBUG(
                     std::cerr
@@ -921,9 +923,11 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
                      is_same_v<BLayout, ctc::KZYXGC>)
 
         {
+            static_assert(BBlockTransferSrcVectorDim == 2);
+
             const index_t C = arg.b_g_k_c_xs_lengths_[2];
 
-            if(!(BBlockTransferSrcVectorDim == 2 && C % BBlockTransferSrcScalarPerVector == 0))
+            if(!(C % BBlockTransferSrcScalarPerVector == 0))
             {
                 CK_DEBUG(
                     std::cerr
