@@ -808,6 +808,8 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, float> ||
                            is_same_v<AccDataType, int32_t>))
             {
+                CK_DEBUG(std::cerr << "Invalid AccDataType for gfx908 (" << __FILE__ << ":"
+                                   << __LINE__ << ")" << std::endl;)
                 return false;
             }
         }
@@ -816,11 +818,15 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, float> ||
                            is_same_v<AccDataType, int32_t> || is_same_v<AccDataType, double>))
             {
+                CK_DEBUG(std::cerr << "Invalid AccDataType for gfx90a (" << __FILE__ << ":"
+                                   << __LINE__ << ")" << std::endl;)
                 return false;
             }
         }
         else
         {
+            CK_DEBUG(std::cerr << "Invalid device name: " << get_device_name() << " (" << __FILE__
+                               << ":" << __LINE__ << ")" << std::endl;)
             return false;
         }
 
@@ -838,6 +844,17 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
 
                 if(!(X == 1 && ConvStride == 1 && LeftPad == 0 && RightPad == 0))
                 {
+                    CK_DEBUG(
+                        if(!(X == 1)) {
+                            std::cerr << "Unsatisfied filter shape (" << __FILE__ << ":" << __LINE__
+                                      << ")" << std::endl;
+                        } else if(!(ConvStride == 1)) {
+                            std::cerr << "Unsatisfied filter stride (" << __FILE__ << ":"
+                                      << __LINE__ << ")" << std::endl;
+                        } else if(!(LeftPad == 0 && RightPad == 0)) {
+                            std::cerr << "Unsatisfied padding (" << __FILE__ << ":" << __LINE__
+                                      << ")" << std::endl;
+                        })
                     return false;
                 }
             }
@@ -854,6 +871,14 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
 
                 if(!(X == 1 && LeftPad == 0 && RightPad == 0))
                 {
+                    CK_DEBUG(
+                        if(!(X == 1)) {
+                            std::cerr << "Unsatisfied filter shape (" << __FILE__ << ":" << __LINE__
+                                      << ")" << std::endl;
+                        } else if(!(LeftPad == 0 && RightPad == 0)) {
+                            std::cerr << "Unsatisfied padding (" << __FILE__ << ":" << __LINE__
+                                      << ")" << std::endl;
+                        })
                     return false;
                 }
             }
@@ -871,11 +896,19 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
 
             if(!(ABlockTransferSrcVectorDim == 2 && C % ABlockTransferSrcScalarPerVector == 0))
             {
+                CK_DEBUG(
+                    std::cerr
+                        << "Dimension C (=" << C
+                        << ") of tensor A is not dividable by ABlockTransferSrcScalarPerVector (="
+                        << ABlockTransferSrcScalarPerVector << ") (" << __FILE__ << ":" << __LINE__
+                        << ")" << std::endl;)
                 return false;
             }
         }
         else
         {
+            CK_DEBUG(std::cerr << "Invalid tensor layout for tensor A (" << __FILE__ << ":"
+                               << __LINE__ << ")" << std::endl;)
             return false;
         }
 
@@ -892,11 +925,19 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
 
             if(!(BBlockTransferSrcVectorDim == 2 && C % BBlockTransferSrcScalarPerVector == 0))
             {
+                CK_DEBUG(
+                    std::cerr
+                        << "Dimension C (=" << C
+                        << ") of tensor B is not dividable by BBlockTransferSrcScalarPerVector (="
+                        << BBlockTransferSrcScalarPerVector << ") (" << __FILE__ << ":" << __LINE__
+                        << ")" << std::endl;)
                 return false;
             }
         }
         else
         {
+            CK_DEBUG(std::cerr << "Invalid tensor layout for tensor B (" << __FILE__ << ":"
+                               << __LINE__ << ")" << std::endl;)
             return false;
         }
 
@@ -915,11 +956,18 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
 
                 if(!(K % CDEBlockTransferScalarPerVector_NPerBlock == 0))
                 {
+                    CK_DEBUG(std::cerr << "Dimension K (=" << K
+                                       << ") of tensor D is not dividable by "
+                                          "CDEBlockTransferScalarPerVector_NPerBlock (="
+                                       << CDEBlockTransferScalarPerVector_NPerBlock << ") ("
+                                       << __FILE__ << ":" << __LINE__ << ")" << std::endl;)
                     valid = false;
                 }
             }
             else
             {
+                CK_DEBUG(std::cerr << "Invalid tensor layout for tensor D (" << __FILE__ << ":"
+                                   << __LINE__ << ")" << std::endl;)
                 valid = false;
             }
         });
@@ -940,11 +988,18 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
 
             if(!(K % CDEBlockTransferScalarPerVector_NPerBlock == 0))
             {
+                CK_DEBUG(std::cerr << "Dimension K (=" << K
+                                   << ") of tensor E is not dividable by "
+                                      "CDEBlockTransferScalarPerVector_NPerBlock (="
+                                   << CDEBlockTransferScalarPerVector_NPerBlock << ") (" << __FILE__
+                                   << ":" << __LINE__ << ")" << std::endl;)
                 return false;
             }
         }
         else
         {
+            CK_DEBUG(std::cerr << "Invalid tensor layout for tensor E (" << __FILE__ << ":"
+                               << __LINE__ << ")" << std::endl;)
             return false;
         }
 
@@ -955,6 +1010,9 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
                        is_same_v<RLayout, ctc::NWG> || is_same_v<RLayout, ctc::NHWG> ||
                        is_same_v<RLayout, ctc::NDHWG>))
         {
+
+            CK_DEBUG(std::cerr << "Invalid tensor layout for tensor R (" << __FILE__ << ":"
+                               << __LINE__ << ")" << std::endl;)
             return false;
         }
 
