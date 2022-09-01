@@ -95,7 +95,7 @@ struct DeviceGemmXdlSplitK : public DeviceGemmSplitK<ALayout,
             a_grid_desc_m_k,
             make_tuple(make_pass_through_transform(M), make_right_pad_transform(K, KPad - K)),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<1>{}, Sequence<0>{}));
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
 
         if constexpr(GemmSpec == GemmSpecialization::MNPadding)
         {
