@@ -76,8 +76,6 @@ using DeviceGroupedConvNDFwdInstance =
 
 int main(int argc, char* argv[])
 {
-    namespace ctc = ck::tensor_layout::convolution;
-
     print_helper_msg();
 
     bool do_verification = true;
@@ -111,11 +109,12 @@ int main(int argc, char* argv[])
     const auto wei_element_op = WeiElementOp{};
     const auto out_element_op = OutElementOp{};
 
-    if(conv_param.num_dim_spatial_ == 1)
-    {
-        using InLayout  = ctc::GNWC;
-        using WeiLayout = ctc::GKXC;
-        using OutLayout = ctc::GNWK;
+    const auto run = [&](auto ndim_spatial, auto in_layout, auto wei_layout, auto out_layout) {
+        constexpr ck::index_t ndim_spatial_value = ndim_spatial.value;
+
+        using InLayout  = decltype(in_layout);
+        using WeiLayout = decltype(wei_layout);
+        using OutLayout = decltype(out_layout);
 
         const auto in_g_n_c_wis_desc =
             ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(
@@ -130,97 +129,39 @@ int main(int argc, char* argv[])
                 conv_param);
 
         return run_grouped_conv_fwd<
-            1,
+            ndim_spatial_value,
             InDataType,
             WeiDataType,
             OutDataType,
             InElementOp,
             WeiElementOp,
             OutElementOp,
-            DeviceGroupedConvNDFwdInstance<1, InLayout, WeiLayout, OutLayout>>(do_verification,
-                                                                               init_method,
-                                                                               time_kernel,
-                                                                               conv_param,
-                                                                               in_g_n_c_wis_desc,
-                                                                               wei_g_k_c_xs_desc,
-                                                                               out_g_n_k_wos_desc,
-                                                                               in_element_op,
-                                                                               wei_element_op,
-                                                                               out_element_op);
+            DeviceGroupedConvNDFwdInstance<ndim_spatial_value, InLayout, WeiLayout, OutLayout>>(
+            do_verification,
+            init_method,
+            time_kernel,
+            conv_param,
+            in_g_n_c_wis_desc,
+            wei_g_k_c_xs_desc,
+            out_g_n_k_wos_desc,
+            in_element_op,
+            wei_element_op,
+            out_element_op);
+    };
+
+    namespace ctc = ck::tensor_layout::convolution;
+
+    if(conv_param.num_dim_spatial_ == 1)
+    {
+        run(ck::Number<1>{}, ctc::GNWC{}, ctc::GKXC{}, ctc::GNWK{});
     }
     else if(conv_param.num_dim_spatial_ == 2)
     {
-        using InLayout  = ctc::GNHWC;
-        using WeiLayout = ctc::GKYXC;
-        using OutLayout = ctc::GNHWK;
-
-        const auto in_g_n_c_wis_desc =
-            ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(
-                conv_param);
-
-        const auto wei_g_k_c_xs_desc =
-            ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(
-                conv_param);
-
-        const auto out_g_n_k_wos_desc =
-            ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
-                conv_param);
-
-        return run_grouped_conv_fwd<
-            2,
-            InDataType,
-            WeiDataType,
-            OutDataType,
-            InElementOp,
-            WeiElementOp,
-            OutElementOp,
-            DeviceGroupedConvNDFwdInstance<2, InLayout, WeiLayout, OutLayout>>(do_verification,
-                                                                               init_method,
-                                                                               time_kernel,
-                                                                               conv_param,
-                                                                               in_g_n_c_wis_desc,
-                                                                               wei_g_k_c_xs_desc,
-                                                                               out_g_n_k_wos_desc,
-                                                                               in_element_op,
-                                                                               wei_element_op,
-                                                                               out_element_op);
+        run(ck::Number<2>{}, ctc::GNHWC{}, ctc::GKYXC{}, ctc::GNHWK{});
     }
     else if(conv_param.num_dim_spatial_ == 3)
     {
-        using InLayout  = ctc::GNDHWC;
-        using WeiLayout = ctc::GKZYXC;
-        using OutLayout = ctc::GNDHWK;
-
-        const auto in_g_n_c_wis_desc =
-            ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(
-                conv_param);
-
-        const auto wei_g_k_c_xs_desc =
-            ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(
-                conv_param);
-
-        const auto out_g_n_k_wos_desc =
-            ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
-                conv_param);
-
-        return run_grouped_conv_fwd<
-            3,
-            InDataType,
-            WeiDataType,
-            OutDataType,
-            InElementOp,
-            WeiElementOp,
-            OutElementOp,
-            DeviceGroupedConvNDFwdInstance<3, InLayout, WeiLayout, OutLayout>>(do_verification,
-                                                                               init_method,
-                                                                               time_kernel,
-                                                                               conv_param,
-                                                                               in_g_n_c_wis_desc,
-                                                                               wei_g_k_c_xs_desc,
-                                                                               out_g_n_k_wos_desc,
-                                                                               in_element_op,
-                                                                               wei_element_op,
-                                                                               out_element_op);
+        run(ck::Number<3>{}, ctc::GNDHWC{}, ctc::GKZYXC{}, ctc::GNDHWK{});
     }
 
     return 0;
