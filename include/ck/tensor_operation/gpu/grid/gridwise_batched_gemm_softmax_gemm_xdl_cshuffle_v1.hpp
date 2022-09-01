@@ -717,7 +717,12 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                                   FloatGemmAcc,
                                                   decltype(threadid_to_m_n_thread_cluster_adaptor),
                                                   decltype(thread_cluster_desc_m_n),
-                                                  decltype(thread_slice_desc_m_n)>{};
+                                                  decltype(thread_slice_desc_m_n)
+#if CK_WORKAROUND_SWDEV_XXXXXX_ATTN_KERNEL_CLANG_CANNOT_SCAVENGE_REGISTER
+                                                      ,
+                                                  true
+#endif
+                                                  >{};
 
         const index_t num_gemm1_k_block_outer_loop =
             b_grid_desc_bk0_n_bk1.GetLength(I1) / NPerBlock;
@@ -758,10 +763,15 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                                                    num_k_block_main_loop);
 
             // Acc0 elementwise Op
+#if CK_WORKAROUND_SWDEV_XXXXXX_ATTN_KERNEL_CLANG_CANNOT_SCAVENGE_REGISTER
+            static_for<0, acc_thread_buf.Size(), 1>{}(
+                [&](auto i) { acc_element_op(acc_thread_buf(i), acc_thread_buf[i]); });
+#else
             static_for<0, acc_thread_buf.Size(), 1>{}([&](auto i) {
                 ElementOpPredicatedResetNaNToMinusInf<PadN>{}.Run(
                     acc_thread_buf(i), acc_element_op, acc_thread_buf[i]);
             });
+#endif
 
             block_sync_lds(); // wait for lds read in gemm0 blockwise gemm
 
