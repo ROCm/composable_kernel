@@ -11,50 +11,52 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_gemm.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_gemm_xdl_cshuffle_v1.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
+#include "ck/host_utility/io.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 
 template <typename GridwiseGemm,
-          typename A0B0B1DataType,
-          typename C1DataType,
-          typename A0ElementwiseOperation,
-          typename B0ElementwiseOperation,
-          typename C0ElementwiseOperation,
+          typename FloatAB,
+          typename FloatC,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename AccElementwiseOperation,
           typename B1ElementwiseOperation,
-          typename C1ElementwiseOperation,
-          typename A0GridDesc_AK0_M_AK1,
-          typename B0GridDesc_BK0_N_BK1,
+          typename CElementwiseOperation,
+          typename AGridDesc_AK0_M_AK1,
+          typename BGridDesc_BK0_N_BK1,
           typename B1GridDesc_BK0_N_BK1,
-          typename C1GridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock,
-          typename Block2C1TileMap,
+          typename CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+          typename Block2CTileMap,
           typename ComputeBasePtrOfStridedBatch,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_batched_gemm_gemm_xdl_cshuffle_v1(
-            const A0B0B1DataType* __restrict__ p_a0_grid,
-            const A0B0B1DataType* __restrict__ p_b0_grid,
-            const A0B0B1DataType* __restrict__ p_b1_grid,
-            C1DataType* __restrict__ p_c1_grid,
-            const A0ElementwiseOperation a0_element_op,
-            const B0ElementwiseOperation b0_element_op,
-            const C0ElementwiseOperation c0_element_op,
+        kernel_gemm_gemm_xdl_cshuffle_v1(
+            const FloatAB* __restrict__ p_a_grid,
+            const FloatAB* __restrict__ p_b_grid,
+            const FloatAB* __restrict__ p_b1_grid,
+            FloatC* __restrict__ p_c_grid,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const AccElementwiseOperation acc_element_op,
             const B1ElementwiseOperation b1_element_op,
-            const C1ElementwiseOperation c1_element_op,
-            const A0GridDesc_AK0_M_AK1 a0_grid_desc_ak0_m_ak1,
-            const B0GridDesc_BK0_N_BK1 b0_grid_desc_bk0_n_bk1,
+            const CElementwiseOperation c_element_op,
+            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
             const B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1,
-            const C1GridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock
-                c1_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock,
-            const Block2C1TileMap block_2_c1tile_map,
+            const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                c_grid_desc_mblock_mperblock_nblock_nperblock,
+            const Block2CTileMap block_2_ctile_map,
             const index_t batch_count,
             const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch)
 {
@@ -73,95 +75,89 @@ __global__ void
     const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_base_ptr_of_batch.GetCBasePtr(g_idx)));
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(
-        p_a0_grid + a_batch_offset,
-        p_b0_grid + b_batch_offset,
-        p_b1_grid + b1_batch_offset,
-        p_c1_grid + c_batch_offset,
-        p_shared,
-        a0_element_op,
-        b0_element_op,
-        c0_element_op,
-        b1_element_op,
-        c1_element_op,
-        a0_grid_desc_ak0_m_ak1,
-        b0_grid_desc_bk0_n_bk1,
-        b1_grid_desc_bk0_n_bk1,
-        c1_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock,
-        block_2_c1tile_map);
+    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
+                                                  p_b_grid + b_batch_offset,
+                                                  p_b1_grid + b1_batch_offset,
+                                                  p_c_grid + c_batch_offset,
+                                                  p_shared,
+                                                  a_element_op,
+                                                  b_element_op,
+                                                  acc_element_op,
+                                                  b1_element_op,
+                                                  c_element_op,
+                                                  a_grid_desc_ak0_m_ak1,
+                                                  b_grid_desc_bk0_n_bk1,
+                                                  b1_grid_desc_bk0_n_bk1,
+                                                  c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                  block_2_ctile_map);
 #else
-    ignore = p_a0_grid;
-    ignore = p_b0_grid;
+    ignore = p_a_grid;
+    ignore = p_b_grid;
     ignore = p_b1_grid;
-    ignore = p_c1_grid;
-    ignore = a0_element_op;
-    ignore = b0_element_op;
-    ignore = c0_element_op;
+    ignore = p_c_grid;
+    ignore = a_element_op;
+    ignore = b_element_op;
+    ignore = acc_element_op;
     ignore = b1_element_op;
-    ignore = c1_element_op;
-    ignore = a0_grid_desc_ak0_m_ak1;
-    ignore = b0_grid_desc_bk0_n_bk1;
+    ignore = c_element_op;
+    ignore = a_grid_desc_ak0_m_ak1;
+    ignore = b_grid_desc_bk0_n_bk1;
     ignore = b1_grid_desc_bk0_n_bk1;
-    ignore = c1_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock;
-    ignore = block_2_c1tile_map;
+    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = block_2_ctile_map;
     ignore = batch_count;
     ignore = compute_base_ptr_of_batch;
-#endif
+#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
 // Computes C = A * B0 * B1
 //              ^^^^^^ (Acc0)
 //              ^^^^^^^^^^^ (Acc1)
-template <typename A0Layout,
-          typename B0Layout, // B0Layout
+template <typename ALayout,
+          typename BLayout, // B0Layout
           typename B1Layout,
-          typename C1Layout,
-          typename A0DataType,
-          typename B0DataType,
-          typename Acc0DataType,
+          typename CLayout,
+          typename ADataType,
+          typename BDataType,
           typename B1DataType,
-          typename Acc1DataType,
-          typename C1ShuffleDataType,
-          typename C1DataType,
-          typename A0ElementwiseOperation,
-          typename B0ElementwiseOperation,
-          typename C0ElementwiseOperation,
+          typename CDataType,
+          typename GemmAccDataType,
+          typename CShuffleDataType,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename AccElementwiseOperation,
           typename B1ElementwiseOperation,
-          typename C1ElementwiseOperation,
-          bool PadGemm0M,
-          bool PadGemm0N,
-          bool PadGemm0K,
-          bool PadGemm1N,
-          bool PadGemm1K,
-          index_t NumGemm0KPrefetchStage,
+          typename CElementwiseOperation,
+          GemmSpecialization GemmSpec,
+          index_t NumGemmKPrefetchStage,
           index_t BlockSize,
-          index_t Gemm0MPerBlock,
-          index_t Gemm0NPerBlock,
-          index_t Gemm0KPerBlock,
+          index_t MPerBlock,
+          index_t NPerBlock, // Gemm0NPerBlock
+          index_t KPerBlock, // Gemm0KPerBlock
           index_t Gemm1NPerBlock,
           index_t Gemm1KPerBlock,
-          index_t A0K1,
-          index_t B0K1,
+          index_t AK1,
+          index_t BK1,
           index_t B1K1,
-          index_t Gemm0MPerXdl,
-          index_t Gemm0NPerXdl,
-          index_t Gemm0MXdlPerWave,
-          index_t Gemm0NXdlPerWave,
+          index_t MPerXDL,
+          index_t NPerXDL,
+          index_t MXdlPerWave,
+          index_t NXdlPerWave,
           index_t Gemm1NXdlPerWave,
-          typename A0BlockTransferThreadClusterLengths_AK0_M_AK1,
-          typename A0BlockTransferThreadClusterArrangeOrder,
-          typename A0BlockTransferSrcAccessOrder,
-          index_t A0BlockTransferSrcVectorDim,
-          index_t A0BlockTransferSrcScalarPerVector,
-          index_t A0BlockTransferDstScalarPerVector_AK1,
-          bool A0BlockLdsExtraM,
-          typename B0BlockTransferThreadClusterLengths_BK0_N_BK1,
-          typename B0BlockTransferThreadClusterArrangeOrder,
-          typename B0BlockTransferSrcAccessOrder,
-          index_t B0BlockTransferSrcVectorDim,
-          index_t B0BlockTransferSrcScalarPerVector,
-          index_t B0BlockTransferDstScalarPerVector_BK1,
-          bool B0BlockLdsExtraN,
+          typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
+          typename ABlockTransferThreadClusterArrangeOrder,
+          typename ABlockTransferSrcAccessOrder,
+          index_t ABlockTransferSrcVectorDim,
+          index_t ABlockTransferSrcScalarPerVector,
+          index_t ABlockTransferDstScalarPerVector_AK1,
+          bool ABlockLdsExtraM,
+          typename BBlockTransferThreadClusterLengths_BK0_N_BK1,
+          typename BBlockTransferThreadClusterArrangeOrder,
+          typename BBlockTransferSrcAccessOrder,
+          index_t BBlockTransferSrcVectorDim,
+          index_t BBlockTransferSrcScalarPerVector,
+          index_t BBlockTransferDstScalarPerVector_BK1,
+          bool BBlockLdsExtraN,
           typename B1BlockTransferThreadClusterLengths_BK0_N_BK1,
           typename B1BlockTransferThreadClusterArrangeOrder,
           typename B1BlockTransferSrcAccessOrder,
@@ -169,24 +165,24 @@ template <typename A0Layout,
           index_t B1BlockTransferSrcScalarPerVector,
           index_t B1BlockTransferDstScalarPerVector_BK1,
           bool B1BlockLdsExtraN,
-          index_t C1ShuffleMXdlPerWavePerShuffle,
-          index_t C1ShuffleGemm0NXdlPerWavePerShuffle,
-          typename C1ShuffleBlockTransferClusterLengths_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock,
-          index_t C1ShuffleBlockTransferScalarPerVector_Gemm0NPerBlock,
+          index_t CShuffleMXdlPerWavePerShuffle,
+          index_t CShuffleNXdlPerWavePerShuffle,
+          typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+          index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched = LoopScheduler::Default>
-struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<A0Layout,
-                                                                         B0Layout,
+struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout,
+                                                                         BLayout,
                                                                          B1Layout,
-                                                                         C1Layout,
-                                                                         A0DataType,
-                                                                         B0DataType,
+                                                                         CLayout,
+                                                                         ADataType,
+                                                                         BDataType,
                                                                          B1DataType,
-                                                                         C1DataType,
-                                                                         A0ElementwiseOperation,
-                                                                         B0ElementwiseOperation,
-                                                                         C0ElementwiseOperation,
+                                                                         CDataType,
+                                                                         AElementwiseOperation,
+                                                                         BElementwiseOperation,
+                                                                         AccElementwiseOperation,
                                                                          B1ElementwiseOperation,
-                                                                         C1ElementwiseOperation>
+                                                                         CElementwiseOperation>
 {
     using DeviceOp = DeviceBatchedGemmGemm_Xdl_CShuffle;
 
@@ -194,54 +190,70 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<A0Layou
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
-    static constexpr auto gemm0_padder =
-        MatrixPadder_v2<PadGemm0M, PadGemm0N, PadGemm0K, index_t, index_t, index_t>{
-            Gemm0MPerBlock, Gemm0NPerBlock, Gemm0KPerBlock};
+    static constexpr auto matrix_padder =
+        GemmGemmPadder<GemmSpec, index_t, index_t, index_t, index_t>{
+            MPerBlock, NPerBlock, KPerBlock, Gemm1NPerBlock};
 
-    static constexpr auto gemm1_padder =
-        MatrixPadder_v2<PadGemm0M, PadGemm1N, PadGemm1K, index_t, index_t, index_t>{
-            Gemm0KPerBlock, Gemm1NPerBlock, Gemm1KPerBlock};
-
-    // for Gemm0
-    static auto MakeA0GridDescriptor_M_K(index_t MRaw, index_t KRaw, index_t StrideA0)
+    static auto MakeAGridDescriptor_AK0_M_AK1(index_t MRaw, index_t KRaw, index_t StrideA)
     {
-        const auto a0_grid_desc_mraw_kraw = [&]() {
-            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, A0Layout>)
+        const auto a_grid_desc_mraw_kraw = [&]() {
+            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
             {
                 return make_naive_tensor_descriptor(make_tuple(MRaw, KRaw),
-                                                    make_tuple(StrideA0, I1));
+                                                    make_tuple(StrideA, I1));
             }
-            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, A0Layout>)
+            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
             {
                 return make_naive_tensor_descriptor(make_tuple(MRaw, KRaw),
-                                                    make_tuple(I1, StrideA0));
+                                                    make_tuple(I1, StrideA));
             }
         }();
 
-        return gemm0_padder.PadADescriptor_M_K(a0_grid_desc_mraw_kraw);
+        const auto a_grid_desc_m_k = matrix_padder.PadADescriptor_M_K(a_grid_desc_mraw_kraw);
+
+        const auto M = a_grid_desc_m_k.GetLength(I0);
+        const auto K = a_grid_desc_m_k.GetLength(I1);
+
+        const auto AK0 = K / AK1;
+
+        return transform_tensor_descriptor(a_grid_desc_m_k,
+                                           make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
+                                                      make_pass_through_transform(M)),
+                                           make_tuple(Sequence<1>{}, Sequence<0>{}),
+                                           make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
-    // for Gemm0
-    static auto MakeB0GridDescriptor_N_K(index_t KRaw, index_t NRaw, index_t StrideB)
+    static auto MakeBGridDescriptor_BK0_N_BK1(index_t KRaw, index_t NRaw, index_t StrideB)
     {
-        const auto b0_grid_desc_nraw_kraw = [&]() {
-            if constexpr(is_same<tensor_layout::gemm::RowMajor, B0Layout>::value)
+        const auto b_grid_desc_nraw_kraw = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
             {
                 return make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
                                                     make_tuple(I1, StrideB));
             }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, B0Layout>::value)
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
             {
                 return make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
                                                     make_tuple(StrideB, I1));
             }
         }();
 
-        return gemm0_padder.PadBDescriptor_N_K(b0_grid_desc_nraw_kraw);
+        const auto b_grid_desc_n_k = matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
+
+        const auto N = b_grid_desc_n_k.GetLength(I0);
+        const auto K = b_grid_desc_n_k.GetLength(I1);
+
+        const auto BK0 = K / BK1;
+
+        return transform_tensor_descriptor(b_grid_desc_n_k,
+                                           make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
+                                                      make_pass_through_transform(N)),
+                                           make_tuple(Sequence<1>{}, Sequence<0>{}),
+                                           make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
-    // for Gemm1
-    static auto MakeB1GridDescriptor_N_K(index_t KRaw, index_t NRaw, index_t StrideB)
+    // Args: Gemm1KRaw, Gemm1NRaw, StrideB1
+    static auto MakeB1GridDescriptor_BK0_N_BK1(index_t KRaw, index_t NRaw, index_t StrideB)
     {
         const auto b1_grid_desc_nraw_kraw = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, B1Layout>::value)
@@ -256,49 +268,60 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<A0Layou
             }
         }();
 
-        return gemm1_padder.PadBDescriptor_N_K(b1_grid_desc_nraw_kraw);
+        const auto b1_grid_desc_n_k = matrix_padder.PadB1Descriptor_N_K(b1_grid_desc_nraw_kraw);
+
+        const auto N = b1_grid_desc_n_k.GetLength(I0);
+        const auto K = b1_grid_desc_n_k.GetLength(I1);
+
+        const auto B1K0 = K / B1K1;
+
+        return transform_tensor_descriptor(
+            b1_grid_desc_n_k,
+            make_tuple(make_unmerge_transform(make_tuple(B1K0, B1K1)),
+                       make_pass_through_transform(N)),
+            make_tuple(Sequence<1>{}, Sequence<0>{}),
+            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
-    // for Gemm1
-    static auto MakeC1GridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t StrideC1)
+    static auto MakeCGridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t StrideC)
     {
-        const auto c1_grid_desc_mraw_nraw = [&]() {
-            if constexpr(is_same<tensor_layout::gemm::RowMajor, C1Layout>::value)
+        const auto c_grid_desc_mraw_nraw = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
             {
                 return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
-                                                    make_tuple(StrideC1, I1));
+                                                    make_tuple(StrideC, I1));
             }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, C1Layout>::value)
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
             {
                 return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
-                                                    make_tuple(I1, StrideC1));
+                                                    make_tuple(I1, StrideC));
             }
         }();
 
-        return gemm1_padder.PadCDescriptor_M_N(c1_grid_desc_mraw_nraw);
+        return matrix_padder.PadCDescriptor_M_N(c_grid_desc_mraw_nraw);
     }
 
     struct ComputeBasePtrOfStridedBatch
     {
-        ComputeBasePtrOfStridedBatch(index_t BatchStrideA0,
-                                     index_t BatchStrideB0,
+        ComputeBasePtrOfStridedBatch(index_t BatchStrideA,
+                                     index_t BatchStrideB,
                                      index_t BatchStrideB1,
-                                     index_t BatchStrideC1)
-            : BatchStrideA0_(BatchStrideA0),
-              BatchStrideB0_(BatchStrideB0),
+                                     index_t BatchStrideC)
+            : BatchStrideA_(BatchStrideA),
+              BatchStrideB_(BatchStrideB),
               BatchStrideB1_(BatchStrideB1),
-              BatchStrideC1_(BatchStrideC1)
+              BatchStrideC_(BatchStrideC)
         {
         }
 
         __host__ __device__ constexpr long_index_t GetABasePtr(index_t g_idx) const
         {
-            return g_idx * static_cast<long_index_t>(BatchStrideA0_);
+            return g_idx * static_cast<long_index_t>(BatchStrideA_);
         }
 
         __host__ __device__ constexpr long_index_t GetBBasePtr(index_t g_idx) const
         {
-            return g_idx * static_cast<long_index_t>(BatchStrideB0_);
+            return g_idx * static_cast<long_index_t>(BatchStrideB_);
         }
 
         __host__ __device__ constexpr long_index_t GetB1BasePtr(index_t g_idx) const
@@ -308,69 +331,68 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<A0Layou
 
         __host__ __device__ constexpr long_index_t GetCBasePtr(index_t g_idx) const
         {
-            return g_idx * static_cast<long_index_t>(BatchStrideC1_);
+            return g_idx * static_cast<long_index_t>(BatchStrideC_);
         }
 
         private:
-        index_t BatchStrideA0_;
-        index_t BatchStrideB0_;
+        index_t BatchStrideA_;
+        index_t BatchStrideB_;
         index_t BatchStrideB1_;
-        index_t BatchStrideC1_;
+        index_t BatchStrideC_;
     };
 
-    using A0GridDesc_M_K = decltype(MakeA0GridDescriptor_M_K(1, 1, 1));
-    using B0GridDesc_N_K = decltype(MakeB0GridDescriptor_N_K(1, 1, 1));
-    using B1GridDesc_N_K = decltype(MakeB1GridDescriptor_N_K(1, 1, 1));
-    using C1GridDesc_M_N = decltype(MakeC1GridDescriptor_M_N(1, 1, 1));
+    using AGridDesc_AK0_M_AK1  = decltype(MakeAGridDescriptor_AK0_M_AK1(1, 1, 1));
+    using BGridDesc_BK0_N_BK1  = decltype(MakeBGridDescriptor_BK0_N_BK1(1, 1, 1));
+    using B1GridDesc_BK0_N_BK1 = decltype(MakeB1GridDescriptor_BK0_N_BK1(1, 1, 1));
+    using CGridDesc_M_N        = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseBatchedGemmGemm_Xdl_CShuffle<
-        A0DataType, // TODO: distinguish A/B datatype
-        Acc0DataType,
-        Acc1DataType,
-        C1ShuffleDataType,
-        C1DataType,
-        A0ElementwiseOperation,
-        B0ElementwiseOperation,
-        C0ElementwiseOperation,
+        ADataType, // TODO: distinguish A/B datatype
+        GemmAccDataType,
+        CShuffleDataType,
+        CDataType,
+        AElementwiseOperation,
+        BElementwiseOperation,
+        AccElementwiseOperation,
         B1ElementwiseOperation,
-        C1ElementwiseOperation,
+        CElementwiseOperation,
         InMemoryDataOperationEnum::Set,
-        A0GridDesc_M_K,
-        B0GridDesc_N_K,
-        B1GridDesc_N_K,
-        C1GridDesc_M_N,
-        NumGemm0KPrefetchStage,
+        AGridDesc_AK0_M_AK1,
+        BGridDesc_BK0_N_BK1,
+        B1GridDesc_BK0_N_BK1,
+        CGridDesc_M_N,
+        NumGemmKPrefetchStage,
         BlockSize,
-        Gemm0MPerBlock,
-        Gemm0NPerBlock,
-        Gemm0KPerBlock,
+        MPerBlock,
+        NPerBlock,
+        KPerBlock,
         Gemm1NPerBlock,
         Gemm1KPerBlock,
-        A0K1,
-        B0K1,
+        AK1,
+        BK1,
         B1K1,
-        Gemm0MPerXdl,
-        Gemm0NPerXdl,
-        Gemm0MXdlPerWave,
-        Gemm0NXdlPerWave,
+        MPerXDL,
+        NPerXDL,
+        MXdlPerWave,
+        NXdlPerWave,
         Gemm1NXdlPerWave,
-        A0BlockTransferThreadClusterLengths_AK0_M_AK1,
-        A0BlockTransferThreadClusterArrangeOrder,
-        A0BlockTransferSrcAccessOrder,
-        A0BlockTransferSrcVectorDim,
-        A0BlockTransferSrcScalarPerVector,
-        A0BlockTransferDstScalarPerVector_AK1,
+        ABlockTransferThreadClusterLengths_AK0_M_AK1,
+        ABlockTransferThreadClusterArrangeOrder,
+        ABlockTransferSrcAccessOrder,
+        ABlockTransferSrcVectorDim,
+        ABlockTransferSrcScalarPerVector,
+        ABlockTransferDstScalarPerVector_AK1,
         true,
-        A0BlockLdsExtraM,
-        B0BlockTransferThreadClusterLengths_BK0_N_BK1,
-        B0BlockTransferThreadClusterArrangeOrder,
-        B0BlockTransferSrcAccessOrder,
-        B0BlockTransferSrcVectorDim,
-        B0BlockTransferSrcScalarPerVector,
-        B0BlockTransferDstScalarPerVector_BK1,
+        ABlockLdsExtraM,
+        BBlockTransferThreadClusterLengths_BK0_N_BK1,
+        BBlockTransferThreadClusterArrangeOrder,
+        BBlockTransferSrcAccessOrder,
+        BBlockTransferSrcVectorDim,
+        BBlockTransferSrcScalarPerVector,
+        BBlockTransferDstScalarPerVector_BK1,
         true,
-        B0BlockLdsExtraN,
+        BBlockLdsExtraN,
         B1BlockTransferThreadClusterLengths_BK0_N_BK1,
         B1BlockTransferThreadClusterArrangeOrder,
         B1BlockTransferSrcAccessOrder,
@@ -379,113 +401,100 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<A0Layou
         B1BlockTransferDstScalarPerVector_BK1,
         false,
         B1BlockLdsExtraN,
-        C1ShuffleMXdlPerWavePerShuffle,
-        C1ShuffleGemm0NXdlPerWavePerShuffle,
-        C1ShuffleBlockTransferClusterLengths_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock,
-        C1ShuffleBlockTransferScalarPerVector_Gemm0NPerBlock,
+        CShuffleMXdlPerWavePerShuffle,
+        CShuffleNXdlPerWavePerShuffle,
+        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
-
-    using A0GridDesc_AK0_M_AK1 = remove_cvref_t<decltype(
-        GridwiseGemm::MakeDefaultA0GridDescriptor_AK0_M_AK1(A0GridDesc_M_K{}))>;
-    using B0GridDesc_BK0_N_BK1 = remove_cvref_t<decltype(
-        GridwiseGemm::MakeDefaultB0GridDescriptor_BK0_N_BK1(B0GridDesc_N_K{}))>;
-    using B1GridDesc_BK0_N_BK1 = remove_cvref_t<decltype(
-        GridwiseGemm::MakeDefaultB1GridDescriptor_BK0_N_BK1(B1GridDesc_N_K{}))>;
 
     // Argument
     struct Argument : public BaseArgument
     {
-        Argument(const A0DataType* p_a0_grid,
-                 const B0DataType* p_b0_grid,
+        Argument(const ADataType* p_a_grid,
+                 const BDataType* p_b_grid,
                  const B1DataType* p_b1_grid,
-                 C1DataType* p_c1_grid,
+                 CDataType* p_c_grid,
                  index_t MRaw,
                  index_t NRaw,
                  index_t KRaw,
                  index_t Gemm1NRaw, // = ORaw
                  index_t Batch,
-                 index_t StrideA0,
-                 index_t StrideB0,
+                 index_t StrideA,
+                 index_t StrideB,
                  index_t StrideB1,
-                 index_t StrideC1,
-                 index_t BatchStrideA0,
-                 index_t BatchStrideB0,
+                 index_t StrideC,
+                 index_t BatchStrideA,
+                 index_t BatchStrideB,
                  index_t BatchStrideB1,
-                 index_t BatchStrideC1,
-                 A0ElementwiseOperation a0_element_op,
-                 B0ElementwiseOperation b0_element_op,
-                 C0ElementwiseOperation c0_element_op,
+                 index_t BatchStrideC,
+                 AElementwiseOperation a_element_op,
+                 BElementwiseOperation b_element_op,
+                 AccElementwiseOperation acc_element_op,
                  B1ElementwiseOperation b1_element_op,
-                 C1ElementwiseOperation c1_element_op)
-            : p_a0_grid_{p_a0_grid},
-              p_b0_grid_{p_b0_grid},
+                 CElementwiseOperation c_element_op)
+            : p_a_grid_{p_a_grid},
+              p_b_grid_{p_b_grid},
               p_b1_grid_{p_b1_grid},
-              p_c1_grid_{p_c1_grid},
-              a0_grid_desc_m_k_{DeviceOp::MakeA0GridDescriptor_M_K(MRaw, KRaw, StrideA0)},
-              b0_grid_desc_n_k_{DeviceOp::MakeB0GridDescriptor_N_K(KRaw, NRaw, StrideB0)},
-              b1_grid_desc_n_k_{DeviceOp::MakeB1GridDescriptor_N_K(NRaw, Gemm1NRaw, StrideB1)},
-              c1_grid_desc_m_n_{DeviceOp::MakeC1GridDescriptor_M_N(MRaw, Gemm1NRaw, StrideC1)},
-              a0_grid_desc_ak0_m_ak1_{
-                  GridwiseGemm::MakeDefaultA0GridDescriptor_AK0_M_AK1(a0_grid_desc_m_k_)},
-              b0_grid_desc_bk0_n_bk1_{
-                  GridwiseGemm::MakeDefaultB0GridDescriptor_BK0_N_BK1(b0_grid_desc_n_k_)},
+              p_c_grid_{p_c_grid},
+              a_grid_desc_ak0_m_ak1_{DeviceOp::MakeAGridDescriptor_AK0_M_AK1(MRaw, KRaw, StrideA)},
+              b_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1(KRaw, NRaw, StrideB)},
               b1_grid_desc_bk0_n_bk1_{
-                  GridwiseGemm::MakeDefaultB1GridDescriptor_BK0_N_BK1(b1_grid_desc_n_k_)},
-              c1_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock_{},
-              block_2_c1tile_map_{GridwiseGemm::MakeDefaultBlock2C1TileMap(c1_grid_desc_m_n_)},
-              a0_element_op_{a0_element_op},
-              b0_element_op_{b0_element_op},
-              c0_element_op_{c0_element_op},
+                  DeviceOp::MakeB1GridDescriptor_BK0_N_BK1(NRaw, Gemm1NRaw, StrideB1)},
+              c_grid_desc_m_n_{DeviceOp::MakeCGridDescriptor_M_N(MRaw, Gemm1NRaw, StrideC)},
+              c_grid_desc_mblock_mperblock_nblock_nperblock_{},
+              block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_)},
+              a_element_op_{a_element_op},
+              b_element_op_{b_element_op},
+              acc_element_op_{acc_element_op},
               b1_element_op_{b1_element_op},
-              c1_element_op_{c1_element_op},
+              c_element_op_{c_element_op},
               batch_count_(Batch),
-              compute_base_ptr_of_batch_{BatchStrideA0, BatchStrideB0, BatchStrideB1, BatchStrideC1}
+              compute_base_ptr_of_batch_{BatchStrideA, BatchStrideB, BatchStrideB1, BatchStrideC},
+              raw_lengths_m_n_k_o_{MRaw, NRaw, KRaw, Gemm1NRaw}
         {
-            if(GridwiseGemm::CheckValidity(a0_grid_desc_m_k_,
-                                           b0_grid_desc_n_k_,
-                                           b1_grid_desc_n_k_,
-                                           c1_grid_desc_m_n_,
-                                           block_2_c1tile_map_))
+            if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
+                                           b_grid_desc_bk0_n_bk1_,
+                                           b1_grid_desc_bk0_n_bk1_,
+                                           c_grid_desc_m_n_,
+                                           block_2_ctile_map_,
+                                           raw_lengths_m_n_k_o_))
             {
-                c1_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock_ =
-                    GridwiseGemm::MakeC1GridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock(
-                        c1_grid_desc_m_n_);
+                c_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                    GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                        c_grid_desc_m_n_);
             }
         }
 
+        void Print() const
+        {
+            std::cout << "A[AK0, M, AK1]: " << a_grid_desc_ak0_m_ak1_ << std::endl;
+            std::cout << "B0[BK0, N, BK1]: " << b_grid_desc_bk0_n_bk1_ << std::endl;
+            std::cout << "B1[BK0, N, BK1]: " << b1_grid_desc_bk0_n_bk1_ << std::endl;
+            std::cout << "C[M, N]: " << c_grid_desc_m_n_ << std::endl;
+        }
+
         //  private:
-        // pointers
-        const A0DataType* p_a0_grid_;
-        const B0DataType* p_b0_grid_;
+        const ADataType* p_a_grid_;
+        const BDataType* p_b_grid_;
         const B1DataType* p_b1_grid_;
-        C1DataType* p_c1_grid_;
-
-        // tensor descriptors for problem definiton
-        A0GridDesc_M_K a0_grid_desc_m_k_;
-        B0GridDesc_N_K b0_grid_desc_n_k_;
-        B1GridDesc_N_K b1_grid_desc_n_k_;
-        C1GridDesc_M_N c1_grid_desc_m_n_;
-
-        // tensor descriptors for block/thread-wise copy
-        A0GridDesc_AK0_M_AK1 a0_grid_desc_ak0_m_ak1_;
-        B0GridDesc_BK0_N_BK1 b0_grid_desc_bk0_n_bk1_;
+        CDataType* p_c_grid_;
+        AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
+        BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1_;
-        typename GridwiseGemm::C1GridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock
-            c1_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock_;
-
-        // block-to-c-tile map
-        typename GridwiseGemm::DefaultBlock2C1TileMap block_2_c1tile_map_;
-
-        // element-wise op
-        A0ElementwiseOperation a0_element_op_;
-        B0ElementwiseOperation b0_element_op_;
-        C0ElementwiseOperation c0_element_op_;
+        CGridDesc_M_N c_grid_desc_m_n_;
+        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+            c_grid_desc_mblock_mperblock_nblock_nperblock_;
+        typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
+        AElementwiseOperation a_element_op_;
+        BElementwiseOperation b_element_op_;
+        AccElementwiseOperation acc_element_op_;
         B1ElementwiseOperation b1_element_op_;
-        C1ElementwiseOperation c1_element_op_;
-
-        // batch
+        CElementwiseOperation c_element_op_;
         index_t batch_count_;
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
+
+        // For robust IsSupportedArgument() check
+        std::vector<index_t> raw_lengths_m_n_k_o_;
     };
 
     // Invoker
@@ -495,74 +504,78 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<A0Layou
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            if(!GridwiseGemm::CheckValidity(arg.a0_grid_desc_m_k_,
-                                            arg.b0_grid_desc_n_k_,
-                                            arg.b1_grid_desc_n_k_,
-                                            arg.c1_grid_desc_m_n_,
-                                            arg.block_2_c1tile_map_))
+            if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
+                                            arg.b_grid_desc_bk0_n_bk1_,
+                                            arg.b1_grid_desc_bk0_n_bk1_,
+                                            arg.c_grid_desc_m_n_,
+                                            arg.block_2_ctile_map_,
+                                            arg.raw_lengths_m_n_k_o_))
             {
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
 
             const index_t grid_size =
-                arg.block_2_c1tile_map_.CalculateGridSize(arg.c1_grid_desc_m_n_) * arg.batch_count_;
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_) * arg.batch_count_;
 
             // Gemm0_K
-            const auto K = arg.a0_grid_desc_m_k_.GetLength(I1);
+            const auto K =
+                arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
+
+            float ave_time = 0;
 
             auto launch_kernel = [&](auto has_main_k_block_loop_) {
-                const auto kernel = kernel_batched_gemm_gemm_xdl_cshuffle_v1<
+                const auto kernel = kernel_gemm_gemm_xdl_cshuffle_v1<
                     GridwiseGemm,
-                    A0DataType, // TODO: distiguish A/B datatype
-                    C1DataType,
-                    A0ElementwiseOperation,
-                    B0ElementwiseOperation,
-                    C0ElementwiseOperation,
+                    ADataType, // TODO: distiguish A/B datatype
+                    CDataType,
+                    AElementwiseOperation,
+                    BElementwiseOperation,
+                    AccElementwiseOperation,
                     B1ElementwiseOperation,
-                    C1ElementwiseOperation,
-                    DeviceOp::A0GridDesc_AK0_M_AK1,
-                    DeviceOp::B0GridDesc_BK0_N_BK1,
+                    CElementwiseOperation,
+                    DeviceOp::AGridDesc_AK0_M_AK1,
+                    DeviceOp::BGridDesc_BK0_N_BK1,
                     DeviceOp::B1GridDesc_BK0_N_BK1,
-                    typename GridwiseGemm::
-                        C1GridDescriptor_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock,
-                    typename GridwiseGemm::DefaultBlock2C1TileMap,
+                    typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                    typename GridwiseGemm::DefaultBlock2CTileMap,
                     ComputeBasePtrOfStridedBatch,
                     has_main_k_block_loop_>;
 
-                return launch_and_time_kernel(
-                    stream_config,
-                    kernel,
-                    dim3(grid_size),
-                    dim3(BlockSize),
-                    0,
-                    arg.p_a0_grid_,
-                    arg.p_b0_grid_,
-                    arg.p_b1_grid_,
-                    arg.p_c1_grid_,
-                    arg.a0_element_op_,
-                    arg.b0_element_op_,
-                    arg.c0_element_op_,
-                    arg.b1_element_op_,
-                    arg.c1_element_op_,
-                    arg.a0_grid_desc_ak0_m_ak1_,
-                    arg.b0_grid_desc_bk0_n_bk1_,
-                    arg.b1_grid_desc_bk0_n_bk1_,
-                    arg.c1_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock_,
-                    arg.block_2_c1tile_map_,
-                    arg.batch_count_,
-                    arg.compute_base_ptr_of_batch_);
+                return launch_and_time_kernel(stream_config,
+                                              kernel,
+                                              dim3(grid_size),
+                                              dim3(BlockSize),
+                                              0,
+                                              arg.p_a_grid_,
+                                              arg.p_b_grid_,
+                                              arg.p_b1_grid_,
+                                              arg.p_c_grid_,
+                                              arg.a_element_op_,
+                                              arg.b_element_op_,
+                                              arg.acc_element_op_,
+                                              arg.b1_element_op_,
+                                              arg.c_element_op_,
+                                              arg.a_grid_desc_ak0_m_ak1_,
+                                              arg.b_grid_desc_bk0_n_bk1_,
+                                              arg.b1_grid_desc_bk0_n_bk1_,
+                                              arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                              arg.block_2_ctile_map_,
+                                              arg.batch_count_,
+                                              arg.compute_base_ptr_of_batch_);
             };
 
             // Gemm1_K is split into Gemm1_K0/K1 where K1 is known at compile time, so we only need
             // to concern Gemm0's loop
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
-                return launch_kernel(integral_constant<bool, true>{});
+                ave_time = launch_kernel(integral_constant<bool, true>{});
             }
             else
             {
-                return launch_kernel(integral_constant<bool, false>{});
+                ave_time = launch_kernel(integral_constant<bool, false>{});
             }
+
+            return ave_time;
         }
 
         // polymorphic
@@ -586,11 +599,37 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<A0Layou
             return false;
         }
 
-        return GridwiseGemm::CheckValidity(arg.a0_grid_desc_m_k_,
-                                           arg.b0_grid_desc_n_k_,
-                                           arg.b1_grid_desc_n_k_,
-                                           arg.c1_grid_desc_m_n_,
-                                           arg.block_2_c1tile_map_);
+        // Note: we need raw lengths since threadwise copy can not handle vector load when part of
+        // vector is out of bounds
+        const auto MRaw      = arg.raw_lengths_m_n_k_o_[0];
+        const auto NRaw      = arg.raw_lengths_m_n_k_o_[1];
+        const auto KRaw      = arg.raw_lengths_m_n_k_o_[2];
+        const auto Gemm1NRaw = arg.raw_lengths_m_n_k_o_[3];
+
+        // Check scalar per vector requirement
+        const auto a_extent_lowest =
+            is_same_v<tensor_layout::gemm::RowMajor, ALayout> ? KRaw : MRaw;
+        const auto b_extent_lowest =
+            is_same_v<tensor_layout::gemm::RowMajor, BLayout> ? NRaw : KRaw;
+        const auto b1_extent_lowest =
+            is_same_v<tensor_layout::gemm::RowMajor, B1Layout> ? Gemm1NRaw : NRaw;
+        const auto c_extent_lowest =
+            is_same_v<tensor_layout::gemm::RowMajor, CLayout> ? Gemm1NRaw : MRaw;
+
+        if(!(a_extent_lowest % ABlockTransferSrcScalarPerVector == 0 &&
+             b_extent_lowest % BBlockTransferSrcScalarPerVector == 0 &&
+             b1_extent_lowest % B1BlockTransferSrcScalarPerVector == 0 &&
+             c_extent_lowest % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
+        {
+            return false;
+        }
+
+        return GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
+                                           arg.b_grid_desc_bk0_n_bk1_,
+                                           arg.b1_grid_desc_bk0_n_bk1_,
+                                           arg.c_grid_desc_m_n_,
+                                           arg.block_2_ctile_map_,
+                                           arg.raw_lengths_m_n_k_o_);
     }
 
     // polymorphic
@@ -599,84 +638,84 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<A0Layou
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-    static auto MakeArgument(const A0DataType* p_a0,
-                             const B0DataType* p_b0,
+    static auto MakeArgument(const ADataType* p_a,
+                             const BDataType* p_b,
                              const B1DataType* p_b1,
-                             C1DataType* p_c1,
+                             CDataType* p_c,
                              index_t MRaw,
                              index_t NRaw,
                              index_t KRaw,
                              index_t Gemm1NRaw,
                              index_t Batch,
-                             index_t StrideA0,
-                             index_t StrideB0,
+                             index_t StrideA,
+                             index_t StrideB,
                              index_t StrideB1,
-                             index_t StrideC1,
-                             index_t BatchStrideA0,
-                             index_t BatchStrideB0,
+                             index_t StrideC,
+                             index_t BatchStrideA,
+                             index_t BatchStrideB,
                              index_t BatchStrideB1,
-                             index_t BatchStrideC1,
-                             A0ElementwiseOperation a0_element_op,
-                             B0ElementwiseOperation b0_element_op,
-                             C0ElementwiseOperation c0_element_op,
+                             index_t BatchStrideC,
+                             AElementwiseOperation a_element_op,
+                             BElementwiseOperation b_element_op,
+                             AccElementwiseOperation acc_element_op,
                              B1ElementwiseOperation b1_element_op,
-                             C1ElementwiseOperation c1_element_op)
+                             CElementwiseOperation c_element_op)
     {
-        return Argument{p_a0,          p_b0,          p_b1,          p_c1,          MRaw,
-                        NRaw,          KRaw,          Gemm1NRaw,     Batch,         StrideA0,
-                        StrideB0,      StrideB1,      StrideC1,      BatchStrideA0, BatchStrideB0,
-                        BatchStrideB1, BatchStrideC1, a0_element_op, b0_element_op, c0_element_op,
-                        b1_element_op, c1_element_op};
+        return Argument{p_a,           p_b,          p_b1,         p_c,          MRaw,
+                        NRaw,          KRaw,         Gemm1NRaw,    Batch,        StrideA,
+                        StrideB,       StrideB1,     StrideC,      BatchStrideA, BatchStrideB,
+                        BatchStrideB1, BatchStrideC, a_element_op, b_element_op, acc_element_op,
+                        b1_element_op, c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
 
     // polymorphic
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a0,
-                                                      const void* p_b0,
+    std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
+                                                      const void* p_b,
                                                       const void* p_b1,
-                                                      void* p_c1,
+                                                      void* p_c,
                                                       index_t MRaw,
                                                       index_t NRaw,
                                                       index_t KRaw,
                                                       index_t Gemm1NRaw,
                                                       index_t Batch,
-                                                      index_t StrideA0,
-                                                      index_t StrideB0,
+                                                      index_t StrideA,
+                                                      index_t StrideB,
                                                       index_t StrideB1,
-                                                      index_t StrideC1,
-                                                      index_t BatchStrideA0,
-                                                      index_t BatchStrideB0,
+                                                      index_t StrideC,
+                                                      index_t BatchStrideA,
+                                                      index_t BatchStrideB,
                                                       index_t BatchStrideB1,
-                                                      index_t BatchStrideC1,
-                                                      A0ElementwiseOperation a0_element_op,
-                                                      B0ElementwiseOperation b0_element_op,
-                                                      C0ElementwiseOperation c0_element_op,
+                                                      index_t BatchStrideC,
+                                                      AElementwiseOperation a_element_op,
+                                                      BElementwiseOperation b_element_op,
+                                                      AccElementwiseOperation acc_element_op,
                                                       B1ElementwiseOperation b1_element_op,
-                                                      C1ElementwiseOperation c1_element_op) override
+                                                      CElementwiseOperation c_element_op) override
     {
-        return std::make_unique<Argument>(static_cast<const A0DataType*>(p_a0),
-                                          static_cast<const B0DataType*>(p_b0),
+        return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
+                                          static_cast<const BDataType*>(p_b),
                                           static_cast<const B1DataType*>(p_b1),
-                                          static_cast<C1DataType*>(p_c1),
+                                          static_cast<CDataType*>(p_c),
                                           MRaw,
                                           NRaw,
                                           KRaw,
                                           Gemm1NRaw,
                                           Batch,
-                                          StrideA0,
-                                          StrideB0,
+                                          StrideA,
+                                          StrideB,
                                           StrideB1,
-                                          StrideC1,
-                                          BatchStrideA0,
-                                          BatchStrideB0,
+                                          StrideC,
+                                          BatchStrideA,
+                                          BatchStrideB,
                                           BatchStrideB1,
-                                          BatchStrideC1,
-                                          a0_element_op,
-                                          b0_element_op,
-                                          c0_element_op,
+                                          BatchStrideC,
+                                          a_element_op,
+                                          b_element_op,
+                                          acc_element_op,
                                           b1_element_op,
-                                          c1_element_op);
+                                          c_element_op);
     }
 
     // polymorphic
@@ -694,17 +733,16 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<A0Layou
         str << "DeviceBatchedGemmGemm_Xdl_CShuffle"
             << "<"
             << BlockSize << ", "
-            << Gemm0MPerBlock << ", "
-            << Gemm0NPerBlock << ", "
-            << Gemm0KPerBlock << ", "
-            << A0K1 << ", "
-            << B0K1 << ", "
+            << MPerBlock << ", "
+            << NPerBlock << ", "
+            << KPerBlock << ", "
+            << AK1 << ", "
+            << BK1 << ", "
+            << MPerBlock << ", "
+            << Gemm1NPerBlock << ", "
+            << Gemm1KPerBlock << ", "
             << B1K1 << ", "
-            << Gemm0MPerXdl << ", "
-            << Gemm0NPerXdl << ", "
-            << Gemm0MXdlPerWave << ", "
-            << Gemm0NXdlPerWave << ", "
-            << Gemm1NXdlPerWave << "> ";
+            << getGemmSpecializationString(GemmSpec) << ">";
         // clang-format on
 
         return str.str();

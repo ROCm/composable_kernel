@@ -1023,6 +1023,8 @@ struct NumericLimits
     {
         return std::numeric_limits<T>::quiet_NaN();
     }
+
+    __host__ __device__ static constexpr T Infinity() { return std::numeric_limits<T>::infinity(); }
 };
 
 template <>
@@ -1046,11 +1048,11 @@ struct NumericLimits<half_t>
 template <>
 struct NumericLimits<int4_t>
 {
-    __host__ __device__ static constexpr int4_t Min() { return int4_t(-7); }
+    __host__ __device__ static constexpr int4_t Min() { return int4_t(-8); }
 
     __host__ __device__ static constexpr int4_t Max() { return int4_t(7); }
 
-    __host__ __device__ static constexpr int4_t Lowest() { return int4_t(-7); }
+    __host__ __device__ static constexpr int4_t Lowest() { return int4_t(-8); }
 };
 #endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 
