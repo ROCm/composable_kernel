@@ -14,10 +14,10 @@
 
 #include "ck/library/tensor_operation_instance/gpu/softmax.hpp"
 
-using InDataType    = ck::half_t;
-using OutDataType   = ck::half_t;
-using AccDataType   = float;
-using PassThrough   = ck::tensor_operation::element_wise::PassThrough;
+using InDataType  = ck::half_t;
+using OutDataType = ck::half_t;
+using AccDataType = float;
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 constexpr int Rank         = 4;
 constexpr int NumReduceDim = 2;
@@ -44,7 +44,7 @@ int main(int argc, char* argv[])
     std::vector<ck::index_t> in_strides{8 * 128 * 1024, 128 * 1024, 1024, 1};
     std::vector<ck::index_t> reduce_dims{2, 3};
 
-    ck::index_t num_elements = 
+    ck::index_t num_elements =
         std::accumulate(in_lengths.begin(), in_lengths.end(), 1, std::multiplies<ck::index_t>());
 
     AccDataType alpha{2.0f};
@@ -53,12 +53,8 @@ int main(int argc, char* argv[])
     SimpleDeviceMem in(sizeof(InDataType) * num_elements);
     SimpleDeviceMem out(sizeof(OutDataType) * num_elements);
 
-    using DeviceOp = ck::tensor_operation::device::DeviceSoftmax<InDataType,
-                                                                 AccDataType,
-                                                                 OutDataType,
-                                                                 PassThrough,
-                                                                 PassThrough,
-                                                                 Rank>;
+    using DeviceOp = ck::tensor_operation::device::
+        DeviceSoftmax<InDataType, AccDataType, OutDataType, PassThrough, PassThrough, Rank>;
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
@@ -78,12 +74,12 @@ int main(int argc, char* argv[])
     {
         auto& op_ptr = op_ptrs[i];
 
-        if (op_ptr->GetRank() != Rank || op_ptr->GetNumReduceDim() != NumReduceDim)
+        if(op_ptr->GetRank() != Rank || op_ptr->GetNumReduceDim() != NumReduceDim)
         {
             continue;
         }
 
-        auto argument_ptr = op_ptr->MakeArgumentPointer(in_lengths,
+        auto argument_ptr   = op_ptr->MakeArgumentPointer(in_lengths,
                                                         in_strides,
                                                         reduce_dims,
                                                         &alpha,
@@ -92,7 +88,7 @@ int main(int argc, char* argv[])
                                                         out.GetDeviceBuffer(),
                                                         PassThrough{},
                                                         PassThrough{});
-        auto invoker_ptr = op_ptr->MakeInvokerPointer();
+        auto invoker_ptr    = op_ptr->MakeInvokerPointer();
         std::string op_name = op_ptr->GetTypeString();
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
@@ -123,7 +119,7 @@ int main(int argc, char* argv[])
     }
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_gb_per_sec << " GB/s, "
-          << best_op_name << std::endl;
+              << best_op_name << std::endl;
 
     // run the best intance
     {
