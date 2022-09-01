@@ -33,7 +33,6 @@ static constexpr bool PadGemm0K = false;
 static constexpr bool PadGemm1N = false;
 static constexpr bool PadGemm1K = false;
 
-
 // c[g, m, n] = a[g, m, k] * b[g, n, k]
 using device_batched_gemm_bias_gelu_gemm_bias_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances =
     std::tuple<

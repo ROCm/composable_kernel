@@ -119,18 +119,20 @@ __global__ void
 #else
     ignore = p_a0_grid;
     ignore = p_b0_grid;
+    ignore = p_d0_grid;
     ignore = p_b1_grid;
     ignore = p_c1_grid;
     ignore = p_d1s_grid;
     ignore = a0_element_op;
     ignore = b0_element_op;
     ignore = c0_element_op;
+    ignore = d0_element_op;
     ignore = b1_element_op;
     ignore = c1_element_op;
     ignore = d1_element_op;
     ignore = a0_grid_desc_ak0_m_ak1;
     ignore = b0_grid_desc_bk0_n_bk1;
-    ignore = d0_grid_desc_m_n;
+    ignore = d0_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5;
     ignore = b1_grid_desc_bk0_n_bk1;
     ignore = c1_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock;
     ignore = d1s_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock;
