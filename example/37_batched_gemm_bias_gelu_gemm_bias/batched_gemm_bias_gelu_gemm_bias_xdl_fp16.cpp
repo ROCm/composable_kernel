@@ -61,11 +61,11 @@ using B1ElementOp = PassThrough;
 using C1ElementOp = PassThrough;
 using D1ElementOp = ck::tensor_operation::element_wise::Add;
 
-static constexpr bool PadGemm0M = false;
-static constexpr bool PadGemm0N = false;
-static constexpr bool PadGemm0K = false;
-static constexpr bool PadGemm1N = false;
-static constexpr bool PadGemm1K = false;
+static constexpr bool PadGemm0M = true;
+static constexpr bool PadGemm0N = true;
+static constexpr bool PadGemm0K = true;
+static constexpr bool PadGemm1N = true;
+static constexpr bool PadGemm1K = true;
 
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle<
@@ -302,11 +302,11 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        a_g_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-5, 5});
-        b0_g_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-5, 5});
-        d0_g_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-5, 5});
-        b1_g_n_o.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-5, 5});
-        d1_g_m_o.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-5, 5});
+        a_g_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 3});
+        b0_g_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 3});
+        d0_g_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 3});
+        b1_g_n_o.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 3});
+        d1_g_m_o.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-2, 3});
         break;
     case 2:
         a_g_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});

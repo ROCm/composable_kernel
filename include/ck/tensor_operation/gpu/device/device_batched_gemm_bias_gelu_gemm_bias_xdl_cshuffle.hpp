@@ -255,7 +255,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
 
     static constexpr auto gemm1_padder =
         MatrixPadder_v2<PadGemm0M, PadGemm1N, PadGemm1K, index_t, index_t, index_t>{
-            Gemm0KPerBlock, Gemm1NPerBlock, Gemm1KPerBlock};
+            Gemm0MPerBlock, Gemm1NPerBlock, Gemm1KPerBlock};
 
     // for Gemm0
     static auto MakeA0GridDescriptor_M_K(index_t MRaw, index_t KRaw, index_t StrideA0)
@@ -579,6 +579,17 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                                          BatchStrideC1,
                                          BatchStrideD1s}
         {
+            std::cout << "a0_grid_desc_m_k_{" << a0_grid_desc_m_k_.GetLength(I0) << ", "
+                      << a0_grid_desc_m_k_.GetLength(I1) << "}" << std::endl;
+            std::cout << "b0_grid_desc_n_k_{" << b0_grid_desc_n_k_.GetLength(I0) << ", "
+                      << b0_grid_desc_n_k_.GetLength(I1) << "}" << std::endl;
+            std::cout << "d0_grid_desc_m_n_{" << d0_grid_desc_m_n_.GetLength(I0) << ", "
+                      << d0_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
+            std::cout << "b1_grid_desc_n_k_{" << b1_grid_desc_n_k_.GetLength(I0) << ", "
+                      << b1_grid_desc_n_k_.GetLength(I1) << "}" << std::endl;
+            std::cout << "c1_grid_desc_m_n_{" << c1_grid_desc_m_n_.GetLength(I0) << ", "
+                      << c1_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
+
             std::cout << "d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_{"
                       << d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_.GetLength(I0) << ", "
                       << d0_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_.GetLength(I1) << ", "
