@@ -19,16 +19,16 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 
-using In0DataType       = ck::half_t;
-using Wei0DataType      = ck::half_t;
+using In0DataType       = float;
+using Wei0DataType      = float;
 using Acc0DataType      = float;
-using Wei1DataType      = ck::half_t;
+using Wei1DataType      = float;
 using Acc1DataType      = float;
 using C1ShuffleDataType = float;
-using Out1DataType      = ck::half_t;
+using Out1DataType      = float;
 
 // This is used for reference code
-using Out0DataType = ck::half_t;
+using Out0DataType = float;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -66,12 +66,12 @@ using DeviceBatchedGemmGemmInstance =
         256,
         128,         // MPerBlock
         128,         // NPerBlock
-        32,          // KPerBlock
+        16,          // KPerBlock
         128,         // Gemm1NPerBlock
-        32,          // Gemm1KPerBlock
-        8,           // AK1
-        8,           // BK1
-        4,           // B1K1
+        16,          // Gemm1KPerBlock
+        4,           // AK1
+        4,           // BK1
+        2,           // B1K1
         32,          // MPerXDL
         32,          // NPerXDL
         1,           // MXdlPerWave
@@ -81,27 +81,27 @@ using DeviceBatchedGemmGemmInstance =
         S<1, 0, 2>,
         S<1, 0, 2>,
         2,
-        8,
-        8,
+        4,
+        4,
         true,
         S<4, 64, 1>, // BBlockTransfer
         S<1, 0, 2>,
         S<1, 0, 2>,
         2,
-        8,
-        8,
+        4,
+        4,
         true,
         S<4, 64, 1>, // B1BlockTransfer
         S<1, 0, 2>,
         S<1, 0, 2>,
         2,
-        4,
-        4,
+        2,
+        2,
         true,
-        1,              // CShuffleMXdlPerWavePerShuffle
-        2,              // CShuffleNXdlPerWavePerShuffle
-        S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        8>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
+        1,               // CShuffleMXdlPerWavePerShuffle
+        2,               // CShuffleNXdlPerWavePerShuffle
+        S<1, 16, 1, 16>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+        4>;              // CShuffleBlockTransferScalarPerVector_NPerBlock
 
 #include "run_grouped_conv_conv_fwd_example.inc"
 

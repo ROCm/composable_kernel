@@ -19,16 +19,16 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 
-using In0DataType       = ck::half_t;
-using Wei0DataType      = ck::half_t;
+using In0DataType       = ck::bhalf_t;
+using Wei0DataType      = ck::bhalf_t;
 using Acc0DataType      = float;
-using Wei1DataType      = ck::half_t;
+using Wei1DataType      = ck::bhalf_t;
 using Acc1DataType      = float;
 using C1ShuffleDataType = float;
-using Out1DataType      = ck::half_t;
+using Out1DataType      = ck::bhalf_t;
 
 // This is used for reference code
-using Out0DataType = ck::half_t;
+using Out0DataType = ck::bhalf_t;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;

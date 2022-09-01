@@ -19,16 +19,16 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 
-using In0DataType       = ck::half_t;
-using Wei0DataType      = ck::half_t;
-using Acc0DataType      = float;
-using Wei1DataType      = ck::half_t;
-using Acc1DataType      = float;
-using C1ShuffleDataType = float;
-using Out1DataType      = ck::half_t;
+using In0DataType       = int8_t;
+using Wei0DataType      = int8_t;
+using Acc0DataType      = int32_t;
+using Wei1DataType      = int8_t;
+using Acc1DataType      = int32_t;
+using C1ShuffleDataType = int32_t;
+using Out1DataType      = int8_t;
 
 // This is used for reference code
-using Out0DataType = ck::half_t;
+using Out0DataType = int8_t;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -66,11 +66,11 @@ using DeviceBatchedGemmGemmInstance =
         256,
         128,         // MPerBlock
         128,         // NPerBlock
-        32,          // KPerBlock
+        64,          // KPerBlock
         128,         // Gemm1NPerBlock
-        32,          // Gemm1KPerBlock
-        8,           // AK1
-        8,           // BK1
+        64,          // Gemm1KPerBlock
+        16,          // AK1
+        16,          // BK1
         4,           // B1K1
         32,          // MPerXDL
         32,          // NPerXDL
@@ -81,15 +81,15 @@ using DeviceBatchedGemmGemmInstance =
         S<1, 0, 2>,
         S<1, 0, 2>,
         2,
-        8,
-        8,
+        16,
+        16,
         true,
         S<4, 64, 1>, // BBlockTransfer
         S<1, 0, 2>,
         S<1, 0, 2>,
         2,
-        8,
-        8,
+        16,
+        16,
         true,
         S<4, 64, 1>, // B1BlockTransfer
         S<1, 0, 2>,
