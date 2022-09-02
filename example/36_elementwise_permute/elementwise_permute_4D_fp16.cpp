@@ -27,16 +27,16 @@ using DeviceElementwisePermuteInstance =
                                                     ck::Sequence<1>>;
 
 template <typename HostTensorA, typename HostTensorB, typename Functor>
-void host_elementwise4D(HostTensorB& B,
-                        const HostTensorA& A,
-                        const std::vector<std::size_t>& shape,
+void host_elementwise4D(HostTensorB& B_nhwc,
+                        const HostTensorA& A_nchw,
+                        const std::vector<std::size_t>& shape_nchw,
                         Functor functor)
 {
     using btype = ck::remove_reference_t<decltype(B(0, 0, 0, 0))>;
-    for(std::size_t n = 0; n < shape[0]; ++n)
-        for(std::size_t c = 0; c < shape[1]; ++c)
-            for(std::size_t h = 0; h < shape[2]; ++h)
-                for(std::size_t w = 0; w < shape[3]; ++w)
+    for(std::size_t n = 0; n < shape_nchw[0]; ++n)
+        for(std::size_t c = 0; c < shape_nchw[1]; ++c)
+            for(std::size_t h = 0; h < shape_nchw[2]; ++h)
+                for(std::size_t w = 0; w < shape_nchw[3]; ++w)
                 {
                     auto a_val  = A(n, c, h, w);
                     functor(B(n, h, w, c), a_val);
@@ -91,8 +91,8 @@ int main()
     {
         b_device_buf.FromDevice(b.mData.data());
         Tensor<BDataType> host_b(nhwc);
-        host_elementwise4D<Tensor<ADataType>, Tensor<BDataType>, PassThrough>(
-            host_b, a, nhwc, PassThrough{});
+        host_elementwise4D<Tensor<BDataType>, Tensor<ADataType>, PassThrough>(
+            host_b, a, nchw, PassThrough{});
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
     }
