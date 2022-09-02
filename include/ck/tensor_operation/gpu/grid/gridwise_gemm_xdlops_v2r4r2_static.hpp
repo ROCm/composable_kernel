@@ -29,7 +29,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdlops_v2r4r2(const FloatAB* __restrict__ p_a_grid,
+        kernel_gemm_xdlops_v2r4r2_static(const FloatAB* __restrict__ p_a_grid,
                                   const FloatAB* __restrict__ p_b_grid,
                                   FloatC* __restrict__ p_c_grid,
                                   const AGridDesc_B_K0_M_K1 a_b_k0_m_k1_grid_desc,
@@ -122,7 +122,7 @@ template <index_t M_matrix,
           index_t CShuffleNRepeatPerShuffle,
           index_t CBlockTransferScalarPerVector_NWaveNPerXDL,
           typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>
-struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
+struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2_static
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};

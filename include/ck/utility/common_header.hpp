@@ -50,7 +50,7 @@
 
 #define USEING_STATIC_KERNEL 1
 
-#define MNKB_0_8 1
+#define MNKB_0_8 0
 #define MNKB_1_4 0
 #define MNKB_2_8 0
 #define MNKB_3_5 0
@@ -60,23 +60,23 @@
 
 #if MNKB_0_8
 #define M_matrix 16
-#define N_matrix 4096
-#define K_matrix 12800
-#define K_batch 5
+#define N_matrix 1152
+#define K_matrix 5120
+#define K_batch 8
 #elif MNKB_1_4
 #define M_matrix 16
-#define N_matrix 4096
-#define K_matrix 12800
-#define K_batch 5
+#define N_matrix 5120
+#define K_matrix 384
+#define K_batch 4
 #elif MNKB_2_8
 #define M_matrix 16
-#define N_matrix 4096
-#define K_matrix 12800
-#define K_batch 5
+#define N_matrix 1280
+#define K_matrix 5120
+#define K_batch 8
 #elif MNKB_3_5
 #define M_matrix 16
-#define N_matrix 4096
-#define K_matrix 12800
+#define N_matrix 5120
+#define K_matrix 1280
 #define K_batch 5
 #elif MNKB_4_5
 #define M_matrix 16

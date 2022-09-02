@@ -224,7 +224,7 @@ struct DeviceGemmXdlSplitKCShuffleSmallGemm
     using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
+    using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<1, 1, 1, 1,
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
         GemmAccDataType,
@@ -268,7 +268,7 @@ struct DeviceGemmXdlSplitKCShuffleSmallGemm
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>;
 
     // GridwiseGemm
-    using GridwiseGemmAtomicAdd = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
+    using GridwiseGemmAtomicAdd = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<1, 1, 1, 1,
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
         GemmAccDataType,

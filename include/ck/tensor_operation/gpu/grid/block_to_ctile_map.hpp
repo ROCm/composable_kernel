@@ -241,7 +241,7 @@ struct BlockToCTileMap_KSplit_M00_N0_M01Adapt
 
 // 2D slices of column-vectors in 3D space
 // This C-tile map dynamically adjusts M01 when C-tile index is out of range
-template <index_t MPerBlock, index_t NPerBlock, typename CGridDesc_M_N>
+template <index_t MPerBlock, index_t NPerBlock, typename CGridDesc_M_N, index_t K_batch>
 struct BlockToCTileMap_KSplit_M00_N0_M01Adapt_Static
 {
     static constexpr auto I0 = Number<0>{};

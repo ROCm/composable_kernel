@@ -56,15 +56,37 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdlSplitKCShu
             <Row,      Row,     Row,   F16,   F16,   F16,     F32,      F16,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        1,   256,    16,   128,    32,   8,   2,   16,   16,    1,    2,  S<1, 4, 16, 4>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              2,              2,         1,  S<1, 8, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              2,         8,           1,           2,              S<1, 4, 1, 64>,               2>;
 
 #else
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdlSplitKCShuffleStatic
-//######| ALayout| BLayout| CLayout| AData| BData| CData| AccData| CShuffle|           A|           B|           C|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
-//######|        |        |        |  Type|  Type|  Type|    Type| DataType| Elementwise| Elementwise| Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
-//######|        |        |        |      |      |      |        |         |   Operation|   Operation|   Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-//######|        |        |        |      |      |      |        |         |            |            |            |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
-            <Row,      Row,     Row,   F16,   F16,   F16,     F32,      F16,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        3,   256,    16,   128,    32,   8,   2,   16,   16,    1,    2,  S<1, 4, 16, 4>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              2,              2,         1,  S<1, 8, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              2,         8,           1,           2,              S<1, 4, 1, 64>,               2>;
+using DeviceGemmInstance_0 = ck::tensor_operation::device::DeviceGemmXdlSplitKCShuffleStatic
+//######|     M,    N,    K, K_batch| ALayout| BLayout| CLayout| AData| BData| CData| AccData| CShuffle|           A|           B|           C|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
+//######|     M,    N,    K, K_batch|        |        |        |  Type|  Type|  Type|    Type| DataType| Elementwise| Elementwise| Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
+//######|     M,    N,    K, K_batch|        |        |        |      |      |      |        |         |   Operation|   Operation|   Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
+//######|     M,    N,    K, K_batch|        |        |        |      |      |      |        |         |            |            |            |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
+            <16, 1152, 5120,       8, Row,      Row,     Row,   F16,   F16,   F16,     F32,      F16,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        3,   256,    16,   128,    32,   8,   2,   16,   16,    1,    2,  S<1, 4, 16, 4>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              2,              2,         1,  S<1, 8, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              2,         8,           1,           2,              S<1, 4, 1, 64>,               2>;
             //<Row,      Row,     Row,   F16,   F16,   F16,     F32,      F16,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        2,   256,    16,   256,    32,   8,   2,   16,   16,    1,    4,  S<1, 4, 16, 4>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              2,              2,         1,  S<1, 4, 64, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              2,         8,           1,           2,              S<1, 4, 1, 64>,               2>;
             //<Row,      Col,     Row,   F16,   F16,   F16,     F32,      F16,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        1,   256,    16,   128,    128,   8,   8,   16,   16,    1,    2,  S<1, 16, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,         1,  S<1, 16, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,              8,              8,         1,           1,           2,              S<1, 4, 1, 64>,               2>;
             //<Row,      Row,     Row,   F16,   F16,   F16,     F32,      F16,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        4,   256,    16,   128,    32,   8,   2,   16,   16,    1,    2,  S<1, 4, 16, 4>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              2,              2,         1,  S<1, 8, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              2,         8,           1,           2,              S<1, 4, 1, 64>,               2>;
+using DeviceGemmInstance_1 = ck::tensor_operation::device::DeviceGemmXdlSplitKCShuffleStatic
+//######|     M,    N,    K, K_batch| ALayout| BLayout| CLayout| AData| BData| CData| AccData| CShuffle|           A|           B|           C|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
+//######|     M,    N,    K, K_batch|        |        |        |  Type|  Type|  Type|    Type| DataType| Elementwise| Elementwise| Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
+//######|     M,    N,    K, K_batch|        |        |        |      |      |      |        |         |   Operation|   Operation|   Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
+//######|     M,    N,    K, K_batch|        |        |        |      |      |      |        |         |            |            |            |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
+            <16, 5120,  384,       4, Row,      Row,     Row,   F16,   F16,   F16,     F32,      F16,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        1,   256,    16,   128,    32,   8,   2,   16,   16,    1,    2,  S<1, 4, 16, 4>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              2,              2,         1,  S<1, 8, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              2,         8,           1,           2,              S<1, 4, 1, 64>,               2>;
+
+using DeviceGemmInstance_2 = ck::tensor_operation::device::DeviceGemmXdlSplitKCShuffleStatic
+//######|     M,    N,    K, K_batch| ALayout| BLayout| CLayout| AData| BData| CData| AccData| CShuffle|           A|           B|           C|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
+//######|     M,    N,    K, K_batch|        |        |        |  Type|  Type|  Type|    Type| DataType| Elementwise| Elementwise| Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
+//######|     M,    N,    K, K_batch|        |        |        |      |      |      |        |         |   Operation|   Operation|   Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
+//######|     M,    N,    K, K_batch|        |        |        |      |      |      |        |         |            |            |            |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
+            <16, 1280, 5120,       8, Row,      Row,     Row,   F16,   F16,   F16,     F32,      F16,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        3,   256,    16,   128,    32,   8,   2,   16,   16,    1,    2,  S<1, 4, 16, 4>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              2,              2,         1,  S<1, 8, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              2,         8,           1,           2,              S<1, 4, 1, 64>,               2>;
+
+using DeviceGemmInstance_3 = ck::tensor_operation::device::DeviceGemmXdlSplitKCShuffleStatic
+//######|     M,    N,    K, K_batch| ALayout| BLayout| CLayout| AData| BData| CData| AccData| CShuffle|           A|           B|           C|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
+//######|     M,    N,    K, K_batch|        |        |        |  Type|  Type|  Type|    Type| DataType| Elementwise| Elementwise| Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
+//######|     M,    N,    K, K_batch|        |        |        |      |      |      |        |         |   Operation|   Operation|   Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
+//######|     M,    N,    K, K_batch|        |        |        |      |      |      |        |         |            |            |            |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
+            <16, 5120, 1280,       5, Row,      Row,     Row,   F16,   F16,   F16,     F32,      F16,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,        3,   256,    16,   128,    32,   8,   2,   16,   16,    1,    2,  S<1, 4, 16, 4>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              2,              2,         1,  S<1, 8, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              2,         8,           1,           2,              S<1, 4, 1, 64>,               2>;
+
+
 #endif
 #else
 // clang-format off
@@ -186,55 +208,217 @@ int main(int argc, char* argv[])
     std::cout << "c device buf: " << c_m_n_device_buf.GetDeviceBuffer() << std::endl;
 
     // do GEMM
-    auto gemm     = DeviceGemmInstance{};
-    auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-                                      static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-                                      static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-                                      M,
-                                      N,
-                                      K,
-                                      StrideA,
-                                      StrideB,
-                                      StrideC,
-                                      a_element_op,
-                                      b_element_op,
-                                      c_element_op,
-                                      splitk);
-
-    if(!gemm.IsSupportedArgument(argument))
+    if(M == 16 && N == 1152 && K == 5120 && splitk == 8)
     {
-        std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
+        auto gemm = DeviceGemmInstance_0{};
+        auto invoker  = gemm.MakeInvoker();
+        auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+                                          static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+                                          static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+                                          M,
+                                          N,
+                                          K,
+                                          StrideA,
+                                          StrideB,
+                                          StrideC,
+                                          a_element_op,
+                                          b_element_op,
+                                          c_element_op,
+                                          splitk);
 
-        return 0;
+        if(!gemm.IsSupportedArgument(argument))
+        {
+            std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
+
+            return 0;
+        }
+
+        float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
+
+        std::size_t flop = std::size_t(2) * M * N * K;
+        std::size_t num_btype =
+            sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
+
+        float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+
+        float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+        std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+                  << gemm.GetTypeString() << std::endl;
+
+        c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
+
+        if(do_verification)
+        {
+            auto ref_gemm    = ReferenceGemmInstance{};
+            auto ref_invoker = ref_gemm.MakeInvoker();
+
+            auto ref_argument = ref_gemm.MakeArgument(
+                a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
+
+            ref_invoker.Run(ref_argument);
+
+            return ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData) ? 0 : 1;
+        }
     }
-
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
-
-    std::size_t flop = std::size_t(2) * M * N * K;
-    std::size_t num_btype =
-        sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
-
-    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
-    float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << gemm.GetTypeString() << std::endl;
-
-    c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
-
-    if(do_verification)
+    else if(M == 16 && N == 5120 && K == 384 && splitk == 4)
     {
-        auto ref_gemm    = ReferenceGemmInstance{};
-        auto ref_invoker = ref_gemm.MakeInvoker();
+        auto gemm = DeviceGemmInstance_1{};
+        auto invoker  = gemm.MakeInvoker();
+        auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+                                          static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+                                          static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+                                          M,
+                                          N,
+                                          K,
+                                          StrideA,
+                                          StrideB,
+                                          StrideC,
+                                          a_element_op,
+                                          b_element_op,
+                                          c_element_op,
+                                          splitk);
 
-        auto ref_argument = ref_gemm.MakeArgument(
-            a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
+        if(!gemm.IsSupportedArgument(argument))
+        {
+            std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
 
-        ref_invoker.Run(ref_argument);
+            return 0;
+        }
 
-        return ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData) ? 0 : 1;
+        float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
+
+        std::size_t flop = std::size_t(2) * M * N * K;
+        std::size_t num_btype =
+            sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
+
+        float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+
+        float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+        std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+                  << gemm.GetTypeString() << std::endl;
+
+        c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
+
+        if(do_verification)
+        {
+            auto ref_gemm    = ReferenceGemmInstance{};
+            auto ref_invoker = ref_gemm.MakeInvoker();
+
+            auto ref_argument = ref_gemm.MakeArgument(
+                a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
+
+            ref_invoker.Run(ref_argument);
+
+            return ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData) ? 0 : 1;
+        }
+    }
+    else if(M == 16 && N == 1280 && K == 5120 && splitk == 8)
+    {
+        auto gemm = DeviceGemmInstance_2{};
+        auto invoker  = gemm.MakeInvoker();
+        auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+                                          static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+                                          static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+                                          M,
+                                          N,
+                                          K,
+                                          StrideA,
+                                          StrideB,
+                                          StrideC,
+                                          a_element_op,
+                                          b_element_op,
+                                          c_element_op,
+                                          splitk);
+
+        if(!gemm.IsSupportedArgument(argument))
+        {
+            std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
+
+            return 0;
+        }
+
+        float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
+
+        std::size_t flop = std::size_t(2) * M * N * K;
+        std::size_t num_btype =
+            sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
+
+        float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+
+        float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+        std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+                  << gemm.GetTypeString() << std::endl;
+
+        c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
+
+        if(do_verification)
+        {
+            auto ref_gemm    = ReferenceGemmInstance{};
+            auto ref_invoker = ref_gemm.MakeInvoker();
+
+            auto ref_argument = ref_gemm.MakeArgument(
+                a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
+
+            ref_invoker.Run(ref_argument);
+
+            return ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData) ? 0 : 1;
+        }
+    }
+    else if(M == 16 && N == 5120 && K == 1280 && splitk == 5)
+    {
+        auto gemm = DeviceGemmInstance_3{};
+        auto invoker  = gemm.MakeInvoker();
+        auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+                                          static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+                                          static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+                                          M,
+                                          N,
+                                          K,
+                                          StrideA,
+                                          StrideB,
+                                          StrideC,
+                                          a_element_op,
+                                          b_element_op,
+                                          c_element_op,
+                                          splitk);
+
+        if(!gemm.IsSupportedArgument(argument))
+        {
+            std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
+
+            return 0;
+        }
+
+        float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
+
+        std::size_t flop = std::size_t(2) * M * N * K;
+        std::size_t num_btype =
+            sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
+
+        float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+
+        float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+        std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+                  << gemm.GetTypeString() << std::endl;
+
+        c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
+
+        if(do_verification)
+        {
+            auto ref_gemm    = ReferenceGemmInstance{};
+            auto ref_invoker = ref_gemm.MakeInvoker();
+
+            auto ref_argument = ref_gemm.MakeArgument(
+                a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
+
+            ref_invoker.Run(ref_argument);
+
+            return ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData) ? 0 : 1;
+        }
     }
 
     return 0;
