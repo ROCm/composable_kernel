@@ -20,18 +20,20 @@ struct DeviceBatchNormFwd : public BaseOperator
         const std::array<index_t, Rank> xyLengths,
         const std::array<index_t, Rank> xStrides,
         const std::array<index_t, Rank> yStrides,
+        const std::array<int, NumBatchNormReduceDim> reduceDims,
         const std::array<index_t, Rank - NumBatchNormReduceDim> bnScaleBiasMeanVarLengths,
-        const std::array<index_t, Rank - NumBatchNormReduceDim> bnScaleBiasMeanVarStrides,
+        const std::array<index_t, Rank - NumBatchNormReduceDim> bnScaleBiasStrides,
+        const std::array<index_t, Rank - NumBatchNormReduceDim> bnMeanVarStrides,
         const void* p_x,
         const void* bnScale,
         const void* bnBias,
+        double epsilon,
         void* p_y,
+        void* resultSaveMean,
+        void* resultSaveInvVariance,
         double exponentialAverageFactor,
         void* resultRunningMean,
-        void* resultRunningVariance,
-        double epsilon,
-        void* resultSaveMean,
-        void* resultSaveInvVariance) = 0;
+        void* resultRunningVariance) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
