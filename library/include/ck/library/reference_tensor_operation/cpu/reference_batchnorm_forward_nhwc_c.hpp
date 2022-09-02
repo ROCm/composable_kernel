@@ -91,14 +91,12 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
         float Run(const Argument& arg)
         {
             auto thread_reduce_func = [&](auto iC) {
-                AccDataType reduceSize = type_convert<AccDataType>(arg.n) *
-                                         type_convert<AccDataType>(arg.h) *
-                                         type_convert<AccDataType>(arg.w);
-                index_t offset_C       = iC;
-                AccDataType mean       = type_convert<AccDataType>(0.0f);
-                AccDataType meansquare = type_convert<AccDataType>(0.0f);
+                index_t offset_C     = iC;
+                AccDataType mean     = type_convert<AccDataType>(0.0f);
+                AccDataType variance = type_convert<AccDataType>(0.0f);
+                int32_t curr_count   = 0;
 
-                // compute mean, meanquare, variance, invVariance
+                // compute mean, variance using welford method
                 for(index_t iN = 0; iN < arg.n; iN++)
                 {
                     index_t offset_N = iN * arg.h * arg.w * arg.c;
@@ -111,18 +109,24 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
 
                             auto offset = offset_N + offset_H + offset_W + offset_C;
 
+                            curr_count++;
+
                             AccDataType x = type_convert<AccDataType>(arg.p_x_[offset]);
 
-                            mean += x;
-                            meansquare += x * x;
+                            AccDataType delta = x - mean;
+
+                            mean += delta / curr_count;
+
+                            AccDataType delta2 = x - mean;
+
+                            variance += delta * delta2;
                         };
                     }
                 };
 
-                mean       = mean / reduceSize;
-                meansquare = meansquare / reduceSize;
+                // actual variance
+                variance = variance / curr_count;
 
-                AccDataType variance = meansquare - mean * mean;
                 AccDataType invVariance =
                     type_convert<AccDataType>(1.0f) / std::sqrt(arg.epsilon_ + variance);
 
