@@ -20,5 +20,5 @@ python3 process_perf_data.py perf_conv_fwd_"$gpu_arch".log
 python3 process_perf_data.py perf_conv_bwd_data_"$gpu_arch".log
 python3 process_perf_data.py perf_gemm_bilinear_"$gpu_arch".log
 python3 process_perf_data.py perf_reduction_"$gpu_arch".log
-#python3 process_perf_data.py perf_splitK_gemm_"$gpu_arch".log
+python3 process_perf_data.py perf_splitK_gemm_"$gpu_arch".log
 python3 process_perf_data.py perf_onnx_gemm_"$gpu_arch".log
