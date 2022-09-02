@@ -31,7 +31,9 @@ __global__ void kernel_welford_second_half_batchnorm_forward_final(
     index_t num_xy_k_block_tile_iteration,
     index_t num_mean_var_count_k_block_tile_iteration,
     AccDataType epsilon,
-    const void* const __restrict__ p_workspace,
+    const MeanVarDataType* const __restrict__ p_in_welford_mean,
+    const MeanVarDataType* const __restrict__ p_in_welford_variance,
+    const int32_t* const __restrict__ p_in_welford_count,
     const XDataType* const __restrict__ p_x_global,
     const ScaleBiasDataType* const __restrict__ p_scale_global,
     const ScaleBiasDataType* const __restrict__ p_bias_global,
@@ -44,28 +46,6 @@ __global__ void kernel_welford_second_half_batchnorm_forward_final(
     MeanVarDataType* const __restrict__ resultSaveMean,
     MeanVarDataType* const __restrict__ resultSaveInvVariance)
 {
-    index_t count_space_sz = x_grid_desc_m_k.GetElementSize() * sizeof(int8_t);
-
-    count_space_sz = math::integer_least_multiple(count_space_sz, 64);
-
-    const MeanVarDataType* p_in_welford_mean = reinterpret_cast<const MeanVarDataType*>(
-        static_cast<const char*>(p_workspace) + count_space_sz);
-
-    index_t mean_space_sz = mean_var_count_grid_desc_m_k.GetElementSize() * sizeof(MeanVarDataType);
-
-    mean_space_sz = math::integer_least_multiple(mean_space_sz, 64);
-
-    const MeanVarDataType* p_in_welford_variance = reinterpret_cast<const MeanVarDataType*>(
-        reinterpret_cast<const char*>(p_in_welford_mean) + mean_space_sz);
-
-    index_t variance_space_sz =
-        mean_var_count_grid_desc_m_k.GetElementSize() * sizeof(MeanVarDataType);
-
-    variance_space_sz = math::integer_least_multiple(variance_space_sz, 64);
-
-    const int32_t* p_in_welford_count = reinterpret_cast<const int32_t*>(
-        reinterpret_cast<const char*>(p_in_welford_variance) + variance_space_sz);
-
     GridwiseWelfordSecondHalfBatchNormForwardFinal_::Run(x_grid_desc_m_k,
                                                          y_grid_desc_m_k,
                                                          mean_var_count_grid_desc_m_k,

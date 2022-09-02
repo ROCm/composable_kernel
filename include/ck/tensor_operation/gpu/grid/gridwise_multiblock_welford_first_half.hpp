@@ -23,32 +23,11 @@ kernel_multiblock_welford_first_half(const XGridDesc_M_K x_grid_desc_m_k,
                                      const MeanVarCountGridDesc_M_G mean_var_count_grid_desc_m_g,
                                      index_t num_k_block_tile_iteration,
                                      const XDataType* const __restrict__ p_x_global,
-                                     void* const __restrict__ p_workspace)
+                                     const int8_t* const p_initial_count,
+                                     MeanVarDataType* const p_welford_mean,
+                                     MeanVarDataType* const p_welford_variance,
+                                     int32_t* const p_welford_count)
 {
-    const int8_t* p_initial_count = static_cast<const int8_t*>(p_workspace);
-
-    index_t count_space_sz = x_grid_desc_m_k.GetElementSize() * sizeof(int8_t);
-
-    count_space_sz = math::integer_least_multiple(count_space_sz, 64);
-
-    MeanVarDataType* p_welford_mean =
-        reinterpret_cast<MeanVarDataType*>(reinterpret_cast<char*>(p_workspace) + count_space_sz);
-
-    index_t mean_space_sz = mean_var_count_grid_desc_m_g.GetElementSize() * sizeof(MeanVarDataType);
-
-    mean_space_sz = math::integer_least_multiple(mean_space_sz, 64);
-
-    MeanVarDataType* p_welford_variance =
-        reinterpret_cast<MeanVarDataType*>(reinterpret_cast<char*>(p_welford_mean) + mean_space_sz);
-
-    index_t variance_space_sz =
-        mean_var_count_grid_desc_m_g.GetElementSize() * sizeof(MeanVarDataType);
-
-    variance_space_sz = math::integer_least_multiple(variance_space_sz, 64);
-
-    int32_t* p_welford_count =
-        reinterpret_cast<int32_t*>(reinterpret_cast<char*>(p_welford_variance) + variance_space_sz);
-
     GridwiseMultiblockWelfordFirstHalf_::Run(x_grid_desc_m_k,
                                              mean_var_count_grid_desc_m_g,
                                              num_k_block_tile_iteration,
