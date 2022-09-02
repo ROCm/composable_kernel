@@ -1,0 +1,495 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
+
+#include "ck/utility/data_type.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_welford.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_welford.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+namespace ck {
+
+template <typename GridwiseBatchrNormForwardWithBlockwiseWelford_,
+          typename XDataType,
+          typename YDataType,
+          typename AccDataType,
+          typename ScaleBiasDataType,
+          typename MeanVarDataType,
+          typename XYGridDesc_M_K,
+          typename ScaleBiasGridDesc_M,
+          typename MeanVarGridDesc_M>
+__global__ void kernel_batchnorm_forward_with_blockwise_welford(
+    const XYGridDesc_M_K x_grid_desc_m_k,
+    const XYGridDesc_M_K y_grid_desc_m_k,
+    const ScaleBiasGridDesc_M scale_bias_grid_desc_m,
+    const MeanVarGridDesc_M mean_var_grid_desc_m,
+    index_t num_k_block_tile_iteration,
+    AccDataType epsilon,
+    const XDataType* const __restrict__ p_x_global,
+    const int8_t* const __restrict__ p_initial_count,
+    const ScaleBiasDataType* const __restrict__ p_scale_global,
+    const ScaleBiasDataType* const __restrict__ p_bias_global,
+    YDataType* const __restrict__ p_y_global,
+    bool updateMovingAverage,
+    AccDataType averageFactor,
+    MeanVarDataType* const __restrict__ resultRunningMean,
+    MeanVarDataType* const __restrict__ resultRunningVariance,
+    bool saveMeanInvVariance,
+    MeanVarDataType* const __restrict__ resultSaveMean,
+    MeanVarDataType* const __restrict__ resultSaveInvVariance)
+{
+    GridwiseBatchrNormForwardWithBlockwiseWelford_::Run(x_grid_desc_m_k,
+                                                        y_grid_desc_m_k,
+                                                        scale_bias_grid_desc_m,
+                                                        mean_var_grid_desc_m,
+                                                        num_k_block_tile_iteration,
+                                                        epsilon,
+                                                        p_x_global,
+                                                        p_initial_count,
+                                                        p_scale_global,
+                                                        p_bias_global,
+                                                        p_y_global,
+                                                        updateMovingAverage,
+                                                        averageFactor,
+                                                        resultRunningMean,
+                                                        resultRunningVariance,
+                                                        saveMeanInvVariance,
+                                                        resultSaveMean,
+                                                        resultSaveInvVariance);
+};
+
+template <typename XDataType,
+          typename YDataType,
+          typename AccDataType,
+          typename ScaleBiasDataType,
+          typename MeanVarDataType,
+          typename XYGridDesc_M_K,
+          typename ScaleBiasGridDesc_M,
+          typename MeanVarGridDesc_M,
+          index_t BlockSize,
+          index_t MThreadClusterSize,
+          index_t KThreadClusterSize,
+          index_t MThreadSliceSize,
+          index_t KThreadSliceSize,
+          index_t XSrcYDstVectorDim,
+          index_t XSrcVectorSize,
+          index_t YDstVectorSize,
+          index_t ScaleBiasSrcVectorSize,
+          index_t MeanVarSrcDstVectorSize>
+struct GridwiseBatchNormForwardWithBlockwiseWelford
+{
+    static_assert((XSrcYDstVectorDim == 0 && MThreadSliceSize % XSrcVectorSize == 0) ||
+                      (XSrcYDstVectorDim == 1 && KThreadSliceSize % XSrcVectorSize == 0),
+                  "Invalid thread slice sizes and/or vector sizes configuration, please check!");
+
+    static_assert((XSrcYDstVectorDim == 0 && MThreadSliceSize % YDstVectorSize == 0) ||
+                      (XSrcYDstVectorDim == 1 && KThreadSliceSize % YDstVectorSize == 0),
+                  "Invalid thread slice sizes and/or vector sizes configuration, please check!");
+
+    static constexpr bool reorder_thread_cluster = (XSrcYDstVectorDim == 0);
+
+    using ThreadClusterLengths_M_K = Sequence<MThreadClusterSize, KThreadClusterSize>;
+
+    using ThreadBufferDimAccessOrder =
+        typename conditional<reorder_thread_cluster, Sequence<1, 0>, Sequence<0, 1>>::type;
+
+    using ThreadClusterArrangeOrder =
+        typename conditional<reorder_thread_cluster, Sequence<1, 0>, Sequence<0, 1>>::type;
+
+    static constexpr auto thread_cluster_desc =
+        make_cluster_descriptor(ThreadClusterLengths_M_K{}, ThreadClusterArrangeOrder{});
+
+    using ThreadReduceSrcDesc_M_K = decltype(make_naive_tensor_descriptor_packed(
+        make_tuple(Number<MThreadSliceSize>{}, Number<KThreadSliceSize>{})));
+    using ThreadReduceDstDesc_M =
+        decltype(make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{})));
+
+    using ThreadwiseWelford =
+        ThreadwiseWelford<AccDataType, ThreadReduceSrcDesc_M_K, ThreadReduceDstDesc_M>;
+
+    using BlockwiseWelford = BlockwiseWelford<AccDataType,
+                                              BlockSize,
+                                              ThreadClusterLengths_M_K,
+                                              ThreadClusterArrangeOrder>;
+
+    using PassThroughOp = tensor_operation::element_wise::PassThrough;
+
+    static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
+
+    static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
+    static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
+
+    __device__ static void Run(const XYGridDesc_M_K& x_grid_desc_m_k,
+                               const XYGridDesc_M_K& y_grid_desc_m_k,
+                               const ScaleBiasGridDesc_M& scale_bias_grid_desc_m,
+                               const MeanVarGridDesc_M& mean_var_grid_desc_m,
+                               index_t num_k_block_tile_iteration,
+                               AccDataType epsilon,
+                               const XDataType* const __restrict__ p_x_global,
+                               const int8_t* const __restrict__ p_initial_count,
+                               const ScaleBiasDataType* const __restrict__ p_scale_global,
+                               const ScaleBiasDataType* const __restrict__ p_bias_global,
+                               YDataType* const __restrict__ p_y_global,
+                               bool updateMovingAverage,
+                               AccDataType averageFactor,
+                               MeanVarDataType* const __restrict__ resultRunningMean,
+                               MeanVarDataType* const __restrict__ resultRunningVariance,
+                               bool saveMeanInvVariance,
+                               MeanVarDataType* const __restrict__ resultSaveMean,
+                               MeanVarDataType* const __restrict__ resultSaveInvVariance)
+    {
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
+            x_thread_buf;
+
+        StaticBuffer<AddressSpaceEnum::Vgpr, int8_t, KThreadSliceSize, true>
+            initial_count_thread_buf;
+
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> scale_thread_buf;
+
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> bias_thread_buf;
+
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
+            y_thread_buf;
+
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> mean_thread_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> var_thread_buf;
+
+        const index_t thread_local_id = get_thread_local_1d_id();
+        const index_t block_global_id = get_block_1d_id();
+
+        const auto thread_cluster_idx =
+            thread_cluster_desc.CalculateBottomIndex(make_multi_index(thread_local_id));
+
+        const auto thread_m_cluster_id = thread_cluster_idx[I0];
+        const auto thread_k_cluster_id = thread_cluster_idx[I1];
+
+        using ThreadBufferLengths_M_K         = Sequence<MThreadSliceSize, KThreadSliceSize>;
+        using ThreadBufferLengths_M           = Sequence<MThreadSliceSize>;
+        using ThreadBufferLengths_1_K         = Sequence<1, KThreadSliceSize>;
+        constexpr auto thread_buffer_desc_m_k = make_naive_tensor_descriptor_packed(
+            make_tuple(Number<MThreadSliceSize>{}, Number<KThreadSliceSize>{}));
+        constexpr auto thread_buffer_desc_m =
+            make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{}));
+        constexpr auto thread_buffer_desc_1_k = make_naive_tensor_descriptor_packed(
+            make_tuple(Number<1>{}, Number<KThreadSliceSize>{}));
+
+        auto threadwise_x_load = ThreadwiseTensorSliceTransfer_v2<XDataType,
+                                                                  AccDataType,
+                                                                  XYGridDesc_M_K,
+                                                                  decltype(thread_buffer_desc_m_k),
+                                                                  ThreadBufferLengths_M_K,
+                                                                  ThreadBufferDimAccessOrder,
+                                                                  XSrcYDstVectorDim,
+                                                                  XSrcVectorSize,
+                                                                  1,
+                                                                  true>(
+            x_grid_desc_m_k,
+            make_multi_index(block_global_id * M_BlockTileSize +
+                                 thread_m_cluster_id * MThreadSliceSize,
+                             thread_k_cluster_id * KThreadSliceSize));
+
+        auto threadwise_y_store =
+            ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
+                                               YDataType,
+                                               decltype(thread_buffer_desc_m_k),
+                                               XYGridDesc_M_K,
+                                               PassThroughOp,
+                                               ThreadBufferLengths_M_K,
+                                               ThreadBufferDimAccessOrder,
+                                               XSrcYDstVectorDim,
+                                               YDstVectorSize,
+                                               InMemoryDataOperationEnum::Set,
+                                               1,
+                                               true>(
+                y_grid_desc_m_k,
+                make_multi_index(block_global_id * M_BlockTileSize +
+                                     thread_m_cluster_id * MThreadSliceSize,
+                                 thread_k_cluster_id * KThreadSliceSize),
+                PassThroughOp{});
+
+        auto threadwise_initial_count_load =
+            ThreadwiseTensorSliceTransfer_v2<int8_t,
+                                             int8_t,
+                                             XYGridDesc_M_K,
+                                             decltype(thread_buffer_desc_1_k),
+                                             ThreadBufferLengths_1_K,
+                                             ThreadBufferDimAccessOrder,
+                                             XSrcYDstVectorDim,
+                                             XSrcVectorSize,
+                                             1,
+                                             true>(
+                x_grid_desc_m_k,
+                make_multi_index(block_global_id * M_BlockTileSize +
+                                     thread_m_cluster_id * MThreadSliceSize,
+                                 thread_k_cluster_id * KThreadSliceSize));
+
+        auto threadwise_scale_bias_load =
+            ThreadwiseTensorSliceTransfer_v2<ScaleBiasDataType,
+                                             AccDataType,
+                                             ScaleBiasGridDesc_M,
+                                             decltype(thread_buffer_desc_m),
+                                             ThreadBufferLengths_M,
+                                             Sequence<0>,
+                                             0,
+                                             ScaleBiasSrcVectorSize,
+                                             1,
+                                             true>(
+                scale_bias_grid_desc_m,
+                make_multi_index(block_global_id * M_BlockTileSize +
+                                 thread_m_cluster_id * MThreadSliceSize));
+
+        // Copy x from Cache
+        // one pass: fwd, second pass: bwd
+        constexpr auto thread_copy_fwd_step_m_k = make_multi_index(0, K_BlockTileSize);
+        constexpr auto thread_copy_bwd_step_m_k = make_multi_index(0, -K_BlockTileSize);
+
+        const auto x_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_x_global, x_grid_desc_m_k.GetElementSpaceSize());
+
+        const auto initial_count_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_initial_count, x_grid_desc_m_k.GetElementSpaceSize());
+
+        const auto scale_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_scale_global, scale_bias_grid_desc_m.GetElementSpaceSize());
+
+        const auto bias_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_bias_global, scale_bias_grid_desc_m.GetElementSpaceSize());
+
+        auto y_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_y_global, y_grid_desc_m_k.GetElementSpaceSize());
+
+        auto threadwise_welford = ThreadwiseWelford();
+
+        static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
+            mean_thread_buf(I) = type_convert<AccDataType>(0.0f);
+            var_thread_buf(I)  = type_convert<AccDataType>(0.0f);
+        });
+
+        for(index_t reducedTiles = 0; reducedTiles < num_k_block_tile_iteration; ++reducedTiles)
+        {
+
+            threadwise_x_load.Run(x_grid_desc_m_k,
+                                  x_global_val_buf,
+                                  thread_buffer_desc_m_k,
+                                  make_tuple(I0, I0),
+                                  x_thread_buf);
+
+            threadwise_initial_count_load.Run(x_grid_desc_m_k,
+                                              initial_count_global_val_buf,
+                                              thread_buffer_desc_1_k,
+                                              make_tuple(I0, I0),
+                                              initial_count_thread_buf);
+
+            int8_t valid_count = 0;
+
+            static_for<0, KThreadSliceSize, 1>{}(
+                [&](auto I) { valid_count += initial_count_thread_buf[I]; });
+
+            threadwise_welford.max_count_ += valid_count;
+
+            threadwise_x_load.MoveSrcSliceWindow(x_grid_desc_m_k, thread_copy_fwd_step_m_k);
+            threadwise_initial_count_load.MoveSrcSliceWindow(x_grid_desc_m_k,
+                                                             thread_copy_fwd_step_m_k);
+            threadwise_welford.Run(x_thread_buf, mean_thread_buf, var_thread_buf);
+        }
+
+        static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
+            if constexpr(I > 0)
+                block_sync_lds();
+
+            int count = threadwise_welford.cur_count_;
+            BlockwiseWelford::Run(mean_thread_buf(I), var_thread_buf(I), count);
+        });
+
+        threadwise_scale_bias_load.Run(scale_bias_grid_desc_m,
+                                       scale_global_val_buf,
+                                       thread_buffer_desc_m,
+                                       make_tuple(I0),
+                                       scale_thread_buf);
+
+        threadwise_scale_bias_load.Run(scale_bias_grid_desc_m,
+                                       bias_global_val_buf,
+                                       thread_buffer_desc_m,
+                                       make_tuple(I0),
+                                       bias_thread_buf);
+
+        auto thread_copy_tail_m_k = (num_k_block_tile_iteration - 1) * thread_copy_fwd_step_m_k;
+
+        threadwise_x_load.MoveSrcSliceWindow(x_grid_desc_m_k, thread_copy_bwd_step_m_k);
+        threadwise_y_store.MoveDstSliceWindow(y_grid_desc_m_k, thread_copy_tail_m_k);
+
+        for(index_t reducedTiles = 0; reducedTiles < num_k_block_tile_iteration; ++reducedTiles)
+        {
+            threadwise_x_load.Run(x_grid_desc_m_k,
+                                  x_global_val_buf,
+                                  thread_buffer_desc_m_k,
+                                  make_tuple(I0, I0),
+                                  x_thread_buf);
+
+            static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
+                static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
+                    constexpr auto offset =
+                        thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK));
+
+                    // normalize
+                    y_thread_buf(Number<offset>{}) =
+                        (x_thread_buf(Number<offset>{}) - mean_thread_buf(iM)) /
+                        sqrt(var_thread_buf(iM) + epsilon);
+
+                    // gamma
+                    y_thread_buf(Number<offset>{}) =
+                        y_thread_buf(Number<offset>{}) * scale_thread_buf(Number<iM>{});
+                });
+            });
+
+            static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
+                static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
+                    constexpr auto offset =
+                        thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK));
+
+                    // beta
+                    y_thread_buf(Number<offset>{}) =
+                        y_thread_buf(Number<offset>{}) + bias_thread_buf(Number<iM>{});
+                });
+            });
+
+            threadwise_y_store.Run(thread_buffer_desc_m_k,
+                                   make_tuple(I0, I0),
+                                   y_thread_buf,
+                                   y_grid_desc_m_k,
+                                   y_global_val_buf);
+
+            threadwise_x_load.MoveSrcSliceWindow(x_grid_desc_m_k, thread_copy_bwd_step_m_k);
+            threadwise_y_store.MoveDstSliceWindow(y_grid_desc_m_k, thread_copy_bwd_step_m_k);
+        }
+
+        if(updateMovingAverage && thread_k_cluster_id == 0)
+        {
+            StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true>
+                running_mean_thread_buf;
+            StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true>
+                running_var_thread_buf;
+
+            auto running_mean_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+                resultRunningMean, mean_var_grid_desc_m.GetElementSpaceSize());
+
+            auto running_var_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+                resultRunningVariance, mean_var_grid_desc_m.GetElementSpaceSize());
+
+            auto threadwise_mean_var_load =
+                ThreadwiseTensorSliceTransfer_v2<MeanVarDataType,
+                                                 AccDataType,
+                                                 MeanVarGridDesc_M,
+                                                 decltype(thread_buffer_desc_m),
+                                                 ThreadBufferLengths_M,
+                                                 Sequence<0>,
+                                                 0,
+                                                 MeanVarSrcDstVectorSize,
+                                                 1,
+                                                 true>(
+                    mean_var_grid_desc_m,
+                    make_multi_index(block_global_id * M_BlockTileSize +
+                                     thread_m_cluster_id * MThreadSliceSize));
+
+            threadwise_mean_var_load.Run(mean_var_grid_desc_m,
+                                         running_mean_global_buf,
+                                         thread_buffer_desc_m,
+                                         make_tuple(I0),
+                                         running_mean_thread_buf);
+
+            threadwise_mean_var_load.Run(mean_var_grid_desc_m,
+                                         running_var_global_buf,
+                                         thread_buffer_desc_m,
+                                         make_tuple(I0),
+                                         running_var_thread_buf);
+
+            static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
+                running_mean_thread_buf(I) =
+                    running_mean_thread_buf[I] * (type_convert<AccDataType>(1.0) - averageFactor) +
+                    mean_thread_buf[I] * averageFactor;
+                running_var_thread_buf(I) =
+                    running_var_thread_buf[I] * (type_convert<AccDataType>(1.0) - averageFactor) +
+                    var_thread_buf[I] * averageFactor;
+            });
+
+            auto threadwise_mean_var_store =
+                ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
+                                                   MeanVarDataType,
+                                                   decltype(thread_buffer_desc_m),
+                                                   MeanVarGridDesc_M,
+                                                   PassThroughOp,
+                                                   ThreadBufferLengths_M,
+                                                   Sequence<0>,
+                                                   0,
+                                                   MeanVarSrcDstVectorSize,
+                                                   InMemoryDataOperationEnum::Set,
+                                                   1,
+                                                   true>(
+                    mean_var_grid_desc_m,
+                    make_multi_index(block_global_id * M_BlockTileSize +
+                                     thread_m_cluster_id * MThreadSliceSize),
+                    PassThroughOp{});
+
+            threadwise_mean_var_store.Run(thread_buffer_desc_m,
+                                          make_tuple(I0),
+                                          running_mean_thread_buf,
+                                          mean_var_grid_desc_m,
+                                          running_mean_global_buf);
+
+            threadwise_mean_var_store.Run(thread_buffer_desc_m,
+                                          make_tuple(I0),
+                                          running_var_thread_buf,
+                                          mean_var_grid_desc_m,
+                                          running_var_global_buf);
+        };
+
+        if(saveMeanInvVariance && thread_k_cluster_id == 0)
+        {
+            auto result_mean_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+                resultSaveMean, mean_var_grid_desc_m.GetElementSpaceSize());
+
+            auto result_inv_var_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+                resultSaveInvVariance, mean_var_grid_desc_m.GetElementSpaceSize());
+
+            static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
+                var_thread_buf(I) =
+                    type_convert<AccDataType>(1.0f) / sqrt(epsilon + var_thread_buf[I]);
+            });
+
+            auto threadwise_mean_inv_var_store =
+                ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
+                                                   MeanVarDataType,
+                                                   decltype(thread_buffer_desc_m),
+                                                   MeanVarGridDesc_M,
+                                                   PassThroughOp,
+                                                   ThreadBufferLengths_M,
+                                                   Sequence<0>,
+                                                   0,
+                                                   MeanVarSrcDstVectorSize,
+                                                   InMemoryDataOperationEnum::Set,
+                                                   1,
+                                                   true>(
+                    mean_var_grid_desc_m,
+                    make_multi_index(block_global_id * M_BlockTileSize +
+                                     thread_m_cluster_id * MThreadSliceSize),
+                    PassThroughOp{});
+
+            threadwise_mean_inv_var_store.Run(thread_buffer_desc_m,
+                                              make_tuple(I0),
+                                              mean_thread_buf,
+                                              mean_var_grid_desc_m,
+                                              result_mean_global_buf);
+
+            threadwise_mean_inv_var_store.Run(thread_buffer_desc_m,
+                                              make_tuple(I0),
+                                              var_thread_buf,
+                                              mean_var_grid_desc_m,
+                                              result_inv_var_global_buf);
+        };
+    }
+};
+
+} // namespace ck
