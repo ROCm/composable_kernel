@@ -28,7 +28,6 @@ Gemm + Gemm fused operation. Computes C_m_o = A_m_k * B0_k_n * B1_n_o
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using F16 = ck::half_t;
 using F32 = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
@@ -36,12 +35,12 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-using ADataType        = F16;
-using B0DataType       = F16;
-using B1DataType       = F16;
+using ADataType        = F32;
+using B0DataType       = F32;
+using B1DataType       = F32;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
-using CDataType        = F16;
+using CDataType        = F32;
 
 using ALayout  = Row;
 using B0Layout = Col;
@@ -77,12 +76,12 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmGemm_X
     256,
     128,         // MPerBlock
     128,         // NPerBlock
-    32,          // KPerBlock
+    16,          // KPerBlock
     128,         // Gemm1NPerBlock
-    32,          // Gemm1KPerBlock
-    8,           // AK1
-    8,           // BK1
-    2,           // B1K1
+    16,          // Gemm1KPerBlock
+    4,           // AK1
+    4,           // BK1
+    1,           // B1K1
     32,          // MPerXDL
     32,          // NPerXDL
     1,           // MXdlPerWave
@@ -92,27 +91,27 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmGemm_X
     S<1, 0, 2>,
     S<1, 0, 2>,
     2,
-    8,
-    8,
+    4,
+    4,
     true,
     S<4, 64, 1>, // BBlockTransfer
     S<1, 0, 2>,
     S<1, 0, 2>,
     2,
-    8,
-    8,
+    4,
+    4,
     true,
     S<8, 32, 1>, // B1BlockTransfer
     S<0, 2, 1>,
     S<0, 2, 1>,
     1,
     4,
-    2,
+    1,
     false,
-    1,              // CShuffleMXdlPerWavePerShuffle
-    2,              // CShuffleNXdlPerWavePerShuffle
-    S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-    8>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
+    1,               // CShuffleMXdlPerWavePerShuffle
+    2,               // CShuffleNXdlPerWavePerShuffle
+    S<1, 16, 1, 16>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+    4>;              // CShuffleBlockTransferScalarPerVector_NPerBlock
 
 using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
                                                                                 B0DataType,

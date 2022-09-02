@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
+#ifndef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+#error Should compile this file with ck::int4_t support
+#endif
+
 #include <cstdlib>
 #include <iostream>
 #include <numeric>
@@ -19,16 +23,20 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 
-using In0DataType       = ck::half_t;
-using Wei0DataType      = ck::half_t;
-using Acc0DataType      = float;
-using Wei1DataType      = ck::half_t;
-using Acc1DataType      = float;
-using C1ShuffleDataType = float;
-using Out1DataType      = ck::half_t;
+using In0DataType        = ck::int4_t;
+using Wei0DataType       = ck::int4_t;
+using KernelIn0DataType  = int8_t;
+using KernelWei0DataType = int8_t;
+using Acc0DataType       = int32_t;
+using Wei1DataType       = ck::int4_t;
+using KernelWei1DataType = int8_t;
+using Acc1DataType       = int32_t;
+using C1ShuffleDataType  = int32_t;
+using Out1DataType       = ck::int4_t;
+using KernelOut1DataType = int8_t;
 
 // This is used for reference code
-using Out0DataType = ck::half_t;
+using Out0DataType = ck::int4_t;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -46,31 +54,31 @@ static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecializa
 
 using DeviceBatchedGemmGemmInstance =
     ck::tensor_operation::device::DeviceBatchedGemmGemm_Xdl_CShuffle<
-        Row,               // ALayout
-        Col,               // B0Layout
-        Col,               // B1Layout
-        Row,               // CLayout
-        In0DataType,       // ADataType,
-        Wei0DataType,      // B0DataType,
-        Wei1DataType,      // B1DataType,
-        Out1DataType,      // CDataType,
-        Acc0DataType,      // AccDataType,
-        C1ShuffleDataType, // CShuffleDataType,
-        In0ElementOp,      // AElementOp,
-        Wei0ElementOp,     // B0ElementOp,
-        Out0ElementOp,     // Acc0ElementOp,
-        Wei1ElementOp,     // B1ElementOp,
-        Out1ElementOp,     // CElementOp,
+        Row,                // ALayout
+        Col,                // B0Layout
+        Col,                // B1Layout
+        Row,                // CLayout
+        KernelIn0DataType,  // ADataType,
+        KernelWei0DataType, // B0DataType,
+        KernelWei1DataType, // B1DataType,
+        KernelOut1DataType, // CDataType,
+        Acc0DataType,       // AccDataType,
+        C1ShuffleDataType,  // CShuffleDataType,
+        In0ElementOp,       // AElementOp,
+        Wei0ElementOp,      // B0ElementOp,
+        Out0ElementOp,      // Acc0ElementOp,
+        Wei1ElementOp,      // B1ElementOp,
+        Out1ElementOp,      // CElementOp,
         GemmDefault,
         1,
         256,
         128,         // MPerBlock
         128,         // NPerBlock
-        32,          // KPerBlock
+        64,          // KPerBlock
         128,         // Gemm1NPerBlock
-        32,          // Gemm1KPerBlock
-        8,           // AK1
-        8,           // BK1
+        64,          // Gemm1KPerBlock
+        16,          // AK1
+        16,          // BK1
         4,           // B1K1
         32,          // MPerXDL
         32,          // NPerXDL
@@ -81,15 +89,15 @@ using DeviceBatchedGemmGemmInstance =
         S<1, 0, 2>,
         S<1, 0, 2>,
         2,
-        8,
-        8,
+        16,
+        16,
         true,
         S<4, 64, 1>, // BBlockTransfer
         S<1, 0, 2>,
         S<1, 0, 2>,
         2,
-        8,
-        8,
+        16,
+        16,
         true,
         S<4, 64, 1>, // B1BlockTransfer
         S<1, 0, 2>,
@@ -103,6 +111,11 @@ using DeviceBatchedGemmGemmInstance =
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
 
+#define BUILD_INT4_EXAMPLE
 #include "run_grouped_conv_conv_fwd_example.inc"
+
+#if defined(BUILD_INT4_EXAMPLE) && defined(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
+static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
+#endif
 
 int main(int argc, char* argv[]) { return run_grouped_conv_conv_fwd_example(argc, argv) ? 0 : 1; }

@@ -28,20 +28,20 @@ Gemm + Gemm fused operation. Computes C_m_o = A_m_k * B0_k_n * B1_n_o
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using F16 = ck::half_t;
-using F32 = float;
+using BF16 = ck::bhalf_t;
+using F32  = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-using ADataType        = F16;
-using B0DataType       = F16;
-using B1DataType       = F16;
+using ADataType        = BF16;
+using B0DataType       = BF16;
+using B1DataType       = BF16;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
-using CDataType        = F16;
+using CDataType        = BF16;
 
 using ALayout  = Row;
 using B0Layout = Col;
