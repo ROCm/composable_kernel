@@ -38,7 +38,7 @@ void host_elementwise4D(HostTensorB& B_nhwc,
             for(std::size_t h = 0; h < shape_nchw[2]; ++h)
                 for(std::size_t w = 0; w < shape_nchw[3]; ++w)
                 {
-                    auto a_val  = A(n, c, h, w);
+                    auto a_val = A(n, c, h, w);
                     functor(B(n, h, w, c), a_val);
                 }
 }
