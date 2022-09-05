@@ -33,12 +33,12 @@ using DeviceInstance_fp32_e1024 = ck::tensor_operation::device::DeviceSparseEmbe
                                                                         AccDataType,
                                                                         OutType,
                                                                         256,        // BlockSize
-                                                                        256,        // DimClusterSize
-                                                                        1,          // RowClusterSize
+                                                                        1,          // DimClusterSize
+                                                                        256,        // RowClusterSize
                                                                         1,          // DimPerBlock
                                                                         1024,       // RowPerBlock
                                                                         1,          // DimThreadSize
-                                                                        4>          // RowVectorSize
+                                                                        4>;         // RowVectorSize
 
 using DeviceInstance_fp32_e768 = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<
                                                                         EmbType,
@@ -48,12 +48,12 @@ using DeviceInstance_fp32_e768 = ck::tensor_operation::device::DeviceSparseEmbed
                                                                         AccDataType,
                                                                         OutType,
                                                                         256,        // BlockSize
-                                                                        256,        // DimClusterSize
-                                                                        1,          // RowClusterSize
+                                                                        1,          // DimClusterSize
+                                                                        256,        // RowClusterSize
                                                                         1,          // DimPerBlock
                                                                         768,        // RowPerBlock
                                                                         1,          // DimThreadSize
-                                                                        1>          // RowVectorSize
+                                                                        1>;         // RowVectorSize
 
 template<typename emb_type, ck::index_t dim>
 struct emb_kernel{
@@ -69,15 +69,13 @@ struct emb_kernel<float, 1024>{
     using kernel_type = DeviceInstance_fp32_e1024;
 };
 
-
-
 int main()
 {
-    bool time_kernel = false;
+    bool time_kernel = true;
 
     constexpr auto num_rows = 65536;
     constexpr auto dims = ck::Sequence<768, 1024>{};
-    constexpr auto index_length = 32;
+    constexpr auto index_length = 64;
     constexpr AccDataType epsilon = 1e-4;
 
     auto f_host_tensor_desc_1d = [](std::size_t len_){
@@ -95,8 +93,8 @@ int main()
                                                                                                     AccDataType,
                                                                                                     OutType>;
 
-    static_for<0, dims.Size(), 1>{}([&](auto I){
-        constexpr auto current_dim = dims.At(Number<I>{});
+    ck::static_for<0, dims.Size(), 1>{}([&](auto I){
+        constexpr auto current_dim = dims.At(I);
         Tensor<EmbType> emb_a(f_host_tensor_desc_2d(num_rows, current_dim));
         Tensor<EmbType> emb_b(f_host_tensor_desc_2d(num_rows, current_dim));
         Tensor<EmbType> emb_c(f_host_tensor_desc_2d(num_rows, current_dim));
@@ -117,6 +115,9 @@ int main()
         index_a.GenerateTensorValue(GeneratorTensor_2<IndexType>{0, num_rows});
         index_b.GenerateTensorValue(GeneratorTensor_2<IndexType>{0, num_rows});
         index_c.GenerateTensorValue(GeneratorTensor_2<IndexType>{0, num_rows});
+
+        gamma.GenerateTensorValue(GeneratorTensor_3<GammaDataType>{0.0, 1.0});
+        beta.GenerateTensorValue(GeneratorTensor_3<BetaDataType>{0.0, 1.0});
 
         DeviceMem emb_a_dev(sizeof(EmbType) * emb_a.mDesc.GetElementSpaceSize());
         DeviceMem emb_b_dev(sizeof(EmbType) * emb_b.mDesc.GetElementSpaceSize());
@@ -142,7 +143,7 @@ int main()
         gamma_dev.ToDevice(gamma.mData.data());
         beta_dev.ToDevice(beta.mData.data());
 
-        auto device_instance = emb_kernel<EmbType, current_dim>{};
+        auto device_instance = typename emb_kernel<EmbType, current_dim>::kernel_type{};
         auto argument_ptr    = device_instance.MakeArgumentPointer(
                                     out_dev.GetDeviceBuffer(),
                                     emb_a_dev.GetDeviceBuffer(),
@@ -157,16 +158,20 @@ int main()
                                     current_dim,
                                     index_length,
                                     epsilon);
+        std::cout<< "Dim:" << current_dim << ", kernel:"<< device_instance.GetTypeString() << std::endl << std::flush;
 
-        if(!device_instance.IsSupportedArgument(argument_ptr.get()))
+        bool is_supported = device_instance.IsSupportedArgument(argument_ptr.get());
+
+        if(!is_supported)
         {
-            std::cout << "The runtime parameters are not supported" << std::endl;
-            return 1;
-        };
+            std::cout << "Runtime parameters are not supported" << std::endl;
+            return;
+        }
+
 
         auto invoker_ptr = device_instance.MakeInvokerPointer();
-        invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
-
+        // float time_ms = 1;
+        float time_ms = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
         // reference
         bool pass = true;
         {
@@ -182,8 +187,15 @@ int main()
 
             out_dev.FromDevice(out_from_dev.mData.data());
             pass &=
-                ck::utils::check_err(out_from_dev.mData, out.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
+                ck::utils::check_err(out_from_dev.mData, out.mData, "Error: Incorrect results", 1e-3, 1e-3);
         }
+
+        double total_read = current_dim * index_length * 3 * sizeof(EmbType) + current_dim * sizeof(GammaDataType) + current_dim * sizeof(BetaDataType);
+        double total_write = current_dim * index_length * sizeof(OutType);
+        double gbps = (total_read + total_write) / time_ms  / 1e6;
+
+        std::cout<<", total bytes:" << (total_read + total_write) << ", time:" << time_ms << ", gbps:" << gbps << ", valid:" << (pass ? "y" : "n") <<std::endl << std::flush;
+
     });
 
     return 0;

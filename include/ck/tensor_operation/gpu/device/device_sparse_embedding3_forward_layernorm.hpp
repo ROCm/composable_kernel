@@ -71,6 +71,7 @@ struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
         {
             grid_size_ = (IndexLength + DimClusterSize - 1) / DimClusterSize;
         }
+        
         OutType* p_out_;
         const EmbType* p_emb_a_;
         const EmbType* p_emb_b_;
@@ -89,30 +90,30 @@ struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
     };
 
     virtual std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(OutType * p_out,
-                        const EmbType* p_emb_a,
-                        const EmbType* p_emb_b,
-                        const EmbType* p_emb_c,
-                        const IndexType* p_index_a,
-                        const IndexType* p_index_b,
-                        const IndexType* p_index_c,
-                        const GammaDataType * p_gamma,
-                        const BetaDataType * p_beta,
+    MakeArgumentPointer(void * p_out,
+                        const void* p_emb_a,
+                        const void* p_emb_b,
+                        const void* p_emb_c,
+                        const void* p_index_a,
+                        const void* p_index_b,
+                        const void* p_index_c,
+                        const void * p_gamma,
+                        const void * p_beta,
                         ck::index_t NumRows,
                         ck::index_t EmbeddingDim,
                         ck::index_t IndexLength,
                         const AccDataType epsilon)
     {
-        std::make_unique<Argument>(
-                    p_out,
-                    p_emb_a,
-                    p_emb_b,
-                    p_emb_c,
-                    p_index_a,
-                    p_index_b,
-                    p_index_c,
-                    p_gamma,
-                    p_beta,
+        return std::make_unique<Argument>(
+                    reinterpret_cast<OutType*>(p_out),
+                    reinterpret_cast<const EmbType*>(p_emb_a),
+                    reinterpret_cast<const EmbType*>(p_emb_b),
+                    reinterpret_cast<const EmbType*>(p_emb_c),
+                    reinterpret_cast<const IndexType*>(p_index_a),
+                    reinterpret_cast<const IndexType*>(p_index_b),
+                    reinterpret_cast<const IndexType*>(p_index_c),
+                    reinterpret_cast<const GammaDataType*>(p_gamma),
+                    reinterpret_cast<const BetaDataType*>(p_beta),
                     NumRows,
                     EmbeddingDim,
                     IndexLength,
@@ -133,7 +134,7 @@ struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
                 DimPerBlock,
                 RowPerBlock,
                 DimThreadSize,
-                RowVectorSize>
+                RowVectorSize>;
 
     struct Invoker : public BaseInvoker
     {
@@ -152,7 +153,7 @@ struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
             float avg_time = 0;
             avg_time += launch_and_time_kernel(stream_config,
                                                kernel_main,
-                                               dim3(arg.gridSize_),
+                                               dim3(arg.grid_size_),
                                                dim3(BlockSize),
                                                0,
                                                arg.p_out_,
@@ -177,6 +178,17 @@ struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
         };
     };
 
+    static bool IsSupportedArgument(const Argument* p_arg)
+    {
+        std::cout << "RowPerBlock:" << RowPerBlock << ", EmbeddingDim:" << p_arg->EmbeddingDim_ << std::endl;
+        return RowPerBlock == p_arg->EmbeddingDim_;
+    }
+
+    bool IsSupportedArgument(const BaseArgument* p_arg) override
+    {
+        return IsSupportedArgument(dynamic_cast<const Argument*>(p_arg)); 
+    }
+
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() 
     {
         return std::make_unique<Invoker>();
@@ -189,7 +201,7 @@ struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
         // clang-format off
         str << "DeviceSparseEmbedding3ForwardLayernorm_"<< BlockSize << "_" <<
             DimClusterSize << "x" << RowClusterSize << "_" <<
-            DimPerBlock << "x" << RowPerBlock <<
+            DimPerBlock << "x" << RowPerBlock << "_" <<
             DimThreadSize << "x" << RowVectorSize;
         // clang-format on
 

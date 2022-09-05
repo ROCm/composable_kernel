@@ -39,6 +39,7 @@ struct ReferenceSparseEmbedding3ForwardLayernorm : public device::BaseOperator
                     ck::index_t EmbeddingDim,
                     ck::index_t IndexLength,
                     AccDataType epsilon):
+                            output_(output),
                             emb_a_(emb_a),
                             emb_b_(emb_b),
                             emb_c_(emb_c),
@@ -50,7 +51,7 @@ struct ReferenceSparseEmbedding3ForwardLayernorm : public device::BaseOperator
                             NumRows_(NumRows),
                             EmbeddingDim_(EmbeddingDim),
                             IndexLength_(IndexLength) {}
-        Tensor<OutType> output_;
+        Tensor<OutType> & output_;
         const Tensor<EmbType> emb_a_;
         const Tensor<EmbType> emb_b_;
         const Tensor<EmbType> emb_c_;
@@ -79,7 +80,7 @@ struct ReferenceSparseEmbedding3ForwardLayernorm : public device::BaseOperator
             Tensor<AccDataType> mean({L});
             Tensor<AccDataType> var({L});
 
-            accumulator.setZero();
+            accumulator.SetZero();
 
             // embedding
             for(auto idx = 0; idx < L; idx++){
@@ -94,7 +95,9 @@ struct ReferenceSparseEmbedding3ForwardLayernorm : public device::BaseOperator
 
                     accumulator(idx, d) += v_a + v_b + v_c;
                 }
-            }            
+            }
+
+            
 
             // layernorm
             for(auto idx = 0; idx < L; ++idx)
@@ -113,13 +116,19 @@ struct ReferenceSparseEmbedding3ForwardLayernorm : public device::BaseOperator
                 var(idx)  = (var(idx) / D) - (mean(idx) * mean(idx));
             }
 
+            // for(auto idx = 0; idx < L; idx++){
+            //     for(auto d = 0; d < D; d++){
+            //         std::cout<< "-> " << accumulator(idx, d) <<std::endl;
+            //     }
+            // }
+
             for(auto idx = 0; idx < L; ++idx)
             {
                 for(auto d = 0; d < D; ++d)
                 {
                     auto x_val       = accumulator(idx, d);
                     auto y_val       = (x_val - mean(idx)) / sqrt(var(idx) + arg.epsilon_);
-                    y_val            = (y_val * arg.gamma_n_(d)) + arg.beta_n_(d);
+                    y_val            = (y_val * arg.gamma_(d)) + arg.beta_(d);
                     arg.output_(idx, d) = ck::type_convert<OutType>(y_val);
                 }
             }
@@ -145,8 +154,7 @@ struct ReferenceSparseEmbedding3ForwardLayernorm : public device::BaseOperator
         return true;
     }
 
-    virtual std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(Tensor<OutType>& output,
+    static auto MakeArgument(Tensor<OutType>& output,
                         const Tensor<EmbType>& emb_a,
                         const Tensor<EmbType>& emb_b,
                         const Tensor<EmbType>& emb_c,
@@ -160,7 +168,7 @@ struct ReferenceSparseEmbedding3ForwardLayernorm : public device::BaseOperator
                         ck::index_t IndexLength,
                         AccDataType epsilon)
     {
-        std::make_unique<Argument>(
+        return Argument(
                     output,
                     emb_a,
                     emb_b,
