@@ -186,10 +186,12 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                 make_tuple(Sequence<1>{}, Sequence<0, 2>{}, Sequence<3>{}),
                 make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<1>{}));
 
+            const auto bias_gemmm_gemmn_grid_desc = make_naive_tensor_descriptor(make_tuple(N * Wo, C), make_tuple(I0, I1));
+
             return make_tuple(out_gemmm_gemmk_grid_desc,
                               wei_gemmn_gemmk_grid_desc,
                               in_gemmm_gemmn_grid_desc,
-                              in_gemmm_gemmn_grid_desc);
+                              bias_gemmm_gemmn_grid_desc);
         }
         else
         {
@@ -316,10 +318,12 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                 make_tuple(Sequence<0, 1>{}, Sequence<2>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
 
+            const auto bias_gemmm_gemmn_grid_desc = make_naive_tensor_descriptor(make_tuple(N * WTildeSlice, C), make_tuple(I0, I1));
+
             return make_tuple(out_gemmk0_gemmm_gemmk1_grid_desc,
                               wei_gemmk0_gemmn_gemmk1_grid_desc,
                               in_gemmm_gemmn_grid_desc,
-                              in_gemmm_gemmn_grid_desc);
+                              bias_gemmm_gemmn_grid_desc);
         }
 
     } // function end
@@ -410,10 +414,12 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                 make_tuple(Sequence<1>{}, Sequence<3>{}, Sequence<0, 2, 4>{}, Sequence<5>{}),
                 make_tuple(Sequence<>{}, Sequence<>{}, Sequence<0>{}, Sequence<1>{}));
 
+            const auto bias_gemmm_gemmn_grid_desc = make_naive_tensor_descriptor(make_tuple(N * Ho * Wo, C), make_tuple(I0, I1));
+
             return make_tuple(out_gemmk0_gemmm_gemmk1_grid_desc,
                               wei_gemmk0_gemmn_gemmk1_grid_desc,
                               in_gemmm_gemmn_grid_desc,
-                              in_gemmm_gemmn_grid_desc);
+                              bias_gemmm_gemmn_grid_desc);
         }
         else
         {
@@ -591,10 +597,13 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                 make_tuple(Sequence<0, 1, 2>{}, Sequence<3>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
 
+            // bias tensor
+            const auto bias_gemmm_gemmn_grid_desc = make_naive_tensor_descriptor(make_tuple(N * HTildeSlice * WTildeSlice, C), make_tuple(I0, I1));
+
             return make_tuple(out_gemmk0_gemmm_gemmk1_grid_desc,
                               wei_gemmk0_gemmn_gemmk1_grid_desc,
                               in_gemmm_gemmn_grid_desc,
-                              in_gemmm_gemmn_grid_desc);
+                              bias_gemmm_gemmn_grid_desc);
         }
 
     } // function end
@@ -705,10 +714,12 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                            Sequence<7>{}),
                 make_tuple(Sequence<>{}, Sequence<>{}, Sequence<>{}, Sequence<0>{}, Sequence<1>{}));
 
+            const auto bias_gemmm_gemmn_grid_desc = make_naive_tensor_descriptor(make_tuple(N * Do * Ho * Wo, C), make_tuple(I0, I1));
+
             return make_tuple(out_gemmk0_gemmm_gemmk1_grid_desc,
                               wei_gemmk0_gemmn_gemmk1_grid_desc,
                               in_gemmm_gemmn_grid_desc,
-                              in_gemmm_gemmn_grid_desc);
+                              bias_gemmm_gemmn_grid_desc);
         }
         else
         {
@@ -950,10 +961,12 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                 make_tuple(Sequence<0, 1, 2, 3>{}, Sequence<4>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
 
+            const auto bias_gemmm_gemmn_grid_desc = make_naive_tensor_descriptor(make_tuple(N * DTildeSlice * HTildeSlice * WTildeSlice, C), make_tuple(I0, I1));
+
             return make_tuple(out_gemmk0_gemmm_gemmk1_grid_desc,
                               wei_gemmk0_gemmn_gemmk1_grid_desc,
                               in_gemmm_gemmn_grid_desc,
-                              in_gemmm_gemmn_grid_desc);
+                              bias_gemmm_gemmn_grid_desc);
         }
 
     } // function end
@@ -1125,8 +1138,13 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
 
                 if(GridwiseGemm::CheckValidity(descs[I0], descs[I1], descs[I2], block_2_ctile_map))
                 {
-                    c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_.push_back(
-                        GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(descs[I2]));
+                    c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_.push_back(
+                        GridwiseGemm::MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
+                            descs[I2]));
+
+                    c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_.push_back(
+                        GridwiseGemm::MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
+                            descs[I3]));
 
                     block_2_ctile_map_container_.push_back(block_2_ctile_map);
                 }
@@ -1185,8 +1203,13 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                     if(GridwiseGemm::CheckValidity(
                            descs[I0], descs[I1], descs[I2], block_2_ctile_map))
                     {
-                        c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_.push_back(
-                            GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(descs[I2]));
+                        c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_.push_back(
+                            GridwiseGemm::MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
+                                descs[I2]));
+
+                        c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_.push_back(
+                            GridwiseGemm::MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
+                                descs[I3]));
 
                         block_2_ctile_map_container_.push_back(block_2_ctile_map);
                     }
@@ -1254,9 +1277,13 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                         if(GridwiseGemm::CheckValidity(
                                descs[I0], descs[I1], descs[I2], block_2_ctile_map))
                         {
-                            c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_.push_back(
-                                GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(
+                            c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_.push_back(
+                                GridwiseGemm::MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
                                     descs[I2]));
+
+                            c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_.push_back(
+                                GridwiseGemm::MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
+                                    descs[I3]));
 
                             block_2_ctile_map_container_.push_back(block_2_ctile_map);
                         }
@@ -1273,8 +1300,12 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
         std::vector<BGridDesc_K0_N_K1> b_grid_desc_k0_n_k1_container_;
         std::vector<CGridDesc_M_N> c_grid_desc_m_n_container_;
         std::vector<CGridDesc_M_N> c0_grid_desc_m_n_container_;
-        std::vector<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>
-            c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_;
+        std::vector<typename GridwiseGemm::
+            CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>
+                c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_;
+        std::vector<typename GridwiseGemm::
+            C0GridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>
+                c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_;
         std::vector<typename GridwiseGemm::DefaultBlock2CTileMap> block_2_ctile_map_container_;
         index_t M01_;
         index_t N01_;
@@ -1389,8 +1420,8 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                         arg.p_c0_grid_,
                         arg.a_grid_desc_k0_m_k1_container_[i],
                         arg.b_grid_desc_k0_n_k1_container_[i],
-                        arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i],
-                        arg.c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_,
+                        arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_[i],
+                        arg.c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_[i],
                         arg.a_element_op_,
                         arg.b_element_op_,
                         arg.c_element_op_,
@@ -1405,7 +1436,11 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                         remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
                         remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
                         remove_reference_t<
-                            typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                            typename GridwiseGemm::
+                                CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>,
+                        remove_reference_t<
+                            typename GridwiseGemm::
+                                C0GridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>,
                         OutElementwiseOperation,
                         WeiElementwiseOperation,
                         InElementwiseOperation,
@@ -1423,7 +1458,8 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                         arg.p_c_grid_,
                         arg.a_grid_desc_k0_m_k1_container_[i],
                         arg.b_grid_desc_k0_n_k1_container_[i],
-                        arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i],
+                        arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_[i],
+                        arg.c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_[i],
                         arg.a_element_op_,
                         arg.b_element_op_,
                         arg.c_element_op_,
@@ -1471,7 +1507,7 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
         }
 
         // vector store C matrix into global memory
-        if(!(arg.Conv_C_ % CThreadTransferDstScalarPerVector == 0))
+        if(!(arg.Conv_C_ % CBlockTransferScalarPerVector_NWaveNPerXdl == 0))
         {
             return false;
         }
@@ -1498,6 +1534,7 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
     static auto MakeArgument(InDataType* p_in_grid,
                              const WeiDataType* p_wei_grid,
                              const OutDataType* p_out_grid,
+                             const InDataType* p_bias_grid,
                              ck::index_t N,
                              ck::index_t K,
                              ck::index_t C,
@@ -1515,6 +1552,7 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
         return Argument{p_in_grid,
                         p_wei_grid,
                         p_out_grid,
+                        p_bias_grid,
                         N,
                         K,
                         C,
@@ -1538,6 +1576,7 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
     MakeArgumentPointer(void* p_in_grid,
                         const void* p_wei_grid,
                         const void* p_out_grid,
+                        const void* p_bias_grid,
                         ck::index_t N,
                         ck::index_t K,
                         ck::index_t C,
@@ -1555,6 +1594,7 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
         return std::make_unique<Argument>(static_cast<InDataType*>(p_in_grid),
                                           static_cast<const WeiDataType*>(p_wei_grid),
                                           static_cast<const OutDataType*>(p_out_grid),
+                                          static_cast<const InDataType*>(p_bias_grid),
                                           N,
                                           K,
                                           C,

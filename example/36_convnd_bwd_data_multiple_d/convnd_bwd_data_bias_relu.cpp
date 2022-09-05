@@ -3,20 +3,22 @@
 
 #include "convnd_bwd_data_bias_relu_common.hpp"
 
-#include "ck/tensor_operation/gpu/device/device_convnd_bwd_data_nwc_kxc_nwk_xdl.hpp"
+#include "ck/tensor_operation/gpu/device/device_convnd_bwd_data_bias_relu_nwc_kxc_nwk_xdl.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using InDataType  = ck::half_t;
-using WeiDataType = ck::half_t;
-using OutDataType = ck::half_t;
-using AccDataType = float;
+using InDataType       = ck::half_t;
+using WeiDataType      = ck::half_t;
+using OutDataType      = ck::half_t;
+using DDataType        = ck::half_t;
+using CShuffleDataType = ck::half_t;
+using AccDataType      = float;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
+using InElementOp  = ck::tensor_operation::element_wise::AddRelu;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 
@@ -24,41 +26,45 @@ static constexpr auto ConvBwdDefault =
     ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::Default;
 
 template <ck::index_t NDimSpatial>
-using DeviceConvNdBwdDataInstance = ck::tensor_operation::device::DeviceConvNdBwdDataNwcKxcNwk_Xdl<
-    NDimSpatial,    // NDimSpatial
-    InDataType,     // InDataType
-    WeiDataType,    // WeiDataType
-    OutDataType,    // OutDataType
-    AccDataType,    // AccDataType
-    InElementOp,    // InElementwiseOperation
-    WeiElementOp,   // WeiElementwiseOperation
-    OutElementOp,   // OutElementwiseOperation
-    ConvBwdDefault, // ConvolutionBackwardDataSpecialization
-    256,            // BlockSize
-    128,            // MPerBlock
-    128,            // NPerBlock
-    4,              // K0PerBlock
-    8,              // K1
-    32,             // MPerXdl
-    32,             // NPerXdl
-    2,              // MXdlPerWave
-    2,              // NXdlPerWave
-    S<4, 64, 1>,    // ABlockTransferThreadClusterLengths_K0_M_K1
-    S<1, 0, 2>,     // ABlockTransferThreadClusterArrangeOrder
-    S<1, 0, 2>,     // ABlockTransferSrcAccessOrder
-    2,              // ABlockTransferSrcVectorDim
-    8,              // ABlockTransferSrcScalarPerVector
-    8,              // ABlockTransferDstScalarPerVector_K1
-    true,           // ABlockLdsAddExtraM
-    S<4, 64, 1>,    // BBlockTransferThreadClusterLengths_K0_N_K1
-    S<2, 0, 1>,     // BBlockTransferThreadClusterArrangeOrder
-    S<0, 2, 1>,     // BBlockTransferSrcAccessOrder
-    1,              // BBlockTransferSrcVectorDim
-    2,              // BBlockTransferSrcScalarPerVector
-    8,              // BBlockTransferDstScalarPerVector_K1
-    true,           // BBlockLdsAddExtraN
-    7,
-    1>; // GemmCThreadTransferDstScalarPerVector
+using DeviceConvNdBwdDataInstance = ck::tensor_operation::device::DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl<
+    NDimSpatial,      // NDimSpatial
+    InDataType,       // InDataType
+    WeiDataType,      // WeiDataType
+    OutDataType,      // OutDataType
+    AccDataType,      // AccDataType
+    CShuffleDataType, // CShuffleDataType
+    DDataType,        // BiasDataType
+    InElementOp,      // InElementwiseOperation
+    WeiElementOp,     // WeiElementwiseOperation
+    OutElementOp,     // OutElementwiseOperation
+    ConvBwdDefault,   // ConvolutionBackwardDataSpecialization
+    256,              // BlockSize
+    128,              // MPerBlock
+    128,              // NPerBlock
+    4,                // K0PerBlock
+    8,                // K1
+    32,               // MPerXdl
+    32,               // NPerXdl
+    2,                // MXdlPerWave
+    2,                // NXdlPerWave
+    S<4, 64, 1>,      // ABlockTransferThreadClusterLengths_K0_M_K1
+    S<1, 0, 2>,       // ABlockTransferThreadClusterArrangeOrder
+    S<1, 0, 2>,       // ABlockTransferSrcAccessOrder
+    2,                // ABlockTransferSrcVectorDim
+    8,                // ABlockTransferSrcScalarPerVector
+    8,                // ABlockTransferDstScalarPerVector_K1
+    true,             // ABlockLdsAddExtraM
+    S<4, 64, 1>,      // BBlockTransferThreadClusterLengths_K0_N_K1
+    S<2, 0, 1>,       // BBlockTransferThreadClusterArrangeOrder
+    S<0, 2, 1>,       // BBlockTransferSrcAccessOrder
+    1,                // BBlockTransferSrcVectorDim
+    2,                // BBlockTransferSrcScalarPerVector
+    8,                // BBlockTransferDstScalarPerVector_K1
+    true,             // BBlockLdsAddExtraN
+    1,                // CShuffleMXdlPerWavePerShuffle
+    1,                // CShuffleNXdlPerWavePerShuffle
+    S<1, 1, 32, 1, 1, 8>, 
+    8>;               // CBlockTransferScalarPerVector_NWaveNPerXdl
 
 int main(int argc, char* argv[])
 {
@@ -115,7 +121,11 @@ int main(int argc, char* argv[])
             ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
                 conv_param);
 
-        return run_conv_bwd_data<1,
+        // bias: assume contiguous 1d vector
+        Tensor<OutDataType> bias_c_desc(
+            HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(conv_param.C_)})));
+
+        return run_conv_bwd_data_bias_relu<1,
                                  InDataType,
                                  WeiDataType,
                                  OutDataType,
@@ -129,6 +139,7 @@ int main(int argc, char* argv[])
                                                                  in_g_n_c_wis_desc,
                                                                  wei_g_k_c_xs_desc,
                                                                  out_g_n_k_wos_desc,
+                                                                 bias_c_desc,
                                                                  in_element_op,
                                                                  wei_element_op,
                                                                  out_element_op);
@@ -151,6 +162,9 @@ int main(int argc, char* argv[])
             ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
                 conv_param);
 
+        Tensor<OutDataType> bias_c_desc(
+            HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(conv_param.C_)})));
+
         return run_conv_bwd_data<2,
                                  InDataType,
                                  WeiDataType,
@@ -165,6 +179,7 @@ int main(int argc, char* argv[])
                                                                  in_g_n_c_wis_desc,
                                                                  wei_g_k_c_xs_desc,
                                                                  out_g_n_k_wos_desc,
+                                                                 bias_c_desc,
                                                                  in_element_op,
                                                                  wei_element_op,
                                                                  out_element_op);
@@ -187,6 +202,9 @@ int main(int argc, char* argv[])
             ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
                 conv_param);
 
+        Tensor<OutDataType> bias_c_desc(
+            HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(conv_param.C_)})));
+
         return run_conv_bwd_data<3,
                                  InDataType,
                                  WeiDataType,
@@ -201,6 +219,7 @@ int main(int argc, char* argv[])
                                                                  in_g_n_c_wis_desc,
                                                                  wei_g_k_c_xs_desc,
                                                                  out_g_n_k_wos_desc,
+                                                                 bias_c_desc,
                                                                  in_element_op,
                                                                  wei_element_op,
                                                                  out_element_op);

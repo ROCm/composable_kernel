@@ -16,7 +16,7 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_data.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_data_bias_activation.hpp"
 
 #if 0
 using BF16 = ck::bhalf_t;
@@ -93,14 +93,15 @@ template <ck::index_t NDimSpatial,
           typename InElementOp,
           typename WeiElementOp,
           typename OutElementOp,
-          typename DeviceConvNdBwdDataInstance>
-int run_conv_bwd_data(bool do_verification,
+          typename DeviceConvNdBwdDataBiasReluInstance>
+int run_conv_bwd_data_bias_relu(bool do_verification,
                       int init_method,
                       bool time_kernel,
                       const ck::utils::conv::ConvParam& conv_param,
                       const HostTensorDescriptor& in_g_n_c_wis_desc,
                       const HostTensorDescriptor& wei_g_k_c_xs_desc,
                       const HostTensorDescriptor& out_g_n_k_wos_desc,
+                      const HostTensorDescriptor& bias_c_desc,
                       const InElementOp& in_element_op,
                       const WeiElementOp& wei_element_op,
                       const OutElementOp& out_element_op)
@@ -109,10 +110,12 @@ int run_conv_bwd_data(bool do_verification,
     Tensor<InDataType> in_device(in_g_n_c_wis_desc);
     Tensor<WeiDataType> wei(wei_g_k_c_xs_desc);
     Tensor<OutDataType> out(out_g_n_k_wos_desc);
+    Tensor<InDataType> bias(bias_c_desc);
 
     std::cout << "in: " << in_host.mDesc << std::endl;
     std::cout << "wei: " << wei.mDesc << std::endl;
     std::cout << "out: " << out.mDesc << std::endl;
+    std::cout << "bias: " << bias.mDesc << std::endl;
 
     switch(init_method)
     {
@@ -129,19 +132,22 @@ int run_conv_bwd_data(bool do_verification,
     DeviceMem in_device_buf(sizeof(InDataType) * in_device.mDesc.GetElementSpaceSize());
     DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
     DeviceMem out_device_buf(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
+    DeviceMem bias_device_buf(sizeof(InDataType) * bias.mDesc.GetElementSpaceSize());
 
     out_device_buf.ToDevice(out.mData.data());
     wei_device_buf.ToDevice(wei.mData.data());
+    bias_device_buf.ToDevice(bias.mData.data());
 
     // reset input to zero
     in_device_buf.SetZero();
 
     // do GEMM
-    auto conv     = DeviceConvNdBwdDataInstance{};
+    auto conv     = DeviceConvNdBwdDataBiasReluInstance{};
     auto invoker  = conv.MakeInvoker();
     auto argument = conv.MakeArgument(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
                                       static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
                                       static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
+                                      static_cast<InDataType*>(bias_device_buf.GetDeviceBuffer()),
                                       conv_param.N_,
                                       conv_param.K_,
                                       conv_param.C_,
@@ -177,7 +183,7 @@ int run_conv_bwd_data(bool do_verification,
 
     if(do_verification)
     {
-        auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<NDimSpatial,
+        auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdDataBiasActivation<NDimSpatial,
                                                                          InDataType,
                                                                          WeiDataType,
                                                                          OutDataType,
@@ -190,6 +196,7 @@ int run_conv_bwd_data(bool do_verification,
         auto ref_argument = ref_conv.MakeArgument(in_host,
                                                   wei,
                                                   out,
+                                                  bias,
                                                   conv_param.conv_filter_strides_,
                                                   conv_param.conv_filter_dilations_,
                                                   conv_param.input_left_pads_,
