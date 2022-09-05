@@ -188,8 +188,8 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
 
             const auto bias_gemmm_gemmn_grid_desc = make_naive_tensor_descriptor(make_tuple(N * Wo, C), make_tuple(I0, I1));
 
-            return make_tuple(out_gemmm_gemmk_grid_desc,
-                              wei_gemmn_gemmk_grid_desc,
+            return make_tuple(out_gemmk0_gemmm_gemmk1_grid_desc,
+                              wei_gemmk0_gemmn_gemmk1_grid_desc,
                               in_gemmm_gemmn_grid_desc,
                               bias_gemmm_gemmn_grid_desc);
         }
@@ -1013,7 +1013,7 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
         BlockSize,
         ABDataType, // TODO: distinguish A/B datatype
         AccDataType,
-        CDataType,
+        EDataType,
         InMemoryDataOperationEnum::Set,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
@@ -1070,7 +1070,7 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                  std::vector<ck::index_t> input_right_pads,
                  ck::index_t M01,
                  ck::index_t N01,
-                 InElementwiseOperation in_element_op,
+                 CDEElementwiseOp in_element_op,
                  WeiElementwiseOperation wei_element_op,
                  OutElementwiseOperation out_element_op)
             : p_a_grid_{p_out_grid},
@@ -1294,12 +1294,12 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
 
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
-        CDataType* p_c_grid_;
-        const CDataType* p_c0_grid_;
+        EDataType* p_c_grid_;
+        const EDataType* p_c0_grid_;
         std::vector<AGridDesc_K0_M_K1> a_grid_desc_k0_m_k1_container_;
         std::vector<BGridDesc_K0_N_K1> b_grid_desc_k0_n_k1_container_;
         std::vector<CGridDesc_M_N> c_grid_desc_m_n_container_;
-        std::vector<CGridDesc_M_N> c0_grid_desc_m_n_container_;
+        std::vector<DsGridDesc_M_N> c0_grid_desc_m_n_container_;
         std::vector<typename GridwiseGemm::
             CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>
                 c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_;
@@ -1311,7 +1311,7 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
         index_t N01_;
         OutElementwiseOperation a_element_op_;
         WeiElementwiseOperation b_element_op_;
-        InElementwiseOperation c_element_op_;
+        CDEElementwiseOp c_element_op_;
         // for checking IsSupportedArgument()
         index_t Conv_N_;
         index_t Conv_K_;
@@ -1337,6 +1337,7 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
             for(size_t i = 0; i < arg.a_grid_desc_k0_m_k1_container_.size(); i++)
             {
                 {
+#if 0
                     std::cout << "arg.a_grid_desc_k0_m_k1_container_{"
                               << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I0) << ", "
                               << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I1) << ", "
@@ -1371,6 +1372,8 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                               << ", "
                               << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I7)
                               << " ) " << std::endl;
+
+#endif
                 }
 
                 if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
@@ -1393,7 +1396,7 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                     const auto kernel = kernel_gemm_xdlops_v3r2<
                         GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
-                        CDataType,
+                        EDataType,
                         remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
                         remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
                         remove_reference_t<
@@ -1404,7 +1407,7 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                                 C0GridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>,
                         OutElementwiseOperation,
                         WeiElementwiseOperation,
-                        InElementwiseOperation,
+                        CDEElementwiseOp,
                         remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                         true>;
 
@@ -1432,7 +1435,7 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                     const auto kernel = kernel_gemm_xdlops_v3r2<
                         GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
-                        CDataType,
+                        EDataType,
                         remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
                         remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
                         remove_reference_t<
@@ -1443,7 +1446,7 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                                 C0GridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>,
                         OutElementwiseOperation,
                         WeiElementwiseOperation,
-                        InElementwiseOperation,
+                        CDEElementwiseOp,
                         remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                         false>;
 
@@ -1456,6 +1459,7 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                         arg.p_a_grid_,
                         arg.p_b_grid_,
                         arg.p_c_grid_,
+                        arg.p_c0_grid_,
                         arg.a_grid_desc_k0_m_k1_container_[i],
                         arg.b_grid_desc_k0_n_k1_container_[i],
                         arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_[i],
@@ -1545,7 +1549,7 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                              std::vector<ck::index_t> conv_filter_dilations,
                              std::vector<ck::index_t> input_left_pads,
                              std::vector<ck::index_t> input_right_pads,
-                             InElementwiseOperation in_element_op,
+                             CDEElementwiseOp in_element_op,
                              WeiElementwiseOperation wei_element_op,
                              OutElementwiseOperation out_element_op)
     {
@@ -1587,7 +1591,7 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                         std::vector<ck::index_t> conv_filter_dilations,
                         std::vector<ck::index_t> input_left_pads,
                         std::vector<ck::index_t> input_right_pads,
-                        InElementwiseOperation in_element_op,
+                        CDEElementwiseOp in_element_op,
                         WeiElementwiseOperation wei_element_op,
                         OutElementwiseOperation out_element_op) override
     {

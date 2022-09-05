@@ -63,6 +63,7 @@ struct DeviceConvBwdDataMultipleD : public BaseOperator
     MakeArgumentPointer(void* p_in,
                         const void* p_wei,
                         const void* p_out,
+                        const void* p_bias,
                         ck::index_t N,
                         ck::index_t K,
                         ck::index_t C,
@@ -73,7 +74,7 @@ struct DeviceConvBwdDataMultipleD : public BaseOperator
                         std::vector<ck::index_t> conv_filter_dilations,
                         std::vector<ck::index_t> input_left_pads,
                         std::vector<ck::index_t> input_right_pads,
-                        InElementwiseOperation in_element_op,
+                        DsElementwiseOperation in_element_op,
                         WeiElementwiseOperation wei_element_op,
                         OutElementwiseOperation out_element_op) = 0;
 

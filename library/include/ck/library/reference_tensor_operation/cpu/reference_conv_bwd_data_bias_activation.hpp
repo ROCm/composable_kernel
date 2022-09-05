@@ -129,7 +129,7 @@ struct ReferenceConvBwdDataBiasActivation : public device::BaseOperator
 
                     arg.in_element_op_(v_in, v_acc, static_cast<float>(arg.bias_(c)));
 
-                    arg.input_(g, n, c, wi) = ck::type_convert<InDataType>(v_acc);
+                    arg.input_(g, n, c, wi) = ck::type_convert<InDataType>(v_in);
                 };
 
                 make_ParallelTensorFunctor(f_ncw,
@@ -205,7 +205,7 @@ struct ReferenceConvBwdDataBiasActivation : public device::BaseOperator
 
                     arg.in_element_op_(v_in, v_acc, static_cast<float>(arg.bias_(c)));
 
-                    arg.input_(g, n, c, hi, wi) = ck::type_convert<InDataType>(v_acc);
+                    arg.input_(g, n, c, hi, wi) = ck::type_convert<InDataType>(v_in);
                 };
 
                 make_ParallelTensorFunctor(f_nchw,
@@ -303,7 +303,7 @@ struct ReferenceConvBwdDataBiasActivation : public device::BaseOperator
 
                     arg.in_element_op_(v_in, v_acc, static_cast<float>(arg.bias_(c)));
 
-                    arg.input_(g, n, c, di, hi, wi) = ck::type_convert<InDataType>(v_acc);
+                    arg.input_(g, n, c, di, hi, wi) = ck::type_convert<InDataType>(v_in);
                 };
 
                 make_ParallelTensorFunctor(f_ncdhw,

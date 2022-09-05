@@ -103,6 +103,10 @@ int main(int argc, char* argv[])
     const auto wei_element_op = WeiElementOp{};
     const auto out_element_op = OutElementOp{};
 
+    // bias: assume contiguous 1d vector
+    auto bias_c_desc = 
+        HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(conv_param.C_)}));
+
     if(conv_param.num_dim_spatial_ == 1)
     {
         using InLayout  = ctc::GNWC;
@@ -120,10 +124,6 @@ int main(int argc, char* argv[])
         const auto out_g_n_k_wos_desc =
             ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
                 conv_param);
-
-        // bias: assume contiguous 1d vector
-        Tensor<OutDataType> bias_c_desc(
-            HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(conv_param.C_)})));
 
         return run_conv_bwd_data_bias_relu<1,
                                  InDataType,
@@ -162,10 +162,7 @@ int main(int argc, char* argv[])
             ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
                 conv_param);
 
-        Tensor<OutDataType> bias_c_desc(
-            HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(conv_param.C_)})));
-
-        return run_conv_bwd_data<2,
+        return run_conv_bwd_data_bias_relu<2,
                                  InDataType,
                                  WeiDataType,
                                  OutDataType,
@@ -202,10 +199,7 @@ int main(int argc, char* argv[])
             ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
                 conv_param);
 
-        Tensor<OutDataType> bias_c_desc(
-            HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(conv_param.C_)})));
-
-        return run_conv_bwd_data<3,
+        return run_conv_bwd_data_bias_relu<3,
                                  InDataType,
                                  WeiDataType,
                                  OutDataType,
