@@ -3,64 +3,40 @@
 
 #pragma once
 
-#include "ck/utility/get_id.hpp"
-#include "ck/utility/data_type.hpp"
-#include "ck/utility/reduction_common.hpp"
-#include "ck/utility/reduction_operator.hpp"
-#include "ck/utility/reduction_functions_accumulate.hpp"
+#include "ck/utility/common_header.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_welford.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 namespace ck {
 
-template <typename EmbType,
+template <typename GridwiseSparseEmbedding,
+          typename EmbType,
           typename IndexType,
           typename GammaDataType,
           typename BetaDataType,
           typename AccDataType,
           typename OutType,
-          typename OutGridDesc,
-          ck::index_t BlockSize,
-          ck::index_t DimClusterSize,
-          ck::index_t RowClusterSize,
-          ck::index_t DimPerBlock,
-          ck::index_t RowPerBlock,
-          ck::index_t DimThreadSize,
-          ck::index_t RowVectorSize
+          typename OutGridDesc
           >
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
     __global__ void kernel_sparse_embedding3_forward_layernorm(
                     OutType * p_out,
-        const EmbType* p_emb_a,
-        const EmbType* p_emb_b,
-        const EmbType* p_emb_c,
-        const IndexType* p_index_a,
-        const IndexType* p_index_b,
-        const IndexType* p_index_c,
-        const GammaDataType* p_gamma,
-        const BetaDataType* p_beta,
-        const OutGridDesc out_grid_desc,
-        const AccDataType epsilon
+                    const EmbType* p_emb_a,
+                    const EmbType* p_emb_b,
+                    const EmbType* p_emb_c,
+                    const IndexType* p_index_a,
+                    const IndexType* p_index_b,
+                    const IndexType* p_index_c,
+                    const GammaDataType* p_gamma,
+                    const BetaDataType* p_beta,
+                    const OutGridDesc out_grid_desc,
+                    const AccDataType epsilon
                 )
     {
-        GridwiseSparseEmbedding3ForwardLayernorm<
-                EmbType,
-                IndexType,
-                GammaDataType,
-                BetaDataType,
-                AccDataType,
-                OutType,
-                OutGridDesc,
-                BlockSize,
-                DimClusterSize,
-                RowClusterSize,
-                DimPerBlock,
-                RowPerBlock,
-                DimThreadSize,
-                RowVectorSize>::Run(
+        GridwiseSparseEmbedding::Run(
             p_out,
             p_emb_a,
             p_emb_b,
@@ -104,12 +80,12 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
     static_assert(DimPerBlock % (DimClusterSize * DimThreadSize) == 0, "");
     static_assert(RowPerBlock % (RowClusterSize * RowVectorSize) == 0, "");
 
-    constexpr auto DimSubBlocks = DimPerBlock / (DimClusterSize * DimThreadSize);
-    constexpr auto RowSubBlocks = RowPerBlock / (RowClusterSize * RowVectorSize);
+    static constexpr auto DimSubBlocks = DimPerBlock / (DimClusterSize * DimThreadSize);
+    static constexpr auto RowSubBlocks = RowPerBlock / (RowClusterSize * RowVectorSize);
 
     static_assert((DimPerBlock % DimSubBlocks == 0) && (RowPerBlock % RowSubBlocks == 0), "");
-    static constexpr DimPerSubBlock = DimPerBlock / DimSubBlocks;
-    static constexpr RowPerSubBlock = RowPerBlock / RowSubBlocks;
+    static constexpr auto DimPerSubBlock = DimPerBlock / DimSubBlocks;
+    static constexpr auto RowPerSubBlock = RowPerBlock / RowSubBlocks;
 
     //using ThreadReduceSrcDesc_R_D = decltype(make_naive_tensor_descriptor_packed(
     //    make_tuple(Number<DimThreadSize>{}, Number<RowVectorSize>{})));
@@ -144,7 +120,7 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
     {
         const index_t thread_local_id = get_thread_local_1d_id();
         const index_t block_global_id = get_block_1d_id();
-        
+
         const auto index_length = out_grid_desc.GetLength(I0);
         const auto emb_dim = out_grid_desc.GetLength(I1);
 
@@ -163,7 +139,6 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
         const auto wave_dim_id = __builtin_amdgcn_readfirstlane(thread_dim_cluster_id / WaveSize);
 
         const auto index_start = block_global_id * DimPerBlock + wave_dim_id * DimThreadSize;
-
 
         auto threadwise_welford = ThreadwiseWelford();
         threadwise_welford.max_count_ = RowSubBlocks * RowVectorSize;
@@ -185,7 +160,7 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
 
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, thread_buf_size, true>
             acc_thread_buf;
-        
+
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, gamma_beta_buf_size, true> gamma_thread_buf;
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, gamma_beta_buf_size, true> beta_thread_buf;
 
@@ -272,11 +247,11 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
         };
 
         // first load index
-        static_for<0, DimPerBlock, 1>{}([&](auto i_idx){
+        ck::static_for<0, DimPerBlock, 1>{}([&](auto i_idx_){
             // prefer use s_load
-            index_buf_a[i_idx] = p_index_a[index_start + i_idx];
-            index_buf_b[i_idx] = p_index_b[index_start + i_idx];
-            index_buf_c[i_idx] = p_index_c[index_start + i_idx];
+            index_buf_a[i_idx_] = p_index_a[index_start + i_idx_];
+            index_buf_b[i_idx_] = p_index_b[index_start + i_idx_];
+            index_buf_c[i_idx_] = p_index_c[index_start + i_idx_];
         });
 
         // load gamma/beta

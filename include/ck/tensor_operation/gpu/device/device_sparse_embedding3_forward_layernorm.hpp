@@ -8,7 +8,11 @@
 
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
-#include "ck/tensor_operation/gpu/device/device_sparse_embedding3_forward.hpp"
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_sparse_embedding3_forward_layernorm.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -79,7 +83,7 @@ struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
         ck::index_t NumRows_;
         ck::index_t EmbeddingDim_;
         ck::index_t IndexLength_;
-        AccDataType epsilon_
+        AccDataType epsilon_;
 
         size_t grid_size_;
     };
@@ -115,26 +119,36 @@ struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
                     epsilon);
     }
 
+    using GridwiseSparseEmbedding = GridwiseSparseEmbedding3ForwardLayernorm<
+                EmbType,
+                IndexType,
+                GammaDataType,
+                BetaDataType,
+                AccDataType,
+                OutType,
+                decltype(MakeOutputDescriptor(1, 1)),
+                BlockSize,
+                DimClusterSize,
+                RowClusterSize,
+                DimPerBlock,
+                RowPerBlock,
+                DimThreadSize,
+                RowVectorSize>
+
     struct Invoker : public BaseInvoker
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             auto out_desc = MakeOutputDescriptor(arg.IndexLength_, arg.EmbeddingDim_);
             const auto kernel_main = kernel_sparse_embedding3_forward_layernorm<
+                                            GridwiseSparseEmbedding,
                                             EmbType,
                                             IndexType,
                                             GammaDataType,
                                             BetaDataType,
                                             AccDataType,
                                             OutType,
-                                            decltype(out_desc),
-                                            BlockSize,
-                                            DimClusterSize,
-                                            RowClusterSize,
-                                            DimPerBlock,
-                                            RowPerBlock,
-                                            DimThreadSize,
-                                            RowVectorSize>;
+                                            decltype(out_desc)>;
             float avg_time = 0;
             avg_time += launch_and_time_kernel(stream_config,
                                                kernel_main,
