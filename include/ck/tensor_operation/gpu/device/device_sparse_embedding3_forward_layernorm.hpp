@@ -18,16 +18,27 @@ template <typename EmbType,
           typename IndexType,
           typename GammaDataType,
           typename BetaDataType,
+          typename AccDataType,
           typename OutType,
-          ck::index_t RowPerBlock,  // MxN, along M
-          ck::index_t DimPerBlock,  // MxN, along N
-          typename LayernormOperation>
+          ck::index_t BlockSize,
+          ck::index_t DimClusterSize,
+          ck::index_t RowClusterSize,
+          ck::index_t DimPerBlock,
+          ck::index_t RowPerBlock,
+          ck::index_t DimThreadSize,
+          ck::index_t RowVectorSize>
 struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
 {
 
+    static auto MakeOutputDescriptor(const index_t index_length,
+                                    const index_t rows)
+    {
+        return make_naive_tensor_descriptor_packed(make_tuple(index_length, rows));
+    }
+
     struct Argument : public BaseArgument
     {
-        Argument(   OutType* p_output,
+        Argument(   OutType* p_out,
                     const EmbType* p_emb_a,
                     const EmbType* p_emb_b,
                     const EmbType* p_emb_c,
@@ -36,9 +47,11 @@ struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
                     const IndexType* p_index_c,
                     const GammaDataType * p_gamma,
                     const BetaDataType * p_beta,
-                    ck::index_t NumRows,
-                    ck::index_t EmbeddingDim,
-                    ck::index_t IndexLength):
+                    const ck::index_t NumRows,
+                    const ck::index_t EmbeddingDim,
+                    const ck::index_t IndexLength,
+                    const AccDataType epsilon):
+                            p_out_(p_out),
                             p_emb_a_(p_emb_a),
                             p_emb_b_(p_emb_b),
                             p_emb_c_(p_emb_c),
@@ -49,8 +62,12 @@ struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
                             p_beta_(p_beta),
                             NumRows_(NumRows),
                             EmbeddingDim_(EmbeddingDim),
-                            IndexLength_(IndexLength) {}
-        p_output* p_output;
+                            IndexLength_(IndexLength),
+                            epsilon_(epsilon)
+        {
+            grid_size_ = (IndexLength + DimClusterSize - 1) / DimClusterSize;
+        }
+        OutType* p_out_;
         const EmbType* p_emb_a_;
         const EmbType* p_emb_b_;
         const EmbType* p_emb_c_;
@@ -62,10 +79,14 @@ struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
         ck::index_t NumRows_;
         ck::index_t EmbeddingDim_;
         ck::index_t IndexLength_;
+        AccDataType epsilon_
+
+        size_t grid_size_;
     };
 
     virtual std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const EmbType* p_emb_a,
+    MakeArgumentPointer(OutType * p_out,
+                        const EmbType* p_emb_a,
                         const EmbType* p_emb_b,
                         const EmbType* p_emb_c,
                         const IndexType* p_index_a,
@@ -75,9 +96,11 @@ struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
                         const BetaDataType * p_beta,
                         ck::index_t NumRows,
                         ck::index_t EmbeddingDim,
-                        ck::index_t IndexLength)
+                        ck::index_t IndexLength,
+                        const AccDataType epsilon)
     {
         std::make_unique<Argument>(
+                    p_out,
                     p_emb_a,
                     p_emb_b,
                     p_emb_c,
@@ -88,13 +111,49 @@ struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
                     p_beta,
                     NumRows,
                     EmbeddingDim,
-                    IndexLength);
+                    IndexLength,
+                    epsilon);
     }
 
     struct Invoker : public BaseInvoker
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
+            auto out_desc = MakeOutputDescriptor(arg.IndexLength_, arg.EmbeddingDim_);
+            const auto kernel_main = kernel_sparse_embedding3_forward_layernorm<
+                                            EmbType,
+                                            IndexType,
+                                            GammaDataType,
+                                            BetaDataType,
+                                            AccDataType,
+                                            OutType,
+                                            decltype(out_desc),
+                                            BlockSize,
+                                            DimClusterSize,
+                                            RowClusterSize,
+                                            DimPerBlock,
+                                            RowPerBlock,
+                                            DimThreadSize,
+                                            RowVectorSize>;
+            float avg_time = 0;
+            avg_time += launch_and_time_kernel(stream_config,
+                                               kernel_main,
+                                               dim3(arg.gridSize_),
+                                               dim3(BlockSize),
+                                               0,
+                                               arg.p_out_,
+                                               arg.p_emb_a_,
+                                               arg.p_emb_b_,
+                                               arg.p_emb_c_,
+                                               arg.p_index_a_,
+                                               arg.p_index_b_,
+                                               arg.p_index_c_,
+                                               arg.p_gamma_,
+                                               arg.p_beta_,
+                                               out_desc,
+                                               arg.epsilon_);
+
+            return (avg_time);
         }
 
         float Run(const BaseArgument* p_arg,
@@ -114,7 +173,10 @@ struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceSparseEmbedding3ForwardLayernorm<"<< ",";
+        str << "DeviceSparseEmbedding3ForwardLayernorm_"<< BlockSize << "_" <<
+            DimClusterSize << "x" << RowClusterSize << "_" <<
+            DimPerBlock << "x" << RowPerBlock <<
+            DimThreadSize << "x" << RowVectorSize;
         // clang-format on
 
         return str.str();
