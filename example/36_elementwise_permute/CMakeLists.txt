@@ -1,0 +1,5 @@
+add_custom_target(example_elementwise_permute)
+
+add_example_executable(example_elementwise_permute_fp16 elementwise_permute_fp16.cpp)
+
+add_dependencies(example_elementwise_permute example_elementwise_permute_fp16)
