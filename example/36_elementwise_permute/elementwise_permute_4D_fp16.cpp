@@ -90,7 +90,7 @@ int main()
     if(do_verification)
     {
         b_device_buf.FromDevice(b.mData.data());
-        Tensor<BDataType> host_b(nhwc);
+        Tensor<BDataType> host_b(nchw);
         host_elementwise4D<Tensor<BDataType>, Tensor<ADataType>, PassThrough>(
             host_b, a, nchw, PassThrough{});
         pass &=
