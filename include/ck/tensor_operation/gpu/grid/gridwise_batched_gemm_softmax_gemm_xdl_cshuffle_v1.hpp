@@ -245,8 +245,6 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             return false;
         }
 
-        assert(num_gemm1_k_outer_loop * num_gemm1_k_inner_loop == N / Gemm1KPerBlock);
-
         if(!block_2_ctile_map.CheckValidity(c_grid_desc_m_n))
         {
             return false;
@@ -351,9 +349,13 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                const Block2CTileMap& block_2_ctile_map)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
+            p_a_grid,
+            a_grid_desc_ak0_m_ak1.GetElementSpaceSize(),
+            NumericLimits<FloatAB>::QuietNaN());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
+            p_b_grid,
+            b_grid_desc_bk0_n_bk1.GetElementSpaceSize(),
+            NumericLimits<FloatAB>::QuietNaN());
         const auto b1_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b1_grid, b1_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -561,11 +563,11 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             FloatAB,
             decltype(acc_thread_desc_k0_m_k1),
             decltype(a1_thread_desc_k0_m_k1),
-            decltype(acc_element_op),
+            tensor_operation::element_wise::PassThrough,
             Sequence<A1ThreadSliceK0, A1ThreadSliceM, A1ThreadSliceK1>,
             Sequence<1, 0, 2>,
             2,
-            n4>{acc_element_op};
+            n4>{tensor_operation::element_wise::PassThrough{}};
 
         // B1 matrix blockwise copy
         auto b1_blockwise_copy =
@@ -717,6 +719,13 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                                                    blockwise_gemm,
                                                                    acc_thread_buf,
                                                                    num_k_block_main_loop);
+
+            // Acc0 elementwise Op
+            static_for<0, acc_thread_buf.Size(), 1>{}(
+                [&](auto i) { acc_element_op(acc_thread_buf(i), acc_thread_buf[i]); });
+
+            block_sync_lds(); // wait for lds read in gemm0 blockwise gemm
+
             // softmax
             SoftmaxBuf& max = blockwise_softmax.max_value_buf;
             SoftmaxBuf& sum = blockwise_softmax.sum_value_buf;

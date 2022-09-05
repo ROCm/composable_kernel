@@ -19,8 +19,24 @@ def runShell(String command){
 }
 
 def getDockerImageName(){
-    def img = "${env.MIOPEN_IMAGE_URL}:composable_kernels_${params.COMPILER_VERSION}"
+    def img = "${env.CK_IMAGE_URL}:composable_kernels_${params.COMPILER_VERSION}"
     return img
+}
+
+def build_compiler(){
+    def compiler
+    if (params.BUILD_COMPILER == "hipcc"){
+        compiler = '/opt/rocm/bin/hipcc'
+    }
+    else{
+        if (params.COMPILER_VERSION == "release"){
+            compiler = "/opt/rocm/llvm/bin/clang++"
+        }
+        else{
+            compiler = "/llvm-project/build/bin/clang++"
+        }        
+    }
+    return compiler
 }
 
 def getDockerImage(Map conf=[:]){
@@ -103,7 +119,7 @@ def buildDocker(install_prefix){
 
 def cmake_build(Map conf=[:]){
 
-    def compiler = conf.get("compiler","/opt/rocm/bin/hipcc")
+    def compiler = build_compiler()
     def config_targets = conf.get("config_targets","check")
     def debug_flags = "-g -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined " + conf.get("extradebugflags", "")
     def build_envs = "CTEST_PARALLEL_LEVEL=4 " + conf.get("build_env","")
@@ -185,7 +201,6 @@ def buildHipClangJob(Map conf=[:]){
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 --env GPU_ARCH='${gpu_arch}' "
         }
-        //def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg GPU_ARCH='${gpu_arch}' --build-arg compiler_version='${params.COMPILER_VERSION}' "
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' "
         if (params.COMPILER_VERSION != "release"){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
@@ -467,6 +482,10 @@ pipeline {
             name: 'COMPILER_VERSION', 
             defaultValue: 'ck-9110', 
             description: 'Specify which version of compiler to use: ck-9110 (default), release, or amd-stg-open.')
+        string(
+            name: 'BUILD_COMPILER', 
+            defaultValue: 'hipcc', 
+            description: 'Specify whether to build CK with hipcc (default) or with clang.')
         booleanParam(
             name: "RUN_FULL_QA",
             defaultValue: false,
@@ -561,6 +580,7 @@ pipeline {
                         beforeAgent true
                         expression { params.RUN_FULL_QA.toBoolean() }
                     }
+                    options { retry(2) }
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
@@ -583,8 +603,8 @@ pipeline {
                 {
                     agent{ label rocmnode("gfx908")}
                     environment{
-                        setup_args = """ -D  -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " """
-                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc .. && make -j """ 
+                        setup_args = """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " """
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ 
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
@@ -602,6 +622,7 @@ pipeline {
                         beforeAgent true
                         expression { !params.RUN_FULL_QA.toBoolean() && !params.TEST_NODE_PERFORMANCE.toBoolean() }
                     }
+                    options { retry(2) }
                     agent{ label rocmnode("gfx908")}
                     environment{
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
@@ -616,6 +637,7 @@ pipeline {
                         beforeAgent true
                         expression { params.RUN_FULL_QA.toBoolean() || params.TEST_NODE_PERFORMANCE.toBoolean() }
                     }
+                    options { retry(2) }
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """

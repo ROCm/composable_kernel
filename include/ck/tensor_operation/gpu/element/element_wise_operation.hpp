@@ -98,6 +98,18 @@ struct AddReluAdd
         int32_t c = b + x2;
         y         = c;
     }
+
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+    template <>
+    __host__ __device__ constexpr void operator()<int4_t, int8_t, int4_t, int4_t>(
+        int4_t& y, const int8_t& x0, const int4_t& x1, const int4_t& x2) const
+    {
+        int32_t a = x0 + x1;
+        int32_t b = a > 0 ? a : 0;
+        int32_t c = b + x2;
+        y         = c;
+    }
+#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 };
 
 struct AddHardswishAdd
@@ -177,7 +189,11 @@ struct AddAddFastGelu
     template <typename T>
     static inline constexpr bool is_valid_param_type_v =
         std::is_same_v<T, float> || std::is_same_v<T, half_t> || std::is_same_v<T, bhalf_t> ||
-        std::is_same_v<T, int32_t> || std::is_same_v<T, int8_t>;
+        std::is_same_v<T, int32_t> || std::is_same_v<T, int8_t>
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+        || std::is_same_v<T, ck::int4_t>
+#endif
+        ;
 
     template <typename E, typename C, typename D0, typename D1>
     __host__ __device__ constexpr void

@@ -1,143 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-/*
-Gemm + Gemm fused operation. Computes C_m_o = A_m_k * B0_k_n * B1_n_o
-                                              |------------|
-                                                   Gemm0
-                                              |---------------------|
-                                                       Gemm1
-*/
+#pragma once
 
-#include <iostream>
-#include <numeric>
-#include <initializer_list>
-#include <cstdlib>
-
-#include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_xdl_cshuffle.hpp"
-#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-
-#include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/device_memory.hpp"
-#include "ck/library/utility/host_tensor.hpp"
-#include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
-
-template <ck::index_t... Is>
-using S = ck::Sequence<Is...>;
-
-using F16 = ck::half_t;
-using F32 = float;
-
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
-
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-
-using ADataType        = F16;
-using B0DataType       = F16;
-using B1DataType       = F16;
-using AccDataType      = F32;
-using CShuffleDataType = F32;
-using CDataType        = F16;
-
-using ALayout  = Row;
-using B0Layout = Col;
-using B1Layout = Row;
-using CLayout  = Row;
-
-using AElementOp    = PassThrough;
-using B0ElementOp   = PassThrough;
-using Acc0ElementOp = PassThrough;
-using B1ElementOp   = PassThrough;
-using CElementOp    = PassThrough;
-
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
-
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle<
-    ALayout,
-    B0Layout,
-    B1Layout,
-    CLayout,
-    ADataType,
-    B0DataType,
-    B1DataType,
-    CDataType,
-    AccDataType,
-    CShuffleDataType,
-    AElementOp,
-    B0ElementOp,
-    Acc0ElementOp,
-    B1ElementOp,
-    CElementOp,
-    GemmDefault,
-    1,
-    256,
-    128,         // MPerBlock
-    128,         // NPerBlock
-    32,          // KPerBlock
-    64,          // Gemm1NPerBlock
-    32,          // Gemm1KPerBlock
-    8,           // AK1
-    8,           // BK1
-    2,           // B1K1
-    32,          // MPerXDL
-    32,          // NPerXDL
-    1,           // MXdlPerWave
-    4,           // NXdlPerWave
-    2,           // Gemm1NXdlPerWave
-    S<4, 64, 1>, // ABlockTransfer
-    S<1, 0, 2>,
-    S<1, 0, 2>,
-    2,
-    8,
-    8,
-    true,
-    S<4, 64, 1>, // BBlockTransfer
-    S<1, 0, 2>,
-    S<1, 0, 2>,
-    2,
-    8,
-    8,
-    true,
-    S<16, 16, 1>, // B1BlockTransfer
-    S<0, 2, 1>,
-    S<0, 2, 1>,
-    1,
-    4,
-    2,
-    false,
-    1,              // CShuffleMXdlPerWavePerShuffle
-    2,              // CShuffleNXdlPerWavePerShuffle
-    S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-    8>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
-
-// Ref Gemm0: fp16 in, fp32 out
-using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
-                                                                                B0DataType,
-                                                                                AccDataType,
-                                                                                AccDataType,
-                                                                                AElementOp,
-                                                                                B0ElementOp,
-                                                                                CElementOp>;
-
-// Ref Softmax: fp32 in, fp16 out
-using ReferenceSoftmaxInstance =
-    ck::tensor_operation::host::ReferenceSoftmax<AccDataType, ADataType, AccDataType>;
-
-// Ref Gemm1: fp16 in, fp16 out
-using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
-                                                                                B1DataType,
-                                                                                CDataType,
-                                                                                AccDataType,
-                                                                                AElementOp,
-                                                                                B1ElementOp,
-                                                                                CElementOp>;
-
-int main(int argc, char* argv[])
+bool run_batched_gemm_gemm_example(int argc, char* argv[])
 {
     bool do_verification = true;
     int init_method      = 1;
@@ -282,25 +148,37 @@ int main(int argc, char* argv[])
         b0_g_k_n.GenerateTensorValue(GeneratorTensor_3<B0DataType>{0.0, 1.0});
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_3<B1DataType>{-0.5, 0.5});
         break;
-    case 3:
-        a_g_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
-        b0_g_k_n.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
-        b1_g_n_o.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
-        break;
     default:
         a_g_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
         b0_g_k_n.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
     }
 
-    DeviceMem a_g_m_k_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSize());
-    DeviceMem b0_g_k_n_device_buf(sizeof(B0DataType) * b0_g_k_n.mDesc.GetElementSize());
-    DeviceMem b1_g_n_o_device_buf(sizeof(B1DataType) * b1_g_n_o.mDesc.GetElementSize());
-    DeviceMem c_g_m_o_device_buf(sizeof(CDataType) * c_g_m_o_device_result.mDesc.GetElementSize());
+#ifdef BUILD_INT4_EXAMPLE
+    DeviceMem a_g_m_k_device_buf(sizeof(KernelADataType) * a_g_m_k.mDesc.GetElementSpaceSize());
+    DeviceMem b0_g_k_n_device_buf(sizeof(KernelB0DataType) * b0_g_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem b1_g_n_o_device_buf(sizeof(KernelB1DataType) * b1_g_n_o.mDesc.GetElementSpaceSize());
+    DeviceMem c_g_m_o_device_buf(sizeof(KernelCDataType) *
+                                 c_g_m_o_device_result.mDesc.GetElementSpaceSize());
+
+    const Tensor<KernelADataType> a_g_m_k_converted(a_g_m_k);
+    const Tensor<KernelB0DataType> b0_g_k_n_converted(b0_g_k_n);
+    const Tensor<KernelB1DataType> b1_g_n_o_converted(b1_g_n_o);
+
+    a_g_m_k_device_buf.ToDevice(a_g_m_k_converted.mData.data());
+    b0_g_k_n_device_buf.ToDevice(b0_g_k_n_converted.mData.data());
+    b1_g_n_o_device_buf.ToDevice(b1_g_n_o_converted.mData.data());
+#else
+    DeviceMem a_g_m_k_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpaceSize());
+    DeviceMem b0_g_k_n_device_buf(sizeof(B0DataType) * b0_g_k_n.mDesc.GetElementSpaceSize());
+    DeviceMem b1_g_n_o_device_buf(sizeof(B1DataType) * b1_g_n_o.mDesc.GetElementSpaceSize());
+    DeviceMem c_g_m_o_device_buf(sizeof(CDataType) *
+                                 c_g_m_o_device_result.mDesc.GetElementSpaceSize());
 
     a_g_m_k_device_buf.ToDevice(a_g_m_k.mData.data());
     b0_g_k_n_device_buf.ToDevice(b0_g_k_n.mData.data());
     b1_g_n_o_device_buf.ToDevice(b1_g_n_o.mData.data());
+#endif
 
     auto a_element_op    = AElementOp{};
     auto b0_element_op   = B0ElementOp{};
@@ -309,31 +187,38 @@ int main(int argc, char* argv[])
     auto c_element_op    = CElementOp{};
 
     // do GEMM
-    auto gemm    = DeviceGemmInstance{};
-    auto invoker = gemm.MakeInvoker();
-    auto argument =
-        gemm.MakeArgument(static_cast<ADataType*>(a_g_m_k_device_buf.GetDeviceBuffer()),
-                          static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
-                          static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
-                          static_cast<CDataType*>(c_g_m_o_device_buf.GetDeviceBuffer()),
-                          M,
-                          N,
-                          K,
-                          O,
-                          BatchCount,
-                          StrideA,
-                          StrideB0,
-                          StrideB1,
-                          StrideC,
-                          BatchStrideA,
-                          BatchStrideB0,
-                          BatchStrideB1,
-                          BatchStrideC,
-                          a_element_op,
-                          b0_element_op,
-                          acc0_element_op,
-                          b1_element_op,
-                          c_element_op);
+    auto gemm     = DeviceGemmInstance{};
+    auto invoker  = gemm.MakeInvoker();
+    auto argument = gemm.MakeArgument(
+#ifdef BUILD_INT4_EXAMPLE
+        static_cast<KernelADataType*>(a_g_m_k_device_buf.GetDeviceBuffer()),
+        static_cast<KernelB0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
+        static_cast<KernelB1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
+        static_cast<KernelCDataType*>(c_g_m_o_device_buf.GetDeviceBuffer()),
+#else
+        static_cast<ADataType*>(a_g_m_k_device_buf.GetDeviceBuffer()),
+        static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
+        static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
+        static_cast<CDataType*>(c_g_m_o_device_buf.GetDeviceBuffer()),
+#endif
+        M,
+        N,
+        K,
+        O,
+        BatchCount,
+        StrideA,
+        StrideB0,
+        StrideB1,
+        StrideC,
+        BatchStrideA,
+        BatchStrideB0,
+        BatchStrideB1,
+        BatchStrideC,
+        a_element_op,
+        b0_element_op,
+        acc0_element_op,
+        b1_element_op,
+        c_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -356,27 +241,17 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
-    c_g_m_o_device_buf.FromDevice(c_g_m_o_device_result.mData.data());
-
     if(do_verification)
     {
         // Output of Gemm0 is input A of Gemm1
-        Tensor<AccDataType> acc0_g_m_n(f_host_tensor_descriptor(BatchCount, M, N, N, M * N, Row{}));
-
         Tensor<ADataType> a1_g_m_n(f_host_tensor_descriptor(BatchCount, M, N, N, M * N, Row{}));
 
         auto ref_gemm0          = ReferenceGemm0Instance{};
         auto ref_gemm0_invoker  = ref_gemm0.MakeInvoker();
         auto ref_gemm0_argument = ref_gemm0.MakeArgument(
-            a_g_m_k, b0_g_k_n, acc0_g_m_n, a_element_op, b0_element_op, PassThrough{});
+            a_g_m_k, b0_g_k_n, a1_g_m_n, a_element_op, b0_element_op, PassThrough{});
 
         ref_gemm0_invoker.Run(ref_gemm0_argument);
-
-        auto ref_softmax          = ReferenceSoftmaxInstance{};
-        auto ref_softmax_invoker  = ref_softmax.MakeInvoker();
-        auto ref_softmax_argument = ref_softmax.MakeArgument(acc0_g_m_n, a1_g_m_n, 1, 0, {2});
-
-        ref_softmax_invoker.Run(ref_softmax_argument);
 
         auto ref_gemm1          = ReferenceGemm1Instance{};
         auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
@@ -385,8 +260,18 @@ int main(int argc, char* argv[])
 
         ref_gemm1_invoker.Run(ref_gemm1_argument);
 
-        return ck::utils::check_err(c_g_m_o_device_result.mData, c_g_m_o_host_result.mData) ? 0 : 1;
+#ifdef BUILD_INT4_EXAMPLE
+        Tensor<KernelCDataType> c_g_m_o_device_result_converted(c_g_m_o_host_result.mDesc);
+
+        c_g_m_o_device_buf.FromDevice(c_g_m_o_device_result_converted.mData.data());
+
+        c_g_m_o_device_result = c_g_m_o_device_result_converted.CopyAsType<CDataType>();
+#else
+        c_g_m_o_device_buf.FromDevice(c_g_m_o_device_result.mData.data());
+#endif
+
+        return ck::utils::check_err(c_g_m_o_device_result.mData, c_g_m_o_host_result.mData);
     }
 
-    return 0;
+    return true;
 }
