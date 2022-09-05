@@ -6,6 +6,8 @@
 #include <cstddef>
 #include <cstdlib>
 #include <iostream>
+#include <iterator>
+#include <numeric>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"

@@ -30,7 +30,7 @@ bool run_elementwise_permute(const ExecutionConfig& config, const Problem& probl
     Tensor<ADataType> a(nchw);
     Tensor<BDataType> b(nhwc);
 
-    a.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+    std::iota(begin(a.mData), end(a.mData), 0);
 
     DeviceMem a_device_buf(sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
     DeviceMem b_device_buf(sizeof(BDataType) * b.mDesc.GetElementSpaceSize());
@@ -72,7 +72,7 @@ bool run_elementwise_permute(const ExecutionConfig& config, const Problem& probl
             host_b, a, nhwc, PassThrough{});
 
         return ck::utils::check_err(
-            b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
+            b.mData, host_b.mData, "Error: incorrect results in tensor B", 1e-10, 1e-10);
     }
 
     return true;
