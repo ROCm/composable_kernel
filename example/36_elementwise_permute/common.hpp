@@ -39,5 +39,45 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 inline bool parse_cmd_args(int argc, char* argv[], ExecutionConfig& config, Problem& problem)
 {
+    constexpr int num_execution_config_args = 2;
+    constexpr int num_problem_args          = 8;
+
+    assert(num_problem_args == problem.shape.size() + problem.axes.size());
+
+    if(argc == 1)
+    {
+        // use default case
+    }
+    else if(argc == 1 + num_execution_config_args)
+    {
+        config.do_verification = std::stoi(argv[1]);
+        config.time_kernel     = std::stoi(argv[2]);
+    }
+    else if(argc == 1 + num_execution_config_args + num_problem_args)
+    {
+        config.do_verification = std::stoi(argv[1]);
+        config.time_kernel     = std::stoi(argv[2]);
+
+        // read shape
+        for(std::size_t idx = 0; idx < problem.shape.size(); ++idx)
+        {
+            problem.shape[idx] = std::stoi(argv[idx + 3]);
+        }
+
+        // read axes
+        for(std::size_t idx = 0; idx < problem.axes.size(); ++idx)
+        {
+            problem.axes[idx] = std::stoi(argv[idx + problem.shape.size() + 3]);
+        }
+    }
+    else
+    {
+        std::cerr << "arg1: verification (0=no, 1=yes)" << std::endl
+                  << "arg2: time kernel (0=no, 1=yes)" << std::endl
+                  << "arg3 ~ arg6: shape for 4D tensor" << std::endl
+                  << "arg7 ~ arg10: axes to permute" << std::endl;
+        return false;
+    }
+
     return true;
 }
