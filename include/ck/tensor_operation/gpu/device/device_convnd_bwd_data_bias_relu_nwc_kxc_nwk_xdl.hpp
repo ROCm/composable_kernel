@@ -1391,8 +1391,8 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                 const auto K = arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I0) *
                                arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I2);
 
-                if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
-                {
+                auto launch_kernel = [&](auto has_main_k_block_loop){
+                    constexpr bool has_main_loop = has_main_k_block_loop.value;
                     const auto kernel = kernel_gemm_xdlops_v3r2<
                         GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
@@ -1409,9 +1409,9 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                         WeiElementwiseOperation,
                         CDEElementwiseOp,
                         remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
-                        true>;
+                        has_main_loop>;
 
-                    ave_time += launch_and_time_kernel(
+                    return launch_and_time_kernel(
                         stream_config,
                         kernel,
                         dim3(grid_size),
@@ -1429,45 +1429,15 @@ struct DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl
                         arg.b_element_op_,
                         arg.c_element_op_,
                         arg.block_2_ctile_map_container_[i]);
+                };
+
+                if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
+                {
+                    ave_time += launch_kernel(integral_constant<bool, true>{});
                 }
                 else
                 {
-                    const auto kernel = kernel_gemm_xdlops_v3r2<
-                        GridwiseGemm,
-                        ADataType, // TODO: distiguish A/B datatype
-                        EDataType,
-                        remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
-                        remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                        remove_reference_t<
-                            typename GridwiseGemm::
-                                CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>,
-                        remove_reference_t<
-                            typename GridwiseGemm::
-                                C0GridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>,
-                        OutElementwiseOperation,
-                        WeiElementwiseOperation,
-                        CDEElementwiseOp,
-                        remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
-                        false>;
-
-                    ave_time += launch_and_time_kernel(
-                        stream_config,
-                        kernel,
-                        dim3(grid_size),
-                        dim3(BlockSize),
-                        0,
-                        arg.p_a_grid_,
-                        arg.p_b_grid_,
-                        arg.p_c_grid_,
-                        arg.p_c0_grid_,
-                        arg.a_grid_desc_k0_m_k1_container_[i],
-                        arg.b_grid_desc_k0_n_k1_container_[i],
-                        arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_[i],
-                        arg.c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_[i],
-                        arg.a_element_op_,
-                        arg.b_element_op_,
-                        arg.c_element_op_,
-                        arg.block_2_ctile_map_container_[i]);
+                    ave_time += launch_kernel(integral_constant<bool, false>{});
                 }
             }
             return ave_time;
