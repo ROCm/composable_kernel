@@ -360,14 +360,6 @@ host_elementwise_permute(const Tensor<Src>& src,
 {
     const auto& shape            = src.mDesc.GetLengths();
     const auto& transposed_shape = dest.mDesc.GetLengths();
-    std::copy(begin(shape), end(shape), std::ostream_iterator<std::size_t>(std::cerr, " "));
-    std::cerr << std::endl;
-
-    std::copy(begin(transposed_shape),
-              end(transposed_shape),
-              std::ostream_iterator<std::size_t>(std::cerr, " "));
-    std::cerr << std::endl;
-
     if(!(is_valid_shape(shape) && is_valid_shape(transposed_shape)))
     {
         return false;
