@@ -49,6 +49,22 @@ struct DevicePermuteBase : BaseOperator
 
     static auto MakeInvokerPointer() { return std::make_unique<typename Derived::Invoker>(); };
 };
+
+template <typename Derived, typename Argument>
+struct InvokerBase : BaseInvoker
+{
+    float Run(const BaseArgument* arg,
+              const StreamConfig& stream_config = StreamConfig{}) override final
+    {
+        const auto* argument = dynamic_cast<const Argument*>(arg);
+        if(!argument)
+        {
+            return false;
+        }
+
+        return Derived::Run(*argument, stream_config);
+    }
+};
 } // namespace detail
 
 template <typename InDataType,
@@ -195,9 +211,9 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
         ElementwiseOperation elementwise_op_;
     };
 
-    struct Invoker : public BaseInvoker
+    struct Invoker : detail::InvokerBase<Invoker, Argument>
     {
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        static float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             const auto kernel = kernel_elementwise_1d<GridwiseElementwise,
                                                       InGrid1dDescTuple,
@@ -217,13 +233,6 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
                                                         arg.out_dev_buffers_,
                                                         arg.elementwise_op_);
             return elapsed_time;
-        }
-
-        // polymorphic
-        float Run(const BaseArgument* p_arg,
-                  const StreamConfig& stream_config = StreamConfig{}) override
-        {
-            return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
 
@@ -259,7 +268,7 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
 
         return valid;
     };
-}; // namespace device
+};
 
 } // namespace device
 } // namespace tensor_operation
