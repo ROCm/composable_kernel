@@ -54,7 +54,7 @@ bool run_elementwise_permute(const ExecutionConfig& config, const Problem& probl
         b_device_buf.FromDevice(b.mData.data());
 
         return ck::utils::check_err(
-            b.mData, host_b.mData, "Error: incorrect results in tensor B", 1e-10, 1e-10);
+            b.mData, host_b.mData, "Error: incorrect results in output tensor", 1e-10, 1e-10);
     }
 
     return true;
