@@ -302,7 +302,7 @@ inline std::enable_if_t<detail::is_random_access_range_v<Shape> &&
 transpose_shape(const Shape& shape, const Axes& axes, OutputIterator iter)
 {
     using std::size;
-    assert(size(shape) == size(axes) &&);
+    assert(size(shape) == size(axes));
     assert(is_valid_shape(shape) && is_valid_axes(axes));
 
     for(const auto axis : axes)
@@ -319,6 +319,7 @@ std::enable_if_t<detail::is_bidirectional_range_v<Shape> && detail::is_sized_ran
                  bool>
 advance_indices(const Shape& shape, Indices& indices)
 {
+    using std::size;
     assert(is_valid_shape(shape));
     assert(is_valid_indices(indices));
     assert(size(shape) == size(indices));
@@ -355,11 +356,13 @@ host_elementwise_permute(const Tensor<Src>& src, Functor functor, Tensor<Dest>& 
     using std::size;
     assert(size(shape) == 4 && size(transposed_shape) == 4);
 
-    std::array<std::size_t, 4> dims{};
+    std::array<std::size_t, 4> indices{};
+    assert(is_valid_indices(indices));
+
     do
     {
         Dest b_val = 0;
-        functor(b_val, src(dims[0], dims[1], dims[2], dims[3]));
-        dest(dims[0], dims[2], dims[3], dims[1]) = b_val;
-    } while(advance_indices(shape, dims));
+        functor(b_val, src(indices[0], indices[1], indices[2], indices[3]));
+        dest(indices[0], indices[2], indices[3], indices[1]) = b_val;
+    } while(advance_indices(shape, indices));
 }
