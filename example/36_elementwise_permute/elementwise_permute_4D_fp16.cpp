@@ -49,6 +49,7 @@ int main()
     bool time_kernel     = false;
 
     std::vector<std::size_t> nchw = {4, 16, 32, 32};
+    std::vector<std::size_t> nhwc = {4, 32, 32, 16};
     Tensor<ADataType> a(nchw);
     Tensor<BDataType> b(nhwc);
 
@@ -90,8 +91,8 @@ int main()
     if(do_verification)
     {
         b_device_buf.FromDevice(b.mData.data());
-        Tensor<BDataType> host_b(nchw);
-        host_elementwise4D<Tensor<BDataType>, Tensor<ADataType>, PassThrough>(
+        Tensor<BDataType> host_b(nhwc);
+        host_elementwise4D<Tensor<ADataType>, Tensor<BDataType>, PassThrough>(
             host_b, a, nchw, PassThrough{});
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
