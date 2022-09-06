@@ -32,17 +32,10 @@ template <typename InGrid1dDesc,
           typename OutDataTypePointer,
           typename ElementwiseOperation,
           index_t MPerThread,
-          typename InScalarPerVectorSeq,
-          typename OutScalarPerVectorSeq>
+          index_t InScalarPerVector,
+          index_t OutScalarPerVector>
 struct GridwisePermute
 {
-    static constexpr index_t NumInput  = 1;
-    static constexpr index_t NumOutput = 1;
-
-    static_assert(NumInput == InScalarPerVectorSeq::Size() &&
-                      NumOutput == OutScalarPerVectorSeq::Size(),
-                  "Tuple size is inconsistent with the number of in/out!");
-
     static constexpr auto I0 = Number<0>{};
 
     static constexpr auto thread_buffer_desc_m =
@@ -83,11 +76,11 @@ struct GridwisePermute
                                              InDataType,
                                              decltype(in_grid_1d_desc),
                                              decltype(thread_buffer_desc_m),
-                                             Sequence<MPerThread>,        // SliceLengths
-                                             Sequence<0>,                 // DimAccessOrder
-                                             0,                           // SrcVectorDim
-                                             InScalarPerVectorSeq::At(0), // ScalarPerVector
-                                             1,                           // SrcScalarStrideInVector
+                                             Sequence<MPerThread>, // SliceLengths
+                                             Sequence<0>,          // DimAccessOrder
+                                             0,                    // SrcVectorDim
+                                             InScalarPerVector,    // ScalarPerVector
+                                             1,                    // SrcScalarStrideInVector
                                              false>{in_grid_1d_desc, thread_global_offset};
 
         auto out_global_store =
@@ -99,7 +92,7 @@ struct GridwisePermute
                                                Sequence<MPerThread>, // SliceLengths
                                                Sequence<0>,          // DimAccessOrder
                                                0,                    // SrcVectorDim
-                                               OutScalarPerVectorSeq::At(0),
+                                               OutScalarPerVector,
                                                InMemoryDataOperationEnum::Set,
                                                1,
                                                false>(

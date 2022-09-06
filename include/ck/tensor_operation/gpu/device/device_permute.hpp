@@ -73,23 +73,16 @@ template <typename InDataType,
           typename ElementwiseOperation,
           index_t NumDim,
           index_t MPerThread,
-          typename InScalarPerVectorSeq,
-          typename OutScalarPerVectorSeq>
+          index_t InScalarPerVector,
+          index_t OutScalarPerVector>
 struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
                                                                OutDataType,
                                                                ElementwiseOperation,
                                                                NumDim,
                                                                MPerThread,
-                                                               InScalarPerVectorSeq,
-                                                               OutScalarPerVectorSeq>>
+                                                               InScalarPerVector,
+                                                               OutScalarPerVector>>
 {
-    static constexpr int NumInput  = 1;
-    static constexpr int NumOutput = 1;
-
-    static_assert(NumInput == InScalarPerVectorSeq::Size() &&
-                      NumOutput == OutScalarPerVectorSeq::Size(),
-                  "Tuple size is inconsistent with the number of in/out!");
-
     using InDataTypePointer  = const InDataType*;
     using OutDataTypePointer = OutDataType*;
 
@@ -156,8 +149,8 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
                                             OutDataTypePointer,
                                             ElementwiseOperation,
                                             MPerThread,
-                                            InScalarPerVectorSeq,
-                                            OutScalarPerVectorSeq>;
+                                            InScalarPerVector,
+                                            OutScalarPerVector>;
 
     struct Argument : public BaseArgument
     {
@@ -243,12 +236,12 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
         };
 
         bool valid = true;
-        if(!IsScalarPerVectorValid(arg.inLengths_, arg.inStrides_, InScalarPerVectorSeq::At(0)))
+        if(!IsScalarPerVectorValid(arg.inLengths_, arg.inStrides_, InScalarPerVector))
         {
             valid = false;
         }
 
-        if(!IsScalarPerVectorValid(arg.inLengths_, arg.outStrides_, OutScalarPerVectorSeq::At(0)))
+        if(!IsScalarPerVectorValid(arg.inLengths_, arg.outStrides_, OutScalarPerVector))
         {
             valid = false;
         }
