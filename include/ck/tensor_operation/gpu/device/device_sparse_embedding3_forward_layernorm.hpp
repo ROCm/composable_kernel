@@ -34,44 +34,43 @@ template <typename EmbType,
 struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
 {
 
-    static auto MakeOutputDescriptor(const index_t index_length,
-                                    const index_t rows)
+    static auto MakeOutputDescriptor(const index_t index_length, const index_t rows)
     {
         return make_naive_tensor_descriptor_packed(make_tuple(index_length, rows));
     }
 
     struct Argument : public BaseArgument
     {
-        Argument(   OutType* p_out,
-                    const EmbType* p_emb_a,
-                    const EmbType* p_emb_b,
-                    const EmbType* p_emb_c,
-                    const IndexType* p_index_a,
-                    const IndexType* p_index_b,
-                    const IndexType* p_index_c,
-                    const GammaDataType * p_gamma,
-                    const BetaDataType * p_beta,
-                    const ck::index_t NumRows,
-                    const ck::index_t EmbeddingDim,
-                    const ck::index_t IndexLength,
-                    const AccDataType epsilon):
-                            p_out_(p_out),
-                            p_emb_a_(p_emb_a),
-                            p_emb_b_(p_emb_b),
-                            p_emb_c_(p_emb_c),
-                            p_index_a_(p_index_a),
-                            p_index_b_(p_index_b),
-                            p_index_c_(p_index_c),
-                            p_gamma_(p_gamma),
-                            p_beta_(p_beta),
-                            NumRows_(NumRows),
-                            EmbeddingDim_(EmbeddingDim),
-                            IndexLength_(IndexLength),
-                            epsilon_(epsilon)
+        Argument(OutType* p_out,
+                 const EmbType* p_emb_a,
+                 const EmbType* p_emb_b,
+                 const EmbType* p_emb_c,
+                 const IndexType* p_index_a,
+                 const IndexType* p_index_b,
+                 const IndexType* p_index_c,
+                 const GammaDataType* p_gamma,
+                 const BetaDataType* p_beta,
+                 const ck::index_t NumRows,
+                 const ck::index_t EmbeddingDim,
+                 const ck::index_t IndexLength,
+                 const AccDataType epsilon)
+            : p_out_(p_out),
+              p_emb_a_(p_emb_a),
+              p_emb_b_(p_emb_b),
+              p_emb_c_(p_emb_c),
+              p_index_a_(p_index_a),
+              p_index_b_(p_index_b),
+              p_index_c_(p_index_c),
+              p_gamma_(p_gamma),
+              p_beta_(p_beta),
+              NumRows_(NumRows),
+              EmbeddingDim_(EmbeddingDim),
+              IndexLength_(IndexLength),
+              epsilon_(epsilon)
         {
             grid_size_ = (IndexLength + DimClusterSize - 1) / DimClusterSize;
         }
-        
+
         OutType* p_out_;
         const EmbType* p_emb_a_;
         const EmbType* p_emb_b_;
@@ -79,8 +78,8 @@ struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
         const IndexType* p_index_a_;
         const IndexType* p_index_b_;
         const IndexType* p_index_c_;
-        const GammaDataType * p_gamma_;
-        const BetaDataType * p_beta_;
+        const GammaDataType* p_gamma_;
+        const BetaDataType* p_beta_;
         ck::index_t NumRows_;
         ck::index_t EmbeddingDim_;
         ck::index_t IndexLength_;
@@ -89,67 +88,65 @@ struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
         size_t grid_size_;
     };
 
-    virtual std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(void * p_out,
-                        const void* p_emb_a,
-                        const void* p_emb_b,
-                        const void* p_emb_c,
-                        const void* p_index_a,
-                        const void* p_index_b,
-                        const void* p_index_c,
-                        const void * p_gamma,
-                        const void * p_beta,
-                        ck::index_t NumRows,
-                        ck::index_t EmbeddingDim,
-                        ck::index_t IndexLength,
-                        const AccDataType epsilon)
+    virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(void* p_out,
+                                                              const void* p_emb_a,
+                                                              const void* p_emb_b,
+                                                              const void* p_emb_c,
+                                                              const void* p_index_a,
+                                                              const void* p_index_b,
+                                                              const void* p_index_c,
+                                                              const void* p_gamma,
+                                                              const void* p_beta,
+                                                              ck::index_t NumRows,
+                                                              ck::index_t EmbeddingDim,
+                                                              ck::index_t IndexLength,
+                                                              const AccDataType epsilon)
     {
-        return std::make_unique<Argument>(
-                    reinterpret_cast<OutType*>(p_out),
-                    reinterpret_cast<const EmbType*>(p_emb_a),
-                    reinterpret_cast<const EmbType*>(p_emb_b),
-                    reinterpret_cast<const EmbType*>(p_emb_c),
-                    reinterpret_cast<const IndexType*>(p_index_a),
-                    reinterpret_cast<const IndexType*>(p_index_b),
-                    reinterpret_cast<const IndexType*>(p_index_c),
-                    reinterpret_cast<const GammaDataType*>(p_gamma),
-                    reinterpret_cast<const BetaDataType*>(p_beta),
-                    NumRows,
-                    EmbeddingDim,
-                    IndexLength,
-                    epsilon);
+        return std::make_unique<Argument>(reinterpret_cast<OutType*>(p_out),
+                                          reinterpret_cast<const EmbType*>(p_emb_a),
+                                          reinterpret_cast<const EmbType*>(p_emb_b),
+                                          reinterpret_cast<const EmbType*>(p_emb_c),
+                                          reinterpret_cast<const IndexType*>(p_index_a),
+                                          reinterpret_cast<const IndexType*>(p_index_b),
+                                          reinterpret_cast<const IndexType*>(p_index_c),
+                                          reinterpret_cast<const GammaDataType*>(p_gamma),
+                                          reinterpret_cast<const BetaDataType*>(p_beta),
+                                          NumRows,
+                                          EmbeddingDim,
+                                          IndexLength,
+                                          epsilon);
     }
 
-    using GridwiseSparseEmbedding = GridwiseSparseEmbedding3ForwardLayernorm<
-                EmbType,
-                IndexType,
-                GammaDataType,
-                BetaDataType,
-                AccDataType,
-                OutType,
-                decltype(MakeOutputDescriptor(1, 1)),
-                BlockSize,
-                DimClusterSize,
-                RowClusterSize,
-                DimPerBlock,
-                RowPerBlock,
-                DimThreadSize,
-                RowVectorSize>;
+    using GridwiseSparseEmbedding =
+        GridwiseSparseEmbedding3ForwardLayernorm<EmbType,
+                                                 IndexType,
+                                                 GammaDataType,
+                                                 BetaDataType,
+                                                 AccDataType,
+                                                 OutType,
+                                                 decltype(MakeOutputDescriptor(1, 1)),
+                                                 BlockSize,
+                                                 DimClusterSize,
+                                                 RowClusterSize,
+                                                 DimPerBlock,
+                                                 RowPerBlock,
+                                                 DimThreadSize,
+                                                 RowVectorSize>;
 
     struct Invoker : public BaseInvoker
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             auto out_desc = MakeOutputDescriptor(arg.IndexLength_, arg.EmbeddingDim_);
-            const auto kernel_main = kernel_sparse_embedding3_forward_layernorm<
-                                            GridwiseSparseEmbedding,
-                                            EmbType,
-                                            IndexType,
-                                            GammaDataType,
-                                            BetaDataType,
-                                            AccDataType,
-                                            OutType,
-                                            decltype(out_desc)>;
+            const auto kernel_main =
+                kernel_sparse_embedding3_forward_layernorm<GridwiseSparseEmbedding,
+                                                           EmbType,
+                                                           IndexType,
+                                                           GammaDataType,
+                                                           BetaDataType,
+                                                           AccDataType,
+                                                           OutType,
+                                                           decltype(out_desc)>;
             float avg_time = 0;
             avg_time += launch_and_time_kernel(stream_config,
                                                kernel_main,
@@ -185,10 +182,10 @@ struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
-        return IsSupportedArgument(dynamic_cast<const Argument*>(p_arg)); 
+        return IsSupportedArgument(dynamic_cast<const Argument*>(p_arg));
     }
 
-    virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() 
+    virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer()
     {
         return std::make_unique<Invoker>();
     }
@@ -208,6 +205,6 @@ struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
     }
 };
 
-}
-}
-}
+} // namespace device
+} // namespace tensor_operation
+} // namespace ck

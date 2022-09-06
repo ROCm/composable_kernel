@@ -82,27 +82,28 @@ int main()
     bool time_kernel = true;
 
     constexpr auto num_rows = 65536;
-    constexpr auto dims = ck::Sequence<256, 512, 768, 1024, 1536, 2048, 4096, 8192>{};
+    constexpr auto dims     = ck::Sequence<256, 512, 768, 1024, 1536, 2048, 4096, 8192>{};
     // constexpr auto dims = ck::Sequence<256, 512>{};
-    constexpr auto index_length = 2048;
+    constexpr auto index_length   = 2048;
     constexpr AccDataType epsilon = 1e-4;
 
-    auto f_host_tensor_desc_1d = [](std::size_t len_){
+    auto f_host_tensor_desc_1d = [](std::size_t len_) {
         return HostTensorDescriptor(std::vector<std::size_t>({len_}));
     };
 
-    auto f_host_tensor_desc_2d = [](std::size_t rows_, std::size_t cols_){
+    auto f_host_tensor_desc_2d = [](std::size_t rows_, std::size_t cols_) {
         return HostTensorDescriptor(std::vector<std::size_t>({rows_, cols_}));
     };
 
-    using ReferenceInstance = ck::tensor_operation::host::ReferenceSparseEmbedding3ForwardLayernorm<EmbType,
-                                                                                                    IndexType,
-                                                                                                    GammaDataType,
-                                                                                                    BetaDataType,
-                                                                                                    AccDataType,
-                                                                                                    OutType>;
+    using ReferenceInstance =
+        ck::tensor_operation::host::ReferenceSparseEmbedding3ForwardLayernorm<EmbType,
+                                                                              IndexType,
+                                                                              GammaDataType,
+                                                                              BetaDataType,
+                                                                              AccDataType,
+                                                                              OutType>;
 
-    ck::static_for<0, dims.Size(), 1>{}([&](auto I){
+    ck::static_for<0, dims.Size(), 1>{}([&](auto I) {
         std::srand(std::time(0));
         constexpr auto current_dim = dims.At(I);
         Tensor<EmbType> emb_a(f_host_tensor_desc_2d(num_rows, current_dim));
@@ -154,21 +155,22 @@ int main()
         beta_dev.ToDevice(beta.mData.data());
 
         auto device_instance = typename emb_kernel<EmbType, current_dim>::kernel_type{};
-        auto argument_ptr    = device_instance.MakeArgumentPointer(
-                                    out_dev.GetDeviceBuffer(),
-                                    emb_a_dev.GetDeviceBuffer(),
-                                    emb_b_dev.GetDeviceBuffer(),
-                                    emb_c_dev.GetDeviceBuffer(),
-                                    index_a_dev.GetDeviceBuffer(),
-                                    index_b_dev.GetDeviceBuffer(),
-                                    index_c_dev.GetDeviceBuffer(),
-                                    gamma_dev.GetDeviceBuffer(),
-                                    beta_dev.GetDeviceBuffer(),
-                                    num_rows,
-                                    current_dim,
-                                    index_length,
-                                    epsilon);
-        std::cout<< "Dim:" << current_dim << ", kernel:"<< device_instance.GetTypeString() << std::endl << std::flush;
+        auto argument_ptr    = device_instance.MakeArgumentPointer(out_dev.GetDeviceBuffer(),
+                                                                emb_a_dev.GetDeviceBuffer(),
+                                                                emb_b_dev.GetDeviceBuffer(),
+                                                                emb_c_dev.GetDeviceBuffer(),
+                                                                index_a_dev.GetDeviceBuffer(),
+                                                                index_b_dev.GetDeviceBuffer(),
+                                                                index_c_dev.GetDeviceBuffer(),
+                                                                gamma_dev.GetDeviceBuffer(),
+                                                                beta_dev.GetDeviceBuffer(),
+                                                                num_rows,
+                                                                current_dim,
+                                                                index_length,
+                                                                epsilon);
+        std::cout << "Dim:" << current_dim << ", kernel:" << device_instance.GetTypeString()
+                  << std::endl
+                  << std::flush;
 
         bool is_supported = device_instance.IsSupportedArgument(argument_ptr.get());
 
@@ -178,7 +180,6 @@ int main()
             return;
         }
 
-
         auto invoker_ptr = device_instance.MakeInvokerPointer();
         // float time_ms = 1;
         float time_ms = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
@@ -187,25 +188,36 @@ int main()
         {
             Tensor<OutType> out_from_dev(f_host_tensor_desc_2d(index_length, current_dim));
             ReferenceInstance ref;
-            auto ref_argument =
-                ref.MakeArgument(out, emb_a, emb_b, emb_c, index_a, index_b, index_c, gamma, beta, num_rows,
-                                    current_dim,
-                                    index_length,
-                                    epsilon);
-            auto ref_invoker = ref.MakeInvoker();
+            auto ref_argument = ref.MakeArgument(out,
+                                                 emb_a,
+                                                 emb_b,
+                                                 emb_c,
+                                                 index_a,
+                                                 index_b,
+                                                 index_c,
+                                                 gamma,
+                                                 beta,
+                                                 num_rows,
+                                                 current_dim,
+                                                 index_length,
+                                                 epsilon);
+            auto ref_invoker  = ref.MakeInvoker();
             ref_invoker.Run(ref_argument);
 
             out_dev.FromDevice(out_from_dev.mData.data());
-            pass &=
-                ck::utils::check_err(out_from_dev.mData, out.mData, "Error: Incorrect results", 1e-3, 1e-3);
+            pass &= ck::utils::check_err(
+                out_from_dev.mData, out.mData, "Error: Incorrect results", 1e-3, 1e-3);
         }
 
-        double total_read = current_dim * index_length * 3 * sizeof(EmbType) + current_dim * sizeof(GammaDataType) + current_dim * sizeof(BetaDataType);
+        double total_read = current_dim * index_length * 3 * sizeof(EmbType) +
+                            current_dim * sizeof(GammaDataType) +
+                            current_dim * sizeof(BetaDataType);
         double total_write = current_dim * index_length * sizeof(OutType);
-        double gbps = (total_read + total_write) / time_ms  / 1e6;
+        double gbps        = (total_read + total_write) / time_ms / 1e6;
 
-        std::cout<<", total bytes:" << (total_read + total_write) << ", time:" << time_ms << ", gbps:" << gbps << ", valid:" << (pass ? "y" : "n") <<std::endl << std::flush;
-
+        std::cout << ", total bytes:" << (total_read + total_write) << ", time:" << time_ms
+                  << ", gbps:" << gbps << ", valid:" << (pass ? "y" : "n") << std::endl
+                  << std::flush;
     });
 
     return 0;

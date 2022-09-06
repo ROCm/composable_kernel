@@ -26,32 +26,34 @@ struct ReferenceSparseEmbedding3ForwardLayernorm : public device::BaseOperator
 {
     struct Argument : public device::BaseArgument
     {
-        Argument(   Tensor<OutType>& output,
-                    const Tensor<EmbType>& emb_a,
-                    const Tensor<EmbType>& emb_b,
-                    const Tensor<EmbType>& emb_c,
-                    const Tensor<IndexType>& index_a,
-                    const Tensor<IndexType>& index_b,
-                    const Tensor<IndexType>& index_c,
-                    const Tensor<GammaDataType>& gamma,
-                    const Tensor<BetaDataType>& beta,
-                    ck::index_t NumRows,
-                    ck::index_t EmbeddingDim,
-                    ck::index_t IndexLength,
-                    AccDataType epsilon):
-                            output_(output),
-                            emb_a_(emb_a),
-                            emb_b_(emb_b),
-                            emb_c_(emb_c),
-                            index_a_(index_a),
-                            index_b_(index_b),
-                            index_c_(index_c),
-                            gamma_(gamma),
-                            beta_(beta),
-                            NumRows_(NumRows),
-                            EmbeddingDim_(EmbeddingDim),
-                            IndexLength_(IndexLength) {}
-        Tensor<OutType> & output_;
+        Argument(Tensor<OutType>& output,
+                 const Tensor<EmbType>& emb_a,
+                 const Tensor<EmbType>& emb_b,
+                 const Tensor<EmbType>& emb_c,
+                 const Tensor<IndexType>& index_a,
+                 const Tensor<IndexType>& index_b,
+                 const Tensor<IndexType>& index_c,
+                 const Tensor<GammaDataType>& gamma,
+                 const Tensor<BetaDataType>& beta,
+                 ck::index_t NumRows,
+                 ck::index_t EmbeddingDim,
+                 ck::index_t IndexLength,
+                 AccDataType epsilon)
+            : output_(output),
+              emb_a_(emb_a),
+              emb_b_(emb_b),
+              emb_c_(emb_c),
+              index_a_(index_a),
+              index_b_(index_b),
+              index_c_(index_c),
+              gamma_(gamma),
+              beta_(beta),
+              NumRows_(NumRows),
+              EmbeddingDim_(EmbeddingDim),
+              IndexLength_(IndexLength)
+        {
+        }
+        Tensor<OutType>& output_;
         const Tensor<EmbType> emb_a_;
         const Tensor<EmbType> emb_b_;
         const Tensor<EmbType> emb_c_;
@@ -82,17 +84,20 @@ struct ReferenceSparseEmbedding3ForwardLayernorm : public device::BaseOperator
 
             accumulator.SetZero();
 
-            auto f_emb_per_row = [&](auto idx){
+            auto f_emb_per_row = [&](auto idx) {
                 IndexType idx_a = arg.index_a_(idx);
                 IndexType idx_b = arg.index_b_(idx);
                 IndexType idx_c = arg.index_c_(idx);
-                // std::cout << "idx_a:" << idx_a << ", idx_b:" << idx_b << ", idx_c:" << idx_c << std::endl;
+                // std::cout << "idx_a:" << idx_a << ", idx_b:" << idx_b << ", idx_c:" << idx_c <<
+                // std::endl;
 
-                for(auto d = 0; d < D; d++){
+                for(auto d = 0; d < D; d++)
+                {
                     auto v_a = ck::type_convert<AccDataType>(arg.emb_a_(idx_a, d));
                     auto v_b = ck::type_convert<AccDataType>(arg.emb_b_(idx_b, d));
                     auto v_c = ck::type_convert<AccDataType>(arg.emb_c_(idx_c, d));
-                    // std::cout <<"idx:"<<idx<<", d:"<<d<< ", a:"<<v_a<<", b:"<<v_b<<", c:"<<v_c<<std::endl;
+                    // std::cout <<"idx:"<<idx<<", d:"<<d<< ", a:"<<v_a<<", b:"<<v_b<<",
+                    // c:"<<v_c<<std::endl;
 
                     accumulator(idx, d) += v_a + v_b + v_c;
                 }
@@ -123,16 +128,17 @@ struct ReferenceSparseEmbedding3ForwardLayernorm : public device::BaseOperator
             //     }
             // }
             // for(auto idx = 0; idx < L; idx++){
-            //     std::cout<< "idx: " << idx <<", mean:" << mean(idx) << ", var:" << var(idx) <<std::endl;
+            //     std::cout<< "idx: " << idx <<", mean:" << mean(idx) << ", var:" << var(idx)
+            //     <<std::endl;
             // }
 
             for(auto idx = 0; idx < L; ++idx)
             {
                 for(auto d = 0; d < D; ++d)
                 {
-                    auto x_val       = accumulator(idx, d);
-                    auto y_val       = (x_val - mean(idx)) / sqrt(var(idx) + arg.epsilon_);
-                    y_val            = (y_val * arg.gamma_(d)) + arg.beta_(d);
+                    auto x_val          = accumulator(idx, d);
+                    auto y_val          = (x_val - mean(idx)) / sqrt(var(idx) + arg.epsilon_);
+                    y_val               = (y_val * arg.gamma_(d)) + arg.beta_(d);
                     arg.output_(idx, d) = ck::type_convert<OutType>(y_val);
                 }
             }
@@ -161,39 +167,35 @@ struct ReferenceSparseEmbedding3ForwardLayernorm : public device::BaseOperator
         return true;
     }
 
-    bool IsSupportedArgument(const device::BaseArgument* p_arg) override
-    {
-        return true;
-    }
+    bool IsSupportedArgument(const device::BaseArgument* p_arg) override { return true; }
 
     static auto MakeArgument(Tensor<OutType>& output,
-                        const Tensor<EmbType>& emb_a,
-                        const Tensor<EmbType>& emb_b,
-                        const Tensor<EmbType>& emb_c,
-                        const Tensor<IndexType>& index_a,
-                        const Tensor<IndexType>& index_b,
-                        const Tensor<IndexType>& index_c,
-                        const Tensor<GammaDataType>& gamma,
-                        const Tensor<BetaDataType>& beta,
-                        ck::index_t NumRows,
-                        ck::index_t EmbeddingDim,
-                        ck::index_t IndexLength,
-                        AccDataType epsilon)
+                             const Tensor<EmbType>& emb_a,
+                             const Tensor<EmbType>& emb_b,
+                             const Tensor<EmbType>& emb_c,
+                             const Tensor<IndexType>& index_a,
+                             const Tensor<IndexType>& index_b,
+                             const Tensor<IndexType>& index_c,
+                             const Tensor<GammaDataType>& gamma,
+                             const Tensor<BetaDataType>& beta,
+                             ck::index_t NumRows,
+                             ck::index_t EmbeddingDim,
+                             ck::index_t IndexLength,
+                             AccDataType epsilon)
     {
-        return Argument(
-                    output,
-                    emb_a,
-                    emb_b,
-                    emb_c,
-                    index_a,
-                    index_b,
-                    index_c,
-                    gamma,
-                    beta,
-                    NumRows,
-                    EmbeddingDim,
-                    IndexLength,
-                    epsilon);
+        return Argument(output,
+                        emb_a,
+                        emb_b,
+                        emb_c,
+                        index_a,
+                        index_b,
+                        index_c,
+                        gamma,
+                        beta,
+                        NumRows,
+                        EmbeddingDim,
+                        IndexLength,
+                        epsilon);
     }
 
     static auto MakeInvoker() { return Invoker{}; }

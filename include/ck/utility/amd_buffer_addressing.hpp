@@ -42,11 +42,11 @@ __device__ int32x4_t make_wave_buffer_resource_with_default_range(T* p_wave)
     // wavewise base address (64 bit)
     wave_buffer_resource.address(Number<0>{}) = const_cast<remove_cv_t<T>*>(p_wave);
     // wavewise range (32 bit)
-    wave_buffer_resource.range(Number<2>{}) = 0xffffffff;   // max possible range
+    wave_buffer_resource.range(Number<2>{}) = 0xffffffff; // max possible range
     // wavewise setting (32 bit)
     wave_buffer_resource.config(Number<3>{}) = CK_BUFFER_RESOURCE_3RD_DWORD;
 
-    return wave_buffer_resource.content; 
+    return wave_buffer_resource.content;
 }
 
 // buffer load i8
