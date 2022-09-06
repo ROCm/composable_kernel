@@ -5,12 +5,14 @@
 
 bool run_elementwise_permute(const ExecutionConfig& config, const Problem& problem)
 {
-    const auto& nchw = problem.shape;
-    std::vector<std::size_t> nhwc;
-    transpose_shape(problem.shape, problem.axes, std::back_inserter(nhwc));
+    using std::begin, std::end;
 
-    Tensor<ADataType> a(nchw);
-    Tensor<BDataType> b(nhwc);
+    const auto& shape = problem.shape;
+    ck::remove_cvref_t<decltype(shape)> transposed_shape;
+    transpose_shape(problem.shape, problem.axes, begin(transposed_shape));
+
+    Tensor<ADataType> a(shape);
+    Tensor<BDataType> b(transposed_shape);
 
     std::iota(begin(a.mData), end(a.mData), 0);
 
@@ -23,12 +25,11 @@ bool run_elementwise_permute(const ExecutionConfig& config, const Problem& probl
     std::array<void*, 1> output      = {b_device_buf.GetDeviceBuffer()};
 
     std::array<ck::index_t, 4> ab_lengths;
-    std::array<ck::index_t, 4> a_strides;
-    std::array<ck::index_t, 4> b_strides;
+    std::array<ck::index_t, 4> a_strides, b_strides;
 
-    std::copy(nchw.begin(), nchw.end(), ab_lengths.begin());
-    std::copy(a.mDesc.GetStrides().begin(), a.mDesc.GetStrides().end(), a_strides.begin());
-    std::copy(b.mDesc.GetStrides().begin(), b.mDesc.GetStrides().end(), b_strides.begin());
+    std::copy(begin(shape), end(shape), begin(ab_lengths));
+    std::copy(begin(a.mDesc.GetStrides()), end(a.mDesc.GetStrides()), begin(a_strides));
+    std::copy(begin(b.mDesc.GetStrides()), end(b.mDesc.GetStrides()), begin(b_strides));
 
     auto permute = DeviceElementwisePermuteInstance{};
     auto argument =
@@ -48,7 +49,7 @@ bool run_elementwise_permute(const ExecutionConfig& config, const Problem& probl
 
     if(config.do_verification)
     {
-        Tensor<BDataType> host_b(nhwc);
+        Tensor<BDataType> host_b(transposed_shape);
         host_elementwise_permute(a, problem.axes, PassThrough{}, host_b);
 
         b_device_buf.FromDevice(b.mData.data());
