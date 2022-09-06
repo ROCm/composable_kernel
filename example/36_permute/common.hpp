@@ -207,6 +207,12 @@ inline constexpr bool is_device_op_v = is_device_op<T>::value;
 
 } // namespace detail
 
+template <typename Range>
+auto front(Range&& range) -> decltype(std::forward<Range>(range).front())
+{
+    return std::forward<Range>(range).front();
+}
+
 template <typename Axes>
 inline std::enable_if_t<detail::is_random_access_range_v<Axes>, bool>
 is_valid_axes(const Axes& axes)

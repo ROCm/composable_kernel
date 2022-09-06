@@ -18,10 +18,38 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+namespace detail {
 template <typename Derived>
 struct DevicePermuteBase : BaseOperator
 {
+    bool IsSupportedArgument(const BaseArgument* arg) override final
+    {
+        const auto* argument = dynamic_cast<const typename Derived::Argument*>(arg);
+        if(!argument)
+        {
+            return false;
+        }
+
+        return Derived::IsSupportedArgument(*argument);
+    }
+
+    template <typename... Args>
+    static auto MakeArgument(Args&&... args)
+    {
+        return typename Derived::Argument{std::forward<Args>(args)...};
+    }
+
+    template <typename... Args>
+    static auto MakeArgumentPointer(Args&&... args)
+    {
+        return std::make_unique<typename Derived::Argument>(std::forward<Args>(args)...);
+    }
+
+    static auto MakeInvoker() { return typename Derived::Invoker{}; }
+
+    static auto MakeInvokerPointer() { return std::make_unique<typename Derived::Invoker>(); };
 };
+} // namespace detail
 
 template <typename InDataTypeTuple,
           typename OutDataTypeTuple,
@@ -30,13 +58,13 @@ template <typename InDataTypeTuple,
           index_t MPerThread,
           typename InScalarPerVectorSeq,
           typename OutScalarPerVectorSeq>
-struct DevicePermute : DevicePermuteBase<DevicePermute<InDataTypeTuple,
-                                                       OutDataTypeTuple,
-                                                       ElementwiseOperation,
-                                                       NumDim,
-                                                       MPerThread,
-                                                       InScalarPerVectorSeq,
-                                                       OutScalarPerVectorSeq>>
+struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataTypeTuple,
+                                                               OutDataTypeTuple,
+                                                               ElementwiseOperation,
+                                                               NumDim,
+                                                               MPerThread,
+                                                               InScalarPerVectorSeq,
+                                                               OutScalarPerVectorSeq>>
 {
     static constexpr int NumInput  = InDataTypeTuple::Size();
     static constexpr int NumOutput = OutDataTypeTuple::Size();
@@ -264,46 +292,6 @@ struct DevicePermute : DevicePermuteBase<DevicePermute<InDataTypeTuple,
 
         return valid;
     };
-
-    bool IsSupportedArgument(const BaseArgument* p_arg) override
-    {
-        return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
-    }
-
-    static auto
-    MakeArgument(const std::array<index_t, NumDim> lengths,
-                 const std::array<std::array<index_t, NumDim>, NumInput> inStridesArray,
-                 const std::array<std::array<index_t, NumDim>, NumOutput> outStridesArray,
-                 const std::array<const void*, NumInput> in_dev_buffers,
-                 const std::array<void*, NumOutput> out_dev_buffers,
-                 ElementwiseOperation elementwise_op)
-    {
-        return Argument{lengths,
-                        inStridesArray,
-                        outStridesArray,
-                        in_dev_buffers,
-                        out_dev_buffers,
-                        elementwise_op};
-    }
-
-    std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const std::array<index_t, NumDim> lengths,
-                        const std::array<std::array<index_t, NumDim>, NumInput> inStridesArray,
-                        const std::array<std::array<index_t, NumDim>, NumOutput> outStridesArray,
-                        const std::array<const void*, NumInput> in_dev_buffers,
-                        const std::array<void*, NumOutput> out_dev_buffers,
-                        ElementwiseOperation elementwise_op)
-    {
-        return std::make_unique<Argument>(lengths,
-                                          inStridesArray,
-                                          outStridesArray,
-                                          in_dev_buffers,
-                                          out_dev_buffers,
-                                          elementwise_op);
-    }
-
-    static auto MakeInvoker() { return Invoker{}; }
-    std::unique_ptr<BaseInvoker> MakeInvokerPointer() { return std::make_unique<Invoker>(); };
 }; // namespace device
 
 } // namespace device
