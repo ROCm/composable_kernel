@@ -162,8 +162,8 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
     struct Argument : public BaseArgument
     {
         Argument(const std::array<index_t, NumDim> inLengths,
+                 const std::array<index_t, NumDim> axes,
                  const std::array<index_t, NumDim> inStrides,
-                 const std::array<index_t, NumDim> outLengths,
                  const std::array<index_t, NumDim> outStrides,
                  const void* in_dev_buffer,
                  void* out_dev_buffer,
@@ -171,8 +171,8 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
             : blockSize_(256),
               gridSize_(120), // FIXME - Calculate the grid size by number of CU in the future
               inLengths_(inLengths),
+              axes_(axes),
               inStridesArray_({inStrides}),
-              outLengths_(outLengths),
               outStridesArray_({outStrides}),
               elementwise_op_(elementwise_op)
         {
@@ -196,7 +196,7 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
 
             out_grid_1d_desc_tuple_ = generate_tuple(
                 [&](auto) {
-                    return MakeDescriptor_M(outLengths, outStrides, gridSize_, blockSize_);
+                    return MakeDescriptor_M(inLengths, outStrides, gridSize_, blockSize_);
                 },
                 Number<NumOutput>{});
         }
@@ -210,8 +210,8 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
         OutGrid1dDescTuple out_grid_1d_desc_tuple_;
 
         std::array<index_t, NumDim> inLengths_;
+        std::array<index_t, NumDim> axes_;
         std::array<std::array<index_t, NumDim>, NumInput> inStridesArray_;
-        std::array<index_t, NumDim> outLengths_;
         std::array<std::array<index_t, NumDim>, NumOutput> outStridesArray_;
 
         ElementwiseOperation elementwise_op_;
@@ -244,7 +244,7 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!(arg.inLengths_.back() % MPerThread == 0 && arg.outLengths_.back() % MPerThread == 0))
+        if(arg.inLengths_.back() % MPerThread != 0)
         {
             return false;
         }
@@ -270,7 +270,7 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
 
         static_for<0, NumOutput, 1>{}([&](auto I) {
             if(!IsScalarPerVectorValid(
-                   arg.outLengths_, arg.outStridesArray_[I.value], OutScalarPerVectorSeq::At(I)))
+                   arg.inLengths_, arg.outStridesArray_[I.value], OutScalarPerVectorSeq::At(I)))
                 valid = false;
         });
 
