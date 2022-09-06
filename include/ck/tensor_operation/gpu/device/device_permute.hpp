@@ -18,6 +18,11 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+template <typename Derived>
+struct DevicePermuteBase : BaseOperator
+{
+};
+
 template <typename InDataTypeTuple,
           typename OutDataTypeTuple,
           typename ElementwiseOperation,
@@ -25,7 +30,13 @@ template <typename InDataTypeTuple,
           index_t MPerThread,
           typename InScalarPerVectorSeq,
           typename OutScalarPerVectorSeq>
-struct DevicePermute : BaseOperator
+struct DevicePermute : DevicePermuteBase<DevicePermute<InDataTypeTuple,
+                                                       OutDataTypeTuple,
+                                                       ElementwiseOperation,
+                                                       NumDim,
+                                                       MPerThread,
+                                                       InScalarPerVectorSeq,
+                                                       OutScalarPerVectorSeq>>
 {
     static constexpr int NumInput  = InDataTypeTuple::Size();
     static constexpr int NumOutput = OutDataTypeTuple::Size();
