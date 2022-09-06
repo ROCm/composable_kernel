@@ -24,7 +24,7 @@ Gemm + Softmax + Gemm fused operation. Computes C_g_m_o = Softmax(A_g_m_k * B0_g
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
 
 template <ck::index_t... Is>
@@ -50,7 +50,7 @@ using B0Layout = Col;
 using B1Layout = Row;
 
 using CPermuteNumDims_G_M_O =
-    S<2, 1, 1>; // "using CLayout = Row" has been replaced by CPermuteNumDims_G_M_O
+    S<0, 1, 1>; // "using CLayout = Row" has been replaced by CPermuteNumDims_M_O
 
 using AElementOp    = PassThrough;
 using B0ElementOp   = PassThrough;
@@ -120,7 +120,7 @@ using DeviceGemmInstance =
         8>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
 
 // Ref Gemm0: fp16 in, fp32 out
-using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
+using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                                 B0DataType,
                                                                                 AccDataType,
                                                                                 AccDataType,
@@ -133,7 +133,7 @@ using ReferenceSoftmaxInstance =
     ck::tensor_operation::host::ReferenceSoftmax<AccDataType, ADataType, AccDataType>;
 
 // Ref Gemm1: fp16 in, fp16 out
-using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
+using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                                 B1DataType,
                                                                                 CDataType,
                                                                                 AccDataType,
@@ -147,26 +147,6 @@ int main(int argc, char* argv[])
     int init_method      = 1;
     bool time_kernel     = false;
 
-    // GEMM shape for A/B0/B1/C
-    // C_g_m_o = A_g_m_k * B0_g_k_n * B1_g_n_o
-    ck::index_t M             = 128;
-    ck::index_t N             = 1024;
-    ck::index_t K             = 64;
-    ck::index_t O             = 128;
-    ck::index_t StrideA       = -1;
-    ck::index_t StrideB0      = -1;
-    ck::index_t StrideB1      = -1;
-    ck::index_t BatchStrideA  = -1;
-    ck::index_t BatchStrideB0 = -1;
-    ck::index_t BatchStrideB1 = -1;
-    float alpha               = 1;
-
-    // Output shape C[G0, M, G1, O]. Batch dim, outer dim, inner dim must match GEMM shape
-    // C_g0_g1_m_o = reshape(C_g_m_o, [g0, g1, m, o])
-    // C_g0_m_g1_o = permute(C_g0_g1_m_o, [0, 2, 1, 3])
-    ck::index_t G0 = 7;
-    ck::index_t G1 = 13;
-
     if(argc == 1)
     {
         // use default case
@@ -177,122 +157,170 @@ int main(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
     }
-    else if(argc == 11)
-    {
-        do_verification = std::stoi(argv[1]);
-        init_method     = std::stoi(argv[2]);
-        time_kernel     = std::stoi(argv[3]);
-
-        M  = std::stoi(argv[4]);
-        N  = std::stoi(argv[5]);
-        K  = std::stoi(argv[6]);
-        O  = std::stoi(argv[7]);
-        G0 = std::stoi(argv[8]);
-        G1 = std::stoi(argv[9]);
-
-        alpha = std::stof(argv[10]);
-    }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 11: M, N, K, O, G0, G1\n");
-        printf("arg10: scale (alpha)\n");
         exit(0);
     }
 
-    std::vector<ck::index_t> c_gs_ms_os_lengths{G0, G1, M, O};
-    std::vector<ck::index_t> c_gs_ms_os_strides{M * G1 * O, O, G1 * O, 1};
+    float alpha = 1; // scaling after 1st gemm
 
-    const int DefaultStrideA  = ck::is_same_v<ALayout, Row> ? K : M;
-    const int DefaultStrideB0 = ck::is_same_v<B0Layout, Row> ? N : K;
-    const int DefaultStrideB1 = ck::is_same_v<B1Layout, Row> ? O : N;
+    std::size_t group_count = 4;
 
-    StrideA  = (StrideA < 0) ? DefaultStrideA : StrideA;
-    StrideB0 = (StrideB0 < 0) ? DefaultStrideB0 : StrideB0;
-    StrideB1 = (StrideB1 < 0) ? DefaultStrideB1 : StrideB1;
+    // Problem descs
+    std::vector<DeviceGemmInstance::ProblemDesc> problem_descs;
+    std::vector<const void*> p_a;
+    std::vector<const void*> p_b0;
+    std::vector<const void*> p_b1;
+    std::vector<void*> p_c;
 
-    const int DefaultBatchStrideA  = (ck::is_same_v<ALayout, Col> ? K : M) * StrideA;
-    const int DefaultBatchStrideB0 = (ck::is_same_v<B0Layout, Col> ? N : K) * StrideB0;
-    const int DefaultBatchStrideB1 = (ck::is_same_v<B1Layout, Col> ? O : N) * StrideB1;
+    for(std::size_t i = 0; i < group_count; i++)
+    {
+        // int M0 = 4 * (rand() % 4 + 1);
+        // int M1 = 128;
 
-    BatchStrideA  = BatchStrideA < 0 ? DefaultBatchStrideA : BatchStrideA;
-    BatchStrideB0 = BatchStrideB0 < 0 ? DefaultBatchStrideB0 : BatchStrideB0;
-    BatchStrideB1 = BatchStrideB1 < 0 ? DefaultBatchStrideB1 : BatchStrideB1;
+        // int O0 = 4 * (rand() % 4 + 1);
+        // int O1 = 128;
 
-    const int BatchCount = G0 * G1;
+        // int M = M0 * M1;
+        // int N = 256 * (rand() % 4 + 1);
+        // int K = 64;
+        // int O = O0 * O1;
 
-    auto f_host_tensor_descriptor = [](std::size_t batch_count,
+        int M = 128;
+        int N = 128;
+        int K = 64;
+        int O = 64;
+
+        const int StrideA  = ck::is_same_v<ALayout, Row> ? K : M;
+        const int StrideB0 = ck::is_same_v<B0Layout, Row> ? N : K;
+        const int StrideB1 = ck::is_same_v<B1Layout, Row> ? O : N;
+
+        // std::vector<ck::index_t> c_gs_ms_os_lengths{M0, M1, O0, O1};
+        // std::vector<ck::index_t> c_gs_ms_os_strides{M1 * O0 * O1, O1, M1 * O1, 1}; // [0, 2, 1, 3]
+
+        std::vector<ck::index_t> c_gs_ms_os_lengths{M, O};
+        std::vector<ck::index_t> c_gs_ms_os_strides{O, 1};
+
+        problem_descs.push_back(
+            {M, N, K, O, StrideA, StrideB0, StrideB1, c_gs_ms_os_lengths, c_gs_ms_os_strides});
+    }
+
+    auto f_host_tensor_descriptor = [](
                                        std::size_t row,
                                        std::size_t col,
                                        std::size_t stride,
-                                       std::size_t batch_stride,
                                        auto layout) {
         if(std::is_same<decltype(layout), Row>::value)
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({batch_stride, stride, 1}));
+            return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
+                                        std::vector<std::size_t>({stride, 1}));
         }
         else
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({batch_stride, 1, stride}));
+            return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
+                                        std::vector<std::size_t>({1, stride}));
         }
     };
 
-    // C_m_o = A_m_k * B0_k_n * B1_n_o
-    Tensor<ADataType> a_g_m_k(
-        f_host_tensor_descriptor(BatchCount, M, K, StrideA, BatchStrideA, ALayout{}));
-    Tensor<B0DataType> b0_g_k_n(
-        f_host_tensor_descriptor(BatchCount, K, N, StrideB0, BatchStrideB0, B0Layout{}));
-    Tensor<B1DataType> b1_g_n_o(
-        f_host_tensor_descriptor(BatchCount, N, O, StrideB1, BatchStrideB1, B1Layout{}));
-    Tensor<CDataType> c_gs_ms_os_host_result(
-        std::vector<std::size_t>(c_gs_ms_os_lengths.begin(), c_gs_ms_os_lengths.end()),
-        std::vector<std::size_t>(c_gs_ms_os_strides.begin(), c_gs_ms_os_strides.end()));
-    Tensor<CDataType> c_gs_ms_os_device_result(
-        std::vector<std::size_t>(c_gs_ms_os_lengths.begin(), c_gs_ms_os_lengths.end()),
-        std::vector<std::size_t>(c_gs_ms_os_strides.begin(), c_gs_ms_os_strides.end()));
+    std::vector<Tensor<ADataType>> a_tensors;
+    std::vector<Tensor<B0DataType>> b0_tensors;
+    std::vector<Tensor<B1DataType>> b1_tensors;
+    std::vector<Tensor<CDataType>> c_tensors;
 
-    std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
-    std::cout << "b0_g_k_n: " << b0_g_k_n.mDesc << std::endl;
-    std::cout << "b1_g_n_o: " << b1_g_n_o.mDesc << std::endl;
-    std::cout << "c_gs_ms_os: " << c_gs_ms_os_host_result.mDesc << std::endl;
+    using DeviceMemPtr = std::unique_ptr<DeviceMem>;
 
-    switch(init_method)
+    std::vector<DeviceMemPtr> a_tensors_device;
+    std::vector<DeviceMemPtr> b0_tensors_device;
+    std::vector<DeviceMemPtr> b1_tensors_device;
+    std::vector<DeviceMemPtr> c_tensors_device;
+
+    std::size_t flop = 0, num_btype = 0;
+
+    for(std::size_t i = 0; i < group_count; i++)
     {
-    case 0: break;
-    case 1:
-        a_g_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b0_g_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-5, 5});
-        b1_g_n_o.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-5, 5});
-        break;
-    case 2:
-        a_g_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b0_g_k_n.GenerateTensorValue(GeneratorTensor_3<B0DataType>{0.0, 1.0});
-        b1_g_n_o.GenerateTensorValue(GeneratorTensor_3<B1DataType>{-0.5, 0.5});
-        break;
-    case 3:
-        a_g_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
-        b0_g_k_n.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
-        b1_g_n_o.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
-        break;
-    default:
-        a_g_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
-        b0_g_k_n.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
-        b1_g_n_o.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
+        const auto& M               = problem_descs[i].M;
+        const auto& N               = problem_descs[i].N;
+        const auto& K               = problem_descs[i].K;
+        const auto& O               = problem_descs[i].O;
+        const auto& StrideA         = problem_descs[i].StrideA;
+        const auto& StrideB0        = problem_descs[i].StrideB0;
+        const auto& StrideB1        = problem_descs[i].StrideB1;
+        const auto& c_gs_ms_os_lengths = problem_descs[i].c_gs_ms_os_lengths;
+        const auto& c_gs_ms_os_strides = problem_descs[i].c_gs_ms_os_strides;
+
+        // C_m_o = A_m_k * B0_k_n * B1_n_o
+        Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
+        Tensor<B0DataType> b0_k_n(f_host_tensor_descriptor(K, N, StrideB0, B0Layout{}));
+        Tensor<B1DataType> b1_n_o(f_host_tensor_descriptor(N, O, StrideB1, B1Layout{}));
+        Tensor<CDataType> c_gs_ms_os_device_result(
+            std::vector<std::size_t>(c_gs_ms_os_lengths.begin(), c_gs_ms_os_lengths.end()),
+            std::vector<std::size_t>(c_gs_ms_os_strides.begin(), c_gs_ms_os_strides.end()));
+
+        flop      = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2);
+        num_btype = (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
+                     sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O);
+
+        if(i < 4)
+        {
+            std::cout << "a_m_k[" << i << "]: " << a_m_k.mDesc << " "
+                      << "b0_k_n[" << i << "]: " << b0_k_n.mDesc << " "
+                      << "b1_n_o[" << i << "]: " << b1_n_o.mDesc << " "
+                      << "c_gs_ms_os[" << i << "]: " << c_gs_ms_os_device_result.mDesc << std::endl;
+        }
+
+        switch(init_method)
+        {
+        case 0: break;
+        case 1:
+            a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
+            b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-5, 5});
+            b1_n_o.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-5, 5});
+            break;
+        case 2:
+            a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+            b0_k_n.GenerateTensorValue(GeneratorTensor_3<B0DataType>{0.0, 1.0});
+            b1_n_o.GenerateTensorValue(GeneratorTensor_3<B1DataType>{-0.5, 0.5});
+            break;
+        case 3:
+            a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+            b0_k_n.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
+            b1_n_o.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
+            break;
+        default:
+            a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
+            b0_k_n.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
+            b1_n_o.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
+        }
+
+        a_tensors.push_back(a_m_k);
+        b0_tensors.push_back(b0_k_n);
+        b1_tensors.push_back(b1_n_o);
+        c_tensors.push_back(c_gs_ms_os_device_result);
+
+        a_tensors_device.emplace_back(
+            std::make_unique<DeviceMem>(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize()));
+        b0_tensors_device.emplace_back(
+            std::make_unique<DeviceMem>(sizeof(B0DataType) * b0_k_n.mDesc.GetElementSpaceSize()));
+        b1_tensors_device.emplace_back(
+            std::make_unique<DeviceMem>(sizeof(B1DataType) * b1_n_o.mDesc.GetElementSpaceSize()));
+        c_tensors_device.emplace_back(std::make_unique<DeviceMem>(
+            sizeof(CDataType) * c_gs_ms_os_device_result.mDesc.GetElementSpaceSize()));
+
+        // a_m_k_device_buf.ToDevice(a_m_k.mData.data());
+        // b0_k_n_device_buf.ToDevice(b0_k_n.mData.data());
+        // b1_n_o_device_buf.ToDevice(b1_n_o.mData.data());
+
+        a_tensors_device[i]->ToDevice(a_m_k.mData.data());
+        b0_tensors_device[i]->ToDevice(b0_k_n.mData.data());
+        b1_tensors_device[i]->ToDevice(b1_n_o.mData.data());
+
+        p_a.push_back(a_tensors_device[i]->GetDeviceBuffer());
+        p_b0.push_back(b0_tensors_device[i]->GetDeviceBuffer());
+        p_b1.push_back(b1_tensors_device[i]->GetDeviceBuffer());
+        p_c.push_back(c_tensors_device[i]->GetDeviceBuffer());
     }
-
-    DeviceMem a_g_m_k_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b0_g_k_n_device_buf(sizeof(B0DataType) * b0_g_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem b1_g_n_o_device_buf(sizeof(B1DataType) * b1_g_n_o.mDesc.GetElementSpaceSize());
-    DeviceMem c_gs_ms_os_device_buf(sizeof(CDataType) *
-                                    c_gs_ms_os_device_result.mDesc.GetElementSpaceSize());
-
-    a_g_m_k_device_buf.ToDevice(a_g_m_k.mData.data());
-    b0_g_k_n_device_buf.ToDevice(b0_g_k_n.mData.data());
-    b1_g_n_o_device_buf.ToDevice(b1_g_n_o.mData.data());
 
     auto a_element_op    = AElementOp{};
     auto b0_element_op   = B0ElementOp{};
@@ -304,28 +332,17 @@ int main(int argc, char* argv[])
     auto gemm    = DeviceGemmInstance{};
     auto invoker = gemm.MakeInvoker();
     auto argument =
-        gemm.MakeArgument(static_cast<ADataType*>(a_g_m_k_device_buf.GetDeviceBuffer()),
-                          static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
-                          static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
-                          static_cast<CDataType*>(c_gs_ms_os_device_buf.GetDeviceBuffer()),
-                          M,
-                          N,
-                          K,
-                          O,
-                          BatchCount,
-                          c_gs_ms_os_lengths,
-                          c_gs_ms_os_strides,
-                          StrideA,
-                          StrideB0,
-                          StrideB1,
-                          BatchStrideA,
-                          BatchStrideB0,
-                          BatchStrideB1,
+        gemm.MakeArgument(p_a, p_b0, p_b1, p_c, problem_descs,
                           a_element_op,
                           b0_element_op,
                           acc0_element_op,
                           b1_element_op,
                           c_element_op);
+
+    // specify workspace for problem_desc
+    DeviceMem problem_desc_workspace(gemm.GetWorkSpaceSize(&argument));
+
+    gemm.SetWorkSpacePointer(&argument, problem_desc_workspace.GetDeviceBuffer());
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -336,11 +353,6 @@ int main(int argc, char* argv[])
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-    std::size_t flop      = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * BatchCount;
-    std::size_t num_btype = (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
-                             sizeof(B1DataType) * N * O + sizeof(CDataType) * M * O) *
-                            BatchCount;
-
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
     float gb_per_sec = num_btype / 1.E6 / ave_time;
@@ -348,51 +360,69 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
+    bool pass = true;
     if(do_verification)
     {
-        c_gs_ms_os_device_buf.FromDevice(c_gs_ms_os_device_result.mData.data());
+        for(std::size_t i = 0; i < group_count; i++)
+        {
+            const auto& M               = problem_descs[i].M;
+            const auto& N               = problem_descs[i].N;
+            const auto& O               = problem_descs[i].O;
+            const auto& c_gs_ms_os_lengths = problem_descs[i].c_gs_ms_os_lengths;
+            const auto& c_gs_ms_os_strides = problem_descs[i].c_gs_ms_os_strides;
 
-        // Output of Gemm0 is input A of Gemm1
-        Tensor<AccDataType> acc0_g_m_n(f_host_tensor_descriptor(BatchCount, M, N, N, M * N, Row{}));
+            const auto& a_m_k                 = a_tensors[i];
+            const auto& b0_k_n                = b0_tensors[i];
+            const auto& b1_n_o                = b1_tensors[i];
+            auto& c_gs_ms_os_device_result = c_tensors[i];
+            auto& c_gs_ms_os_device_buf    = *c_tensors_device[i];
 
-        Tensor<ADataType> a1_g_m_n(f_host_tensor_descriptor(BatchCount, M, N, N, M * N, Row{}));
+            Tensor<CDataType> c_gs_ms_os_host_result(
+                std::vector<std::size_t>(c_gs_ms_os_lengths.begin(), c_gs_ms_os_lengths.end()),
+                std::vector<std::size_t>(c_gs_ms_os_strides.begin(), c_gs_ms_os_strides.end()));
 
-        Tensor<CDataType> c_g_m_o_host_result(std::vector<int>{BatchCount, M, O},
-                                              std::vector<int>{M * O, O, 1});
+            c_gs_ms_os_device_buf.FromDevice(c_gs_ms_os_device_result.mData.data());
 
-        auto ref_gemm0          = ReferenceGemm0Instance{};
-        auto ref_gemm0_invoker  = ref_gemm0.MakeInvoker();
-        auto ref_gemm0_argument = ref_gemm0.MakeArgument(
-            a_g_m_k, b0_g_k_n, acc0_g_m_n, a_element_op, b0_element_op, acc0_element_op);
+            // Output of Gemm0 is input A of Gemm1
+            Tensor<AccDataType> acc0_m_n(
+                f_host_tensor_descriptor(M, N, N, Row{}));
 
-        ref_gemm0_invoker.Run(ref_gemm0_argument);
+            Tensor<ADataType> a1_m_n(f_host_tensor_descriptor(M, N, N, Row{}));
 
-        auto ref_softmax          = ReferenceSoftmaxInstance{};
-        auto ref_softmax_invoker  = ref_softmax.MakeInvoker();
-        auto ref_softmax_argument = ref_softmax.MakeArgument(acc0_g_m_n, a1_g_m_n, 1, 0, {2});
+            Tensor<CDataType> c_m_o_host_result(std::vector<int>{M, O},
+                                                std::vector<int>{O, 1});
 
-        ref_softmax_invoker.Run(ref_softmax_argument);
+            auto ref_gemm0          = ReferenceGemm0Instance{};
+            auto ref_gemm0_invoker  = ref_gemm0.MakeInvoker();
+            auto ref_gemm0_argument = ref_gemm0.MakeArgument(
+                a_m_k, b0_k_n, acc0_m_n, a_element_op, b0_element_op, acc0_element_op);
 
-        auto ref_gemm1          = ReferenceGemm1Instance{};
-        auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
-        auto ref_gemm1_argument = ref_gemm1.MakeArgument(
-            a1_g_m_n, b1_g_n_o, c_g_m_o_host_result, PassThrough{}, b1_element_op, c_element_op);
+            ref_gemm0_invoker.Run(ref_gemm0_argument);
 
-        ref_gemm1_invoker.Run(ref_gemm1_argument);
+            auto ref_softmax          = ReferenceSoftmaxInstance{};
+            auto ref_softmax_invoker  = ref_softmax.MakeInvoker();
+            auto ref_softmax_argument = ref_softmax.MakeArgument(acc0_m_n, a1_m_n, 1, 0, {1});
 
-        c_gs_ms_os_host_result.ForEach([&](auto& self, auto idx) {
-            const size_t& g0 = idx[0];
-            const size_t& g1 = idx[1];
+            ref_softmax_invoker.Run(ref_softmax_argument);
 
-            const size_t g = g0 * G1 + g1;
+            auto ref_gemm1          = ReferenceGemm1Instance{};
+            auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
+            auto ref_gemm1_argument = ref_gemm1.MakeArgument(
+                a1_m_n, b1_n_o, c_m_o_host_result, PassThrough{}, b1_element_op, c_element_op);
 
-            self(idx) = c_g_m_o_host_result(g, idx[2], idx[3]);
-        });
+            ref_gemm1_invoker.Run(ref_gemm1_argument);
 
-        return ck::utils::check_err(c_gs_ms_os_device_result.mData, c_gs_ms_os_host_result.mData)
-                   ? 0
-                   : 1;
+            c_gs_ms_os_host_result.ForEach(
+                [&](auto& self, auto idx) { self(idx) = c_m_o_host_result(idx); });
+
+            bool pass_ = ck::utils::check_err(c_gs_ms_os_device_result.mData, c_gs_ms_os_host_result.mData);
+            pass &= pass_;
+
+            // LogRangeAsType<float>(std::cout << "c_gs_ms_os_device_result: ", std::vector<float>(c_gs_ms_os_device_result.mData.begin(), c_gs_ms_os_device_result.mData.begin() + 16), ",") << std::endl;
+            // LogRangeAsType<float>(std::cout << "c_gs_ms_os_host_result: ", std::vector<float>(c_gs_ms_os_host_result.mData.begin(), c_gs_ms_os_host_result.mData.begin() + 16), ",") << std::endl;
+            // printf("pass = %d\n", pass);
+        }
     }
 
-    return 0;
+    return pass ? 0 : 1;
 }

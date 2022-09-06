@@ -27,24 +27,30 @@ template <typename ALayout,
           typename CElementwiseOperation>
 struct DeviceBatchedGemmSoftmaxGemmPermute : public BaseOperator
 {
+    struct ProblemDesc
+    {
+        // Overall problem shape
+        index_t M;
+        index_t N;
+        index_t K;
+        index_t O;
+
+        // Stride for A/B0/B1; layout determined by template args
+        index_t StrideA;
+        index_t StrideB0;
+        index_t StrideB1;
+
+        // Lengths and strides for output C
+        std::vector<index_t> c_gs_ms_os_lengths;
+        std::vector<index_t> c_gs_ms_os_strides;
+    };
+
     virtual std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const void* p_a,
-                        const void* p_b0,
-                        const void* p_b1,
-                        void* p_c,
-                        ck::index_t M,
-                        ck::index_t N,
-                        ck::index_t K,
-                        ck::index_t O,
-                        ck::index_t Batch,
-                        std::vector<index_t> c_gs_ms_os_lengths,
-                        std::vector<index_t> c_gs_ms_os_strides,
-                        ck::index_t StrideA,
-                        ck::index_t StrideB0,
-                        ck::index_t StrideB1,
-                        ck::index_t BatchStrideA,
-                        ck::index_t BatchStrideB0,
-                        ck::index_t BatchStrideB1,
+    MakeArgumentPointer(std::vector<const void*> p_a_vec,
+                        std::vector<const void*> p_b0_vec,
+                        std::vector<const void*> p_b1_vec,
+                        std::vector<void*> p_c_vec,
+                        std::vector<ProblemDesc> problem_desc_vec,
                         AElementwiseOperation a_element_op,
                         B0ElementwiseOperation b0_element_op,
                         Acc0ElementwiseOperation acc0_element_op,
