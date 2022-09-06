@@ -353,10 +353,7 @@ std::enable_if_t<detail::is_random_access_range_v<Axes> && detail::is_sized_rang
                                          std::add_lvalue_reference_t<Dest>,
                                          std::add_lvalue_reference_t<Src>>,
                  bool>
-host_elementwise_permute(const Tensor<Src>& src,
-                         const Axes& axes,
-                         Functor functor,
-                         Tensor<Dest>& dest)
+host_permute(const Tensor<Src>& src, const Axes& axes, Functor functor, Tensor<Dest>& dest)
 {
     const auto& shape            = src.mDesc.GetLengths();
     const auto& transposed_shape = dest.mDesc.GetLengths();

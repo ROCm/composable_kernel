@@ -3,7 +3,7 @@
 
 #pragma once
 
-bool run_elementwise_permute(const ExecutionConfig& config, const Problem& problem)
+bool run_permute(const ExecutionConfig& config, const Problem& problem)
 {
     using std::begin, std::end;
 
@@ -31,7 +31,7 @@ bool run_elementwise_permute(const ExecutionConfig& config, const Problem& probl
     std::copy(begin(a.mDesc.GetStrides()), end(a.mDesc.GetStrides()), begin(a_strides));
     std::copy(begin(b.mDesc.GetStrides()), end(b.mDesc.GetStrides()), begin(b_strides));
 
-    auto permute = DeviceElementwisePermuteInstance{};
+    auto permute = DevicePermuteInstance{};
     auto argument =
         permute.MakeArgument(ab_lengths, {a_strides}, {b_strides}, input, output, PassThrough{});
 
@@ -50,7 +50,7 @@ bool run_elementwise_permute(const ExecutionConfig& config, const Problem& probl
     if(config.do_verification)
     {
         Tensor<BDataType> host_b(transposed_shape);
-        host_elementwise_permute(a, problem.axes, PassThrough{}, host_b);
+        host_permute(a, problem.axes, PassThrough{}, host_b);
 
         b_device_buf.FromDevice(b.mData.data());
 
@@ -61,10 +61,10 @@ bool run_elementwise_permute(const ExecutionConfig& config, const Problem& probl
     return true;
 }
 
-bool run_elementwise_permute_example(int argc, char* argv[])
+bool run_permute_example(int argc, char* argv[])
 {
     ExecutionConfig config;
     Problem problem;
 
-    return parse_cmd_args(argc, argv, config, problem) && run_elementwise_permute(config, problem);
+    return parse_cmd_args(argc, argv, config, problem) && run_permute(config, problem);
 }
