@@ -322,9 +322,6 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
                 threadwise_welford_sub_row(i_dim_sub, Number<RowSubBlocks - 2>{});
                 accumulate_current_sub_row(i_dim_sub, Number<RowSubBlocks - 1>{});
                 threadwise_welford_sub_row(i_dim_sub, Number<RowSubBlocks - 1>{});
-
-
-                
             }
             else if constexpr(RowSubBlocks % 3 == 0)
             {
@@ -352,7 +349,14 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
                 accumulate_current_sub_row(i_dim_sub, Number<RowSubBlocks - 1>{});
                 threadwise_welford_sub_row(i_dim_sub, Number<RowSubBlocks - 1>{});
             } else {
-
+                load_current_sub_row(i_dim_sub, Number<0>{});
+                static_for<0, RowSubBlocks - 1, 1>{}([&](auto i_row) {
+                    load_current_sub_row(i_dim_sub, Number<1>{} + i_row);
+                    accumulate_current_sub_row(i_dim_sub, i_row);
+                    threadwise_welford_sub_row(i_dim_sub, i_row);
+                });
+                accumulate_current_sub_row(i_dim_sub, Number<RowSubBlocks - 1>{});
+                threadwise_welford_sub_row(i_dim_sub, Number<RowSubBlocks - 1>{});
             }
 
             // blockwise welford
