@@ -11,7 +11,8 @@ class TestBatchedGemmGemmFP16 : public TestBatchedGemmGemm<Tuple>
 
 // clang-format off
 using KernelTypes = ::testing::Types<
-    std::tuple<F16, F16, F16, F16, Row, Col, Row, Row>
+    std::tuple<F16, F16, F16, F16, Row, Col, Row, Row>,
+    std::tuple<F16, F16, F16, F16, Row, Col, Col, Row>
     >;
 // clang-format on
 

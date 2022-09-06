@@ -608,8 +608,9 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             static_cast<FloatAB*>(p_shared) + SharedMemTrait::b1_block_space_offset,
             b1_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
+        // selected_mfma.k_per_blk <= B1K1 <= selected_mfma.group_size
         constexpr index_t Gemm1KPack = math::max(
-            math::lcm(MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.group_size, B1K1),
+            math::gcd(MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.group_size, B1K1),
             MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
         auto gemm1_blockwise_gemm = BlockwiseGemmXdlops_v2<
