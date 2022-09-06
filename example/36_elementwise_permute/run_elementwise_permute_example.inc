@@ -49,7 +49,7 @@ bool run_elementwise_permute(const ExecutionConfig& config, const Problem& probl
     if(config.do_verification)
     {
         Tensor<BDataType> host_b(nhwc);
-        host_elementwise_permute(a, PassThrough{}, host_b);
+        host_elementwise_permute(a, problem.axes, PassThrough{}, host_b);
 
         b_device_buf.FromDevice(b.mData.data());
 
