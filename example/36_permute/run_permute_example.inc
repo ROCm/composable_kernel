@@ -31,6 +31,9 @@ bool run_permute(const ExecutionConfig& config, const Problem& problem)
     std::copy(begin(a.mDesc.GetStrides()), end(a.mDesc.GetStrides()), begin(a_strides));
     std::copy(begin(b.mDesc.GetStrides()), end(b.mDesc.GetStrides()), begin(b_strides));
 
+    static_assert(std::is_default_constructible_v<DevicePermuteInstance>);
+    static_assert(detail::is_device_op_v<DevicePermuteInstance>);
+
     auto permute = DevicePermuteInstance{};
     auto argument =
         permute.MakeArgument(ab_lengths, {a_strides}, {b_strides}, input, output, PassThrough{});
