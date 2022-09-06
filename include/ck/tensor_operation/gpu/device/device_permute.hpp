@@ -25,7 +25,7 @@ template <typename InDataTypeTuple,
           index_t MPerThread,
           typename InScalarPerVectorSeq,
           typename OutScalarPerVectorSeq>
-struct DevicePermute
+struct DevicePermute : BaseOperator
 {
     static constexpr int NumInput  = InDataTypeTuple::Size();
     static constexpr int NumOutput = OutDataTypeTuple::Size();
@@ -254,7 +254,7 @@ struct DevicePermute
         return valid;
     };
 
-    bool IsSupportedArgument(const BaseArgument* p_arg)
+    bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
