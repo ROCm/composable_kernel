@@ -25,21 +25,6 @@ using BetaDataType = float;
 using AccDataType = float;
 using OutType = float;
 
-using DeviceInstance_fp32_e1024 = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<
-                                                                        EmbType,
-                                                                        IndexType,
-                                                                        GammaDataType,
-                                                                        BetaDataType,
-                                                                        AccDataType,
-                                                                        OutType,
-                                                                        256,        // BlockSize
-                                                                        1,          // DimClusterSize
-                                                                        256,        // RowClusterSize
-                                                                        1,          // DimPerBlock
-                                                                        1024,       // RowPerBlock
-                                                                        1,          // DimThreadSize
-                                                                        4>;         // RowVectorSize
-
 using DeviceInstance_fp32_e768 = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<
                                                                         EmbType,
                                                                         IndexType,
@@ -54,6 +39,23 @@ using DeviceInstance_fp32_e768 = ck::tensor_operation::device::DeviceSparseEmbed
                                                                         768,        // RowPerBlock
                                                                         1,          // DimThreadSize
                                                                         1>;         // RowVectorSize
+
+using DeviceInstance_fp32_e1024 = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<
+                                                                        EmbType,
+                                                                        IndexType,
+                                                                        GammaDataType,
+                                                                        BetaDataType,
+                                                                        AccDataType,
+                                                                        OutType,
+                                                                        256,        // BlockSize
+                                                                        1,          // DimClusterSize
+                                                                        256,        // RowClusterSize
+                                                                        1,          // DimPerBlock
+                                                                        1024,       // RowPerBlock
+                                                                        1,          // DimThreadSize
+                                                                        1>;         // RowVectorSize
+
+
 
 template<typename emb_type, ck::index_t dim>
 struct emb_kernel{
@@ -75,7 +77,8 @@ int main()
 
     constexpr auto num_rows = 65536;
     constexpr auto dims = ck::Sequence<768, 1024>{};
-    constexpr auto index_length = 64;
+    // constexpr auto dims = ck::Sequence<1024>{};
+    constexpr auto index_length = 2048;
     constexpr AccDataType epsilon = 1e-4;
 
     auto f_host_tensor_desc_1d = [](std::size_t len_){

@@ -128,8 +128,8 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
         const auto index_length = out_grid_desc.GetLength(I0);
         const auto emb_dim = out_grid_desc.GetLength(I1);
 
-        const auto out_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_out, out_grid_desc.GetElementSpaceSize());
+        //const auto out_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        //    p_out, out_grid_desc.GetElementSpaceSize());
 
         constexpr auto thread_cluster_desc =
             make_cluster_descriptor(Sequence<DimClusterSize, RowClusterSize>{}, Sequence<0, 1>{});
@@ -171,18 +171,17 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, mean_var_buf_size, true> mean_thread_buf;
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, mean_var_buf_size, true> var_thread_buf;
 
-
         auto load_current_sub_row = [&](auto i_dim_sub_, auto i_row_sub_){
             vector_type_maker_t<EmbType, RowVectorSize> emb_vector_a;
             vector_type_maker_t<EmbType, RowVectorSize> emb_vector_b;
             vector_type_maker_t<EmbType, RowVectorSize> emb_vector_c;
 
             using src_vector_t = typename decltype(emb_vector_a)::type;
-            static_for<0, DimThreadSize, 1>{}([&](auto i_dim_vec) {
-                auto current_dim = i_dim_sub_ * DimPerSubBlock + i_dim_vec;
-                IndexType index_a = index_buf_a[current_dim];
-                IndexType index_b = index_buf_b[current_dim];
-                IndexType index_c = index_buf_c[current_dim];
+            static_for<0, DimThreadSize, 1>{}([&](auto i_dim_vec_) {
+                constexpr auto current_dim = i_dim_sub_ * DimPerSubBlock + i_dim_vec_;
+                IndexType index_a = index_buf_a[Number<current_dim>{}];
+                IndexType index_b = index_buf_b[Number<current_dim>{}];
+                IndexType index_c = index_buf_c[Number<current_dim>{}];
 
                 auto thread_offset = (thread_row_cluster_id + i_row_sub_ * RowClusterSize) * sizeof(EmbType) * RowVectorSize;
 
@@ -193,19 +192,24 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
                 emb_vector_b.template AsType<src_vector_t>()(I0) = amd_buffer_load_impl<EmbType, RowVectorSize>(emb_res_b, thread_offset, 0);
                 emb_vector_c.template AsType<src_vector_t>()(I0) = amd_buffer_load_impl<EmbType, RowVectorSize>(emb_res_c, thread_offset, 0);
 
-                static_for<0, RowVectorSize, 1>{}([&](auto i_row_vec){
-                    constexpr auto register_offset = thread_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec, i_row_sub_, i_row_vec));
-                    in_thread_buf_a(Number<register_offset>{}) = emb_vector_a.template AsType<EmbType>()[Number<i_row_vec>{}];
-                    in_thread_buf_b(Number<register_offset>{}) = emb_vector_b.template AsType<EmbType>()[Number<i_row_vec>{}];
-                    in_thread_buf_c(Number<register_offset>{}) = emb_vector_c.template AsType<EmbType>()[Number<i_row_vec>{}];
+                static_for<0, RowVectorSize, 1>{}([&](auto i_row_vec_){
+                    constexpr auto register_offset = thread_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec_, i_row_sub_, i_row_vec_));
+                    in_thread_buf_a(Number<register_offset>{}) = emb_vector_a.template AsType<EmbType>()[i_row_vec_];
+                    in_thread_buf_b(Number<register_offset>{}) = emb_vector_b.template AsType<EmbType>()[i_row_vec_];
+                    in_thread_buf_c(Number<register_offset>{}) = emb_vector_c.template AsType<EmbType>()[i_row_vec_];
+
+                    // printf("id:%d [%d, %d, %d, %d | %d - %d](os:%d): %f, %f, %f\n", thread_local_id,
+                    //     i_dim_sub_.value,i_dim_vec_.value, i_row_sub_.value, i_row_vec_.value,
+                    //     DimSubBlocks, RowSubBlocks, thread_offset,
+                    //     in_thread_buf_a[Number<register_offset>{}], in_thread_buf_b[Number<register_offset>{}], in_thread_buf_c[Number<register_offset>{}]);
                 });
             });
         };
 
         auto accumulate_current_sub_row = [&](auto i_dim_sub_, auto i_row_sub_){
-            static_for<0, DimThreadSize, 1>{}([&](auto i_dim_vec) {
-                static_for<0, RowVectorSize, 1>{}([&](auto i_row_vec) {
-                    constexpr auto register_offset = thread_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec, i_row_sub_, i_row_vec));
+            static_for<0, DimThreadSize, 1>{}([&](auto i_dim_vec_) {
+                static_for<0, RowVectorSize, 1>{}([&](auto i_row_vec_) {
+                    constexpr auto register_offset = thread_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec_, i_row_sub_, i_row_vec_));
                     AccDataType va = ck::type_convert<AccDataType>(in_thread_buf_a(Number<register_offset>{}));
                     AccDataType vb = ck::type_convert<AccDataType>(in_thread_buf_b(Number<register_offset>{}));
                     AccDataType vc = ck::type_convert<AccDataType>(in_thread_buf_c(Number<register_offset>{}));
@@ -216,10 +220,10 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
         };
 
         auto threadwise_welford_sub_row = [&](auto i_dim_sub_, auto i_row_sub_){
-            static_for<0, DimThreadSize, 1>{}([&](auto i_dim_vec) {
-                static_for<0, RowVectorSize, 1>{}([&](auto i_row_vec) {
-                    constexpr auto register_offset = thread_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec, i_row_sub_, i_row_vec));
-                    constexpr auto mean_var_offset = mean_var_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec));
+            static_for<0, DimThreadSize, 1>{}([&](auto i_dim_vec_) {
+                static_for<0, RowVectorSize, 1>{}([&](auto i_row_vec_) {
+                    constexpr auto register_offset = thread_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec_, i_row_sub_, i_row_vec_));
+                    constexpr auto mean_var_offset = mean_var_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec_));
 
                     threadwise_welford.Update(mean_thread_buf(Number<mean_var_offset>{}),
                                             var_thread_buf(Number<mean_var_offset>{}),
@@ -228,27 +232,30 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
             });
         };
 
-        
-
         auto threadwise_normalize_store_out = [&](auto i_dim_sub_, auto i_row_sub_){
-            int32x4_t out_res = make_wave_buffer_resource_with_default_range(p_out);
-            static_for<0, DimThreadSize, 1>{}([&](auto i_dim_vec) {
+            int32x4_t out_res = make_wave_buffer_resource_with_default_range(p_out + index_start * RowPerBlock);
+            static_for<0, DimThreadSize, 1>{}([&](auto i_dim_vec_) {
                 vector_type_maker_t<OutType, RowVectorSize> out_vector;
                 using dst_vector_t = typename decltype(out_vector)::type;
-                // constexpr auto register_offset = thread_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec, i_row_sub_, i_row_vec));
-                constexpr auto mean_var_offset = mean_var_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec));
-                static_for<0, RowVectorSize, 1>{}([&](auto i_row_vec){
-                    constexpr auto register_offset = thread_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec, i_row_sub_, i_row_vec));
+                // constexpr auto register_offset = thread_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec_, i_row_sub_, i_row_vec_));
+                constexpr auto mean_var_offset = mean_var_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec_));
+#if 0
+                static_for<0, RowVectorSize, 1>{}([&](auto i_row_vec_){
+                    constexpr auto register_offset = thread_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec_, i_row_sub_, i_row_vec_));
 
                     auto acc_val = acc_thread_buf[Number<register_offset>{}];
                     acc_val = (acc_val - mean_thread_buf(Number<mean_var_offset>{})) / sqrt(var_thread_buf(Number<mean_var_offset>{}) + epsilon);
-
-
-                    out_vector.template AsType<OutType>()(Number<i_row_vec>{}) = type_convert<OutType>(acc_val);
+                    out_vector.template AsType<OutType>()(Number<i_row_vec_>{}) = type_convert<OutType>(acc_val);
 
                 });
+#else
+                static_for<0, RowVectorSize, 1>{}([&](auto i_row_vec_){
+                    constexpr auto register_offset = thread_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec_, i_row_sub_, i_row_vec_));
+                    out_vector.template AsType<OutType>()(Number<i_row_vec_>{}) = type_convert<OutType>(acc_thread_buf[Number<register_offset>{}]);
 
-                index_t thread_offset = thread_row_cluster_id + i_row_sub_ * BlockSize * sizeof(OutType) * RowVectorSize;
+                });
+#endif
+                index_t thread_offset = (thread_row_cluster_id + i_row_sub_ * RowClusterSize) * sizeof(OutType) * RowVectorSize;
 
                 amd_buffer_store_impl<OutType, RowVectorSize>(out_vector.template AsType<dst_vector_t>()[Number<0>{}], out_res, thread_offset, 0);
             });
@@ -261,6 +268,8 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
             index_buf_b(i_idx_) = p_index_b[index_start + i_idx_.value];
             index_buf_c(i_idx_) = p_index_c[index_start + i_idx_.value];
         });
+
+        
 
         // load gamma/beta
         static_for<0, RowSubBlocks, 1>{}([&](auto i_row_sub_){
@@ -295,43 +304,69 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
         static_for<0, DimSubBlocks, 1>{}([&](auto i_dim_sub){
             if constexpr(RowSubBlocks % 2 == 0)
             {
-                load_current_sub_row(i_dim_sub, 0);
+                load_current_sub_row(i_dim_sub, Number<0>{});
                 static_for<0, (RowSubBlocks / 2 - 1), 1>{}([&](auto i_row) {
-                    load_current_sub_row(i_dim_sub, 2 * i_row + 1);
-                    accumulate_current_sub_row(i_dim_sub, 2 * i_row);
-                    threadwise_welford_sub_row(i_dim_sub, 2 * i_row);
+                    load_current_sub_row(i_dim_sub, Number<2>{} * i_row + Number<1>{});
+                    accumulate_current_sub_row(i_dim_sub, Number<2>{} * i_row);
+                    threadwise_welford_sub_row(i_dim_sub, Number<2>{} * i_row);
                     
 
-                    load_current_sub_row(i_dim_sub, 2 * i_row + 2);
-                    accumulate_current_sub_row(i_dim_sub, 2 * i_row + 1);
-                    threadwise_welford_sub_row(i_dim_sub, 2 * i_row + 1);
+                    load_current_sub_row(i_dim_sub, Number<2>{} * i_row + Number<2>{});
+                    accumulate_current_sub_row(i_dim_sub, Number<2>{} * i_row + Number<1>{});
+                    threadwise_welford_sub_row(i_dim_sub, Number<2>{} * i_row + Number<1>{});
 
                 });
 
-                load_current_sub_row(i_dim_sub, RowSubBlocks - 1);
-                accumulate_current_sub_row(i_dim_sub, RowSubBlocks - 2);
-                threadwise_welford_sub_row(i_dim_sub, RowSubBlocks - 2);
-                accumulate_current_sub_row(i_dim_sub, RowSubBlocks - 1);
-                threadwise_welford_sub_row(i_dim_sub, RowSubBlocks - 1);
+                load_current_sub_row(i_dim_sub, Number<RowSubBlocks - 1>{});
+                accumulate_current_sub_row(i_dim_sub, Number<RowSubBlocks - 2>{});
+                threadwise_welford_sub_row(i_dim_sub, Number<RowSubBlocks - 2>{});
+                accumulate_current_sub_row(i_dim_sub, Number<RowSubBlocks - 1>{});
+                threadwise_welford_sub_row(i_dim_sub, Number<RowSubBlocks - 1>{});
 
 
-                // blockwise welford
-                static_for<0, mean_var_buf_size, 1>{}([&](auto I) {
-                    if constexpr(I > 0)
-                        block_sync_lds();
-
-                    BlockwiseWelford::Run(mean_thread_buf(I), var_thread_buf(I), threadwise_welford.cur_count_);
-                });
-
-                // store
-                static_for<0, RowSubBlocks, 1>{}([&](auto i_row) {
-                    threadwise_normalize_store_out(i_dim_sub, i_row);
-                });
+                
             }
             else if constexpr(RowSubBlocks % 3 == 0)
             {
+                load_current_sub_row(i_dim_sub, Number<0>{});
+                load_current_sub_row(i_dim_sub, Number<1>{});
+                static_for<0, (RowSubBlocks / 3 - 1), 1>{}([&](auto i_row) {
+                    load_current_sub_row(i_dim_sub, Number<3>{} * i_row + Number<2>{});
+                    accumulate_current_sub_row(i_dim_sub, Number<3>{} * i_row);
+                    threadwise_welford_sub_row(i_dim_sub, Number<3>{} * i_row);
+
+                    load_current_sub_row(i_dim_sub, Number<3>{} * i_row + Number<3>{});
+                    accumulate_current_sub_row(i_dim_sub, Number<3>{} * i_row + Number<1>{});
+                    threadwise_welford_sub_row(i_dim_sub, Number<3>{} * i_row + Number<1>{});
+
+                    load_current_sub_row(i_dim_sub, Number<3>{} * i_row + Number<4>{});
+                    accumulate_current_sub_row(i_dim_sub, Number<3>{} * i_row + Number<2>{});
+                    threadwise_welford_sub_row(i_dim_sub, Number<3>{} * i_row + Number<2>{});
+
+                });
+                load_current_sub_row(i_dim_sub, Number<RowSubBlocks - 1>{});
+                accumulate_current_sub_row(i_dim_sub, Number<RowSubBlocks - 3>{});
+                threadwise_welford_sub_row(i_dim_sub, Number<RowSubBlocks - 3>{});
+                accumulate_current_sub_row(i_dim_sub, Number<RowSubBlocks - 2>{});
+                threadwise_welford_sub_row(i_dim_sub, Number<RowSubBlocks - 2>{});
+                accumulate_current_sub_row(i_dim_sub, Number<RowSubBlocks - 1>{});
+                threadwise_welford_sub_row(i_dim_sub, Number<RowSubBlocks - 1>{});
+            } else {
 
             }
+
+            // blockwise welford
+            static_for<0, mean_var_buf_size, 1>{}([&](auto I) {
+                if constexpr(I > 0)
+                    block_sync_lds();
+
+                BlockwiseWelford::Run(mean_thread_buf(I), var_thread_buf(I), threadwise_welford.cur_count_);
+            });
+
+            // store
+            static_for<0, RowSubBlocks, 1>{}([&](auto i_row) {
+                threadwise_normalize_store_out(i_dim_sub, i_row);
+            });
         });
     }
 };
