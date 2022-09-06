@@ -19,40 +19,71 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_sparse_embedding3_forward_layernorm.hpp"
 
-using EmbType = float;
-using IndexType = int64_t;
+using EmbType       = float;
+using IndexType     = int64_t;
 using GammaDataType = float;
-using BetaDataType = float;
-using AccDataType = float;
-using OutType = float;
+using BetaDataType  = float;
+using AccDataType   = float;
+using OutType       = float;
+
+// using EmbType       = ck::half_t;
+// using IndexType     = int64_t;
+// using GammaDataType = ck::half_t;
+// using BetaDataType  = ck::half_t;
+// using AccDataType   = float;
+// using OutType       = ck::half_t;
 
 // clang-format off
 //                                                                                                         BlockSize, DimClusterSize, RowClusterSize, DimPerBlock, RowPerBlock, DimThreadSize, RowVectorSize
-using DeviceInstance_fp32_e256  = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  256,  1, 1>;
-using DeviceInstance_fp32_e512  = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  512,  1, 1>;
-using DeviceInstance_fp32_e768  = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  768,  1, 1>;
-using DeviceInstance_fp32_e1024 = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  1024, 1, 1>;
-using DeviceInstance_fp32_e1536 = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  1536, 1, 1>;
+using DeviceInstance_fp32_e256   = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  256,   1, 1>;
+using DeviceInstance_fp32_e512   = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  512,   1, 1>;
+using DeviceInstance_fp32_e768   = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  768,   1, 1>;
+using DeviceInstance_fp32_e1024  = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  1024,  1, 1>;
+using DeviceInstance_fp32_e1536  = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  1536,  1, 1>;
+using DeviceInstance_fp32_e2048  = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  2048,  1, 4>;
+using DeviceInstance_fp32_e4096  = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  4096,  1, 4>;
+using DeviceInstance_fp32_e8192  = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  8192,  1, 4>;
+using DeviceInstance_fp32_e16384 = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  16384, 1, 4>;
 
+using DeviceInstance_fp16_e256   = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  256,   1, 1>;
+using DeviceInstance_fp16_e512   = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  512,   1, 2>;
+using DeviceInstance_fp16_e768   = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  768,   1, 1>;
+using DeviceInstance_fp16_e1024  = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  1024,  1, 2>;
+using DeviceInstance_fp16_e1536  = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  1536,  1, 2>;
+using DeviceInstance_fp16_e2048  = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  2048,  1, 2>;
+using DeviceInstance_fp16_e4096  = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  4096,  1, 8>;
+using DeviceInstance_fp16_e8192  = ck::tensor_operation::device::DeviceSparseEmbedding3ForwardLayernorm<EmbType, IndexType, GammaDataType, BetaDataType, AccDataType, OutType, 256,  1,  256, 1,  8192,  1, 8>;
 
 template<typename emb_type, ck::index_t dim> struct emb_kernel{};
 
-template<> struct emb_kernel<float, 256> { using kernel_type = DeviceInstance_fp32_e256; };
-template<> struct emb_kernel<float, 512> { using kernel_type = DeviceInstance_fp32_e512; };
-template<> struct emb_kernel<float, 768> { using kernel_type = DeviceInstance_fp32_e768; };
-template<> struct emb_kernel<float, 1024>{ using kernel_type = DeviceInstance_fp32_e1024;};
-template<> struct emb_kernel<float, 1536>{ using kernel_type = DeviceInstance_fp32_e1536;};
+template<> struct emb_kernel<float, 256>  { using kernel_type = DeviceInstance_fp32_e256; };
+template<> struct emb_kernel<float, 512>  { using kernel_type = DeviceInstance_fp32_e512; };
+template<> struct emb_kernel<float, 768>  { using kernel_type = DeviceInstance_fp32_e768; };
+template<> struct emb_kernel<float, 1024> { using kernel_type = DeviceInstance_fp32_e1024;};
+template<> struct emb_kernel<float, 1536> { using kernel_type = DeviceInstance_fp32_e1536;};
+template<> struct emb_kernel<float, 2048> { using kernel_type = DeviceInstance_fp32_e2048;};
+template<> struct emb_kernel<float, 4096> { using kernel_type = DeviceInstance_fp32_e4096;};
+template<> struct emb_kernel<float, 8192> { using kernel_type = DeviceInstance_fp32_e8192;};
+template<> struct emb_kernel<float, 16384>{ using kernel_type = DeviceInstance_fp32_e16384;};
+
+template<> struct emb_kernel<ck::half_t, 256>  { using kernel_type = DeviceInstance_fp16_e256; };
+template<> struct emb_kernel<ck::half_t, 512>  { using kernel_type = DeviceInstance_fp16_e512; };
+template<> struct emb_kernel<ck::half_t, 768>  { using kernel_type = DeviceInstance_fp16_e768; };
+template<> struct emb_kernel<ck::half_t, 1024> { using kernel_type = DeviceInstance_fp16_e1024; };
+template<> struct emb_kernel<ck::half_t, 1536> { using kernel_type = DeviceInstance_fp16_e1536; };
+template<> struct emb_kernel<ck::half_t, 2048> { using kernel_type = DeviceInstance_fp16_e2048; };
+template<> struct emb_kernel<ck::half_t, 4096> { using kernel_type = DeviceInstance_fp16_e4096; };
+template<> struct emb_kernel<ck::half_t, 8192> { using kernel_type = DeviceInstance_fp16_e8192; };
+
 // clang-format on
-
-
 
 int main()
 {
     bool time_kernel = true;
 
     constexpr auto num_rows = 65536;
-    constexpr auto dims = ck::Sequence<256, 512, 768, 1024, 1536>{};
-    // constexpr auto dims = ck::Sequence<1024>{};
+    constexpr auto dims = ck::Sequence<256, 512, 768, 1024, 1536, 2048, 4096, 8192>{};
+    // constexpr auto dims = ck::Sequence<256, 512>{};
     constexpr auto index_length = 2048;
     constexpr AccDataType epsilon = 1e-4;
 

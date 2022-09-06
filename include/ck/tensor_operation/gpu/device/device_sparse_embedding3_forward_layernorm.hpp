@@ -180,8 +180,7 @@ struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
 
     static bool IsSupportedArgument(const Argument* p_arg)
     {
-        std::cout << "RowPerBlock:" << RowPerBlock << ", EmbeddingDim:" << p_arg->EmbeddingDim_ << std::endl;
-        return RowPerBlock == p_arg->EmbeddingDim_;
+        return (RowPerBlock == p_arg->EmbeddingDim_) && (p_arg->NumRows_ % DimPerBlock == 0);
     }
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override
@@ -208,7 +207,6 @@ struct DeviceSparseEmbedding3ForwardLayernorm : public BaseOperator
         return str.str();
     }
 };
-
 
 }
 }

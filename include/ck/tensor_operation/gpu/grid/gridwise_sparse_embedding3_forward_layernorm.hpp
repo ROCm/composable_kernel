@@ -87,11 +87,6 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
     static constexpr auto DimPerSubBlock = DimPerBlock / DimSubBlocks;
     static constexpr auto RowPerSubBlock = RowPerBlock / RowSubBlocks;
 
-    //using ThreadReduceSrcDesc_R_D = decltype(make_naive_tensor_descriptor_packed(
-    //    make_tuple(Number<DimThreadSize>{}, Number<RowVectorSize>{})));
-    //using ThreadReduceDstDesc_D =
-    //    decltype(make_naive_tensor_descriptor_packed(make_tuple(Number<RowVectorSize>{})));
-
     using ThreadwiseWolfordDesc2D = decltype(make_naive_tensor_descriptor_packed(
         make_tuple(Number<DimSubBlocks * DimThreadSize>{}, Number<RowSubBlocks * RowVectorSize>{})));
 
@@ -101,8 +96,6 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
     using ThreadwiseWelford =
         ThreadwiseWelford<AccDataType, ThreadwiseWolfordDesc2D, ThreadwiseWolfordDescReduce>;
 
-    //using ThreadwiseRowDesc = 
-    //        decltype(make_naive_tensor_descriptor_packed(make_tuple(Number<DimThreadSize>{})));
     using ThreadClusterLength = Sequence<DimClusterSize, RowClusterSize>;
 
     using BlockwiseWelford = BlockwiseWelford<AccDataType, BlockSize, ThreadClusterLength, Sequence<0, 1>>;
@@ -120,16 +113,11 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
         const OutGridDesc out_grid_desc,
         const AccDataType epsilon)
     {
-
-        
         const index_t thread_local_id = get_thread_local_1d_id();
         const index_t block_global_id = get_block_1d_id();
 
         const auto index_length = out_grid_desc.GetLength(I0);
         const auto emb_dim = out_grid_desc.GetLength(I1);
-
-        //const auto out_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-        //    p_out, out_grid_desc.GetElementSpaceSize());
 
         constexpr auto thread_cluster_desc =
             make_cluster_descriptor(Sequence<DimClusterSize, RowClusterSize>{}, Sequence<0, 1>{});
@@ -225,6 +213,7 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
                     constexpr auto register_offset = thread_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec_, i_row_sub_, i_row_vec_));
                     constexpr auto mean_var_offset = mean_var_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec_));
 
+                    threadwise_welford.cur_count_++;
                     threadwise_welford.Update(mean_thread_buf(Number<mean_var_offset>{}),
                                             var_thread_buf(Number<mean_var_offset>{}),
                                             acc_thread_buf(Number<register_offset>{}));
@@ -239,12 +228,16 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
                 using dst_vector_t = typename decltype(out_vector)::type;
                 // constexpr auto register_offset = thread_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec_, i_row_sub_, i_row_vec_));
                 constexpr auto mean_var_offset = mean_var_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec_));
-#if 0
+#if 1
                 static_for<0, RowVectorSize, 1>{}([&](auto i_row_vec_){
                     constexpr auto register_offset = thread_buf_desc.CalculateOffset(make_tuple(i_dim_sub_, i_dim_vec_, i_row_sub_, i_row_vec_));
+                    constexpr auto gamma_beta_offset = gamma_beta_buf_desc.CalculateOffset(make_tuple(i_row_sub_, i_row_vec_));
 
                     auto acc_val = acc_thread_buf[Number<register_offset>{}];
                     acc_val = (acc_val - mean_thread_buf(Number<mean_var_offset>{})) / sqrt(var_thread_buf(Number<mean_var_offset>{}) + epsilon);
+                    acc_val = acc_val * gamma_thread_buf[Number<gamma_beta_offset>{}] + beta_thread_buf[Number<gamma_beta_offset>{}];
+                    // printf("-- [%d], mean:%f, var:%f\n", thread_local_id, mean_thread_buf(Number<mean_var_offset>{}), var_thread_buf(Number<mean_var_offset>{}));
+
                     out_vector.template AsType<OutType>()(Number<i_row_vec_>{}) = type_convert<OutType>(acc_val);
 
                 });
@@ -269,8 +262,6 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
             index_buf_c(i_idx_) = p_index_c[index_start + i_idx_.value];
         });
 
-        
-
         // load gamma/beta
         static_for<0, RowSubBlocks, 1>{}([&](auto i_row_sub_){
             vector_type_maker_t<GammaDataType, RowVectorSize> gamma_vector;
@@ -285,10 +276,10 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
             gamma_vector.template AsType<typename decltype(gamma_vector)::type>()(I0) = amd_buffer_load_impl<GammaDataType, RowVectorSize>(gamma_res, thread_offset_gamma, 0);
             beta_vector.template AsType<typename decltype(beta_vector)::type>()(I0) = amd_buffer_load_impl<BetaDataType, RowVectorSize>(beta_res, thread_offset_beta, 0);
 
-            static_for<0, RowVectorSize, 1>{}([&](auto i_row_vec){
-                constexpr auto offset = gamma_beta_buf_desc.CalculateOffset(make_tuple(i_row_sub_, i_row_vec));
-                gamma_thread_buf(Number<offset>{}) = gamma_vector.template AsType<AccDataType>()[Number<i_row_vec>{}];
-                beta_thread_buf(Number<offset>{}) = beta_vector.template AsType<AccDataType>()[Number<i_row_vec>{}];
+            static_for<0, RowVectorSize, 1>{}([&](auto i_row_vec_){
+                constexpr auto offset = gamma_beta_buf_desc.CalculateOffset(make_tuple(i_row_sub_, i_row_vec_));
+                gamma_thread_buf(Number<offset>{}) = type_convert<AccDataType>(gamma_vector.template AsType<GammaDataType>()[Number<i_row_vec_>{}]);
+                beta_thread_buf(Number<offset>{}) = type_convert<AccDataType>(beta_vector.template AsType<BetaDataType>()[Number<i_row_vec_>{}]);
             });
         });
 
@@ -302,6 +293,7 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
         });
 
         static_for<0, DimSubBlocks, 1>{}([&](auto i_dim_sub){
+#if 1
             if constexpr(RowSubBlocks % 2 == 0)
             {
                 load_current_sub_row(i_dim_sub, Number<0>{});
@@ -358,6 +350,16 @@ struct GridwiseSparseEmbedding3ForwardLayernorm {
                 accumulate_current_sub_row(i_dim_sub, Number<RowSubBlocks - 1>{});
                 threadwise_welford_sub_row(i_dim_sub, Number<RowSubBlocks - 1>{});
             }
+#else
+            load_current_sub_row(i_dim_sub, Number<0>{});
+            static_for<0, RowSubBlocks - 1, 1>{}([&](auto i_row) {
+                load_current_sub_row(i_dim_sub, Number<1>{} + i_row);
+                accumulate_current_sub_row(i_dim_sub, i_row);
+                threadwise_welford_sub_row(i_dim_sub, i_row);
+            });
+            accumulate_current_sub_row(i_dim_sub, Number<RowSubBlocks - 1>{});
+            threadwise_welford_sub_row(i_dim_sub, Number<RowSubBlocks - 1>{});
+#endif
 
             // blockwise welford
             static_for<0, mean_var_buf_size, 1>{}([&](auto I) {

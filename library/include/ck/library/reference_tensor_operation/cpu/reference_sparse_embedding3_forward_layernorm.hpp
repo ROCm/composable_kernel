@@ -99,7 +99,7 @@ struct ReferenceSparseEmbedding3ForwardLayernorm : public device::BaseOperator
             };
             make_ParallelTensorFunctor(f_emb_per_row, L)(std::thread::hardware_concurrency());
 
-#if 0
+#if 1
             // layernorm
             for(auto idx = 0; idx < L; ++idx)
             {
@@ -121,6 +121,9 @@ struct ReferenceSparseEmbedding3ForwardLayernorm : public device::BaseOperator
             //     for(auto d = 0; d < D; d++){
             //         std::cout<< "-> " << accumulator(idx, d) <<std::endl;
             //     }
+            // }
+            // for(auto idx = 0; idx < L; idx++){
+            //     std::cout<< "idx: " << idx <<", mean:" << mean(idx) << ", var:" << var(idx) <<std::endl;
             // }
 
             for(auto idx = 0; idx < L; ++idx)
