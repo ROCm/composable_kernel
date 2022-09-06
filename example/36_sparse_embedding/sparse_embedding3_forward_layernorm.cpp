@@ -9,7 +9,6 @@
 #include <ctime>
 
 #include "ck/ck.hpp"
-// #include "ck/tensor_operation/gpu/device/device_sparse_embedding3_forward_layernorm.hpp"
 #include "ck/tensor_operation/gpu/device/device_sparse_embedding3_forward_layernorm.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -19,19 +18,19 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_sparse_embedding3_forward_layernorm.hpp"
 
-using EmbType       = float;
-using IndexType     = int64_t;
-using GammaDataType = float;
-using BetaDataType  = float;
-using AccDataType   = float;
-using OutType       = float;
-
-// using EmbType       = ck::half_t;
+// using EmbType       = float;
 // using IndexType     = int64_t;
-// using GammaDataType = ck::half_t;
-// using BetaDataType  = ck::half_t;
+// using GammaDataType = float;
+// using BetaDataType  = float;
 // using AccDataType   = float;
-// using OutType       = ck::half_t;
+// using OutType       = float;
+
+using EmbType       = ck::half_t;
+using IndexType     = int64_t;
+using GammaDataType = ck::half_t;
+using BetaDataType  = ck::half_t;
+using AccDataType   = float;
+using OutType       = ck::half_t;
 
 // clang-format off
 //                                                                                                         BlockSize, DimClusterSize, RowClusterSize, DimPerBlock, RowPerBlock, DimThreadSize, RowVectorSize
@@ -181,9 +180,8 @@ int main()
         }
 
         auto invoker_ptr = device_instance.MakeInvokerPointer();
-        // float time_ms = 1;
         float time_ms = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
-        // reference
+
         bool pass = true;
         {
             Tensor<OutType> out_from_dev(f_host_tensor_desc_2d(index_length, current_dim));
