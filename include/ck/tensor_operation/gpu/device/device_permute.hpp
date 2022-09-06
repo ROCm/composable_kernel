@@ -118,25 +118,20 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
             return PadDescriptor_M_1d(desc, gridSize, blockSize);
     }
 
-    template <index_t TupleSize>
-    static auto GenerateInOutGrid1dDescTuple(Number<TupleSize>)
+    static auto GenerateInOutGrid1dDesc()
     {
-        return generate_tuple(
-            [&](auto) {
-                if constexpr(NumDim > 1)
-                {
-                    return MakeDescriptor_M({1, 1}, {1, 1}, 1, 1);
-                }
-                else
-                {
-                    return MakeDescriptor_M({1}, {1}, 1, 1);
-                };
-            },
-            Number<TupleSize>{});
+        if constexpr(NumDim > 1)
+        {
+            return MakeDescriptor_M({1, 1}, {1, 1}, 1, 1);
+        }
+        else
+        {
+            return MakeDescriptor_M({1}, {1}, 1, 1);
+        };
     };
 
-    using InGrid1dDescTuple  = decltype(GenerateInOutGrid1dDescTuple(Number<NumInput>{}));
-    using OutGrid1dDescTuple = decltype(GenerateInOutGrid1dDescTuple(Number<NumOutput>{}));
+    using InGrid1dDescTuple  = Tuple<decltype(GenerateInOutGrid1dDesc())>;
+    using OutGrid1dDescTuple = Tuple<decltype(GenerateInOutGrid1dDesc())>;
 
     using GridwiseElementwise = GridwiseElementwise_1D<InGrid1dDescTuple,
                                                        OutGrid1dDescTuple,
@@ -150,47 +145,43 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
     struct Argument : public BaseArgument
     {
         Argument(const std::array<index_t, NumDim> lengths,
-                 const std::array<std::array<index_t, NumDim>, NumInput> inStridesArray,
-                 const std::array<std::array<index_t, NumDim>, NumOutput> outStridesArray,
-                 const std::array<const void*, NumInput> in_dev_buffers,
-                 const std::array<void*, NumOutput> out_dev_buffers,
+                 const std::array<index_t, NumDim> inStrides,
+                 const std::array<index_t, NumDim> outStrides,
+                 const void* in_dev_buffer,
+                 void* out_dev_buffer,
                  ElementwiseOperation elementwise_op)
-
-            : lengths_(lengths),
-              inStridesArray_(inStridesArray),
-              outStridesArray_(outStridesArray),
-              elementwise_op_(elementwise_op),
-              blockSize_(256),
-              gridSize_(120) // FIXME - Calculate the grid size by number of CU in the future
+            : blockSize_(256),
+              gridSize_(120), // FIXME - Calculate the grid size by number of CU in the future
+              lengths_(lengths),
+              inStridesArray_({inStrides}),
+              outStridesArray_({outStrides}),
+              elementwise_op_(elementwise_op)
         {
             in_dev_buffers_ = generate_tuple(
-                [&](auto I) {
+                [&](auto) {
                     using DataType = InDataType;
-                    return static_cast<const DataType*>(in_dev_buffers[I.value]);
+                    return static_cast<const DataType*>(in_dev_buffer);
                 },
                 Number<NumInput>{});
 
             out_dev_buffers_ = generate_tuple(
-                [&](auto I) {
+                [&](auto) {
                     using DataType = OutDataType;
-                    return static_cast<DataType*>(out_dev_buffers[I.value]);
+                    return static_cast<DataType*>(out_dev_buffer);
                 },
                 Number<NumOutput>{});
 
             in_grid_1d_desc_tuple_ = generate_tuple(
-                [&](auto I) {
-                    return MakeDescriptor_M(
-                        lengths, inStridesArray[I.value], gridSize_, blockSize_);
-                },
+                [&](auto) { return MakeDescriptor_M(lengths, inStrides, gridSize_, blockSize_); },
                 Number<NumInput>{});
 
             out_grid_1d_desc_tuple_ = generate_tuple(
-                [&](auto I) {
-                    return MakeDescriptor_M(
-                        lengths, outStridesArray[I.value], gridSize_, blockSize_);
-                },
+                [&](auto) { return MakeDescriptor_M(lengths, outStrides, gridSize_, blockSize_); },
                 Number<NumOutput>{});
         }
+
+        index_t blockSize_;
+        index_t gridSize_;
 
         InDataTypePointerTuple in_dev_buffers_;
         OutDataTypePointerTuple out_dev_buffers_;
@@ -202,8 +193,6 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
         std::array<std::array<index_t, NumDim>, NumOutput> outStridesArray_;
 
         ElementwiseOperation elementwise_op_;
-        index_t blockSize_;
-        index_t gridSize_;
     };
 
     struct Invoker : public BaseInvoker

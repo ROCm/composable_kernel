@@ -22,14 +22,14 @@ bool run_permute(const ExecutionConfig& config, const Problem& problem)
     a_device_buf.ToDevice(a.mData.data());
 
     std::array<ck::index_t, 4> ab_lengths;
-    std::array<std::array<ck::index_t, 4>, 1> a_strides, b_strides;
+    std::array<ck::index_t, 4> a_strides, b_strides;
 
-    std::array<const void*, 1> input = {a_device_buf.GetDeviceBuffer()};
-    std::array<void*, 1> output      = {b_device_buf.GetDeviceBuffer()};
+    const void* input = a_device_buf.GetDeviceBuffer();
+    void* output      = b_device_buf.GetDeviceBuffer();
 
     std::copy(begin(shape), end(shape), begin(ab_lengths));
-    std::copy(begin(a.mDesc.GetStrides()), end(a.mDesc.GetStrides()), begin(front(a_strides)));
-    std::copy(begin(b.mDesc.GetStrides()), end(b.mDesc.GetStrides()), begin(front(b_strides)));
+    std::copy(begin(a.mDesc.GetStrides()), end(a.mDesc.GetStrides()), begin(a_strides));
+    std::copy(begin(b.mDesc.GetStrides()), end(b.mDesc.GetStrides()), begin(b_strides));
 
     static_assert(std::is_default_constructible_v<DevicePermuteInstance>);
 
