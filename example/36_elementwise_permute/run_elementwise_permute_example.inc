@@ -3,25 +3,6 @@
 
 #pragma once
 
-template <typename HostTensorA, typename HostTensorB, typename Functor>
-void host_elementwise4D(HostTensorB& B,
-                        const HostTensorA& A,
-                        const std::vector<std::size_t>& shape,
-                        Functor functor)
-{
-    using btype = ck::remove_reference_t<decltype(B(0, 0, 0, 0))>;
-    for(std::size_t n = 0; n < shape[0]; ++n)
-        for(std::size_t c = 0; c < shape[1]; ++c)
-            for(std::size_t h = 0; h < shape[2]; ++h)
-                for(std::size_t w = 0; w < shape[3]; ++w)
-                {
-                    auto a_val  = A(n, c, h, w);
-                    btype b_val = 0;
-                    functor(b_val, a_val);
-                    B(n, h, w, c) = b_val;
-                }
-}
-
 bool run_elementwise_permute(const ExecutionConfig& config, const Problem& problem)
 {
     const auto& nchw = problem.shape;
@@ -67,10 +48,10 @@ bool run_elementwise_permute(const ExecutionConfig& config, const Problem& probl
 
     if(config.do_verification)
     {
-        b_device_buf.FromDevice(b.mData.data());
         Tensor<BDataType> host_b(nhwc);
-        host_elementwise4D<Tensor<ADataType>, Tensor<BDataType>, PassThrough>(
-            host_b, a, nhwc, PassThrough{});
+        host_elementwise_permute(a, PassThrough{}, host_b);
+
+        b_device_buf.FromDevice(b.mData.data());
 
         return ck::utils::check_err(
             b.mData, host_b.mData, "Error: incorrect results in tensor B", 1e-10, 1e-10);
