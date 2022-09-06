@@ -176,6 +176,35 @@ struct is_random_access_range<Range, std::void_t<>>
 template <typename Range>
 inline constexpr bool is_random_access_range_v = is_random_access_range<Range>::value;
 
+template <typename T, typename = void>
+struct is_device_op : std::false_type
+{
+};
+
+template <typename T>
+struct is_device_op<
+    T,
+    std::void_t<typename T::Argument,
+                typename T::Invoker,
+                decltype(T::IsSupportedArgument(std::declval<const typename T::Argument&>())),
+                decltype(T::MakeInvoker()),
+                decltype(std::declval<T&>().MakeInvokerPointer())>>
+    : std::bool_constant<
+          std::is_base_of_v<ck::tensor_operation::device::BaseOperator, T> &&
+          std::is_base_of_v<ck::tensor_operation::device::BaseArgument, typename T::Argument> &&
+          std::is_base_of_v<ck::tensor_operation::device::BaseInvoker, typename T::Invoker> &&
+          std::is_same_v<bool,
+                         decltype(T::IsSupportedArgument(
+                             std::declval<const typename T::Argument&>()))> &&
+          std::is_same_v<typename T::Invoker, decltype(T::MakeInvoker())> &&
+          std::is_same_v<std::unique_ptr<ck::tensor_operation::device::BaseInvoker>,
+                         decltype(std::declval<T&>().MakeInvokerPointer())>>
+{
+};
+
+template <typename T>
+inline constexpr bool is_device_op_v = is_device_op<T>::value;
+
 } // namespace detail
 
 template <typename Axes>
