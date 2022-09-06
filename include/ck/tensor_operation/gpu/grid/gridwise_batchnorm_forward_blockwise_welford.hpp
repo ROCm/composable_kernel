@@ -11,6 +11,38 @@
 
 namespace ck {
 
+template <index_t K_BlockTileSize, index_t KThreadSliceSize>
+struct GetReduceCountPerThreadForBlockwiseWelford
+{
+    GetReduceCountPerThreadForBlockwiseWelford(index_t numBlockTileIteration,
+                                               long_index_t reduce_length)
+        : numBlockTileIteration_{numBlockTileIteration}
+    {
+        count_in_last_tile = reduce_length % K_BlockTileSize;
+    };
+
+    __device__ index_t operator()(index_t thread_k_cluster_id) const
+    {
+        if(count_in_last_tile == 0)
+            return (KThreadSliceSize * numBlockTileIteration_);
+        else
+        {
+            index_t num_complete_slice  = count_in_last_tile / KThreadSliceSize;
+            index_t count_in_last_slice = count_in_last_tile % KThreadSliceSize;
+
+            if(thread_k_cluster_id < num_complete_slice)
+                return (KThreadSliceSize * numBlockTileIteration_);
+            else if(thread_k_cluster_id == num_complete_slice)
+                return (KThreadSliceSize * (numBlockTileIteration_ - 1) + count_in_last_slice);
+            else
+                return (KThreadSliceSize * (numBlockTileIteration_ - 1));
+        };
+    };
+
+    index_t numBlockTileIteration_;
+    index_t count_in_last_tile;
+};
+
 template <typename GridwiseBatchrNormForwardWithBlockwiseWelford_,
           typename XDataType,
           typename YDataType,
@@ -19,16 +51,17 @@ template <typename GridwiseBatchrNormForwardWithBlockwiseWelford_,
           typename MeanVarDataType,
           typename XYGridDesc_M_K,
           typename ScaleBiasGridDesc_M,
-          typename MeanVarGridDesc_M>
+          typename MeanVarGridDesc_M,
+          typename GetReduceCountPerThreadFunctor>
 __global__ void kernel_batchnorm_forward_with_blockwise_welford(
     const XYGridDesc_M_K x_grid_desc_m_k,
     const XYGridDesc_M_K y_grid_desc_m_k,
     const ScaleBiasGridDesc_M scale_bias_grid_desc_m,
     const MeanVarGridDesc_M mean_var_grid_desc_m,
+    const GetReduceCountPerThreadFunctor get_reduce_count_per_thread,
     index_t num_k_block_tile_iteration,
     AccDataType epsilon,
     const XDataType* const __restrict__ p_x_global,
-    const int8_t* const __restrict__ p_initial_count,
     const ScaleBiasDataType* const __restrict__ p_scale_global,
     const ScaleBiasDataType* const __restrict__ p_bias_global,
     YDataType* const __restrict__ p_y_global,
@@ -44,10 +77,10 @@ __global__ void kernel_batchnorm_forward_with_blockwise_welford(
                                                         y_grid_desc_m_k,
                                                         scale_bias_grid_desc_m,
                                                         mean_var_grid_desc_m,
+                                                        get_reduce_count_per_thread,
                                                         num_k_block_tile_iteration,
                                                         epsilon,
                                                         p_x_global,
-                                                        p_initial_count,
                                                         p_scale_global,
                                                         p_bias_global,
                                                         p_y_global,
@@ -68,6 +101,7 @@ template <typename XDataType,
           typename XYGridDesc_M_K,
           typename ScaleBiasGridDesc_M,
           typename MeanVarGridDesc_M,
+          typename GetReduceCountPerThreadFunctor,
           index_t BlockSize,
           index_t MThreadClusterSize,
           index_t KThreadClusterSize,
@@ -126,10 +160,10 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
                                const XYGridDesc_M_K& y_grid_desc_m_k,
                                const ScaleBiasGridDesc_M& scale_bias_grid_desc_m,
                                const MeanVarGridDesc_M& mean_var_grid_desc_m,
+                               const GetReduceCountPerThreadFunctor get_reduce_count_per_thread,
                                index_t num_k_block_tile_iteration,
                                AccDataType epsilon,
                                const XDataType* const __restrict__ p_x_global,
-                               const int8_t* const __restrict__ p_initial_count,
                                const ScaleBiasDataType* const __restrict__ p_scale_global,
                                const ScaleBiasDataType* const __restrict__ p_bias_global,
                                YDataType* const __restrict__ p_y_global,
@@ -143,9 +177,6 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
     {
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
             x_thread_buf;
-
-        StaticBuffer<AddressSpaceEnum::Vgpr, int8_t, KThreadSliceSize, true>
-            initial_count_thread_buf;
 
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> scale_thread_buf;
 
@@ -168,13 +199,10 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
 
         using ThreadBufferLengths_M_K         = Sequence<MThreadSliceSize, KThreadSliceSize>;
         using ThreadBufferLengths_M           = Sequence<MThreadSliceSize>;
-        using ThreadBufferLengths_1_K         = Sequence<1, KThreadSliceSize>;
         constexpr auto thread_buffer_desc_m_k = make_naive_tensor_descriptor_packed(
             make_tuple(Number<MThreadSliceSize>{}, Number<KThreadSliceSize>{}));
         constexpr auto thread_buffer_desc_m =
             make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{}));
-        constexpr auto thread_buffer_desc_1_k = make_naive_tensor_descriptor_packed(
-            make_tuple(Number<1>{}, Number<KThreadSliceSize>{}));
 
         auto threadwise_x_load = ThreadwiseTensorSliceTransfer_v2<XDataType,
                                                                   AccDataType,
@@ -210,22 +238,6 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
                                  thread_k_cluster_id * KThreadSliceSize),
                 PassThroughOp{});
 
-        auto threadwise_initial_count_load =
-            ThreadwiseTensorSliceTransfer_v2<int8_t,
-                                             int8_t,
-                                             XYGridDesc_M_K,
-                                             decltype(thread_buffer_desc_1_k),
-                                             ThreadBufferLengths_1_K,
-                                             ThreadBufferDimAccessOrder,
-                                             XSrcYDstVectorDim,
-                                             XSrcVectorSize,
-                                             1,
-                                             true>(
-                x_grid_desc_m_k,
-                make_multi_index(block_global_id * M_BlockTileSize +
-                                     thread_m_cluster_id * MThreadSliceSize,
-                                 thread_k_cluster_id * KThreadSliceSize));
-
         auto threadwise_scale_bias_load =
             ThreadwiseTensorSliceTransfer_v2<ScaleBiasDataType,
                                              AccDataType,
@@ -249,9 +261,6 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
         const auto x_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_x_global, x_grid_desc_m_k.GetElementSpaceSize());
 
-        const auto initial_count_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_initial_count, x_grid_desc_m_k.GetElementSpaceSize());
-
         const auto scale_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_scale_global, scale_bias_grid_desc_m.GetElementSpaceSize());
 
@@ -261,7 +270,8 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
         auto y_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_y_global, y_grid_desc_m_k.GetElementSpaceSize());
 
-        auto threadwise_welford = ThreadwiseWelford();
+        auto threadwise_welford       = ThreadwiseWelford();
+        threadwise_welford.max_count_ = get_reduce_count_per_thread(thread_k_cluster_id);
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
             mean_thread_buf(I) = type_convert<AccDataType>(0.0f);
@@ -277,22 +287,7 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
                                   make_tuple(I0, I0),
                                   x_thread_buf);
 
-            threadwise_initial_count_load.Run(x_grid_desc_m_k,
-                                              initial_count_global_val_buf,
-                                              thread_buffer_desc_1_k,
-                                              make_tuple(I0, I0),
-                                              initial_count_thread_buf);
-
-            int8_t valid_count = 0;
-
-            static_for<0, KThreadSliceSize, 1>{}(
-                [&](auto I) { valid_count += initial_count_thread_buf[I]; });
-
-            threadwise_welford.max_count_ += valid_count;
-
             threadwise_x_load.MoveSrcSliceWindow(x_grid_desc_m_k, thread_copy_fwd_step_m_k);
-            threadwise_initial_count_load.MoveSrcSliceWindow(x_grid_desc_m_k,
-                                                             thread_copy_fwd_step_m_k);
             threadwise_welford.Run(x_thread_buf, mean_thread_buf, var_thread_buf);
         }
 

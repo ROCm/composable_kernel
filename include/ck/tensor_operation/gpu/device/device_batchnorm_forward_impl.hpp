@@ -13,7 +13,6 @@
 #include "ck/tensor_operation/gpu/grid/gridwise_multiblock_welford_second_half_batchnorm_forward_final.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_batchnorm_forward_blockwise_welford.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_set_buffer_value.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
@@ -325,7 +324,6 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
         ScaleBiasMeanVarGridDesc_M scale_bias_grid_desc_m;
         ScaleBiasMeanVarGridDesc_M mean_var_grid_desc_m;
 
-        void* workspace_initial_count;
         void* workspace_mean;
         void* workspace_variance;
         void* workspace_count;
@@ -336,9 +334,6 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
         const Argument* pArg_ = dynamic_cast<const Argument*>(pArg);
 
         size_t workspace_size = 0;
-
-        // workspace for welford initial count
-        workspace_size += pArg_->x_grid_desc_m_k.GetElementSize() * sizeof(int8_t) + 64;
 
         if(UseMultiblockInK && pArg_->blkGroupSize > 1)
         {
@@ -363,61 +358,46 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
 
         pArg_->p_workspace_ = p_workspace;
 
-        // setup buffer used for initial count
-        pArg_->workspace_initial_count = pArg_->p_workspace_;
+        if(UseMultiblockInK && pArg_->blkGroupSize > 1)
+        {
 
-        index_t count_space_sz = pArg_->x_grid_desc_m_k.GetElementSize() * sizeof(int8_t);
+            // setup buffer used for intermediate welford mean
+            pArg_->workspace_mean = static_cast<char*>(pArg_->p_workspace_);
 
-        count_space_sz = math::integer_least_multiple(count_space_sz, 64);
+            index_t mean_space_sz =
+                pArg_->invariant_length * pArg_->blkGroupSize * sizeof(MeanVarDataType);
 
-        // setup buffer used for intermediate welford mean
-        pArg_->workspace_mean =
-            reinterpret_cast<char*>(pArg_->workspace_initial_count) + count_space_sz;
+            mean_space_sz = math::integer_least_multiple(mean_space_sz, 64);
 
-        index_t mean_space_sz =
-            pArg_->invariant_length * pArg_->blkGroupSize * sizeof(MeanVarDataType);
+            // setup buffer used for intermediate welford varirance
+            pArg_->workspace_variance =
+                reinterpret_cast<char*>(pArg_->workspace_mean) + mean_space_sz;
 
-        mean_space_sz = math::integer_least_multiple(mean_space_sz, 64);
+            index_t variance_space_sz =
+                pArg_->invariant_length * pArg_->blkGroupSize * sizeof(MeanVarDataType);
 
-        // setup buffer used for intermediate welford varirance
-        pArg_->workspace_variance = reinterpret_cast<char*>(pArg_->workspace_mean) + mean_space_sz;
+            variance_space_sz = math::integer_least_multiple(variance_space_sz, 64);
 
-        index_t variance_space_sz =
-            pArg_->invariant_length * pArg_->blkGroupSize * sizeof(MeanVarDataType);
-
-        variance_space_sz = math::integer_least_multiple(variance_space_sz, 64);
-
-        // setup buffer used for intermediate welfor count
-        pArg_->workspace_count =
-            reinterpret_cast<char*>(pArg_->workspace_variance) + variance_space_sz;
+            // setup buffer used for intermediate welfor count
+            pArg_->workspace_count =
+                reinterpret_cast<char*>(pArg_->workspace_variance) + variance_space_sz;
+        };
     };
 
     struct Invoker : public BaseInvoker
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            const auto x_grid_desc_m = DeviceBatchNormFwdImpl::MakeX1dDescriptorForBufferSet(
-                arg.xyLengths_, arg.xStrides_);
-
-            const auto kernel_set_initial_count =
-                kernel_buffer_set_value<BlockSize, int8_t, decltype(x_grid_desc_m)>;
-
-            // for the set value kernel
-            size_t gridSize_0 = (x_grid_desc_m.GetLength(Number<0>{}) + BlockSize - 1) / BlockSize;
-
             float avg_time = 0;
-
-            avg_time += launch_and_time_kernel(stream_config,
-                                               kernel_set_initial_count,
-                                               dim3(gridSize_0),
-                                               dim3(BlockSize),
-                                               0,
-                                               x_grid_desc_m,
-                                               static_cast<int8_t*>(arg.workspace_initial_count),
-                                               1);
 
             if(UseMultiblockInK && arg.blkGroupSize > 1)
             {
+                using GetReduceCountPerThreadFunctor =
+                    GetReduceCountPerThreadForMultiblockWelford<K_BlockTileSize, KThreadSliceSize>;
+
+                GetReduceCountPerThreadFunctor get_reduce_count_per_thread(
+                    arg.blkGroupSize, arg.numBlockTileIteration, arg.reduce_length);
+
                 const auto mean_var_count_grid_desc_m_g =
                     DeviceBatchNormFwdImpl::MakeMeanVarCountOutputMG2dDescriptor(
                         arg.invariant_length, arg.blkGroupSize);
@@ -435,6 +415,7 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                                                        MeanVarDataType,
                                                        XYGridDesc_M_K,
                                                        MeanVarCountGridDesc_M_G,
+                                                       GetReduceCountPerThreadFunctor,
                                                        BlockSize,
                                                        MThreadClusterSize,
                                                        KThreadClusterSize,
@@ -473,7 +454,8 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                                                          AccDataType,
                                                          MeanVarDataType,
                                                          XYGridDesc_M_K,
-                                                         MeanVarCountGridDesc_M_G>;
+                                                         MeanVarCountGridDesc_M_G,
+                                                         GetReduceCountPerThreadFunctor>;
 
                 const auto kern_welford_second_half_batchnorm_forward_final =
                     kernel_welford_second_half_batchnorm_forward_final<
@@ -496,9 +478,9 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                                            0,
                                            arg.x_grid_desc_m_k,
                                            mean_var_count_grid_desc_m_g,
+                                           get_reduce_count_per_thread,
                                            arg.numBlockTileIteration,
                                            arg.p_x_,
-                                           static_cast<const int8_t*>(arg.workspace_initial_count),
                                            static_cast<MeanVarDataType*>(arg.workspace_mean),
                                            static_cast<MeanVarDataType*>(arg.workspace_variance),
                                            static_cast<int32_t*>(arg.workspace_count));
@@ -535,6 +517,12 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
             }
             else
             {
+                using GetReduceCountPerThreadFunctor =
+                    GetReduceCountPerThreadForBlockwiseWelford<K_BlockTileSize, KThreadSliceSize>;
+
+                GetReduceCountPerThreadFunctor get_reduce_count_per_thread(
+                    arg.numBlockTileIteration, arg.reduce_length);
+
                 using GridwiseBatchNormForwardWithBlockwiseWelford_ =
                     GridwiseBatchNormForwardWithBlockwiseWelford<XDataType,
                                                                  YDataType,
@@ -544,6 +532,7 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                                                                  XYGridDesc_M_K,
                                                                  ScaleBiasMeanVarGridDesc_M,
                                                                  ScaleBiasMeanVarGridDesc_M,
+                                                                 GetReduceCountPerThreadFunctor,
                                                                  BlockSize,
                                                                  MThreadClusterSize,
                                                                  KThreadClusterSize,
@@ -564,32 +553,32 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                     MeanVarDataType,
                     XYGridDesc_M_K,
                     ScaleBiasMeanVarGridDesc_M,
-                    ScaleBiasMeanVarGridDesc_M>;
+                    ScaleBiasMeanVarGridDesc_M,
+                    GetReduceCountPerThreadFunctor>;
 
-                avg_time +=
-                    launch_and_time_kernel(stream_config,
-                                           kern_batchnorm_fwd,
-                                           dim3(arg.gridSize),
-                                           dim3(BlockSize),
-                                           0,
-                                           arg.x_grid_desc_m_k,
-                                           arg.y_grid_desc_m_k,
-                                           arg.scale_bias_grid_desc_m,
-                                           arg.mean_var_grid_desc_m,
-                                           arg.numBlockTileIteration,
-                                           arg.epsilon_,
-                                           arg.p_x_,
-                                           static_cast<const int8_t*>(arg.workspace_initial_count),
-                                           arg.p_scale_,
-                                           arg.p_bias_,
-                                           arg.p_y_,
-                                           arg.updateMovingAverage, // true or false
-                                           arg.averageFactor_,
-                                           arg.resultRunningMean_,
-                                           arg.resultRunningVariance_,
-                                           arg.saveMeanInvVariance, // true or false
-                                           arg.resultSaveMean_,
-                                           arg.resultSaveInvVariance_);
+                avg_time += launch_and_time_kernel(stream_config,
+                                                   kern_batchnorm_fwd,
+                                                   dim3(arg.gridSize),
+                                                   dim3(BlockSize),
+                                                   0,
+                                                   arg.x_grid_desc_m_k,
+                                                   arg.y_grid_desc_m_k,
+                                                   arg.scale_bias_grid_desc_m,
+                                                   arg.mean_var_grid_desc_m,
+                                                   get_reduce_count_per_thread,
+                                                   arg.numBlockTileIteration,
+                                                   arg.epsilon_,
+                                                   arg.p_x_,
+                                                   arg.p_scale_,
+                                                   arg.p_bias_,
+                                                   arg.p_y_,
+                                                   arg.updateMovingAverage, // true or false
+                                                   arg.averageFactor_,
+                                                   arg.resultRunningMean_,
+                                                   arg.resultRunningVariance_,
+                                                   arg.saveMeanInvVariance, // true or false
+                                                   arg.resultSaveMean_,
+                                                   arg.resultSaveInvVariance_);
             };
 
             return (avg_time);

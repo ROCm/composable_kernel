@@ -12,27 +12,73 @@
 
 namespace ck {
 
+template <index_t K_BlockTileSize, index_t KThreadSliceSize>
+struct GetReduceCountPerThreadForMultiblockWelford
+{
+    GetReduceCountPerThreadForMultiblockWelford(index_t blkGroupSize,
+                                                index_t numBlockTileIteration,
+                                                long_index_t reduce_length)
+        : blkGroupSize_(blkGroupSize), numBlockTileIteration_{numBlockTileIteration}
+    {
+        last_block_reduce_length =
+            reduce_length - K_BlockTileSize * numBlockTileIteration_ * (blkGroupSize_ - 1);
+        numBlockTileIterationByLastBlock =
+            (last_block_reduce_length + K_BlockTileSize - 1) / K_BlockTileSize;
+    };
+
+    __device__ index_t operator()(index_t block_local_id, index_t thread_k_cluster_id) const
+    {
+        if(last_block_reduce_length == K_BlockTileSize * numBlockTileIteration_ ||
+           block_local_id < blkGroupSize_ - 1)
+            return (KThreadSliceSize * numBlockTileIteration_);
+
+        index_t count_in_last_tile = last_block_reduce_length % K_BlockTileSize;
+
+        if(count_in_last_tile == 0)
+            return (KThreadSliceSize * numBlockTileIterationByLastBlock);
+        else
+        {
+            index_t num_complete_slice = count_in_last_tile / KThreadSliceSize;
+
+            if(thread_k_cluster_id < num_complete_slice)
+                return (KThreadSliceSize * numBlockTileIterationByLastBlock);
+            else if(thread_k_cluster_id == num_complete_slice)
+                return (KThreadSliceSize * (numBlockTileIterationByLastBlock - 1) +
+                        count_in_last_tile);
+            else
+                return (KThreadSliceSize * (numBlockTileIterationByLastBlock - 1));
+        };
+    };
+
+    index_t blkGroupSize_;
+    index_t numBlockTileIteration_;
+
+    index_t last_block_reduce_length;
+    index_t numBlockTileIterationByLastBlock;
+};
+
 template <typename GridwiseMultiblockWelfordFirstHalf_,
           typename XDataType,
           typename AccDataType,
           typename MeanVarDataType,
           typename XGridDesc_M_K,
-          typename MeanVarCountGridDesc_M_G>
-__global__ void
-kernel_multiblock_welford_first_half(const XGridDesc_M_K x_grid_desc_m_k,
-                                     const MeanVarCountGridDesc_M_G mean_var_count_grid_desc_m_g,
-                                     index_t num_k_block_tile_iteration,
-                                     const XDataType* const __restrict__ p_x_global,
-                                     const int8_t* const p_initial_count,
-                                     MeanVarDataType* const p_welford_mean,
-                                     MeanVarDataType* const p_welford_variance,
-                                     int32_t* const p_welford_count)
+          typename MeanVarCountGridDesc_M_G,
+          typename GetReduceCountPerThreadFunctor>
+__global__ void kernel_multiblock_welford_first_half(
+    const XGridDesc_M_K x_grid_desc_m_k,
+    const MeanVarCountGridDesc_M_G mean_var_count_grid_desc_m_g,
+    const GetReduceCountPerThreadFunctor get_reduce_count_per_thread,
+    index_t num_k_block_tile_iteration,
+    const XDataType* const __restrict__ p_x_global,
+    MeanVarDataType* const p_welford_mean,
+    MeanVarDataType* const p_welford_variance,
+    int32_t* const p_welford_count)
 {
     GridwiseMultiblockWelfordFirstHalf_::Run(x_grid_desc_m_k,
                                              mean_var_count_grid_desc_m_g,
+                                             get_reduce_count_per_thread,
                                              num_k_block_tile_iteration,
                                              p_x_global,
-                                             p_initial_count,
                                              p_welford_mean,
                                              p_welford_variance,
                                              p_welford_count);
@@ -43,6 +89,7 @@ template <typename XDataType,
           typename MeanVarDataType,
           typename XGridDesc_M_K,
           typename MeanVarCountGridDesc_M_G,
+          typename GetReduceCountPerThreadFunctor,
           index_t BlockSize,
           index_t MThreadClusterSize,
           index_t KThreadClusterSize,
@@ -94,18 +141,15 @@ struct GridwiseMultiblockWelfordFirstHalf
 
     __device__ static void Run(const XGridDesc_M_K x_grid_desc_m_k,
                                const MeanVarCountGridDesc_M_G mean_var_count_grid_desc_m_g,
+                               const GetReduceCountPerThreadFunctor get_reduce_count_per_thread,
                                index_t num_k_block_tile_iteration,
                                const XDataType* const __restrict__ p_x_global,
-                               const int8_t* const p_initial_count,
                                MeanVarDataType* const p_welford_mean,
                                MeanVarDataType* const p_welford_variance,
                                int32_t* const p_welford_count)
     {
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
             x_thread_buf;
-
-        StaticBuffer<AddressSpaceEnum::Vgpr, int8_t, KThreadSliceSize, true>
-            initial_count_thread_buf;
 
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true>
             welford_mean_thread_buf;
@@ -129,14 +173,11 @@ struct GridwiseMultiblockWelfordFirstHalf
 
         using ThreadBufferLengths_M_K = Sequence<MThreadSliceSize, KThreadSliceSize>;
         using ThreadBufferLengths_M_1 = Sequence<MThreadSliceSize, 1>;
-        using ThreadBufferLengths_1_K = Sequence<1, KThreadSliceSize>;
 
         constexpr auto thread_buffer_desc_m_k = make_naive_tensor_descriptor_packed(
             make_tuple(Number<MThreadSliceSize>{}, Number<KThreadSliceSize>{}));
         constexpr auto thread_buffer_desc_m_1 = make_naive_tensor_descriptor_packed(
             make_tuple(Number<MThreadSliceSize>{}, Number<1>{}));
-        constexpr auto thread_buffer_desc_1_k = make_naive_tensor_descriptor_packed(
-            make_tuple(Number<1>{}, Number<KThreadSliceSize>{}));
 
         const index_t reduceSizePerBlock = K_BlockTileSize * num_k_block_tile_iteration;
 
@@ -154,22 +195,6 @@ struct GridwiseMultiblockWelfordFirstHalf
             make_multi_index(blkgroup_id * M_BlockTileSize + thread_m_cluster_id * MThreadSliceSize,
                              block_local_id * reduceSizePerBlock +
                                  thread_k_cluster_id * KThreadSliceSize));
-
-        auto threadwise_initial_count_load =
-            ThreadwiseTensorSliceTransfer_v2<int8_t,
-                                             int8_t,
-                                             XGridDesc_M_K,
-                                             decltype(thread_buffer_desc_1_k),
-                                             ThreadBufferLengths_1_K,
-                                             ThreadBufferDimAccessOrder,
-                                             XSrcCountSrcVectorDim,
-                                             XSrcCountSrcVectorSize,
-                                             1,
-                                             true>(
-                x_grid_desc_m_k,
-                make_multi_index(
-                    blkgroup_id * M_BlockTileSize + thread_m_cluster_id * MThreadSliceSize,
-                    block_local_id * reduceSizePerBlock + thread_k_cluster_id * KThreadSliceSize));
 
         auto threadwise_welford_mean_var_store =
             ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
@@ -214,9 +239,6 @@ struct GridwiseMultiblockWelfordFirstHalf
         const auto x_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_x_global, x_grid_desc_m_k.GetElementSpaceSize());
 
-        const auto initial_count_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_initial_count, x_grid_desc_m_k.GetElementSpaceSize());
-
         auto welford_mean_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_welford_mean, mean_var_count_grid_desc_m_g.GetElementSpaceSize());
 
@@ -227,6 +249,8 @@ struct GridwiseMultiblockWelfordFirstHalf
             p_welford_count, mean_var_count_grid_desc_m_g.GetElementSpaceSize());
 
         auto threadwise_welford = ThreadwiseWelford();
+        threadwise_welford.max_count_ =
+            get_reduce_count_per_thread(block_local_id, thread_k_cluster_id);
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
             welford_mean_thread_buf(I) = type_convert<AccDataType>(0.0f);
@@ -241,23 +265,7 @@ struct GridwiseMultiblockWelfordFirstHalf
                                   make_tuple(I0, I0),
                                   x_thread_buf);
 
-            threadwise_initial_count_load.Run(x_grid_desc_m_k,
-                                              initial_count_global_val_buf,
-                                              thread_buffer_desc_1_k,
-                                              make_tuple(I0, I0),
-                                              initial_count_thread_buf);
-
-            int8_t valid_count = 0;
-
-            static_for<0, KThreadSliceSize, 1>{}(
-                [&](auto I) { valid_count += initial_count_thread_buf[I]; });
-
-            threadwise_welford.max_count_ += valid_count;
-
             threadwise_x_load.MoveSrcSliceWindow(x_grid_desc_m_k, thread_copy_fwd_step_m_k);
-            threadwise_initial_count_load.MoveSrcSliceWindow(x_grid_desc_m_k,
-                                                             thread_copy_fwd_step_m_k);
-
             threadwise_welford.Run(x_thread_buf, welford_mean_thread_buf, welford_var_thread_buf);
         }
 
