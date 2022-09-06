@@ -260,14 +260,20 @@ struct DeviceElementwise
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-    static auto MakeArgument(const std::array<index_t, NumDim> lengths,
+    static auto
+    MakeArgument(const std::array<index_t, NumDim> lengths,
                  const std::array<std::array<index_t, NumDim>, NumInput> inStridesArray,
                  const std::array<std::array<index_t, NumDim>, NumOutput> outStridesArray,
                  const std::array<const void*, NumInput> in_dev_buffers,
                  const std::array<void*, NumOutput> out_dev_buffers,
                  ElementwiseOperation elementwise_op)
     {
-       return Argument{lengths, inStridesArray, outStridesArray, in_dev_buffers, out_dev_buffers, elementwise_op};
+        return Argument{lengths,
+                        inStridesArray,
+                        outStridesArray,
+                        in_dev_buffers,
+                        out_dev_buffers,
+                        elementwise_op};
     }
 
     std::unique_ptr<BaseArgument>
