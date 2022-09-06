@@ -50,15 +50,35 @@ template <typename T>
 struct is_iterator<T,
                    std::void_t<decltype(*std::declval<T>()),
                                decltype(++std::declval<std::add_lvalue_reference_t<T>>()),
-                               decltype(--std::declval<std::add_lvalue_reference_t<T>>()),
-                               decltype(std::declval<std::add_lvalue_reference_t<T>>()++),
-                               decltype(std::declval<std::add_lvalue_reference_t<T>>()--)>>
+                               decltype(std::declval<std::add_lvalue_reference_t<T>>()++)>>
     : std::true_type
 {
 };
 
 template <typename T>
 inline constexpr bool is_iterator_v = is_iterator<T>::value;
+
+struct Placeholder final
+{
+    template <typename T>
+    constexpr inline operator T() const noexcept;
+};
+
+template <typename T, typename = void>
+struct is_output_iterator : std::false_type
+{
+};
+
+template <typename Iterator>
+struct is_output_iterator<
+    Iterator,
+    std::void_t<decltype(*std::declval<Iterator>() = std::declval<Placeholder>())>>
+    : std::bool_constant<is_iterator_v<Iterator>>
+{
+};
+
+template <typename T>
+inline constexpr bool is_output_iterator_v = is_output_iterator<T>::value;
 
 template <typename Iterator, typename = void>
 struct is_random_access_iterator : std::false_type
@@ -93,6 +113,20 @@ template <typename T>
 inline constexpr bool is_range_v = is_range<T>::value;
 
 template <typename Range, typename = void>
+struct is_sized_range : std::false_type
+{
+};
+
+template <typename Range>
+struct is_sized_range<Range, std::void_t<decltype(size(std::declval<Range>()))>>
+    : std::bool_constant<is_range_v<Range>>
+{
+};
+
+template <typename Range>
+inline constexpr bool is_sized_range_v = is_sized_range<Range>::value;
+
+template <typename Range, typename = void>
 struct is_random_access_range : std::false_type
 {
 };
@@ -111,7 +145,7 @@ inline constexpr bool is_random_access_range_v = is_random_access_range<Range>::
 } // namespace detail
 
 template <typename Axes>
-inline std::enable_if_t<detail::is_random_access_range_v<ck::remove_cvref_t<Axes>>, bool>
+inline std::enable_if_t<detail::is_random_access_range_v<Axes>, bool>
 is_valid_axes(const Axes& axes)
 {
     using std::empty;
@@ -127,6 +161,24 @@ is_valid_axes(const Axes& axes)
     const auto last = std::unique(begin(copy), end(copy));
 
     return (last == end(copy)) && (*begin(copy) == 0) && (*std::prev(last) == size(axes) - 1);
+}
+
+template <typename Shape, typename Axes, typename OutputIterator>
+inline std::enable_if_t<detail::is_random_access_range_v<Shape> &&
+                            detail::is_sized_range_v<Shape> && detail::is_sized_range_v<Axes> &&
+                            detail::is_output_iterator_v<OutputIterator>,
+                        OutputIterator>
+transpose_shape(const Shape& shape, const Axes& axes, OutputIterator iter)
+{
+    using std::size;
+    assert(size(shape) == size(axes) && is_valid_axes(axes));
+
+    for(const auto axis : axes)
+    {
+        *iter++ = shape[axis];
+    }
+
+    return iter;
 }
 
 inline bool parse_cmd_args(int argc, char* argv[], ExecutionConfig& config, Problem& problem)

@@ -24,9 +24,10 @@ void host_elementwise4D(HostTensorB& B,
 
 bool run_elementwise_permute(const ExecutionConfig& config, const Problem& problem)
 {
-    auto [N, C, H, W]             = problem.shape;
-    std::vector<std::size_t> nchw = {N, C, H, W};
-    std::vector<std::size_t> nhwc = {N, H, W, C};
+    const auto& nchw = problem.shape;
+    std::vector<std::size_t> nhwc;
+    transpose_shape(problem.shape, problem.axes, std::back_inserter(nhwc));
+
     Tensor<ADataType> a(nchw);
     Tensor<BDataType> b(nhwc);
 
