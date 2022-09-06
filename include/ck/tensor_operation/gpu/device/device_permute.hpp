@@ -60,7 +60,7 @@ struct InvokerBase : BaseInvoker
         const auto* argument = dynamic_cast<const Argument*>(arg);
         if(!argument)
         {
-            return false;
+            return 0.f;
         }
 
         return Derived::Run(*argument, stream_config);
