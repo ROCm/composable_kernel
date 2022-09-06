@@ -26,7 +26,6 @@ template <typename InDataTypeTuple,
           typename InScalarPerVectorSeq,
           typename OutScalarPerVectorSeq>
 struct DevicePermute
-    : public DeviceElementwiseBase<InDataTypeTuple, OutDataTypeTuple, ElementwiseOperation, NumDim>
 {
     static constexpr int NumInput  = InDataTypeTuple::Size();
     static constexpr int NumOutput = OutDataTypeTuple::Size();
@@ -255,7 +254,7 @@ struct DevicePermute
         return valid;
     };
 
-    bool IsSupportedArgument(const BaseArgument* p_arg) override
+    bool IsSupportedArgument(const BaseArgument* p_arg)
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
@@ -282,7 +281,7 @@ struct DevicePermute
                         const std::array<std::array<index_t, NumDim>, NumOutput> outStridesArray,
                         const std::array<const void*, NumInput> in_dev_buffers,
                         const std::array<void*, NumOutput> out_dev_buffers,
-                        ElementwiseOperation elementwise_op) override
+                        ElementwiseOperation elementwise_op)
     {
         return std::make_unique<Argument>(lengths,
                                           inStridesArray,
@@ -293,10 +292,7 @@ struct DevicePermute
     }
 
     static auto MakeInvoker() { return Invoker{}; }
-    std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
-    {
-        return std::make_unique<Invoker>();
-    };
+    std::unique_ptr<BaseInvoker> MakeInvokerPointer() { return std::make_unique<Invoker>(); };
 }; // namespace device
 
 } // namespace device
