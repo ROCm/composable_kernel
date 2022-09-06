@@ -10,7 +10,7 @@
 #include "ck/utility/math.hpp"
 #include "ck/utility/sequence.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_elementwise_1d.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_permute.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 
 #include "ck/host_utility/kernel_launch.hpp"
@@ -90,8 +90,8 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
                       NumOutput == OutScalarPerVectorSeq::Size(),
                   "Tuple size is inconsistent with the number of in/out!");
 
-    using InDataTypePointerTuple  = Tuple<const InDataType*>;
-    using OutDataTypePointerTuple = Tuple<OutDataType*>;
+    using InDataTypePointer  = const InDataType*;
+    using OutDataTypePointer = OutDataType*;
 
     template <typename Desc_M>
     static auto PadDescriptor_M_1d(Desc_M desc_m, index_t gridSize, index_t blockSize)
@@ -147,17 +147,17 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
         };
     };
 
-    using InGrid1dDescTuple  = Tuple<decltype(GenerateInOutGrid1dDesc())>;
-    using OutGrid1dDescTuple = Tuple<decltype(GenerateInOutGrid1dDesc())>;
+    using InGrid1dDesc  = decltype(GenerateInOutGrid1dDesc());
+    using OutGrid1dDesc = decltype(GenerateInOutGrid1dDesc());
 
-    using GridwiseElementwise = GridwiseElementwise_1D<InGrid1dDescTuple,
-                                                       OutGrid1dDescTuple,
-                                                       InDataTypePointerTuple,
-                                                       OutDataTypePointerTuple,
-                                                       ElementwiseOperation,
-                                                       MPerThread,
-                                                       InScalarPerVectorSeq,
-                                                       OutScalarPerVectorSeq>;
+    using GridwisePermute = GridwisePermute<InGrid1dDesc,
+                                            OutGrid1dDesc,
+                                            InDataTypePointer,
+                                            OutDataTypePointer,
+                                            ElementwiseOperation,
+                                            MPerThread,
+                                            InScalarPerVectorSeq,
+                                            OutScalarPerVectorSeq>;
 
     struct Argument : public BaseArgument
     {
@@ -170,49 +170,30 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
                  ElementwiseOperation elementwise_op)
             : blockSize_(256),
               gridSize_(120), // FIXME - Calculate the grid size by number of CU in the future
+              in_dev_buffer_(static_cast<InDataTypePointer>(in_dev_buffer)),
+              out_dev_buffer_(static_cast<OutDataTypePointer>(out_dev_buffer)),
+              in_grid_1d_desc_(MakeDescriptor_M(inLengths, inStrides, gridSize_, blockSize_)),
+              out_grid_1d_desc_(MakeDescriptor_M(inLengths, inStrides, gridSize_, blockSize_)),
               inLengths_(inLengths),
               axes_(axes),
-              inStridesArray_({inStrides}),
-              outStridesArray_({outStrides}),
+              inStrides_(inStrides),
+              outStrides_(outStrides),
               elementwise_op_(elementwise_op)
         {
-            in_dev_buffers_ = generate_tuple(
-                [&](auto) {
-                    using DataType = InDataType;
-                    return static_cast<const DataType*>(in_dev_buffer);
-                },
-                Number<NumInput>{});
-
-            out_dev_buffers_ = generate_tuple(
-                [&](auto) {
-                    using DataType = OutDataType;
-                    return static_cast<DataType*>(out_dev_buffer);
-                },
-                Number<NumOutput>{});
-
-            in_grid_1d_desc_tuple_ = generate_tuple(
-                [&](auto) { return MakeDescriptor_M(inLengths, inStrides, gridSize_, blockSize_); },
-                Number<NumInput>{});
-
-            out_grid_1d_desc_tuple_ = generate_tuple(
-                [&](auto) {
-                    return MakeDescriptor_M(inLengths, outStrides, gridSize_, blockSize_);
-                },
-                Number<NumOutput>{});
         }
 
         index_t blockSize_;
         index_t gridSize_;
 
-        InDataTypePointerTuple in_dev_buffers_;
-        OutDataTypePointerTuple out_dev_buffers_;
-        InGrid1dDescTuple in_grid_1d_desc_tuple_;
-        OutGrid1dDescTuple out_grid_1d_desc_tuple_;
+        InDataTypePointer in_dev_buffer_;
+        OutDataTypePointer out_dev_buffer_;
+        InGrid1dDesc in_grid_1d_desc_;
+        OutGrid1dDesc out_grid_1d_desc_;
 
         std::array<index_t, NumDim> inLengths_;
         std::array<index_t, NumDim> axes_;
-        std::array<std::array<index_t, NumDim>, NumInput> inStridesArray_;
-        std::array<std::array<index_t, NumDim>, NumOutput> outStridesArray_;
+        std::array<index_t, NumDim> inStrides_;
+        std::array<index_t, NumDim> outStrides_;
 
         ElementwiseOperation elementwise_op_;
     };
@@ -221,22 +202,22 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
     {
         static float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            const auto kernel = kernel_elementwise_1d<GridwiseElementwise,
-                                                      InGrid1dDescTuple,
-                                                      OutGrid1dDescTuple,
-                                                      InDataTypePointerTuple,
-                                                      OutDataTypePointerTuple,
-                                                      ElementwiseOperation>;
+            const auto kernel = kernel_permute<GridwisePermute,
+                                               InGrid1dDesc,
+                                               OutGrid1dDesc,
+                                               InDataTypePointer,
+                                               OutDataTypePointer,
+                                               ElementwiseOperation>;
 
             float elapsed_time = launch_and_time_kernel(stream_config,
                                                         kernel,
                                                         dim3(arg.gridSize_),
                                                         dim3(arg.blockSize_),
                                                         0,
-                                                        arg.in_grid_1d_desc_tuple_,
-                                                        arg.out_grid_1d_desc_tuple_,
-                                                        arg.in_dev_buffers_,
-                                                        arg.out_dev_buffers_,
+                                                        arg.in_grid_1d_desc_,
+                                                        arg.out_grid_1d_desc_,
+                                                        arg.in_dev_buffer_,
+                                                        arg.out_dev_buffer_,
                                                         arg.elementwise_op_);
             return elapsed_time;
         }
@@ -262,17 +243,15 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
         };
 
         bool valid = true;
-        static_for<0, NumInput, 1>{}([&](auto I) {
-            if(!IsScalarPerVectorValid(
-                   arg.inLengths_, arg.inStridesArray_[I.value], InScalarPerVectorSeq::At(I)))
-                valid = false;
-        });
+        if(!IsScalarPerVectorValid(arg.inLengths_, arg.inStrides_, InScalarPerVectorSeq::At(0)))
+        {
+            valid = false;
+        }
 
-        static_for<0, NumOutput, 1>{}([&](auto I) {
-            if(!IsScalarPerVectorValid(
-                   arg.inLengths_, arg.outStridesArray_[I.value], OutScalarPerVectorSeq::At(I)))
-                valid = false;
-        });
+        if(!IsScalarPerVectorValid(arg.inLengths_, arg.outStrides_, OutScalarPerVectorSeq::At(0)))
+        {
+            valid = false;
+        }
 
         return valid;
     };
