@@ -21,21 +21,22 @@ bool run_permute(const ExecutionConfig& config, const Problem& problem)
 
     a_device_buf.ToDevice(a.mData.data());
 
-    std::array<ck::index_t, 4> ab_lengths;
+    std::array<ck::index_t, 4> a_lengths, b_lengths;
     std::array<ck::index_t, 4> a_strides, b_strides;
 
     const void* input = a_device_buf.GetDeviceBuffer();
     void* output      = b_device_buf.GetDeviceBuffer();
 
-    std::copy(begin(shape), end(shape), begin(ab_lengths));
+    std::copy(begin(shape), end(shape), begin(a_lengths));
+    std::copy(begin(transposed_shape), end(transposed_shape), begin(b_lengths));
     std::copy(begin(a.mDesc.GetStrides()), end(a.mDesc.GetStrides()), begin(a_strides));
     std::copy(begin(b.mDesc.GetStrides()), end(b.mDesc.GetStrides()), begin(b_strides));
 
     static_assert(std::is_default_constructible_v<DevicePermuteInstance>);
 
-    auto permute = DevicePermuteInstance{};
-    auto argument =
-        permute.MakeArgument(ab_lengths, a_strides, b_strides, input, output, PassThrough{});
+    auto permute  = DevicePermuteInstance{};
+    auto argument = permute.MakeArgument(
+        a_lengths, a_strides, b_lengths, b_strides, input, output, PassThrough{});
 
     if(!permute.IsSupportedArgument(argument))
     {
