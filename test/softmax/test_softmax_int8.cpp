@@ -24,6 +24,13 @@ using KernelTypes = ::testing::Types<
     std::tuple<int8_t, float, int8_t, I<3>, I<2>, I<256>, I<1>, I<256>, I<1>, I<16>, I<1>, I<16>, I<16>>,
     std::tuple<int8_t, float, int8_t, I<3>, I<2>, I<256>, I<1>, I<256>, I<1>, I<32>, I<1>, I<16>, I<16>>,
     std::tuple<int8_t, float, int8_t, I<3>, I<2>, I<256>, I<1>, I<256>, I<1>, I<64>, I<1>, I<16>, I<16>>
+    // Following cases will fail cause of reduction across all dimensions
+    // std::tuple<int8_t, float, int8_t, I<3>, I<3>, I<256>, I<8>, I<32>, I<1>, I<16>, I<1>, I<16>, I<16>>,
+    // std::tuple<int8_t, float, int8_t, I<3>, I<3>, I<256>, I<4>, I<64>, I<1>, I<16>, I<1>, I<16>, I<16>>,
+    // std::tuple<int8_t, float, int8_t, I<3>, I<3>, I<256>, I<2>, I<128>, I<1>, I<16>, I<1>, I<16>, I<16>>,
+    // std::tuple<int8_t, float, int8_t, I<3>, I<3>, I<256>, I<1>, I<256>, I<1>, I<16>, I<1>, I<16>, I<16>>,
+    // std::tuple<int8_t, float, int8_t, I<3>, I<3>, I<256>, I<1>, I<256>, I<1>, I<32>, I<1>, I<16>, I<16>>,
+    // std::tuple<int8_t, float, int8_t, I<3>, I<3>, I<256>, I<1>, I<256>, I<1>, I<64>, I<1>, I<16>, I<16>>
     >;
 // clang-format on
 TYPED_TEST_SUITE(TestSoftmaxINT8, KernelTypes);
