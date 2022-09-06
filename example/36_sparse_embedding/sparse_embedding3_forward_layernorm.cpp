@@ -180,7 +180,7 @@ int main()
         }
 
         auto invoker_ptr = device_instance.MakeInvokerPointer();
-        float time_ms = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+        float time_ms    = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
         bool pass = true;
         {
