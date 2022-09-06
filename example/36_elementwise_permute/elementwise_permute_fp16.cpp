@@ -7,7 +7,7 @@ using ADataType = F16;
 using BDataType = F16;
 
 using DeviceElementwisePermuteInstance = ck::tensor_operation::device::
-    DeviceElementwise<ck::Tuple<ADataType>, ck::Tuple<BDataType>, PassThrough, 4, 8, S<8>, S<1>>;
+    DevicePermute<ck::Tuple<ADataType>, ck::Tuple<BDataType>, PassThrough, 4, 8, S<8>, S<1>>;
 
 #include "run_elementwise_permute_example.inc"
 
