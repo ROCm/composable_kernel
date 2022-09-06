@@ -8,10 +8,12 @@
 #include <iostream>
 #include <iterator>
 #include <numeric>
+#include <type_traits>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
+#include "ck/utility/type.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -37,8 +39,80 @@ using S = ck::Sequence<Is...>;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-template <typename RandomAccessRange>
-inline bool is_valid_axes(RandomAccessRange axes)
+namespace detail {
+
+template <typename T, typename = void>
+struct is_iterator : std::false_type
+{
+};
+
+template <typename T>
+struct is_iterator<T,
+                   std::void_t<decltype(*std::declval<T>()),
+                               decltype(++std::declval<std::add_lvalue_reference_t<T>>()),
+                               decltype(--std::declval<std::add_lvalue_reference_t<T>>()),
+                               decltype(std::declval<std::add_lvalue_reference_t<T>>()++),
+                               decltype(std::declval<std::add_lvalue_reference_t<T>>()--)>>
+    : std::true_type
+{
+};
+
+template <typename T>
+inline constexpr bool is_iterator_v = is_iterator<T>::value;
+
+template <typename Iterator, typename = void>
+struct is_random_access_iterator : std::false_type
+{
+};
+
+template <typename Iterator>
+struct is_random_access_iterator<Iterator,
+                                 std::void_t<decltype(std::declval<Iterator>() + 1),
+                                             decltype(std::declval<Iterator>() - 1),
+                                             decltype(std::declval<Iterator>()[1])>>
+    : std::bool_constant<is_iterator_v<Iterator>>
+{
+};
+
+template <typename Iterator>
+inline constexpr bool is_random_access_iterator_v = is_random_access_iterator<Iterator>::value;
+
+template <typename T, typename = void>
+struct is_range : std::false_type
+{
+};
+
+template <typename T>
+struct is_range<T,
+                std::void_t<decltype(begin(std::declval<T>())), decltype(end(std::declval<T>()))>>
+    : std::bool_constant<is_iterator_v<ck::remove_cvref_t<decltype(begin(std::declval<T>()))>>>
+{
+};
+
+template <typename T>
+inline constexpr bool is_range_v = is_range<T>::value;
+
+template <typename Range, typename = void>
+struct is_random_access_range : std::false_type
+{
+};
+
+template <typename Range>
+struct is_random_access_range<Range, std::void_t<>>
+    : std::bool_constant<
+          is_range_v<Range> &&
+          is_random_access_iterator_v<ck::remove_cvref_t<decltype(begin(std::declval<Range>()))>>>
+{
+};
+
+template <typename Range>
+inline constexpr bool is_random_access_range_v = is_random_access_range<Range>::value;
+
+} // namespace detail
+
+template <typename Axes>
+inline std::enable_if_t<detail::is_random_access_range_v<ck::remove_cvref_t<Axes>>, bool>
+is_valid_axes(const Axes& axes)
 {
     using std::empty;
     if(empty(axes))
