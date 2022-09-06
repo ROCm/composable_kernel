@@ -1023,6 +1023,8 @@ struct NumericLimits
     {
         return std::numeric_limits<T>::quiet_NaN();
     }
+
+    __host__ __device__ static constexpr T Infinity() { return std::numeric_limits<T>::infinity(); }
 };
 
 template <>

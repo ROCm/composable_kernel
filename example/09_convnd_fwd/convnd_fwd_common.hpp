@@ -34,16 +34,16 @@ template <ck::index_t NDimSpatial,
           typename WeiElementOp,
           typename OutElementOp,
           typename DeviceConvNDFwdInstance>
-int run_grouped_conv_fwd(bool do_verification,
-                         int init_method,
-                         bool time_kernel,
-                         const ck::utils::conv::ConvParam& conv_param,
-                         const HostTensorDescriptor& in_g_n_c_wis_desc,
-                         const HostTensorDescriptor& wei_g_k_c_xs_desc,
-                         const HostTensorDescriptor& out_g_n_k_wos_desc,
-                         const InElementOp& in_element_op,
-                         const WeiElementOp& wei_element_op,
-                         const OutElementOp& out_element_op)
+bool run_grouped_conv_fwd(bool do_verification,
+                          int init_method,
+                          bool time_kernel,
+                          const ck::utils::conv::ConvParam& conv_param,
+                          const HostTensorDescriptor& in_g_n_c_wis_desc,
+                          const HostTensorDescriptor& wei_g_k_c_xs_desc,
+                          const HostTensorDescriptor& out_g_n_k_wos_desc,
+                          const InElementOp& in_element_op,
+                          const WeiElementOp& wei_element_op,
+                          const OutElementOp& out_element_op)
 {
     Tensor<InDataType> in(in_g_n_c_wis_desc);
     Tensor<WeiDataType> wei(wei_g_k_c_xs_desc);
@@ -164,10 +164,8 @@ int run_grouped_conv_fwd(bool do_verification,
         out_device_buf.FromDevice(out_device.mData.data());
 
         return ck::utils::check_err(
-                   out_device.mData, out_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f)
-                   ? 0
-                   : 1;
+            out_device.mData, out_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
     }
 
-    return 0;
+    return true;
 }
