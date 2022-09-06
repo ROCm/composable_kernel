@@ -3,12 +3,13 @@
 
 #pragma once
 
-#include <iostream>
-#include <sstream>
+#include <array>
+#include <memory>
+#include <utility>
 
 #include "ck/utility/math.hpp"
 #include "ck/utility/sequence.hpp"
-#include "ck/tensor_operation/gpu/device/device_elementwise_base.hpp"
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_elementwise_1d.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 
