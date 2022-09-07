@@ -10,19 +10,19 @@
 
 namespace ck {
 
-template <typename GridwisePermuteFunctor,
+template <typename GridwiseCopyFunctor,
           typename InGrid1dDesc,
           typename OutGrid1dDesc,
           typename InDataTypePointer,
           typename OutDataTypePointer,
           typename ElementwiseOperation>
-__global__ void kernel_permute(const InGrid1dDesc in_grid_1d_desc,
+__global__ void kernel_nd_copy(const InGrid1dDesc in_grid_1d_desc,
                                const OutGrid1dDesc out_grid_1d_desc,
                                const InDataTypePointer p_in_global,
                                const OutDataTypePointer p_out_global,
                                const ElementwiseOperation elementwise_op)
 {
-    GridwisePermuteFunctor::Run(
+    GridwiseCopyFunctor::Run(
         in_grid_1d_desc, out_grid_1d_desc, p_in_global, p_out_global, elementwise_op);
 }
 
@@ -34,7 +34,7 @@ template <typename InGrid1dDesc,
           index_t MPerThread,
           index_t InScalarPerVector,
           index_t OutScalarPerVector>
-struct GridwisePermute
+struct GridwiseCopy
 {
     static constexpr auto I0 = Number<0>{};
 

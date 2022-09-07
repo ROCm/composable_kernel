@@ -10,7 +10,7 @@
 #include "ck/utility/math.hpp"
 #include "ck/utility/sequence.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_permute.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_copy.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 
 #include "ck/host_utility/kernel_launch.hpp"
@@ -166,14 +166,14 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
     using InGrid1dDesc  = decltype(MakeDescriptor_N_H_W({1, 1}, {1, 1}, 1, 1));
     using OutGrid1dDesc = decltype(MakeDescriptor_N_H_W({1, 1}, {1, 1}, 1, 1));
 
-    using GridwisePermute = GridwisePermute<InGrid1dDesc,
-                                            OutGrid1dDesc,
-                                            InDataTypePointer,
-                                            OutDataTypePointer,
-                                            ElementwiseOperation,
-                                            MPerThread,
-                                            InScalarPerVector,
-                                            OutScalarPerVector>;
+    using GridwiseCopy = GridwiseCopy<InGrid1dDesc,
+                                      OutGrid1dDesc,
+                                      InDataTypePointer,
+                                      OutDataTypePointer,
+                                      ElementwiseOperation,
+                                      MPerThread,
+                                      InScalarPerVector,
+                                      OutScalarPerVector>;
 
     struct Argument : public BaseArgument
     {
@@ -218,7 +218,7 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
     {
         static float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            const auto kernel = kernel_permute<GridwisePermute,
+            const auto kernel = kernel_nd_copy<GridwiseCopy,
                                                InGrid1dDesc,
                                                OutGrid1dDesc,
                                                InDataTypePointer,
