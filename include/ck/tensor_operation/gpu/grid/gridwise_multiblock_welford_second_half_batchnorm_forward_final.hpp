@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/utility/data_type.hpp"
+#include "ck/utility/math_v2.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_welford.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_welford.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
@@ -159,6 +160,8 @@ struct GridwiseWelfordSecondHalfBatchNormForwardFinal
                                MeanVarDataType* const __restrict__ resultSaveInvVariance)
 
     {
+        using ck::math::sqrt;
+
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * 1, true>
             in_welford_mean_thread_buf;
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * 1, true>

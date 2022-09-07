@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <thread>
 
+#include "ck/utility/math_v2.hpp"
 #include "ck/tensor_operation/gpu/device/device_batchnorm_forward.hpp"
 
 namespace ck {
@@ -128,7 +129,7 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                 variance = variance / curr_count;
 
                 AccDataType invVariance =
-                    type_convert<AccDataType>(1.0f) / std::sqrt(arg.epsilon_ + variance);
+                    type_convert<AccDataType>(1.0f) / ck::math::sqrt(arg.epsilon_ + variance);
 
                 // save the mean/invVariance if required
                 if(arg.resultSave)
