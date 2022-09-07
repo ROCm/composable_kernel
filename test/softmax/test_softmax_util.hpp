@@ -67,11 +67,11 @@ class TestSoftmax : public ::testing::Test
 
     TestSoftmax() : ref_instance_invoker_(ReferenceInstance{}.MakeInvoker()) {}
 
-    void RunSingle(std::vector<index_t> in_length, AccDataType alpha, AccDataType beta)
+    void RunSingle(std::vector<index_t> in_length,
+                   std::vector<index_t> reduce_dims,
+                   AccDataType alpha,
+                   AccDataType beta)
     {
-        std::vector<index_t> reduce_dims(NumReduceDim);
-        std::iota(reduce_dims.begin(), reduce_dims.end(), Rank - NumReduceDim);
-
         Tensor<InDataType> in(in_length);
         Tensor<OutDataType> out(in_length);
 
@@ -133,13 +133,23 @@ class TestSoftmax : public ::testing::Test
         }
     }
 
-    void Run()
+    void Run(std::vector<index_t> reduce_dims = {})
     {
+        if(reduce_dims.empty())
+        {
+            reduce_dims.resize(NumReduceDim);
+            std::iota(reduce_dims.begin(), reduce_dims.end(), Rank - NumReduceDim);
+        }
+        else
+        {
+            EXPECT_EQ(reduce_dims.size(), NumReduceDim);
+        }
+
         for(auto in_length : this->in_lengths_)
         {
             for(auto scale : this->scales_)
             {
-                this->RunSingle(in_length, scale[0], scale[1]);
+                this->RunSingle(in_length, reduce_dims, scale[0], scale[1]);
             }
         }
     }
