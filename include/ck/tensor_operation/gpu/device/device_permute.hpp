@@ -119,18 +119,13 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
         const auto desc = make_naive_tensor_descriptor(tupleOfShape, tupleOfStride);
 
         // merge nd to 1d desc - [s0 * s1 * ...]
-        if constexpr(NumDim > 1)
-        {
-            const auto desc_m = transform_tensor_descriptor(
-                desc,
-                make_tuple(make_merge_transform(tupleOfShape)),
-                make_tuple(generate_sequence_v2([&](auto I) { return I; }, Number<NumDim>{})),
-                make_tuple(Sequence<0>{}));
+        const auto desc_m = transform_tensor_descriptor(
+            desc,
+            make_tuple(make_merge_transform(tupleOfShape)),
+            make_tuple(generate_sequence_v2([&](auto I) { return I; }, Number<NumDim>{})),
+            make_tuple(Sequence<0>{}));
 
-            return PadDescriptor_M_1d(desc_m, gridSize, blockSize);
-        }
-        else
-            return PadDescriptor_M_1d(desc, gridSize, blockSize);
+        return PadDescriptor_M_1d(desc_m, gridSize, blockSize);
     }
 
     using InGrid1dDesc  = decltype(MakeDescriptor_M({1, 1}, {1, 1}, 1, 1));
