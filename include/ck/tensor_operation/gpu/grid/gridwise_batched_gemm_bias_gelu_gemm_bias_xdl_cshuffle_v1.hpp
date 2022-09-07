@@ -943,9 +943,26 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
                                 constexpr index_t c_offset = acc0_thread_desc.CalculateOffset(
                                     make_tuple(mr, nr, groupid, i));
 
-                                d0_element_op(acc0_thread_buf(Number<c_offset>{}),
-                                              acc0_thread_buf[Number<c_offset>{}],
-                                              d0s_thread_buf[I0][i]);
+                                // get reference to src data
+                                const auto src_data_refs = generate_tie(
+                                    // return type should be lvalue
+                                    [&](auto iSrc) -> const auto& {
+                                        return d0s_thread_buf[iSrc][i];
+                                    },
+                                    Number<NumD0Tensor>{});
+
+                                // get reference to dst data
+                                auto dst_data_refs = generate_tie(
+                                    // return type should be lvalue
+                                    [&](auto) -> auto& {
+                                        return acc0_thread_buf(Number<c_offset>{});
+                                    },
+                                    Number<2>{});
+
+                                unpack2(d0_element_op, dst_data_refs, src_data_refs);
+                                // d0_element_op(acc0_thread_buf(Number<c_offset>{}),
+                                //               acc0_thread_buf[Number<c_offset>{}],
+                                //               d0s_thread_buf[I0][i]);
                             });
                             static_for<0, NumD0Tensor, 1>{}([&](auto i) {
                                 d0s_threadwise_copy(i).MoveSrcSliceWindow(
