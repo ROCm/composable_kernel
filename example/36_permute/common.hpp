@@ -31,8 +31,8 @@ struct ExecutionConfig final
 
 struct Problem final
 {
-    std::array<std::size_t, 4> shape = {4, 16, 32, 32};
-    std::array<std::size_t, 4> axes  = {0, 2, 3, 1};
+    std::array<std::size_t, 4> shape = {4, 8, 16, 32};
+    std::array<std::size_t, 4> axes  = {0, 1, 3, 2};
 };
 
 template <ck::index_t... Is>

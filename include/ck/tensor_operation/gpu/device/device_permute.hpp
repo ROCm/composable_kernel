@@ -68,6 +68,9 @@ struct InvokerBase : BaseInvoker
 };
 } // namespace detail
 
+// Swap last 2 dimensions
+// input: [d0, d1, d2, ..., d, dn-2, dn-1]
+// output: [d0, d1, d2, ..., d, dn-1, dn-2]
 template <typename InDataType,
           typename OutDataType,
           typename ElementwiseOperation,
@@ -83,6 +86,8 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
                                                                InScalarPerVector,
                                                                OutScalarPerVector>>
 {
+    static_assert(3 <= NumDim, "Only accept at least 3D dimension tensor");
+
     using InDataTypePointer  = const InDataType*;
     using OutDataTypePointer = OutDataType*;
 
@@ -155,8 +160,8 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
     struct Argument : public BaseArgument
     {
         Argument(const std::array<index_t, NumDim> inLengths,
-                 const std::array<index_t, NumDim> axes,
                  const std::array<index_t, NumDim> inStrides,
+                 const std::array<index_t, NumDim> outLengths,
                  const std::array<index_t, NumDim> outStrides,
                  const void* in_dev_buffer,
                  void* out_dev_buffer,
@@ -168,8 +173,8 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
               in_grid_1d_desc_(MakeDescriptor_M(inLengths, inStrides, gridSize_, blockSize_)),
               out_grid_1d_desc_(MakeDescriptor_M(inLengths, inStrides, gridSize_, blockSize_)),
               inLengths_(inLengths),
-              axes_(axes),
               inStrides_(inStrides),
+              outLengths_(outLengths),
               outStrides_(outStrides),
               elementwise_op_(elementwise_op)
         {
@@ -184,8 +189,8 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
         OutGrid1dDesc out_grid_1d_desc_;
 
         std::array<index_t, NumDim> inLengths_;
-        std::array<index_t, NumDim> axes_;
         std::array<index_t, NumDim> inStrides_;
+        std::array<index_t, NumDim> outLengths_;
         std::array<index_t, NumDim> outStrides_;
 
         ElementwiseOperation elementwise_op_;
@@ -223,6 +228,16 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
             return false;
         }
 
+        // check if only swap last 2 dimensions
+        if(!(std::equal(begin(arg.inLengths_),
+                        std::prev(end(arg.inLengths_), 2),
+                        begin(arg.outLengths_)) &&
+             std::tie(*rbegin(arg.inLengths_), *std::next(rbegin(arg.inLengths_))) ==
+                 std::tie(*std::next(rbegin(arg.outLengths_)), *rbegin(arg.outLengths_))))
+        {
+            return false;
+        }
+
         auto IsScalarPerVectorValid = [&](const std::array<index_t, NumDim>& lengths,
                                           const std::array<index_t, NumDim>& strides,
                                           index_t scalarPerVector) {
@@ -241,7 +256,7 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
             valid = false;
         }
 
-        if(!IsScalarPerVectorValid(arg.inLengths_, arg.outStrides_, OutScalarPerVector))
+        if(!IsScalarPerVectorValid(arg.outLengths_, arg.outStrides_, OutScalarPerVector))
         {
             valid = false;
         }
