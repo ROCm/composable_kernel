@@ -133,20 +133,8 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
             return PadDescriptor_M_1d(desc, gridSize, blockSize);
     }
 
-    static auto GenerateInOutGrid1dDesc()
-    {
-        if constexpr(NumDim > 1)
-        {
-            return MakeDescriptor_M({1, 1}, {1, 1}, 1, 1);
-        }
-        else
-        {
-            return MakeDescriptor_M({1}, {1}, 1, 1);
-        };
-    };
-
-    using InGrid1dDesc  = decltype(GenerateInOutGrid1dDesc());
-    using OutGrid1dDesc = decltype(GenerateInOutGrid1dDesc());
+    using InGrid1dDesc  = decltype(MakeDescriptor_M({1, 1}, {1, 1}, 1, 1));
+    using OutGrid1dDesc = decltype(MakeDescriptor_M({1, 1}, {1, 1}, 1, 1));
 
     using GridwisePermute = GridwisePermute<InGrid1dDesc,
                                             OutGrid1dDesc,
