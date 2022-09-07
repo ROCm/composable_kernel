@@ -5,6 +5,7 @@
 
 #include "ck/tensor_description/cluster_descriptor.hpp"
 #include "ck/utility/data_type.hpp"
+#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
@@ -31,17 +32,39 @@ template <typename InGrid1dDesc,
           typename InDataTypePointer,
           typename OutDataTypePointer,
           typename ElementwiseOperation,
+          index_t BlockSize,
+          index_t NPerBlock,
+          index_t HPerBlock,
+          index_t WPerBlock,
           index_t MPerThread,
           index_t InScalarPerVector,
           index_t OutScalarPerVector>
 struct GridwiseCopy
 {
+    static_assert(InGrid1dDesc::GetNumOfDimension() == 3 &&
+                  OutGrid1dDesc::GetNumOfDimension() == 3);
+
     static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
 
     static constexpr auto thread_buffer_desc_m =
         make_naive_tensor_descriptor_packed(make_tuple(Number<MPerThread>{}));
 
     using PassThroughOp = tensor_operation::element_wise::PassThrough;
+
+    using ThisThreadBlock = ThisThreadBlock<BlockSize>;
+
+    __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
+    {
+        constexpr index_t ABlockLdsExtraM = 0;
+
+        // A matrix in LDS memory, dst of blockwise copy
+        return make_naive_tensor_descriptor(
+            make_tuple(Number<NPerBlock>{}, Number<HPerBlock>{}, Number<WPerBlock>{}),
+            make_tuple(Number<NPerBlock + ABlockLdsExtraM>{} * Number<HPerBlock>{},
+                       Number<HPerBlock>{},
+                       I1));
+    }
 
     __device__ static void Run(const InGrid1dDesc in_grid_1d_desc,
                                const OutGrid1dDesc out_grid_1d_desc,
@@ -71,6 +94,7 @@ struct GridwiseCopy
         const index_t loop_step    = blockPerGrid * blockSize * MPerThread;
         const auto loop_step_index = make_multi_index(loop_step);
 
+#if 1
         auto in_global_load =
             ThreadwiseTensorSliceTransfer_v2<InDataType,
                                              InDataType,
@@ -82,7 +106,60 @@ struct GridwiseCopy
                                              InScalarPerVector,    // ScalarPerVector
                                              1,                    // SrcScalarStrideInVector
                                              false>{in_grid_1d_desc, thread_global_offset};
+#else
+        // const auto block_work_idx =
+        //     block_2_etile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
 
+        // HACK: this force m/n_block_data_idx_on_grid into SGPR
+        const index_t m_block_data_idx_on_grid =
+            __builtin_amdgcn_readfirstlane(block_work_idx[I0] * NPerBlock * HPerBlock);
+
+        // const index_t n_block_data_idx_on_grid =
+        //     __builtin_amdgcn_readfirstlane(block_work_idx[I1] * NPerBlock);
+
+        // A matrix in LDS memory, dst of blockwise copy
+        constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
+
+        // // B matrix in LDS memory, dst of blockwise copy
+        // constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
+
+        using SliceLengths = Sequence<NPerBlock, HPerBlock, WPerBlock>;
+        using ABlockTransferThreadClusterLengths_AK0_M_AK1 = Sequence<4, 64, 1>;
+        using ABlockTransferThreadClusterArrangeOrder      = Sequence<1, 0, 2>;
+        using ABlockTransferSrcAccessOrder                 = int;
+        constexpr index_t ABlockTransferSrcVectorDim       = 2;
+        constexpr index_t ABlockTransferSrcScalarPerVector = 1;
+        constexpr index_t ABlockTransferDstScalarPerVector = 1;
+
+        auto in_global_load =
+            ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
+                                                ElementwiseOperation,
+                                                ck::tensor_operation::element_wise::PassThrough,
+                                                InMemoryDataOperationEnum::Set,
+                                                SliceLengths,
+                                                ABlockTransferThreadClusterLengths_AK0_M_AK1,
+                                                ABlockTransferThreadClusterArrangeOrder,
+                                                InDataType,
+                                                InDataType,
+                                                decltype(in_grid_1d_desc),
+                                                decltype(a_block_desc_ak0_m_ak1),
+                                                ABlockTransferSrcAccessOrder,
+                                                Sequence<1, 0, 2>,
+                                                ABlockTransferSrcVectorDim,
+                                                2,
+                                                ABlockTransferSrcScalarPerVector,
+                                                ABlockTransferDstScalarPerVector,
+                                                1,
+                                                1,
+                                                true,
+                                                true>(
+                in_grid_1d_desc,
+                make_multi_index(0, m_block_data_idx_on_grid, 0),
+                element_op,
+                a_block_desc_ak0_m_ak1,
+                make_multi_index(0, 0, 0),
+                ck::tensor_operation::element_wise::PassThrough{});
+#endif
         auto out_global_store =
             ThreadwiseTensorSliceTransfer_v1r3<OutDataType,
                                                OutDataType,
