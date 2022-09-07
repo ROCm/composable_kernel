@@ -69,7 +69,7 @@ __global__ void kernel_multiblock_welford_first_half(
     const MeanVarCountGridDesc_M_G mean_var_count_grid_desc_m_g,
     const GetReduceCountPerThreadFunctor get_reduce_count_per_thread,
     index_t num_k_block_tile_iteration,
-    const XDataType* const __restrict__ p_x_global,
+    const XDataType* const __restrict__ p_x,
     MeanVarDataType* const p_welford_mean,
     MeanVarDataType* const p_welford_variance,
     int32_t* const p_welford_count)
@@ -78,7 +78,7 @@ __global__ void kernel_multiblock_welford_first_half(
                                              mean_var_count_grid_desc_m_g,
                                              get_reduce_count_per_thread,
                                              num_k_block_tile_iteration,
-                                             p_x_global,
+                                             p_x,
                                              p_welford_mean,
                                              p_welford_variance,
                                              p_welford_count);
@@ -143,7 +143,7 @@ struct GridwiseMultiblockWelfordFirstHalf
                                const MeanVarCountGridDesc_M_G mean_var_count_grid_desc_m_g,
                                const GetReduceCountPerThreadFunctor get_reduce_count_per_thread,
                                index_t num_k_block_tile_iteration,
-                               const XDataType* const __restrict__ p_x_global,
+                               const XDataType* const __restrict__ p_x,
                                MeanVarDataType* const p_welford_mean,
                                MeanVarDataType* const p_welford_variance,
                                int32_t* const p_welford_count)
@@ -237,7 +237,7 @@ struct GridwiseMultiblockWelfordFirstHalf
         constexpr auto thread_copy_fwd_step_m_k = make_multi_index(0, K_BlockTileSize);
 
         const auto x_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_x_global, x_grid_desc_m_k.GetElementSpaceSize());
+            p_x, x_grid_desc_m_k.GetElementSpaceSize());
 
         auto welford_mean_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_welford_mean, mean_var_count_grid_desc_m_g.GetElementSpaceSize());

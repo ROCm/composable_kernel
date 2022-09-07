@@ -61,10 +61,10 @@ __global__ void kernel_batchnorm_forward_with_blockwise_welford(
     const GetReduceCountPerThreadFunctor get_reduce_count_per_thread,
     index_t num_k_block_tile_iteration,
     AccDataType epsilon,
-    const XDataType* const __restrict__ p_x_global,
-    const ScaleBiasDataType* const __restrict__ p_scale_global,
-    const ScaleBiasDataType* const __restrict__ p_bias_global,
-    YDataType* const __restrict__ p_y_global,
+    const XDataType* const __restrict__ p_x,
+    const ScaleBiasDataType* const __restrict__ p_scale,
+    const ScaleBiasDataType* const __restrict__ p_bias,
+    YDataType* const __restrict__ p_y,
     bool updateMovingAverage,
     AccDataType averageFactor,
     MeanVarDataType* const __restrict__ resultRunningMean,
@@ -80,10 +80,10 @@ __global__ void kernel_batchnorm_forward_with_blockwise_welford(
                                                         get_reduce_count_per_thread,
                                                         num_k_block_tile_iteration,
                                                         epsilon,
-                                                        p_x_global,
-                                                        p_scale_global,
-                                                        p_bias_global,
-                                                        p_y_global,
+                                                        p_x,
+                                                        p_scale,
+                                                        p_bias,
+                                                        p_y,
                                                         updateMovingAverage,
                                                         averageFactor,
                                                         resultRunningMean,
@@ -163,10 +163,10 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
                                const GetReduceCountPerThreadFunctor get_reduce_count_per_thread,
                                index_t num_k_block_tile_iteration,
                                AccDataType epsilon,
-                               const XDataType* const __restrict__ p_x_global,
-                               const ScaleBiasDataType* const __restrict__ p_scale_global,
-                               const ScaleBiasDataType* const __restrict__ p_bias_global,
-                               YDataType* const __restrict__ p_y_global,
+                               const XDataType* const __restrict__ p_x,
+                               const ScaleBiasDataType* const __restrict__ p_scale,
+                               const ScaleBiasDataType* const __restrict__ p_bias,
+                               YDataType* const __restrict__ p_y,
                                bool updateMovingAverage,
                                AccDataType averageFactor,
                                MeanVarDataType* const __restrict__ resultRunningMean,
@@ -259,16 +259,16 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
         constexpr auto thread_copy_bwd_step_m_k = make_multi_index(0, -K_BlockTileSize);
 
         const auto x_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_x_global, x_grid_desc_m_k.GetElementSpaceSize());
+            p_x, x_grid_desc_m_k.GetElementSpaceSize());
 
         const auto scale_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_scale_global, scale_bias_grid_desc_m.GetElementSpaceSize());
+            p_scale, scale_bias_grid_desc_m.GetElementSpaceSize());
 
         const auto bias_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_bias_global, scale_bias_grid_desc_m.GetElementSpaceSize());
+            p_bias, scale_bias_grid_desc_m.GetElementSpaceSize());
 
         auto y_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_y_global, y_grid_desc_m_k.GetElementSpaceSize());
+            p_y, y_grid_desc_m_k.GetElementSpaceSize());
 
         auto threadwise_welford       = ThreadwiseWelford();
         threadwise_welford.max_count_ = get_reduce_count_per_thread(thread_k_cluster_id);

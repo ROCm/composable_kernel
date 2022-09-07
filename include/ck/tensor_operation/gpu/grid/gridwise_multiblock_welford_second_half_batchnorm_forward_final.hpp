@@ -34,10 +34,10 @@ __global__ void kernel_welford_second_half_batchnorm_forward_final(
     const MeanVarDataType* const __restrict__ p_in_welford_mean,
     const MeanVarDataType* const __restrict__ p_in_welford_variance,
     const int32_t* const __restrict__ p_in_welford_count,
-    const XDataType* const __restrict__ p_x_global,
-    const ScaleBiasDataType* const __restrict__ p_scale_global,
-    const ScaleBiasDataType* const __restrict__ p_bias_global,
-    YDataType* const __restrict__ p_y_global,
+    const XDataType* const __restrict__ p_x,
+    const ScaleBiasDataType* const __restrict__ p_scale,
+    const ScaleBiasDataType* const __restrict__ p_bias,
+    YDataType* const __restrict__ p_y,
     bool updateMovingAverage,
     AccDataType averageFactor,
     MeanVarDataType* const __restrict__ resultRunningMean,
@@ -58,10 +58,10 @@ __global__ void kernel_welford_second_half_batchnorm_forward_final(
                                                          p_in_welford_mean,
                                                          p_in_welford_variance,
                                                          p_in_welford_count,
-                                                         p_x_global,
-                                                         p_scale_global,
-                                                         p_bias_global,
-                                                         p_y_global,
+                                                         p_x,
+                                                         p_scale,
+                                                         p_bias,
+                                                         p_y,
                                                          updateMovingAverage,
                                                          averageFactor,
                                                          resultRunningMean,
@@ -146,10 +146,10 @@ struct GridwiseWelfordSecondHalfBatchNormForwardFinal
                                const MeanVarDataType* const __restrict__ p_in_welford_mean,
                                const MeanVarDataType* const __restrict__ p_in_welford_variance,
                                const int32_t* const __restrict__ p_in_welford_count,
-                               const XDataType* const __restrict__ p_x_global,
-                               const ScaleBiasDataType* const __restrict__ p_scale_global,
-                               const ScaleBiasDataType* const __restrict__ p_bias_global,
-                               YDataType* const __restrict__ p_y_global,
+                               const XDataType* const __restrict__ p_x,
+                               const ScaleBiasDataType* const __restrict__ p_scale,
+                               const ScaleBiasDataType* const __restrict__ p_bias,
+                               YDataType* const __restrict__ p_y,
                                bool updateMovingAverage,
                                AccDataType averageFactor,
                                MeanVarDataType* const __restrict__ resultRunningMean,
@@ -346,16 +346,16 @@ struct GridwiseWelfordSecondHalfBatchNormForwardFinal
                                  thread_m_cluster_id * MThreadSliceSize));
 
         const auto x_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_x_global, x_grid_desc_m_k.GetElementSpaceSize());
+            p_x, x_grid_desc_m_k.GetElementSpaceSize());
 
         const auto scale_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_scale_global, scale_bias_grid_desc_m.GetElementSpaceSize());
+            p_scale, scale_bias_grid_desc_m.GetElementSpaceSize());
 
         const auto bias_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_bias_global, scale_bias_grid_desc_m.GetElementSpaceSize());
+            p_bias, scale_bias_grid_desc_m.GetElementSpaceSize());
 
         auto y_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_y_global, y_grid_desc_m_k.GetElementSpaceSize());
+            p_y, y_grid_desc_m_k.GetElementSpaceSize());
 
         threadwise_scale_bias_load.Run(scale_bias_grid_desc_m,
                                        scale_global_val_buf,
