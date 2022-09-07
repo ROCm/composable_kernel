@@ -23,12 +23,28 @@ struct BlockToTileMap
     static constexpr index_t NumDim = TileDims::Size();
     static_assert(NumDim == GridDescriptor::GetNumOfDimension());
 
-    BlockToTileMap()  = delete;
-    ~BlockToTileMap() = delete;
+    BlockToTileMap() = default;
+
+    BlockToTileMap(const GridDescriptor& desc) : desc_(desc) {}
+
+    __host__ constexpr index_t CalculateGridSize(const GridDescriptor& desc) const
+    {
+        return [&]() {
+            std::array<index_t, NumDim> num_tiles_per_axis;
+            static_for<0, NumDim, 1>{}([&](auto I) {
+                num_tiles_per_axis[I] =
+                    math::integer_divide_ceil(desc.GetLength(I), TileDims::At(I));
+            });
+
+            return std::accumulate(begin(num_tiles_per_axis),
+                                   end(num_tiles_per_axis),
+                                   index_t{1},
+                                   std::multiplies<index_t>{});
+        }();
+    }
 
     template <typename TopIdx>
-    __host__ __device__ static constexpr auto CalculateBottomIndex(const GridDescriptor& desc,
-                                                                   const TopIdx& idx_top)
+    __host__ __device__ constexpr auto CalculateBottomIndex(const TopIdx& idx_top) const
     {
         static_assert(TopIdx::Size() == 1);
 
@@ -36,7 +52,7 @@ struct BlockToTileMap
 
         std::array<index_t, NumDim> num_tiles_per_axis;
         static_for<0, NumDim, 1>{}([&](auto I) {
-            num_tiles_per_axis[I] = math::integer_divide_ceil(desc.GetLength(I), TileDims::At(I));
+            num_tiles_per_axis[I] = math::integer_divide_ceil(desc_.GetLength(I), TileDims::At(I));
         });
 
         std::array<index_t, NumDim> divisors;
@@ -54,6 +70,9 @@ struct BlockToTileMap
             },
             Number<NumDim>{});
     }
+
+    private:
+    const GridDescriptor desc_;
 };
 } // namespace detail
 
@@ -62,15 +81,21 @@ template <typename GridwiseCopyFunctor,
           typename OutGrid1dDesc,
           typename InDataTypePointer,
           typename OutDataTypePointer,
-          typename ElementwiseOperation>
+          typename ElementwiseOperation,
+          typename Block2TileMap>
 __global__ void kernel_nd_copy(const InGrid1dDesc in_grid_1d_desc,
                                const OutGrid1dDesc out_grid_1d_desc,
                                const InDataTypePointer p_in_global,
                                const OutDataTypePointer p_out_global,
-                               const ElementwiseOperation elementwise_op)
+                               const ElementwiseOperation elementwise_op,
+                               const Block2TileMap block_2_tile_map)
 {
-    GridwiseCopyFunctor::Run(
-        in_grid_1d_desc, out_grid_1d_desc, p_in_global, p_out_global, elementwise_op);
+    GridwiseCopyFunctor::Run(in_grid_1d_desc,
+                             out_grid_1d_desc,
+                             p_in_global,
+                             p_out_global,
+                             elementwise_op,
+                             block_2_tile_map);
 }
 
 template <typename InGrid1dDesc,
@@ -100,10 +125,10 @@ struct GridwiseCopy
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    using BlockToTileMap =
+    using DefaultBlock2TileMap =
         detail::BlockToTileMap<Sequence<NPerBlock, HPerBlock, WPerBlock>, InGrid1dDesc>;
 
-    __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
+    __host__ __device__ static constexpr auto GetInBlockDescriptor()
     {
         constexpr index_t ABlockLdsExtraM = 0;
 
@@ -115,11 +140,18 @@ struct GridwiseCopy
                        I1));
     }
 
+    __host__ __device__ static constexpr auto MakeDefaultBlock2TileMap(const InGrid1dDesc& desc)
+    {
+        return DefaultBlock2TileMap{desc};
+    }
+
+    template <typename Block2TileMap>
     __device__ static void Run(const InGrid1dDesc in_grid_1d_desc,
                                const OutGrid1dDesc out_grid_1d_desc,
                                const InDataTypePointer p_in_global,
                                const OutDataTypePointer p_out_global,
-                               const ElementwiseOperation elementwise_op)
+                               const ElementwiseOperation elementwise_op,
+                               const Block2TileMap& block_2_tile_map)
     {
         const index_t thread_global_id = get_thread_global_1d_id();
 
@@ -156,8 +188,8 @@ struct GridwiseCopy
                                              1,                    // SrcScalarStrideInVector
                                              false>{in_grid_1d_desc, thread_global_offset};
 #else
-        const auto block_work_idx = BlockToTileMap::CalculateBottomIndex(
-            in_grid_1d_desc, make_multi_index(get_block_1d_id()));
+        const auto block_work_idx =
+            block_2_tile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
 
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
@@ -167,7 +199,7 @@ struct GridwiseCopy
         //     __builtin_amdgcn_readfirstlane(block_work_idx[I1] * NPerBlock);
 
         // A matrix in LDS memory, dst of blockwise copy
-        constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
+        constexpr auto a_block_desc_ak0_m_ak1 = GetInBlockDescriptor();
 
         // // B matrix in LDS memory, dst of blockwise copy
         // constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();

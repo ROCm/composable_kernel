@@ -111,9 +111,7 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
     }
 
     static auto MakeDescriptor_N_H_W(const std::array<index_t, NumDim>& lengths,
-                                     const std::array<index_t, NumDim>& stride,
-                                     index_t gridSize,
-                                     index_t blockSize)
+                                     const std::array<index_t, NumDim>& stride)
     {
         // create nd descriptor, shape: [d[0], d[1], d[2], ..., d[NumDim-3], d[NumDim-2],
         // d[NumDim-1]]
@@ -139,8 +137,8 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
             desc_n_h_w, make_tuple(NPerBlock, HPerBlock, WPerBlock), Sequence<true, true, true>{});
     }
 
-    using InGrid1dDesc  = decltype(MakeDescriptor_N_H_W({1, 1}, {1, 1}, 1, 1));
-    using OutGrid1dDesc = decltype(MakeDescriptor_N_H_W({1, 1}, {1, 1}, 1, 1));
+    using InGrid1dDesc  = decltype(MakeDescriptor_N_H_W({1, 1}, {1, 1}));
+    using OutGrid1dDesc = decltype(MakeDescriptor_N_H_W({1, 1}, {1, 1}));
 
     using GridwiseCopy = GridwiseCopy<InGrid1dDesc,
                                       OutGrid1dDesc,
@@ -164,22 +162,18 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
                  const void* in_dev_buffer,
                  void* out_dev_buffer,
                  ElementwiseOperation elementwise_op)
-            : blockSize_(256),
-              gridSize_(120), // FIXME - Calculate the grid size by number of CU in the future
-              in_dev_buffer_(static_cast<InDataTypePointer>(in_dev_buffer)),
+            : in_dev_buffer_(static_cast<InDataTypePointer>(in_dev_buffer)),
               out_dev_buffer_(static_cast<OutDataTypePointer>(out_dev_buffer)),
-              in_grid_1d_desc_(MakeDescriptor_N_H_W(inLengths, inStrides, gridSize_, blockSize_)),
-              out_grid_1d_desc_(MakeDescriptor_N_H_W(inLengths, inStrides, gridSize_, blockSize_)),
+              in_grid_1d_desc_(MakeDescriptor_N_H_W(inLengths, inStrides)),
+              out_grid_1d_desc_(MakeDescriptor_N_H_W(inLengths, inStrides)),
               inLengths_(inLengths),
               inStrides_(inStrides),
               outLengths_(outLengths),
               outStrides_(outStrides),
-              elementwise_op_(elementwise_op)
+              elementwise_op_(elementwise_op),
+              block_2_tile_map_(GridwiseCopy::MakeDefaultBlock2TileMap(in_grid_1d_desc_))
         {
         }
-
-        index_t blockSize_;
-        index_t gridSize_;
 
         InDataTypePointer in_dev_buffer_;
         OutDataTypePointer out_dev_buffer_;
@@ -192,29 +186,35 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
         std::array<index_t, NumDim> outStrides_;
 
         ElementwiseOperation elementwise_op_;
+
+        typename GridwiseCopy::DefaultBlock2TileMap block_2_tile_map_;
     };
 
     struct Invoker : detail::InvokerBase<Invoker, Argument>
     {
         static float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
+            const index_t grid_size = arg.block_2_tile_map_.CalculateGridSize(arg.in_grid_1d_desc_);
+
             const auto kernel = kernel_nd_copy<GridwiseCopy,
                                                InGrid1dDesc,
                                                OutGrid1dDesc,
                                                InDataTypePointer,
                                                OutDataTypePointer,
-                                               ElementwiseOperation>;
+                                               ElementwiseOperation,
+                                               typename GridwiseCopy::DefaultBlock2TileMap>;
 
             float elapsed_time = launch_and_time_kernel(stream_config,
                                                         kernel,
-                                                        dim3(arg.gridSize_),
-                                                        dim3(arg.blockSize_),
+                                                        dim3(grid_size),
+                                                        dim3(BlockSize),
                                                         0,
                                                         arg.in_grid_1d_desc_,
                                                         arg.out_grid_1d_desc_,
                                                         arg.in_dev_buffer_,
                                                         arg.out_dev_buffer_,
-                                                        arg.elementwise_op_);
+                                                        arg.elementwise_op_,
+                                                        arg.block_2_tile_map_);
             return elapsed_time;
         }
     };
