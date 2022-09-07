@@ -109,29 +109,44 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
         return desc_m_pad;
     }
 
-    static auto MakeDescriptor_M(const std::array<index_t, NumDim>& lengths,
-                                 const std::array<index_t, NumDim>& stride,
-                                 index_t gridSize,
-                                 index_t blockSize)
+    template <index_t N = NumDim>
+    static auto ConvertArrayToTuple(const std::array<index_t, NumDim>& array)
     {
-        auto tupleOfShape  = generate_tuple([&](auto I) { return lengths[I]; }, Number<NumDim>{});
-        auto tupleOfStride = generate_tuple([&](auto I) { return stride[I]; }, Number<NumDim>{});
+        static_assert(1 <= N && N <= NumDim);
 
-        // nd desc - [s0, s1, s2, ...]
-        const auto desc = make_naive_tensor_descriptor(tupleOfShape, tupleOfStride);
-
-        // merge nd to 1d desc - [s0 * s1 * ...]
-        const auto desc_m = transform_tensor_descriptor(
-            desc,
-            make_tuple(make_merge_transform(tupleOfShape)),
-            make_tuple(generate_sequence_v2([&](auto I) { return I; }, Number<NumDim>{})),
-            make_tuple(Sequence<0>{}));
-
-        return PadDescriptor_M_1d(desc_m, gridSize, blockSize);
+        return generate_tuple([&](auto I) { return array[I]; }, Number<N>{});
     }
 
-    using InGrid1dDesc  = decltype(MakeDescriptor_M({1, 1}, {1, 1}, 1, 1));
-    using OutGrid1dDesc = decltype(MakeDescriptor_M({1, 1}, {1, 1}, 1, 1));
+    static auto MakeDescriptor_N_H_W(const std::array<index_t, NumDim>& lengths,
+                                     const std::array<index_t, NumDim>& stride,
+                                     index_t gridSize,
+                                     index_t blockSize)
+    {
+        // create nd descriptor, shape: [d[0], d[1], d[2], ..., d[NumDim-3], d[NumDim-2],
+        // d[NumDim-1]]
+        const auto desc =
+            make_naive_tensor_descriptor(ConvertArrayToTuple(lengths), ConvertArrayToTuple(stride));
+
+        // merge nd to 3d descriptor, shape: [(d[0] * d[1] * d[2] * ... * d[NumDim-3]), d[NumDim-2],
+        // d[NumDim-1]]
+        //                                   => [N, H, W]
+        const index_t H       = *std::next(rbegin(lengths));
+        const index_t W       = *rbegin(lengths);
+        const auto desc_n_h_w = transform_tensor_descriptor(
+            desc,
+            make_tuple(make_merge_transform(ConvertArrayToTuple<NumDim - 2>(lengths)),
+                       make_pass_through_transform(H),
+                       make_pass_through_transform(W)),
+            make_tuple(generate_sequence_v2([&](auto I) { return I; }, Number<NumDim - 2>{}),
+                       Sequence<NumDim - 2>{},
+                       Sequence<NumDim - 1>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+
+        return PadDescriptor_M_1d(desc_n_h_w, gridSize, blockSize);
+    }
+
+    using InGrid1dDesc  = decltype(MakeDescriptor_N_H_W({1, 1}, {1, 1}, 1, 1));
+    using OutGrid1dDesc = decltype(MakeDescriptor_N_H_W({1, 1}, {1, 1}, 1, 1));
 
     using GridwisePermute = GridwisePermute<InGrid1dDesc,
                                             OutGrid1dDesc,
@@ -155,8 +170,8 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
               gridSize_(120), // FIXME - Calculate the grid size by number of CU in the future
               in_dev_buffer_(static_cast<InDataTypePointer>(in_dev_buffer)),
               out_dev_buffer_(static_cast<OutDataTypePointer>(out_dev_buffer)),
-              in_grid_1d_desc_(MakeDescriptor_M(inLengths, inStrides, gridSize_, blockSize_)),
-              out_grid_1d_desc_(MakeDescriptor_M(inLengths, inStrides, gridSize_, blockSize_)),
+              in_grid_1d_desc_(MakeDescriptor_N_H_W(inLengths, inStrides, gridSize_, blockSize_)),
+              out_grid_1d_desc_(MakeDescriptor_N_H_W(inLengths, inStrides, gridSize_, blockSize_)),
               inLengths_(inLengths),
               inStrides_(inStrides),
               outLengths_(outLengths),
