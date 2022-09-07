@@ -142,7 +142,19 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
                        Sequence<NumDim - 1>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
+#if 0
+        const index_t N = std::accumulate(begin(lengths), std::prev(end(lengths), 2), index_t{1}, std::multiplies<index_t>{});
+        const auto desc_m = transform_tensor_descriptor(
+            desc_n_h_w,
+            make_tuple(make_merge_transform(make_tuple(N, H, W))),
+            make_tuple(Sequence<0, 1, 2>{}),
+            make_tuple(Sequence<0>{})
+        );
+
+        return PadDescriptor_M_1d(desc_m, gridSize, blockSize);
+#else
         return PadDescriptor_M_1d(desc_n_h_w, gridSize, blockSize);
+#endif
     }
 
     using InGrid1dDesc  = decltype(MakeDescriptor_N_H_W({1, 1}, {1, 1}, 1, 1));
