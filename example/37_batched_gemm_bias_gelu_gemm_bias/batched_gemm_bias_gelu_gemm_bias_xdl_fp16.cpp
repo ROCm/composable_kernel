@@ -61,24 +61,24 @@ using B1ElementOp = PassThrough;
 using C1ElementOp = PassThrough;
 using D1ElementOp = ck::tensor_operation::element_wise::Add;
 
-static constexpr bool PadGemm0M = true;
-static constexpr bool PadGemm0N = true;
-static constexpr bool PadGemm0K = true;
-static constexpr bool PadGemm1N = true;
-static constexpr bool PadGemm1K = true;
+static constexpr bool PadGemm0M = false;
+static constexpr bool PadGemm0N = false;
+static constexpr bool PadGemm0K = false;
+static constexpr bool PadGemm1N = false;
+static constexpr bool PadGemm1K = false;
 
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle<
         A0Layout,
         B0Layout,
-        D0Layout,
+        ck::Tuple<D0Layout>,
         B1Layout,
         C1Layout,
         ck::Tuple<D1Layout>,
         A0DataType,
         B0DataType,
         Acc0DataType,
-        D0DataType,
+        ck::Tuple<D0DataType>,
         B1DataType,
         Acc1DataType,
         C1ShuffleDataType,
@@ -320,8 +320,7 @@ int main(int argc, char* argv[])
         b0_g_k_n.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
         d0_g_m_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{1});
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
-        // d1_g_m_o.GenerateTensorValue(GeneratorTensor_1<D1DataType>{1});
-        d1_g_m_o.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-5, 5});
+        d1_g_m_o.GenerateTensorValue(GeneratorTensor_1<D1DataType>{1});
     }
 #if 0
         auto print = [&](int colLenght, auto matrix) {
@@ -368,7 +367,7 @@ int main(int argc, char* argv[])
     auto argument =
         gemm.MakeArgument(static_cast<A0DataType*>(a0_g_m_k_device_buf.GetDeviceBuffer()),
                           static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
-                          static_cast<D0DataType*>(d0_g_m_n_device_buf.GetDeviceBuffer()),
+                          std::array<const void*, 1>{d0_g_m_n_device_buf.GetDeviceBuffer()},
                           static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
                           static_cast<C1DataType*>(c1_g_m_o_device_buf.GetDeviceBuffer()),
                           std::array<const void*, 1>{d1_g_m_o_device_buf.GetDeviceBuffer()},
@@ -379,13 +378,13 @@ int main(int argc, char* argv[])
                           BatchCount,
                           StrideA0,
                           StrideB0,
-                          StrideD0,
+                          std::array<ck::index_t, 1>{StrideD0},
                           StrideB1,
                           StrideC1,
                           std::array<ck::index_t, 1>{StrideD1},
                           BatchStrideA0,
                           BatchStrideB0,
-                          BatchStrideD0,
+                          std::array<ck::index_t, 1>{BatchStrideD0},
                           BatchStrideB1,
                           BatchStrideC1,
                           std::array<ck::index_t, 1>{BatchStrideD1},
