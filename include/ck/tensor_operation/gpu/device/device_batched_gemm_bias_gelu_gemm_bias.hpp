@@ -33,12 +33,13 @@ template <typename A0Layout,
           typename D1ElementwiseOperation>
 struct DeviceBatchedGemmBiasGeluGemmBias : public BaseOperator
 {
+    static constexpr index_t NumD0Tensor = D0sDataType::Size();
     static constexpr index_t NumD1Tensor = D1sDataType::Size();
 
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
                         const void* p_b0,
-                        std::array<const void*, NumD1Tensor> p_d0s,
+                        std::array<const void*, NumD0Tensor> p_d0s,
                         const void* p_b1,
                         void* p_c,
                         std::array<const void*, NumD1Tensor> p_d1s,
@@ -49,13 +50,13 @@ struct DeviceBatchedGemmBiasGeluGemmBias : public BaseOperator
                         ck::index_t Batch,
                         ck::index_t StrideA,
                         ck::index_t StrideB0,
-                        std::array<ck::index_t, NumD1Tensor> StrideD0s,
+                        std::array<ck::index_t, NumD0Tensor> StrideD0s,
                         ck::index_t StrideB1,
                         ck::index_t StrideC,
                         std::array<ck::index_t, NumD1Tensor> StrideD1s,
                         ck::index_t BatchStrideA0,
                         ck::index_t BatchStrideB0,
-                        std::array<ck::index_t, NumD1Tensor> BatchStrideD0s,
+                        std::array<ck::index_t, NumD0Tensor> BatchStrideD0s,
                         ck::index_t BatchStrideB1,
                         ck::index_t BatchStrideC1,
                         std::array<ck::index_t, NumD1Tensor> BatchStrideD1s,

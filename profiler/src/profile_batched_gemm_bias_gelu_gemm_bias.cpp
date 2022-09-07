@@ -117,13 +117,13 @@ int profile_batched_gemm_bias_gelu_gemm_bias(int argc, char* argv[])
     {
         ck::profiler::profile_batched_gemm_bias_gelu_gemm_bias_impl<Row,            // ALayout,
                                                                     Col,            // B0Layout,
-                                                                    Row,            // D0Layout,
+                                                                    ck::Tuple<Row>, // D0sLayout,
                                                                     Row,            // B1Layout,
                                                                     Row,            // CLayout,
                                                                     ck::Tuple<Row>, // D1sLayout,
                                                                     F16,            // ADataType,
                                                                     F16,            // B0DataType,
-                                                                    F16,            // D0DataType,
+                                                                    ck::Tuple<F16>, // D0DataType,
                                                                     F16,            // B1DataType,
                                                                     F16,            // C1DataType,
                                                                     ck::Tuple<F16>  // D1sDataType

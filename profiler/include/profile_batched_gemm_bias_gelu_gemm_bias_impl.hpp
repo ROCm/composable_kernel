@@ -23,13 +23,13 @@ namespace profiler {
 
 template <typename A0Layout,
           typename B0Layout,
-          typename D0Layout,
+          typename D0sLayout,
           typename B1Layout,
           typename C1Layout,
           typename D1sLayout,
           typename A0DataType,
           typename B0DataType,
-          typename D0DataType,
+          typename D0sDataType,
           typename B1DataType,
           typename C1DataType,
           typename D1sDataType>
@@ -64,6 +64,8 @@ bool profile_batched_gemm_bias_gelu_gemm_bias_impl(bool do_verification,
     using C1ElementOp = PassThrough;
     using D1ElementOp = ck::tensor_operation::element_wise::Add;
     using AccDataType = float;
+    using D0DataType  = remove_cvref_t<tuple_element_t<0, D0sDataType>>;
+    using D0Layout    = remove_cvref_t<tuple_element_t<0, D0sLayout>>;
     using D1DataType  = remove_cvref_t<tuple_element_t<0, D1sDataType>>;
     using D1Layout    = remove_cvref_t<tuple_element_t<0, D1sLayout>>;
 
@@ -205,13 +207,13 @@ bool profile_batched_gemm_bias_gelu_gemm_bias_impl(bool do_verification,
 
     using DeviceOp = tensor_operation::device::DeviceBatchedGemmBiasGeluGemmBias<A0Layout,
                                                                                  B0Layout,
-                                                                                 D0Layout,
+                                                                                 D0sLayout,
                                                                                  B1Layout,
                                                                                  C1Layout,
                                                                                  D1sLayout,
                                                                                  A0DataType,
                                                                                  B0DataType,
-                                                                                 D0DataType,
+                                                                                 D0sDataType,
                                                                                  B1DataType,
                                                                                  C1DataType,
                                                                                  D1sDataType,
@@ -287,7 +289,7 @@ bool profile_batched_gemm_bias_gelu_gemm_bias_impl(bool do_verification,
         auto argument_ptr = op_ptr->MakeArgumentPointer(
             static_cast<A0DataType*>(a0_g_m_k_device_buf.GetDeviceBuffer()),
             static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
-            static_cast<D0DataType*>(d0_g_m_n_device_buf.GetDeviceBuffer()),
+            std::array<const void*, 1>{d0_g_m_n_device_buf.GetDeviceBuffer()},
             static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
             static_cast<C1DataType*>(c1_g_m_o_device_buf.GetDeviceBuffer()),
             std::array<const void*, 1>{d1_g_m_o_device_buf.GetDeviceBuffer()},
@@ -298,13 +300,13 @@ bool profile_batched_gemm_bias_gelu_gemm_bias_impl(bool do_verification,
             BatchCount,
             StrideA0,
             StrideB0,
-            StrideD0,
+            std::array<ck::index_t, 1>{StrideD0},
             StrideB1,
             StrideC1,
             std::array<ck::index_t, 1>{StrideD1},
             BatchStrideA0,
             BatchStrideB0,
-            BatchStrideD0,
+            std::array<ck::index_t, 1>{BatchStrideD0},
             BatchStrideB1,
             BatchStrideC1,
             std::array<ck::index_t, 1>{BatchStrideD1},
