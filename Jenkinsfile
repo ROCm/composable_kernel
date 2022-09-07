@@ -352,6 +352,8 @@ def runCKProfiler(Map conf=[:]){
                             archiveArtifacts "perf_conv_bwd_data_${gpu_arch}.log"
                             archiveArtifacts "perf_gemm_bilinear_${gpu_arch}.log"
                             archiveArtifacts "perf_reduction_${gpu_arch}.log"
+                            archiveArtifacts "perf_splitK_gemm_${gpu_arch}.log"
+                            archiveArtifacts "perf_onnx_gemm_${gpu_arch}.log"
                            // stash perf files to master
                             stash name: "perf_gemm_${gpu_arch}.log"
                             stash name: "perf_resnet50_N256_${gpu_arch}.log"
@@ -362,6 +364,8 @@ def runCKProfiler(Map conf=[:]){
                             stash name: "perf_conv_bwd_data_${gpu_arch}.log"
                             stash name: "perf_gemm_bilinear_${gpu_arch}.log"
                             stash name: "perf_reduction_${gpu_arch}.log"
+                            stash name: "perf_splitK_gemm_${gpu_arch}.log"
+                            stash name: "perf_onnx_gemm_${gpu_arch}.log"
                             //we will process results on the master node
                         }
                         else{
@@ -442,6 +446,8 @@ def process_results(Map conf=[:]){
                         unstash "perf_conv_bwd_data_${gpu_arch}.log"
                         unstash "perf_gemm_bilinear_${gpu_arch}.log"
                         unstash "perf_reduction_${gpu_arch}.log"
+                        unstash "perf_splitK_gemm_${gpu_arch}.log"
+                        unstash "perf_onnx_gemm_${gpu_arch}.log"
                         sh "./process_qa_data.sh ${gpu_arch}"
                     }
                     else{
