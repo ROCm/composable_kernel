@@ -102,22 +102,6 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
     using InDataTypePointer  = const InDataType*;
     using OutDataTypePointer = OutDataType*;
 
-    template <typename Desc_M>
-    static auto PadDescriptor_M_1d(Desc_M desc_m, index_t gridSize, index_t blockSize)
-    {
-        constexpr auto I0 = Number<0>{};
-
-        const auto m            = desc_m.GetLength(I0);
-        const index_t loop_step = gridSize * blockSize * MPerThread;
-        const auto pad          = math::integer_least_multiple(m, loop_step) - m;
-        const auto desc_m_pad =
-            transform_tensor_descriptor(desc_m,
-                                        make_tuple(make_right_pad_transform(m, pad)),
-                                        make_tuple(Sequence<0>{}),
-                                        make_tuple(Sequence<0>{}));
-        return desc_m_pad;
-    }
-
     template <index_t N = NumDim>
     static auto ConvertArrayToTuple(const std::array<index_t, NumDim>& array)
     {
