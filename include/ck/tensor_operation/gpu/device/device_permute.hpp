@@ -69,8 +69,10 @@ struct InvokerBase : BaseInvoker
 } // namespace detail
 
 // Swap last 2 dimensions
-// input: [d0, d1, d2, ..., d, dn-2, dn-1]
-// output: [d0, d1, d2, ..., d, dn-1, dn-2]
+// input shape: [d[0], d[1], d[2], ..., d[NumDim-3], d[NumDim-2], d[NumDim-1]]
+//                                                                ^^^^^^^^^^^
+// output shape: [d[0], d[1], d[2], ..., d[NumDim-3], d[NumDim-1], d[NumDim-2]]
+//                                                    ^^^^^^^^^^^
 template <typename InDataType,
           typename OutDataType,
           typename ElementwiseOperation,
