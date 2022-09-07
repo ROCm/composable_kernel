@@ -28,7 +28,6 @@ template <typename XDataType,
           index_t Rank,
           index_t NumBatchNormReduceDim,
           bool UseMultiblockInK,
-          bool PropagateNan,
           index_t BlockSize,
           index_t MThreadClusterSize,
           index_t KThreadClusterSize,
@@ -688,7 +687,7 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceBatchNormImpl<" << BlockSize << ",";
+        str << "DeviceBatchNormFwdImpl<" << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
         str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
         str << "XSrcYDstVectorDim_" << XSrcYDstVectorDim  << ",";
