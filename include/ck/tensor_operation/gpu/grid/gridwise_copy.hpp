@@ -3,6 +3,10 @@
 
 #pragma once
 
+#include <functional>
+#include <numeric>
+#include <iterator>
+
 #include "ck/tensor_description/cluster_descriptor.hpp"
 #include "ck/utility/data_type.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
@@ -10,6 +14,48 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 namespace ck {
+namespace detail {
+template <typename TileDims, typename GridDescriptor>
+struct BlockToTileMap
+{
+    static constexpr auto I0 = Number<0>{};
+
+    static constexpr index_t NumDim = TileDims::Size();
+    static_assert(NumDim == GridDescriptor::GetNumOfDimension());
+
+    BlockToTileMap()  = delete;
+    ~BlockToTileMap() = delete;
+
+    template <typename TopIdx>
+    __host__ __device__ static constexpr auto CalculateBottomIndex(const GridDescriptor& desc,
+                                                                   const TopIdx& idx_top)
+    {
+        static_assert(TopIdx::Size() == 1);
+
+        auto block_1d_id = idx_top[I0];
+
+        std::array<index_t, NumDim> num_tiles_per_axis;
+        static_for<0, NumDim, 1>{}([&](auto I) {
+            num_tiles_per_axis[I] = math::integer_divide_ceil(desc.GetLength(I), TileDims::At(I));
+        });
+
+        std::array<index_t, NumDim> divisors;
+        std::partial_sum(rbegin(num_tiles_per_axis),
+                         rend(num_tiles_per_axis),
+                         rbegin(divisors),
+                         std::multiplies<index_t>{});
+
+        const index_t grid_size = divisors.front();
+        block_1d_id             = block_1d_id % grid_size; // swallow batch index
+
+        return generate_tuple(
+            [&](auto I) {
+                return (block_1d_id % divisors[I]) / (divisors[I] / num_tiles_per_axis[I]);
+            },
+            Number<NumDim>{});
+    }
+};
+} // namespace detail
 
 template <typename GridwiseCopyFunctor,
           typename InGrid1dDesc,
@@ -54,6 +100,9 @@ struct GridwiseCopy
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
+    using BlockToTileMap =
+        detail::BlockToTileMap<Sequence<NPerBlock, HPerBlock, WPerBlock>, InGrid1dDesc>;
+
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
         constexpr index_t ABlockLdsExtraM = 0;
@@ -94,7 +143,7 @@ struct GridwiseCopy
         const index_t loop_step    = blockPerGrid * blockSize * MPerThread;
         const auto loop_step_index = make_multi_index(loop_step);
 
-#if 1
+#if 0
         auto in_global_load =
             ThreadwiseTensorSliceTransfer_v2<InDataType,
                                              InDataType,
@@ -107,8 +156,8 @@ struct GridwiseCopy
                                              1,                    // SrcScalarStrideInVector
                                              false>{in_grid_1d_desc, thread_global_offset};
 #else
-        // const auto block_work_idx =
-        //     block_2_etile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
+        const auto block_work_idx = BlockToTileMap::CalculateBottomIndex(
+            in_grid_1d_desc, make_multi_index(get_block_1d_id()));
 
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
@@ -126,7 +175,7 @@ struct GridwiseCopy
         using SliceLengths = Sequence<NPerBlock, HPerBlock, WPerBlock>;
         using ABlockTransferThreadClusterLengths_AK0_M_AK1 = Sequence<4, 64, 1>;
         using ABlockTransferThreadClusterArrangeOrder      = Sequence<1, 0, 2>;
-        using ABlockTransferSrcAccessOrder                 = int;
+        using ABlockTransferSrcAccessOrder                 = Sequence<1, 0, 2>;
         constexpr index_t ABlockTransferSrcVectorDim       = 2;
         constexpr index_t ABlockTransferSrcScalarPerVector = 1;
         constexpr index_t ABlockTransferDstScalarPerVector = 1;
@@ -155,7 +204,7 @@ struct GridwiseCopy
                                                 true>(
                 in_grid_1d_desc,
                 make_multi_index(0, m_block_data_idx_on_grid, 0),
-                element_op,
+                elementwise_op,
                 a_block_desc_ak0_m_ak1,
                 make_multi_index(0, 0, 0),
                 ck::tensor_operation::element_wise::PassThrough{});
@@ -166,9 +215,9 @@ struct GridwiseCopy
                                                decltype(thread_buffer_desc_m),
                                                decltype(out_grid_1d_desc),
                                                PassThroughOp,
-                                               Sequence<MPerThread>, // SliceLengths
-                                               Sequence<0>,          // DimAccessOrder
-                                               0,                    // SrcVectorDim
+                                               SliceLengths,      // SliceLengths
+                                               Sequence<1, 0, 2>, // DimAccessOrder
+                                               0,                 // SrcVectorDim
                                                OutScalarPerVector,
                                                InMemoryDataOperationEnum::Set,
                                                1,
