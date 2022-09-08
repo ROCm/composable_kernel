@@ -82,16 +82,21 @@ template <typename InDataType,
           index_t NPerBlock,
           index_t HPerBlock,
           index_t WPerBlock,
-          index_t InBlockLdsExtraW>
-struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
-                                                               OutDataType,
-                                                               ElementwiseOperation,
-                                                               NumDim,
-                                                               BlockSize,
-                                                               NPerBlock,
-                                                               HPerBlock,
-                                                               WPerBlock,
-                                                               InBlockLdsExtraW>>
+          index_t InBlockLdsExtraW,
+          typename InBlockTransferThreadClusterLengths,
+          typename InBlockTransferThreadClusterArrangeOrder>
+struct DevicePermute
+    : detail::DevicePermuteBase<DevicePermute<InDataType,
+                                              OutDataType,
+                                              ElementwiseOperation,
+                                              NumDim,
+                                              BlockSize,
+                                              NPerBlock,
+                                              HPerBlock,
+                                              WPerBlock,
+                                              InBlockLdsExtraW,
+                                              InBlockTransferThreadClusterLengths,
+                                              InBlockTransferThreadClusterArrangeOrder>>
 {
     static_assert(3 <= NumDim, "Only accept at least 3D dimension tensor");
 
@@ -142,7 +147,9 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
                                             NPerBlock,
                                             HPerBlock,
                                             WPerBlock,
-                                            InBlockLdsExtraW>;
+                                            InBlockLdsExtraW,
+                                            InBlockTransferThreadClusterLengths,
+                                            InBlockTransferThreadClusterArrangeOrder>;
 
     struct Argument : public BaseArgument
     {

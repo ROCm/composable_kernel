@@ -99,7 +99,9 @@ template <typename InGridDesc,
           index_t NPerBlock,
           index_t HPerBlock,
           index_t WPerBlock,
-          index_t InBlockLdsExtraW>
+          index_t InBlockLdsExtraW,
+          typename InBlockTransferThreadClusterLengths,
+          typename InBlockTransferThreadClusterArrangeOrder>
 struct GridwisePermute
 {
     static_assert(InGridDesc::GetNumOfDimension() == OutGridDesc::GetNumOfDimension());
@@ -202,10 +204,8 @@ struct GridwisePermute
         auto in_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<InDataType*>(p_shared), in_block_desc.GetElementSpaceSize());
 
-        using SliceLengths                            = Sequence<1, HPerBlock, WPerBlock>;
-        using ABlockTransferThreadClusterLengths      = Sequence<1, 16, BlockSize / 16>;
-        using ABlockTransferThreadClusterArrangeOrder = Sequence<0, 1, 2>;
-        using ABlockTransferAccessOrder               = Sequence<0, 1, 2>;
+        using SliceLengths              = Sequence<1, HPerBlock, WPerBlock>;
+        using ABlockTransferAccessOrder = Sequence<0, 1, 2>;
 
         constexpr index_t ABlockTransferSrcVectorDim       = 2;
         constexpr index_t ABlockTransferDstVectorDim       = 1;
@@ -222,8 +222,8 @@ struct GridwisePermute
                                                 PassThrough,
                                                 InMemoryDataOperationEnum::Set,
                                                 SliceLengths,
-                                                ABlockTransferThreadClusterLengths,
-                                                ABlockTransferThreadClusterArrangeOrder,
+                                                InBlockTransferThreadClusterLengths,
+                                                InBlockTransferThreadClusterArrangeOrder,
                                                 InDataType,
                                                 InDataType,
                                                 decltype(in_grid_desc_n_h_w),
@@ -261,8 +261,8 @@ struct GridwisePermute
                                                 PassThrough,
                                                 InMemoryDataOperationEnum::Set,
                                                 SliceLengths,
-                                                ABlockTransferThreadClusterLengths,
-                                                ABlockTransferThreadClusterArrangeOrder,
+                                                InBlockTransferThreadClusterLengths,
+                                                InBlockTransferThreadClusterArrangeOrder,
                                                 InDataType,
                                                 OutDataType,
                                                 decltype(in_block_desc),
