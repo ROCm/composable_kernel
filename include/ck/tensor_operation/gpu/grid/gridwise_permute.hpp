@@ -115,31 +115,25 @@ struct GridwisePermute
 
     using DefaultBlock2TileMap = detail::Block2TileMap<HPerBlock, WPerBlock, InGridDesc>;
 
-    __host__ __device__ static constexpr auto GetInBlockDescriptor()
+    __host__ __device__ static constexpr auto GetInBlockDesc()
     {
-        constexpr index_t ABlockLdsExtraM = 0;
+        constexpr index_t InBlockLdsExtraM = 0;
 
         // A matrix in LDS memory, dst of blockwise copy
         return make_naive_tensor_descriptor(make_tuple(1, Number<HPerBlock>{}, Number<WPerBlock>{}),
-                                            make_tuple(Number<WPerBlock + ABlockLdsExtraM>{},
-                                                       Number<WPerBlock + ABlockLdsExtraM>{},
+                                            make_tuple(Number<WPerBlock + InBlockLdsExtraM>{},
+                                                       Number<WPerBlock + InBlockLdsExtraM>{},
                                                        I1));
     }
 
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
         // LDS allocation for A and B: be careful of alignment
-        constexpr auto a_block_desc_ak0_m_ak1 = GetInBlockDescriptor();
+        constexpr auto in_block_desc = GetInBlockDesc();
 
         using InDataType = remove_cv_t<remove_pointer_t<InDataTypePointer>>;
 
-        // lds max alignment
-        constexpr auto max_lds_align = 1;
-
-        constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
-            a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
-
-        return a_block_space_size_aligned * sizeof(InDataType);
+        return in_block_desc.GetElementSpaceSize() * sizeof(InDataType);
     }
 
     __host__ __device__ static constexpr auto MakeDefaultBlock2TileMap(const InGridDesc& desc)
@@ -177,10 +171,10 @@ struct GridwisePermute
             __builtin_amdgcn_readfirstlane(block_work_idx[I1] * WPerBlock);
 
         // Input slice in LDS memory, dst of blockwise copy
-        constexpr auto a_block_desc_ak0_m_ak1 = GetInBlockDescriptor();
+        constexpr auto in_block_desc = GetInBlockDesc();
 
-        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<InDataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+        auto in_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+            static_cast<InDataType*>(p_shared), in_block_desc.GetElementSpaceSize());
 
         using SliceLengths                                 = Sequence<1, HPerBlock, WPerBlock>;
         using ABlockTransferThreadClusterLengths           = Sequence<1, 16, BlockSize / 16>;
@@ -203,7 +197,7 @@ struct GridwisePermute
                                                 InDataType,
                                                 InDataType,
                                                 decltype(in_grid_desc),
-                                                decltype(a_block_desc_ak0_m_ak1),
+                                                decltype(in_block_desc),
                                                 ABlockTransferSrcAccessOrder,
                                                 ABlockTransferDstAccessOrder,
                                                 ABlockTransferSrcVectorDim,
@@ -217,7 +211,7 @@ struct GridwisePermute
                 in_grid_desc,
                 make_multi_index(0, h_block_data_idx_on_grid, w_block_data_idx_on_grid),
                 ck::tensor_operation::element_wise::PassThrough{},
-                a_block_desc_ak0_m_ak1,
+                in_block_desc,
                 make_multi_index(0, 0, 0),
                 ck::tensor_operation::element_wise::PassThrough{});
 
@@ -239,7 +233,7 @@ struct GridwisePermute
             Sequence<0, 1, 2>, // ABlockTransferThreadClusterArrangeOrder
             InDataType,
             OutDataType,
-            decltype(a_block_desc_ak0_m_ak1),
+            decltype(in_block_desc),
             decltype(in_grid_desc_tranformed),
             Sequence<0, 1, 2>, // ABlockTransferSrcAccessOrder
             Sequence<0, 1, 2>, // ABlockTransferDstAccessOrder
@@ -250,7 +244,7 @@ struct GridwisePermute
             1,
             1,
             true,
-            true>(a_block_desc_ak0_m_ak1,
+            true>(in_block_desc,
                   make_multi_index(0, 0, 0),
                   ck::tensor_operation::element_wise::PassThrough{},
                   in_grid_desc_tranformed,
@@ -260,13 +254,12 @@ struct GridwisePermute
         index_t num_iter = in_grid_desc.GetLength(I0);
         do
         {
-            in_global_load.Run(
-                in_grid_desc, in_global_buf, a_block_desc_ak0_m_ak1, a_block_buf, I0);
+            in_global_load.Run(in_grid_desc, in_global_buf, in_block_desc, in_block_buf, I0);
 
             in_global_load.MoveSrcSliceWindow(in_grid_desc, loop_step_index);
 
             out_global_store.Run(
-                a_block_desc_ak0_m_ak1, a_block_buf, in_grid_desc_tranformed, out_global_buf, I0);
+                in_block_desc, in_block_buf, in_grid_desc_tranformed, out_global_buf, I0);
 
             out_global_store.MoveDstSliceWindow(in_grid_desc_tranformed, loop_step_index);
         } while(--num_iter);
