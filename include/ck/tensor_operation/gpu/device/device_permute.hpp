@@ -82,9 +82,7 @@ template <typename InDataType,
           index_t NPerBlock,
           index_t HPerBlock,
           index_t WPerBlock,
-          index_t InBlockLdsExtraW,
-          index_t InScalarPerVector,
-          index_t OutScalarPerVector>
+          index_t InBlockLdsExtraW>
 struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
                                                                OutDataType,
                                                                ElementwiseOperation,
@@ -93,9 +91,7 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
                                                                NPerBlock,
                                                                HPerBlock,
                                                                WPerBlock,
-                                                               InBlockLdsExtraW,
-                                                               InScalarPerVector,
-                                                               OutScalarPerVector>>
+                                                               InBlockLdsExtraW>>
 {
     static_assert(3 <= NumDim, "Only accept at least 3D dimension tensor");
 
@@ -146,9 +142,7 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
                                             NPerBlock,
                                             HPerBlock,
                                             WPerBlock,
-                                            InBlockLdsExtraW,
-                                            InScalarPerVector,
-                                            OutScalarPerVector>;
+                                            InBlockLdsExtraW>;
 
     struct Argument : public BaseArgument
     {
@@ -228,30 +222,7 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
             return false;
         }
 
-        auto IsScalarPerVectorValid = [&](const std::array<index_t, NumDim>& lengths,
-                                          const std::array<index_t, NumDim>& strides,
-                                          index_t scalarPerVector) {
-            if(strides.back() == 1 && lengths.back() % scalarPerVector == 0)
-                return true;
-
-            if(strides.back() != 1 && scalarPerVector == 1)
-                return true;
-
-            return false;
-        };
-
-        bool valid = true;
-        if(!IsScalarPerVectorValid(arg.inLengths_, arg.inStrides_, InScalarPerVector))
-        {
-            valid = false;
-        }
-
-        if(!IsScalarPerVectorValid(arg.outLengths_, arg.outStrides_, OutScalarPerVector))
-        {
-            valid = false;
-        }
-
-        return valid;
+        return true;
     };
 };
 

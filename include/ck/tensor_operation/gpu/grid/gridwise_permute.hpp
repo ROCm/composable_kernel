@@ -99,9 +99,7 @@ template <typename InGridDesc,
           index_t NPerBlock,
           index_t HPerBlock,
           index_t WPerBlock,
-          index_t InBlockLdsExtraW,
-          index_t InScalarPerVector,
-          index_t OutScalarPerVector>
+          index_t InBlockLdsExtraW>
 struct GridwisePermute
 {
     static_assert(InGridDesc::GetNumOfDimension() == OutGridDesc::GetNumOfDimension());
