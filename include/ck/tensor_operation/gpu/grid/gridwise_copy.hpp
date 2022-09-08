@@ -198,8 +198,8 @@ struct GridwiseCopy
         auto in_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_in_global, in_grid_1d_desc.GetElementSpaceSize());
 
-        // auto out_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-        //     p_out_global, out_grid_1d_desc.GetElementSpaceSize());
+        auto out_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_out_global, out_grid_1d_desc.GetElementSpaceSize());
 
         // const auto thread_global_offset = make_multi_index(thread_global_id * MPerThread);
 
@@ -254,14 +254,14 @@ struct GridwiseCopy
         //     static_cast<ABDataType*>(p_shared) + a_block_space_size_aligned,
         //     b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
-        using SliceLengths = Sequence<NPerBlock, HPerBlock, WPerBlock>;
-        using ABlockTransferThreadClusterLengths_AK0_M_AK1 = Sequence<4, 64, 1>;
+        using SliceLengths                                 = Sequence<1, HPerBlock, WPerBlock>;
+        using ABlockTransferThreadClusterLengths           = Sequence<1, 16, BlockSize / 16>;
         using ABlockTransferThreadClusterArrangeOrder      = Sequence<0, 1, 2>;
         using ABlockTransferSrcAccessOrder                 = Sequence<0, 1, 2>;
         using ABlockTransferDstAccessOrder                 = Sequence<0, 1, 2>;
         constexpr index_t ABlockTransferSrcVectorDim       = 2;
-        constexpr index_t ABlockTransferSrcScalarPerVector = 1;
         constexpr index_t ABlockTransferDstVectorDim       = 2;
+        constexpr index_t ABlockTransferSrcScalarPerVector = 1;
         constexpr index_t ABlockTransferDstScalarPerVector = 1;
 
         auto in_global_load =
@@ -270,7 +270,7 @@ struct GridwiseCopy
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 InMemoryDataOperationEnum::Set,
                                                 SliceLengths,
-                                                ABlockTransferThreadClusterLengths_AK0_M_AK1,
+                                                ABlockTransferThreadClusterLengths,
                                                 ABlockTransferThreadClusterArrangeOrder,
                                                 InDataType,
                                                 InDataType,
@@ -288,41 +288,51 @@ struct GridwiseCopy
                                                 true>(
                 in_grid_1d_desc,
                 make_multi_index(0, h_block_data_idx_on_grid, w_block_data_idx_on_grid),
-                elementwise_op,
+                ck::tensor_operation::element_wise::PassThrough{},
                 a_block_desc_ak0_m_ak1,
                 make_multi_index(0, 0, 0),
                 ck::tensor_operation::element_wise::PassThrough{});
 #endif
-        // auto out_global_store =
-        //     ThreadwiseTensorSliceTransfer_v1r3<OutDataType,
-        //                                        OutDataType,
-        //                                        decltype(thread_buffer_desc_m),
-        //                                        decltype(out_grid_1d_desc),
-        //                                        PassThroughOp,
-        //                                        SliceLengths,      // SliceLengths
-        //                                        Sequence<1, 0, 2>, // DimAccessOrder
-        //                                        0,                 // SrcVectorDim
-        //                                        OutScalarPerVector,
-        //                                        InMemoryDataOperationEnum::Set,
-        //                                        1,
-        //                                        false>(
-        //         out_grid_1d_desc, thread_global_offset, PassThroughOp{});
+        auto out_global_store = ThreadGroupTensorSliceTransfer_v4r1<
+            ThisThreadBlock,
+            ElementwiseOperation,
+            ck::tensor_operation::element_wise::PassThrough,
+            InMemoryDataOperationEnum::Set,
+            Sequence<1, WPerBlock, HPerBlock>, // SliceLengths
+            ABlockTransferThreadClusterLengths,
+            Sequence<0, 1, 2>, // ABlockTransferThreadClusterArrangeOrder
+            InDataType,
+            OutDataType,
+            decltype(a_block_desc_ak0_m_ak1),
+            decltype(out_grid_1d_desc),
+            Sequence<0, 1, 2>, // ABlockTransferSrcAccessOrder
+            Sequence<0, 2, 1>, // ABlockTransferDstAccessOrder
+            2,                 // ABlockTransferSrcVectorDim
+            1,                 // ABlockTransferDstVectorDim
+            1,                 // ABlockTransferSrcScalarPerVector
+            1,                 // ABlockTransferDstScalarPerVector
+            1,
+            1,
+            true,
+            true>(a_block_desc_ak0_m_ak1,
+                  make_multi_index(0, 0, 0),
+                  ck::tensor_operation::element_wise::PassThrough{},
+                  out_grid_1d_desc,
+                  make_multi_index(0, w_block_data_idx_on_grid, h_block_data_idx_on_grid),
+                  elementwise_op);
 
         index_t num_iter = in_grid_1d_desc.GetLength(I0);
         do
         {
-            // in_global_load.Run(
-            //     in_grid_1d_desc, in_global_buf, a_block_desc_ak0_m_ak1, a_block_buf, I0);
+            in_global_load.Run(
+                in_grid_1d_desc, in_global_buf, a_block_desc_ak0_m_ak1, a_block_buf, I0);
 
-            // in_global_load.MoveSrcSliceWindow(in_grid_1d_desc, loop_step_index);
+            in_global_load.MoveSrcSliceWindow(in_grid_1d_desc, loop_step_index);
 
-            // out_global_store.Run(thread_buffer_desc_m,
-            //                      make_tuple(I0),
-            //                      out_thread_buf,
-            //                      out_grid_1d_desc,
-            //                      out_global_buf);
-            //
-            // out_global_store.MoveDstSliceWindow(out_grid_1d_desc, loop_step_index);
+            out_global_store.Run(
+                a_block_desc_ak0_m_ak1, a_block_buf, out_grid_1d_desc, out_global_buf, I0);
+
+            out_global_store.MoveDstSliceWindow(out_grid_1d_desc, loop_step_index);
         } while(--num_iter);
     }
 };
