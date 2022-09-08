@@ -339,7 +339,6 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
                         (x_thread_buf(Number<offset>{}) - mean_thread_buf(iM)) /
                         sqrt(var_thread_buf(iM) + epsilon);
 
-                    // gamma
                     y_thread_buf(Number<offset>{}) =
                         y_thread_buf(Number<offset>{}) * scale_thread_buf(Number<iM>{});
                 });
@@ -350,7 +349,6 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
                     constexpr auto offset =
                         thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK));
 
-                    // beta
                     y_thread_buf(Number<offset>{}) =
                         y_thread_buf(Number<offset>{}) + bias_thread_buf(Number<iM>{});
                 });

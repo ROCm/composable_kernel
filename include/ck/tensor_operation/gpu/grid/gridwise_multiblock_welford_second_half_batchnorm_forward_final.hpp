@@ -206,7 +206,7 @@ struct GridwiseWelfordSecondHalfBatchNormForwardFinal
             make_tuple(Number<MThreadSliceSize>{}, Number<1>{}));
 
         auto threadwise_mean_var_load_m_k =
-            ThreadwiseTensorSliceTransfer_v2<AccDataType,
+            ThreadwiseTensorSliceTransfer_v2<MeanVarDataType,
                                              AccDataType,
                                              MeanVarCountGridDesc_M_K,
                                              decltype(thread_buffer_desc_m_1),
