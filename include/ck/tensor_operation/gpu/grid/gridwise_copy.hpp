@@ -21,7 +21,8 @@ struct Block2TileMap
     static constexpr auto I0 = Number<0>{};
 
     static constexpr index_t NumDim = TileDims::Size();
-    static_assert(NumDim == GridDescriptor::GetNumOfDimension());
+    static_assert(NumDim == 2);
+    static_assert(NumDim <= GridDescriptor::GetNumOfDimension());
 
     Block2TileMap()                     = delete;
     Block2TileMap(const Block2TileMap&) = default;
@@ -37,10 +38,10 @@ struct Block2TileMap
     __host__ constexpr index_t CalculateGridSize(const GridDescriptor& desc) const
     {
         return [&]() {
-            std::array<index_t, NumDim> num_tiles_per_axis;
-            static_for<0, NumDim, 1>{}([&](auto I) {
-                num_tiles_per_axis[I] =
-                    math::integer_divide_ceil(desc.GetLength(I), TileDims::At(I));
+            std::array<index_t, 2> num_tiles_per_axis;
+            static_for<NumDim - 2, NumDim, 1>{}([&](auto I) {
+                num_tiles_per_axis[I - (NumDim - 2)] =
+                    math::integer_divide_ceil(desc.GetLength(I), TileDims::At(I - (NumDim - 2)));
             });
 
             return std::accumulate(begin(num_tiles_per_axis),
@@ -57,12 +58,13 @@ struct Block2TileMap
 
         auto block_1d_id = idx_top[I0];
 
-        std::array<index_t, NumDim> num_tiles_per_axis;
-        static_for<0, NumDim, 1>{}([&](auto I) {
-            num_tiles_per_axis[I] = math::integer_divide_ceil(desc_.GetLength(I), TileDims::At(I));
+        std::array<index_t, 2> num_tiles_per_axis;
+        static_for<NumDim - 2, NumDim, 1>{}([&](auto I) {
+            num_tiles_per_axis[I - (NumDim - 2)] =
+                math::integer_divide_ceil(desc_.GetLength(I), TileDims::At(I - (NumDim - 2)));
         });
 
-        std::array<index_t, NumDim> divisors;
+        std::array<index_t, 2> divisors;
         index_t product = 1;
         auto divisor    = rbegin(divisors);
         for(auto num_tiles = rbegin(num_tiles_per_axis); num_tiles != rend(num_tiles_per_axis);
@@ -79,7 +81,7 @@ struct Block2TileMap
             [&](auto I) {
                 return (block_1d_id % divisors[I]) / (divisors[I] / num_tiles_per_axis[I]);
             },
-            Number<NumDim>{});
+            Number<2>{});
     }
 
     private:
@@ -140,7 +142,7 @@ struct GridwiseCopy
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     using DefaultBlock2TileMap =
-        detail::Block2TileMap<Sequence<NPerBlock, HPerBlock, WPerBlock>, InGrid1dDesc>;
+        detail::Block2TileMap<Sequence<HPerBlock, WPerBlock>, InGrid1dDesc>;
 
     __host__ __device__ static constexpr auto GetInBlockDescriptor()
     {
