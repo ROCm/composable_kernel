@@ -16,16 +16,23 @@
 namespace ck {
 namespace detail {
 template <typename TileDims, typename GridDescriptor>
-struct BlockToTileMap
+struct Block2TileMap
 {
     static constexpr auto I0 = Number<0>{};
 
     static constexpr index_t NumDim = TileDims::Size();
     static_assert(NumDim == GridDescriptor::GetNumOfDimension());
 
-    BlockToTileMap() = default;
+    Block2TileMap()                     = delete;
+    Block2TileMap(const Block2TileMap&) = default;
+    Block2TileMap(Block2TileMap&&)      = delete;
 
-    BlockToTileMap(const GridDescriptor& desc) : desc_(desc) {}
+    ~Block2TileMap() = default;
+
+    Block2TileMap& operator=(const Block2TileMap&) = delete;
+    Block2TileMap& operator=(Block2TileMap&&) = delete;
+
+    explicit Block2TileMap(const GridDescriptor& desc) : desc_(desc) {}
 
     __host__ constexpr index_t CalculateGridSize(const GridDescriptor& desc) const
     {
@@ -126,7 +133,7 @@ struct GridwiseCopy
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     using DefaultBlock2TileMap =
-        detail::BlockToTileMap<Sequence<NPerBlock, HPerBlock, WPerBlock>, InGrid1dDesc>;
+        detail::Block2TileMap<Sequence<NPerBlock, HPerBlock, WPerBlock>, InGrid1dDesc>;
 
     __host__ __device__ static constexpr auto GetInBlockDescriptor()
     {
