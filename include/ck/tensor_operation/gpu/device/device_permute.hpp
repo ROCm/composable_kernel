@@ -109,6 +109,7 @@ struct DevicePermute
     static_assert(3 <= NumDim, "Only accept at least 3D dimension tensor");
     static_assert((NumDim - 2) <= SrcVectorDim && SrcVectorDim < NumDim);
     static_assert((NumDim - 2) <= DstVectorDim && DstVectorDim < NumDim);
+    static_assert(SrcVectorDim != DstVectorDim);
 
     template <index_t N = NumDim>
     static auto ConvertArrayToTuple(const std::array<index_t, NumDim>& array)

@@ -116,6 +116,7 @@ struct GridwisePermute
                   SrcVectorDim < InGridDesc::GetNumOfDimension());
     static_assert((OutGridDesc::GetNumOfDimension() - 2) <= DstVectorDim &&
                   DstVectorDim < OutGridDesc::GetNumOfDimension());
+    static_assert(SrcVectorDim != DstVectorDim);
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
