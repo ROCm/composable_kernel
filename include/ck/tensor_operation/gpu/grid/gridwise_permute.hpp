@@ -101,7 +101,11 @@ template <typename InGridDesc,
           index_t WPerBlock,
           index_t InBlockLdsExtraW,
           typename InBlockTransferThreadClusterLengths,
-          typename InBlockTransferThreadClusterArrangeOrder>
+          typename InBlockTransferThreadClusterArrangeOrder,
+          index_t SrcVectorDim,
+          index_t DstVectorDim,
+          index_t SrcScalarPerVector,
+          index_t DstScalarPerVector>
 struct GridwisePermute
 {
     static_assert(InGridDesc::GetNumOfDimension() == OutGridDesc::GetNumOfDimension());
@@ -207,10 +211,10 @@ struct GridwisePermute
         using BlockSliceLengths          = Sequence<1, HPerBlock, WPerBlock>;
         using InBlockTransferAccessOrder = Sequence<0, 1, 2>;
 
-        constexpr index_t SrcVectorDim       = 2;
-        constexpr index_t DstVectorDim       = 1;
-        constexpr index_t SrcScalarPerVector = 1;
-        constexpr index_t DstScalarPerVector = 1;
+        // constexpr index_t SrcVectorDim       = 2;
+        // constexpr index_t DstVectorDim       = 1;
+        // constexpr index_t SrcScalarPerVector = 1;
+        // constexpr index_t DstScalarPerVector = 1;
 
         using ck::tensor_operation::element_wise::PassThrough;
 

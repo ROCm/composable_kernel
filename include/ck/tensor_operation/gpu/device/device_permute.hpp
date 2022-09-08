@@ -84,7 +84,11 @@ template <typename InDataType,
           index_t WPerBlock,
           index_t InBlockLdsExtraW,
           typename InBlockTransferThreadClusterLengths,
-          typename InBlockTransferThreadClusterArrangeOrder>
+          typename InBlockTransferThreadClusterArrangeOrder,
+          index_t SrcVectorDim,
+          index_t DstVectorDim,
+          index_t SrcScalarPerVector,
+          index_t DstScalarPerVector>
 struct DevicePermute
     : detail::DevicePermuteBase<DevicePermute<InDataType,
                                               OutDataType,
@@ -96,7 +100,11 @@ struct DevicePermute
                                               WPerBlock,
                                               InBlockLdsExtraW,
                                               InBlockTransferThreadClusterLengths,
-                                              InBlockTransferThreadClusterArrangeOrder>>
+                                              InBlockTransferThreadClusterArrangeOrder,
+                                              SrcVectorDim,
+                                              DstVectorDim,
+                                              SrcScalarPerVector,
+                                              DstScalarPerVector>>
 {
     static_assert(3 <= NumDim, "Only accept at least 3D dimension tensor");
 
@@ -149,7 +157,11 @@ struct DevicePermute
                                             WPerBlock,
                                             InBlockLdsExtraW,
                                             InBlockTransferThreadClusterLengths,
-                                            InBlockTransferThreadClusterArrangeOrder>;
+                                            InBlockTransferThreadClusterArrangeOrder,
+                                            SrcVectorDim,
+                                            DstVectorDim,
+                                            SrcScalarPerVector,
+                                            DstScalarPerVector>;
 
     struct Argument : public BaseArgument
     {
