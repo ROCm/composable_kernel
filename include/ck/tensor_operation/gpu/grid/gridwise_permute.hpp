@@ -90,14 +90,14 @@ struct Block2TileMap
 } // namespace detail
 
 template <typename GridwisePermute,
-          typename InGrid1dDesc,
-          typename OutGrid1dDesc,
+          typename InGridDesc,
+          typename OutGridDesc,
           typename InDataTypePointer,
           typename OutDataTypePointer,
           typename ElementwiseOperation,
           typename Block2TileMap>
-__global__ void kernel_nd_permute(const InGrid1dDesc in_grid_1d_desc,
-                                  const OutGrid1dDesc out_grid_1d_desc,
+__global__ void kernel_nd_permute(const InGridDesc in_grid_desc,
+                                  const OutGridDesc out_grid_desc,
                                   const InDataTypePointer p_in_global,
                                   const OutDataTypePointer p_out_global,
                                   const ElementwiseOperation elementwise_op,
@@ -105,8 +105,8 @@ __global__ void kernel_nd_permute(const InGrid1dDesc in_grid_1d_desc,
 {
     __shared__ char p_shared[GridwisePermute::GetSharedMemoryNumberOfByte()];
 
-    GridwisePermute::Run(in_grid_1d_desc,
-                         out_grid_1d_desc,
+    GridwisePermute::Run(in_grid_desc,
+                         out_grid_desc,
                          p_in_global,
                          p_out_global,
                          p_shared,
@@ -114,8 +114,8 @@ __global__ void kernel_nd_permute(const InGrid1dDesc in_grid_1d_desc,
                          block_2_tile_map);
 }
 
-template <typename InGrid1dDesc,
-          typename OutGrid1dDesc,
+template <typename InGridDesc,
+          typename OutGridDesc,
           typename InDataTypePointer,
           typename OutDataTypePointer,
           typename ElementwiseOperation,
@@ -128,8 +128,7 @@ template <typename InGrid1dDesc,
           index_t OutScalarPerVector>
 struct GridwisePermute
 {
-    static_assert(InGrid1dDesc::GetNumOfDimension() == 3 &&
-                  OutGrid1dDesc::GetNumOfDimension() == 3);
+    static_assert(InGridDesc::GetNumOfDimension() == 3 && OutGridDesc::GetNumOfDimension() == 3);
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -139,8 +138,7 @@ struct GridwisePermute
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    using DefaultBlock2TileMap =
-        detail::Block2TileMap<Sequence<HPerBlock, WPerBlock>, InGrid1dDesc>;
+    using DefaultBlock2TileMap = detail::Block2TileMap<Sequence<HPerBlock, WPerBlock>, InGridDesc>;
 
     __host__ __device__ static constexpr auto GetInBlockDescriptor()
     {
@@ -169,21 +167,21 @@ struct GridwisePermute
         return a_block_space_size_aligned * sizeof(InDataType);
     }
 
-    __host__ __device__ static constexpr auto MakeDefaultBlock2TileMap(const InGrid1dDesc& desc)
+    __host__ __device__ static constexpr auto MakeDefaultBlock2TileMap(const InGridDesc& desc)
     {
         return DefaultBlock2TileMap{desc};
     }
 
     template <typename Block2TileMap>
-    __device__ static void Run(const InGrid1dDesc in_grid_1d_desc,
-                               const OutGrid1dDesc out_grid_1d_desc,
+    __device__ static void Run(const InGridDesc in_grid_desc,
+                               const OutGridDesc out_grid_desc,
                                const InDataTypePointer p_in_global,
                                const OutDataTypePointer p_out_global,
                                void* __restrict__ p_shared,
                                const ElementwiseOperation elementwise_op,
                                const Block2TileMap& block_2_tile_map)
     {
-        // const index_t thread_global_id = get_thread_global_1d_id();
+        // const index_t thread_global_id = get_thread_global_id();
 
         using InDataType = remove_cv_t<remove_pointer_t<InDataTypePointer>>;
         // auto in_thread_buf = StaticBuffer<AddressSpaceEnum::Vgpr, InDataType, MPerThread,
@@ -194,16 +192,16 @@ struct GridwisePermute
         // true>{};
 
         auto in_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_in_global, in_grid_1d_desc.GetElementSpaceSize());
+            p_in_global, in_grid_desc.GetElementSpaceSize());
 
         auto out_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_out_global, out_grid_1d_desc.GetElementSpaceSize());
+            p_out_global, out_grid_desc.GetElementSpaceSize());
 
         // const auto thread_global_offset = make_multi_index(thread_global_id * MPerThread);
 
         // const index_t blockSize    = get_block_size();
         // const index_t blockPerGrid = get_grid_size();
-        // const auto M               = in_grid_1d_desc.GetLength(I0);
+        // const auto M               = in_grid_desc.GetLength(I0);
         // const index_t loop_step    = blockPerGrid * blockSize * MPerThread;
         const auto loop_step_index = make_multi_index(1, 0, 0);
 
@@ -259,7 +257,7 @@ struct GridwisePermute
                                                 ABlockTransferThreadClusterArrangeOrder,
                                                 InDataType,
                                                 InDataType,
-                                                decltype(in_grid_1d_desc),
+                                                decltype(in_grid_desc),
                                                 decltype(a_block_desc_ak0_m_ak1),
                                                 ABlockTransferSrcAccessOrder,
                                                 ABlockTransferDstAccessOrder,
@@ -271,18 +269,18 @@ struct GridwisePermute
                                                 1,
                                                 true,
                                                 true>(
-                in_grid_1d_desc,
+                in_grid_desc,
                 make_multi_index(0, h_block_data_idx_on_grid, w_block_data_idx_on_grid),
                 ck::tensor_operation::element_wise::PassThrough{},
                 a_block_desc_ak0_m_ak1,
                 make_multi_index(0, 0, 0),
                 ck::tensor_operation::element_wise::PassThrough{});
 
-        auto in_grid_1d_desc_tranformed = transform_tensor_descriptor(
-            in_grid_1d_desc,
-            make_tuple(make_pass_through_transform(in_grid_1d_desc.GetLength(I0)),
-                       make_pass_through_transform(in_grid_1d_desc.GetLength(I1)),
-                       make_pass_through_transform(in_grid_1d_desc.GetLength(I2))),
+        auto in_grid_desc_tranformed = transform_tensor_descriptor(
+            in_grid_desc,
+            make_tuple(make_pass_through_transform(in_grid_desc.GetLength(I0)),
+                       make_pass_through_transform(in_grid_desc.GetLength(I1)),
+                       make_pass_through_transform(in_grid_desc.GetLength(I2))),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
             make_tuple(Sequence<0>{}, Sequence<2>{}, Sequence<1>{}));
 
@@ -297,7 +295,7 @@ struct GridwisePermute
             InDataType,
             OutDataType,
             decltype(a_block_desc_ak0_m_ak1),
-            decltype(in_grid_1d_desc_tranformed),
+            decltype(in_grid_desc_tranformed),
             Sequence<0, 1, 2>, // ABlockTransferSrcAccessOrder
             Sequence<0, 1, 2>, // ABlockTransferDstAccessOrder
             1,                 // ABlockTransferSrcVectorDim
@@ -310,25 +308,22 @@ struct GridwisePermute
             true>(a_block_desc_ak0_m_ak1,
                   make_multi_index(0, 0, 0),
                   ck::tensor_operation::element_wise::PassThrough{},
-                  in_grid_1d_desc_tranformed,
+                  in_grid_desc_tranformed,
                   make_multi_index(0, h_block_data_idx_on_grid, w_block_data_idx_on_grid),
                   elementwise_op);
 
-        index_t num_iter = in_grid_1d_desc.GetLength(I0);
+        index_t num_iter = in_grid_desc.GetLength(I0);
         do
         {
             in_global_load.Run(
-                in_grid_1d_desc, in_global_buf, a_block_desc_ak0_m_ak1, a_block_buf, I0);
+                in_grid_desc, in_global_buf, a_block_desc_ak0_m_ak1, a_block_buf, I0);
 
-            in_global_load.MoveSrcSliceWindow(in_grid_1d_desc, loop_step_index);
+            in_global_load.MoveSrcSliceWindow(in_grid_desc, loop_step_index);
 
-            out_global_store.Run(a_block_desc_ak0_m_ak1,
-                                 a_block_buf,
-                                 in_grid_1d_desc_tranformed,
-                                 out_global_buf,
-                                 I0);
+            out_global_store.Run(
+                a_block_desc_ak0_m_ak1, a_block_buf, in_grid_desc_tranformed, out_global_buf, I0);
 
-            out_global_store.MoveDstSliceWindow(in_grid_1d_desc_tranformed, loop_step_index);
+            out_global_store.MoveDstSliceWindow(in_grid_desc_tranformed, loop_step_index);
         } while(--num_iter);
     }
 };

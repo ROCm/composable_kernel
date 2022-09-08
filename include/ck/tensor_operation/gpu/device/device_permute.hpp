@@ -137,11 +137,11 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
             desc_n_h_w, make_tuple(NPerBlock, HPerBlock, WPerBlock), Sequence<true, true, true>{});
     }
 
-    using InGrid1dDesc  = decltype(MakeDescriptor_N_H_W({1, 1}, {1, 1}));
-    using OutGrid1dDesc = decltype(MakeDescriptor_N_H_W({1, 1}, {1, 1}));
+    using InGridDesc  = decltype(MakeDescriptor_N_H_W({1, 1}, {1, 1}));
+    using OutGridDesc = InGridDesc;
 
-    using GridwisePermute = GridwisePermute<InGrid1dDesc,
-                                            OutGrid1dDesc,
+    using GridwisePermute = GridwisePermute<InGridDesc,
+                                            OutGridDesc,
                                             InDataTypePointer,
                                             OutDataTypePointer,
                                             ElementwiseOperation,
@@ -164,21 +164,21 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
                  ElementwiseOperation elementwise_op)
             : in_dev_buffer_(static_cast<InDataTypePointer>(in_dev_buffer)),
               out_dev_buffer_(static_cast<OutDataTypePointer>(out_dev_buffer)),
-              in_grid_1d_desc_(MakeDescriptor_N_H_W(inLengths, inStrides)),
-              out_grid_1d_desc_(MakeDescriptor_N_H_W(inLengths, inStrides)),
+              in_grid_desc_(MakeDescriptor_N_H_W(inLengths, inStrides)),
+              out_grid_desc_(MakeDescriptor_N_H_W(inLengths, inStrides)),
               inLengths_(inLengths),
               inStrides_(inStrides),
               outLengths_(outLengths),
               outStrides_(outStrides),
               elementwise_op_(elementwise_op),
-              block_2_tile_map_(GridwisePermute::MakeDefaultBlock2TileMap(in_grid_1d_desc_))
+              block_2_tile_map_(GridwisePermute::MakeDefaultBlock2TileMap(in_grid_desc_))
         {
         }
 
         InDataTypePointer in_dev_buffer_;
         OutDataTypePointer out_dev_buffer_;
-        InGrid1dDesc in_grid_1d_desc_;
-        OutGrid1dDesc out_grid_1d_desc_;
+        InGridDesc in_grid_desc_;
+        OutGridDesc out_grid_desc_;
 
         std::array<index_t, NumDim> inLengths_;
         std::array<index_t, NumDim> inStrides_;
@@ -194,11 +194,11 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
     {
         static float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            const index_t grid_size = arg.block_2_tile_map_.CalculateGridSize(arg.in_grid_1d_desc_);
+            const index_t grid_size = arg.block_2_tile_map_.CalculateGridSize(arg.in_grid_desc_);
 
             const auto kernel = kernel_nd_permute<GridwisePermute,
-                                                  InGrid1dDesc,
-                                                  OutGrid1dDesc,
+                                                  InGridDesc,
+                                                  OutGridDesc,
                                                   InDataTypePointer,
                                                   OutDataTypePointer,
                                                   ElementwiseOperation,
@@ -209,8 +209,8 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
                                                         dim3(grid_size),
                                                         dim3(BlockSize),
                                                         0,
-                                                        arg.in_grid_1d_desc_,
-                                                        arg.out_grid_1d_desc_,
+                                                        arg.in_grid_desc_,
+                                                        arg.out_grid_desc_,
                                                         arg.in_dev_buffer_,
                                                         arg.out_dev_buffer_,
                                                         arg.elementwise_op_,
