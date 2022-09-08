@@ -240,7 +240,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
 {
     using DeviceOp = DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle;
 
-    static constexpr index_t NumD0Tensor = D1sDataType::Size();
+    static constexpr index_t NumD0Tensor = D0sDataType::Size();
     static constexpr index_t NumD1Tensor = D1sDataType::Size();
 
     static constexpr auto I0 = Number<0>{};
@@ -365,7 +365,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
     {
         return generate_tuple(
             [&](auto i) {
-                using DLayout = remove_cvref_t<tuple_element_t<i.value, D1sLayout>>;
+                using DLayout = remove_cvref_t<tuple_element_t<i.value, D0sLayout>>;
 
                 return DeviceOp::MakeD0GridDescriptor_M_N<DLayout>(MRaws[i], NRaws[i], DsStride[i]);
             },
@@ -835,7 +835,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
 
     static auto MakeArgument(const A0DataType* p_a0,
                              const B0DataType* p_b0,
-                             std::array<const void*, NumD1Tensor> p_d0s,
+                             std::array<const void*, NumD0Tensor> p_d0s,
                              const B1DataType* p_b1,
                              C1DataType* p_c1,
                              std::array<const void*, NumD1Tensor> p_d1s,
@@ -846,13 +846,13 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                              index_t Batch,
                              index_t StrideA0,
                              index_t StrideB0,
-                             std::array<index_t, NumD1Tensor> StrideD0s,
+                             std::array<index_t, NumD0Tensor> StrideD0s,
                              index_t StrideB1,
                              index_t StrideC1,
                              std::array<index_t, NumD1Tensor> StrideD1s,
                              index_t BatchStrideA0,
                              index_t BatchStrideB0,
-                             std::array<index_t, NumD1Tensor> BatchStrideD0s,
+                             std::array<index_t, NumD0Tensor> BatchStrideD0s,
                              index_t BatchStrideB1,
                              index_t BatchStrideC1,
                              std::array<index_t, NumD1Tensor> BatchStrideD1s,
@@ -878,7 +878,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a0,
                         const void* p_b0,
-                        std::array<const void*, NumD1Tensor> p_d0s,
+                        std::array<const void*, NumD0Tensor> p_d0s,
                         const void* p_b1,
                         void* p_c1,
                         std::array<const void*, NumD1Tensor> p_d1s,
@@ -889,13 +889,13 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                         index_t Batch,
                         index_t StrideA0,
                         index_t StrideB0,
-                        std::array<ck::index_t, NumD1Tensor> StrideD0s,
+                        std::array<ck::index_t, NumD0Tensor> StrideD0s,
                         index_t StrideB1,
                         index_t StrideC1,
                         std::array<ck::index_t, NumD1Tensor> StrideD1s,
                         index_t BatchStrideA0,
                         index_t BatchStrideB0,
-                        std::array<ck::index_t, NumD1Tensor> BatchStrideD0s,
+                        std::array<ck::index_t, NumD0Tensor> BatchStrideD0s,
                         index_t BatchStrideB1,
                         index_t BatchStrideC1,
                         std::array<ck::index_t, NumD1Tensor> BatchStrideD1s,

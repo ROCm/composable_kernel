@@ -53,10 +53,30 @@ using B1Layout = Row;
 using C1Layout = Row;
 using D1Layout = Row;
 
+// C = A * B
+// E = Relu(C + D0) + D1;
+struct AddReluAdd
+{
+    __host__ __device__ void
+    operator()(ck::half_t& e, const ck::half_t& c, const ck::half_t& d0, const ck::half_t& d1) const
+    {
+        const ck::half_t x = c + d0;
+
+        e = (x > 0 ? x : 0) + d1;
+    }
+
+    __host__ __device__ void
+    operator()(float& e, const float& c, const ck::half_t& d0, const ck::half_t& d1) const
+    {
+        const float x = c + ck::type_convert<const float>(d0);
+
+        e = (x > 0 ? x : 0) + ck::type_convert<const float>(d1);
+    }
+};
 using A0ElementOp = PassThrough;
 using B0ElementOp = PassThrough;
 using C0ElementOp = PassThrough;
-using D0ElementOp = ck::tensor_operation::element_wise::AddRelu;
+using D0ElementOp = AddReluAdd;
 using B1ElementOp = PassThrough;
 using C1ElementOp = PassThrough;
 using D1ElementOp = ck::tensor_operation::element_wise::Add;
@@ -71,14 +91,14 @@ using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle<
         A0Layout,
         B0Layout,
-        ck::Tuple<D0Layout>,
+        ck::Tuple<D0Layout, D0Layout>,
         B1Layout,
         C1Layout,
         ck::Tuple<D1Layout>,
         A0DataType,
         B0DataType,
         Acc0DataType,
-        ck::Tuple<D0DataType>,
+        ck::Tuple<D0DataType, D0DataType>,
         B1DataType,
         Acc1DataType,
         C1ShuffleDataType,
@@ -282,6 +302,8 @@ int main(int argc, char* argv[])
         f_host_tensor_descriptor(BatchCount, K, N, StrideB0, BatchStrideB0, B0Layout{}));
     Tensor<D0DataType> d0_g_m_n(
         f_host_tensor_descriptor(BatchCount, M, N, StrideD0, BatchStrideD0, D0Layout{}));
+    Tensor<D0DataType> d01_g_m_n(
+        f_host_tensor_descriptor(BatchCount, M, N, StrideD0, BatchStrideD0, D0Layout{}));
     Tensor<B1DataType> b1_g_n_o(
         f_host_tensor_descriptor(BatchCount, N, O, StrideB1, BatchStrideB1, B1Layout{}));
     Tensor<C1DataType> c1_g_m_o_host_result(
@@ -305,6 +327,7 @@ int main(int argc, char* argv[])
         a_g_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 3});
         b0_g_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 3});
         d0_g_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 3});
+        d01_g_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 3});
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 3});
         d1_g_m_o.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-2, 3});
         break;
@@ -312,6 +335,7 @@ int main(int argc, char* argv[])
         a_g_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
         b0_g_k_n.GenerateTensorValue(GeneratorTensor_3<B0DataType>{0.0, 1.0});
         d0_g_m_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 1.0});
+        d01_g_m_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 1.0});
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_3<B1DataType>{-0.5, 0.5});
         d1_g_m_o.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
         break;
@@ -319,6 +343,7 @@ int main(int argc, char* argv[])
         a_g_m_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{1});
         b0_g_k_n.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
         d0_g_m_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{1});
+        d01_g_m_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{1});
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
         d1_g_m_o.GenerateTensorValue(GeneratorTensor_1<D1DataType>{1});
     }
@@ -342,6 +367,7 @@ int main(int argc, char* argv[])
     DeviceMem a0_g_m_k_device_buf(sizeof(A0DataType) * a_g_m_k.mDesc.GetElementSize());
     DeviceMem b0_g_k_n_device_buf(sizeof(B0DataType) * b0_g_k_n.mDesc.GetElementSize());
     DeviceMem d0_g_m_n_device_buf(sizeof(D0DataType) * d0_g_m_n.mDesc.GetElementSpaceSize());
+    DeviceMem d01_g_m_n_device_buf(sizeof(D0DataType) * d01_g_m_n.mDesc.GetElementSpaceSize());
     DeviceMem b1_g_n_o_device_buf(sizeof(B1DataType) * b1_g_n_o.mDesc.GetElementSize());
     DeviceMem c1_g_m_o_device_buf(sizeof(C1DataType) *
                                   c1_g_m_o_device_result.mDesc.GetElementSize());
@@ -350,6 +376,7 @@ int main(int argc, char* argv[])
     a0_g_m_k_device_buf.ToDevice(a_g_m_k.mData.data());
     b0_g_k_n_device_buf.ToDevice(b0_g_k_n.mData.data());
     d0_g_m_n_device_buf.ToDevice(d0_g_m_n.mData.data());
+    d01_g_m_n_device_buf.ToDevice(d01_g_m_n.mData.data());
     b1_g_n_o_device_buf.ToDevice(b1_g_n_o.mData.data());
     d1_g_m_o_device_buf.ToDevice(d1_g_m_o.mData.data());
 
@@ -367,7 +394,8 @@ int main(int argc, char* argv[])
     auto argument =
         gemm.MakeArgument(static_cast<A0DataType*>(a0_g_m_k_device_buf.GetDeviceBuffer()),
                           static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
-                          std::array<const void*, 1>{d0_g_m_n_device_buf.GetDeviceBuffer()},
+                          std::array<const void*, 2>{d0_g_m_n_device_buf.GetDeviceBuffer(),
+                                                     d01_g_m_n_device_buf.GetDeviceBuffer()},
                           static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
                           static_cast<C1DataType*>(c1_g_m_o_device_buf.GetDeviceBuffer()),
                           std::array<const void*, 1>{d1_g_m_o_device_buf.GetDeviceBuffer()},
@@ -378,13 +406,13 @@ int main(int argc, char* argv[])
                           BatchCount,
                           StrideA0,
                           StrideB0,
-                          std::array<ck::index_t, 1>{StrideD0},
+                          std::array<ck::index_t, 2>{StrideD0, StrideD0},
                           StrideB1,
                           StrideC1,
                           std::array<ck::index_t, 1>{StrideD1},
                           BatchStrideA0,
                           BatchStrideB0,
-                          std::array<ck::index_t, 1>{BatchStrideD0},
+                          std::array<ck::index_t, 2>{BatchStrideD0, BatchStrideD0},
                           BatchStrideB1,
                           BatchStrideC1,
                           std::array<ck::index_t, 1>{BatchStrideD1},
@@ -437,7 +465,10 @@ int main(int argc, char* argv[])
             {
                 for(int n = 0; n < N; ++n)
                 {
-                    d0_element_op(a1_g_m_n(b, m, n), a1_g_m_n(b, m, n), d0_g_m_n(b, m, n));
+                    d0_element_op(a1_g_m_n(b, m, n),
+                                  a1_g_m_n(b, m, n),
+                                  d0_g_m_n(b, m, n),
+                                  d01_g_m_n(b, m, n));
                 }
             }
         }
