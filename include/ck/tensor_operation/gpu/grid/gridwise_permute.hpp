@@ -110,6 +110,10 @@ struct GridwisePermute
 {
     static_assert(InGridDesc::GetNumOfDimension() == OutGridDesc::GetNumOfDimension());
     static_assert(3 <= InGridDesc::GetNumOfDimension());
+    static_assert((InGridDesc::GetNumOfDimension() - 2) <= SrcVectorDim &&
+                  SrcVectorDim < InGridDesc::GetNumOfDimension());
+    static_assert((OutGridDesc::GetNumOfDimension() - 2) <= DstVectorDim &&
+                  DstVectorDim < OutGridDesc::GetNumOfDimension());
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -211,10 +215,10 @@ struct GridwisePermute
         using BlockSliceLengths          = Sequence<1, HPerBlock, WPerBlock>;
         using InBlockTransferAccessOrder = Sequence<0, 1, 2>;
 
-        // constexpr index_t SrcVectorDim       = 2;
-        // constexpr index_t DstVectorDim       = 1;
-        // constexpr index_t SrcScalarPerVector = 1;
-        // constexpr index_t DstScalarPerVector = 1;
+        constexpr index_t SrcVectorDimAfterMerge =
+            SrcVectorDim - (InGridDesc::GetNumOfDimension() - 3);
+        constexpr index_t DstVectorDimAfterMerge =
+            DstVectorDim - (OutGridDesc::GetNumOfDimension() - 3);
 
         using ck::tensor_operation::element_wise::PassThrough;
 
@@ -234,8 +238,8 @@ struct GridwisePermute
                                                 decltype(in_block_desc),
                                                 InBlockTransferAccessOrder,
                                                 InBlockTransferAccessOrder,
-                                                SrcVectorDim,
-                                                SrcVectorDim,
+                                                SrcVectorDimAfterMerge,
+                                                SrcVectorDimAfterMerge,
                                                 SrcScalarPerVector,
                                                 SrcScalarPerVector,
                                                 1,
@@ -273,8 +277,8 @@ struct GridwisePermute
                                                 decltype(out_grid_desc_n_h_w),
                                                 InBlockTransferAccessOrder,
                                                 InBlockTransferAccessOrder,
-                                                SrcVectorDim,
-                                                DstVectorDim,
+                                                SrcVectorDimAfterMerge,
+                                                DstVectorDimAfterMerge,
                                                 SrcScalarPerVector,
                                                 DstScalarPerVector,
                                                 1,

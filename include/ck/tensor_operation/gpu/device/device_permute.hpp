@@ -107,6 +107,8 @@ struct DevicePermute
                                               DstScalarPerVector>>
 {
     static_assert(3 <= NumDim, "Only accept at least 3D dimension tensor");
+    static_assert((NumDim - 2) <= SrcVectorDim && SrcVectorDim < NumDim);
+    static_assert((NumDim - 2) <= DstVectorDim && DstVectorDim < NumDim);
 
     template <index_t N = NumDim>
     static auto ConvertArrayToTuple(const std::array<index_t, NumDim>& array)
@@ -146,22 +148,23 @@ struct DevicePermute
     using InGridDesc  = decltype(MakeDescriptor_N_H_W({1, 1}, {1, 1}));
     using OutGridDesc = InGridDesc;
 
-    using GridwisePermute = GridwisePermute<InGridDesc,
-                                            OutGridDesc,
-                                            InDataType,
-                                            OutDataType,
-                                            ElementwiseOperation,
-                                            BlockSize,
-                                            NPerBlock,
-                                            HPerBlock,
-                                            WPerBlock,
-                                            InBlockLdsExtraW,
-                                            InBlockTransferThreadClusterLengths,
-                                            InBlockTransferThreadClusterArrangeOrder,
-                                            SrcVectorDim,
-                                            DstVectorDim,
-                                            SrcScalarPerVector,
-                                            DstScalarPerVector>;
+    using GridwisePermute = GridwisePermute<
+        InGridDesc,
+        OutGridDesc,
+        InDataType,
+        OutDataType,
+        ElementwiseOperation,
+        BlockSize,
+        NPerBlock,
+        HPerBlock,
+        WPerBlock,
+        InBlockLdsExtraW,
+        InBlockTransferThreadClusterLengths,
+        InBlockTransferThreadClusterArrangeOrder,
+        SrcVectorDim - (NumDim - 3), // calculate new SrcVectorDim for the merged descriptor
+        DstVectorDim - (NumDim - 3), // calculate new DstVectorDim for the merged descriptor
+        SrcScalarPerVector,
+        DstScalarPerVector>;
 
     struct Argument : public BaseArgument
     {
