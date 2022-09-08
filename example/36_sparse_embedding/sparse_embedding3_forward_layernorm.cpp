@@ -103,7 +103,7 @@ int main()
                                                                               OutType>;
 
     ck::static_for<0, dims.Size(), 1>{}([&](auto I) {
-        std::srand(std::time(0));
+        std::srand(std::time(nullptr));
         constexpr auto current_dim = dims.At(I);
         Tensor<EmbType> emb_a(f_host_tensor_desc_2d(num_rows, current_dim));
         Tensor<EmbType> emb_b(f_host_tensor_desc_2d(num_rows, current_dim));

@@ -50,7 +50,8 @@ struct ReferenceSparseEmbedding3ForwardLayernorm : public device::BaseOperator
               beta_(beta),
               NumRows_(NumRows),
               EmbeddingDim_(EmbeddingDim),
-              IndexLength_(IndexLength)
+              IndexLength_(IndexLength),
+              epsilon_(epsilon)
         {
         }
         Tensor<OutType>& output_;
@@ -88,23 +89,20 @@ struct ReferenceSparseEmbedding3ForwardLayernorm : public device::BaseOperator
                 IndexType idx_a = arg.index_a_(idx);
                 IndexType idx_b = arg.index_b_(idx);
                 IndexType idx_c = arg.index_c_(idx);
-                // std::cout << "idx_a:" << idx_a << ", idx_b:" << idx_b << ", idx_c:" << idx_c <<
-                // std::endl;
+
+                assert((idx_a < E) && (idx_b < E) && (idx_c < E));
 
                 for(auto d = 0; d < D; d++)
                 {
                     auto v_a = ck::type_convert<AccDataType>(arg.emb_a_(idx_a, d));
                     auto v_b = ck::type_convert<AccDataType>(arg.emb_b_(idx_b, d));
                     auto v_c = ck::type_convert<AccDataType>(arg.emb_c_(idx_c, d));
-                    // std::cout <<"idx:"<<idx<<", d:"<<d<< ", a:"<<v_a<<", b:"<<v_b<<",
-                    // c:"<<v_c<<std::endl;
 
                     accumulator(idx, d) += v_a + v_b + v_c;
                 }
             };
             make_ParallelTensorFunctor(f_emb_per_row, L)(std::thread::hardware_concurrency());
 
-#if 1
             // layernorm
             for(auto idx = 0; idx < L; ++idx)
             {
@@ -122,16 +120,6 @@ struct ReferenceSparseEmbedding3ForwardLayernorm : public device::BaseOperator
                 var(idx)  = (var(idx) / D) - (mean(idx) * mean(idx));
             }
 
-            // for(auto idx = 0; idx < L; idx++){
-            //     for(auto d = 0; d < D; d++){
-            //         std::cout<< "-> " << accumulator(idx, d) <<std::endl;
-            //     }
-            // }
-            // for(auto idx = 0; idx < L; idx++){
-            //     std::cout<< "idx: " << idx <<", mean:" << mean(idx) << ", var:" << var(idx)
-            //     <<std::endl;
-            // }
-
             for(auto idx = 0; idx < L; ++idx)
             {
                 for(auto d = 0; d < D; ++d)
@@ -142,15 +130,6 @@ struct ReferenceSparseEmbedding3ForwardLayernorm : public device::BaseOperator
                     arg.output_(idx, d) = ck::type_convert<OutType>(y_val);
                 }
             }
-#else
-            for(auto idx = 0; idx < L; ++idx)
-            {
-                for(auto d = 0; d < D; ++d)
-                {
-                    arg.output_(idx, d) = ck::type_convert<OutType>(accumulator(idx, d));
-                }
-            }
-#endif
             return 0;
         }
 
@@ -167,7 +146,7 @@ struct ReferenceSparseEmbedding3ForwardLayernorm : public device::BaseOperator
         return true;
     }
 
-    bool IsSupportedArgument(const device::BaseArgument* p_arg) override { return true; }
+    bool IsSupportedArgument(const device::BaseArgument*) override { return true; }
 
     static auto MakeArgument(Tensor<OutType>& output,
                              const Tensor<EmbType>& emb_a,

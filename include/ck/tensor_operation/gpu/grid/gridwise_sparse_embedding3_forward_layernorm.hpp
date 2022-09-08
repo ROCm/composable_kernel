@@ -105,14 +105,14 @@ struct GridwiseSparseEmbedding3ForwardLayernorm
                                const IndexType* p_index_c,
                                const GammaDataType* p_gamma,
                                const BetaDataType* p_beta,
-                               const OutGridDesc out_grid_desc,
+                               const OutGridDesc,
                                const AccDataType epsilon)
     {
         const index_t thread_local_id = get_thread_local_1d_id();
         const index_t block_global_id = get_block_1d_id();
 
-        const auto index_length = out_grid_desc.GetLength(I0);
-        const auto emb_dim      = out_grid_desc.GetLength(I1);
+        // const auto index_length = out_grid_desc.GetLength(I0);
+        // const auto emb_dim      = out_grid_desc.GetLength(I1);
 
         constexpr auto thread_cluster_desc =
             make_cluster_descriptor(Sequence<DimClusterSize, RowClusterSize>{}, Sequence<0, 1>{});
