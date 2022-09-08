@@ -152,6 +152,26 @@ struct GridwisePermute
         return DefaultBlock2TileMap{desc};
     }
 
+    __host__ __device__ static constexpr bool CheckValidity(const InGridDesc& in_grid_desc,
+                                                            const OutGridDesc& out_grid_desc)
+    {
+        constexpr index_t NumDim = InGridDesc::GetNumOfDimension();
+
+        bool valid = true;
+        static_for<0, NumDim - 2, 1>{}([&](auto I) {
+            if(valid && in_grid_desc.GetLength(I) != out_grid_desc.GetLength(I))
+            {
+                valid = false;
+            }
+        });
+
+        return valid &&
+               (in_grid_desc.GetLength(Number<NumDim - 1>{}) ==
+                out_grid_desc.GetLength(Number<NumDim - 2>{})) &&
+               (in_grid_desc.GetLength(Number<NumDim - 2>{}) ==
+                out_grid_desc.GetLength(Number<NumDim - 1>{}));
+    }
+
     template <typename Block2TileMap>
     __device__ static void Run(const InGridDesc in_grid_desc,
                                const OutGridDesc out_grid_desc,

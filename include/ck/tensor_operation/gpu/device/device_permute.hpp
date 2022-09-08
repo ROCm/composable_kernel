@@ -212,17 +212,7 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        // check if only swap last 2 dimensions
-        if(!(std::equal(begin(arg.inLengths_),
-                        std::prev(end(arg.inLengths_), 2),
-                        begin(arg.outLengths_)) &&
-             std::tie(*rbegin(arg.inLengths_), *std::next(rbegin(arg.inLengths_))) ==
-                 std::tie(*std::next(rbegin(arg.outLengths_)), *rbegin(arg.outLengths_))))
-        {
-            return false;
-        }
-
-        return true;
+        return GridwisePermute::CheckValidity(arg.in_grid_desc_, arg.out_grid_desc_);
     };
 };
 
