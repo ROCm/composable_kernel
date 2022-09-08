@@ -960,9 +960,6 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
                                     Number<2>{});
 
                                 unpack2(d0_element_op, dst_data_refs, src_data_refs);
-                                // d0_element_op(acc0_thread_buf(Number<c_offset>{}),
-                                //               acc0_thread_buf[Number<c_offset>{}],
-                                //               d0s_thread_buf[I0][i]);
                             });
                             static_for<0, NumD0Tensor, 1>{}([&](auto i) {
                                 d0s_threadwise_copy(i).MoveSrcSliceWindow(
