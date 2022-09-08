@@ -89,29 +89,29 @@ struct Block2TileMap
 };
 } // namespace detail
 
-template <typename GridwiseCopy,
+template <typename GridwisePermute,
           typename InGrid1dDesc,
           typename OutGrid1dDesc,
           typename InDataTypePointer,
           typename OutDataTypePointer,
           typename ElementwiseOperation,
           typename Block2TileMap>
-__global__ void kernel_nd_copy(const InGrid1dDesc in_grid_1d_desc,
-                               const OutGrid1dDesc out_grid_1d_desc,
-                               const InDataTypePointer p_in_global,
-                               const OutDataTypePointer p_out_global,
-                               const ElementwiseOperation elementwise_op,
-                               const Block2TileMap block_2_tile_map)
+__global__ void kernel_nd_permute(const InGrid1dDesc in_grid_1d_desc,
+                                  const OutGrid1dDesc out_grid_1d_desc,
+                                  const InDataTypePointer p_in_global,
+                                  const OutDataTypePointer p_out_global,
+                                  const ElementwiseOperation elementwise_op,
+                                  const Block2TileMap block_2_tile_map)
 {
-    __shared__ char p_shared[GridwiseCopy::GetSharedMemoryNumberOfByte()];
+    __shared__ char p_shared[GridwisePermute::GetSharedMemoryNumberOfByte()];
 
-    GridwiseCopy::Run(in_grid_1d_desc,
-                      out_grid_1d_desc,
-                      p_in_global,
-                      p_out_global,
-                      p_shared,
-                      elementwise_op,
-                      block_2_tile_map);
+    GridwisePermute::Run(in_grid_1d_desc,
+                         out_grid_1d_desc,
+                         p_in_global,
+                         p_out_global,
+                         p_shared,
+                         elementwise_op,
+                         block_2_tile_map);
 }
 
 template <typename InGrid1dDesc,
@@ -126,7 +126,7 @@ template <typename InGrid1dDesc,
           index_t MPerThread,
           index_t InScalarPerVector,
           index_t OutScalarPerVector>
-struct GridwiseCopy
+struct GridwisePermute
 {
     static_assert(InGrid1dDesc::GetNumOfDimension() == 3 &&
                   OutGrid1dDesc::GetNumOfDimension() == 3);
@@ -300,7 +300,7 @@ struct GridwiseCopy
             decltype(in_grid_1d_desc_tranformed),
             Sequence<0, 1, 2>, // ABlockTransferSrcAccessOrder
             Sequence<0, 1, 2>, // ABlockTransferDstAccessOrder
-            2,                 // ABlockTransferSrcVectorDim
+            1,                 // ABlockTransferSrcVectorDim
             1,                 // ABlockTransferDstVectorDim
             1,                 // ABlockTransferSrcScalarPerVector
             1,                 // ABlockTransferDstScalarPerVector

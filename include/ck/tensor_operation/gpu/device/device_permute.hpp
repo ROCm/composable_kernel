@@ -11,7 +11,7 @@
 #include "ck/utility/sequence.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_copy.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_permute.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 
 #include "ck/host_utility/kernel_launch.hpp"
@@ -140,18 +140,18 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
     using InGrid1dDesc  = decltype(MakeDescriptor_N_H_W({1, 1}, {1, 1}));
     using OutGrid1dDesc = decltype(MakeDescriptor_N_H_W({1, 1}, {1, 1}));
 
-    using GridwiseCopy = GridwiseCopy<InGrid1dDesc,
-                                      OutGrid1dDesc,
-                                      InDataTypePointer,
-                                      OutDataTypePointer,
-                                      ElementwiseOperation,
-                                      BlockSize,
-                                      NPerBlock,
-                                      HPerBlock,
-                                      WPerBlock,
-                                      MPerThread,
-                                      InScalarPerVector,
-                                      OutScalarPerVector>;
+    using GridwisePermute = GridwisePermute<InGrid1dDesc,
+                                            OutGrid1dDesc,
+                                            InDataTypePointer,
+                                            OutDataTypePointer,
+                                            ElementwiseOperation,
+                                            BlockSize,
+                                            NPerBlock,
+                                            HPerBlock,
+                                            WPerBlock,
+                                            MPerThread,
+                                            InScalarPerVector,
+                                            OutScalarPerVector>;
 
     struct Argument : public BaseArgument
     {
@@ -171,7 +171,7 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
               outLengths_(outLengths),
               outStrides_(outStrides),
               elementwise_op_(elementwise_op),
-              block_2_tile_map_(GridwiseCopy::MakeDefaultBlock2TileMap(in_grid_1d_desc_))
+              block_2_tile_map_(GridwisePermute::MakeDefaultBlock2TileMap(in_grid_1d_desc_))
         {
         }
 
@@ -187,7 +187,7 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
 
         ElementwiseOperation elementwise_op_;
 
-        typename GridwiseCopy::DefaultBlock2TileMap block_2_tile_map_;
+        typename GridwisePermute::DefaultBlock2TileMap block_2_tile_map_;
     };
 
     struct Invoker : detail::InvokerBase<Invoker, Argument>
@@ -196,13 +196,13 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
         {
             const index_t grid_size = arg.block_2_tile_map_.CalculateGridSize(arg.in_grid_1d_desc_);
 
-            const auto kernel = kernel_nd_copy<GridwiseCopy,
-                                               InGrid1dDesc,
-                                               OutGrid1dDesc,
-                                               InDataTypePointer,
-                                               OutDataTypePointer,
-                                               ElementwiseOperation,
-                                               typename GridwiseCopy::DefaultBlock2TileMap>;
+            const auto kernel = kernel_nd_permute<GridwisePermute,
+                                                  InGrid1dDesc,
+                                                  OutGrid1dDesc,
+                                                  InDataTypePointer,
+                                                  OutDataTypePointer,
+                                                  ElementwiseOperation,
+                                                  typename GridwisePermute::DefaultBlock2TileMap>;
 
             float elapsed_time = launch_and_time_kernel(stream_config,
                                                         kernel,
