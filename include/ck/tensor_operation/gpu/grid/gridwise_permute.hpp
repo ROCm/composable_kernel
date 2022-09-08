@@ -18,7 +18,7 @@ namespace detail {
 template <index_t HPerBlock, index_t WPerBlock, typename GridDesc>
 struct Block2TileMap
 {
-    static constexpr auto NumDim = Number<GridDesc::GetNumOfDimension()>{};
+    static constexpr index_t NumDim = GridDesc::GetNumOfDimension();
     static_assert(2 <= NumDim);
 
     static constexpr auto I0 = Number<0>{};
@@ -36,8 +36,8 @@ struct Block2TileMap
 
     __host__ constexpr index_t CalculateGridSize(const GridDesc& desc) const
     {
-        const auto H0 = math::integer_divide_ceil(desc.GetLength(NumDim - Number<2>{}), HPerBlock);
-        const auto W0 = math::integer_divide_ceil(desc.GetLength(NumDim - Number<1>{}), WPerBlock);
+        const auto H0 = math::integer_divide_ceil(desc.GetLength(Number<NumDim - 2>{}), HPerBlock);
+        const auto W0 = math::integer_divide_ceil(desc.GetLength(Number<NumDim - 1>{}), WPerBlock);
 
         const index_t grid_size = H0 * W0;
 
@@ -51,8 +51,8 @@ struct Block2TileMap
 
         auto block_1d_id = idx_top[I0];
 
-        const auto H0 = math::integer_divide_ceil(desc_.GetLength(NumDim - Number<2>{}), HPerBlock);
-        const auto W0 = math::integer_divide_ceil(desc_.GetLength(NumDim - Number<1>{}), WPerBlock);
+        const auto H0 = math::integer_divide_ceil(desc_.GetLength(Number<NumDim - 2>{}), HPerBlock);
+        const auto W0 = math::integer_divide_ceil(desc_.GetLength(Number<NumDim - 1>{}), WPerBlock);
 
         index_t idx_H0 = block_1d_id / W0;
         index_t idx_W0 = block_1d_id % W0;
@@ -119,7 +119,6 @@ struct GridwisePermute
     {
         constexpr index_t InBlockLdsExtraM = 0;
 
-        // A matrix in LDS memory, dst of blockwise copy
         return make_naive_tensor_descriptor(make_tuple(1, Number<HPerBlock>{}, Number<WPerBlock>{}),
                                             make_tuple(Number<WPerBlock + InBlockLdsExtraM>{},
                                                        Number<WPerBlock + InBlockLdsExtraM>{},
@@ -128,7 +127,6 @@ struct GridwisePermute
 
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
-        // LDS allocation for A and B: be careful of alignment
         constexpr auto in_block_desc = GetInBlockDesc();
 
         using InDataType = remove_cv_t<remove_pointer_t<InDataTypePointer>>;
