@@ -54,6 +54,8 @@ struct Block2TileMap
         const auto H0 = math::integer_divide_ceil(desc_.GetLength(Number<NumDim - 2>{}), HPerBlock);
         const auto W0 = math::integer_divide_ceil(desc_.GetLength(Number<NumDim - 1>{}), WPerBlock);
 
+        block_1d_id = block_1d_id % (H0 * W0);
+
         index_t idx_H0 = block_1d_id / W0;
         index_t idx_W0 = block_1d_id % W0;
 
