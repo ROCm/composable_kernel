@@ -169,6 +169,7 @@ struct GridwisePermute
     {
         constexpr index_t NumDim = InGridDesc::GetNumOfDimension();
 
+        // check if we only swap last 2 dimensions
         bool valid = true;
         static_for<0, NumDim - 2, 1>{}([&](auto I) {
             if(valid && in_grid_desc.GetLength(I) != out_grid_desc.GetLength(I))
