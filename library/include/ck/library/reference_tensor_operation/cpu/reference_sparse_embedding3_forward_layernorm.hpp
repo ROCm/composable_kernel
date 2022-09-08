@@ -90,7 +90,10 @@ struct ReferenceSparseEmbedding3ForwardLayernorm : public device::BaseOperator
                 IndexType idx_b = arg.index_b_(idx);
                 IndexType idx_c = arg.index_c_(idx);
 
-                assert((idx_a < E) && (idx_b < E) && (idx_c < E));
+                if(!((idx_a < E) && (idx_b < E) && (idx_c < E)))
+                {
+                    throw(std::runtime_error("wrong! out of range");
+                }
 
                 for(auto d = 0; d < D; d++)
                 {
