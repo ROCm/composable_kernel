@@ -235,7 +235,27 @@ struct DevicePermute
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        return GridwisePermute::CheckValidity(arg.in_grid_desc_, arg.out_grid_desc_);
+        constexpr auto IsScalarPerVectorValid = [](const std::array<index_t, NumDim>& lengths,
+                                                   const std::array<index_t, NumDim>& strides,
+                                                   index_t vectorDim,
+                                                   index_t scalarPerVector) {
+            if(strides[vectorDim] == 1 && lengths[vectorDim] % scalarPerVector == 0)
+            {
+                return true;
+            }
+            else if(strides[vectorDim] != 1 && scalarPerVector == 1)
+            {
+                return true;
+            }
+
+            return false;
+        };
+
+        return IsScalarPerVectorValid(
+                   arg.inLengths_, arg.inStrides_, SrcVectorDim, SrcScalarPerVector) &&
+               IsScalarPerVectorValid(
+                   arg.outLengths_, arg.outStrides_, DstVectorDim, DstScalarPerVector) &&
+               GridwisePermute::CheckValidity(arg.in_grid_desc_, arg.out_grid_desc_);
     };
 };
 
