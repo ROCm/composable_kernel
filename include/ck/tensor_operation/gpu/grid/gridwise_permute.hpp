@@ -104,7 +104,8 @@ template <typename InGridDesc,
           index_t OutScalarPerVector>
 struct GridwisePermute
 {
-    static_assert(InGridDesc::GetNumOfDimension() == 3 && OutGridDesc::GetNumOfDimension() == 3);
+    static_assert(InGridDesc::GetNumOfDimension() == OutGridDesc::GetNumOfDimension());
+    static_assert(3 <= InGridDesc::GetNumOfDimension());
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
