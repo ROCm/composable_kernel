@@ -99,6 +99,7 @@ template <typename InGridDesc,
           index_t NPerBlock,
           index_t HPerBlock,
           index_t WPerBlock,
+          index_t InBlockLdsExtraW,
           index_t InScalarPerVector,
           index_t OutScalarPerVector>
 struct GridwisePermute
@@ -117,11 +118,9 @@ struct GridwisePermute
 
     __host__ __device__ static constexpr auto GetInBlockDesc()
     {
-        constexpr index_t InBlockLdsExtraM = 0;
-
         return make_naive_tensor_descriptor(make_tuple(1, Number<HPerBlock>{}, Number<WPerBlock>{}),
-                                            make_tuple(Number<WPerBlock + InBlockLdsExtraM>{},
-                                                       Number<WPerBlock + InBlockLdsExtraM>{},
+                                            make_tuple(Number<WPerBlock + InBlockLdsExtraW>{},
+                                                       Number<WPerBlock + InBlockLdsExtraW>{},
                                                        I1));
     }
 

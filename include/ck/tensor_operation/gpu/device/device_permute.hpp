@@ -82,6 +82,7 @@ template <typename InDataType,
           index_t NPerBlock,
           index_t HPerBlock,
           index_t WPerBlock,
+          index_t InBlockLdsExtraW,
           index_t InScalarPerVector,
           index_t OutScalarPerVector>
 struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
@@ -92,6 +93,7 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
                                                                NPerBlock,
                                                                HPerBlock,
                                                                WPerBlock,
+                                                               InBlockLdsExtraW,
                                                                InScalarPerVector,
                                                                OutScalarPerVector>>
 {
@@ -147,6 +149,7 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
                                             NPerBlock,
                                             HPerBlock,
                                             WPerBlock,
+                                            InBlockLdsExtraW,
                                             InScalarPerVector,
                                             OutScalarPerVector>;
 
