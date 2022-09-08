@@ -181,15 +181,8 @@ struct GridwisePermute
                                const ElementwiseOperation elementwise_op,
                                const Block2TileMap& block_2_tile_map)
     {
-        // const index_t thread_global_id = get_thread_global_id();
-
-        using InDataType = remove_cv_t<remove_pointer_t<InDataTypePointer>>;
-        // auto in_thread_buf = StaticBuffer<AddressSpaceEnum::Vgpr, InDataType, MPerThread,
-        // true>{};
-
+        using InDataType  = remove_cv_t<remove_pointer_t<InDataTypePointer>>;
         using OutDataType = remove_cv_t<remove_pointer_t<OutDataTypePointer>>;
-        // auto out_thread_buf = StaticBuffer<AddressSpaceEnum::Vgpr, OutDataType, MPerThread,
-        // true>{};
 
         auto in_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_in_global, in_grid_desc.GetElementSpaceSize());
@@ -197,45 +190,22 @@ struct GridwisePermute
         auto out_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_out_global, out_grid_desc.GetElementSpaceSize());
 
-        // const auto thread_global_offset = make_multi_index(thread_global_id * MPerThread);
-
-        // const index_t blockSize    = get_block_size();
-        // const index_t blockPerGrid = get_grid_size();
-        // const auto M               = in_grid_desc.GetLength(I0);
-        // const index_t loop_step    = blockPerGrid * blockSize * MPerThread;
         const auto loop_step_index = make_multi_index(1, 0, 0);
 
         const auto block_work_idx =
             block_2_tile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
 
-        // constexpr auto max_lds_align = 1;
-
-        // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t h_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I0] * HPerBlock);
 
         const index_t w_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I1] * WPerBlock);
 
-        // const index_t n_block_data_idx_on_grid =
-        //     __builtin_amdgcn_readfirstlane(block_work_idx[I1] * NPerBlock);
-
-        // A matrix in LDS memory, dst of blockwise copy
+        // Input slice in LDS memory, dst of blockwise copy
         constexpr auto a_block_desc_ak0_m_ak1 = GetInBlockDescriptor();
-
-        // // B matrix in LDS memory, dst of blockwise copy
-        // constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
-
-        // LDS allocation for A and B: be careful of alignment
-        // constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
-        //     a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<InDataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
-
-        // auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-        //     static_cast<ABDataType*>(p_shared) + a_block_space_size_aligned,
-        //     b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         using SliceLengths                                 = Sequence<1, HPerBlock, WPerBlock>;
         using ABlockTransferThreadClusterLengths           = Sequence<1, 16, BlockSize / 16>;
