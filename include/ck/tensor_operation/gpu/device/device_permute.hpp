@@ -99,9 +99,6 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
 {
     static_assert(3 <= NumDim, "Only accept at least 3D dimension tensor");
 
-    using InDataTypePointer  = const InDataType*;
-    using OutDataTypePointer = OutDataType*;
-
     template <index_t N = NumDim>
     static auto ConvertArrayToTuple(const std::array<index_t, NumDim>& array)
     {
@@ -142,8 +139,8 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
 
     using GridwisePermute = GridwisePermute<InGridDesc,
                                             OutGridDesc,
-                                            InDataTypePointer,
-                                            OutDataTypePointer,
+                                            InDataType,
+                                            OutDataType,
                                             ElementwiseOperation,
                                             BlockSize,
                                             NPerBlock,
@@ -162,8 +159,8 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
                  const void* in_dev_buffer,
                  void* out_dev_buffer,
                  ElementwiseOperation elementwise_op)
-            : in_dev_buffer_(static_cast<InDataTypePointer>(in_dev_buffer)),
-              out_dev_buffer_(static_cast<OutDataTypePointer>(out_dev_buffer)),
+            : in_dev_buffer_(static_cast<const InDataType*>(in_dev_buffer)),
+              out_dev_buffer_(static_cast<OutDataType*>(out_dev_buffer)),
               in_grid_desc_(MakeDescriptor_N_H_W(inLengths, inStrides)),
               out_grid_desc_(MakeDescriptor_N_H_W(inLengths, inStrides)),
               inLengths_(inLengths),
@@ -175,8 +172,8 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
         {
         }
 
-        InDataTypePointer in_dev_buffer_;
-        OutDataTypePointer out_dev_buffer_;
+        const InDataType* in_dev_buffer_;
+        OutDataType* out_dev_buffer_;
         InGridDesc in_grid_desc_;
         OutGridDesc out_grid_desc_;
 
@@ -199,8 +196,8 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
             const auto kernel = kernel_nd_permute<GridwisePermute,
                                                   InGridDesc,
                                                   OutGridDesc,
-                                                  InDataTypePointer,
-                                                  OutDataTypePointer,
+                                                  InDataType,
+                                                  OutDataType,
                                                   ElementwiseOperation,
                                                   typename GridwisePermute::DefaultBlock2TileMap>;
 

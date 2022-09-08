@@ -68,14 +68,14 @@ struct Block2TileMap
 template <typename GridwisePermute,
           typename InGridDesc,
           typename OutGridDesc,
-          typename InDataTypePointer,
-          typename OutDataTypePointer,
+          typename InDataType,
+          typename OutDataType,
           typename ElementwiseOperation,
           typename Block2TileMap>
 __global__ void kernel_nd_permute(const InGridDesc in_grid_desc,
                                   const OutGridDesc out_grid_desc,
-                                  const InDataTypePointer p_in_global,
-                                  const OutDataTypePointer p_out_global,
+                                  const InDataType* p_in_global,
+                                  OutDataType* p_out_global,
                                   const ElementwiseOperation elementwise_op,
                                   const Block2TileMap block_2_tile_map)
 {
@@ -92,8 +92,8 @@ __global__ void kernel_nd_permute(const InGridDesc in_grid_desc,
 
 template <typename InGridDesc,
           typename OutGridDesc,
-          typename InDataTypePointer,
-          typename OutDataTypePointer,
+          typename InDataType,
+          typename OutDataType,
           typename ElementwiseOperation,
           index_t BlockSize,
           index_t NPerBlock,
@@ -129,8 +129,6 @@ struct GridwisePermute
     {
         constexpr auto in_block_desc = GetInBlockDesc();
 
-        using InDataType = remove_cv_t<remove_pointer_t<InDataTypePointer>>;
-
         return in_block_desc.GetElementSpaceSize() * sizeof(InDataType);
     }
 
@@ -142,15 +140,12 @@ struct GridwisePermute
     template <typename Block2TileMap>
     __device__ static void Run(const InGridDesc in_grid_desc,
                                const OutGridDesc out_grid_desc,
-                               const InDataTypePointer p_in_global,
-                               const OutDataTypePointer p_out_global,
+                               const InDataType* p_in_global,
+                               OutDataType* p_out_global,
                                void* __restrict__ p_shared,
                                const ElementwiseOperation elementwise_op,
                                const Block2TileMap& block_2_tile_map)
     {
-        using InDataType  = remove_cv_t<remove_pointer_t<InDataTypePointer>>;
-        using OutDataType = remove_cv_t<remove_pointer_t<OutDataTypePointer>>;
-
         auto in_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_in_global, in_grid_desc.GetElementSpaceSize());
 
