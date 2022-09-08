@@ -221,8 +221,7 @@ struct GridwisePermute
 
         constexpr index_t SrcVectorDimAfterMerge =
             SrcVectorDim - (InGridDesc::GetNumOfDimension() - 3);
-        constexpr index_t DstVectorDimAfterMerge =
-            DstVectorDim - (OutGridDesc::GetNumOfDimension() - 3);
+        constexpr index_t DstVectorDimAfterMerge = SrcVectorDimAfterMerge;
 
         using ck::tensor_operation::element_wise::PassThrough;
 
