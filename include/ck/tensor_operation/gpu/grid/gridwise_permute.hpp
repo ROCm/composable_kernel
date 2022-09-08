@@ -204,13 +204,13 @@ struct GridwisePermute
         auto in_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<InDataType*>(p_shared), in_block_desc.GetElementSpaceSize());
 
-        using SliceLengths              = Sequence<1, HPerBlock, WPerBlock>;
-        using ABlockTransferAccessOrder = Sequence<0, 1, 2>;
+        using BlockSliceLengths          = Sequence<1, HPerBlock, WPerBlock>;
+        using InBlockTransferAccessOrder = Sequence<0, 1, 2>;
 
-        constexpr index_t ABlockTransferSrcVectorDim       = 2;
-        constexpr index_t ABlockTransferDstVectorDim       = 1;
-        constexpr index_t ABlockTransferSrcScalarPerVector = 1;
-        constexpr index_t ABlockTransferDstScalarPerVector = 1;
+        constexpr index_t SrcVectorDim       = 2;
+        constexpr index_t DstVectorDim       = 1;
+        constexpr index_t SrcScalarPerVector = 1;
+        constexpr index_t DstScalarPerVector = 1;
 
         using ck::tensor_operation::element_wise::PassThrough;
 
@@ -221,19 +221,19 @@ struct GridwisePermute
                                                 ElementwiseOperation,
                                                 PassThrough,
                                                 InMemoryDataOperationEnum::Set,
-                                                SliceLengths,
+                                                BlockSliceLengths,
                                                 InBlockTransferThreadClusterLengths,
                                                 InBlockTransferThreadClusterArrangeOrder,
                                                 InDataType,
                                                 InDataType,
                                                 decltype(in_grid_desc_n_h_w),
                                                 decltype(in_block_desc),
-                                                ABlockTransferAccessOrder,
-                                                ABlockTransferAccessOrder,
-                                                ABlockTransferSrcVectorDim,
-                                                ABlockTransferSrcVectorDim,
-                                                ABlockTransferSrcScalarPerVector,
-                                                ABlockTransferSrcScalarPerVector,
+                                                InBlockTransferAccessOrder,
+                                                InBlockTransferAccessOrder,
+                                                SrcVectorDim,
+                                                SrcVectorDim,
+                                                SrcScalarPerVector,
+                                                SrcScalarPerVector,
                                                 1,
                                                 1,
                                                 true,
@@ -260,19 +260,19 @@ struct GridwisePermute
                                                 ElementwiseOperation,
                                                 PassThrough,
                                                 InMemoryDataOperationEnum::Set,
-                                                SliceLengths,
+                                                BlockSliceLengths,
                                                 InBlockTransferThreadClusterLengths,
                                                 InBlockTransferThreadClusterArrangeOrder,
                                                 InDataType,
                                                 OutDataType,
                                                 decltype(in_block_desc),
                                                 decltype(out_grid_desc_n_h_w),
-                                                ABlockTransferAccessOrder,
-                                                ABlockTransferAccessOrder,
-                                                ABlockTransferSrcVectorDim,
-                                                ABlockTransferDstVectorDim,
-                                                ABlockTransferSrcScalarPerVector,
-                                                ABlockTransferDstScalarPerVector,
+                                                InBlockTransferAccessOrder,
+                                                InBlockTransferAccessOrder,
+                                                SrcVectorDim,
+                                                DstVectorDim,
+                                                SrcScalarPerVector,
+                                                DstScalarPerVector,
                                                 1,
                                                 1,
                                                 true,
