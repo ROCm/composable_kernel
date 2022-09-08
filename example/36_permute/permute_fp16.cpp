@@ -8,11 +8,11 @@ using BDataType = F16;
 
 // clang-format off
 using DevicePermuteInstance = ck::tensor_operation::device::DevicePermute
-// ######|    InData|   OutData| Elementwise| NumDim| Block|  NPer|  HPer|  WPer|MPerThread|  InScalar| OutScalar|
-// ######|      Type|      Type|   Operation|       |  Size| Block| Block| Block|          | PerVector| PerVector|
-// ######|          |          |            |       |      |      |      |      |          |          |          |
-// ######|          |          |            |       |      |      |      |      |          |          |          |
-         < ADataType, BDataType, PassThrough,      4,   256,   128,   128,   128,         8,         8,         1>;
+// ######|    InData|   OutData| Elementwise| NumDim| Block|  NPer|  HPer|  WPer|   InBlock|      InBlockTransfer|           InBlockTransfer|       Src|       Dst|             Src|             Dst|
+// ######|      Type|      Type|   Operation|       |  Size| Block| Block| Block| LdsExtraW| ThreadClusterLengths| ThreadClusterArrangeOrder| VectorDim| VectorDim| ScalarPerVector| ScalarPerVector|
+// ######|          |          |            |       |      |      |      |      |          |                     |                          |          |          |                |                |
+// ######|          |          |            |       |      |      |      |      |          |                     |                          |          |          |                |                |
+         < ADataType, BDataType, PassThrough,      4,   256,   128,   128,   128,         0,         S<1, 16, 16>,                S<0, 1, 2>,         3,         2,               1,               1>;
 // clang-format on
 
 #include "run_permute_example.inc"
