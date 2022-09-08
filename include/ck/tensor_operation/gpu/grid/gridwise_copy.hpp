@@ -63,10 +63,14 @@ struct Block2TileMap
         });
 
         std::array<index_t, NumDim> divisors;
-        std::partial_sum(rbegin(num_tiles_per_axis),
-                         rend(num_tiles_per_axis),
-                         rbegin(divisors),
-                         std::multiplies<index_t>{});
+        index_t product = 1;
+        auto divisor    = rbegin(divisors);
+        for(auto num_tiles = rbegin(num_tiles_per_axis); num_tiles != rend(num_tiles_per_axis);
+            ++num_tiles)
+        {
+            product *= (*num_tiles);
+            *(divisor++) = product;
+        }
 
         const index_t grid_size = divisors.front();
         block_1d_id             = block_1d_id % grid_size; // swallow batch index
@@ -83,7 +87,7 @@ struct Block2TileMap
 };
 } // namespace detail
 
-template <typename GridwiseCopyFunctor,
+template <typename GridwiseCopy,
           typename InGrid1dDesc,
           typename OutGrid1dDesc,
           typename InDataTypePointer,
@@ -97,12 +101,15 @@ __global__ void kernel_nd_copy(const InGrid1dDesc in_grid_1d_desc,
                                const ElementwiseOperation elementwise_op,
                                const Block2TileMap block_2_tile_map)
 {
-    GridwiseCopyFunctor::Run(in_grid_1d_desc,
-                             out_grid_1d_desc,
-                             p_in_global,
-                             p_out_global,
-                             elementwise_op,
-                             block_2_tile_map);
+    __shared__ char p_shared[GridwiseCopy::GetSharedMemoryNumberOfByte()];
+
+    GridwiseCopy::Run(in_grid_1d_desc,
+                      out_grid_1d_desc,
+                      p_in_global,
+                      p_out_global,
+                      p_shared,
+                      elementwise_op,
+                      block_2_tile_map);
 }
 
 template <typename InGrid1dDesc,
@@ -140,11 +147,26 @@ struct GridwiseCopy
         constexpr index_t ABlockLdsExtraM = 0;
 
         // A matrix in LDS memory, dst of blockwise copy
-        return make_naive_tensor_descriptor(
-            make_tuple(Number<NPerBlock>{}, Number<HPerBlock>{}, Number<WPerBlock>{}),
-            make_tuple(Number<NPerBlock + ABlockLdsExtraM>{} * Number<HPerBlock>{},
-                       Number<HPerBlock>{},
-                       I1));
+        return make_naive_tensor_descriptor(make_tuple(1, Number<HPerBlock>{}, Number<WPerBlock>{}),
+                                            make_tuple(Number<WPerBlock + ABlockLdsExtraM>{},
+                                                       Number<WPerBlock + ABlockLdsExtraM>{},
+                                                       I1));
+    }
+
+    __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
+    {
+        // LDS allocation for A and B: be careful of alignment
+        constexpr auto a_block_desc_ak0_m_ak1 = GetInBlockDescriptor();
+
+        using InDataType = remove_cv_t<remove_pointer_t<InDataTypePointer>>;
+
+        // lds max alignment
+        constexpr auto max_lds_align = 1;
+
+        constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
+
+        return a_block_space_size_aligned * sizeof(InDataType);
     }
 
     __host__ __device__ static constexpr auto MakeDefaultBlock2TileMap(const InGrid1dDesc& desc)
@@ -157,30 +179,33 @@ struct GridwiseCopy
                                const OutGrid1dDesc out_grid_1d_desc,
                                const InDataTypePointer p_in_global,
                                const OutDataTypePointer p_out_global,
+                               void* __restrict__ p_shared,
                                const ElementwiseOperation elementwise_op,
                                const Block2TileMap& block_2_tile_map)
     {
-        const index_t thread_global_id = get_thread_global_1d_id();
+        // const index_t thread_global_id = get_thread_global_1d_id();
 
-        using InDataType   = remove_cv_t<remove_pointer_t<InDataTypePointer>>;
-        auto in_thread_buf = StaticBuffer<AddressSpaceEnum::Vgpr, InDataType, MPerThread, true>{};
+        using InDataType = remove_cv_t<remove_pointer_t<InDataTypePointer>>;
+        // auto in_thread_buf = StaticBuffer<AddressSpaceEnum::Vgpr, InDataType, MPerThread,
+        // true>{};
 
-        using OutDataType   = remove_cv_t<remove_pointer_t<OutDataTypePointer>>;
-        auto out_thread_buf = StaticBuffer<AddressSpaceEnum::Vgpr, OutDataType, MPerThread, true>{};
+        using OutDataType = remove_cv_t<remove_pointer_t<OutDataTypePointer>>;
+        // auto out_thread_buf = StaticBuffer<AddressSpaceEnum::Vgpr, OutDataType, MPerThread,
+        // true>{};
 
         auto in_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_in_global, in_grid_1d_desc.GetElementSpaceSize());
 
-        auto out_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_out_global, out_grid_1d_desc.GetElementSpaceSize());
+        // auto out_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        //     p_out_global, out_grid_1d_desc.GetElementSpaceSize());
 
-        const auto thread_global_offset = make_multi_index(thread_global_id * MPerThread);
+        // const auto thread_global_offset = make_multi_index(thread_global_id * MPerThread);
 
-        const index_t blockSize    = get_block_size();
-        const index_t blockPerGrid = get_grid_size();
-        const auto M               = in_grid_1d_desc.GetLength(I0);
-        const index_t loop_step    = blockPerGrid * blockSize * MPerThread;
-        const auto loop_step_index = make_multi_index(loop_step);
+        // const index_t blockSize    = get_block_size();
+        // const index_t blockPerGrid = get_grid_size();
+        // const auto M               = in_grid_1d_desc.GetLength(I0);
+        // const index_t loop_step    = blockPerGrid * blockSize * MPerThread;
+        const auto loop_step_index = make_multi_index(1, 0, 0);
 
 #if 0
         auto in_global_load =
@@ -198,9 +223,14 @@ struct GridwiseCopy
         const auto block_work_idx =
             block_2_tile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
 
+        // constexpr auto max_lds_align = 1;
+
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
-        const index_t m_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_work_idx[I0] * NPerBlock * HPerBlock);
+        const index_t h_block_data_idx_on_grid =
+            __builtin_amdgcn_readfirstlane(block_work_idx[I0] * HPerBlock);
+
+        const index_t w_block_data_idx_on_grid =
+            __builtin_amdgcn_readfirstlane(block_work_idx[I1] * WPerBlock);
 
         // const index_t n_block_data_idx_on_grid =
         //     __builtin_amdgcn_readfirstlane(block_work_idx[I1] * NPerBlock);
@@ -211,12 +241,25 @@ struct GridwiseCopy
         // // B matrix in LDS memory, dst of blockwise copy
         // constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
 
+        // LDS allocation for A and B: be careful of alignment
+        // constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
+        //     a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
+
+        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+            static_cast<InDataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+
+        // auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+        //     static_cast<ABDataType*>(p_shared) + a_block_space_size_aligned,
+        //     b_block_desc_bk0_n_bk1.GetElementSpaceSize());
+
         using SliceLengths = Sequence<NPerBlock, HPerBlock, WPerBlock>;
         using ABlockTransferThreadClusterLengths_AK0_M_AK1 = Sequence<4, 64, 1>;
-        using ABlockTransferThreadClusterArrangeOrder      = Sequence<1, 0, 2>;
-        using ABlockTransferSrcAccessOrder                 = Sequence<1, 0, 2>;
+        using ABlockTransferThreadClusterArrangeOrder      = Sequence<0, 1, 2>;
+        using ABlockTransferSrcAccessOrder                 = Sequence<0, 1, 2>;
+        using ABlockTransferDstAccessOrder                 = Sequence<0, 1, 2>;
         constexpr index_t ABlockTransferSrcVectorDim       = 2;
         constexpr index_t ABlockTransferSrcScalarPerVector = 1;
+        constexpr index_t ABlockTransferDstVectorDim       = 2;
         constexpr index_t ABlockTransferDstScalarPerVector = 1;
 
         auto in_global_load =
@@ -232,9 +275,9 @@ struct GridwiseCopy
                                                 decltype(in_grid_1d_desc),
                                                 decltype(a_block_desc_ak0_m_ak1),
                                                 ABlockTransferSrcAccessOrder,
-                                                Sequence<1, 0, 2>,
+                                                ABlockTransferDstAccessOrder,
                                                 ABlockTransferSrcVectorDim,
-                                                2,
+                                                ABlockTransferDstVectorDim,
                                                 ABlockTransferSrcScalarPerVector,
                                                 ABlockTransferDstScalarPerVector,
                                                 1,
@@ -242,55 +285,42 @@ struct GridwiseCopy
                                                 true,
                                                 true>(
                 in_grid_1d_desc,
-                make_multi_index(0, m_block_data_idx_on_grid, 0),
+                make_multi_index(0, h_block_data_idx_on_grid, w_block_data_idx_on_grid),
                 elementwise_op,
                 a_block_desc_ak0_m_ak1,
                 make_multi_index(0, 0, 0),
                 ck::tensor_operation::element_wise::PassThrough{});
 #endif
-        auto out_global_store =
-            ThreadwiseTensorSliceTransfer_v1r3<OutDataType,
-                                               OutDataType,
-                                               decltype(thread_buffer_desc_m),
-                                               decltype(out_grid_1d_desc),
-                                               PassThroughOp,
-                                               SliceLengths,      // SliceLengths
-                                               Sequence<1, 0, 2>, // DimAccessOrder
-                                               0,                 // SrcVectorDim
-                                               OutScalarPerVector,
-                                               InMemoryDataOperationEnum::Set,
-                                               1,
-                                               false>(
-                out_grid_1d_desc, thread_global_offset, PassThroughOp{});
+        // auto out_global_store =
+        //     ThreadwiseTensorSliceTransfer_v1r3<OutDataType,
+        //                                        OutDataType,
+        //                                        decltype(thread_buffer_desc_m),
+        //                                        decltype(out_grid_1d_desc),
+        //                                        PassThroughOp,
+        //                                        SliceLengths,      // SliceLengths
+        //                                        Sequence<1, 0, 2>, // DimAccessOrder
+        //                                        0,                 // SrcVectorDim
+        //                                        OutScalarPerVector,
+        //                                        InMemoryDataOperationEnum::Set,
+        //                                        1,
+        //                                        false>(
+        //         out_grid_1d_desc, thread_global_offset, PassThroughOp{});
 
-        index_t num_iter = M / (loop_step);
+        index_t num_iter = in_grid_1d_desc.GetLength(I0);
         do
         {
-            in_global_load.Run(in_grid_1d_desc,
-                               in_global_buf,
-                               thread_buffer_desc_m,
-                               make_tuple(I0),
-                               in_thread_buf);
+            // in_global_load.Run(
+            //     in_grid_1d_desc, in_global_buf, a_block_desc_ak0_m_ak1, a_block_buf, I0);
 
-            in_global_load.MoveSrcSliceWindow(in_grid_1d_desc, loop_step_index);
+            // in_global_load.MoveSrcSliceWindow(in_grid_1d_desc, loop_step_index);
 
-            static_for<0, MPerThread, 1>{}([&](auto iM) {
-                // get reference to in data
-                const auto& in_data_ref = in_thread_buf(iM);
-
-                // get reference to dst data
-                auto& out_data_ref = out_thread_buf(iM);
-
-                elementwise_op(out_data_ref, in_data_ref);
-            });
-
-            out_global_store.Run(thread_buffer_desc_m,
-                                 make_tuple(I0),
-                                 out_thread_buf,
-                                 out_grid_1d_desc,
-                                 out_global_buf);
-
-            out_global_store.MoveDstSliceWindow(out_grid_1d_desc, loop_step_index);
+            // out_global_store.Run(thread_buffer_desc_m,
+            //                      make_tuple(I0),
+            //                      out_thread_buf,
+            //                      out_grid_1d_desc,
+            //                      out_global_buf);
+            //
+            // out_global_store.MoveDstSliceWindow(out_grid_1d_desc, loop_step_index);
         } while(--num_iter);
     }
 };
