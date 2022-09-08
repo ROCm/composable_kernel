@@ -249,6 +249,8 @@ struct GridwiseWelfordSecondHalfBatchNormForwardFinal
         constexpr auto mean_var_count_thread_copy_step_m_k =
             make_multi_index(0, KThreadClusterSize * 1);
 
+        // Step 1: do final welford reduction to get mean and variance
+
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
             welford_mean_thread_buf(I)  = type_convert<AccDataType>(0.0f);
             welford_var_thread_buf(I)   = type_convert<AccDataType>(0.0f);
@@ -296,6 +298,8 @@ struct GridwiseWelfordSecondHalfBatchNormForwardFinal
             BlockwiseWelford::Run(
                 welford_mean_thread_buf(I), welford_var_thread_buf(I), welford_count_thread_buf(I));
         });
+
+        // Step 2: do normalization and output y
 
         const index_t workSizePerBlock = K_BlockTileSize * num_xy_k_block_tile_iteration;
 
@@ -406,6 +410,8 @@ struct GridwiseWelfordSecondHalfBatchNormForwardFinal
             threadwise_y_store.MoveDstSliceWindow(y_grid_desc_m_k, xy_thread_copy_step_m_k);
         }
 
+        // Step 3: update the moving average of mean and variance (optional)
+
         if(updateMovingAverage && block_local_id == 0 && thread_k_cluster_id == 0)
         {
             StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true>
@@ -485,6 +491,8 @@ struct GridwiseWelfordSecondHalfBatchNormForwardFinal
                                           mean_var_grid_desc_m,
                                           running_var_global_buf);
         };
+
+        // Step 4: save mean and inv-variance (optional)
 
         if(saveMeanInvVariance && block_local_id == 0 && thread_k_cluster_id == 0)
         {

@@ -256,8 +256,6 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
                 make_multi_index(block_global_id * M_BlockTileSize +
                                  thread_m_cluster_id * MThreadSliceSize));
 
-        // Copy x from Cache
-        // one pass: fwd, second pass: bwd
         constexpr auto thread_copy_fwd_step_m_k = make_multi_index(0, K_BlockTileSize);
         constexpr auto thread_copy_bwd_step_m_k = make_multi_index(0, -K_BlockTileSize);
 
@@ -272,6 +270,8 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
 
         auto y_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_y, y_grid_desc_m_k.GetElementSpaceSize());
+
+        // Step 1:  do welford reduction to get mean and variance
 
         auto threadwise_welford       = ThreadwiseWelford();
         threadwise_welford.max_count_ = get_reduce_count_per_thread(thread_k_cluster_id);
@@ -301,6 +301,8 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
             int count = threadwise_welford.cur_count_;
             BlockwiseWelford::Run(mean_thread_buf(I), var_thread_buf(I), count);
         });
+
+        // Step 2: do normalization and output y
 
         threadwise_scale_bias_load.Run(scale_bias_grid_desc_m,
                                        scale_global_val_buf,
@@ -363,6 +365,8 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
             threadwise_x_load.MoveSrcSliceWindow(x_grid_desc_m_k, thread_copy_bwd_step_m_k);
             threadwise_y_store.MoveDstSliceWindow(y_grid_desc_m_k, thread_copy_bwd_step_m_k);
         }
+
+        // Step 3: update the moving average of mean and variance (optional)
 
         if(updateMovingAverage && thread_k_cluster_id == 0)
         {
@@ -443,6 +447,8 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
                                           mean_var_grid_desc_m,
                                           running_var_global_buf);
         };
+
+        // Step 4: save mean and inv-variance (optional)
 
         if(saveMeanInvVariance && thread_k_cluster_id == 0)
         {
