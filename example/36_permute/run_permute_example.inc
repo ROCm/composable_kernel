@@ -14,7 +14,7 @@ bool run_permute(const ExecutionConfig& config, const Problem& problem)
     Tensor<ADataType> a(shape);
     Tensor<BDataType> b(transposed_shape);
 
-    std::iota(begin(a.mData), end(a.mData), 0);
+    std::iota(begin(a.mData), end(a.mData), 1);
 
     DeviceMem a_device_buf(sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
     DeviceMem b_device_buf(sizeof(BDataType) * b.mDesc.GetElementSpaceSize());
