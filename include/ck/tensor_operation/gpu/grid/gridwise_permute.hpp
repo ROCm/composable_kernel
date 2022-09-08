@@ -123,7 +123,6 @@ template <typename InGridDesc,
           index_t NPerBlock,
           index_t HPerBlock,
           index_t WPerBlock,
-          index_t MPerThread,
           index_t InScalarPerVector,
           index_t OutScalarPerVector>
 struct GridwisePermute

@@ -82,7 +82,6 @@ template <typename InDataType,
           index_t NPerBlock,
           index_t HPerBlock,
           index_t WPerBlock,
-          index_t MPerThread,
           index_t InScalarPerVector,
           index_t OutScalarPerVector>
 struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
@@ -93,7 +92,6 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
                                                                NPerBlock,
                                                                HPerBlock,
                                                                WPerBlock,
-                                                               MPerThread,
                                                                InScalarPerVector,
                                                                OutScalarPerVector>>
 {
@@ -149,7 +147,6 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
                                             NPerBlock,
                                             HPerBlock,
                                             WPerBlock,
-                                            MPerThread,
                                             InScalarPerVector,
                                             OutScalarPerVector>;
 
@@ -221,11 +218,6 @@ struct DevicePermute : detail::DevicePermuteBase<DevicePermute<InDataType,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(arg.inLengths_.back() % MPerThread != 0)
-        {
-            return false;
-        }
-
         // check if only swap last 2 dimensions
         if(!(std::equal(begin(arg.inLengths_),
                         std::prev(end(arg.inLengths_), 2),
