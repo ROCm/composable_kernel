@@ -19,7 +19,7 @@ def runShell(String command){
 }
 
 def getDockerImageName(){
-    def img = "${env.CK_IMAGE_URL}:new_composable_kernels_${params.COMPILER_VERSION}"
+    def img = "${env.CK_IMAGE_URL}:ck_ub20.04_rocm5.2.3_${params.COMPILER_VERSION}"
     return img
 }
 
