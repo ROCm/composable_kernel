@@ -16,7 +16,7 @@ add_subdirectory(batched_gemm)
 add_subdirectory(batched_gemm_reduce)
 add_subdirectory(batched_gemm_gemm)
 add_subdirectory(batched_gemm_softmax_gemm)
-add_subdirectory(batched_gemm_bias_gelu_gemm_bias)
+add_subdirectory(batched_gemm_add_relu_gemm_add)
 add_subdirectory(grouped_gemm)
 add_subdirectory(contraction_scale)
 add_subdirectory(contraction_bilinear)
@@ -43,7 +43,7 @@ add_library(device_operations STATIC
     $<TARGET_OBJECTS:device_gemm_add_add_fastgelu_instance>
     $<TARGET_OBJECTS:device_gemm_bias_add_reduce_instance>
     $<TARGET_OBJECTS:device_batched_gemm_instance>
-    $<TARGET_OBJECTS:device_batched_gemm_bias_gelu_gemm_bias_instance>
+    $<TARGET_OBJECTS:device_batched_gemm_add_relu_gemm_add_instance>
     $<TARGET_OBJECTS:device_batched_gemm_reduce_instance>
     $<TARGET_OBJECTS:device_grouped_gemm_instance>
     $<TARGET_OBJECTS:device_contraction_scale_instance>

@@ -20,23 +20,22 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_batched_gemm_bias_gelu_gemm_bias_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instance(
+void add_device_batched_gemm_add_relu_gemm_add_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instance(
     std::vector<std::unique_ptr<DeviceBatchedGemmMultipleDGemmMultipleD<Row,
                                                                         Col,
                                                                         ck::Tuple<Row>,
                                                                         Row,
-                                                                        Row,
                                                                         ck::Tuple<Row>,
+                                                                        Row,
                                                                         F16,
                                                                         F16,
                                                                         ck::Tuple<F16>,
                                                                         F16,
-                                                                        F16,
                                                                         ck::Tuple<F16>,
+                                                                        F16,
                                                                         PassThrough,
                                                                         PassThrough,
                                                                         CDE0ElementOp,
-                                                                        PassThrough,
                                                                         PassThrough,
                                                                         CDE1ElementOp>>>&
         instances);
@@ -45,31 +44,30 @@ template <typename A0Layout,
           typename B0Layout,
           typename D0sLayout,
           typename B1Layout,
-          typename C1Layout,
           typename D1sLayout,
+          typename E1Layout,
           typename A0DataType,
           typename B0DataType,
           typename D0sDataType,
           typename B1DataType,
-          typename C1DataType,
-          typename D1sDataType>
+          typename D1sDataType,
+          typename E1DataType>
 struct DeviceOperationInstanceFactory<
     ck::tensor_operation::device::DeviceBatchedGemmMultipleDGemmMultipleD<A0Layout,
                                                                           B0Layout,
                                                                           D0sLayout,
                                                                           B1Layout,
-                                                                          C1Layout,
                                                                           D1sLayout,
+                                                                          E1Layout,
                                                                           A0DataType,
                                                                           B0DataType,
                                                                           D0sDataType,
                                                                           B1DataType,
-                                                                          C1DataType,
                                                                           D1sDataType,
+                                                                          E1DataType,
                                                                           PassThrough,
                                                                           PassThrough,
                                                                           CDE0ElementOp,
-                                                                          PassThrough,
                                                                           PassThrough,
                                                                           CDE1ElementOp>>
 {
@@ -77,18 +75,17 @@ struct DeviceOperationInstanceFactory<
                                                              B0Layout,
                                                              D0sLayout,
                                                              B1Layout,
-                                                             C1Layout,
                                                              D1sLayout,
+                                                             E1Layout,
                                                              A0DataType,
                                                              B0DataType,
                                                              D0sDataType,
                                                              B1DataType,
-                                                             C1DataType,
                                                              D1sDataType,
+                                                             E1DataType,
                                                              PassThrough,
                                                              PassThrough,
                                                              CDE0ElementOp,
-                                                             PassThrough,
                                                              PassThrough,
                                                              CDE1ElementOp>;
 
@@ -97,12 +94,12 @@ struct DeviceOperationInstanceFactory<
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
         if constexpr(is_same_v<A0DataType, half_t> && is_same_v<B0DataType, half_t> &&
-                     is_same_v<B1DataType, half_t> && is_same_v<C1DataType, half_t>)
+                     is_same_v<B1DataType, half_t> && is_same_v<E1DataType, half_t>)
         {
             if constexpr(is_same_v<A0Layout, Row> && is_same_v<B0Layout, Col> &&
-                         is_same_v<B1Layout, Row> && is_same_v<C1Layout, Row>)
+                         is_same_v<B1Layout, Row> && is_same_v<E1Layout, Row>)
             {
-                add_device_batched_gemm_bias_gelu_gemm_bias_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instance(
+                add_device_batched_gemm_add_relu_gemm_add_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instance(
                     op_ptrs);
             }
         }

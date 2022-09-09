@@ -10,7 +10,7 @@ int profile_gemm_add_add_fastgelu(int, char*[]);
 int profile_gemm_reduce(int, char*[]);
 int profile_gemm_bias_add_reduce(int, char*[]);
 int profile_batched_gemm(int, char*[]);
-int profile_batched_gemm_bias_gelu_gemm_bias(int, char*[]);
+int profile_batched_gemm_add_relu_gemm_add(int, char*[]);
 int profile_batched_gemm_reduce(int, char*[]);
 int profile_grouped_gemm(int, char*[]);
 int profile_conv_fwd(int, char*[]);
@@ -33,7 +33,7 @@ static void print_helper_message()
            "                        gemm_reduce: GEMM+Reduce\n"
            "                        gemm_bias_add_reduce: GEMM+Bias+Add+Reduce\n"
            "                        batched_gemm: Batched GEMM\n"
-           "                        batched_gemm_bias_gelu_gemm_bias: Batched+GEMM+bias+gelu+GEMM+bias\n"
+           "                        batched_gemm_add_relu_gemm_add: Batched+GEMM+bias+gelu+GEMM+bias\n"
            "                        batched_gemm_reduce: Batched GEMM+Reduce\n"
            "                        grouped_gemm: Grouped GEMM\n"
            "                        conv_fwd: Convolution Forward\n"
@@ -54,6 +54,7 @@ int main(int argc, char* argv[])
 
         return 0;
     }
+#if 0
     else if(strcmp(argv[1], "gemm") == 0)
     {
         return profile_gemm(argc, argv);
@@ -82,10 +83,16 @@ int main(int argc, char* argv[])
     {
         return profile_batched_gemm(argc, argv);
     }
-    else if(strcmp(argv[1], "batched_gemm_bias_gelu_gemm_bias") == 0)
+#endif
+
+#if 1
+    else if(strcmp(argv[1], "batched_gemm_add_relu_gemm_add") == 0)
     {
-        return profile_batched_gemm_bias_gelu_gemm_bias(argc, argv);
+        return profile_batched_gemm_add_relu_gemm_add(argc, argv);
     }
+#endif
+
+#if 0
     else if(strcmp(argv[1], "batched_gemm_reduce") == 0)
     {
         return profile_batched_gemm_reduce(argc, argv);
@@ -130,6 +137,7 @@ int main(int argc, char* argv[])
     {
         return profile_layernorm(argc, argv);
     }
+#endif
     else
     {
         print_helper_message();

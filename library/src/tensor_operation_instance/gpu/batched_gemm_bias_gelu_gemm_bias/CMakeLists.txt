@@ -1,3 +1,0 @@
-add_instance_library(device_batched_gemm_bias_gelu_gemm_bias_instance
-    device_batched_gemm_bias_gelu_gemm_bias_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instance.cpp
-)
