@@ -8,7 +8,7 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/library/tensor_operation_instance/gpu/device_batched_gemm_multiple_d_gemm_multiple_d.hpp"
+#include "ck/library/tensor_operation_instance/gpu/batched_gemm_bias_gelu_gemm_bias.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
