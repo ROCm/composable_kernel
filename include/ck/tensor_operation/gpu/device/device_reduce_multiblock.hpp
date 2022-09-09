@@ -220,6 +220,19 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
               in_elementwise_op_{in_elementwise_op},
               acc_elementwise_op_{acc_elementwise_op}
         {
+            if(Rank != inLengths.size() || Rank != inStrides.size() ||
+               NumReduceDim != reduceDims.size())
+            {
+                throw std::runtime_error(
+                    "One of inLengths/inStrides/reduceDims has invalid size!"
+                    "\nExpected size inLengths: " +
+                    std::to_string(Rank) + ", inStrides: " + std::to_string(Rank) +
+                    ", reduceDims: " + std::to_string(NumReduceDim) +
+                    "\nBut have inLengths: " + std::to_string(inLengths.size()) +
+                    ", inStrides: " + std::to_string(inStrides.size()) +
+                    ", reduceDims: " + std::to_string(reduceDims.size()));
+            }
+
             inLengths_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inLengths, reduceDims);
             inStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inStrides, reduceDims);
 
