@@ -7,10 +7,8 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_batched_gemm_gemm.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-
-#include "ck/library/tensor_operation_instance/gpu/batched_gemm_bias_gelu_gemm_bias.hpp"
+#include "ck/library/tensor_operation_instance/gpu/device_batched_gemm_multiple_d_gemm_multiple_d.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -207,24 +205,25 @@ bool profile_batched_gemm_bias_gelu_gemm_bias_impl(bool do_verification,
     auto c1_element_op   = C1ElementOp{};
     auto cde1_element_op = CDE1ElementOp{};
 
-    using DeviceOp = tensor_operation::device::DeviceBatchedGemmBiasGeluGemmBias<A0Layout,
-                                                                                 B0Layout,
-                                                                                 D0sLayout,
-                                                                                 B1Layout,
-                                                                                 C1Layout,
-                                                                                 D1sLayout,
-                                                                                 A0DataType,
-                                                                                 B0DataType,
-                                                                                 D0sDataType,
-                                                                                 B1DataType,
-                                                                                 C1DataType,
-                                                                                 D1sDataType,
-                                                                                 A0ElementOp,
-                                                                                 B0ElementOp,
-                                                                                 CDE0ElementOp,
-                                                                                 A1ElementOp,
-                                                                                 B1ElementOp,
-                                                                                 CDE1ElementOp>;
+    using DeviceOp =
+        tensor_operation::device::DeviceBatchedGemmMultipleDGemmMultipleD<A0Layout,
+                                                                          B0Layout,
+                                                                          D0sLayout,
+                                                                          B1Layout,
+                                                                          C1Layout,
+                                                                          D1sLayout,
+                                                                          A0DataType,
+                                                                          B0DataType,
+                                                                          D0sDataType,
+                                                                          B1DataType,
+                                                                          C1DataType,
+                                                                          D1sDataType,
+                                                                          A0ElementOp,
+                                                                          B0ElementOp,
+                                                                          CDE0ElementOp,
+                                                                          A1ElementOp,
+                                                                          B1ElementOp,
+                                                                          CDE1ElementOp>;
 
     // get device op instances
     const auto op_ptrs = tensor_operation::device::instance::DeviceOperationInstanceFactory<
