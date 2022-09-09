@@ -79,7 +79,6 @@ template <typename InDataType,
           typename ElementwiseOperation,
           index_t NumDim,
           index_t BlockSize,
-          index_t NPerBlock,
           index_t HPerBlock,
           index_t WPerBlock,
           index_t InBlockLdsExtraW,
@@ -95,7 +94,6 @@ struct DevicePermute
                                               ElementwiseOperation,
                                               NumDim,
                                               BlockSize,
-                                              NPerBlock,
                                               HPerBlock,
                                               WPerBlock,
                                               InBlockLdsExtraW,
@@ -143,7 +141,7 @@ struct DevicePermute
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
         return PadTensorDescriptor(
-            desc_n_h_w, make_tuple(NPerBlock, HPerBlock, WPerBlock), Sequence<true, true, true>{});
+            desc_n_h_w, make_tuple(1, HPerBlock, WPerBlock), Sequence<false, true, true>{});
     }
 
     using InGridDesc  = decltype(MakeDescriptor_N_H_W({1, 1}, {1, 1}));
@@ -156,7 +154,6 @@ struct DevicePermute
         OutDataType,
         ElementwiseOperation,
         BlockSize,
-        NPerBlock,
         HPerBlock,
         WPerBlock,
         InBlockLdsExtraW,
