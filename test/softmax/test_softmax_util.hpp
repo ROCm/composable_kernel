@@ -108,9 +108,10 @@ class TestSoftmax : public ::testing::Test
 
         if(!device_instance.IsSupportedArgument(argument_ptr.get()))
         {
-            // std::cout << "Skipped due to unsupported argument: "
-            //           << "input lengths = [" << serialize_range(in_length) << "], "
-            //           << "scaler = [" << alpha << ", " << beta << "]." << std::endl;
+            std::cout << "Skipped due to unsupported argument: "
+                      << "input lengths = [" << serialize_range(in_length) << "], "
+                      << "scaler = [" << alpha << ", " << beta << "], "
+                      << "reduce dims = [" << serialize_range(reduce_dims) << "], " << std::endl;
             return;
         }
 
@@ -146,10 +147,6 @@ class TestSoftmax : public ::testing::Test
         {
             reduce_dims.resize(NumReduceDim);
             std::iota(reduce_dims.begin(), reduce_dims.end(), Rank - NumReduceDim);
-        }
-        else
-        {
-            EXPECT_EQ(reduce_dims.size(), NumReduceDim);
         }
 
         for(auto in_length : this->in_lengths_)
