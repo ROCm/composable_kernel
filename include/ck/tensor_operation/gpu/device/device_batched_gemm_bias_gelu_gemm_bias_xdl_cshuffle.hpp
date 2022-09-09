@@ -27,11 +27,10 @@ template <typename GridwiseGemm,
           typename DsPointer,
           typename A0ElementwiseOperation,
           typename B0ElementwiseOperation,
-          typename C0ElementwiseOperation,
-          typename D0ElementwiseOperation,
+          typename CDE0ElementwiseOperation,
+          typename A1ElementwiseOperation,
           typename B1ElementwiseOperation,
-          typename C1ElementwiseOperation,
-          typename D1ElementwiseOperation,
+          typename CDE1ElementwiseOperation,
           typename A0GridDesc_AK0_M_AK1,
           typename B0GridDesc_BK0_N_BK1,
           typename D0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
@@ -54,11 +53,10 @@ __global__ void
             DsPointer p_d1s_grid,
             const A0ElementwiseOperation a0_element_op,
             const B0ElementwiseOperation b0_element_op,
-            const C0ElementwiseOperation c0_element_op,
-            const D0ElementwiseOperation d0_element_op,
+            const CDE0ElementwiseOperation cde0_element_op,
+            const A1ElementwiseOperation a1_element_op,
             const B1ElementwiseOperation b1_element_op,
-            const C1ElementwiseOperation c1_element_op,
-            const D1ElementwiseOperation d1_element_op,
+            const CDE1ElementwiseOperation cde1_element_op,
             const A0GridDesc_AK0_M_AK1 a0_grid_desc_ak0_m_ak1,
             const B0GridDesc_BK0_N_BK1 b0_grid_desc_bk0_n_bk1,
             const D0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
@@ -108,11 +106,10 @@ __global__ void
         p_shared,
         a0_element_op,
         b0_element_op,
-        c0_element_op,
-        d0_element_op,
+        cde0_element_op,
+        a1_element_op,
         b1_element_op,
-        c1_element_op,
-        d1_element_op,
+        cde1_element_op,
         a0_grid_desc_ak0_m_ak1,
         b0_grid_desc_bk0_n_bk1,
         d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
@@ -129,11 +126,10 @@ __global__ void
     ignore = p_d1s_grid;
     ignore = a0_element_op;
     ignore = b0_element_op;
-    ignore = c0_element_op;
-    ignore = d0_element_op;
+    ignore = cde0_element_op;
+    ignore = a1_element_op;
     ignore = b1_element_op;
-    ignore = c1_element_op;
-    ignore = d1_element_op;
+    ignore = cde1_element_op;
     ignore = a0_grid_desc_ak0_m_ak1;
     ignore = b0_grid_desc_bk0_n_bk1;
     ignore = d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5;
@@ -166,11 +162,10 @@ template <typename A0Layout,
           typename D1sDataType,
           typename A0ElementwiseOperation,
           typename B0ElementwiseOperation,
-          typename C0ElementwiseOperation,
-          typename D0ElementwiseOperation,
+          typename CDE0ElementwiseOperation,
+          typename A1ElementwiseOperation,
           typename B1ElementwiseOperation,
-          typename C1ElementwiseOperation,
-          typename D1ElementwiseOperation,
+          typename CDE1ElementwiseOperation,
           bool PadGemm0M,
           bool PadGemm0N,
           bool PadGemm0K,
@@ -232,11 +227,10 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                                                D1sDataType,
                                                A0ElementwiseOperation,
                                                B0ElementwiseOperation,
-                                               C0ElementwiseOperation,
-                                               D0ElementwiseOperation,
+                                               CDE0ElementwiseOperation,
+                                               A1ElementwiseOperation,
                                                B1ElementwiseOperation,
-                                               C1ElementwiseOperation,
-                                               D1ElementwiseOperation>
+                                               CDE1ElementwiseOperation>
 {
     using DeviceOp = DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle;
 
@@ -461,11 +455,10 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
         D1sDataType,
         A0ElementwiseOperation,
         B0ElementwiseOperation,
-        C0ElementwiseOperation,
-        D0ElementwiseOperation,
+        CDE0ElementwiseOperation,
+        A1ElementwiseOperation,
         B1ElementwiseOperation,
-        C1ElementwiseOperation,
-        D1ElementwiseOperation,
+        CDE1ElementwiseOperation,
         InMemoryDataOperationEnum::Set,
         A0GridDesc_M_K,
         B0GridDesc_N_K,
@@ -553,11 +546,10 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                  std::array<index_t, NumD1Tensor> BatchStrideD1s,
                  A0ElementwiseOperation a0_element_op,
                  B0ElementwiseOperation b0_element_op,
-                 C0ElementwiseOperation c0_element_op,
-                 D0ElementwiseOperation d0_element_op,
+                 CDE0ElementwiseOperation cde0_element_op,
+                 A1ElementwiseOperation a1_element_op,
                  B1ElementwiseOperation b1_element_op,
-                 C1ElementwiseOperation c1_element_op,
-                 D1ElementwiseOperation d1_element_op)
+                 CDE1ElementwiseOperation cde1_element_op)
             : p_a0_grid_{p_a0_grid},
               p_b0_grid_{p_b0_grid},
               p_d0s_grid_{},
@@ -583,11 +575,10 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
               block_2_c1tile_map_{GridwiseGemm::MakeDefaultBlock2C1TileMap(c1_grid_desc_m_n_)},
               a0_element_op_{a0_element_op},
               b0_element_op_{b0_element_op},
-              c0_element_op_{c0_element_op},
-              d0_element_op_{d0_element_op},
+              cde0_element_op_{cde0_element_op},
+              a1_element_op_{a1_element_op},
               b1_element_op_{b1_element_op},
-              c1_element_op_{c1_element_op},
-              d1_element_op_{d1_element_op},
+              cde1_element_op_{cde1_element_op},
               batch_count_(Batch),
               compute_base_ptr_of_batch_{BatchStrideA0,
                                          BatchStrideB0,
@@ -698,11 +689,10 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
         // element-wise op
         A0ElementwiseOperation a0_element_op_;
         B0ElementwiseOperation b0_element_op_;
-        C0ElementwiseOperation c0_element_op_;
-        D0ElementwiseOperation d0_element_op_;
+        CDE0ElementwiseOperation cde0_element_op_;
+        A1ElementwiseOperation a1_element_op_;
         B1ElementwiseOperation b1_element_op_;
-        C1ElementwiseOperation c1_element_op_;
-        D1ElementwiseOperation d1_element_op_;
+        CDE1ElementwiseOperation cde1_element_op_;
 
         // batch
         index_t batch_count_;
@@ -740,11 +730,10 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                     typename GridwiseGemm::D1sGridPointer,
                     A0ElementwiseOperation,
                     B0ElementwiseOperation,
-                    C0ElementwiseOperation,
-                    D0ElementwiseOperation,
+                    CDE0ElementwiseOperation,
+                    A1ElementwiseOperation,
                     B1ElementwiseOperation,
-                    C1ElementwiseOperation,
-                    D1ElementwiseOperation,
+                    CDE1ElementwiseOperation,
                     DeviceOp::A0GridDesc_AK0_M_AK1,
                     DeviceOp::B0GridDesc_BK0_N_BK1,
                     typename GridwiseGemm::D0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5,
@@ -771,11 +760,10 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                     arg.p_d1s_grid_,
                     arg.a0_element_op_,
                     arg.b0_element_op_,
-                    arg.c0_element_op_,
-                    arg.d0_element_op_,
+                    arg.cde0_element_op_,
+                    arg.a1_element_op_,
                     arg.b1_element_op_,
-                    arg.c1_element_op_,
-                    arg.d1_element_op_,
+                    arg.cde1_element_op_,
                     arg.a0_grid_desc_ak0_m_ak1_,
                     arg.b0_grid_desc_bk0_n_bk1_,
                     arg.d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_,
@@ -858,18 +846,26 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                              std::array<index_t, NumD1Tensor> BatchStrideD1s,
                              A0ElementwiseOperation a0_element_op,
                              B0ElementwiseOperation b0_element_op,
-                             C0ElementwiseOperation c0_element_op,
-                             D0ElementwiseOperation d0_element_op,
+                             CDE0ElementwiseOperation cde0_element_op,
+                             A1ElementwiseOperation a1_element_op,
                              B1ElementwiseOperation b1_element_op,
-                             C1ElementwiseOperation c1_element_op,
-                             D1ElementwiseOperation d1_element_op)
+                             CDE1ElementwiseOperation cde1_element_op)
     {
-        return Argument{p_a0,          p_b0,          p_d0s,          p_b1,          p_c1,
-                        p_d1s,         MRaw,          NRaw,           KRaw,          Gemm1NRaw,
-                        Batch,         StrideA0,      StrideB0,       StrideD0s,     StrideB1,
-                        StrideC1,      StrideD1s,     BatchStrideA0,  BatchStrideB0, BatchStrideD0s,
-                        BatchStrideB1, BatchStrideC1, BatchStrideD1s, a0_element_op, b0_element_op,
-                        c0_element_op, d0_element_op, b1_element_op,  c1_element_op, d1_element_op};
+        return Argument{p_a0,           p_b0,
+                        p_d0s,          p_b1,
+                        p_c1,           p_d1s,
+                        MRaw,           NRaw,
+                        KRaw,           Gemm1NRaw,
+                        Batch,          StrideA0,
+                        StrideB0,       StrideD0s,
+                        StrideB1,       StrideC1,
+                        StrideD1s,      BatchStrideA0,
+                        BatchStrideB0,  BatchStrideD0s,
+                        BatchStrideB1,  BatchStrideC1,
+                        BatchStrideD1s, a0_element_op,
+                        b0_element_op,  cde0_element_op,
+                        a1_element_op,  b1_element_op,
+                        cde1_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -901,11 +897,10 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                         std::array<ck::index_t, NumD1Tensor> BatchStrideD1s,
                         A0ElementwiseOperation a0_element_op,
                         B0ElementwiseOperation b0_element_op,
-                        C0ElementwiseOperation c0_element_op,
-                        D0ElementwiseOperation d0_element_op,
+                        CDE0ElementwiseOperation cde0_element_op,
+                        A1ElementwiseOperation a1_element_op,
                         B1ElementwiseOperation b1_element_op,
-                        C1ElementwiseOperation c1_element_op,
-                        D1ElementwiseOperation d1_element_op) override
+                        CDE1ElementwiseOperation cde1_element_op) override
     {
         return std::make_unique<Argument>(static_cast<const A0DataType*>(p_a0),
                                           static_cast<const B0DataType*>(p_b0),
@@ -932,11 +927,10 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
                                           BatchStrideD1s,
                                           a0_element_op,
                                           b0_element_op,
-                                          c0_element_op,
-                                          d0_element_op,
+                                          cde0_element_op,
+                                          a1_element_op,
                                           b1_element_op,
-                                          c1_element_op,
-                                          d1_element_op);
+                                          cde1_element_op);
     }
 
     // polymorphic

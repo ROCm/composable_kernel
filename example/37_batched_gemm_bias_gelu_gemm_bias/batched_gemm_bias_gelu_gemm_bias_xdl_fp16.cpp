@@ -75,13 +75,14 @@ struct AddReluAdd
         e = (x > 0 ? x : 0) + ck::type_convert<const float>(d1);
     }
 };
-using A0ElementOp = PassThrough;
-using B0ElementOp = PassThrough;
-using C0ElementOp = PassThrough;
-using D0ElementOp = AddReluAdd;
-using B1ElementOp = PassThrough;
-using C1ElementOp = PassThrough;
-using D1ElementOp = ck::tensor_operation::element_wise::Add;
+using A0ElementOp   = PassThrough;
+using B0ElementOp   = PassThrough;
+using C0ElementOp   = PassThrough;
+using CDE0ElementOp = AddReluAdd;
+using A1ElementOp   = PassThrough;
+using B1ElementOp   = PassThrough;
+using C1ElementOp   = PassThrough;
+using CDE1ElementOp = ck::tensor_operation::element_wise::Add;
 
 static constexpr bool PadGemm0M = false;
 static constexpr bool PadGemm0N = false;
@@ -108,11 +109,10 @@ using DeviceGemmInstance =
         ck::Tuple<D1DataType>,
         A0ElementOp,
         B0ElementOp,
-        C0ElementOp,
-        D0ElementOp,
+        CDE0ElementOp,
+        A1ElementOp,
         B1ElementOp,
-        C1ElementOp,
-        D1ElementOp,
+        CDE1ElementOp,
         PadGemm0M,
         PadGemm0N,
         PadGemm0K,
@@ -171,7 +171,7 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
                                                                                 B1DataType,
                                                                                 C1DataType,
                                                                                 Acc1DataType,
-                                                                                PassThrough,
+                                                                                A1ElementOp,
                                                                                 B1ElementOp,
                                                                                 C1ElementOp>;
 
@@ -386,13 +386,14 @@ int main(int argc, char* argv[])
     b1_g_n_o_device_buf.ToDevice(b1_g_n_o.mData.data());
     d1_g_m_o_device_buf.ToDevice(d1_g_m_o.mData.data());
 
-    auto a0_element_op = A0ElementOp{};
-    auto b0_element_op = B0ElementOp{};
-    auto c0_element_op = C0ElementOp{};
-    auto d0_element_op = D0ElementOp{};
-    auto b1_element_op = B1ElementOp{};
-    auto c1_element_op = C1ElementOp{};
-    auto d1_element_op = D1ElementOp{};
+    auto a0_element_op   = A0ElementOp{};
+    auto b0_element_op   = B0ElementOp{};
+    auto c0_element_op   = C0ElementOp{};
+    auto cde0_element_op = CDE0ElementOp{};
+    auto a1_element_op   = C1ElementOp{};
+    auto b1_element_op   = B1ElementOp{};
+    auto c1_element_op   = C1ElementOp{};
+    auto cde1_element_op = CDE1ElementOp{};
 
     // do GEMM
     auto gemm    = DeviceGemmInstance{};
@@ -424,11 +425,10 @@ int main(int argc, char* argv[])
                           std::array<ck::index_t, 1>{BatchStrideD1},
                           a0_element_op,
                           b0_element_op,
-                          c0_element_op,
-                          d0_element_op,
+                          cde0_element_op,
+                          a1_element_op,
                           b1_element_op,
-                          c1_element_op,
-                          d1_element_op);
+                          cde1_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -471,10 +471,10 @@ int main(int argc, char* argv[])
             {
                 for(int n = 0; n < N; ++n)
                 {
-                    d0_element_op(a1_g_m_n(b, m, n),
-                                  a1_g_m_n(b, m, n),
-                                  d00_g_m_n(b, m, n),
-                                  d01_g_m_n(b, m, n));
+                    cde0_element_op(a1_g_m_n(b, m, n),
+                                    a1_g_m_n(b, m, n),
+                                    d00_g_m_n(b, m, n),
+                                    d01_g_m_n(b, m, n));
                 }
             }
         }
@@ -493,9 +493,9 @@ int main(int argc, char* argv[])
             {
                 for(int o = 0; o < O; ++o)
                 {
-                    d1_element_op(c1_g_m_o_host_result(b, m, o),
-                                  c1_g_m_o_host_result(b, m, o),
-                                  d1_g_m_o(b, m, o));
+                    cde1_element_op(c1_g_m_o_host_result(b, m, o),
+                                    c1_g_m_o_host_result(b, m, o),
+                                    d1_g_m_o(b, m, o));
                 }
             }
         }

@@ -26,11 +26,10 @@ template <typename A0Layout,
           typename D1sDataType,
           typename A0ElementwiseOperation,
           typename B0ElementwiseOperation,
-          typename Acc0ElementwiseOperation,
-          typename D0ElementwiseOperation,
+          typename CDE0ElementwiseOperation,
+          typename A1ElementwiseOperation,
           typename B1ElementwiseOperation,
-          typename C1ElementwiseOperation,
-          typename D1ElementwiseOperation>
+          typename CDE1ElementwiseOperation>
 struct DeviceBatchedGemmBiasGeluGemmBias : public BaseOperator
 {
     static constexpr index_t NumD0Tensor = D0sDataType::Size();
@@ -62,11 +61,10 @@ struct DeviceBatchedGemmBiasGeluGemmBias : public BaseOperator
                         std::array<ck::index_t, NumD1Tensor> BatchStrideD1s,
                         A0ElementwiseOperation a0_element_op,
                         B0ElementwiseOperation b0_element_op,
-                        Acc0ElementwiseOperation acc0_element_op,
-                        D0ElementwiseOperation d0_element_op,
+                        CDE0ElementwiseOperation cde0_element_op,
+                        A1ElementwiseOperation a1_element_op,
                         B1ElementwiseOperation b1_element_op,
-                        C1ElementwiseOperation c1_element_op,
-                        D1ElementwiseOperation d1_element_op) = 0;
+                        CDE1ElementwiseOperation cde1_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };

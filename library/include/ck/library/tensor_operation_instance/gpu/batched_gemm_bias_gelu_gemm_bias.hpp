@@ -12,8 +12,8 @@
 
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
 
-using D0ElementOp = ck::tensor_operation::element_wise::AddRelu;
-using D1ElementOp = ck::tensor_operation::element_wise::Add;
+using CDE0ElementOp = ck::tensor_operation::element_wise::AddRelu;
+using CDE1ElementOp = ck::tensor_operation::element_wise::Add;
 
 namespace ck {
 namespace tensor_operation {
@@ -35,11 +35,10 @@ void add_device_batched_gemm_bias_gelu_gemm_bias_xdl_cshuffle_f16_f16_f16_f16_gm
                                                                   ck::Tuple<F16>,
                                                                   PassThrough,
                                                                   PassThrough,
+                                                                  CDE0ElementOp,
                                                                   PassThrough,
-                                                                  D0ElementOp,
                                                                   PassThrough,
-                                                                  PassThrough,
-                                                                  D1ElementOp>>>& instances);
+                                                                  CDE1ElementOp>>>& instances);
 
 template <typename A0Layout,
           typename B0Layout,
@@ -68,11 +67,10 @@ struct DeviceOperationInstanceFactory<
                                                                     D1sDataType,
                                                                     PassThrough,
                                                                     PassThrough,
+                                                                    CDE0ElementOp,
                                                                     PassThrough,
-                                                                    D0ElementOp,
                                                                     PassThrough,
-                                                                    PassThrough,
-                                                                    D1ElementOp>>
+                                                                    CDE1ElementOp>>
 {
     using DeviceOp = DeviceBatchedGemmBiasGeluGemmBias<A0Layout,
                                                        B0Layout,
@@ -88,11 +86,10 @@ struct DeviceOperationInstanceFactory<
                                                        D1sDataType,
                                                        PassThrough,
                                                        PassThrough,
+                                                       CDE0ElementOp,
                                                        PassThrough,
-                                                       D0ElementOp,
                                                        PassThrough,
-                                                       PassThrough,
-                                                       D1ElementOp>;
+                                                       CDE1ElementOp>;
 
     static auto GetInstances()
     {

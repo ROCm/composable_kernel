@@ -53,21 +53,22 @@ bool profile_batched_gemm_bias_gelu_gemm_bias_impl(bool do_verification,
 
 {
 
-    using Row         = tensor_layout::gemm::RowMajor;
-    using Col         = tensor_layout::gemm::ColumnMajor;
-    using PassThrough = tensor_operation::element_wise::PassThrough;
-    using A0ElementOp = PassThrough;
-    using B0ElementOp = PassThrough;
-    using C0ElementOp = PassThrough;
-    using D0ElementOp = ck::tensor_operation::element_wise::AddRelu;
-    using B1ElementOp = PassThrough;
-    using C1ElementOp = PassThrough;
-    using D1ElementOp = ck::tensor_operation::element_wise::Add;
-    using AccDataType = float;
-    using D0DataType  = remove_cvref_t<tuple_element_t<0, D0sDataType>>;
-    using D0Layout    = remove_cvref_t<tuple_element_t<0, D0sLayout>>;
-    using D1DataType  = remove_cvref_t<tuple_element_t<0, D1sDataType>>;
-    using D1Layout    = remove_cvref_t<tuple_element_t<0, D1sLayout>>;
+    using Row           = tensor_layout::gemm::RowMajor;
+    using Col           = tensor_layout::gemm::ColumnMajor;
+    using PassThrough   = tensor_operation::element_wise::PassThrough;
+    using A0ElementOp   = PassThrough;
+    using B0ElementOp   = PassThrough;
+    using C0ElementOp   = PassThrough;
+    using CDE0ElementOp = ck::tensor_operation::element_wise::AddRelu;
+    using A1ElementOp   = PassThrough;
+    using B1ElementOp   = PassThrough;
+    using C1ElementOp   = PassThrough;
+    using CDE1ElementOp = ck::tensor_operation::element_wise::Add;
+    using AccDataType   = float;
+    using D0DataType    = remove_cvref_t<tuple_element_t<0, D0sDataType>>;
+    using D0Layout      = remove_cvref_t<tuple_element_t<0, D0sLayout>>;
+    using D1DataType    = remove_cvref_t<tuple_element_t<0, D1sDataType>>;
+    using D1Layout      = remove_cvref_t<tuple_element_t<0, D1sLayout>>;
 
     // Ref Gemm0
     using ReferenceGemm0Instance = tensor_operation::host::ReferenceBatchedGemm<A0DataType,
@@ -83,7 +84,7 @@ bool profile_batched_gemm_bias_gelu_gemm_bias_impl(bool do_verification,
                                                                                 B1DataType,
                                                                                 C1DataType,
                                                                                 AccDataType,
-                                                                                A0ElementOp,
+                                                                                A1ElementOp,
                                                                                 B1ElementOp,
                                                                                 C1ElementOp>;
 
@@ -197,13 +198,14 @@ bool profile_batched_gemm_bias_gelu_gemm_bias_impl(bool do_verification,
     b1_g_n_o_device_buf.ToDevice(b1_g_n_o.mData.data());
     d1_g_m_o_device_buf.ToDevice(d1_g_m_o.mData.data());
 
-    auto a0_element_op = A0ElementOp{};
-    auto b0_element_op = B0ElementOp{};
-    auto c0_element_op = C0ElementOp{};
-    auto d0_element_op = D0ElementOp{};
-    auto b1_element_op = B1ElementOp{};
-    auto c1_element_op = C1ElementOp{};
-    auto d1_element_op = D1ElementOp{};
+    auto a0_element_op   = A0ElementOp{};
+    auto b0_element_op   = B0ElementOp{};
+    auto c0_element_op   = C0ElementOp{};
+    auto cde0_element_op = CDE0ElementOp{};
+    auto a1_element_op   = A1ElementOp{};
+    auto b1_element_op   = B1ElementOp{};
+    auto c1_element_op   = C1ElementOp{};
+    auto cde1_element_op = CDE1ElementOp{};
 
     using DeviceOp = tensor_operation::device::DeviceBatchedGemmBiasGeluGemmBias<A0Layout,
                                                                                  B0Layout,
@@ -219,11 +221,10 @@ bool profile_batched_gemm_bias_gelu_gemm_bias_impl(bool do_verification,
                                                                                  D1sDataType,
                                                                                  A0ElementOp,
                                                                                  B0ElementOp,
-                                                                                 C0ElementOp,
-                                                                                 D0ElementOp,
+                                                                                 CDE0ElementOp,
+                                                                                 A1ElementOp,
                                                                                  B1ElementOp,
-                                                                                 C1ElementOp,
-                                                                                 D1ElementOp>;
+                                                                                 CDE1ElementOp>;
 
     // get device op instances
     const auto op_ptrs = tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -236,7 +237,7 @@ bool profile_batched_gemm_bias_gelu_gemm_bias_impl(bool do_verification,
         auto ref_gemm0          = ReferenceGemm0Instance{};
         auto ref_gemm0_invoker  = ref_gemm0.MakeInvoker();
         auto ref_gemm0_argument = ref_gemm0.MakeArgument(
-            a0_g_m_k, b0_g_k_n, acc0_g_m_n, a0_element_op, b0_element_op, PassThrough{});
+            a0_g_m_k, b0_g_k_n, acc0_g_m_n, a0_element_op, b0_element_op, c0_element_op);
 
         ref_gemm0_invoker.Run(ref_gemm0_argument);
 
@@ -247,7 +248,7 @@ bool profile_batched_gemm_bias_gelu_gemm_bias_impl(bool do_verification,
             {
                 for(int n = 0; n < N; ++n)
                 {
-                    d0_element_op(acc0_g_m_n(b, m, n), acc0_g_m_n(b, m, n), d0_g_m_n(b, m, n));
+                    cde0_element_op(acc0_g_m_n(b, m, n), acc0_g_m_n(b, m, n), d0_g_m_n(b, m, n));
                 }
             }
         }
@@ -257,7 +258,7 @@ bool profile_batched_gemm_bias_gelu_gemm_bias_impl(bool do_verification,
         auto ref_gemm1_argument = ref_gemm1.MakeArgument(acc0_g_m_n,
                                                          b1_g_n_o,
                                                          c1_g_m_o_host_result,
-                                                         PassThrough{},
+                                                         a1_element_op,
                                                          b1_element_op,
                                                          c1_element_op);
 
@@ -270,9 +271,9 @@ bool profile_batched_gemm_bias_gelu_gemm_bias_impl(bool do_verification,
             {
                 for(int o = 0; o < O; ++o)
                 {
-                    d1_element_op(c1_g_m_o_host_result(b, m, o),
-                                  c1_g_m_o_host_result(b, m, o),
-                                  d1_g_m_o(b, m, o));
+                    cde1_element_op(c1_g_m_o_host_result(b, m, o),
+                                    c1_g_m_o_host_result(b, m, o),
+                                    d1_g_m_o(b, m, o));
                 }
             }
         }
@@ -312,11 +313,10 @@ bool profile_batched_gemm_bias_gelu_gemm_bias_impl(bool do_verification,
             std::array<ck::index_t, 1>{BatchStrideD1},
             a0_element_op,
             b0_element_op,
-            c0_element_op,
-            d0_element_op,
+            cde0_element_op,
+            a1_element_op,
             b1_element_op,
-            c1_element_op,
-            d1_element_op);
+            cde1_element_op);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 

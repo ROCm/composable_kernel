@@ -26,11 +26,10 @@ template <typename A0B0B1DataType, // FIXME: don't assume A0/B0/B1 have same dat
           typename D1sDataType,
           typename A0ElementwiseOperation,
           typename B0ElementwiseOperation,
-          typename C0ElementwiseOperation,
-          typename D0ElementwiseOperation,
+          typename CDE0ElementwiseOperation,
+          typename A1ElementwiseOperation,
           typename B1ElementwiseOperation,
-          typename C1ElementwiseOperation,
-          typename D1ElementwiseOperation,
+          typename CDE1ElementwiseOperation,
           InMemoryDataOperationEnum C1GlobalMemoryDataOperation,
           typename A0GridDesc_M_K,
           typename B0GridDesc_N_K,
@@ -506,11 +505,10 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
                                void* __restrict__ p_shared,
                                const A0ElementwiseOperation& a0_element_op,
                                const B0ElementwiseOperation& b0_element_op,
-                               const C0ElementwiseOperation& c0_element_op,
-                               const D0ElementwiseOperation& d0_element_op,
+                               const CDE0ElementwiseOperation& cde0_element_op,
+                               const A1ElementwiseOperation& a1_element_op,
                                const B1ElementwiseOperation& b1_element_op,
-                               const C1ElementwiseOperation& c1_element_op,
-                               const D1ElementwiseOperation& d1_element_op,
+                               const CDE1ElementwiseOperation& cde1_element_op,
                                const A0GridDesc_AK0_M_AK1& a0_grid_desc_ak0_m_ak1,
                                const B0GridDesc_BK0_N_BK1& b0_grid_desc_bk0_n_bk1,
                                const D0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5&
@@ -522,7 +520,6 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
                                    d1s_grid_desc_mblock_Gemm0MPerBlock_nblock_Gemm0NPerBlock,
                                const Block2C1TileMap& block_2_c1tile_map)
     {
-        ignore                 = c1_element_op;
         const auto a0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a0_grid, a0_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -742,26 +739,6 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
         constexpr auto acc0_thread_desc = make_naive_tensor_descriptor_packed(
             make_tuple(Number<Gemm0MXdlPerWave>{}, Number<Gemm0NXdlPerWave>{}, n2, n4));
 
-#if 0
-        const index_t block_id  = get_block_1d_id();
-        const index_t thread_id = get_thread_local_1d_id();
-        if(block_id == 11)
-        {
-            printf("block id: %d  block_work_idx[I0]: %d block_work_idx[I1]: %d ,thread id: %d, "
-                   "wave id :{%d %d %d} "
-                   "wave_m_n_id: {%d %d}\n",
-                   block_id,
-                   block_work_idx[I0],
-                   block_work_idx[I1],
-                   thread_id,
-                   wave_id[I0],
-                   wave_id[I1],
-                   wave_id[I2],
-                   wave_m_n_id[I0],
-                   wave_m_n_id[I1]);
-        }
-
-#endif
         auto d0s_threadwise_copy = generate_tuple(
             [&](auto i) {
                 return ThreadwiseTensorSliceTransfer_v2<
@@ -824,11 +801,11 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
             A0B0B1DataType,
             decltype(acc0_thread_desc_k0_m_k1),
             decltype(a1_thread_desc_k0_m_k1),
-            decltype(c0_element_op),
+            decltype(a1_element_op),
             Sequence<A1ThreadSliceK0, A1ThreadSliceM, A1ThreadSliceK1>,
             Sequence<1, 0, 2>,
             2,
-            n4>{c0_element_op};
+            n4>{a1_element_op};
 
         // B1 matrix blockwise copy
         auto b1_blockwise_copy =
@@ -959,7 +936,7 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
                                     },
                                     Number<2>{});
 
-                                unpack2(d0_element_op, dst_data_refs, src_data_refs);
+                                unpack2(cde0_element_op, dst_data_refs, src_data_refs);
                             });
                             static_for<0, NumD0Tensor, 1>{}([&](auto i) {
                                 d0s_threadwise_copy(i).MoveSrcSliceWindow(
@@ -1201,7 +1178,7 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
                 Tuple<C1DataType>,
                 decltype(c1_d1s_desc_refs),
                 decltype(tie(c1_grid_desc_mblock_mperblock_nblock_nperblock)),
-                D1ElementwiseOperation,
+                CDE1ElementwiseOperation,
                 Sequence<static_cast<index_t>(C1GlobalMemoryDataOperation)>, // FIXME: make Sequence
                                                                              // support arbitray
                                                                              // type
@@ -1224,7 +1201,7 @@ struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
                  idx_c1_d1s_block_begin,
                  tie(c1_grid_desc_mblock_mperblock_nblock_nperblock),
                  make_tuple(make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0)),
-                 d1_element_op};
+                 cde1_element_op};
 
             // space filling curve for threadwise C in VGPR
             constexpr auto sfc_c1_vgpr =
