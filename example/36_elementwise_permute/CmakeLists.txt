@@ -1,1 +1,0 @@
-add_example_executable(example_tensor_permute tensor_permute.cpp)
