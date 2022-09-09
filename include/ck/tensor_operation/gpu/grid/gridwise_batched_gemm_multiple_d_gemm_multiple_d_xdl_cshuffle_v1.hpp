@@ -81,7 +81,7 @@ template <typename A0B0B1DataType, // FIXME: don't assume A0/B0/B1 have same dat
           typename C1ShuffleBlockTransferClusterLengths_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock,
           index_t C1ShuffleBlockTransferScalarPerVector_Gemm0NPerBlock,
           LoopScheduler LoopSched>
-struct GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle
+struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
 {
     static_assert(LoopSched == LoopScheduler::Default,
                   "Non-default loop scheduler is currently not supported");

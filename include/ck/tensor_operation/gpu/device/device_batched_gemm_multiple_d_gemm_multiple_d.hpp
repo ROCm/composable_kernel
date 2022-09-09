@@ -30,7 +30,7 @@ template <typename A0Layout,
           typename A1ElementwiseOperation,
           typename B1ElementwiseOperation,
           typename CDE1ElementwiseOperation>
-struct DeviceBatchedGemmBiasGeluGemmBias : public BaseOperator
+struct DeviceBatchedGemmMultipleDGemmMultipleD : public BaseOperator
 {
     static constexpr index_t NumD0Tensor = D0sDataType::Size();
     static constexpr index_t NumD1Tensor = D1sDataType::Size();

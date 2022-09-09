@@ -10,9 +10,9 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_batched_gemm_bias_gelu_gemm_bias.hpp"
+#include "ck/tensor_operation/gpu/device/device_batched_gemm_multiple_d_gemm_multiple_d.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_bias_gelu_gemm_bias_xdl_cshuffle_v1.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_multiple_d_gemm_multiple_d_xdl_cshuffle_v1.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
@@ -212,27 +212,27 @@ template <typename A0Layout,
           typename C1ShuffleBlockTransferClusterLengths_MBlock_Gemm0MPerBlock_NBlock_Gemm0NPerBlock,
           index_t C1ShuffleBlockTransferScalarPerVector_Gemm0NPerBlock,
           LoopScheduler LoopSched = LoopScheduler::Default>
-struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
-    : public DeviceBatchedGemmBiasGeluGemmBias<A0Layout,
-                                               B0Layout,
-                                               D0sLayout,
-                                               B1Layout,
-                                               C1Layout,
-                                               D1sLayout,
-                                               A0DataType,
-                                               B0DataType,
-                                               D0sDataType,
-                                               B1DataType,
-                                               C1DataType,
-                                               D1sDataType,
-                                               A0ElementwiseOperation,
-                                               B0ElementwiseOperation,
-                                               CDE0ElementwiseOperation,
-                                               A1ElementwiseOperation,
-                                               B1ElementwiseOperation,
-                                               CDE1ElementwiseOperation>
+struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
+    : public DeviceBatchedGemmMultipleDGemmMultipleD<A0Layout,
+                                                     B0Layout,
+                                                     D0sLayout,
+                                                     B1Layout,
+                                                     C1Layout,
+                                                     D1sLayout,
+                                                     A0DataType,
+                                                     B0DataType,
+                                                     D0sDataType,
+                                                     B1DataType,
+                                                     C1DataType,
+                                                     D1sDataType,
+                                                     A0ElementwiseOperation,
+                                                     B0ElementwiseOperation,
+                                                     CDE0ElementwiseOperation,
+                                                     A1ElementwiseOperation,
+                                                     B1ElementwiseOperation,
+                                                     CDE1ElementwiseOperation>
 {
-    using DeviceOp = DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle;
+    using DeviceOp = DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle;
 
     static constexpr index_t NumD0Tensor = D0sDataType::Size();
     static constexpr index_t NumD1Tensor = D1sDataType::Size();
@@ -445,7 +445,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
     using D1sGridDesc_M_N = remove_cvref_t<decltype(MakeD1sGridDescriptor_M_N({}, {}, {}))>;
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseBatchedGemmBiasGluGemmBias_Xdl_CShuffle<
+    using GridwiseGemm = GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle<
         A0DataType, // TODO: distinguish A/B datatype
         Acc0DataType,
         D0sDataType,
@@ -945,7 +945,7 @@ struct DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle"
+        str << "DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle"
             << "<"
             << BlockSize << ", "
             << Gemm0MPerBlock << ", "

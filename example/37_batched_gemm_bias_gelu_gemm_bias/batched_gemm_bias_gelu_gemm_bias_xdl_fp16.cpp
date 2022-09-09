@@ -16,7 +16,7 @@ Gemm + Gemm fused operation. Computes C_m_o = A_m_k * B0_k_n * B1_n_o
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/device_batched_gemm_bias_gelu_gemm_bias_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/device_batched_gemm_multiple_d_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -91,7 +91,7 @@ static constexpr bool PadGemm1N = false;
 static constexpr bool PadGemm1K = false;
 
 using DeviceGemmInstance =
-    ck::tensor_operation::device::DeviceBatchedGemmBiasGeluGemmBias_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle<
         A0Layout,
         B0Layout,
         ck::Tuple<D00Layout, D01Layout>,
