@@ -176,7 +176,7 @@ struct DevicePermute
             : in_dev_buffer_(static_cast<const InDataType*>(in_dev_buffer)),
               out_dev_buffer_(static_cast<OutDataType*>(out_dev_buffer)),
               in_grid_desc_(MakeDescriptor_N_H_W(inLengths, inStrides)),
-              out_grid_desc_(MakeDescriptor_N_H_W(inLengths, inStrides)),
+              out_grid_desc_(MakeDescriptor_N_H_W(outLengths, outStrides)),
               inLengths_(inLengths),
               inStrides_(inStrides),
               outLengths_(outLengths),
