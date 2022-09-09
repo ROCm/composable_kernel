@@ -92,7 +92,7 @@ struct ReferenceSparseEmbedding3ForwardLayernorm : public device::BaseOperator
 
                 if(!((idx_a < E) && (idx_b < E) && (idx_c < E)))
                 {
-                    throw(std::runtime_error("wrong! out of range");
+                    throw(std::runtime_error("wrong! out of range"));
                 }
 
                 for(auto d = 0; d < D; d++)
