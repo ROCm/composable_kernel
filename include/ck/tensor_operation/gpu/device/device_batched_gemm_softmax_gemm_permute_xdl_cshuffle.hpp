@@ -194,6 +194,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         GemmGemmPadder<GemmSpec, index_t, index_t, index_t, index_t>{
             MPerBlock, NPerBlock, KPerBlock, Gemm1NPerBlock};
 
+    // FIXME: pad K
+    static_assert(!matrix_padder.PadK, "KPadding is currently not supported");
+
     static auto MakeAGridDescriptor_AK0_M_AK1(index_t MRaw, index_t KRaw, index_t StrideA)
     {
         const auto a_grid_desc_mraw_kraw = [&]() {
@@ -209,92 +212,18 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             }
         }();
 
-        const auto M = math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
-        const auto K = math::integer_divide_ceil(KRaw, KPerBlock) * KPerBlock;
+        const auto a_grid_desc_m_k = matrix_padder.PadADescriptor_M_K(a_grid_desc_mraw_kraw);
 
-        const auto MPad = M - MRaw;
-        const auto KPad = K - KRaw;
+        const auto M = a_grid_desc_m_k.GetLength(I0);
+        const auto K = a_grid_desc_m_k.GetLength(I1);
 
-        if constexpr(GemmSpec == GemmSpecialization::MKPadding ||
-                     GemmSpec == GemmSpecialization::MNKPadding)
-        {
-            // pad both M and K
-            assert(K % AK1 == 0);
+        const auto AK0 = K / AK1;
 
-            const auto AK0 = K / AK1;
-
-            const auto a_grid_desc_m_k =
-                transform_tensor_descriptor(a_grid_desc_mraw_kraw,
-                                            make_tuple(make_right_pad_transform(MRaw, MPad),
-                                                       make_right_pad_transform(KRaw, KPad)),
-                                            make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
-
-            const auto a_grid_desc_ak0_m_ak1 =
-                transform_tensor_descriptor(a_grid_desc_m_k,
-                                            make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
-                                                       make_pass_through_transform(M)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return a_grid_desc_ak0_m_ak1;
-        }
-        else if constexpr(GemmSpec == GemmSpecialization::MPadding ||
-                          GemmSpec == GemmSpecialization::MNPadding)
-        {
-            // pad M, but not K
-            assert(KRaw % AK1 == 0);
-
-            const auto AK0 = KRaw / AK1;
-
-            const auto a_grid_desc_ak0_m_ak1 =
-                transform_tensor_descriptor(a_grid_desc_mraw_kraw,
-                                            make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
-                                                       make_right_pad_transform(MRaw, MPad)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return a_grid_desc_ak0_m_ak1;
-        }
-        else if constexpr(GemmSpec == GemmSpecialization::KPadding ||
-                          GemmSpec == GemmSpecialization::NKPadding)
-        {
-            // pad K, but not M
-            assert(K % AK1 == 0);
-
-            const auto AK0 = K / AK1;
-
-            const auto a_grid_desc_m_k = transform_tensor_descriptor(
-                a_grid_desc_mraw_kraw,
-                make_tuple(make_pass_through_transform(MRaw), make_right_pad_transform(KRaw, KPad)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
-
-            const auto a_grid_desc_ak0_m_ak1 =
-                transform_tensor_descriptor(a_grid_desc_m_k,
-                                            make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
-                                                       make_pass_through_transform(MRaw)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return a_grid_desc_ak0_m_ak1;
-        }
-        else
-        {
-            // not pad M or K
-            assert(KRaw % AK1 == 0);
-
-            const auto AK0 = KRaw / AK1;
-
-            const auto a_grid_desc_ak0_m_ak1 =
-                transform_tensor_descriptor(a_grid_desc_mraw_kraw,
-                                            make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
-                                                       make_pass_through_transform(MRaw)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return a_grid_desc_ak0_m_ak1;
-        }
+        return transform_tensor_descriptor(a_grid_desc_m_k,
+                                           make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
+                                                      make_pass_through_transform(M)),
+                                           make_tuple(Sequence<1>{}, Sequence<0>{}),
+                                           make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
     static auto MakeBGridDescriptor_BK0_N_BK1(index_t KRaw, index_t NRaw, index_t StrideB)
@@ -312,84 +241,18 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             }
         }();
 
-        const auto N = math::integer_divide_ceil(NRaw, NPerBlock) * NPerBlock;
-        const auto K = math::integer_divide_ceil(KRaw, KPerBlock) * KPerBlock;
+        const auto b_grid_desc_n_k = matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
 
-        const auto NPad = N - NRaw;
-        const auto KPad = K - KRaw;
+        const auto N = b_grid_desc_n_k.GetLength(I0);
+        const auto K = b_grid_desc_n_k.GetLength(I1);
 
-        if constexpr(GemmSpec == GemmSpecialization::NKPadding ||
-                     GemmSpec == GemmSpecialization::MNKPadding)
-        {
-            // pad both N and K
-            const auto BK0 = K / BK1;
+        const auto BK0 = K / BK1;
 
-            const auto b_grid_desc_n_k =
-                transform_tensor_descriptor(b_grid_desc_nraw_kraw,
-                                            make_tuple(make_right_pad_transform(NRaw, NPad),
-                                                       make_right_pad_transform(KRaw, KPad)),
-                                            make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
-
-            const auto b_grid_desc_bk0_n_bk1 =
-                transform_tensor_descriptor(b_grid_desc_n_k,
-                                            make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
-                                                       make_pass_through_transform(N)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return b_grid_desc_bk0_n_bk1;
-        }
-        else if constexpr(GemmSpec == GemmSpecialization::NPadding ||
-                          GemmSpec == GemmSpecialization::MNPadding)
-        {
-            // pad N, but not K
-            const auto BK0 = KRaw / BK1;
-
-            const auto b_grid_desc_bk0_n_bk1 =
-                transform_tensor_descriptor(b_grid_desc_nraw_kraw,
-                                            make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
-                                                       make_right_pad_transform(NRaw, NPad)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return b_grid_desc_bk0_n_bk1;
-        }
-        else if constexpr(GemmSpec == GemmSpecialization::KPadding ||
-                          GemmSpec == GemmSpecialization::MKPadding)
-        {
-            // pad K, but not N
-            const auto BK0 = K / BK1;
-
-            const auto b_grid_desc_n_k = transform_tensor_descriptor(
-                b_grid_desc_nraw_kraw,
-                make_tuple(make_pass_through_transform(NRaw), make_right_pad_transform(KRaw, KPad)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
-
-            const auto b_grid_desc_bk0_n_bk1 =
-                transform_tensor_descriptor(b_grid_desc_n_k,
-                                            make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
-                                                       make_pass_through_transform(NRaw)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return b_grid_desc_bk0_n_bk1;
-        }
-        else
-        {
-            // not pad N or K
-            const auto BK0 = KRaw / BK1;
-
-            const auto b_grid_desc_bk0_n_bk1 =
-                transform_tensor_descriptor(b_grid_desc_nraw_kraw,
-                                            make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
-                                                       make_pass_through_transform(NRaw)),
-                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return b_grid_desc_bk0_n_bk1;
-        }
+        return transform_tensor_descriptor(b_grid_desc_n_k,
+                                           make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
+                                                      make_pass_through_transform(N)),
+                                           make_tuple(Sequence<1>{}, Sequence<0>{}),
+                                           make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
     // Args: Gemm1KRaw, Gemm1NRaw, StrideB1
@@ -408,47 +271,19 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             }
         }();
 
-        const auto N = math::integer_divide_ceil(NRaw, Gemm1NPerBlock) * Gemm1NPerBlock;
-        const auto K = math::integer_divide_ceil(KRaw, Gemm1KPerBlock) * Gemm1KPerBlock;
+        const auto b1_grid_desc_n_k = matrix_padder.PadB1Descriptor_N_K(b1_grid_desc_nraw_kraw);
 
-        const auto NPad = N - NRaw;
-        const auto KPad = K - KRaw;
+        const auto N = b1_grid_desc_n_k.GetLength(I0);
+        const auto K = b1_grid_desc_n_k.GetLength(I1);
 
-        // TODO: implement finer-grained padding
-        if constexpr(GemmSpec == GemmSpecialization::Default)
-        {
-            const auto B1K0 = KRaw / B1K1;
+        const auto B1K0 = K / B1K1;
 
-            const auto b1_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
-                b1_grid_desc_nraw_kraw,
-                make_tuple(make_unmerge_transform(make_tuple(B1K0, B1K1)),
-                           make_pass_through_transform(NRaw)),
-                make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return b1_grid_desc_bk0_n_bk1;
-        }
-        else
-        {
-            // pad both B1N and B1K
-            const auto B1K0 = K / B1K1;
-
-            const auto b1_grid_desc_n_k =
-                transform_tensor_descriptor(b1_grid_desc_nraw_kraw,
-                                            make_tuple(make_right_pad_transform(NRaw, NPad),
-                                                       make_right_pad_transform(KRaw, KPad)),
-                                            make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
-
-            const auto b1_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
-                b1_grid_desc_n_k,
-                make_tuple(make_unmerge_transform(make_tuple(B1K0, B1K1)),
-                           make_pass_through_transform(N)),
-                make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-
-            return b1_grid_desc_bk0_n_bk1;
-        }
+        return transform_tensor_descriptor(
+            b1_grid_desc_n_k,
+            make_tuple(make_unmerge_transform(make_tuple(B1K0, B1K1)),
+                       make_pass_through_transform(N)),
+            make_tuple(Sequence<1>{}, Sequence<0>{}),
+            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
 
     // assume C[G0, G1, ..., M0, M1, M2, ..., N0, N1, N2...]
@@ -662,7 +497,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         CShuffleNXdlPerWavePerShuffle,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
-        LoopSched>;
+        LoopSched,
+        matrix_padder.PadN>;
 
     // Argument
     // FIXME: constness
@@ -711,7 +547,10 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
               c_element_op_{c_element_op},
               batch_count_(Batch),
               compute_base_ptr_of_batch_{
-                  BatchStrideA, BatchStrideB, BatchStrideB1, c_grid_desc_g_m_n_}
+                  BatchStrideA, BatchStrideB, BatchStrideB1, c_grid_desc_g_m_n_},
+              raw_lengths_m_n_k_o_{MRaw, NRaw, KRaw, Gemm1NRaw},
+              c_extent_lowest_{c_gs_ms_gemm1ns_lengths.back()},
+              c_stride_lowest_{c_gs_ms_gemm1ns_strides.back()}
         {
             if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
                                            b_grid_desc_bk0_n_bk1_,
@@ -745,6 +584,11 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         CElementwiseOperation c_element_op_;
         index_t batch_count_;
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
+
+        // For robust IsSupportedArgument() check
+        std::vector<index_t> raw_lengths_m_n_k_o_;
+        index_t c_extent_lowest_;
+        index_t c_stride_lowest_;
     };
 
     // Invoker
@@ -849,9 +693,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         }
 
         // Check if C permute dimension matches GEMM + GEMM shape
-        const index_t c_g       = arg.c_grid_desc_g_m_n_.GetLength(I0);
-        const index_t c_m       = arg.c_grid_desc_g_m_n_.GetLength(I1);
-        const index_t c_gemm1n  = arg.c_grid_desc_g_m_n_.GetLength(I2);
+        const index_t c_g       = arg.c_grid_desc_g_m_n_.GetLength(I0); // unpadded
+        const index_t c_m       = arg.c_grid_desc_m_n_.GetLength(I0);
+        const index_t c_gemm1n  = arg.c_grid_desc_m_n_.GetLength(I1);
         const index_t a_m       = arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
         const index_t b1_gemm1n = arg.b1_grid_desc_bk0_n_bk1_.GetLength(I1);
         if(!(c_g == arg.batch_count_ && c_m == a_m && c_gemm1n == b1_gemm1n))
@@ -859,7 +703,35 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             return false;
         }
 
-        // TODO: Check A/B0/B1 length & stride and scalar per vector
+        // Note: we need raw lengths since threadwise copy can not handle vector load when part of
+        // vector is out of bounds
+        const auto MRaw      = arg.raw_lengths_m_n_k_o_[0];
+        const auto NRaw      = arg.raw_lengths_m_n_k_o_[1];
+        const auto KRaw      = arg.raw_lengths_m_n_k_o_[2];
+        const auto Gemm1NRaw = arg.raw_lengths_m_n_k_o_[3];
+
+        // Check scalar per vector requirement
+        const auto a_extent_lowest =
+            is_same_v<tensor_layout::gemm::RowMajor, ALayout> ? KRaw : MRaw;
+        const auto b_extent_lowest =
+            is_same_v<tensor_layout::gemm::RowMajor, BLayout> ? NRaw : KRaw;
+        const auto b1_extent_lowest =
+            is_same_v<tensor_layout::gemm::RowMajor, B1Layout> ? Gemm1NRaw : NRaw;
+        const auto c_extent_lowest = arg.c_extent_lowest_;
+
+        if(!(a_extent_lowest % ABlockTransferSrcScalarPerVector == 0 &&
+             b_extent_lowest % BBlockTransferSrcScalarPerVector == 0 &&
+             b1_extent_lowest % B1BlockTransferSrcScalarPerVector == 0 &&
+             c_extent_lowest % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
+        {
+            return false;
+        }
+
+        // Check vector store requirement; assumes last dimension in N to be contiguous
+        if(arg.c_stride_lowest_ != 1)
+        {
+            return false;
+        }
 
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
                                            arg.b_grid_desc_bk0_n_bk1_,
@@ -996,7 +868,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             << MPerBlock << ", "
             << Gemm1NPerBlock << ", "
             << Gemm1KPerBlock << ", "
-            << B1K1 << ">";
+            << B1K1 << ", "
+            << getGemmSpecializationString(GemmSpec) << ">";
         // clang-format on
 
         return str.str();
