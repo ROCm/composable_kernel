@@ -95,16 +95,16 @@ template <ck::index_t NDimSpatial,
           typename OutElementOp,
           typename DeviceConvNdBwdDataBiasReluInstance>
 int run_conv_bwd_data_bias_relu(bool do_verification,
-                      int init_method,
-                      bool time_kernel,
-                      const ck::utils::conv::ConvParam& conv_param,
-                      const HostTensorDescriptor& in_g_n_c_wis_desc,
-                      const HostTensorDescriptor& wei_g_k_c_xs_desc,
-                      const HostTensorDescriptor& out_g_n_k_wos_desc,
-                      const HostTensorDescriptor& bias_c_desc,
-                      const InElementOp& in_element_op,
-                      const WeiElementOp& wei_element_op,
-                      const OutElementOp& out_element_op)
+                                int init_method,
+                                bool time_kernel,
+                                const ck::utils::conv::ConvParam& conv_param,
+                                const HostTensorDescriptor& in_g_n_c_wis_desc,
+                                const HostTensorDescriptor& wei_g_k_c_xs_desc,
+                                const HostTensorDescriptor& out_g_n_k_wos_desc,
+                                const HostTensorDescriptor& bias_c_desc,
+                                const InElementOp& in_element_op,
+                                const WeiElementOp& wei_element_op,
+                                const OutElementOp& out_element_op)
 {
     Tensor<InDataType> in_host(in_g_n_c_wis_desc);
     Tensor<InDataType> in_device(in_g_n_c_wis_desc);
@@ -183,13 +183,14 @@ int run_conv_bwd_data_bias_relu(bool do_verification,
 
     if(do_verification)
     {
-        auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdDataBiasActivation<NDimSpatial,
-                                                                         InDataType,
-                                                                         WeiDataType,
-                                                                         OutDataType,
-                                                                         InElementOp,
-                                                                         WeiElementOp,
-                                                                         OutElementOp>();
+        auto ref_conv =
+            ck::tensor_operation::host::ReferenceConvBwdDataBiasActivation<NDimSpatial,
+                                                                           InDataType,
+                                                                           WeiDataType,
+                                                                           OutDataType,
+                                                                           InElementOp,
+                                                                           WeiElementOp,
+                                                                           OutElementOp>();
 
         auto ref_invoker = ref_conv.MakeInvoker();
 
