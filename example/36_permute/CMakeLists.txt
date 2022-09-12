@@ -2,10 +2,10 @@ add_custom_target(example_permute)
 
 add_example_executable(example_permute_1xHxW_fp32 permute_1xHxW_fp32.cpp)
 add_example_executable(example_permute_NxHxW_fp32 permute_NxHxW_fp32.cpp)
-add_example_executable_no_testing(example_permute_HxWx4_fp16 permute_HxWx4_fp16.cpp)
+# add_example_executable_no_testing(example_permute_HxWx4_fp16 permute_HxWx4_fp16.cpp)
 add_example_executable(example_permute_HxWx2_fp16 permute_HxWx2_fp16.cpp)
 
 add_dependencies(example_permute example_permute_1xHxW_fp32)
 add_dependencies(example_permute example_permute_NxHxW_fp32)
-add_dependencies(example_permute example_permute_HxWx4_fp16)
+# add_dependencies(example_permute example_permute_HxWx4_fp16)
 add_dependencies(example_permute example_permute_HxWx2_fp16)
