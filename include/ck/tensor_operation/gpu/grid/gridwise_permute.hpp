@@ -126,7 +126,7 @@ struct GridwisePermute
     using DefaultBlock2TileMap =
         detail::GridwisePermuteBlock2TileMap<HPerBlock, WPerBlock, InGridDesc>;
 
-    __host__ __device__ static constexpr auto GetInBlockDesc()
+    __host__ __device__ static constexpr auto GetInBlockDesc_1_HPerBlock_WPerBlock()
     {
         return make_naive_tensor_descriptor(make_tuple(1, Number<HPerBlock>{}, Number<WPerBlock>{}),
                                             make_tuple(Number<WPerBlock + InBlockLdsExtraW>{},
@@ -155,9 +155,9 @@ struct GridwisePermute
 
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
-        constexpr auto in_block_desc = GetInBlockDesc();
+        constexpr auto in_block_desc_1_hperblock_wperblock = GetInBlockDesc_1_HPerBlock_WPerBlock();
 
-        return in_block_desc.GetElementSpaceSize() * sizeof(InDataType);
+        return in_block_desc_1_hperblock_wperblock.GetElementSpaceSize() * sizeof(InDataType);
     }
 
     __host__ __device__ static constexpr auto MakeDefaultBlock2TileMap(const InGridDesc& desc)
@@ -211,10 +211,11 @@ struct GridwisePermute
             __builtin_amdgcn_readfirstlane(block_work_idx[I1] * WPerBlock);
 
         // Input slice in LDS memory, dst of blockwise copy
-        constexpr auto in_block_desc = GetInBlockDesc();
+        constexpr auto in_block_desc_1_hperblock_wperblock = GetInBlockDesc_1_HPerBlock_WPerBlock();
 
         auto in_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<InDataType*>(p_shared), in_block_desc.GetElementSpaceSize());
+            static_cast<InDataType*>(p_shared),
+            in_block_desc_1_hperblock_wperblock.GetElementSpaceSize());
 
         using BlockSliceLengths          = Sequence<1, HPerBlock, WPerBlock>;
         using InBlockTransferAccessOrder = Sequence<0, 1, 2>;
@@ -238,7 +239,7 @@ struct GridwisePermute
                                                 InDataType,
                                                 InDataType,
                                                 decltype(in_grid_desc_n_h_w),
-                                                decltype(in_block_desc),
+                                                decltype(in_block_desc_1_hperblock_wperblock),
                                                 InBlockTransferAccessOrder,
                                                 InBlockTransferAccessOrder,
                                                 SrcVectorDimAfterMerge,
@@ -252,7 +253,7 @@ struct GridwisePermute
                 in_grid_desc_n_h_w,
                 make_multi_index(0, h_block_data_idx_on_grid, w_block_data_idx_on_grid),
                 PassThrough{},
-                in_block_desc,
+                in_block_desc_1_hperblock_wperblock,
                 make_multi_index(0, 0, 0),
                 PassThrough{});
 
@@ -276,7 +277,7 @@ struct GridwisePermute
                                                 InBlockTransferThreadClusterArrangeOrder,
                                                 InDataType,
                                                 OutDataType,
-                                                decltype(in_block_desc),
+                                                decltype(in_block_desc_1_hperblock_wperblock),
                                                 decltype(out_grid_desc_n_h_w),
                                                 InBlockTransferAccessOrder,
                                                 InBlockTransferAccessOrder,
@@ -288,7 +289,7 @@ struct GridwisePermute
                                                 1,
                                                 true,
                                                 true>(
-                in_block_desc,
+                in_block_desc_1_hperblock_wperblock,
                 make_multi_index(0, 0, 0),
                 PassThrough{},
                 out_grid_desc_n_h_w,
@@ -299,12 +300,19 @@ struct GridwisePermute
         index_t num_iter     = in_grid_desc_n_h_w.GetLength(I0);
         do
         {
-            in_global_load.Run(in_grid_desc_n_h_w, in_global_buf, in_block_desc, in_block_buf, I0);
+            in_global_load.Run(in_grid_desc_n_h_w,
+                               in_global_buf,
+                               in_block_desc_1_hperblock_wperblock,
+                               in_block_buf,
+                               I0);
 
             in_global_load.MoveSrcSliceWindow(in_grid_desc_n_h_w, loop_step);
 
-            out_global_store.Run(
-                in_block_desc, in_block_buf, out_grid_desc_n_h_w, out_global_buf, I0);
+            out_global_store.Run(in_block_desc_1_hperblock_wperblock,
+                                 in_block_buf,
+                                 out_grid_desc_n_h_w,
+                                 out_global_buf,
+                                 I0);
 
             out_global_store.MoveDstSliceWindow(out_grid_desc_n_h_w, loop_step);
         } while(--num_iter);
