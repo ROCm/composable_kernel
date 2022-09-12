@@ -18,4 +18,4 @@ using DevicePermuteInstance = ck::tensor_operation::device::DevicePermute
 #define NUM_ELEMS_IN_BUNDLE 2
 #include "run_permute_example.inc"
 
-int main(int argc, char* argv[]) { return !run_permute_example(argc, argv, {1, 3, 4}, {0, 2, 1}); }
+int main(int argc, char* argv[]) { return !run_permute_example(argc, argv, {1, 6, 5}, {0, 2, 1}); }
