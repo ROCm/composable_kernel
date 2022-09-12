@@ -109,9 +109,9 @@ check_err(const std::vector<T>& out,
 }
 
 template <typename T>
-typename std::enable_if<std::is_same_v<std::remove_cv_t<T>, half_t>, bool>::type
-check_err(span<T> out,
-          span<T> ref,
+typename std::enable_if<std::is_same_v<T, half_t>, bool>::type
+check_err(span<const T> out,
+          span<const T> ref,
           const std::string& msg = "Error: Incorrect results!",
           double rtol            = 1e-3,
           double atol            = 1e-3)
