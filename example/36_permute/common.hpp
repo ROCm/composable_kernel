@@ -6,6 +6,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <iterator>
 #include <numeric>
@@ -33,7 +34,9 @@ struct ExecutionConfig final
 
 struct Problem final
 {
-    using Shape = std::array<std::size_t, 3>;
+    static constexpr std::size_t NumDim = 3;
+
+    using Shape = std::array<std::size_t, NumDim>;
     using Axes  = Shape;
 
     Problem() = delete;
@@ -249,7 +252,7 @@ is_valid_axes(const Axes& axes)
 inline bool parse_cmd_args(int argc, char* argv[], ExecutionConfig& config, Problem& problem)
 {
     constexpr int num_execution_config_args = 2;
-    constexpr int num_problem_args          = 3 + 3;
+    constexpr int num_problem_args          = 2 * Problem::NumDim;
 
     if(!(num_problem_args == size(problem.shape) + size(problem.axes)))
     {
@@ -412,7 +415,7 @@ host_permute(const Tensor<Src>& src, const Axes& axes, Functor functor, Tensor<D
     }
 
     using std::size;
-    if(!(is_valid_axes(axes) && size(axes) == 3))
+    if(!is_valid_axes(axes))
     {
         return false;
     }
@@ -420,7 +423,7 @@ host_permute(const Tensor<Src>& src, const Axes& axes, Functor functor, Tensor<D
     static_assert(detail::is_sized_range_v<ck::remove_cvref_t<decltype(shape)>> &&
                   detail::is_sized_range_v<ck::remove_cvref_t<decltype(transposed_shape)>>);
 
-    if(!(size(shape) == 3 && size(transposed_shape) == 3))
+    if(size(shape) != size(transposed_shape))
     {
         return false;
     }
@@ -437,18 +440,34 @@ host_permute(const Tensor<Src>& src, const Axes& axes, Functor functor, Tensor<D
         }
     }
 
-    std::array<std::size_t, 3> indices{};
+    std::vector<std::size_t> indices(size(shape), 0);
     if(!is_valid_indices(shape, indices))
     {
         return false;
     }
 
-    do
+    if(size(shape) == 3)
     {
-        Dest output = 0;
-        functor(output, src(indices[0], indices[1], indices[2]));
-        dest(indices[axes[0]], indices[axes[1]], indices[axes[2]]) = output;
-    } while(advance_indices(shape, indices));
+        do
+        {
+            Dest output = 0;
+            functor(output, src(indices[0], indices[1], indices[2]));
+            dest(indices[axes[0]], indices[axes[1]], indices[axes[2]]) = output;
+        } while(advance_indices(shape, indices));
+    }
+    else if(size(shape) == 4)
+    {
+        do
+        {
+            Dest output = 0;
+            functor(output, src(indices[0], indices[1], indices[2], indices[3]));
+            dest(indices[axes[0]], indices[axes[1]], indices[axes[2]], indices[axes[3]]) = output;
+        } while(advance_indices(shape, indices));
+    }
+    else
+    {
+        return false;
+    }
 
     return true;
 }

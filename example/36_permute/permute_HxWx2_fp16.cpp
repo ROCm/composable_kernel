@@ -3,8 +3,8 @@
 
 #include "common.hpp"
 
-using ADataType = F64;
-using BDataType = F64;
+using ADataType = F32;
+using BDataType = F32;
 
 // clang-format off
 using DevicePermuteInstance = ck::tensor_operation::device::DevicePermute
@@ -15,10 +15,7 @@ using DevicePermuteInstance = ck::tensor_operation::device::DevicePermute
          < ADataType, BDataType, PassThrough,      3,   256,   128,   128,         0,         S<1, 16, 16>,                S<0, 1, 2>,         2,         1,               1,               1>;
 // clang-format on
 
-#define NUM_ELEMS_IN_BUNDLE 4
+#define NUM_ELEMS_IN_BUNDLE 2
 #include "run_permute_example.inc"
 
-int main(int argc, char* argv[])
-{
-    return !run_permute_example(argc, argv, {1, 160, 80}, {0, 2, 1});
-}
+int main(int argc, char* argv[]) { return !run_permute_example(argc, argv, {1, 3, 4}, {0, 2, 1}); }

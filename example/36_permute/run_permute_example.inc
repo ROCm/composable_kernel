@@ -9,6 +9,10 @@
 
 bool run_permute(const ExecutionConfig& config, const Problem& problem)
 {
+#if 1 < NUM_ELEMS_IN_BUNDLE
+    static_assert(std::is_same_v<ADataType, BDataType>);
+#endif
+
     using std::begin, std::end;
 
     const auto& shape = problem.shape;
@@ -61,13 +65,53 @@ bool run_permute(const ExecutionConfig& config, const Problem& problem)
 
     if(config.do_verification)
     {
-        Tensor<BDataType> host_b(transposed_shape);
-        host_permute(a, problem.axes, PassThrough{}, host_b);
-
         b_device_buf.FromDevice(data(b.mData));
+
+#if NUM_ELEMS_IN_BUNDLE == 1
+        Tensor<BDataType> host_b(transposed_shape);
+        if(!host_permute(a, problem.axes, PassThrough{}, host_b))
+        {
+            return false;
+        }
 
         return ck::utils::check_err(
             b.mData, host_b.mData, "Error: incorrect results in output tensor", 1e-10, 1e-10);
+#else
+        // extend tensor shape from [N, H, W] to [N, H, W, NUM_ELEMS_IN_BUNDLE]
+        std::array<std::size_t, Problem::NumDim + 1> extended_shape;
+        std::copy(begin(shape), end(shape), begin(extended_shape));
+        extended_shape.back() = NUM_ELEMS_IN_BUNDLE;
+
+        using DataType = detail::get_bundled_t<ADataType, NUM_ELEMS_IN_BUNDLE>;
+
+        Tensor<DataType> extended_a(extended_shape);
+        std::memcpy(data(extended_a.mData),
+                    data(a.mData),
+                    sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
+
+        std::array<std::size_t, Problem::NumDim + 1> extended_axes;
+        std::copy(begin(problem.axes), end(problem.axes), begin(extended_axes));
+        extended_axes.back() = Problem::NumDim;
+
+        std::array<std::size_t, Problem::NumDim + 1> transposed_extended_shape;
+        transpose_shape(extended_shape, extended_axes, begin(transposed_extended_shape));
+
+        Tensor<DataType> extended_host_b(transposed_extended_shape);
+        if(!host_permute(extended_a, extended_axes, PassThrough{}, extended_host_b))
+        {
+            return false;
+        }
+
+        std::vector<DataType> extended_b(reinterpret_cast<DataType*>(data(b.mData)),
+                                         reinterpret_cast<DataType*>(data(b.mData)) +
+                                             b.mDesc.GetElementSpaceSize() * NUM_ELEMS_IN_BUNDLE);
+
+        return ck::utils::check_err(extended_b,
+                                    extended_host_b.mData,
+                                    "Error: incorrect results in output tensor",
+                                    1e-10,
+                                    1e-10);
+#endif
     }
 
     return true;
