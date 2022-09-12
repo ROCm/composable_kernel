@@ -3,6 +3,10 @@
 
 #pragma once
 
+#ifndef NUM_ELEMS_IN_BUNDLE
+#define NUM_ELEMS_IN_BUNDLE 1
+#endif
+
 bool run_permute(const ExecutionConfig& config, const Problem& problem)
 {
     using std::begin, std::end;
@@ -14,12 +18,17 @@ bool run_permute(const ExecutionConfig& config, const Problem& problem)
     Tensor<ADataType> a(shape);
     Tensor<BDataType> b(transposed_shape);
 
-    std::iota(begin(a.mData), end(a.mData), 1);
+    using std::data, std::size;
+    {
+        auto* const elems =
+            reinterpret_cast<detail::get_bundled_t<ADataType, NUM_ELEMS_IN_BUNDLE>*>(data(a.mData));
+        std::iota(elems, elems + (size(a.mData) * NUM_ELEMS_IN_BUNDLE), 1);
+    }
 
     DeviceMem a_device_buf(sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
     DeviceMem b_device_buf(sizeof(BDataType) * b.mDesc.GetElementSpaceSize());
 
-    a_device_buf.ToDevice(a.mData.data());
+    a_device_buf.ToDevice(data(a.mData));
 
     std::array<ck::index_t, 3> a_lengths, b_lengths;
     std::array<ck::index_t, 3> a_strides, b_strides;
@@ -55,7 +64,7 @@ bool run_permute(const ExecutionConfig& config, const Problem& problem)
         Tensor<BDataType> host_b(transposed_shape);
         host_permute(a, problem.axes, PassThrough{}, host_b);
 
-        b_device_buf.FromDevice(b.mData.data());
+        b_device_buf.FromDevice(data(b.mData));
 
         return ck::utils::check_err(
             b.mData, host_b.mData, "Error: incorrect results in output tensor", 1e-10, 1e-10);

@@ -23,6 +23,7 @@
 
 using F16 = ck::half_t;
 using F32 = float;
+using F64 = double;
 
 struct ExecutionConfig final
 {
@@ -52,6 +53,36 @@ using S = ck::Sequence<Is...>;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 namespace detail {
+
+template <typename Bundle, std::size_t Divisor>
+struct get_bundled;
+
+template <typename Bundle>
+struct get_bundled<Bundle, 1>
+{
+    using type = Bundle;
+};
+
+template <>
+struct get_bundled<F64, 2>
+{
+    using type = F32;
+};
+
+template <>
+struct get_bundled<F64, 4>
+{
+    using type = F16;
+};
+
+template <>
+struct get_bundled<F32, 2>
+{
+    using type = F16;
+};
+
+template <typename Bundle, std::size_t Divisor>
+using get_bundled_t = typename get_bundled<Bundle, Divisor>::type;
 
 template <typename T, typename = void>
 struct is_iterator : std::false_type
