@@ -21,8 +21,8 @@ bool run_permute(const ExecutionConfig& config, const Problem& problem)
 
     a_device_buf.ToDevice(a.mData.data());
 
-    std::array<ck::index_t, 4> a_lengths, b_lengths;
-    std::array<ck::index_t, 4> a_strides, b_strides;
+    std::array<ck::index_t, 3> a_lengths, b_lengths;
+    std::array<ck::index_t, 3> a_strides, b_strides;
 
     const void* input = a_device_buf.GetDeviceBuffer();
     void* output      = b_device_buf.GetDeviceBuffer();
@@ -64,10 +64,13 @@ bool run_permute(const ExecutionConfig& config, const Problem& problem)
     return true;
 }
 
-bool run_permute_example(int argc, char* argv[])
+bool run_permute_example(int argc,
+                         char* argv[],
+                         const Problem::Shape& default_shape,
+                         const Problem::Axes& default_axes)
 {
     ExecutionConfig config;
-    Problem problem;
+    Problem problem(default_shape, default_axes);
 
     return parse_cmd_args(argc, argv, config, problem) && run_permute(config, problem);
 }

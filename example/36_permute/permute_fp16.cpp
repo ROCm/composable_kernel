@@ -3,8 +3,8 @@
 
 #include "common.hpp"
 
-using ADataType = F16;
-using BDataType = F16;
+using ADataType = F32;
+using BDataType = F32;
 
 // clang-format off
 using DevicePermuteInstance = ck::tensor_operation::device::DevicePermute
@@ -12,9 +12,12 @@ using DevicePermuteInstance = ck::tensor_operation::device::DevicePermute
 // ######|      Type|      Type|   Operation|       |  Size| Block| Block| LdsExtraW| ThreadClusterLengths| ThreadClusterArrangeOrder| VectorDim| VectorDim| ScalarPerVector| ScalarPerVector|
 // ######|          |          |            |       |      |      |      |          |                     |                          |          |          |                |                |
 // ######|          |          |            |       |      |      |      |          |                     |                          |          |          |                |                |
-         < ADataType, BDataType, PassThrough,      4,   256,   128,   128,         0,         S<1, 16, 16>,                S<0, 1, 2>,         3,         2,               1,               1>;
+         < ADataType, BDataType, PassThrough,      3,   256,   128,   128,         0,         S<1, 16, 16>,                S<0, 1, 2>,         2,         1,               1,               1>;
 // clang-format on
 
 #include "run_permute_example.inc"
 
-int main(int argc, char* argv[]) { return !run_permute_example(argc, argv); }
+int main(int argc, char* argv[])
+{
+    return !run_permute_example(argc, argv, {1, 16000, 80}, {0, 2, 1});
+}
