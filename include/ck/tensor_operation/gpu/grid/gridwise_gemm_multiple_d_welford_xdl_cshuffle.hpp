@@ -80,6 +80,7 @@ template <typename ABDataType,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CDRThreadTransferClusterLengths_MPerBlock_NPerBlock,
           index_t CDEReduceThreadTransferScalarPerVector_NPerBlock,
+          index_t FGTransferScalarPerVector,
           LoopScheduler LoopSched>
 struct GridwiseGemmMultipleDWelford_xdl_cshuffle
 {
@@ -983,11 +984,10 @@ struct GridwiseGemmMultipleDWelford_xdl_cshuffle
                 constexpr auto thread_welford_desc_I_m_I = make_naive_tensor_descriptor_packed(
                     make_tuple(I1, Number<mreduce_per_thread>{}, I1));
 
-                // TODO - extract template parameter
-                constexpr int scalarPerVector = 1;
                 constexpr int shuffleMPerBlock =
                     c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetLength(I1);
 
+                static_assert(mreduce_per_thread % FGTransferScalarPerVector == 0);
                 auto f_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
                     AccDataType,
                     FDataType,
@@ -997,7 +997,7 @@ struct GridwiseGemmMultipleDWelford_xdl_cshuffle
                     Sequence<1, mreduce_per_thread, 1>,
                     Sequence<0, 1, 2>,
                     1,
-                    scalarPerVector,
+                    FGTransferScalarPerVector,
                     InMemoryDataOperationEnum::Set,
                     1,
                     false>{f_grid_desc_mblock_mperblock_nblock,
@@ -1016,7 +1016,7 @@ struct GridwiseGemmMultipleDWelford_xdl_cshuffle
                     Sequence<1, mreduce_per_thread, 1>,
                     Sequence<0, 1, 2>,
                     1,
-                    scalarPerVector,
+                    FGTransferScalarPerVector,
                     InMemoryDataOperationEnum::Set,
                     1,
                     false>{g_grid_desc_mblock_mperblock_nblock,

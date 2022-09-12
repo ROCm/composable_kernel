@@ -304,6 +304,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
         CShuffleNXdlPerWavePerShuffle,
         ReduceThreadTransferClusterLengths_MPerBlock_NPerBlock,
         ReduceThreadTransferScalarPerVector_NPerBlock,
+        1,
         LoopSched>;
 
     using Block2ETileMap = typename GridwiseGemm::DefaultBlock2ETileMap;
