@@ -195,11 +195,11 @@ int main(int argc, char* argv[])
     bool time_kernel     = false;
 
     // GEMM shape
-    ck::index_t M              = 4096;
-    ck::index_t N              = 4096;
-    ck::index_t K              = 128;
+    ck::index_t M              = 1024;
+    ck::index_t N              = 1024;
+    ck::index_t K              = 64;
     ck::index_t O              = 128;
-    ck::index_t BatchCount     = 16;
+    ck::index_t BatchCount     = 4;
     ck::index_t StrideA0       = -1;
     ck::index_t StrideB0       = -1;
     ck::index_t StrideD00      = -1;
