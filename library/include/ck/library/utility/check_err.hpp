@@ -15,6 +15,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/data_type.hpp"
+#include "ck/utility/span.hpp"
 #include "ck/utility/type.hpp"
 #include "ck/host_utility/io.hpp"
 
@@ -108,9 +109,9 @@ check_err(const std::vector<T>& out,
 }
 
 template <typename T>
-typename std::enable_if<std::is_same<T, half_t>::value, bool>::type
-check_err(const std::vector<T>& out,
-          const std::vector<T>& ref,
+typename std::enable_if<std::is_same_v<std::remove_cv_t<T>, half_t>, bool>::type
+check_err(span<T> out,
+          span<T> ref,
           const std::string& msg = "Error: Incorrect results!",
           double rtol            = 1e-3,
           double atol            = 1e-3)
@@ -148,6 +149,17 @@ check_err(const std::vector<T>& out,
         std::cout << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
     }
     return res;
+}
+
+template <typename T>
+typename std::enable_if<std::is_same<T, half_t>::value, bool>::type
+check_err(const std::vector<T>& out,
+          const std::vector<T>& ref,
+          const std::string& msg = "Error: Incorrect results!",
+          double rtol            = 1e-3,
+          double atol            = 1e-3)
+{
+    return check_err(span<const T>{out}, span<const T>{ref}, msg, rtol, atol);
 }
 
 template <typename T>
