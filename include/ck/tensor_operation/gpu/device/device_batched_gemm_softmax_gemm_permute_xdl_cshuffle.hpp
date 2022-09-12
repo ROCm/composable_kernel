@@ -71,16 +71,16 @@ __global__ void
 
     // per-group batch offset
     const index_t num_blocks_per_batch = arg_ptr[group_id].num_blocks_per_batch_;
-    const index_t g_idx = __builtin_amdgcn_readfirstlane(
+    const index_t g_idx                = __builtin_amdgcn_readfirstlane(
         (block_id - arg_ptr[group_id].block_start_) / num_blocks_per_batch);
 
     const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetABasePtr(g_idx)));
     const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetBBasePtr(g_idx)));
-    const long_index_t b1_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetB1BasePtr(g_idx)));
-    const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
+    const long_index_t b1_batch_offset = __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(
+        arg_ptr[group_id].compute_base_ptr_of_batch_.GetB1BasePtr(g_idx)));
+    const long_index_t c_batch_offset  = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetCBasePtr(g_idx)));
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(
@@ -611,7 +611,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                 const auto block_2_ctile_map = Block2CTileMap(c_grid_desc_m_n, BlockStart);
                 const index_t grid_size_grp = block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n) *
                                               problem_desc_vec[i].Batch;
-                const index_t BlockEnd       = grid_size_ + grid_size_grp;
+                const index_t BlockEnd = grid_size_ + grid_size_grp;
 
                 // batch stride
                 // TODO ANT: only keep batch stride in tensor desc to reduce scalar cache pressure
@@ -777,8 +777,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             }
 
             // Check if having main loop
-            const auto K =
-                kernel_arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * kernel_arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
+            const auto K = kernel_arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) *
+                           kernel_arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
             const bool y = GridwiseGemm::CalculateHasMainKBlockLoop(K);
             all_has_main_k_block_loop &= y;
             some_has_main_k_block_loop |= y;

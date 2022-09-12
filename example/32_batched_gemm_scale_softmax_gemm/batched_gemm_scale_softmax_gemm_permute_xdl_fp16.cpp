@@ -178,10 +178,10 @@ int main(int argc, char* argv[])
 
     for(std::size_t i = 0; i < group_count; i++)
     {
-        int M = 128 * (rand() % 8 + 1);
-        int N = 128 * (rand() % 8 + 1);
-        int K = 64;
-        int O = 64 * (rand() % 2 + 1);
+        int M     = 128 * (rand() % 8 + 1);
+        int N     = 128 * (rand() % 8 + 1);
+        int K     = 64;
+        int O     = 64 * (rand() % 2 + 1);
         int Batch = rand() % 8 + 1;
 
         const int StrideA  = ck::is_same_v<ALayout, Row> ? K : M;
@@ -260,9 +260,12 @@ int main(int argc, char* argv[])
         const auto& c_gs_ms_os_strides = problem_descs[i].c_gs_ms_os_strides;
 
         // C_m_o = A_m_k * B0_k_n * B1_n_o
-        Tensor<ADataType> a_g_m_k(f_host_tensor_descriptor(Batch, M, K, StrideA, BatchStrideA, ALayout{}));
-        Tensor<B0DataType> b0_g_k_n(f_host_tensor_descriptor(Batch, K, N, StrideB0, BatchStrideB0, B0Layout{}));
-        Tensor<B1DataType> b1_g_n_o(f_host_tensor_descriptor(Batch, N, O, StrideB1, BatchStrideB1, B1Layout{}));
+        Tensor<ADataType> a_g_m_k(
+            f_host_tensor_descriptor(Batch, M, K, StrideA, BatchStrideA, ALayout{}));
+        Tensor<B0DataType> b0_g_k_n(
+            f_host_tensor_descriptor(Batch, K, N, StrideB0, BatchStrideB0, B0Layout{}));
+        Tensor<B1DataType> b1_g_n_o(
+            f_host_tensor_descriptor(Batch, N, O, StrideB1, BatchStrideB1, B1Layout{}));
         Tensor<CDataType> c_gs_ms_os_device_result(
             std::vector<std::size_t>(c_gs_ms_os_lengths.begin(), c_gs_ms_os_lengths.end()),
             std::vector<std::size_t>(c_gs_ms_os_strides.begin(), c_gs_ms_os_strides.end()));
@@ -335,15 +338,18 @@ int main(int argc, char* argv[])
     auto c_element_op    = CElementOp{};
 
     // do GEMM
-    auto gemm    = DeviceGemmInstance{};
-    auto invoker = gemm.MakeInvoker();
-    auto argument =
-        gemm.MakeArgument(p_a, p_b0, p_b1, p_c, problem_descs,
-                          a_element_op,
-                          b0_element_op,
-                          acc0_element_op,
-                          b1_element_op,
-                          c_element_op);
+    auto gemm     = DeviceGemmInstance{};
+    auto invoker  = gemm.MakeInvoker();
+    auto argument = gemm.MakeArgument(p_a,
+                                      p_b0,
+                                      p_b1,
+                                      p_c,
+                                      problem_descs,
+                                      a_element_op,
+                                      b0_element_op,
+                                      acc0_element_op,
+                                      b1_element_op,
+                                      c_element_op);
 
     // specify workspace for problem_desc
     DeviceMem problem_desc_workspace(gemm.GetWorkSpaceSize(&argument));
@@ -378,9 +384,9 @@ int main(int argc, char* argv[])
             const auto& c_gs_ms_os_lengths = problem_descs[i].c_gs_ms_os_lengths;
             const auto& c_gs_ms_os_strides = problem_descs[i].c_gs_ms_os_strides;
 
-            const auto& a_g_m_k                 = a_tensors[i];
-            const auto& b0_g_k_n                = b0_tensors[i];
-            const auto& b1_g_n_o                = b1_tensors[i];
+            const auto& a_g_m_k            = a_tensors[i];
+            const auto& b0_g_k_n           = b0_tensors[i];
+            const auto& b1_g_n_o           = b1_tensors[i];
             auto& c_gs_ms_os_device_result = c_tensors[i];
             auto& c_gs_ms_os_device_buf    = *c_tensors_device[i];
 
@@ -391,13 +397,12 @@ int main(int argc, char* argv[])
             c_gs_ms_os_device_buf.FromDevice(c_gs_ms_os_device_result.mData.data());
 
             // Output of Gemm0 is input A of Gemm1
-            Tensor<AccDataType> acc0_m_n(
-                f_host_tensor_descriptor(Batch, M, N, N, M * N, Row{}));
+            Tensor<AccDataType> acc0_m_n(f_host_tensor_descriptor(Batch, M, N, N, M * N, Row{}));
 
             Tensor<ADataType> a1_g_m_n(f_host_tensor_descriptor(Batch, M, N, N, M * N, Row{}));
 
             Tensor<CDataType> c_g_m_o_host_result(std::vector<int>{Batch, M, O},
-                                                std::vector<int>{M * O, O, 1});
+                                                  std::vector<int>{M * O, O, 1});
 
             auto ref_gemm0          = ReferenceGemm0Instance{};
             auto ref_gemm0_invoker  = ref_gemm0.MakeInvoker();
@@ -414,18 +419,22 @@ int main(int argc, char* argv[])
 
             auto ref_gemm1          = ReferenceGemm1Instance{};
             auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
-            auto ref_gemm1_argument = ref_gemm1.MakeArgument(
-                a1_g_m_n, b1_g_n_o, c_g_m_o_host_result, PassThrough{}, b1_element_op, c_element_op);
+            auto ref_gemm1_argument = ref_gemm1.MakeArgument(a1_g_m_n,
+                                                             b1_g_n_o,
+                                                             c_g_m_o_host_result,
+                                                             PassThrough{},
+                                                             b1_element_op,
+                                                             c_element_op);
 
             ref_gemm1_invoker.Run(ref_gemm1_argument);
 
             // Note: in this example, we merely permute the dimensions by changing underlying
             // strides so we simply access data as-is
-            c_gs_ms_os_host_result.ForEach([&](auto& self, auto idx) {
-                self(idx) = c_g_m_o_host_result(idx);
-            });
+            c_gs_ms_os_host_result.ForEach(
+                [&](auto& self, auto idx) { self(idx) = c_g_m_o_host_result(idx); });
 
-            bool pass_ = ck::utils::check_err(c_gs_ms_os_device_result.mData, c_gs_ms_os_host_result.mData);
+            bool pass_ =
+                ck::utils::check_err(c_gs_ms_os_device_result.mData, c_gs_ms_os_host_result.mData);
             pass &= pass_;
         }
     }
