@@ -18,66 +18,6 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_data_bias_activation.hpp"
 
-#if 0
-using BF16 = ck::bhalf_t;
-using FP16 = ck::half_t;
-using FP32 = float;
-#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-using I4 = ck::int4_t;
-#endif
-using I8  = std::int8_t;
-using I32 = std::int32_t;
-
-template <typename InLay, typename WeiLay, typename OutLay, typename DELay>
-struct LayoutSetting
-{
-    using InLayout  = InLay;
-    using WeiLayout  = WeiLay;
-    using OutLayout  = OutLay;
-    using DELayout = DELay;
-};
-
-template <ck::index_t NDimSpatial>
-struct LayoutSettingSelector;
-
-namespace ctl = ck::tensor_layout::convolution;
-
-template <>
-struct LayoutSettingSelector<1> final : LayoutSetting<ctl::NWC, ctl::KXC, ctl::NWK, ctl::NWC>
-{
-};
-
-template <>
-struct LayoutSettingSelector<2> final : LayoutSetting<ctl::NHWC, ctl::KYXC, ctl::NHWK, ctl::NHWC>
-{
-};
-
-template <>
-struct LayoutSettingSelector<3> final
-    : LayoutSetting<ctl::NDHWC, ctl::KZYXC, ctl::NDHWK, ctl::NDHWC>
-{
-};
-
-template <ck::index_t NDimSpatial>
-using InLayout = typename LayoutSettingSelector<NDimSpatial>::InLayout;
-
-template <ck::index_t NDimSpatial>
-using WeiLayout = typename LayoutSettingSelector<NDimSpatial>::WeiLayout;
-
-template <ck::index_t NDimSpatial>
-using OutLayout = typename LayoutSettingSelector<NDimSpatial>::OutLayout;
-
-template <ck::index_t NDimSpatial>
-using DELayout = typename LayoutSettingSelector<NDimSpatial>::DELayout;
-
-struct ExecutionConfig final
-{
-    bool do_verification = true;
-    int init_method      = 1;
-    bool time_kernel     = false;
-};
-#endif
-
 void print_helper_msg()
 {
     std::cout << "arg1: verification (0=no, 1=yes)\n"
@@ -164,9 +104,11 @@ int run_conv_bwd_data_bias_relu(bool do_verification,
 
     if(!conv.IsSupportedArgument(argument))
     {
-        throw std::runtime_error(
+        printf(
             "wrong! device_conv with the specified compilation parameters does "
-            "not support this Conv problem");
+            "not support this Conv problem\n");
+
+        return 1;
     }
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
