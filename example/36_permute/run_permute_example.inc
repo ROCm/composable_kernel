@@ -10,7 +10,7 @@
 bool run_permute(const ExecutionConfig& config, const Problem& problem)
 {
 #if 1 < NUM_ELEMS_IN_BUNDLE
-    static_assert(std::is_same_v<ADataType, BDataType>);
+    static_assert(std::is_same_v<ADataType, BDataType> && (sizeof(ADataType) % NUM_ELEMS_IN_BUNDLE == 0));
 #endif
 
     using std::begin, std::end;
