@@ -55,30 +55,61 @@ using B1Layout  = Row;
 using D1Layout  = Row;
 using E1Layout  = Row;
 
-// C = A * B
-// E = Relu(C + D0) + D1;
-struct AddReluAdd
+// E = Relu(C + D0 + D1)
+struct AddAddRelu
 {
     __host__ __device__ void
     operator()(ck::half_t& e, const ck::half_t& c, const ck::half_t& d0, const ck::half_t& d1) const
     {
-        const ck::half_t x = c + d0;
+        const ck::half_t x = c + d0 + d1;
 
-        e = (x > 0 ? x : 0) + d1;
+        ck::tensor_operation::element_wise::Relu{}.template operator()<ck::half_t>(e, x);
+    }
+    __host__ __device__ void
+    operator()(float& e, const float& c, const ck::half_t& d0, const ck::half_t& d1) const
+    {
+        const float x = c + (d0 + d1);
+
+        ck::tensor_operation::element_wise::Relu{}.template operator()<float>(e, x);
+    }
+};
+
+// E = Gelu(C + D0 + D1)
+struct AddAddGelu
+{
+    __host__ __device__ void
+    operator()(ck::half_t& e, const ck::half_t& c, const ck::half_t& d0, const ck::half_t& d1) const
+    {
+        const ck::half_t x = c + d0 + d1;
+
+        ck::tensor_operation::element_wise::Gelu{}.template operator()<ck::half_t, ck::half_t>(e,
+                                                                                               x);
     }
 
     __host__ __device__ void
     operator()(float& e, const float& c, const ck::half_t& d0, const ck::half_t& d1) const
     {
-        const float x = c + ck::type_convert<const float>(d0);
+        const float x = c + (d0 + d1);
 
-        e = (x > 0 ? x : 0) + ck::type_convert<const float>(d1);
+        ck::tensor_operation::element_wise::Gelu{}.template operator()<float, float>(e, x);
+    }
+};
+
+// E = FastGelu(C + D0 + D1)
+struct AddAddFastGelu
+{
+    __host__ __device__ void
+    operator()(float& e, const float& c, const ck::half_t& d0, const ck::half_t& d1) const
+    {
+        const float x = c + (d0 + d1);
+
+        ck::tensor_operation::element_wise::FastGelu{}.template operator()<float, float>(e, x);
     }
 };
 
 using A0ElementOp   = PassThrough;
 using B0ElementOp   = PassThrough;
-using CDE0ElementOp = AddReluAdd;
+using CDE0ElementOp = AddAddRelu;
 using A1ElementOp   = PassThrough;
 using B1ElementOp   = PassThrough;
 using CDE1ElementOp = ck::tensor_operation::element_wise::Add;
@@ -164,19 +195,25 @@ int main(int argc, char* argv[])
     bool time_kernel     = false;
 
     // GEMM shape
-    ck::index_t M             = 1024;
-    ck::index_t N             = 1024;
-    ck::index_t K             = 64;
-    ck::index_t O             = 128;
-    ck::index_t BatchCount    = 4;
-    ck::index_t StrideA0      = -1;
-    ck::index_t StrideB0      = -1;
-    ck::index_t StrideB1      = -1;
-    ck::index_t StrideE1      = -1;
-    ck::index_t BatchStrideA0 = -1;
-    ck::index_t BatchStrideB0 = -1;
-    ck::index_t BatchStrideB1 = -1;
-    ck::index_t BatchStrideE1 = -1;
+    ck::index_t M              = 4096;
+    ck::index_t N              = 4096;
+    ck::index_t K              = 128;
+    ck::index_t O              = 128;
+    ck::index_t BatchCount     = 16;
+    ck::index_t StrideA0       = -1;
+    ck::index_t StrideB0       = -1;
+    ck::index_t StrideD00      = -1;
+    ck::index_t StrideD01      = -1;
+    ck::index_t StrideB1       = -1;
+    ck::index_t StrideD1       = -1;
+    ck::index_t StrideE1       = -1;
+    ck::index_t BatchStrideA0  = -1;
+    ck::index_t BatchStrideB0  = -1;
+    ck::index_t BatchStrideD00 = -1;
+    ck::index_t BatchStrideD01 = -1;
+    ck::index_t BatchStrideB1  = -1;
+    ck::index_t BatchStrideD1  = -1;
+    ck::index_t BatchStrideE1  = -1;
 
     if(argc == 1)
     {
@@ -201,7 +238,7 @@ int main(int argc, char* argv[])
 
         BatchCount = std::stoi(argv[8]);
     }
-    else if(argc == 17)
+    else if(argc == 23)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
@@ -214,54 +251,65 @@ int main(int argc, char* argv[])
 
         BatchCount = std::stoi(argv[8]);
 
-        StrideA0 = std::stoi(argv[9]);
-        StrideB0 = std::stoi(argv[10]);
-        StrideB1 = std::stoi(argv[11]);
-        StrideE1 = std::stoi(argv[12]);
+        StrideA0  = std::stoi(argv[9]);
+        StrideB0  = std::stoi(argv[10]);
+        StrideD00 = std::stoi(argv[11]);
+        StrideD01 = std::stoi(argv[12]);
+        StrideB1  = std::stoi(argv[13]);
+        StrideD1  = std::stoi(argv[14]);
+        StrideE1  = std::stoi(argv[15]);
 
-        BatchStrideA0 = std::stoi(argv[13]);
-        BatchStrideB0 = std::stoi(argv[14]);
-        BatchStrideB1 = std::stoi(argv[15]);
-        BatchStrideE1 = std::stoi(argv[16]);
+        BatchStrideA0  = std::stoi(argv[16]);
+        BatchStrideB0  = std::stoi(argv[17]);
+        BatchStrideD00 = std::stoi(argv[18]);
+        BatchStrideD01 = std::stoi(argv[19]);
+        BatchStrideB1  = std::stoi(argv[20]);
+        BatchStrideD1  = std::stoi(argv[21]);
+        BatchStrideE1  = std::stoi(argv[22]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf(
-            "arg4 to 17: M, N, K, O, Batch, StrideA0, StrideB0, StrideB1, StrideE1, BatchStrideA0, "
-            "BatchStrideB0, BatchStrideB1, BatchStrideE1\n");
+        printf("arg4 to 8: M, N, K, O, Batch\n");
+        printf("arg9 to 15: StrideA0, StrideB0, StrideD0, StrideB1, StrideD1, StrideE1\n");
+        printf("arg16 to 22: BatchStrideA0, BatchStrideB0, BatchStrideD0, BatchStrideB1, "
+               "BatchStrideD1, BatchStrideE1 \n");
         exit(0);
     }
 
-    const int DefaultStrideA0 = ck::is_same_v<A0Layout, Row> ? K : M;
-    const int DefaultStrideB0 = ck::is_same_v<B0Layout, Row> ? N : K;
-    const int DefaultStrideB1 = ck::is_same_v<B1Layout, Row> ? O : N;
-    const int DefaultStrideE1 = ck::is_same_v<E1Layout, Row> ? O : M;
+    const int DefaultStrideA0  = ck::is_same_v<A0Layout, Row> ? K : M;
+    const int DefaultStrideB0  = ck::is_same_v<B0Layout, Row> ? N : K;
+    const int DefaultStrideD00 = ck::is_same_v<D00Layout, Row> ? N : M;
+    const int DefaultStrideD01 = ck::is_same_v<D01Layout, Row> ? N : M;
+    const int DefaultStrideB1  = ck::is_same_v<B1Layout, Row> ? O : N;
+    const int DefaultStrideD1  = ck::is_same_v<D1Layout, Row> ? O : M;
+    const int DefaultStrideE1  = ck::is_same_v<E1Layout, Row> ? O : M;
 
-    StrideA0 = (StrideA0 < 0) ? DefaultStrideA0 : StrideA0;
-    StrideB0 = (StrideB0 < 0) ? DefaultStrideB0 : StrideB0;
-    StrideB1 = (StrideB1 < 0) ? DefaultStrideB1 : StrideB1;
-    StrideE1 = (StrideE1 < 0) ? DefaultStrideE1 : StrideE1;
+    StrideA0  = (StrideA0 < 0) ? DefaultStrideA0 : StrideA0;
+    StrideB0  = (StrideB0 < 0) ? DefaultStrideB0 : StrideB0;
+    StrideD00 = (StrideD00 < 0) ? DefaultStrideD00 : StrideD00;
+    StrideD01 = (StrideD01 < 0) ? DefaultStrideD01 : StrideD01;
+    StrideB1  = (StrideB1 < 0) ? DefaultStrideB1 : StrideB1;
+    StrideD1  = (StrideD1 < 0) ? DefaultStrideD1 : StrideD1;
+    StrideE1  = (StrideE1 < 0) ? DefaultStrideE1 : StrideE1;
 
-    const int DefaultBatchStrideA0 = (ck::is_same_v<A0Layout, Col> ? K : M) * StrideA0;
-    const int DefaultBatchStrideB0 = (ck::is_same_v<B0Layout, Col> ? N : K) * StrideB0;
-    const int DefaultBatchStrideB1 = (ck::is_same_v<B1Layout, Col> ? O : N) * StrideB1;
-    const int DefaultBatchStrideE1 = (ck::is_same_v<E1Layout, Col> ? O : M) * StrideE1;
+    const int DefaultBatchStrideA0  = (ck::is_same_v<A0Layout, Col> ? K : M) * StrideA0;
+    const int DefaultBatchStrideB0  = (ck::is_same_v<B0Layout, Col> ? N : K) * StrideB0;
+    const int DefaultBatchStrideD00 = (ck::is_same_v<D00Layout, Col> ? N : M) * StrideD00;
+    const int DefaultBatchStrideD01 = (ck::is_same_v<D01Layout, Col> ? N : M) * StrideD01;
+    const int DefaultBatchStrideB1  = (ck::is_same_v<B1Layout, Col> ? O : N) * StrideB1;
+    const int DefaultBatchStrideD1  = (ck::is_same_v<D1Layout, Col> ? O : M) * StrideD1;
+    const int DefaultBatchStrideE1  = (ck::is_same_v<E1Layout, Col> ? O : M) * StrideE1;
 
-    BatchStrideA0 = BatchStrideA0 < 0 ? DefaultBatchStrideA0 : BatchStrideA0;
-    BatchStrideB0 = BatchStrideB0 < 0 ? DefaultBatchStrideB0 : BatchStrideB0;
-    BatchStrideB1 = BatchStrideB1 < 0 ? DefaultBatchStrideB1 : BatchStrideB1;
-    BatchStrideE1 = BatchStrideE1 < 0 ? DefaultBatchStrideE1 : BatchStrideE1;
-
-    const int StrideD00      = 0;
-    const int BatchStrideD00 = N;
-    const int StrideD01      = 0;
-    const int BatchStrideD01 = N;
-
-    const int StrideD1      = 0;
-    const int BatchStrideD1 = O;
+    BatchStrideA0  = BatchStrideA0 < 0 ? DefaultBatchStrideA0 : BatchStrideA0;
+    BatchStrideB0  = BatchStrideB0 < 0 ? DefaultBatchStrideB0 : BatchStrideB0;
+    BatchStrideD00 = BatchStrideD00 < 0 ? DefaultBatchStrideD00 : BatchStrideD00;
+    BatchStrideD01 = BatchStrideD01 < 0 ? DefaultBatchStrideD01 : BatchStrideD01;
+    BatchStrideB1  = BatchStrideB1 < 0 ? DefaultBatchStrideB1 : BatchStrideB1;
+    BatchStrideD1  = BatchStrideD1 < 0 ? DefaultBatchStrideD1 : BatchStrideD1;
+    BatchStrideE1  = BatchStrideE1 < 0 ? DefaultBatchStrideE1 : BatchStrideE1;
 
     auto f_host_tensor_descriptor = [](std::size_t batch_count,
                                        std::size_t row,
