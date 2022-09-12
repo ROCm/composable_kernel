@@ -102,15 +102,13 @@ bool run_permute(const ExecutionConfig& config, const Problem& problem)
             return false;
         }
 
-        std::vector<DataType> extended_b(reinterpret_cast<DataType*>(data(b.mData)),
-                                         reinterpret_cast<DataType*>(data(b.mData)) +
-                                             b.mDesc.GetElementSpaceSize() * NUM_ELEMS_IN_BUNDLE);
-
-        return ck::utils::check_err(extended_b,
-                                    extended_host_b.mData,
-                                    "Error: incorrect results in output tensor",
-                                    1e-10,
-                                    1e-10);
+        return ck::utils::check_err(
+            ck::span<const DataType>{reinterpret_cast<DataType*>(data(b.mData)),
+                                     b.mDesc.GetElementSpaceSize() * NUM_ELEMS_IN_BUNDLE},
+            ck::span<const DataType>{extended_host_b.mData},
+            "Error: incorrect results in output tensor",
+            1e-10,
+            1e-10);
 #endif
     }
 
