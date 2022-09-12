@@ -83,16 +83,6 @@ __global__ void
     const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetCBasePtr(g_idx)));
 
-    if(threadIdx.x == 0)
-    {
-        printf("bid %d, num_blocks_per_batch %d, arg_ptr[group_id].block_start_ %d, g_idx %d, c_batch_offset %ld\n",
-               block_id,
-               num_blocks_per_batch,
-               arg_ptr[group_id].block_start_,
-               g_idx,
-               c_batch_offset);
-    }
-
     GridwiseGemm::template Run<HasMainKBlockLoop>(
         arg_ptr[group_id].p_a_grid_ + a_batch_offset,
         arg_ptr[group_id].p_b_grid_ + b_batch_offset,
@@ -423,52 +413,6 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     using CGridDesc_M_N        = decltype(MakeCGridDescriptor_M_N({}, {}));
     using CGridDesc_G_M_N      = decltype(MakeCGridDescriptor_G_M_N({}, {}));
 
-/*
-    struct ComputeBasePtrOfStridedBatch
-    {
-        ComputeBasePtrOfStridedBatch(index_t BatchStrideA,
-                                     index_t BatchStrideB,
-                                     index_t BatchStrideB1,
-                                     CGridDesc_G_M_N c_grid_desc_g_m_n,
-                                     index_t block_start)
-            : BatchStrideA_(BatchStrideA),
-              BatchStrideB_(BatchStrideB),
-              BatchStrideB1_(BatchStrideB1),
-              c_grid_desc_g_m_n_(c_grid_desc_g_m_n),
-              block_start_(block_start)
-        {
-        }
-
-        __host__ __device__ constexpr long_index_t GetABasePtr(index_t g_idx) const
-        {
-            return (g_idx - block_start_) * static_cast<long_index_t>(BatchStrideA_);
-        }
-
-        __host__ __device__ constexpr long_index_t GetBBasePtr(index_t g_idx) const
-        {
-            return (g_idx - block_start_) * static_cast<long_index_t>(BatchStrideB_);
-        }
-
-        __host__ __device__ constexpr long_index_t GetB1BasePtr(index_t g_idx) const
-        {
-            return (g_idx - block_start_) * static_cast<long_index_t>(BatchStrideB1_);
-        }
-
-        __host__ __device__ constexpr long_index_t GetCBasePtr(index_t g_idx) const
-        {
-            return c_grid_desc_g_m_n_.CalculateOffset(make_multi_index(g_idx - block_start_, 0, 0));
-        }
-
-        private:
-        index_t BatchStrideA_;
-        index_t BatchStrideB_;
-        index_t BatchStrideB1_;
-        CGridDesc_G_M_N c_grid_desc_g_m_n_;
-
-        // offset unique global block id to local block id belonging to each group
-        index_t block_start_;
-    };
-*/
     struct ComputeBasePtrOfStridedBatch
     {
         ComputeBasePtrOfStridedBatch(index_t BatchStrideA,
@@ -667,7 +611,6 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                 const auto block_2_ctile_map = Block2CTileMap(c_grid_desc_m_n, BlockStart);
                 const index_t grid_size_grp = block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n) *
                                               problem_desc_vec[i].Batch;
-                printf("group %lu: grid size %d, batch %d\n", i, grid_size_grp, problem_desc_vec[i].Batch);
                 const index_t BlockEnd       = grid_size_ + grid_size_grp;
 
                 // batch stride
@@ -812,7 +755,6 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     {
         if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a"))
         {
-            printf("0\n");
             return false;
         }
 
@@ -831,7 +773,6 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             const index_t b1_gemm1n = kernel_arg.b1_grid_desc_bk0_n_bk1_.GetLength(I1);
             if(!(c_m == a_m && c_gemm1n == b1_gemm1n))
             {
-                printf("1\n");
                 return false;
             }
 
@@ -863,14 +804,12 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                  b1_extent_lowest % B1BlockTransferSrcScalarPerVector == 0 &&
                  c_extent_lowest % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
             {
-                printf("2\n");
                 return false;
             }
 
             // Check vector store requirement; assumes last dimension in N to be contiguous
             if(device_arg.c_stride_lowest_ != 1)
             {
-                printf("3\n");
                 return false;
             }
 
@@ -880,7 +819,6 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                             device_arg.c_grid_desc_m_n_,
                                             kernel_arg.block_2_ctile_map_))
             {
-                printf("4\n");
                 return false;
             }
         }
@@ -889,7 +827,6 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         // no_main_k_block_loop
         if(!(all_has_main_k_block_loop || !some_has_main_k_block_loop))
         {
-            printf("5\n");
             return false;
         }
 

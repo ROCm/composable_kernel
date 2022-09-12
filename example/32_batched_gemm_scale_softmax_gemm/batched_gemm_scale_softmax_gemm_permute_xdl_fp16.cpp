@@ -167,7 +167,7 @@ int main(int argc, char* argv[])
 
     float alpha = 1; // scaling after 1st gemm
 
-    std::size_t group_count = 4;
+    std::size_t group_count = 13;
 
     // Problem descs
     std::vector<DeviceGemmInstance::ProblemDesc> problem_descs;
@@ -178,39 +178,22 @@ int main(int argc, char* argv[])
 
     for(std::size_t i = 0; i < group_count; i++)
     {
-        // int M0 = 4 * (rand() % 4 + 1);
-        // int M1 = 128;
-
-        // int O0 = 4 * (rand() % 4 + 1);
-        // int O1 = 128;
-
-        // int M = M0 * M1;
-        // int N = 256 * (rand() % 4 + 1);
-        // int K = 64;
-        // int O = O0 * O1;
-
-        int M = 128;
-        int N = 128;
+        int M = 128 * (rand() % 8 + 1);
+        int N = 128 * (rand() % 8 + 1);
         int K = 64;
-        int O = 64;
-        int Batch = 4;
+        int O = 64 * (rand() % 2 + 1);
+        int Batch = rand() % 8 + 1;
 
         const int StrideA  = ck::is_same_v<ALayout, Row> ? K : M;
         const int StrideB0 = ck::is_same_v<B0Layout, Row> ? N : K;
         const int StrideB1 = ck::is_same_v<B1Layout, Row> ? O : N;
 
-
         const int BatchStrideA  = (ck::is_same_v<ALayout, Col> ? K : M) * StrideA;
         const int BatchStrideB0 = (ck::is_same_v<B0Layout, Col> ? N : K) * StrideB0;
         const int BatchStrideB1 = (ck::is_same_v<B1Layout, Col> ? O : N) * StrideB1;
 
-        // std::vector<ck::index_t> c_gs_ms_os_lengths{M0, M1, O0, O1};
-        // std::vector<ck::index_t> c_gs_ms_os_strides{M1 * O0 * O1, O1, M1 * O1, 1}; // [0, 2, 1, 3]
-
         std::vector<ck::index_t> c_gs_ms_os_lengths{Batch, M, O};
         std::vector<ck::index_t> c_gs_ms_os_strides{O, Batch * O, 1};
-        // std::vector<ck::index_t> c_gs_ms_os_lengths{Batch, M, O};
-        // std::vector<ck::index_t> c_gs_ms_os_strides{M * O, O, 1};
 
         problem_descs.push_back({M,
                                  N,
@@ -259,6 +242,7 @@ int main(int argc, char* argv[])
 
     std::size_t flop = 0, num_byte = 0;
 
+    std::cout << "group count " << group_count << ". printing first 4 groups\n";
     for(std::size_t i = 0; i < group_count; i++)
     {
         const auto& M                  = problem_descs[i].M;
@@ -290,9 +274,9 @@ int main(int argc, char* argv[])
 
         if(i < 4)
         {
-            std::cout << "a_m_k[" << i << "]: " << a_m_k.mDesc << " "
-                      << "b0_k_n[" << i << "]: " << b0_k_n.mDesc << " "
-                      << "b1_n_o[" << i << "]: " << b1_n_o.mDesc << " "
+            std::cout << "a_m_k[" << i << "]: " << a_m_k.mDesc << ", "
+                      << "b0_k_n[" << i << "]: " << b0_k_n.mDesc << ", "
+                      << "b1_n_o[" << i << "]: " << b1_n_o.mDesc << ", "
                       << "c_gs_ms_os[" << i << "]: " << c_gs_ms_os_device_result.mDesc << std::endl;
         }
 
@@ -300,9 +284,9 @@ int main(int argc, char* argv[])
         {
         case 0: break;
         case 1:
-            a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-            b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-5, 5});
-            b1_n_o.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-5, 5});
+            a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+            b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+            b1_n_o.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
             break;
         case 2:
             a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
@@ -333,10 +317,6 @@ int main(int argc, char* argv[])
             std::make_unique<DeviceMem>(sizeof(B1DataType) * b1_n_o.mDesc.GetElementSpaceSize()));
         c_tensors_device.emplace_back(std::make_unique<DeviceMem>(
             sizeof(CDataType) * c_gs_ms_os_device_result.mDesc.GetElementSpaceSize()));
-
-        // a_m_k_device_buf.ToDevice(a_m_k.mData.data());
-        // b0_k_n_device_buf.ToDevice(b0_k_n.mData.data());
-        // b1_n_o_device_buf.ToDevice(b1_n_o.mData.data());
 
         a_tensors_device[i]->ToDevice(a_m_k.mData.data());
         b0_tensors_device[i]->ToDevice(b0_k_n.mData.data());
@@ -447,10 +427,6 @@ int main(int argc, char* argv[])
 
             bool pass_ = ck::utils::check_err(c_gs_ms_os_device_result.mData, c_gs_ms_os_host_result.mData);
             pass &= pass_;
-
-            // LogRangeAsType<float>(std::cout << "c_gs_ms_os_device_result: ", std::vector<float>(c_gs_ms_os_device_result.mData.begin(), c_gs_ms_os_device_result.mData.begin() + 16), ",") << std::endl;
-            // LogRangeAsType<float>(std::cout << "c_gs_ms_os_host_result: ", std::vector<float>(c_gs_ms_os_host_result.mData.begin(), c_gs_ms_os_host_result.mData.begin() + 16), ",") << std::endl;
-            // printf("pass = %d\n", pass);
         }
     }
 
