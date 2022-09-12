@@ -24,7 +24,7 @@ class span
     using iterator        = pointer;
     using const_iterator  = pointer;
 
-    constexpr span() : span(nullptr, 0) {}
+    constexpr span() : span(nullptr, size_type{0}) {}
 
     constexpr span(pointer first, size_type count) : ptr_(first), size_(count) {}
 
