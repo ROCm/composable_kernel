@@ -232,26 +232,26 @@ struct DevicePermute
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        constexpr auto IsScalarPerVectorValid = [](const std::array<index_t, NumDim>& lengths,
-                                                   const std::array<index_t, NumDim>& strides,
-                                                   index_t vectorDim,
-                                                   index_t scalarPerVector) {
-            if(strides[vectorDim] == 1 && lengths[vectorDim] % scalarPerVector == 0)
-            {
-                return true;
-            }
-            else if(strides[vectorDim] != 1 && scalarPerVector == 1)
-            {
-                return true;
-            }
+        constexpr auto IsScalarPerVectorValid =
+            [](index_t length, index_t stride, index_t scalarPerVector) {
+                if(stride == 1 && length % scalarPerVector == 0)
+                {
+                    return true;
+                }
+                else if(stride != 1 && scalarPerVector == 1)
+                {
+                    return true;
+                }
 
-            return false;
-        };
+                return false;
+            };
 
-        return IsScalarPerVectorValid(
-                   arg.inLengths_, arg.inStrides_, SrcVectorDim, SrcScalarPerVector) &&
-               IsScalarPerVectorValid(
-                   arg.outLengths_, arg.outStrides_, DstVectorDim, DstScalarPerVector) &&
+        return IsScalarPerVectorValid(arg.inLengths_[SrcVectorDim],
+                                      arg.inStrides_[SrcVectorDim],
+                                      SrcScalarPerVector) &&
+               IsScalarPerVectorValid(arg.outLengths_[DstVectorDim],
+                                      arg.outStrides_[DstVectorDim],
+                                      DstScalarPerVector) &&
                GridwisePermute::CheckValidity(arg.in_grid_desc_, arg.out_grid_desc_);
     };
 };
