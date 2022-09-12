@@ -6,7 +6,7 @@
 #include <initializer_list>
 #include <cstdlib>
 
-#include "profiler/include/profile_batched_gemm_add_relu_gemm_add_impl.hpp"
+#include "profiler/include/profile_batched_gemm_gemm_impl.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -14,21 +14,21 @@ using F32 = float;
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-int profile_batched_gemm_add_relu_gemm_add(int argc, char* argv[])
+int profile_batched_gemm_gemm(int argc, char* argv[])
 {
     enum struct GemmMatrixLayout
     {
-        MK_NK_MN_NO_MO_MO, // 0
+        MK_NK_NO_MO, // 0
     };
 
     enum struct GemmDataType
     {
-        F32_F32_F32_F32_F32_F32, // 0
-        F16_F16_F16_F16_F16_F16, // 1
+        F32_F32_F32_F32, // 0
+        F16_F16_F16_F16, // 1
     };
 
-    GemmDataType data_type  = GemmDataType::F16_F16_F16_F16_F16_F16;
-    GemmMatrixLayout layout = GemmMatrixLayout::MK_NK_MN_NO_MO_MO;
+    GemmDataType data_type  = GemmDataType::F16_F16_F16_F16;
+    GemmMatrixLayout layout = GemmMatrixLayout::MK_NK_NO_MO;
     bool do_verification    = true;
     int init_method         = 1;
     bool do_log             = 0;
@@ -42,15 +42,11 @@ int profile_batched_gemm_add_relu_gemm_add(int argc, char* argv[])
     ck::index_t BatchCount    = 4;
     ck::index_t StrideA0      = -1;
     ck::index_t StrideB0      = -1;
-    ck::index_t StrideD0      = -1;
     ck::index_t StrideB1      = -1;
-    ck::index_t StrideD1      = -1;
     ck::index_t StrideE1      = -1;
     ck::index_t BatchStrideA0 = -1;
     ck::index_t BatchStrideB0 = -1;
-    ck::index_t BatchStrideD0 = -1;
     ck::index_t BatchStrideB1 = -1;
-    ck::index_t BatchStrideD1 = -1;
     ck::index_t BatchStrideE1 = -1;
 
     if(argc == 8)
@@ -77,7 +73,7 @@ int profile_batched_gemm_add_relu_gemm_add(int argc, char* argv[])
         O          = std::stoi(argv[11]);
         BatchCount = std::stoi(argv[12]);
     }
-    else if(argc == 25)
+    else if(argc == 21)
     {
         data_type       = static_cast<GemmDataType>(std::stoi(argv[2]));
         layout          = static_cast<GemmMatrixLayout>(std::stoi(argv[3]));
@@ -94,17 +90,13 @@ int profile_batched_gemm_add_relu_gemm_add(int argc, char* argv[])
 
         StrideA0 = std::stoi(argv[13]);
         StrideB0 = std::stoi(argv[14]);
-        StrideD0 = std::stoi(argv[15]);
-        StrideB1 = std::stoi(argv[16]);
-        StrideD1 = std::stoi(argv[17]);
-        StrideE1 = std::stoi(argv[18]);
+        StrideB1 = std::stoi(argv[15]);
+        StrideE1 = std::stoi(argv[16]);
 
-        BatchStrideA0 = std::stoi(argv[19]);
-        BatchStrideB0 = std::stoi(argv[20]);
-        BatchStrideD0 = std::stoi(argv[21]);
-        BatchStrideB1 = std::stoi(argv[22]);
-        BatchStrideD1 = std::stoi(argv[23]);
-        BatchStrideE1 = std::stoi(argv[24]);
+        BatchStrideA0 = std::stoi(argv[17]);
+        BatchStrideB0 = std::stoi(argv[18]);
+        BatchStrideB1 = std::stoi(argv[19]);
+        BatchStrideE1 = std::stoi(argv[20]);
     }
     else
     {
@@ -118,27 +110,21 @@ int profile_batched_gemm_add_relu_gemm_add(int argc, char* argv[])
         printf("arg6: print tensor value (0: no; 1: yes)\n");
         printf("arg7: time kernel (0=no, 1=yes)\n");
         printf("arg8 to 12: M, N, K, O, Batch\n");
-        printf("arg13 to 18: StrideA0, StrideB0, StrideD0, StrideB1, StrideD1, StrideE1\n");
-        printf("arg19 to 24: BatchStrideA0, BatchStrideB0, BatchStrideD0, BatchStrideB1, "
-               "BatchStrideD1, BatchStrideE1 \n");
+        printf("arg13 to 18: StrideA0, StrideB0, StrideB1, StrideE1\n");
+        printf("arg19 to 24: BatchStrideA0, BatchStrideB0, BatchStrideB1, BatchStrideE1 \n");
         exit(1);
     }
 
-    if(data_type == GemmDataType::F16_F16_F16_F16_F16_F16 &&
-       layout == GemmMatrixLayout::MK_NK_MN_NO_MO_MO)
+    if(data_type == GemmDataType::F16_F16_F16_F16 && layout == GemmMatrixLayout::MK_NK_NO_MO)
     {
-        ck::profiler::profile_batched_gemm_add_relu_gemm_add_impl<Row,            // A0Layout,
-                                                                  Col,            // B0Layout,
-                                                                  ck::Tuple<Row>, // D0sLayout,
-                                                                  Row,            // B1Layout,
-                                                                  ck::Tuple<Row>, // D1sLayout,
-                                                                  Row,            // E1Layout,
-                                                                  F16,            // A0DataType,
-                                                                  F16,            // B0DataType,
-                                                                  ck::Tuple<F16>, // D0DataType,
-                                                                  F16,            // B1DataType,
-                                                                  ck::Tuple<F16>, // D1sDataType
-                                                                  F16>            // E1DataType,
+        ck::profiler::profile_batched_gemm_gemm_impl<F16, // A0DataType,
+                                                     F16, // B0DataType,
+                                                     F16, // B1DataType,
+                                                     F16, // E1DataType,
+                                                     Row, // A0Layout,
+                                                     Col, // B0Layout,
+                                                     Row, // B1Layout,
+                                                     Row> // E1Layout,
             (do_verification,
              init_method,
              do_log,
@@ -150,15 +136,11 @@ int profile_batched_gemm_add_relu_gemm_add(int argc, char* argv[])
              BatchCount,
              StrideA0,
              StrideB0,
-             StrideD0,
              StrideB1,
-             StrideD1,
              StrideE1,
              BatchStrideA0,
              BatchStrideB0,
-             BatchStrideD0,
              BatchStrideB1,
-             BatchStrideD1,
              BatchStrideE1);
     }
     else
