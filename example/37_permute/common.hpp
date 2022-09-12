@@ -493,8 +493,9 @@ host_permute(const Tensor<Src>& src, const Axes& axes, Functor functor, Tensor<D
         return false;
     }
 
-    if(size(shape) == 3)
+    switch(size(shape))
     {
+    case 3: {
         do
         {
             Dest output = 0;
@@ -502,8 +503,8 @@ host_permute(const Tensor<Src>& src, const Axes& axes, Functor functor, Tensor<D
             dest(indices[axes[0]], indices[axes[1]], indices[axes[2]]) = output;
         } while(advance_indices(shape, indices));
     }
-    else if(size(shape) == 4)
-    {
+    break;
+    case 4: {
         do
         {
             Dest output = 0;
@@ -511,9 +512,8 @@ host_permute(const Tensor<Src>& src, const Axes& axes, Functor functor, Tensor<D
             dest(indices[axes[0]], indices[axes[1]], indices[axes[2]], indices[axes[3]]) = output;
         } while(advance_indices(shape, indices));
     }
-    else
-    {
-        return false;
+    break;
+    default: return false;
     }
 
     return true;
