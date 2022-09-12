@@ -87,6 +87,29 @@ struct get_bundled<F32, 2>
 template <typename Bundle, std::size_t Divisor>
 using get_bundled_t = typename get_bundled<Bundle, Divisor>::type;
 
+template <typename Array, std::size_t Difference>
+struct enlarge_array_size;
+
+template <typename T, std::size_t Size, std::size_t Difference>
+struct enlarge_array_size<std::array<T, Size>, Difference>
+{
+    using type = std::array<T, Size + Difference>;
+};
+
+template <typename Array, std::size_t Difference>
+using enlarge_array_size_t = typename enlarge_array_size<Array, Difference>::type;
+
+template <typename Array>
+struct get_array_size;
+
+template <typename T, std::size_t Size>
+struct get_array_size<std::array<T, Size>> : std::integral_constant<std::size_t, Size>
+{
+};
+
+template <typename Array>
+inline constexpr std::size_t get_array_size_v = get_array_size<Array>::value;
+
 template <typename T, typename = void>
 struct is_iterator : std::false_type
 {
@@ -369,6 +392,30 @@ transpose_shape(const Shape& shape, const Axes& axes, OutputIterator iter)
     }
 
     return iter;
+}
+
+auto extend_shape(const Problem::Shape& shape, std::size_t new_dim)
+{
+    detail::enlarge_array_size_t<Problem::Shape, 1> extended_shape;
+
+    using std::begin, std::end;
+
+    std::copy(begin(shape), end(shape), begin(extended_shape));
+    extended_shape.back() = new_dim;
+
+    return extended_shape;
+}
+
+auto extend_axes(const Problem::Axes& axes)
+{
+    detail::enlarge_array_size_t<Problem::Axes, 1> extended_axes;
+
+    using std::begin, std::end;
+
+    std::copy(begin(axes), end(axes), begin(extended_axes));
+    extended_axes.back() = detail::get_array_size_v<Problem::Axes>;
+
+    return extended_axes;
 }
 
 template <typename Shape, typename Indices>
