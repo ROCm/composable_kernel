@@ -25,7 +25,7 @@ template <typename ALayout,
           typename Acc0ElementwiseOperation,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation>
-struct DeviceBatchedGemmSoftmaxGemmPermute : public BaseOperator
+struct DeviceGroupedGemmSoftmaxGemmPermute : public BaseOperator
 {
     struct ProblemDesc
     {

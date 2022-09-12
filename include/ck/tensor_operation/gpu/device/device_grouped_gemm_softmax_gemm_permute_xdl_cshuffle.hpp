@@ -10,7 +10,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_permute.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_gemm_softmax_gemm_permute.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_softmax_gemm_xdl_cshuffle_v1.hpp"
@@ -33,7 +33,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_batched_gemm_softmax_gemm_xdl_cshuffle_v1(
+        kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v1(
             const void CK_CONSTANT_ADDRESS_SPACE* group_kernel_args,
             const index_t group_count,
             const AElementwiseOperation a_element_op,
@@ -170,8 +170,8 @@ template <typename ALayout,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched = LoopScheduler::Default>
-struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
-    : public DeviceBatchedGemmSoftmaxGemmPermute<ALayout,
+struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
+    : public DeviceGroupedGemmSoftmaxGemmPermute<ALayout,
                                                  BLayout,
                                                  B1Layout,
                                                  CPermuteNumDims_G_M_Gemm1N,
@@ -185,9 +185,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                                  B1ElementwiseOperation,
                                                  CElementwiseOperation>
 {
-    using DeviceOp = DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle;
+    using DeviceOp = DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle;
     using ProblemDesc =
-        typename DeviceBatchedGemmSoftmaxGemmPermute<ALayout,
+        typename DeviceGroupedGemmSoftmaxGemmPermute<ALayout,
                                                      BLayout,
                                                      B1Layout,
                                                      CPermuteNumDims_G_M_Gemm1N,
@@ -694,7 +694,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
 
             auto launch_kernel = [&](auto has_main_k_block_loop_) {
                 const auto kernel =
-                    kernel_batched_gemm_softmax_gemm_xdl_cshuffle_v1<GridwiseGemm,
+                    kernel_grouped_gemm_softmax_gemm_xdl_cshuffle_v1<GridwiseGemm,
                                                                      GroupKernelArg,
                                                                      AElementwiseOperation,
                                                                      BElementwiseOperation,
