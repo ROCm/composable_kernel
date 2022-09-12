@@ -4,6 +4,7 @@
 #include "convnd_bwd_data_bias_relu_common.hpp"
 
 #include "ck/tensor_operation/gpu/device/device_convnd_bwd_data_bias_relu_nwc_kxc_nwk_xdl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_convnd_bwd_data_multiple_d_xdl_cshuffle_v1.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -28,6 +29,7 @@ static constexpr auto ConvBwdDataDefault =
 template <ck::index_t NDimSpatial>
 using DeviceConvNdBwdDataInstances = std::tuple<
     // clang-format off
+#if 0
                                       //############################################|         Num|     InData|     WeiData|     OutData|     AccData|     CShuffleData|     DData|          In|          Wei|          Out|       ConvBackward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
                                       //############################################|         Dim|       Type|        Type|        Type|        Type|             Type|      Type| Elementwise|  Elementwise|  Elementwise|               Data|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
                                       //############################################|     Spatial|           |            |            |            |                 |          |   Operation|    Operation|    Operation|     Specialization|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
@@ -37,6 +39,9 @@ using DeviceConvNdBwdDataInstances = std::tuple<
         ck::tensor_operation::device::DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl< NDimSpatial, InDataType, WeiDataType, OutDataType, AccDataType, CShuffleDataType, DDataType, InElementOp, WeiElementOp, OutElementOp, ConvBwdDataDefault,   256,   128,   128,     4,  8,   32,   32,    2,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<2, 0, 1>,     S<0, 2, 1>,             1,              2,              8,      true,           1,           1,         S<1, 1, 32, 1, 1, 8>,              8>,
         ck::tensor_operation::device::DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl< NDimSpatial, InDataType, WeiDataType, OutDataType, AccDataType, CShuffleDataType, DDataType, InElementOp, WeiElementOp, OutElementOp, ConvBwdDataDefault,   128,   128,   128,     4,  8,   32,   32,    4,    2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 32, 1>,     S<2, 0, 1>,     S<0, 2, 1>,             1,              4,              8,      true,           1,           1,         S<1, 1, 16, 1, 1, 8>,              8>,
         ck::tensor_operation::device::DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl< NDimSpatial, InDataType, WeiDataType, OutDataType, AccDataType, CShuffleDataType, DDataType, InElementOp, WeiElementOp, OutElementOp, ConvBwdDataDefault,   128,    32,   128,     4,  8,   32,   32,    1,    2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 32, 1>,     S<2, 0, 1>,     S<0, 2, 1>,             1,              4,              8,      true,           1,           1,         S<1, 1, 16, 1, 1, 8>,              8>
+#else
+        ck::tensor_operation::device::DeviceConvNdBwdDataMultipleD_Xdl_CShuffle_v1< NDimSpatial, InDataType, WeiDataType, OutDataType, AccDataType, CShuffleDataType, DDataType, InElementOp, WeiElementOp, OutElementOp, ConvBwdDataDefault,   256,   128,   256,     4,  8,   32,   32,    2,    4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<2, 0, 1>,     S<0, 2, 1>,             1,              4,              8,      true,           1,           1,         S<1, 1, 32, 1, 1, 8>,              8>
+#endif
     // clang-format on
     >;
 
@@ -81,6 +86,7 @@ int main(int argc, char* argv[])
     auto bias_c_desc =
         HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(conv_param.C_)}));
 
+#if 0
     if(conv_param.num_dim_spatial_ == 1)
     {
         using InLayout  = ctc::GNWC;
@@ -125,6 +131,7 @@ int main(int argc, char* argv[])
         });
     }
     else if(conv_param.num_dim_spatial_ == 2)
+#endif
     {
         using InLayout  = ctc::GNHWC;
         using WeiLayout = ctc::GKYXC;
@@ -167,6 +174,7 @@ int main(int argc, char* argv[])
                                                       out_element_op);
         });
     }
+#if 0
     else if(conv_param.num_dim_spatial_ == 3)
     {
         using InLayout  = ctc::GNDHWC;
@@ -210,6 +218,7 @@ int main(int argc, char* argv[])
                                                       out_element_op);
         });
     }
+#endif
 
     return 0;
 }
