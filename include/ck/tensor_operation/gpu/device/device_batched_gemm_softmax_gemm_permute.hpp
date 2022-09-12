@@ -34,11 +34,15 @@ struct DeviceBatchedGemmSoftmaxGemmPermute : public BaseOperator
         index_t N;
         index_t K;
         index_t O;
+        index_t Batch;
 
         // Stride for A/B0/B1; layout determined by template args
         index_t StrideA;
         index_t StrideB0;
         index_t StrideB1;
+        index_t BatchStrideA;
+        index_t BatchStrideB0;
+        index_t BatchStrideB1;
 
         // Lengths and strides for output C
         std::vector<index_t> c_gs_ms_os_lengths;

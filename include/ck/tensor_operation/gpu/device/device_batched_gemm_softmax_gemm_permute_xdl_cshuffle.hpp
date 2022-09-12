@@ -69,11 +69,26 @@ __global__ void
         group_id = index_t((left + right) / 2);
     }
 
+    // per-group batch offset
+    const index_t num_blocks_per_batch =
+        arg_ptr[group_id].block_end_ - arg_ptr[group_id].block_start_;
+    const index_t g_idx = __builtin_amdgcn_readfirstlane(
+        (get_block_1d_id() - arg_ptr[group_id].block_start_) / num_blocks_per_batch);
+
+    const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
+        static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetABasePtr(g_idx)));
+    const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
+        static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetBBasePtr(g_idx)));
+    const long_index_t b1_batch_offset = __builtin_amdgcn_readfirstlane(
+        static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetB1BasePtr(g_idx)));
+    const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
+        static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetCBasePtr(g_idx)));
+
     GridwiseGemm::template Run<HasMainKBlockLoop>(
-        arg_ptr[group_id].p_a_grid_,
-        arg_ptr[group_id].p_b_grid_,
-        arg_ptr[group_id].p_b1_grid_,
-        arg_ptr[group_id].p_c_grid_,
+        arg_ptr[group_id].p_a_grid_ + a_batch_offset,
+        arg_ptr[group_id].p_b_grid_ + b_batch_offset,
+        arg_ptr[group_id].p_b1_grid_ + b1_batch_offset,
+        arg_ptr[group_id].p_c_grid_ + c_batch_offset,
         p_shared,
         a_element_op,
         b_element_op,
@@ -399,6 +414,92 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     using CGridDesc_M_N        = decltype(MakeCGridDescriptor_M_N({}, {}));
     using CGridDesc_G_M_N      = decltype(MakeCGridDescriptor_G_M_N({}, {}));
 
+/*
+    struct ComputeBasePtrOfStridedBatch
+    {
+        ComputeBasePtrOfStridedBatch(index_t BatchStrideA,
+                                     index_t BatchStrideB,
+                                     index_t BatchStrideB1,
+                                     CGridDesc_G_M_N c_grid_desc_g_m_n,
+                                     index_t block_start)
+            : BatchStrideA_(BatchStrideA),
+              BatchStrideB_(BatchStrideB),
+              BatchStrideB1_(BatchStrideB1),
+              c_grid_desc_g_m_n_(c_grid_desc_g_m_n),
+              block_start_(block_start)
+        {
+        }
+
+        __host__ __device__ constexpr long_index_t GetABasePtr(index_t g_idx) const
+        {
+            return (g_idx - block_start_) * static_cast<long_index_t>(BatchStrideA_);
+        }
+
+        __host__ __device__ constexpr long_index_t GetBBasePtr(index_t g_idx) const
+        {
+            return (g_idx - block_start_) * static_cast<long_index_t>(BatchStrideB_);
+        }
+
+        __host__ __device__ constexpr long_index_t GetB1BasePtr(index_t g_idx) const
+        {
+            return (g_idx - block_start_) * static_cast<long_index_t>(BatchStrideB1_);
+        }
+
+        __host__ __device__ constexpr long_index_t GetCBasePtr(index_t g_idx) const
+        {
+            return c_grid_desc_g_m_n_.CalculateOffset(make_multi_index(g_idx - block_start_, 0, 0));
+        }
+
+        private:
+        index_t BatchStrideA_;
+        index_t BatchStrideB_;
+        index_t BatchStrideB1_;
+        CGridDesc_G_M_N c_grid_desc_g_m_n_;
+
+        // offset unique global block id to local block id belonging to each group
+        index_t block_start_;
+    };
+*/
+    struct ComputeBasePtrOfStridedBatch
+    {
+        ComputeBasePtrOfStridedBatch(index_t BatchStrideA,
+                                     index_t BatchStrideB,
+                                     index_t BatchStrideB1,
+                                     CGridDesc_G_M_N c_grid_desc_g_m_n)
+            : BatchStrideA_(BatchStrideA),
+              BatchStrideB_(BatchStrideB),
+              BatchStrideB1_(BatchStrideB1),
+              c_grid_desc_g_m_n_(c_grid_desc_g_m_n)
+        {
+        }
+
+        __host__ __device__ constexpr long_index_t GetABasePtr(index_t g_idx) const
+        {
+            return g_idx * static_cast<long_index_t>(BatchStrideA_);
+        }
+
+        __host__ __device__ constexpr long_index_t GetBBasePtr(index_t g_idx) const
+        {
+            return g_idx * static_cast<long_index_t>(BatchStrideB_);
+        }
+
+        __host__ __device__ constexpr long_index_t GetB1BasePtr(index_t g_idx) const
+        {
+            return g_idx * static_cast<long_index_t>(BatchStrideB1_);
+        }
+
+        __host__ __device__ constexpr long_index_t GetCBasePtr(index_t g_idx) const
+        {
+            return c_grid_desc_g_m_n_.CalculateOffset(make_multi_index(g_idx, 0, 0));
+        }
+
+        private:
+        index_t BatchStrideA_;
+        index_t BatchStrideB_;
+        index_t BatchStrideB1_;
+        CGridDesc_G_M_N c_grid_desc_g_m_n_;
+    };
+
     // GridwiseGemm
     using GridwiseGemm = GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle<
         ADataType, // TODO: distinguish A/B datatype
@@ -478,6 +579,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
 
+        // batch & stride
+        ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
+
         // block-to-c-tile map
         Block2CTileMap block_2_ctile_map_;
 
@@ -497,46 +601,6 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         index_t c_stride_lowest_;
 
         CGridDesc_M_N c_grid_desc_m_n_;
-    };
-
-    struct ComputeBasePtrOfStridedBatch
-    {
-        ComputeBasePtrOfStridedBatch(index_t BatchStrideA,
-                                     index_t BatchStrideB,
-                                     index_t BatchStrideB1,
-                                     CGridDesc_G_M_N c_grid_desc_g_m_n)
-            : BatchStrideA_(BatchStrideA),
-              BatchStrideB_(BatchStrideB),
-              BatchStrideB1_(BatchStrideB1),
-              c_grid_desc_g_m_n_(c_grid_desc_g_m_n)
-        {
-        }
-
-        __host__ __device__ constexpr long_index_t GetABasePtr(index_t g_idx) const
-        {
-            return g_idx * static_cast<long_index_t>(BatchStrideA_);
-        }
-
-        __host__ __device__ constexpr long_index_t GetBBasePtr(index_t g_idx) const
-        {
-            return g_idx * static_cast<long_index_t>(BatchStrideB_);
-        }
-
-        __host__ __device__ constexpr long_index_t GetB1BasePtr(index_t g_idx) const
-        {
-            return g_idx * static_cast<long_index_t>(BatchStrideB1_);
-        }
-
-        __host__ __device__ constexpr long_index_t GetCBasePtr(index_t g_idx) const
-        {
-            return c_grid_desc_g_m_n_.CalculateOffset(make_multi_index(g_idx, 0, 0));
-        }
-
-        private:
-        index_t BatchStrideA_;
-        index_t BatchStrideB_;
-        index_t BatchStrideB1_;
-        CGridDesc_G_M_N c_grid_desc_g_m_n_;
     };
 
     // Argument
@@ -594,6 +658,16 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                 const index_t grid_size_grp  = block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n);
                 const index_t BlockEnd       = grid_size_ + grid_size_grp;
 
+                // batch stride
+                // TODO ANT: only keep batch stride in tensor desc to reduce scalar cache pressure
+                const auto c_grid_desc_g_m_n = DeviceOp::MakeCGridDescriptor_G_M_N(
+                    problem_desc_vec[i].c_gs_ms_os_lengths, problem_desc_vec[i].c_gs_ms_os_strides);
+                const auto compute_base_ptr_of_batch =
+                    ComputeBasePtrOfStridedBatch(problem_desc_vec[i].BatchStrideA,
+                                                 problem_desc_vec[i].BatchStrideB0,
+                                                 problem_desc_vec[i].BatchStrideB1,
+                                                 c_grid_desc_g_m_n);
+
                 grid_size_ += grid_size_grp;
 
                 group_kernel_args_.push_back({p_a_grid,
@@ -604,6 +678,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                               b_grid_desc_bk0_n_bk1,
                                               b1_grid_desc_bk0_n_bk1,
                                               c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                              compute_base_ptr_of_batch,
                                               block_2_ctile_map,
                                               BlockStart,
                                               BlockEnd});
