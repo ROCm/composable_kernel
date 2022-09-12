@@ -193,7 +193,7 @@ int main(int argc, char* argv[])
         int N = 128;
         int K = 64;
         int O = 64;
-        int Batch = 1;
+        int Batch = 4;
 
         const int StrideA  = ck::is_same_v<ALayout, Row> ? K : M;
         const int StrideB0 = ck::is_same_v<B0Layout, Row> ? N : K;
@@ -209,6 +209,8 @@ int main(int argc, char* argv[])
 
         std::vector<ck::index_t> c_gs_ms_os_lengths{Batch, M, O};
         std::vector<ck::index_t> c_gs_ms_os_strides{O, Batch * O, 1};
+        // std::vector<ck::index_t> c_gs_ms_os_lengths{Batch, M, O};
+        // std::vector<ck::index_t> c_gs_ms_os_strides{M * O, O, 1};
 
         problem_descs.push_back({M,
                                  N,
@@ -426,7 +428,7 @@ int main(int argc, char* argv[])
 
             auto ref_softmax          = ReferenceSoftmaxInstance{};
             auto ref_softmax_invoker  = ref_softmax.MakeInvoker();
-            auto ref_softmax_argument = ref_softmax.MakeArgument(acc0_m_n, a1_m_n, 1, 0, {1});
+            auto ref_softmax_argument = ref_softmax.MakeArgument(acc0_m_n, a1_m_n, 1, 0, {2});
 
             ref_softmax_invoker.Run(ref_softmax_argument);
 
@@ -437,9 +439,10 @@ int main(int argc, char* argv[])
 
             ref_gemm1_invoker.Run(ref_gemm1_argument);
 
+            // Note: in this example, we merely permute the dimensions by changing underlying
+            // strides so we simply access data as-is
             c_gs_ms_os_host_result.ForEach([&](auto& self, auto idx) {
-                // permute G,M,O -> M,G,O
-                self(idx[1], idx[0], idx[2]) = c_m_o_host_result(idx);
+                self(idx) = c_m_o_host_result(idx);
             });
 
             bool pass_ = ck::utils::check_err(c_gs_ms_os_device_result.mData, c_gs_ms_os_host_result.mData);

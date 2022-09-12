@@ -70,10 +70,9 @@ __global__ void
     }
 
     // per-group batch offset
-    const index_t num_blocks_per_batch =
-        arg_ptr[group_id].block_end_ - arg_ptr[group_id].block_start_;
+    const index_t num_blocks_per_batch = arg_ptr[group_id].num_blocks_per_batch_;
     const index_t g_idx = __builtin_amdgcn_readfirstlane(
-        (get_block_1d_id() - arg_ptr[group_id].block_start_) / num_blocks_per_batch);
+        (block_id - arg_ptr[group_id].block_start_) / num_blocks_per_batch);
 
     const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetABasePtr(g_idx)));
@@ -83,6 +82,16 @@ __global__ void
         static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetB1BasePtr(g_idx)));
     const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(arg_ptr[group_id].compute_base_ptr_of_batch_.GetCBasePtr(g_idx)));
+
+    if(threadIdx.x == 0)
+    {
+        printf("bid %d, num_blocks_per_batch %d, arg_ptr[group_id].block_start_ %d, g_idx %d, c_batch_offset %ld\n",
+               block_id,
+               num_blocks_per_batch,
+               arg_ptr[group_id].block_start_,
+               g_idx,
+               c_batch_offset);
+    }
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(
         arg_ptr[group_id].p_a_grid_ + a_batch_offset,
@@ -580,6 +589,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
 
         // batch & stride
+        index_t num_blocks_per_batch_;
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
 
         // block-to-c-tile map
@@ -655,7 +665,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
 
                 const index_t BlockStart     = grid_size_;
                 const auto block_2_ctile_map = Block2CTileMap(c_grid_desc_m_n, BlockStart);
-                const index_t grid_size_grp  = block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n);
+                const index_t grid_size_grp = block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n) *
+                                              problem_desc_vec[i].Batch;
+                printf("group %lu: grid size %d, batch %d\n", i, grid_size_grp, problem_desc_vec[i].Batch);
                 const index_t BlockEnd       = grid_size_ + grid_size_grp;
 
                 // batch stride
@@ -678,6 +690,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                               b_grid_desc_bk0_n_bk1,
                                               b1_grid_desc_bk0_n_bk1,
                                               c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                              block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n),
                                               compute_base_ptr_of_batch,
                                               block_2_ctile_map,
                                               BlockStart,
