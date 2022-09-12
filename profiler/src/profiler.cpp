@@ -56,7 +56,6 @@ int main(int argc, char* argv[])
 
         return 0;
     }
-#if 0
     else if(strcmp(argv[1], "gemm") == 0)
     {
         return profile_gemm(argc, argv);
@@ -85,9 +84,6 @@ int main(int argc, char* argv[])
     {
         return profile_batched_gemm(argc, argv);
     }
-#endif
-
-#if 1
     else if(strcmp(argv[1], "batched_gemm_gemm") == 0)
     {
         return profile_batched_gemm_gemm(argc, argv);
@@ -96,9 +92,6 @@ int main(int argc, char* argv[])
     {
         return profile_batched_gemm_add_relu_gemm_add(argc, argv);
     }
-#endif
-
-#if 0
     else if(strcmp(argv[1], "batched_gemm_reduce") == 0)
     {
         return profile_batched_gemm_reduce(argc, argv);
@@ -143,7 +136,6 @@ int main(int argc, char* argv[])
     {
         return profile_layernorm(argc, argv);
     }
-#endif
     else
     {
         print_helper_message();
