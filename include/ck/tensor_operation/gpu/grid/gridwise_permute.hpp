@@ -16,23 +16,23 @@
 namespace ck {
 namespace detail {
 template <index_t HPerBlock, index_t WPerBlock, typename GridDesc>
-struct Block2TileMap
+struct GridwisePermuteBlock2TileMap
 {
     static constexpr index_t NumDim = GridDesc::GetNumOfDimension();
     static_assert(2 <= NumDim);
 
     static constexpr auto I0 = Number<0>{};
 
-    Block2TileMap()                     = delete;
-    Block2TileMap(const Block2TileMap&) = default;
-    Block2TileMap(Block2TileMap&&)      = delete;
+    GridwisePermuteBlock2TileMap()                                    = delete;
+    GridwisePermuteBlock2TileMap(const GridwisePermuteBlock2TileMap&) = default;
+    GridwisePermuteBlock2TileMap(GridwisePermuteBlock2TileMap&&)      = delete;
 
-    ~Block2TileMap() = default;
+    ~GridwisePermuteBlock2TileMap() = default;
 
-    Block2TileMap& operator=(const Block2TileMap&) = delete;
-    Block2TileMap& operator=(Block2TileMap&&) = delete;
+    GridwisePermuteBlock2TileMap& operator=(const GridwisePermuteBlock2TileMap&) = delete;
+    GridwisePermuteBlock2TileMap& operator=(GridwisePermuteBlock2TileMap&&) = delete;
 
-    explicit Block2TileMap(const GridDesc& desc) : desc_(desc) {}
+    explicit GridwisePermuteBlock2TileMap(const GridDesc& desc) : desc_(desc) {}
 
     __host__ constexpr index_t CalculateGridSize(const GridDesc& desc) const
     {
@@ -123,7 +123,8 @@ struct GridwisePermute
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    using DefaultBlock2TileMap = detail::Block2TileMap<HPerBlock, WPerBlock, InGridDesc>;
+    using DefaultBlock2TileMap =
+        detail::GridwisePermuteBlock2TileMap<HPerBlock, WPerBlock, InGridDesc>;
 
     __host__ __device__ static constexpr auto GetInBlockDesc()
     {
