@@ -27,7 +27,8 @@ bool run_permute(const ExecutionConfig& config, const Problem& problem)
     {
         auto* const elems =
             reinterpret_cast<detail::get_bundled_t<ADataType, NUM_ELEMS_IN_BUNDLE>*>(data(a.mData));
-        std::iota(elems, elems + (size(a.mData) * NUM_ELEMS_IN_BUNDLE), 1);
+        ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(
+            elems, elems + (size(a.mData) * NUM_ELEMS_IN_BUNDLE));
     }
 
     DeviceMem a_device_buf(sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
@@ -103,8 +104,8 @@ bool run_permute(const ExecutionConfig& config, const Problem& problem)
                                      b.mDesc.GetElementSpaceSize() * NUM_ELEMS_IN_BUNDLE},
             ck::span<const DataType>{extended_host_b.mData},
             "Error: incorrect results in output tensor",
-            1e-10,
-            1e-10);
+            1e-5,
+            1e-5);
 #endif
     }
 
