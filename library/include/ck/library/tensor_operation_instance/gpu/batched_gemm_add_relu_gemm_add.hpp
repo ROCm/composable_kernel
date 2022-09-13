@@ -40,6 +40,26 @@ void add_device_batched_gemm_add_relu_gemm_add_xdl_cshuffle_f16_f16_f16_f16_gmk_
                                                                         CDE1ElementOp>>>&
         instances);
 
+void add_device_batched_gemm_add_relu_gemm_add_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gon_gmo_instance(
+    std::vector<std::unique_ptr<DeviceBatchedGemmMultipleDGemmMultipleD<Row,
+                                                                        Col,
+                                                                        ck::Tuple<Row>,
+                                                                        Col,
+                                                                        ck::Tuple<Row>,
+                                                                        Row,
+                                                                        F16,
+                                                                        F16,
+                                                                        ck::Tuple<F16>,
+                                                                        F16,
+                                                                        ck::Tuple<F16>,
+                                                                        F16,
+                                                                        PassThrough,
+                                                                        PassThrough,
+                                                                        CDE0ElementOp,
+                                                                        PassThrough,
+                                                                        CDE1ElementOp>>>&
+        instances);
+
 template <typename A0Layout,
           typename B0Layout,
           typename D0sLayout,
@@ -100,6 +120,12 @@ struct DeviceOperationInstanceFactory<
                          is_same_v<B1Layout, Row> && is_same_v<E1Layout, Row>)
             {
                 add_device_batched_gemm_add_relu_gemm_add_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instance(
+                    op_ptrs);
+            }
+            else if constexpr(is_same_v<A0Layout, Row> && is_same_v<B0Layout, Col> &&
+                              is_same_v<B1Layout, Col> && is_same_v<E1Layout, Row>)
+            {
+                add_device_batched_gemm_add_relu_gemm_add_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gon_gmo_instance(
                     op_ptrs);
             }
         }

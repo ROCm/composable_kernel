@@ -19,6 +19,7 @@ int profile_batched_gemm_add_relu_gemm_add(int argc, char* argv[])
     enum struct GemmMatrixLayout
     {
         MK_NK_MN_NO_MO_MO, // 0
+        MK_NK_MN_ON_MO_MO, // 1
     };
 
     enum struct GemmDataType
@@ -112,7 +113,8 @@ int profile_batched_gemm_add_relu_gemm_add(int argc, char* argv[])
                "Batched_GEMM+Add+Relu+Gemm+Add)\n");
         printf("arg2: data type (1: fp16)\n");
         printf("arg3: matrix layout (0: Relu(A0[m, k] * B0[n, k] + D0[m, n]) * B1[n, o] + D1[m, o] "
-               "= E1[m, o];\n");
+               "= E1[m, o]; 1: Relu(A0[m, k] * B0[n, k] + D0[m, n]) * B1[o, n] + D1[m, o] = "
+               "E1[m, o];)\n");
         printf("arg4: verification (0: no; 1: yes)\n");
         printf("arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n");
         printf("arg6: print tensor value (0: no; 1: yes)\n");
@@ -131,6 +133,43 @@ int profile_batched_gemm_add_relu_gemm_add(int argc, char* argv[])
                                                                   Col,            // B0Layout,
                                                                   ck::Tuple<Row>, // D0sLayout,
                                                                   Row,            // B1Layout,
+                                                                  ck::Tuple<Row>, // D1sLayout,
+                                                                  Row,            // E1Layout,
+                                                                  F16,            // A0DataType,
+                                                                  F16,            // B0DataType,
+                                                                  ck::Tuple<F16>, // D0DataType,
+                                                                  F16,            // B1DataType,
+                                                                  ck::Tuple<F16>, // D1sDataType
+                                                                  F16>            // E1DataType,
+            (do_verification,
+             init_method,
+             do_log,
+             time_kernel,
+             M,
+             N,
+             K,
+             O,
+             BatchCount,
+             StrideA0,
+             StrideB0,
+             StrideD0,
+             StrideB1,
+             StrideD1,
+             StrideE1,
+             BatchStrideA0,
+             BatchStrideB0,
+             BatchStrideD0,
+             BatchStrideB1,
+             BatchStrideD1,
+             BatchStrideE1);
+    }
+    else if(data_type == GemmDataType::F16_F16_F16_F16_F16_F16 &&
+            layout == GemmMatrixLayout::MK_NK_MN_ON_MO_MO)
+    {
+        ck::profiler::profile_batched_gemm_add_relu_gemm_add_impl<Row,            // A0Layout,
+                                                                  Col,            // B0Layout,
+                                                                  ck::Tuple<Row>, // D0sLayout,
+                                                                  Col,            // B1Layout,
                                                                   ck::Tuple<Row>, // D1sLayout,
                                                                   Row,            // E1Layout,
                                                                   F16,            // A0DataType,
