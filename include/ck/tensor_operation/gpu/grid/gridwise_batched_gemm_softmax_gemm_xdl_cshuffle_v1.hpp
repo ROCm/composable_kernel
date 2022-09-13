@@ -591,6 +591,17 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             A1ThreadSlice_K0_M_K1,
             make_tuple(A1ThreadSliceM * A1ThreadSliceK1, A1ThreadSliceK1, I1));
 
+#if 0
+        if(threadIdx.x == 0)
+        {
+            printf("bid=%d, A1ThreadSliceK0=%d, A1ThreadSliceM=%d, A1ThreadSliceK1=%d\n",
+                static_cast<int>(blockIdx.x), 
+                static_cast<int>(A1ThreadSliceK0), 
+                static_cast<int>(A1ThreadSliceM),
+                static_cast<int>(A1ThreadSliceK1));
+        }
+#endif
+
         // B1 matrix in LDS memory, dst of blockwise copy
         constexpr auto b1_block_desc_bk0_n_bk1 = GetB1BlockDescriptor_BK0PerBlock_NPerBlock_BK1();
 
@@ -753,6 +764,10 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         index_t gemm1_k_block_outer_index = 0;
         do
         {
+            if((m_block_data_idx_on_grid < gemm1_k_block_outer_index * NPerBlock) && ((m_block_data_idx_on_grid + MPerBlock - 1) < (gemm1_k_block_outer_index * NPerBlock + NPerBlock - 1)))
+            {
+                continue;
+            }
             // gemm0
             gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(a_grid_desc_ak0_m_ak1,
                                                                    a_block_desc_ak0_m_ak1,
