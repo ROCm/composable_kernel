@@ -19,5 +19,5 @@ using DevicePermuteInstance = ck::tensor_operation::device::DevicePermute
 
 int main(int argc, char* argv[])
 {
-    return !run_permute_example(argc, argv, {11, 768, 80}, {0, 2, 1});
+    return !run_permute_example(argc, argv, {121, 768, 80}, {0, 2, 1});
 }
