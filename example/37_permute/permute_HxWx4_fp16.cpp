@@ -12,7 +12,7 @@ using DevicePermuteInstance = ck::tensor_operation::device::DevicePermute
 // ######|      Type|      Type|   Operation|       |  Size| Block| Block| Block| LdsExtraW| ThreadClusterLengths| ThreadClusterArrangeOrder| VectorDim| VectorDim| ScalarPerVector| ScalarPerVector|
 // ######|          |          |            |       |      |      |      |      |          |                     |                          |          |          |                |                |
 // ######|          |          |            |       |      |      |      |      |          |                     |                          |          |          |                |                |
-         < ADataType, BDataType, PassThrough,      3,   256,     4,    16,    16,         0,         S<1, 16, 16>,                S<0, 1, 2>,         2,         1,               1,               1>;
+         < ADataType, BDataType, PassThrough,      3,   256,     1,    32,    32,         5,         S<1, 32,  8>,                S<0, 1, 2>,         2,         1,               4,               1>;
 // clang-format on
 
 #define NUM_ELEMS_IN_BUNDLE 4
