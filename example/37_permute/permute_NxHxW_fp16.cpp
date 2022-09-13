@@ -3,8 +3,8 @@
 
 #include "common.hpp"
 
-using ADataType = F32;
-using BDataType = F32;
+using ADataType = F16;
+using BDataType = F16;
 
 // clang-format off
 using DevicePermuteInstance = ck::tensor_operation::device::DevicePermute
