@@ -159,7 +159,7 @@ class TestSoftmax : public ::testing::Test
     }
 
     std::vector<std::vector<index_t>> in_lengths_ = {
-        {1, 8, 128}, {2, 128, 1024}, {3, 9, 1032}, {4, 4, 2048}, {8, 1, 8192}};
+        {1, 8, 128}, {2, 128, 1024}, {3, 9, 1032}, {4, 4, 2048}, {8, 1, 8192}, {128, 128, 64}};
     std::vector<std::vector<AccDataType>> scales_ = {{1, 0}, {1, 1}, {0, 1}, {2, 2}};
 
     typename ReferenceInstance::Invoker ref_instance_invoker_;
