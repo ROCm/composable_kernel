@@ -138,5 +138,5 @@ print_log_header $splitK_gemm_log $env_type $branch $host_name
 #run ONNX gemm tests
 export onnx_log="perf_onnx_gemm_${gpu_arch}.log"
 print_log_header $onnx_log $env_type $branch $host_name
-./profile_onnx_gemm.sh gemm 0 0 $verify 2 0 1 2>&1 | tee -a $onnx_log
-./profile_onnx_gemm.sh gemm 1 0 $verify 2 0 1 2>&1 | tee -a $onnx_log
+./profile_onnx_gemm.sh gemm 0 0 $verify 1 0 1 2>&1 | tee -a $onnx_log
+./profile_onnx_gemm.sh gemm 1 0 $verify 1 0 1 2>&1 | tee -a $onnx_log
