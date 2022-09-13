@@ -77,7 +77,7 @@ bool run_permute(const ExecutionConfig& config, const Problem& problem)
         }
 
         return ck::utils::check_err(
-            b.mData, host_b.mData, "Error: incorrect results in output tensor", 1e-10, 1e-10);
+            b.mData, host_b.mData, "Error: incorrect results in output tensor", 1e-6, 1e-6);
 #else
         // extend tensor shape from [N, H, W] to [N, H, W, NUM_ELEMS_IN_BUNDLE]
         using DataType = detail::get_bundled_t<ADataType, NUM_ELEMS_IN_BUNDLE>;
@@ -104,8 +104,8 @@ bool run_permute(const ExecutionConfig& config, const Problem& problem)
                                      b.mDesc.GetElementSpaceSize() * NUM_ELEMS_IN_BUNDLE},
             ck::span<const DataType>{extended_host_b.mData},
             "Error: incorrect results in output tensor",
-            1e-5,
-            1e-5);
+            1e-6,
+            1e-6);
 #endif
     }
 
