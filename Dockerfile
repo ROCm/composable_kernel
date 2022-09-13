@@ -1,12 +1,10 @@
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 
-ARG ROCMVERSION=5.1
-ARG OSDB_BKC_VERSION
+ARG ROCMVERSION=5.2.3
 ARG compiler_version
 
 RUN set -xe
 
-ARG BUILD_THREADS=8
 ARG DEB_ROCM_REPO=http://repo.radeon.com/rocm/apt/.apt_$ROCMVERSION/
 # Add rocm repository
 RUN apt-get update
@@ -20,8 +18,8 @@ RUN sh -c "echo deb https://apt.kitware.com/ubuntu/ bionic main | tee -a /etc/ap
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     apt-utils \
     build-essential \
-    cmake-data=3.15.1-0kitware1 \
-    cmake=3.15.1-0kitware1 \
+    cmake-data \
+    cmake \
     curl \
     git \
     hip-rocclr \
@@ -33,13 +31,11 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     llvm-amdgpu \
     pkg-config \
     python \
-    python3.8 \
+    python3 \
     python-dev \
     python3-dev \
-    python-pip \
     python3-pip \
     software-properties-common \
-    wget \
     rocm-dev \
     rocm-device-libs \
     rocm-cmake \
