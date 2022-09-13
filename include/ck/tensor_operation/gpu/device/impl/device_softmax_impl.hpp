@@ -43,8 +43,9 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
                                                 AccElementwiseOp,
                                                 Rank>
 {
-    static constexpr index_t kRank         = Rank;
-    static constexpr index_t kNumReduceDim = NumReduceDim;
+    static constexpr index_t kRank            = Rank;
+    static constexpr index_t kNumReduceDim    = NumReduceDim;
+    static constexpr index_t kNumInvariantDim = Rank - NumReduceDim;
 
     virtual index_t GetRank() const override { return kRank; }
 
@@ -134,8 +135,8 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
             // std::cout << "blkGroupSize= " << this->blkGroupSize
             //           << ", numBlockTileIteration= " << this->numBlockTileIteration
             //           << ", gridSize=" << this->gridSize
-            //           << ", invariant_total_length=" << this->invariant_total_length <<
-            //           std::endl;
+            //           << ", invariant_total_length=" << this->invariant_total_length
+            //           << ", reduce_total_length=" << this->reduce_total_length << std::endl;
         }
 
         AccDataType alpha_;
@@ -195,7 +196,31 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
     {
         const Argument* p_arg_ = dynamic_cast<const Argument*>(p_arg);
 
-        if(!Reduction::IsSupportedArgument(p_arg_))
+        if constexpr(InSrcVectorDim == 0)
+        {
+            if constexpr(kNumInvariantDim == 0)
+            {
+                return false;
+            }
+            else
+            {
+                if(p_arg_->inStrides_[kNumInvariantDim - 1] != 1)
+                    return false;
+
+                if(p_arg_->invariant_lowest_length % InSrcVectorSize != 0)
+                    return false;
+            };
+        }
+        else
+        {
+            if(p_arg_->reduce_lowest_length % InSrcVectorSize != 0)
+            {
+                return false;
+            }
+        };
+
+        // To improve
+        if(kNumInvariantDim > 0 && p_arg_->invariant_lowest_length % OutDstVectorSize != 0)
         {
             return false;
         }

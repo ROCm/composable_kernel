@@ -233,6 +233,17 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InElementwiseOperation, AccE
                     ", reduceDims: " + std::to_string(reduceDims.size()));
             }
 
+            for(std::size_t i = 0; i < reduceDims.size(); ++i)
+            {
+                if(reduceDims[i] < 0 || reduceDims[i] >= Rank)
+                {
+                    throw std::runtime_error("Provided reduce dimension exceed input tensor Rank!"
+                                             "\nHave reduceDims[" +
+                                             std::to_string(i) +
+                                             "]: " + std::to_string(reduceDims[i]));
+                }
+            }
+
             inLengths_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inLengths, reduceDims);
             inStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inStrides, reduceDims);
 
