@@ -23,7 +23,7 @@ using DeviceElementwisePermuteInstance =
                                                     PassThrough,
                                                     4,
                                                     8,
-                                                    ck::Sequence<8>,
+                                                    ck::Sequence<1>,
                                                     ck::Sequence<1>>;
 
 template <typename HostTensorA, typename HostTensorB, typename Functor>
@@ -32,14 +32,14 @@ void host_elementwise4D(HostTensorB& B_nhwc,
                         const std::vector<std::size_t>& shape_nchw,
                         Functor functor)
 {
-    using btype = ck::remove_reference_t<decltype(B(0, 0, 0, 0))>;
+    using btype = ck::remove_reference_t<decltype(B_nhwc(0, 0, 0, 0))>;
     for(std::size_t n = 0; n < shape_nchw[0]; ++n)
         for(std::size_t c = 0; c < shape_nchw[1]; ++c)
             for(std::size_t h = 0; h < shape_nchw[2]; ++h)
                 for(std::size_t w = 0; w < shape_nchw[3]; ++w)
                 {
-                    auto a_val = A(n, c, h, w);
-                    functor(B(n, h, w, c), a_val);
+                    auto a_val = A_nchw(n, c, h, w);
+                    functor(B_nhwc(n, h, w, c), a_val);
                 }
 }
 
@@ -48,8 +48,8 @@ int main()
     bool do_verification = true;
     bool time_kernel     = false;
 
-    std::vector<std::size_t> nchw = {4, 16, 32, 32};
-    std::vector<std::size_t> nhwc = {4, 32, 32, 16};
+    std::vector<std::size_t> nchw = {4, 4, 8, 8};
+    std::vector<std::size_t> nhwc = {4, 8, 8, 4};
     Tensor<ADataType> a(nchw);
     Tensor<BDataType> b(nhwc);
 
@@ -59,21 +59,26 @@ int main()
     DeviceMem b_device_buf(sizeof(BDataType) * b.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a.mData.data());
+    LogRangeAsType<float>(std::cout << "Tensor a  : ", a.mData, ",") << std::endl;
 
     std::array<const void*, 1> input = {a_device_buf.GetDeviceBuffer()};
     std::array<void*, 1> output      = {b_device_buf.GetDeviceBuffer()};
 
     std::array<ck::index_t, 4> ab_lengths;
-    std::array<ck::index_t, 4> a_strides;
-    std::array<ck::index_t, 4> b_strides;
+    std::array<ck::index_t, 4> a_strides = {256, 64, 8, 1};
+    std::array<ck::index_t, 4> b_strides = {256, 1, 32, 4};
+
+    //std::cout << "Length: " << ab_lengths << std::endl;
+    //std::cout << "A stride: " << a_strides << std::endl;
+    //std::cout << "B stride: " << b_strides << std::endl;
 
     std::copy(nchw.begin(), nchw.end(), ab_lengths.begin());
-    std::copy(a.mDesc.GetStrides().begin(), a.mDesc.GetStrides().end(), a_strides.begin());
-    std::copy(b.mDesc.GetStrides().begin(), b.mDesc.GetStrides().end(), b_strides.begin());
+    //std::copy(a.mDesc.GetStrides().begin(), a.mDesc.GetStrides().end(), a_strides.begin());
+    //std::copy(b.mDesc.GetStrides().begin(), b.mDesc.GetStrides().end(), b_strides.begin());
 
     auto broadcastPermute = DeviceElementwisePermuteInstance{};
     auto argument         = broadcastPermute.MakeArgumentPointer(
-        ab_lengths, {a_strides}, {c_strides}, input, output, PassThrough{});
+        ab_lengths, {a_strides}, {b_strides}, input, output, PassThrough{});
 
     if(!broadcastPermute.IsSupportedArgument(argument.get()))
     {
@@ -91,9 +96,12 @@ int main()
     if(do_verification)
     {
         b_device_buf.FromDevice(b.mData.data());
+	LogRangeAsType<float>(std::cout << "Tensor b  : ", b.mData, ",") << std::endl;
         Tensor<BDataType> host_b(nhwc);
         host_elementwise4D<Tensor<ADataType>, Tensor<BDataType>, PassThrough>(
             host_b, a, nchw, PassThrough{});
+
+	LogRangeAsType<float>(std::cout << "Host b  : ", host_b.mData, ",") << std::endl;
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
     }
