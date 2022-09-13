@@ -30,7 +30,7 @@ using F64 = double;
 struct ExecutionConfig final
 {
     bool do_verification = true;
-    bool time_kernel     = false;
+    bool time_kernel     = true;
 };
 
 struct Problem final
