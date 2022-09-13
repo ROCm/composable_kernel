@@ -16,6 +16,8 @@ using DevicePermuteInstance = ck::tensor_operation::device::DevicePermute
 // clang-format on
 
 #define NUM_ELEMS_IN_BUNDLE 4
+static_assert(std::is_same_v<detail::get_bundled_t<F64, NUM_ELEMS_IN_BUNDLE>, F16>);
+
 #include "run_permute_example.inc"
 
 int main(int argc, char* argv[])
