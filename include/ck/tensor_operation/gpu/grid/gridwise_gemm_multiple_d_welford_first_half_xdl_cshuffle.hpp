@@ -82,7 +82,7 @@ template <typename ABDataType,
           index_t CDEReduceThreadTransferScalarPerVector_NPerBlock,
           index_t FGTransferScalarPerVector,
           LoopScheduler LoopSched>
-struct GridwiseGemmMultipleDWelford_xdl_cshuffle
+struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
