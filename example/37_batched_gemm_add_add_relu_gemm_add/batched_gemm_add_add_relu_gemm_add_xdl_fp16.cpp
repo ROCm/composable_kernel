@@ -2,11 +2,7 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 /*
-Gemm + Gemm fused operation. Computes C_m_o = A_m_k * B0_k_n * B1_n_o
-                                              |------------|
-                                                   Gemm0
-                                              |---------------------|
-                                                       Gemm1
+Computes C_m_o = Relu(A0[m, k] * B0[n, k] + D00[m, n] + D01[mn]) * B1[n, o] + D1[m, o]
 */
 
 #include <iostream>
