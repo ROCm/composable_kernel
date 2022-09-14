@@ -790,7 +790,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                     const index_t nstartxdl = nstart + n0_i * NPerRepeat;
                     const index_t acc_idx_n0 = acc_idx_m0 + n0_i * n2 * n4;
                     static_for<0, n2, 1>{}([&](auto n2_i) {
-                        const index_t nstartgroup = nstartxdl + thread_n_cluster_id * n4 + n2_i * n3 * n4;
+                        const index_t nstartgroup = nstartxdl + thread_n_cluster_id * n4 + n2_i * (warpSize / MPerXdl) * n4;
                         const index_t acc_idx_n2 = acc_idx_n0 + n2_i * n4;
                         static_for<0, n4, 1>{}([&](auto n4_i) {
                             const index_t n_global = nstartgroup + n4_i;
