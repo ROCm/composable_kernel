@@ -3,16 +3,16 @@
 
 #include "common.hpp"
 
-using ADataType = F16;
-using BDataType = F16;
+using InDataType  = F16;
+using OutDataType = F16;
 
 // clang-format off
 using DevicePermuteInstance = ck::tensor_operation::device::DevicePermute
-// ######|    InData|   OutData| Elementwise| NumDim| Block|  NPer|  HPer|  WPer|   InBlock|      InBlockTransfer|           InBlockTransfer|       Src|       Dst|             Src|             Dst|
-// ######|      Type|      Type|   Operation|       |  Size| Block| Block| Block| LdsExtraW| ThreadClusterLengths| ThreadClusterArrangeOrder| VectorDim| VectorDim| ScalarPerVector| ScalarPerVector|
-// ######|          |          |            |       |      |      |      |      |          |                     |                          |          |          |                |                |
-// ######|          |          |            |       |      |      |      |      |          |                     |                          |          |          |                |                |
-         < ADataType, BDataType, PassThrough,      3,   128,     4,    16,     8,         6,          S<2, 16, 4>,                S<0, 1, 2>,         2,         1,               2,               1>;
+// ######|     InData|     OutData| Elementwise| NumDim| Block|  NPer|  HPer|  WPer|   InBlock|      InBlockTransfer|           InBlockTransfer|       Src|       Dst|             Src|             Dst|
+// ######|       Type|        Type|   Operation|       |  Size| Block| Block| Block| LdsExtraW| ThreadClusterLengths| ThreadClusterArrangeOrder| VectorDim| VectorDim| ScalarPerVector| ScalarPerVector|
+// ######|           |            |            |       |      |      |      |      |          |                     |                          |          |          |                |                |
+// ######|           |            |            |       |      |      |      |      |          |                     |                          |          |          |                |                |
+         < InDataType, OutDataType, PassThrough,      3,   128,     4,    16,     8,         6,          S<2, 16, 4>,                S<0, 1, 2>,         2,         1,               2,               1>;
 // clang-format on
 
 #include "run_permute_element_example.inc"
