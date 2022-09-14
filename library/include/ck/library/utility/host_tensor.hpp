@@ -442,6 +442,8 @@ struct Tensor
 
     typename Data::const_pointer data() const { return mData.data(); }
 
+    typename Data::size_type size() const { return mData.size(); }
+
     Descriptor mDesc;
     Data mData;
 };
