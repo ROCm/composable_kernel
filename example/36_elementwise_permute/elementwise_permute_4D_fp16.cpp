@@ -68,13 +68,13 @@ int main()
     std::array<ck::index_t, 4> a_strides = {256, 64, 8, 1};
     std::array<ck::index_t, 4> b_strides = {256, 1, 32, 4};
 
-    //std::cout << "Length: " << ab_lengths << std::endl;
-    //std::cout << "A stride: " << a_strides << std::endl;
-    //std::cout << "B stride: " << b_strides << std::endl;
+    // std::cout << "Length: " << ab_lengths << std::endl;
+    // std::cout << "A stride: " << a_strides << std::endl;
+    // std::cout << "B stride: " << b_strides << std::endl;
 
     std::copy(nchw.begin(), nchw.end(), ab_lengths.begin());
-    //std::copy(a.mDesc.GetStrides().begin(), a.mDesc.GetStrides().end(), a_strides.begin());
-    //std::copy(b.mDesc.GetStrides().begin(), b.mDesc.GetStrides().end(), b_strides.begin());
+    // std::copy(a.mDesc.GetStrides().begin(), a.mDesc.GetStrides().end(), a_strides.begin());
+    // std::copy(b.mDesc.GetStrides().begin(), b.mDesc.GetStrides().end(), b_strides.begin());
 
     auto broadcastPermute = DeviceElementwisePermuteInstance{};
     auto argument         = broadcastPermute.MakeArgumentPointer(
@@ -96,12 +96,12 @@ int main()
     if(do_verification)
     {
         b_device_buf.FromDevice(b.mData.data());
-	LogRangeAsType<float>(std::cout << "Tensor b  : ", b.mData, ",") << std::endl;
+        LogRangeAsType<float>(std::cout << "Tensor b  : ", b.mData, ",") << std::endl;
         Tensor<BDataType> host_b(nhwc);
         host_elementwise4D<Tensor<ADataType>, Tensor<BDataType>, PassThrough>(
             host_b, a, nchw, PassThrough{});
 
-	LogRangeAsType<float>(std::cout << "Host b  : ", host_b.mData, ",") << std::endl;
+        LogRangeAsType<float>(std::cout << "Host b  : ", host_b.mData, ",") << std::endl;
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
     }
