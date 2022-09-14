@@ -451,8 +451,6 @@ struct Tensor
         constexpr std::size_t FromSize = sizeof(T);
         constexpr std::size_t ToSize   = sizeof(U);
 
-        static_assert((ToSize < FromSize ? (FromSize % ToSize == 0) : (ToSize % FromSize == 0)));
-
         using Element = std::add_const_t<std::remove_reference_t<U>>;
         return ck::span<Element>{reinterpret_cast<Element*>(data()), size() * FromSize / ToSize};
     }
@@ -462,8 +460,6 @@ struct Tensor
     {
         constexpr std::size_t FromSize = sizeof(T);
         constexpr std::size_t ToSize   = sizeof(U);
-
-        static_assert((ToSize < FromSize ? (FromSize % ToSize == 0) : (ToSize % FromSize == 0)));
 
         using Element = std::remove_reference_t<U>;
         return ck::span<Element>{reinterpret_cast<Element*>(data()), size() * FromSize / ToSize};
