@@ -492,20 +492,10 @@ int main(int argc, char* argv[])
 
         ref_gemm0_invoker.Run(ref_gemm0_argument);
 
-        // bias+gelu
-        for(int g = 0; g < BatchCount; ++g)
-        {
-            for(int m = 0; m < M; ++m)
-            {
-                for(int n = 0; n < N; ++n)
-                {
-                    cde0_element_op(e0_g_m_n(g, m, n),
-                                    c0_g_m_n(g, m, n),
-                                    d00_g_m_n(g, m, n),
-                                    d01_g_m_n(g, m, n));
-                }
-            }
-        }
+        // bias+bias+relu
+        e0_g_m_n.ForEach([&](auto&, auto idx) {
+            cde0_element_op(e0_g_m_n(idx), c0_g_m_n(idx), d00_g_m_n(idx), d01_g_m_n(idx));
+        });
 
         auto ref_gemm1          = ReferenceGemm1Instance{};
         auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
@@ -515,17 +505,9 @@ int main(int argc, char* argv[])
         ref_gemm1_invoker.Run(ref_gemm1_argument);
 
         // bias
-        for(int g = 0; g < BatchCount; ++g)
-        {
-            for(int m = 0; m < M; ++m)
-            {
-                for(int o = 0; o < O; ++o)
-                {
-                    cde1_element_op(
-                        e1_g_m_o_host_result(g, m, o), c1_g_m_o(g, m, o), d1_g_m_o(g, m, o));
-                }
-            }
-        }
+        e1_g_m_o_host_result.ForEach([&](auto&, auto idx) {
+            cde1_element_op(e1_g_m_o_host_result(idx), c1_g_m_o(idx), d1_g_m_o(idx));
+        });
 
         return ck::utils::check_err(e1_g_m_o_device_result.mData, e1_g_m_o_host_result.mData) ? 0
                                                                                               : 1;

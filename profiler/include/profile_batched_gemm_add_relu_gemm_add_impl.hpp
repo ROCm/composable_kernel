@@ -242,16 +242,8 @@ bool profile_batched_gemm_add_relu_gemm_add_impl(bool do_verification,
         ref_gemm0_invoker.Run(ref_gemm0_argument);
 
         // cde0_elementwise
-        for(int g = 0; g < BatchCount; ++g)
-        {
-            for(int m = 0; m < M; ++m)
-            {
-                for(int n = 0; n < N; ++n)
-                {
-                    cde0_element_op(e0_g_m_n(g, m, n), c0_g_m_n(g, m, n), d0_g_m_n(g, m, n));
-                }
-            }
-        }
+        e0_g_m_n.ForEach(
+            [&](auto&, auto idx) { cde0_element_op(e0_g_m_n(idx), c0_g_m_n(idx), d0_g_m_n(idx)); });
 
         auto ref_gemm1          = ReferenceGemm1Instance{};
         auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
@@ -261,17 +253,9 @@ bool profile_batched_gemm_add_relu_gemm_add_impl(bool do_verification,
         ref_gemm1_invoker.Run(ref_gemm1_argument);
 
         // cde1_elementwise
-        for(int g = 0; g < BatchCount; ++g)
-        {
-            for(int m = 0; m < M; ++m)
-            {
-                for(int o = 0; o < O; ++o)
-                {
-                    cde1_element_op(
-                        e1_g_m_o_host_result(g, m, o), c1_g_m_o(g, m, o), d1_g_m_o(g, m, o));
-                }
-            }
-        }
+        e1_g_m_o_host_result.ForEach([&](auto&, auto idx) {
+            cde1_element_op(e1_g_m_o_host_result(idx), c1_g_m_o(idx), d1_g_m_o(idx));
+        });
     }
 
     std::string best_op_name;
