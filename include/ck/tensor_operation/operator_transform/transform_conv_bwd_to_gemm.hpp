@@ -12,14 +12,14 @@
 namespace ck {
 namespace tensor_operation {
 
-template <index_t NDimSpatial, 
-         device::ConvolutionBackwardDataSpecialization ConvBwdDataSpecialization,
-         index_t GemmAK1,
-         index_t GemmBK1,
-         index_t GemmMPerBlock,
-         index_t GemmNPerBlock,
-         bool DoPadGemmM,
-         bool DoPadGemmN>
+template <index_t NDimSpatial,
+          device::ConvolutionBackwardDataSpecialization ConvBwdDataSpecialization,
+          index_t GemmAK1,
+          index_t GemmBK1,
+          index_t GemmMPerBlock,
+          index_t GemmNPerBlock,
+          bool DoPadGemmM,
+          bool DoPadGemmN>
 struct TransformConvBwdDataToGemm_v1
 {
     static constexpr auto I1 = Number<1>{};
@@ -28,18 +28,18 @@ struct TransformConvBwdDataToGemm_v1
               typename std::enable_if<NDimSpatial == 2 &&
                                           is_same_v<ALayout, tensor_layout::convolution::GNHWC>,
                                       bool>::type = false>
-    static auto
-    MakeADescriptor_AK0_M_AK1(const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& /* in_g_n_c_wis_strides */,
-                        const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& /* wei_g_k_c_xs_strides */,
-                        const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& /* out_g_n_k_wos_strides */,
-                        const std::array<index_t, NDimSpatial>& conv_filter_strides,
-                        const std::array<index_t, NDimSpatial>& conv_filter_dilations,
-                        const std::array<index_t, NDimSpatial>& input_left_pads,
-                        const std::array<index_t, NDimSpatial>& input_right_pads,
-                        const std::array<index_t, NDimSpatial>& tildes)
+    static auto MakeADescriptor_AK0_M_AK1(
+        const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_lengths,
+        const std::array<index_t, NDimSpatial + 3>& /* in_g_n_c_wis_strides */,
+        const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_lengths,
+        const std::array<index_t, NDimSpatial + 3>& /* wei_g_k_c_xs_strides */,
+        const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_lengths,
+        const std::array<index_t, NDimSpatial + 3>& /* out_g_n_k_wos_strides */,
+        const std::array<index_t, NDimSpatial>& conv_filter_strides,
+        const std::array<index_t, NDimSpatial>& conv_filter_dilations,
+        const std::array<index_t, NDimSpatial>& input_left_pads,
+        const std::array<index_t, NDimSpatial>& input_right_pads,
+        const std::array<index_t, NDimSpatial>& tildes)
     {
         const index_t i_ytilde = tildes[0];
         const index_t i_xtilde = tildes[1];
@@ -157,9 +157,10 @@ struct TransformConvBwdDataToGemm_v1
                 make_tuple(Sequence<1, 3, 5>{}, Sequence<0, 2, 4>{}, Sequence<6>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
-            const auto out_desc_gemmak0_gemmm_gemmak1 = PadTensorDescriptor(out_desc_gemmak0_gemmmraw_gemmak1, 
-                    make_tuple(ignore, GemmMPerBlock, ignore),
-                    Sequence<false, DoPadGemmM, false>{});
+            const auto out_desc_gemmak0_gemmm_gemmak1 =
+                PadTensorDescriptor(out_desc_gemmak0_gemmmraw_gemmak1,
+                                    make_tuple(ignore, GemmMPerBlock, ignore),
+                                    Sequence<false, DoPadGemmM, false>{});
 
             return out_desc_gemmak0_gemmm_gemmak1;
         }
@@ -169,18 +170,18 @@ struct TransformConvBwdDataToGemm_v1
               typename std::enable_if<NDimSpatial == 2 &&
                                           is_same_v<BLayout, tensor_layout::convolution::GKYXC>,
                                       bool>::type = false>
-    static auto
-    MakeBDescriptor_BK0_N_BK1(const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& /* in_g_n_c_wis_strides */,
-                        const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& /* wei_g_k_c_xs_strides */,
-                        const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& /* out_g_n_k_wos_strides */,
-                        const std::array<index_t, NDimSpatial>& conv_filter_strides,
-                        const std::array<index_t, NDimSpatial>& conv_filter_dilations,
-                        const std::array<index_t, NDimSpatial>& input_left_pads,
-                        const std::array<index_t, NDimSpatial>& input_right_pads,
-                        const std::array<index_t, NDimSpatial>& tildes)
+    static auto MakeBDescriptor_BK0_N_BK1(
+        const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_lengths,
+        const std::array<index_t, NDimSpatial + 3>& /* in_g_n_c_wis_strides */,
+        const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_lengths,
+        const std::array<index_t, NDimSpatial + 3>& /* wei_g_k_c_xs_strides */,
+        const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_lengths,
+        const std::array<index_t, NDimSpatial + 3>& /* out_g_n_k_wos_strides */,
+        const std::array<index_t, NDimSpatial>& conv_filter_strides,
+        const std::array<index_t, NDimSpatial>& conv_filter_dilations,
+        const std::array<index_t, NDimSpatial>& input_left_pads,
+        const std::array<index_t, NDimSpatial>& input_right_pads,
+        const std::array<index_t, NDimSpatial>& tildes)
     {
         const index_t i_ytilde = tildes[0];
         const index_t i_xtilde = tildes[1];
@@ -208,8 +209,8 @@ struct TransformConvBwdDataToGemm_v1
 
         const index_t GemmBK0 = K / GemmBK1
 
-        // use default conv_bwd_data specialization for now
-        if constexpr (true)
+                                // use default conv_bwd_data specialization for now
+                                if constexpr(true)
         {
             const auto GcdStrideDilationH = math::gcd(ConvStrideH, ConvDilationH);
             const auto GcdStrideDilationW = math::gcd(ConvStrideW, ConvDilationW);
@@ -244,8 +245,8 @@ struct TransformConvBwdDataToGemm_v1
 
             // B: weight tensor
             // GemmK is different for each GEMM
-        const auto wei_desc_k_y_x_c =
-            make_naive_tensor_descriptor_packed(make_tuple(K, Y, X, C));
+            const auto wei_desc_k_y_x_c =
+                make_naive_tensor_descriptor_packed(make_tuple(K, Y, X, C));
 
             const auto wei_desc_k_ydot_ytilde_xdot_xtilde_c = transform_tensor_descriptor(
                 wei_desc_k_y_x_c,
@@ -258,26 +259,26 @@ struct TransformConvBwdDataToGemm_v1
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                 make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
 
-            const auto wei_desc_k0_k1_ydotslice_xdotslice_c =
-                transform_tensor_descriptor(wei_desc_k_ydot_ytilde_xdot_xtilde_c,
-                                            make_tuple(make_unmerge_transform(make_tuple(GemmBK0, GemmBK1)),
-                                                       make_slice_transform(YDot, I0, YDotSlice),
-                                                       make_slice_transform(XDot, I0, XDotSlice),
-                                                       make_freeze_transform(i_ytilde),
-                                                       make_freeze_transform(i_xtilde),
-                                                       make_pass_through_transform(C)),
-                                            make_tuple(Sequence<0>{},
-                                                       Sequence<1>{},
-                                                       Sequence<3>{},
-                                                       Sequence<2>{},
-                                                       Sequence<4>{},
-                                                       Sequence<5>{}),
-                                            make_tuple(Sequence<0, 1>{},
-                                                       Sequence<2>{},
-                                                       Sequence<3>{},
-                                                       Sequence<>{},
-                                                       Sequence<>{},
-                                                       Sequence<4>{}));
+            const auto wei_desc_k0_k1_ydotslice_xdotslice_c = transform_tensor_descriptor(
+                wei_desc_k_ydot_ytilde_xdot_xtilde_c,
+                make_tuple(make_unmerge_transform(make_tuple(GemmBK0, GemmBK1)),
+                           make_slice_transform(YDot, I0, YDotSlice),
+                           make_slice_transform(XDot, I0, XDotSlice),
+                           make_freeze_transform(i_ytilde),
+                           make_freeze_transform(i_xtilde),
+                           make_pass_through_transform(C)),
+                make_tuple(Sequence<0>{},
+                           Sequence<1>{},
+                           Sequence<3>{},
+                           Sequence<2>{},
+                           Sequence<4>{},
+                           Sequence<5>{}),
+                make_tuple(Sequence<0, 1>{},
+                           Sequence<2>{},
+                           Sequence<3>{},
+                           Sequence<>{},
+                           Sequence<>{},
+                           Sequence<4>{}));
 
             const auto wei_gemmk0_gemmnraw_gemmk1_grid_desc = transform_tensor_descriptor(
                 wei_k0_k1_ydotslice_xdotslice_c_grid_desc,
@@ -287,9 +288,10 @@ struct TransformConvBwdDataToGemm_v1
                 make_tuple(Sequence<2, 3, 0>{}, Sequence<4>{}, Sequence<1>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
-            const auto wei_desc_gemmbk0_gemmn_gemmbk1 = PadTensorDescriptor(wei_desc_gemmbk0_gemmnraw_gemmbk1, 
-                    make_tuple(ignore, GemmNPerBlock, ignore),
-                    Sequence<false, DoPadGemmN, false>{});
+            const auto wei_desc_gemmbk0_gemmn_gemmbk1 =
+                PadTensorDescriptor(wei_desc_gemmbk0_gemmnraw_gemmbk1,
+                                    make_tuple(ignore, GemmNPerBlock, ignore),
+                                    Sequence<false, DoPadGemmN, false>{});
 
             return wei_desc_gemmbk0_gemmn_gemmbk1;
         }
@@ -336,11 +338,11 @@ struct TransformConvBwdDataToGemm_v1
         const index_t ConvDilationH = conv_filter_dilations[0];
         const index_t ConvDilationW = conv_filter_dilations[1];
 
-        if constexpr (true)
+        if constexpr(true)
         {
             // C: input tensor
-        const auto in_desc_n_hi_wi_c =
-            make_naive_tensor_descriptor_packed(make_tuple(N, Hi, Wi, C));
+            const auto in_desc_n_hi_wi_c =
+                make_naive_tensor_descriptor_packed(make_tuple(N, Hi, Wi, C));
 
             const auto in_desc_n_hip_wip_c = transform_tensor_descriptor(
                 in_desc_n_hi_wi_c,
@@ -390,10 +392,10 @@ struct TransformConvBwdDataToGemm_v1
                 make_tuple(Sequence<0, 1, 2>{}, Sequence<3>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            const auto in_desc_gemmm_gemmn = 
-            PadTensorDescriptor(in_desc_gemmmraw_gemmnraw,
-                    make_tuple(GemmMPerBlock, GemmNPerBlock),
-                    Sequence<DoPadGemmM, DoPadGemmN>{});
+            const auto in_desc_gemmm_gemmn =
+                PadTensorDescriptor(in_desc_gemmmraw_gemmnraw,
+                                    make_tuple(GemmMPerBlock, GemmNPerBlock),
+                                    Sequence<DoPadGemmM, DoPadGemmN>{});
 
             return in_desc_gemmm_gemmn;
         }

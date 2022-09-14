@@ -81,6 +81,7 @@ int run_conv_bwd_data_bias_relu(bool do_verification,
     // reset input to zero
     in_device_buf.SetZero();
 
+#if 0
     // do GEMM
     auto conv     = DeviceConvNdBwdDataBiasReluInstance{};
     auto invoker  = conv.MakeInvoker();
@@ -101,12 +102,61 @@ int run_conv_bwd_data_bias_relu(bool do_verification,
                                       in_element_op,
                                       wei_element_op,
                                       out_element_op);
+#else
+    std::array<ck::index_t, NDimSpatial + 3> a_g_n_k_wos_lengths{};
+    std::array<ck::index_t, NDimSpatial + 3> a_g_n_k_wos_strides{};
+    std::array<ck::index_t, NDimSpatial + 3> b_g_k_c_xs_lengths{};
+    std::array<ck::index_t, NDimSpatial + 3> b_g_k_c_xs_strides{};
+    std::array<ck::index_t, NDimSpatial + 3> d0_g_n_k_wos_lengths{};
+    std::array<ck::index_t, NDimSpatial + 3> d0_g_n_k_wos_strides{};
+    std::array<ck::index_t, NDimSpatial + 3> e_g_n_c_wis_lengths{};
+    std::array<ck::index_t, NDimSpatial + 3> e_g_n_c_wis_strides{};
+    std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
+    std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
+    std::array<ck::index_t, NDimSpatial> input_left_pads{};
+    std::array<ck::index_t, NDimSpatial> input_right_pads{};
+
+    auto copy = [](auto& x, auto& y) { std::copy(x.begin(), x.end(), y.begin()); };
+
+    copy(out_g_n_k_wos_desc.GetLengths(), a_g_n_k_wos_lengths);
+    copy(out_g_n_k_wos_desc.GetStrides(), a_g_n_k_wos_strides);
+    copy(wei_g_k_c_xs_desc.GetLengths(), b_g_k_c_xs_lengths);
+    copy(wei_g_k_c_xs_desc.GetStrides(), b_g_k_c_xs_strides);
+    copy(bias_g_n_k_wos_desc.GetLengths(), d0_g_n_k_wos_lengths);
+    copy(bias_g_n_k_wos_desc.GetStrides(), d0_g_n_k_wos_strides);
+    copy(in_g_n_c_wis_desc.GetLengths(), e_g_n_c_wis_lengths);
+    copy(in_g_n_c_wis_desc.GetStrides(), e_g_n_c_wis_strides);
+    copy(conv_param.conv_filter_strides_, conv_filter_strides);
+    copy(conv_param.conv_filter_dilations_, conv_filter_dilations);
+    copy(conv_param.input_left_pads_, input_left_pads);
+    copy(conv_param.input_right_pads_, input_right_pads);
+
+    // do conv
+    auto conv     = DeviceConvNdBwdDataBiasReluInstance{};
+    auto invoker  = conv.MakeInvoker();
+    auto argument = conv.MakeArgument(in_device_buf.GetDeviceBuffer(),
+                                      wei_device_buf.GetDeviceBuffer(),
+                                      out_device_buf.GetDeviceBuffer(),
+                                      bias_device_buf.GetDeviceBuffer(),
+                                      conv_param.N_,
+                                      conv_param.K_,
+                                      conv_param.C_,
+                                      conv_param.input_spatial_lengths_,
+                                      conv_param.filter_spatial_lengths_,
+                                      conv_param.GetOutputSpatialLengths(),
+                                      conv_param.conv_filter_strides_,
+                                      conv_param.conv_filter_dilations_,
+                                      conv_param.input_left_pads_,
+                                      conv_param.input_right_pads_,
+                                      in_element_op,
+                                      wei_element_op,
+                                      out_element_op);
+#endif
 
     if(!conv.IsSupportedArgument(argument))
     {
-        printf(
-            "wrong! device_conv with the specified compilation parameters does "
-            "not support this Conv problem\n");
+        printf("wrong! device_conv with the specified compilation parameters does "
+               "not support this Conv problem\n");
 
         return 1;
     }

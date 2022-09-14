@@ -44,6 +44,7 @@ struct DeviceConvBwdData : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
+#if 1
 // bwd data multiple d
 template <ck::index_t NumDimSpatial,
           typename InLayout,
@@ -80,6 +81,7 @@ struct DeviceConvBwdDataMultipleD : public BaseOperator
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
+#endif
 
 } // namespace device
 } // namespace tensor_operation
