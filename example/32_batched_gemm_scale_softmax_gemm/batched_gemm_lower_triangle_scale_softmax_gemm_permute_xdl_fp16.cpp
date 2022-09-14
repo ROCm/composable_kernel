@@ -149,8 +149,8 @@ int main(int argc, char* argv[])
 
     // GEMM shape for A/B0/B1/C
     // C_g_m_o = A_g_m_k * B0_g_k_n * B1_g_n_o
-    ck::index_t M             = 256;
-    ck::index_t N             = 256;
+    ck::index_t M             = 512;
+    ck::index_t N             = 512;
     ck::index_t K             = 64;
     ck::index_t O             = 128;
     ck::index_t StrideA       = -1;
