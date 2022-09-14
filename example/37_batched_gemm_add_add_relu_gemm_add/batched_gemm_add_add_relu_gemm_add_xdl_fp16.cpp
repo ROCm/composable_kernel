@@ -269,9 +269,10 @@ int main(int argc, char* argv[])
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
         printf("arg4 to 8: M, N, K, O, Batch\n");
-        printf("arg9 to 15: StrideA0, StrideB0, StrideD0, StrideB1, StrideD1, StrideE1\n");
-        printf("arg16 to 22: BatchStrideA0, BatchStrideB0, BatchStrideD0, BatchStrideB1, "
-               "BatchStrideD1, BatchStrideE1 \n");
+        printf(
+            "arg9 to 15: StrideA0, StrideB0, StrideD00, StrideD01, StrideB1, StrideD1, StrideE1\n");
+        printf("arg16 to 22: BatchStrideA0, BatchStrideB0, BatchStrideD00, BatchStrideD01, "
+               "BatchStrideB1, BatchStrideD1, BatchStrideE1 \n");
         exit(0);
     }
 

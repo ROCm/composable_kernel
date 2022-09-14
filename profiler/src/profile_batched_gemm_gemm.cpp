@@ -101,18 +101,18 @@ int profile_batched_gemm_gemm(int argc, char* argv[])
     }
     else
     {
-        printf("arg1: tensor operation (batched_gemm_add_relu_gemm_add: "
-               "Batched_GEMM+Add+Relu+Gemm+Add)\n");
+        printf("arg1: tensor operation (batched_gemm_gemm: Batched_GEMM+Gemm)\n");
         printf("arg2: data type (1: fp16)\n");
         printf("arg3: matrix layout (0: Relu(A0[m, k] * B0[n, k] + D0[m, n]) * B1[n, o] + D1[m, o] "
-               "= E1[m, o];\n");
+               "= E1[m, o];  1: Relu(A0[m, k] * B0[n, k] + D0[m, n]) * B1[o, n] + D1[m, o] = E1[m, "
+               "o];)\n");
         printf("arg4: verification (0: no; 1: yes)\n");
         printf("arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n");
         printf("arg6: print tensor value (0: no; 1: yes)\n");
         printf("arg7: time kernel (0=no, 1=yes)\n");
         printf("arg8 to 12: M, N, K, O, Batch\n");
-        printf("arg13 to 18: StrideA0, StrideB0, StrideB1, StrideE1\n");
-        printf("arg19 to 24: BatchStrideA0, BatchStrideB0, BatchStrideB1, BatchStrideE1 \n");
+        printf("arg13 to 16: StrideA0, StrideB0, StrideB1, StrideE1\n");
+        printf("arg17 to 20: BatchStrideA0, BatchStrideB0, BatchStrideB1, BatchStrideE1 \n");
         exit(1);
     }
 
