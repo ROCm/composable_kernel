@@ -80,15 +80,8 @@ class TestSoftmax : public ::testing::Test
         Tensor<InDataType> in(in_length);
         Tensor<OutDataType> out(in_length);
 
-        in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
-        out.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
-
-        Tensor<OutDataType> out_ref(out);
-
         DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
         DeviceMem out_dev(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
-        in_dev.ToDevice(in.mData.data());
-        out_dev.ToDevice(out.mData.data());
 
         std::vector<index_t> i_in_lengths(in.mDesc.GetLengths().begin(),
                                           in.mDesc.GetLengths().end());
@@ -114,6 +107,14 @@ class TestSoftmax : public ::testing::Test
                       << "reduce dims = [" << serialize_range(reduce_dims) << "], " << std::endl;
             return;
         }
+
+        // Do initialization and data copy when instance config params are actually supported.
+        in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
+        out.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
+        Tensor<OutDataType> out_ref(out);
+
+        in_dev.ToDevice(in.mData.data());
+        out_dev.ToDevice(out.mData.data());
 
         auto invoker_ptr = device_instance.MakeInvokerPointer();
         invoker_ptr->Run(argument_ptr.get());
