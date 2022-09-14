@@ -305,10 +305,11 @@ bool profile_batched_gemm_add_relu_gemm_add_impl(bool do_verification,
             float ave_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
-            std::size_t flop      = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * BatchCount;
-            std::size_t num_btype = (sizeof(A0DataType) * M * K + sizeof(B0DataType) * K * N +
-                                     sizeof(B1DataType) * N * O + sizeof(E1DataType) * M * O) *
-                                    BatchCount;
+            std::size_t flop = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * BatchCount;
+            std::size_t num_btype =
+                (sizeof(A0DataType) * M * K + sizeof(B0DataType) * K * N + sizeof(D0DataType) * N +
+                 sizeof(B1DataType) * N * O + sizeof(E1DataType) * M * O + sizeof(D1DataType) * O) *
+                BatchCount;
 
             float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 

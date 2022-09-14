@@ -446,10 +446,12 @@ int main(int argc, char* argv[])
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-    std::size_t flop      = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * BatchCount;
-    std::size_t num_btype = (sizeof(A0DataType) * M * K + sizeof(B0DataType) * K * N +
-                             sizeof(B1DataType) * N * O + sizeof(E1DataType) * M * O) *
-                            BatchCount;
+    std::size_t flop = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * BatchCount;
+    std::size_t num_btype =
+        (sizeof(A0DataType) * M * K + sizeof(B0DataType) * K * N + sizeof(D00DataType) * N +
+         sizeof(D01DataType) * N + sizeof(B1DataType) * N * O + sizeof(E1DataType) * M * O +
+         sizeof(D1DataType) * O) *
+        BatchCount;
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
