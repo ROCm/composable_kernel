@@ -20,7 +20,4 @@ static_assert(std::is_same_v<detail::get_bundled_t<F64, NUM_ELEMS_IN_BUNDLE>, F1
 
 #include "run_permute_example.inc"
 
-int main(int argc, char* argv[])
-{
-    return !run_permute_example(argc, argv, {1, 80, 16000}, {0, 2, 1});
-}
+int main() { return !run_permute_example({1, 80, 16000}, {0, 2, 1}); }

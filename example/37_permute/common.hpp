@@ -27,12 +27,6 @@ using F16 = ck::half_t;
 using F32 = float;
 using F64 = double;
 
-struct ExecutionConfig final
-{
-    bool do_verification = true;
-    bool time_kernel     = true;
-};
-
 struct Problem final
 {
     static constexpr std::size_t NumDim = 3;
@@ -271,65 +265,6 @@ is_valid_axes(const Axes& axes)
 
     return (last == end(sorted_axes)) && (*begin(sorted_axes) == 0) &&
            (*std::prev(last) == size(axes) - 1);
-}
-
-inline bool parse_cmd_args(int argc, char* argv[], ExecutionConfig& config, Problem& problem)
-{
-    constexpr int num_execution_config_args = 2;
-    constexpr int num_problem_args          = 2 * Problem::NumDim;
-
-    if(!(num_problem_args == size(problem.shape) + size(problem.axes)))
-    {
-        return false;
-    }
-
-    if(argc == 1)
-    {
-        // use default case
-    }
-    else if(argc == 1 + num_execution_config_args)
-    {
-        config.do_verification = std::stoi(argv[1]);
-        config.time_kernel     = std::stoi(argv[2]);
-    }
-    else if(argc == 1 + num_execution_config_args + num_problem_args)
-    {
-        config.do_verification = std::stoi(argv[1]);
-        config.time_kernel     = std::stoi(argv[2]);
-
-        // read shape
-        for(std::size_t idx = 0; idx < size(problem.shape); ++idx)
-        {
-            problem.shape[idx] = std::stoi(argv[idx + (1 + num_execution_config_args)]);
-        }
-
-        // read axes
-        for(std::size_t idx = 0; idx < size(problem.axes); ++idx)
-        {
-            problem.axes[idx] =
-                std::stoi(argv[idx + (1 + num_execution_config_args + size(problem.shape))]);
-        }
-
-        if(!is_valid_axes(problem.axes))
-        {
-            std::cerr << "invalid axes: ";
-            std::copy(begin(problem.axes),
-                      end(problem.axes),
-                      std::ostream_iterator<std::size_t>(std::cerr, " "));
-            std::cerr << std::endl;
-            return false;
-        }
-    }
-    else
-    {
-        std::cerr << "arg1: verification (0=no, 1=yes)" << std::endl
-                  << "arg2: time kernel (0=no, 1=yes)" << std::endl
-                  << "arg3 ~ arg5: shape for 3D tensor" << std::endl
-                  << "arg6 ~ arg8: axes to permute" << std::endl;
-        return false;
-    }
-
-    return true;
 }
 
 template <typename Shape>

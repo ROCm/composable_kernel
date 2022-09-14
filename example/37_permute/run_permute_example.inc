@@ -7,7 +7,7 @@
 #define NUM_ELEMS_IN_BUNDLE 1
 #endif
 
-bool run_permute(const ExecutionConfig& config, const Problem& problem)
+bool run_permute(const Problem& problem)
 {
 #if 1 < NUM_ELEMS_IN_BUNDLE
     static_assert(std::is_same_v<ADataType, BDataType> &&
@@ -61,64 +61,52 @@ bool run_permute(const ExecutionConfig& config, const Problem& problem)
     };
 
     auto invoker   = permute.MakeInvoker();
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, true});
 
     std::cout << "Perf: " << ave_time << " ms" << std::endl;
 
-    if(config.do_verification)
-    {
-        b_device_buf.FromDevice(data(b.mData));
+    b_device_buf.FromDevice(data(b.mData));
 
 #if NUM_ELEMS_IN_BUNDLE == 1
-        Tensor<BDataType> host_b(transposed_shape);
-        if(!host_permute(a, problem.axes, PassThrough{}, host_b))
-        {
-            return false;
-        }
-
-        return ck::utils::check_err(
-            b.mData, host_b.mData, "Error: incorrect results in output tensor", 1e-6, 1e-6);
-#else
-        // extend tensor shape from [N, H, W] to [N, H, W, NUM_ELEMS_IN_BUNDLE]
-        using DataType = detail::get_bundled_t<ADataType, NUM_ELEMS_IN_BUNDLE>;
-
-        const auto extended_shape = extend_shape(shape, NUM_ELEMS_IN_BUNDLE);
-        const auto extended_axes  = extend_axes(problem.axes);
-
-        ck::remove_cvref_t<decltype(extended_shape)> transposed_extended_shape;
-        transpose_shape(extended_shape, extended_axes, begin(transposed_extended_shape));
-
-        Tensor<DataType> extended_a(extended_shape);
-        std::memcpy(data(extended_a.mData),
-                    data(a.mData),
-                    sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
-
-        Tensor<DataType> extended_host_b(transposed_extended_shape);
-        if(!host_permute(extended_a, extended_axes, PassThrough{}, extended_host_b))
-        {
-            return false;
-        }
-
-        return ck::utils::check_err(
-            ck::span<const DataType>{reinterpret_cast<DataType*>(data(b.mData)),
-                                     b.mDesc.GetElementSpaceSize() * NUM_ELEMS_IN_BUNDLE},
-            ck::span<const DataType>{extended_host_b.mData},
-            "Error: incorrect results in output tensor",
-            1e-6,
-            1e-6);
-#endif
+    Tensor<BDataType> host_b(transposed_shape);
+    if(!host_permute(a, problem.axes, PassThrough{}, host_b))
+    {
+        return false;
     }
 
-    return true;
+    return ck::utils::check_err(
+        b.mData, host_b.mData, "Error: incorrect results in output tensor", 1e-6, 1e-6);
+#else
+    // extend tensor shape from [N, H, W] to [N, H, W, NUM_ELEMS_IN_BUNDLE]
+    using DataType = detail::get_bundled_t<ADataType, NUM_ELEMS_IN_BUNDLE>;
+
+    const auto extended_shape = extend_shape(shape, NUM_ELEMS_IN_BUNDLE);
+    const auto extended_axes  = extend_axes(problem.axes);
+
+    ck::remove_cvref_t<decltype(extended_shape)> transposed_extended_shape;
+    transpose_shape(extended_shape, extended_axes, begin(transposed_extended_shape));
+
+    Tensor<DataType> extended_a(extended_shape);
+    std::memcpy(
+        data(extended_a.mData), data(a.mData), sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
+
+    Tensor<DataType> extended_host_b(transposed_extended_shape);
+    if(!host_permute(extended_a, extended_axes, PassThrough{}, extended_host_b))
+    {
+        return false;
+    }
+
+    return ck::utils::check_err(
+        ck::span<const DataType>{reinterpret_cast<DataType*>(data(b.mData)),
+                                 b.mDesc.GetElementSpaceSize() * NUM_ELEMS_IN_BUNDLE},
+        ck::span<const DataType>{extended_host_b.mData},
+        "Error: incorrect results in output tensor",
+        1e-6,
+        1e-6);
+#endif
 }
 
-bool run_permute_example(int argc,
-                         char* argv[],
-                         const Problem::Shape& default_shape,
-                         const Problem::Axes& default_axes)
+bool run_permute_example(const Problem::Shape& default_shape, const Problem::Axes& default_axes)
 {
-    ExecutionConfig config;
-    Problem problem(default_shape, default_axes);
-
-    return parse_cmd_args(argc, argv, config, problem) && run_permute(config, problem);
+    return run_permute(Problem{default_shape, default_axes});
 }
