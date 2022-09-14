@@ -24,9 +24,6 @@ bool run_permute_bundle(const Problem& problem)
     using std::data;
     input_device_buf.ToDevice(data(input_bundle_tensor));
 
-    const void* input_bundle_data = input_device_buf.GetDeviceBuffer();
-    void* output_bundle_data      = output_device_buf.GetDeviceBuffer();
-
     static_assert(std::is_default_constructible_v<DevicePermuteInstance>);
 
     auto permute  = DevicePermuteInstance{};
@@ -34,8 +31,8 @@ bool run_permute_bundle(const Problem& problem)
                                          to_array(input_bundle_tensor.GetStrides()),
                                          to_array(output_bundle_shape),
                                          to_array(output_bundle_tensor.GetStrides()),
-                                         input_bundle_data,
-                                         output_bundle_data,
+                                         input_device_buf.GetDeviceBuffer(),
+                                         output_device_buf.GetDeviceBuffer(),
                                          PassThrough{});
 
     if(!permute.IsSupportedArgument(argument))
@@ -57,10 +54,10 @@ bool run_permute_bundle(const Problem& problem)
     const auto input_shape = extend_shape(input_bundle_shape, NumElemsInBundle);
     const auto input_axes  = extend_axes(input_bundle_axes);
 
+    using std::begin;
+
     Tensor<DataType> input_tensor(input_shape);
-    std::memcpy(data(input_tensor),
-                data(input_bundle_tensor),
-                input_bundle_tensor.GetElementSpaceSizeInBytes());
+    ranges::copy(input_bundle_tensor.AsSpan<const DataType>(), begin(input_tensor));
 
     Tensor<DataType> output_tensor(transpose(input_shape, input_axes));
     if(!host_permute(input_tensor, input_axes, PassThrough{}, output_tensor))

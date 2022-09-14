@@ -21,9 +21,6 @@ bool run_permute_element(const Problem& problem)
     using std::data;
     input_device_buf.ToDevice(data(input_tensor));
 
-    const void* input_data = input_device_buf.GetDeviceBuffer();
-    void* output_data      = output_device_buf.GetDeviceBuffer();
-
     static_assert(std::is_default_constructible_v<DevicePermuteInstance>);
 
     auto permute  = DevicePermuteInstance{};
@@ -31,8 +28,8 @@ bool run_permute_element(const Problem& problem)
                                          to_array(input_tensor.GetStrides()),
                                          to_array(output_shape),
                                          to_array(output_tensor.GetStrides()),
-                                         input_data,
-                                         output_data,
+                                         input_device_buf.GetDeviceBuffer(),
+                                         output_device_buf.GetDeviceBuffer(),
                                          PassThrough{});
 
     if(!permute.IsSupportedArgument(argument))
