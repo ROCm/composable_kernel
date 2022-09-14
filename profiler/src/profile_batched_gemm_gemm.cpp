@@ -19,6 +19,7 @@ int profile_batched_gemm_gemm(int argc, char* argv[])
     enum struct GemmMatrixLayout
     {
         MK_NK_NO_MO, // 0
+        MK_NK_ON_MO, // 0
     };
 
     enum struct GemmDataType
@@ -124,6 +125,34 @@ int profile_batched_gemm_gemm(int argc, char* argv[])
                                                      Row, // A0Layout,
                                                      Col, // B0Layout,
                                                      Row, // B1Layout,
+                                                     Row> // E1Layout,
+            (do_verification,
+             init_method,
+             do_log,
+             time_kernel,
+             M,
+             N,
+             K,
+             O,
+             BatchCount,
+             StrideA0,
+             StrideB0,
+             StrideB1,
+             StrideE1,
+             BatchStrideA0,
+             BatchStrideB0,
+             BatchStrideB1,
+             BatchStrideE1);
+    }
+    else if(data_type == GemmDataType::F16_F16_F16_F16 && layout == GemmMatrixLayout::MK_NK_ON_MO)
+    {
+        ck::profiler::profile_batched_gemm_gemm_impl<F16, // A0DataType,
+                                                     F16, // B0DataType,
+                                                     F16, // B1DataType,
+                                                     F16, // E1DataType,
+                                                     Row, // A0Layout,
+                                                     Col, // B0Layout,
+                                                     Col, // B1Layout,
                                                      Row> // E1Layout,
             (do_verification,
              init_method,
