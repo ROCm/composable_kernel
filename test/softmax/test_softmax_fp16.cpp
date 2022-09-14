@@ -48,7 +48,8 @@ using KernelTypesReduce1Dim = ::testing::Types<
 
 using KernelTypesReduce1DInnerDims = ::testing::Types<
 // InDataType, AccDataType, OutDataType, Rank, NumReduceDim, BlockSize, MThreadClusterSize, KThreadClusterSize, MThreadSliceSize, KThreadSliceSize, InSrcVectorDim, InSrcVectorSize, OutDstVectorSize>
-    std::tuple<ck::half_t, float, ck::half_t, I<3>, I<1>, I<256>, I<2>, I<128>, I<1>, I<8>, I<1>, I<1>, I<1>>
+    std::tuple<ck::half_t, float, ck::half_t, I<3>, I<1>, I<256>, I<2>, I<128>, I<1>, I<8>, I<1>, I<1>, I<1>>,   // fallback
+    std::tuple<ck::half_t, float, ck::half_t, I<3>, I<1>, I<256>, I<8>, I<32>, I<8>, I<4>, I<0>, I<8>, I<4>>
     >;
 
 using KernelTypesReduce2Dims = ::testing::Types<
@@ -63,7 +64,8 @@ using KernelTypesReduce2Dims = ::testing::Types<
 
 using KernelTypesReduce2DInnerDims = ::testing::Types<
 // InDataType, AccDataType, OutDataType, Rank, NumReduceDim, BlockSize, MThreadClusterSize, KThreadClusterSize, MThreadSliceSize, KThreadSliceSize, InSrcVectorDim, InSrcVectorSize, OutDstVectorSize>
-    std::tuple<ck::half_t, float, ck::half_t, I<3>, I<2>, I<256>, I<2>, I<128>, I<1>, I<8>, I<1>, I<1>, I<1>>
+    std::tuple<ck::half_t, float, ck::half_t, I<3>, I<2>, I<256>, I<2>, I<128>, I<1>, I<8>, I<1>, I<1>, I<1>>,   // fallback
+    std::tuple<ck::half_t, float, ck::half_t, I<3>, I<2>, I<256>, I<8>, I<32>, I<8>, I<4>, I<0>, I<8>, I<4>>
     >;
 
 using KernelTypesReduceAllDims = ::testing::Types<
