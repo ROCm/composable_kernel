@@ -76,7 +76,8 @@ template <typename FloatAB,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched,
-          bool PadN>
+          bool PadN,
+          bool OnlyLowerTriangle = false>
 struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
 {
     static_assert(LoopSched == LoopScheduler::Default,
@@ -756,8 +757,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         // decoder lower triangular mask
         const auto thread_cluster_idx =
                 threadid_to_m_n_thread_cluster_adaptor.CalculateBottomIndex(make_multi_index(get_thread_local_1d_id()));
-        const auto thread_m_cluster_id = thread_cluster_idx[Number<0>{}];
-        const auto thread_n_cluster_id = thread_cluster_idx[Number<1>{}];
+        const auto thread_m_cluster_id = thread_cluster_idx[I0];
+        const auto thread_n_cluster_id = thread_cluster_idx[I1];
         const index_t MPerRepeat = MPerBlock / MXdlPerWave;
         const index_t NPerRepeat = NPerBlock / NXdlPerWave;
         const index_t mstart = m_block_data_idx_on_grid + thread_m_cluster_id;
@@ -766,9 +767,13 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         index_t gemm1_k_block_outer_index = 0;
         do
         {
-            if((m_block_data_idx_on_grid < gemm1_k_block_outer_index * NPerBlock) && ((m_block_data_idx_on_grid + MPerBlock - 1) < (gemm1_k_block_outer_index * NPerBlock + NPerBlock - 1)))
+            if constexpr(OnlyLowerTriangle)
             {
-                continue;
+                auto gemm0_n_block_idx = __builtin_amdgcn_readfirstlane(gemm1_k_block_outer_index * NPerBlock);
+                if((m_block_data_idx_on_grid < gemm0_n_block_idx) && ((m_block_data_idx_on_grid + MPerBlock - 1) < (gemm0_n_block_idx + NPerBlock - 1)))
+                {
+                    continue;
+                }
             }
             // gemm0
             gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(a_grid_desc_ak0_m_ak1,
@@ -787,6 +792,21 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                                                    acc_thread_buf,
                                                                    num_k_block_main_loop);
 
+            if constexpr(!OnlyLowerTriangle)
+            {
+                // Acc0 elementwise Op
+#if CK_WORKAROUND_SWDEV_XXXXXX_ATTN_KERNEL_CLANG_CANNOT_SCAVENGE_REGISTER
+                static_for<0, acc_thread_buf.Size(), 1>{}(
+                    [&](auto i) { acc_element_op(acc_thread_buf(i), acc_thread_buf[i]); });
+#else
+                static_for<0, acc_thread_buf.Size(), 1>{}([&](auto i) {
+                    ElementOpPredicatedResetNaNToMinusInf<PadN>{}.Run(
+                        acc_thread_buf(i), acc_element_op, acc_thread_buf[i]);
+                });
+#endif
+            }
+            else
+            {
             const index_t nstart = gemm1_k_block_outer_index * NPerBlock;
             
             static_for<0, m0, 1>{}([&](auto m0_i) {
@@ -821,6 +841,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                     });
                 });
             });
+            }
 
             block_sync_lds(); // wait for lds read in gemm0 blockwise gemm
 

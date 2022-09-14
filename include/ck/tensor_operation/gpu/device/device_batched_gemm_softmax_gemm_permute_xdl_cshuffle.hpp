@@ -168,6 +168,7 @@ template <typename ALayout,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
+          bool OnlyLowerTriangle = false,
           LoopScheduler LoopSched = LoopScheduler::Default>
 struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     : public DeviceBatchedGemmSoftmaxGemmPermute<ALayout,
@@ -498,7 +499,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched,
-        matrix_padder.PadN>;
+        matrix_padder.PadN,
+        OnlyLowerTriangle>;
 
     // Argument
     // FIXME: constness
