@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdlib>
@@ -211,11 +212,18 @@ inline constexpr bool is_random_access_range_v = is_random_access_range<Range>::
 
 } // namespace detail
 
-template <typename Range>
-auto front(Range&& range) -> decltype(std::forward<Range>(range).front())
+namespace ranges {
+template <typename InputRange, typename OutputIterator>
+inline auto copy(InputRange&& range, OutputIterator iter)
+    -> decltype(std::copy(std::begin(std::forward<InputRange>(range)),
+                          std::end(std::forward<InputRange>(range)),
+                          iter))
 {
-    return std::forward<Range>(range).front();
+    return std::copy(std::begin(std::forward<InputRange>(range)),
+                     std::end(std::forward<InputRange>(range)),
+                     iter);
 }
+} // namespace ranges
 
 template <typename Axes>
 inline std::enable_if_t<detail::is_random_access_range_v<Axes>, bool>

@@ -30,12 +30,10 @@ bool run_permute_element(const Problem& problem)
     const void* input_data = input_device_buf.GetDeviceBuffer();
     void* output_data      = output_device_buf.GetDeviceBuffer();
 
-    std::copy(begin(input_shape), end(input_shape), begin(input_lengths));
-    std::copy(
-        begin(input_tensor.GetStrides()), end(input_tensor.GetStrides()), begin(input_strides));
-    std::copy(begin(output_shape), end(output_shape), begin(output_lengths));
-    std::copy(
-        begin(output_tensor.GetStrides()), end(output_tensor.GetStrides()), begin(output_strides));
+    ranges::copy(input_shape, begin(input_lengths));
+    ranges::copy(input_tensor.GetStrides(), begin(input_strides));
+    ranges::copy(output_shape, begin(output_lengths));
+    ranges::copy(output_tensor.GetStrides(), begin(output_strides));
 
     static_assert(std::is_default_constructible_v<DevicePermuteInstance>);
 

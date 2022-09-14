@@ -35,14 +35,10 @@ bool run_permute_bundle(const Problem& problem)
     const void* input_bundle_data = input_device_buf.GetDeviceBuffer();
     void* output_bundle_data      = output_device_buf.GetDeviceBuffer();
 
-    std::copy(begin(input_bundle_shape), end(input_bundle_shape), begin(input_bundle_lengths));
-    std::copy(begin(input_bundle_tensor.GetStrides()),
-              end(input_bundle_tensor.GetStrides()),
-              begin(input_bundle_strides));
-    std::copy(begin(output_bundle_shape), end(output_bundle_shape), begin(output_bundle_lengths));
-    std::copy(begin(output_bundle_tensor.GetStrides()),
-              end(output_bundle_tensor.GetStrides()),
-              begin(output_bundle_strides));
+    ranges::copy(input_bundle_shape, begin(input_bundle_lengths));
+    ranges::copy(input_bundle_tensor.GetStrides(), begin(input_bundle_strides));
+    ranges::copy(output_bundle_shape, begin(output_bundle_lengths));
+    ranges::copy(output_bundle_tensor.GetStrides(), begin(output_bundle_strides));
 
     static_assert(std::is_default_constructible_v<DevicePermuteInstance>);
 
