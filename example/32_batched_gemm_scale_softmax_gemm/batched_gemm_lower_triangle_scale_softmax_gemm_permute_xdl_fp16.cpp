@@ -164,8 +164,8 @@ int main(int argc, char* argv[])
     // Output shape C[G0, M, G1, O]. Batch dim, outer dim, inner dim must match GEMM shape
     // C_g0_g1_m_o = reshape(C_g_m_o, [g0, g1, m, o])
     // C_g0_m_g1_o = permute(C_g0_g1_m_o, [0, 2, 1, 3])
-    ck::index_t G0 = 2;
-    ck::index_t G1 = 3;
+    ck::index_t G0 = 7;
+    ck::index_t G1 = 13;
 
     if(argc == 1)
     {
