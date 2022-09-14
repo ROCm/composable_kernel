@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "ck/utility/data_type.hpp"
+#include "ck/utility/span.hpp"
 
 template <typename Range>
 std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
@@ -443,6 +444,30 @@ struct Tensor
     typename Data::const_pointer data() const { return mData.data(); }
 
     typename Data::size_type size() const { return mData.size(); }
+
+    template <typename U = T>
+    auto AsSpan() const
+    {
+        constexpr std::size_t FromSize = sizeof(T);
+        constexpr std::size_t ToSize   = sizeof(U);
+
+        static_assert((ToSize < FromSize ? (FromSize % ToSize == 0) : (ToSize % FromSize == 0)));
+
+        using Element = std::add_const_t<std::remove_reference_t<U>>;
+        return ck::span<Element>{reinterpret_cast<Element*>(data()), size() * FromSize / ToSize};
+    }
+
+    template <typename U = T>
+    auto AsSpan()
+    {
+        constexpr std::size_t FromSize = sizeof(T);
+        constexpr std::size_t ToSize   = sizeof(U);
+
+        static_assert((ToSize < FromSize ? (FromSize % ToSize == 0) : (ToSize % FromSize == 0)));
+
+        using Element = std::remove_reference_t<U>;
+        return ck::span<Element>{reinterpret_cast<Element*>(data()), size() * FromSize / ToSize};
+    }
 
     Descriptor mDesc;
     Data mData;
