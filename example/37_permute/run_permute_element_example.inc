@@ -5,8 +5,6 @@
 
 bool run_permute_element(const Problem& problem)
 {
-    using std::begin, std::end;
-
     const auto& input_shape = problem.shape;
     const auto& input_axes  = problem.axes;
 

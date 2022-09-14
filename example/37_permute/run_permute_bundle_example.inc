@@ -7,8 +7,6 @@ bool run_permute_bundle(const Problem& problem)
 {
     constexpr std::size_t NumElemsInBundle = sizeof(BundleType) / sizeof(DataType);
 
-    using std::begin, std::end;
-
     const auto& input_bundle_shape = problem.shape;
     const auto& input_bundle_axes  = problem.axes;
 
@@ -18,7 +16,7 @@ bool run_permute_bundle(const Problem& problem)
     Tensor<BundleType> output_bundle_tensor(output_bundle_shape);
 
     // initialize tensor by assigning DataType values
-    using std::data, std::size;
+    using std::data;
     ck::utils::FillUniformDistribution<DataType>{-1.f, 1.f}(input_bundle_tensor.AsSpan<DataType>());
 
     DeviceMem input_device_buf(input_bundle_tensor.GetElementSpaceSizeInBytes());
