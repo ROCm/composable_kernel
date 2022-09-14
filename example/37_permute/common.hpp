@@ -210,7 +210,35 @@ struct is_random_access_range<Range, std::void_t<>>
 template <typename Range>
 inline constexpr bool is_random_access_range_v = is_random_access_range<Range>::value;
 
+template <typename Range>
+class to_array_proxy
+{
+    public:
+    explicit to_array_proxy(const Range& source) noexcept : source_(source) {}
+
+    template <typename T, std::size_t Size>
+    operator std::array<T, Size>() const
+    {
+        std::array<T, Size> destination;
+
+        std::copy_n(std::begin(source_),
+                    std::min<std::size_t>(Size, std::size(source_)),
+                    std::begin(destination));
+
+        return destination;
+    }
+
+    private:
+    const Range& source_;
+};
+
 } // namespace detail
+
+template <typename Range>
+inline auto to_array(Range& range) noexcept
+{
+    return detail::to_array_proxy<ck::remove_cvref_t<Range>>{range};
+}
 
 namespace ranges {
 template <typename InputRange, typename OutputIterator>

@@ -28,24 +28,16 @@ bool run_permute_bundle(const Problem& problem)
 
     input_device_buf.ToDevice(data(input_bundle_tensor));
 
-    std::array<ck::index_t, Problem::NumDim> input_bundle_lengths, output_bundle_lengths;
-    std::array<ck::index_t, Problem::NumDim> input_bundle_strides, output_bundle_strides;
-
     const void* input_bundle_data = input_device_buf.GetDeviceBuffer();
     void* output_bundle_data      = output_device_buf.GetDeviceBuffer();
-
-    ranges::copy(input_bundle_shape, begin(input_bundle_lengths));
-    ranges::copy(input_bundle_tensor.GetStrides(), begin(input_bundle_strides));
-    ranges::copy(output_bundle_shape, begin(output_bundle_lengths));
-    ranges::copy(output_bundle_tensor.GetStrides(), begin(output_bundle_strides));
 
     static_assert(std::is_default_constructible_v<DevicePermuteInstance>);
 
     auto permute  = DevicePermuteInstance{};
-    auto argument = permute.MakeArgument(input_bundle_lengths,
-                                         input_bundle_strides,
-                                         output_bundle_lengths,
-                                         output_bundle_strides,
+    auto argument = permute.MakeArgument(to_array(input_bundle_shape),
+                                         to_array(input_bundle_tensor.GetStrides()),
+                                         to_array(output_bundle_shape),
+                                         to_array(output_bundle_tensor.GetStrides()),
                                          input_bundle_data,
                                          output_bundle_data,
                                          PassThrough{});

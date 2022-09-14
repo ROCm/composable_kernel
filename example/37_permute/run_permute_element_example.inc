@@ -23,24 +23,16 @@ bool run_permute_element(const Problem& problem)
     using std::data;
     input_device_buf.ToDevice(data(input_tensor));
 
-    std::array<ck::index_t, Problem::NumDim> input_lengths, output_lengths;
-    std::array<ck::index_t, Problem::NumDim> input_strides, output_strides;
-
     const void* input_data = input_device_buf.GetDeviceBuffer();
     void* output_data      = output_device_buf.GetDeviceBuffer();
-
-    ranges::copy(input_shape, begin(input_lengths));
-    ranges::copy(input_tensor.GetStrides(), begin(input_strides));
-    ranges::copy(output_shape, begin(output_lengths));
-    ranges::copy(output_tensor.GetStrides(), begin(output_strides));
 
     static_assert(std::is_default_constructible_v<DevicePermuteInstance>);
 
     auto permute  = DevicePermuteInstance{};
-    auto argument = permute.MakeArgument(input_lengths,
-                                         input_strides,
-                                         output_lengths,
-                                         output_strides,
+    auto argument = permute.MakeArgument(to_array(input_shape),
+                                         to_array(input_tensor.GetStrides()),
+                                         to_array(output_shape),
+                                         to_array(output_tensor.GetStrides()),
                                          input_data,
                                          output_data,
                                          PassThrough{});
