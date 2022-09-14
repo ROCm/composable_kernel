@@ -585,18 +585,18 @@ def Build_CK(Map conf=[:]){
                 timeout(time: 24, unit: 'HOURS')
                 {
                     cmake_build(conf)
-                    sh "rm -rf DEBIAN"
-                    sh "mkdir DEBIAN"
+                    sh "rm -rf /composable_kernel/DEBIAN"
+                    sh "mkdir /composable_kernel/DEBIAN"
 					dir("DEBIAN"){
                         //populate control file
-                        echo 'Package: composable_kernel' > control
-                        echo 'Version: 0.1' >> control
-                        echo 'Section: base' >> control
-                        echo 'Priority: optional' >> control
-                        echo 'Architecture: amd64' >> control
-                        echo 'Depends:' >> control
-                        echo 'Maintainer: Illia Silin <Illia.Silin@amd.com>' >> control
-                        echo 'Description: Composable Kernel library for AMD GPUs' >> control
+                        sh "echo 'Package: composable_kernel' > /composable_kernel/control"
+                        sh "echo 'Version: 0.1' >> /composable_kernel/control"
+                        sh "echo 'Section: base' >> /composable_kernel/control"
+                        sh "echo 'Priority: optional' >> /composable_kernel/control"
+                        sh "echo 'Architecture: amd64' >> /composable_kernel/control"
+                        sh "echo 'Depends:' >> /composable_kernel/control"
+                        sh "echo 'Maintainer: Illia Silin <Illia.Silin@amd.com>' >> /composable_kernel/control"
+                        sh "echo 'Description: Composable Kernel library for AMD GPUs' >> /composable_kernel/control"
                     }
                     sh "dpkg-deb --build composable_kernel"
                     archiveArtifacts "composable_kernel.deb", fingerprint: true
