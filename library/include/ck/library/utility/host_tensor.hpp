@@ -235,7 +235,8 @@ auto make_ParallelTensorFunctor(F f, Xs... xs)
 template <typename T>
 struct Tensor
 {
-    using Data = std::vector<T>;
+    using Descriptor = HostTensorDescriptor;
+    using Data       = std::vector<T>;
 
     template <typename X>
     Tensor(std::initializer_list<X> lens) : mDesc(lens), mData(mDesc.GetElementSpaceSize())
@@ -253,7 +254,7 @@ struct Tensor
     {
     }
 
-    Tensor(const HostTensorDescriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpaceSize()) {}
+    Tensor(const Descriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpaceSize()) {}
 
     template <typename OutT>
     Tensor<OutT> CopyAsType() const
@@ -280,9 +281,9 @@ struct Tensor
     {
     }
 
-    const std::vector<std::size_t>& GetLengths() const { return mDesc.GetLengths(); }
+    decltype(auto) GetLengths() const { return mDesc.GetLengths(); }
 
-    const std::vector<std::size_t>& GetStrides() const { return mDesc.GetStrides(); }
+    decltype(auto) GetStrides() const { return mDesc.GetStrides(); }
 
     std::size_t GetNumOfDimension() const { return mDesc.GetNumOfDimension(); }
 
@@ -441,6 +442,6 @@ struct Tensor
 
     typename Data::const_pointer data() const { return mData.data(); }
 
-    HostTensorDescriptor mDesc;
+    Descriptor mDesc;
     Data mData;
 };
