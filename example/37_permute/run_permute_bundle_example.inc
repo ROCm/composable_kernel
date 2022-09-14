@@ -19,9 +19,7 @@ bool run_permute_bundle(const Problem& problem)
 
     // initialize tensor by assigning DataType values
     using std::data, std::size;
-    ck::utils::FillUniformDistribution<DataType>{-1.f, 1.f}(
-        ck::span<DataType>{reinterpret_cast<DataType*>(data(input_bundle_tensor)),
-                           input_bundle_tensor.GetElementSpaceSize() * NumElemsInBundle});
+    ck::utils::FillUniformDistribution<DataType>{-1.f, 1.f}(input_bundle_tensor.AsSpan<DataType>());
 
     DeviceMem input_device_buf(input_bundle_tensor.GetElementSpaceSizeInBytes());
     DeviceMem output_device_buf(output_bundle_tensor.GetElementSpaceSizeInBytes());
@@ -72,13 +70,11 @@ bool run_permute_bundle(const Problem& problem)
         return false;
     }
 
-    return ck::utils::check_err(
-        ck::span<const DataType>{reinterpret_cast<DataType*>(data(output_bundle_tensor)),
-                                 output_bundle_tensor.GetElementSpaceSize() * NumElemsInBundle},
-        ck::span<const DataType>{output_tensor},
-        "Error: incorrect results in output tensor",
-        1e-6,
-        1e-6);
+    return ck::utils::check_err(output_bundle_tensor.AsSpan<const DataType>(),
+                                output_tensor.AsSpan<const DataType>(),
+                                "Error: incorrect results in output tensor",
+                                1e-6,
+                                1e-6);
 }
 
 bool run_permute_bundle_example(const Problem::Shape& shape, const Problem::Axes& axes)

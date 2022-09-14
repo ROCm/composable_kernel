@@ -12,6 +12,7 @@
 #include <iterator>
 #include <numeric>
 #include <type_traits>
+#include <utility>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"

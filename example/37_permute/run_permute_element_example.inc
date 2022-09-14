@@ -57,8 +57,8 @@ bool run_permute_element(const Problem& problem)
         return false;
     }
 
-    return ck::utils::check_err(output_tensor.mData,
-                                output_tensor_host.mData,
+    return ck::utils::check_err(output_tensor.AsSpan<const OutDataType>(),
+                                output_tensor_host.AsSpan<const OutDataType>(),
                                 "Error: incorrect results in output tensor",
                                 1e-6,
                                 1e-6);
