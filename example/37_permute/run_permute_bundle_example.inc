@@ -18,11 +18,8 @@ bool run_permute_bundle(const Problem& problem)
 
     // initialize tensor by assigning DataType values
     using std::data, std::size;
-    {
-        auto* const elems = reinterpret_cast<DataType*>(data(a));
-        ck::utils::FillUniformDistribution<DataType>{-1.f, 1.f}(
-            elems, elems + (a.GetElementSpaceSize() * NumElemsInBundle));
-    }
+    ck::utils::FillUniformDistribution<DataType>{-1.f, 1.f}(ck::span<DataType>{
+        reinterpret_cast<DataType*>(data(a)), a.GetElementSpaceSize() * NumElemsInBundle});
 
     DeviceMem a_device_buf(a.GetElementSpaceSizeInBytes());
     DeviceMem b_device_buf(b.GetElementSpaceSizeInBytes());

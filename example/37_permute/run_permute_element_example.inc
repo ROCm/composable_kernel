@@ -14,7 +14,7 @@ bool run_permute_element(const Problem& problem)
     Tensor<ADataType> a(shape);
     Tensor<BDataType> b(transposed_shape);
 
-    ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(begin(a), end(a));
+    ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a);
 
     DeviceMem a_device_buf(a.GetElementSpaceSizeInBytes());
     DeviceMem b_device_buf(b.GetElementSpaceSizeInBytes());
