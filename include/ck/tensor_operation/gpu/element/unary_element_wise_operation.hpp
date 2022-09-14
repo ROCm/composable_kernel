@@ -211,6 +211,27 @@ struct FastGelu
     }
 };
 
+// https://paperswithcode.com/method/gelu
+// y = 0.5*x*(1+erf(x/sqrt(2)))
+struct Gelu
+{
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const;
+
+    template <>
+    __host__ __device__ void operator()<float, float>(float& y, const float& x) const
+    {
+        y = 0.5f * x * (1.f + erf(float(0.70710678118f * x)));
+    }
+
+    template <>
+    __host__ __device__ void operator()<ck::half_t, ck::half_t>(ck::half_t& y,
+                                                                const ck::half_t& x) const
+    {
+        y = ck::half_t(0.5) * x * (ck::half_t(1) + ck::half_t(erf(float(0.70710678118f * x))));
+    }
+};
+
 } // namespace element_wise
 } // namespace tensor_operation
 } // namespace ck
