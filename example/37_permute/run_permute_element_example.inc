@@ -14,7 +14,7 @@ bool run_permute_element(const Problem& problem)
     Tensor<ADataType> a(shape);
     Tensor<BDataType> b(transposed_shape);
 
-    ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(begin(a.mData), end(a.mData));
+    ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(begin(a), end(a));
 
     DeviceMem a_device_buf(a.GetElementSpaceSizeInBytes());
     DeviceMem b_device_buf(b.GetElementSpaceSizeInBytes());
@@ -29,9 +29,9 @@ bool run_permute_element(const Problem& problem)
     void* output      = b_device_buf.GetDeviceBuffer();
 
     std::copy(begin(shape), end(shape), begin(a_lengths));
-    std::copy(begin(a.mDesc.GetStrides()), end(a.mDesc.GetStrides()), begin(a_strides));
+    std::copy(begin(a.GetStrides()), end(a.GetStrides()), begin(a_strides));
     std::copy(begin(transposed_shape), end(transposed_shape), begin(b_lengths));
-    std::copy(begin(b.mDesc.GetStrides()), end(b.mDesc.GetStrides()), begin(b_strides));
+    std::copy(begin(b.GetStrides()), end(b.GetStrides()), begin(b_strides));
 
     static_assert(std::is_default_constructible_v<DevicePermuteInstance>);
 
