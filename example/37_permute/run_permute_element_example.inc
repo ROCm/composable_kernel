@@ -7,7 +7,7 @@
 #define NUM_ELEMS_IN_BUNDLE 1
 #endif
 
-bool run_permute(const Problem& problem)
+bool run_permute_element(const Problem& problem)
 {
 #if 1 < NUM_ELEMS_IN_BUNDLE
     static_assert(std::is_same_v<ADataType, BDataType> &&
@@ -106,7 +106,8 @@ bool run_permute(const Problem& problem)
 #endif
 }
 
-bool run_permute_example(const Problem::Shape& default_shape, const Problem::Axes& default_axes)
+bool run_permute_element_example(const Problem::Shape& default_shape,
+                                 const Problem::Axes& default_axes)
 {
-    return run_permute(Problem{default_shape, default_axes});
+    return run_permute_element(Problem{default_shape, default_axes});
 }

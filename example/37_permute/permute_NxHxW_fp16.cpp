@@ -15,6 +15,6 @@ using DevicePermuteInstance = ck::tensor_operation::device::DevicePermute
          < ADataType, BDataType, PassThrough,      3,   128,     4,    16,     8,         6,          S<2, 16, 4>,                S<0, 1, 2>,         2,         1,               2,               1>;
 // clang-format on
 
-#include "run_permute_example.inc"
+#include "run_permute_element_example.inc"
 
-int main() { return !run_permute_example({121, 768, 80}, {0, 2, 1}); }
+int main() { return !run_permute_element_example({121, 768, 80}, {0, 2, 1}); }
