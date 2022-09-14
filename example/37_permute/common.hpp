@@ -289,23 +289,20 @@ is_valid_indices(const Shape& shape, const Indices& indices)
     return true;
 }
 
-template <typename Shape, typename Axes, typename OutputIterator>
-inline std::enable_if_t<detail::is_random_access_range_v<Shape> &&
-                            detail::is_sized_range_v<Shape> && detail::is_sized_range_v<Axes> &&
-                            detail::is_output_iterator_v<OutputIterator>,
-                        OutputIterator>
-transpose_shape(const Shape& shape, const Axes& axes, OutputIterator iter)
+template <std::size_t Size>
+std::array<std::size_t, Size> transpose(const std::array<std::size_t, Size>& shape,
+                                        const std::array<std::size_t, Size>& axes)
 {
-    using std::size;
-    assert(size(shape) == size(axes));
     assert(is_valid_shape(shape) && is_valid_axes(axes));
 
+    std::array<std::size_t, Size> transposed;
+    auto iter = std::begin(transposed);
     for(const auto axis : axes)
     {
         *iter++ = shape[axis];
     }
 
-    return iter;
+    return transposed;
 }
 
 auto extend_shape(const Problem::Shape& shape, std::size_t new_dim)

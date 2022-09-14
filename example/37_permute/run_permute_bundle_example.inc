@@ -12,8 +12,7 @@ bool run_permute_bundle(const Problem& problem)
     const auto& input_bundle_shape = problem.shape;
     const auto& input_bundle_axes  = problem.axes;
 
-    ck::remove_cvref_t<decltype(input_bundle_shape)> output_bundle_shape;
-    transpose_shape(input_bundle_shape, input_bundle_axes, begin(output_bundle_shape));
+    const auto output_bundle_shape = transpose(input_bundle_shape, input_bundle_axes);
 
     Tensor<BundleType> input_bundle_tensor(input_bundle_shape);
     Tensor<BundleType> output_bundle_tensor(output_bundle_shape);
@@ -66,18 +65,16 @@ bool run_permute_bundle(const Problem& problem)
     output_device_buf.FromDevice(data(output_bundle_tensor));
 
     // extend tensor shape from [N, H, W] to [N, H, W, NumElemsInBundle]
+    //               axes  from [0, 2, 1] to [0, 2, 1, 3]
     const auto input_shape = extend_shape(input_bundle_shape, NumElemsInBundle);
     const auto input_axes  = extend_axes(input_bundle_axes);
-
-    ck::remove_cvref_t<decltype(input_shape)> output_shape;
-    transpose_shape(input_shape, input_axes, begin(output_shape));
 
     Tensor<DataType> input_tensor(input_shape);
     std::memcpy(data(input_tensor),
                 data(input_bundle_tensor),
                 input_bundle_tensor.GetElementSpaceSizeInBytes());
 
-    Tensor<DataType> output_tensor(output_shape);
+    Tensor<DataType> output_tensor(transpose(input_shape, input_axes));
     if(!host_permute(input_tensor, input_axes, PassThrough{}, output_tensor))
     {
         return false;

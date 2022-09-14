@@ -10,8 +10,7 @@ bool run_permute_element(const Problem& problem)
     const auto& input_shape = problem.shape;
     const auto& input_axes  = problem.axes;
 
-    ck::remove_cvref_t<decltype(input_shape)> output_shape;
-    transpose_shape(input_shape, input_axes, begin(output_shape));
+    const auto output_shape = transpose(input_shape, input_axes);
 
     Tensor<InDataType> input_tensor(input_shape);
     Tensor<OutDataType> output_tensor(output_shape);
