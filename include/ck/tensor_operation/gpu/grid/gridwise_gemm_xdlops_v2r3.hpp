@@ -426,18 +426,18 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
         //       register
         // sanity check
-
-        auto blockwise_gemm =
-            BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
-                                                                FloatAB,
-                                                                FloatAcc,
-                                                                decltype(a_block_desc_k0_m_k1),
-                                                                decltype(b_block_desc_k0_n_k1),
-                                                                MPerXDL,
-                                                                NPerXDL,
-                                                                MXdlPerWave,
-                                                                NXdlPerWave,
-                                                                K1>{};
+        auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
+            BlockSize,
+            FloatAB,
+            FloatAcc,
+            decltype(a_block_desc_k0_m_k1),
+            decltype(b_block_desc_k0_n_k1),
+            MPerXDL,
+            NPerXDL,
+            MXdlPerWave,
+            NXdlPerWave,
+            K1,
+            LoopSched>();
 
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 

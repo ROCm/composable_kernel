@@ -557,6 +557,10 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     AThreadCopy a_thread_copy_{CalculateAThreadOriginDataIndex()};
     BThreadCopy b_thread_copy_{CalculateBThreadOriginDataIndex()};
 
+#else
+    static_assert(false,
+                  "Configuration error: using BlockwiseGemmXdlopsInterwave without defining "
+                  "macro CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING=1");
 #endif // #if CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING
 };
 

@@ -126,7 +126,7 @@
 #define CK_EXPERIMENTAL_USE_MEMCPY_FOR_BIT_CAST 1
 
 // experimental feature: optimize for inter-wave scheduling policy
-#define CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING 0
+#define CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING 1
 #define CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS 1
 
 // hack: have underlying assumption that need to be satsified, otherwise it's a bug
