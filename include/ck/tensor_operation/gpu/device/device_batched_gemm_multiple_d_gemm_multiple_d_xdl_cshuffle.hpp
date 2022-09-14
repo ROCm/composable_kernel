@@ -243,11 +243,11 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
     static constexpr auto I9 = Number<9>{};
 
     static constexpr auto gemm0_padder =
-        MatrixPadder_v2<PadGemm0M, PadGemm0N, PadGemm0K, index_t, index_t, index_t>{
+        GemmPadder_v2<PadGemm0M, PadGemm0N, PadGemm0K, index_t, index_t, index_t>{
             Gemm0MPerBlock, Gemm0NPerBlock, Gemm0KPerBlock};
 
     static constexpr auto gemm1_padder =
-        MatrixPadder_v2<PadGemm0M, PadGemm1N, PadGemm1K, index_t, index_t, index_t>{
+        GemmPadder_v2<PadGemm0M, PadGemm1N, PadGemm1K, index_t, index_t, index_t>{
             Gemm0MPerBlock, Gemm1NPerBlock, Gemm1KPerBlock};
 
     // for Gemm0
