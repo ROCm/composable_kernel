@@ -275,6 +275,12 @@ def buildHipClangJobAndReboot(Map conf=[:]){
     }
 }
 
+
+
+
+
+
+
 def runCKProfiler(Map conf=[:]){
         show_node_info()
 
@@ -338,8 +344,17 @@ def runCKProfiler(Map conf=[:]){
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 24, unit: 'HOURS')
                 {
-                    cmake_build(conf)
-					dir("script"){
+                    //cmake_build(conf)
+                    //instead of building, just get the CK deb package and install it
+                    sh "mkdir composable_kernel"
+                    dir("composable_kernel"){
+                        //get deb package
+                        wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}}/${build_number}/artifacts/composable_kernel.deb
+                        //install deb package
+                        sh "dpkg -i composable_kernel.deb"
+                    }
+
+					dir("/composable_kernel/script"){
                         if (params.RUN_FULL_QA){
                             def qa_log = "qa_${gpu_arch}.log"
                             sh "./run_full_performance_tests.sh 1 QA_${params.COMPILER_VERSION} ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
@@ -402,6 +417,113 @@ def runPerfTest(Map conf=[:]){
         }
     }
 }
+
+
+
+
+
+
+def Build_CK(Map conf=[:]){
+        show_node_info()
+
+        env.HSA_ENABLE_SDMA=0
+        checkout scm
+
+
+        def image = "composable_kernels_${params.COMPILER_VERSION}"
+        def prefixpath = conf.get("prefixpath", "/opt/rocm")
+        def gpu_arch = conf.get("gpu_arch", "gfx908")
+
+        // Jenkins is complaining about the render group 
+        // def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        if (conf.get("enforce_xnack_on", false)) {
+            dockerOpts = dockerOpts + " --env HSA_XNACK=1 --env GPU_ARCH='${gpu_arch}' "
+        }
+        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' "
+        if (params.COMPILER_VERSION != "release"){
+            dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
+        }
+
+        def variant = env.STAGE_NAME
+        def retimage
+
+        gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
+            try {
+                //retimage = docker.build("${image}", dockerArgs + '.')
+                (retimage, image) = getDockerImage(conf)
+                withDockerContainer(image: image, args: dockerOpts) {
+                    timeout(time: 5, unit: 'MINUTES'){
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                            throw new Exception ("GPU not found")
+                        }
+                        else{
+                            echo "GPU is OK"
+                        }
+                    }
+                }
+            }
+            catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                echo "The job was cancelled or aborted"
+                throw e
+            }
+            catch(Exception ex) {
+                retimage = docker.build("${image}", dockerArgs + " --no-cache .")
+                withDockerContainer(image: image, args: dockerOpts) {
+                    timeout(time: 5, unit: 'MINUTES'){
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                            throw new Exception ("GPU not found")
+                        }
+                        else{
+                            echo "GPU is OK"
+                        }
+                    }
+                }
+            }
+
+            withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
+                timeout(time: 24, unit: 'HOURS')
+                {
+                    cmake_build(conf)
+                    sh "mkdir DEBIAN"
+					dir("DEBIAN"){
+                        //populate control file
+                        echo 'Package: composable_kernel' > control
+                        echo 'Version: 0.1' >> control
+                        echo 'Section: base' >> control
+                        echo 'Priority: optional' >> control
+                        echo 'Architecture: amd64' >> control
+                        echo 'Depends:' >> control
+                        echo 'Maintainer: Illia Silin <Illia.Silin@amd.com>' >> control
+                        echo 'Description: Composable Kernel library for AMD GPUs' >> control
+                    }
+                    sh "dpkg-deb --build composable_kernel"
+                    archiveArtifacts "composable_kernel.deb", fingerprint: true
+                }
+            }
+        }
+        return retimage
+}
+
+def Build_CK_and_Reboot(Map conf=[:]){
+    try{
+        Build_CK(conf)
+    }
+    catch(e){
+        echo "throwing error exception while building CK"
+        echo 'Exception occurred: ' + e.toString()
+        throw e
+    }
+    finally{
+        if (!conf.get("no_reboot", false)) {
+            reboot()
+        }
+    }
+}
+
+
 
 def process_results(Map conf=[:]){
     env.HSA_ENABLE_SDMA=0
@@ -562,7 +684,26 @@ pipeline {
                 }
             }
         }
-		stage("Tests")
+    
+		stage("Build CK")
+        {
+            parallel
+            {
+                stage("Build CK targets")
+                {
+                    agent{ label rocmnode("nogpu") }
+                    environment{
+                        setup_args = "${params.COMPILER_VERSION == "release" ? """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 --offload-arch=gfx90a -O3 " -DBUILD_DEV=On """ : """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 --offload-arch=gfx90a -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -DBUILD_DEV=On """}"
+                        execute_args = "${params.COMPILER_VERSION == "release" ? """ make -j ckProfiler && make -j examples && cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ : """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ }"
+                    }
+                    steps{
+                        //buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release')
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                    }
+                }
+            }
+        }
+ 		stage("Tests")
         {
             when {
                 beforeAgent true
@@ -598,7 +739,8 @@ pipeline {
                     }
                 }
             }
-        }
+        }       
+        '''
         stage("Client App")
         {
             when {
@@ -611,9 +753,7 @@ pipeline {
                 {
                     agent{ label rocmnode("gfx908")}
                     environment{
-                        //setup_args = """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " """
                         setup_args = "${params.COMPILER_VERSION == "release" ? """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " """ : """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" """ }"
-                        //execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ 
                         execute_args = "${params.COMPILER_VERSION == "release" ? """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ : """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ }"
 
                     }
@@ -623,6 +763,7 @@ pipeline {
                 }
             }
         }
+        '''
         stage("Performance Tests")
         {
             parallel
@@ -636,7 +777,6 @@ pipeline {
                     options { retry(2) }
                     agent{ label rocmnode("gfx908")}
                     environment{
-                        //setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " -DBUILD_DEV=On """
                         setup_args = "${params.COMPILER_VERSION == "release" ? """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3 " -DBUILD_DEV=On """ : """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -DBUILD_DEV=On """}"
                    }
                     steps{
@@ -652,7 +792,6 @@ pipeline {
                     options { retry(2) }
                     agent{ label rocmnode("gfx90a")}
                     environment{
-                        //setup_args = """ -D CMAKE_CXX_FLAGS="--offload-arch=gfx90a -O3 " -DBUILD_DEV=On """
                         setup_args = "${params.COMPILER_VERSION == "release" ? """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx90a -O3 " -DBUILD_DEV=On """ : """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx90a -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -DBUILD_DEV=On """}"
                     }
                     steps{
