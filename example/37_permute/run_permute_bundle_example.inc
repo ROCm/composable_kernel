@@ -5,8 +5,7 @@
 
 bool run_permute_bundle(const Problem& problem)
 {
-    static_assert(std::is_same_v<ADataType, BDataType> &&
-                  (sizeof(ADataType) % NUM_ELEMS_IN_BUNDLE == 0));
+    constexpr std::size_t NumElemsInBundle = sizeof(BundleType) / sizeof(DataType);
 
     using std::begin, std::end;
 
@@ -14,19 +13,19 @@ bool run_permute_bundle(const Problem& problem)
     ck::remove_cvref_t<decltype(shape)> transposed_shape;
     transpose_shape(problem.shape, problem.axes, begin(transposed_shape));
 
-    Tensor<ADataType> a(shape);
-    Tensor<BDataType> b(transposed_shape);
+    Tensor<BundleType> a(shape);
+    Tensor<BundleType> b(transposed_shape);
 
+    // initialize tensor by assigning DataType values
     using std::data, std::size;
     {
-        auto* const elems =
-            reinterpret_cast<detail::get_bundled_t<ADataType, NUM_ELEMS_IN_BUNDLE>*>(data(a.mData));
-        ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(
-            elems, elems + (size(a.mData) * NUM_ELEMS_IN_BUNDLE));
+        auto* const elems = reinterpret_cast<DataType*>(data(a.mData));
+        ck::utils::FillUniformDistribution<DataType>{-1.f, 1.f}(
+            elems, elems + (size(a.mData) * NumElemsInBundle));
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(sizeof(BundleType) * a.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(BundleType) * b.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(data(a.mData));
 
@@ -61,10 +60,8 @@ bool run_permute_bundle(const Problem& problem)
 
     b_device_buf.FromDevice(data(b.mData));
 
-    // extend tensor shape from [N, H, W] to [N, H, W, NUM_ELEMS_IN_BUNDLE]
-    using DataType = detail::get_bundled_t<ADataType, NUM_ELEMS_IN_BUNDLE>;
-
-    const auto extended_shape = extend_shape(shape, NUM_ELEMS_IN_BUNDLE);
+    // extend tensor shape from [N, H, W] to [N, H, W, NumElemsInBundle]
+    const auto extended_shape = extend_shape(shape, NumElemsInBundle);
     const auto extended_axes  = extend_axes(problem.axes);
 
     ck::remove_cvref_t<decltype(extended_shape)> transposed_extended_shape;
@@ -72,7 +69,7 @@ bool run_permute_bundle(const Problem& problem)
 
     Tensor<DataType> extended_a(extended_shape);
     std::memcpy(
-        data(extended_a.mData), data(a.mData), sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
+        data(extended_a.mData), data(a.mData), sizeof(BundleType) * a.mDesc.GetElementSpaceSize());
 
     Tensor<DataType> extended_host_b(transposed_extended_shape);
     if(!host_permute(extended_a, extended_axes, PassThrough{}, extended_host_b))
@@ -82,7 +79,7 @@ bool run_permute_bundle(const Problem& problem)
 
     return ck::utils::check_err(
         ck::span<const DataType>{reinterpret_cast<DataType*>(data(b.mData)),
-                                 b.mDesc.GetElementSpaceSize() * NUM_ELEMS_IN_BUNDLE},
+                                 b.mDesc.GetElementSpaceSize() * NumElemsInBundle},
         ck::span<const DataType>{extended_host_b.mData},
         "Error: incorrect results in output tensor",
         1e-6,

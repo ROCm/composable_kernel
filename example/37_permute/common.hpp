@@ -52,36 +52,6 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 namespace detail {
 
-template <typename Bundle, std::size_t Divisor>
-struct get_bundled;
-
-template <typename Bundle>
-struct get_bundled<Bundle, 1>
-{
-    using type = Bundle;
-};
-
-template <>
-struct get_bundled<F64, 2>
-{
-    using type = F32;
-};
-
-template <>
-struct get_bundled<F64, 4>
-{
-    using type = F16;
-};
-
-template <>
-struct get_bundled<F32, 2>
-{
-    using type = F16;
-};
-
-template <typename Bundle, std::size_t Divisor>
-using get_bundled_t = typename get_bundled<Bundle, Divisor>::type;
-
 template <typename Array, std::size_t Difference>
 struct enlarge_array_size;
 
