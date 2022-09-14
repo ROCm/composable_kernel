@@ -349,7 +349,7 @@ def runCKProfiler(Map conf=[:]){
                     sh "mkdir composable_kernel"
                     dir("composable_kernel"){
                         //get deb package
-                        wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}}/${build_number}/artifacts/composable_kernel.deb
+                        wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}}/${env.BUILD_NUMBER}/artifacts/composable_kernel.deb
                         //install deb package
                         sh "dpkg -i composable_kernel.deb"
                     }
@@ -421,6 +421,104 @@ def runPerfTest(Map conf=[:]){
 
 
 
+
+
+def runTests_and_Examples(Map conf=[:]){
+        show_node_info()
+
+        env.HSA_ENABLE_SDMA=0
+        checkout scm
+
+        def image = "composable_kernels_${params.COMPILER_VERSION}"
+        def prefixpath = conf.get("prefixpath", "/opt/rocm")
+        def gpu_arch = conf.get("gpu_arch", "gfx908")
+
+        // Jenkins is complaining about the render group 
+        // def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        if (conf.get("enforce_xnack_on", false)) {
+            dockerOpts = dockerOpts + " --env HSA_XNACK=1 --env GPU_ARCH='${gpu_arch}' "
+        }
+        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' "
+        if (params.COMPILER_VERSION != "release"){
+            dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
+        }
+
+        def variant = env.STAGE_NAME
+
+        def retimage
+
+        gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
+            try {
+                //retimage = docker.build("${image}", dockerArgs + '.')
+                (retimage, image) = getDockerImage(conf)
+                withDockerContainer(image: image, args: dockerOpts) {
+                    timeout(time: 5, unit: 'MINUTES'){
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                            throw new Exception ("GPU not found")
+                        }
+                        else{
+                            echo "GPU is OK"
+                        }
+                    }
+                }
+            }
+            catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                echo "The job was cancelled or aborted"
+                throw e
+            }
+            catch(Exception ex) {
+                retimage = docker.build("${image}", dockerArgs + " --no-cache .")
+                withDockerContainer(image: image, args: dockerOpts) {
+                    timeout(time: 5, unit: 'MINUTES'){
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo |tee clinfo.log'
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                            throw new Exception ("GPU not found")
+                        }
+                        else{
+                            echo "GPU is OK"
+                        }
+                    }
+                }
+            }
+
+            withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
+                timeout(time: 5, unit: 'HOURS')
+                {
+                    //cmake_build(conf)
+                    sh "mkdir composable_kernel"
+                    dir("composable_kernel"){
+                        //get deb package
+                        wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}}/${env.BUILD_NUMBER}/artifacts/composable_kernel.deb
+                        //install deb package
+                        sh "dpkg -i composable_kernel.deb"
+                    }
+                    //run tests and examples
+					dir("/composable_kernel/build"){
+                        sh "make -j check"
+                    }
+                }
+            }
+        }
+        return retimage
+}
+
+def runTests(Map conf=[:]){
+    try{
+        runTests_and_Examples(conf)
+    }
+    catch(e){
+        echo "throwing error exception in tests"
+        echo 'Exception occurred: ' + e.toString()
+        throw e
+    }
+    finally{
+        if (!conf.get("no_reboot", false)) {
+            reboot()
+        }
+    }
+}
 
 
 def Build_CK(Map conf=[:]){
@@ -719,7 +817,7 @@ pipeline {
                         setup_args = "${params.COMPILER_VERSION == "release" ? """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3 " -DBUILD_DEV=On """ : """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -DBUILD_DEV=On """}"
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
+                        runTests(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
                     }
                 }
                 stage("Run Tests: gfx90a")
@@ -735,12 +833,15 @@ pipeline {
                         setup_args = "${params.COMPILER_VERSION == "release" ? """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx90a -O3 " -DBUILD_DEV=On """ : """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx90a -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -DBUILD_DEV=On """}"
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
+                        runTests(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
                     }
                 }
             }
         }       
-        '''
+        /*
+        //at present this stage only builds binaries. 
+        //we will now build all binaries in a separate stage.
+        //once we have some tests to run in this stage, we can enable it again.
         stage("Client App")
         {
             when {
@@ -763,7 +864,7 @@ pipeline {
                 }
             }
         }
-        '''
+        */
         stage("Performance Tests")
         {
             parallel
