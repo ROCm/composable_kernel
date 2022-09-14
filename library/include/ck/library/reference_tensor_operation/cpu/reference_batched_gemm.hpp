@@ -195,7 +195,7 @@ struct ReferenceBatchedGemmUpperTriangleMinusInf : public device::BaseOperator
 
                 AccDataType v_c;
 
-                if(((n >> 7) << 7) <= ((m >> 7) << 7))
+                if(((n >> 0) << 0) <= ((m >> 0) << 0))
                 {
                     arg.c_element_op_(v_c, v_acc);
                 }
