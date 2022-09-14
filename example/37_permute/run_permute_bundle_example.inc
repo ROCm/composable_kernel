@@ -16,12 +16,12 @@ bool run_permute_bundle(const Problem& problem)
     Tensor<BundleType> output_bundle_tensor(output_bundle_shape);
 
     // initialize tensor by assigning DataType values
-    using std::data;
     ck::utils::FillUniformDistribution<DataType>{-1.f, 1.f}(input_bundle_tensor.AsSpan<DataType>());
 
     DeviceMem input_device_buf(input_bundle_tensor.GetElementSpaceSizeInBytes());
     DeviceMem output_device_buf(output_bundle_tensor.GetElementSpaceSizeInBytes());
 
+    using std::data;
     input_device_buf.ToDevice(data(input_bundle_tensor));
 
     const void* input_bundle_data = input_device_buf.GetDeviceBuffer();
