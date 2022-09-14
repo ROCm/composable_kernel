@@ -3,55 +3,37 @@
 
 #include "convnd_bwd_data_bias_relu_common.hpp"
 
-#include "ck/tensor_operation/gpu/device/device_convnd_bwd_data_bias_relu_nwc_kxc_nwk_xdl.hpp"
-
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_bwd_data_multiple_d.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_convnd_bwd_data_multiple_d_xdl_cshuffle_v1.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using InDataType       = ck::half_t;
-using WeiDataType      = ck::half_t;
 using OutDataType      = ck::half_t;
-using DDataType        = ck::half_t;
-using CShuffleDataType = ck::half_t;
+using WeiDataType      = ck::half_t;
 using AccDataType      = float;
+using CShuffleDataType = ck::half_t;
+using DDataType        = ck::half_t; // bias
+using InDataType       = ck::half_t;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using InElementOp  = ck::tensor_operation::element_wise::AddRelu;
-using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
+using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
+using InElementOp  = ck::tensor_operation::element_wise::AddRelu;
 
 static constexpr auto ConvBwdDataDefault =
     ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::Default;
 
-#if 0
 template <ck::index_t NDimSpatial>
-using DeviceConvNdBwdDataInstances = std::tuple<
-// clang-format off
-                                      //############################################|         Num|     InData|     WeiData|     OutData|     AccData|     CShuffleData|     DData|          In|          Wei|          Out|       ConvBackward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
-                                      //############################################|         Dim|       Type|        Type|        Type|        Type|             Type|      Type| Elementwise|  Elementwise|  Elementwise|               Data|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
-                                      //############################################|     Spatial|           |            |            |            |                 |          |   Operation|    Operation|    Operation|     Specialization|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-                                      //############################################|            |           |            |            |            |                 |          |            |             |             |                   |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
-        ck::tensor_operation::device::DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl< NDimSpatial, InDataType, WeiDataType, OutDataType, AccDataType, CShuffleDataType, DDataType, InElementOp, WeiElementOp, OutElementOp, ConvBwdDataDefault,   256,   256,   128,     4,  8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<2, 0, 1>,     S<0, 2, 1>,             1,              2,              8,      true,           1,           1,         S<1, 1, 32, 1, 1, 8>,              8>,
-        ck::tensor_operation::device::DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl< NDimSpatial, InDataType, WeiDataType, OutDataType, AccDataType, CShuffleDataType, DDataType, InElementOp, WeiElementOp, OutElementOp, ConvBwdDataDefault,   256,   128,   256,     4,  8,   32,   32,    2,    4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<2, 0, 1>,     S<0, 2, 1>,             1,              4,              8,      true,           1,           1,         S<1, 1, 32, 1, 1, 8>,              8>,
-        ck::tensor_operation::device::DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl< NDimSpatial, InDataType, WeiDataType, OutDataType, AccDataType, CShuffleDataType, DDataType, InElementOp, WeiElementOp, OutElementOp, ConvBwdDataDefault,   256,   128,   128,     4,  8,   32,   32,    2,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<2, 0, 1>,     S<0, 2, 1>,             1,              2,              8,      true,           1,           1,         S<1, 1, 32, 1, 1, 8>,              8>,
-        ck::tensor_operation::device::DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl< NDimSpatial, InDataType, WeiDataType, OutDataType, AccDataType, CShuffleDataType, DDataType, InElementOp, WeiElementOp, OutElementOp, ConvBwdDataDefault,   128,   128,   128,     4,  8,   32,   32,    4,    2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 32, 1>,     S<2, 0, 1>,     S<0, 2, 1>,             1,              4,              8,      true,           1,           1,         S<1, 1, 16, 1, 1, 8>,              8>,
-        ck::tensor_operation::device::DeviceConvNdBwdDataNwcKxcNwkBiasActivation_Xdl< NDimSpatial, InDataType, WeiDataType, OutDataType, AccDataType, CShuffleDataType, DDataType, InElementOp, WeiElementOp, OutElementOp, ConvBwdDataDefault,   128,    32,   128,     4,  8,   32,   32,    1,    2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 32, 1>,     S<2, 0, 1>,     S<0, 2, 1>,             1,              4,              8,      true,           1,           1,         S<1, 1, 16, 1, 1, 8>,              8>
-    // clang-format on
-    >;
-#else
-template <ck::index_t NDimSpatial>
-using DeviceConvNdBwdDataInstances = std::tuple<
+using DeviceConvNdBwdDataInstance =
     ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1<
         NDimSpatial,
-    ck::tensor_layout::convolution::GNHWK,
-    ck::tensor_layout::convolution::GKYXC,
-    ck::Tuple<ck::tensor_layout::convolution::GNHWC>,
-    ck::tensor_layout::convolution::GNHWC,
+        ck::tensor_layout::convolution::GNHWK,
+        ck::tensor_layout::convolution::GKYXC,
+        ck::Tuple<ck::tensor_layout::convolution::GNHWC>,
+        ck::tensor_layout::convolution::GNHWC,
         OutDataType,
         WeiDataType,
         AccDataType,
@@ -88,9 +70,7 @@ using DeviceConvNdBwdDataInstances = std::tuple<
         1,
         1,
         S<1, 1, 32, 1, 1, 8>,
-        8>
-        >;
-#endif
+        8>;
 
 int main(int argc, char* argv[])
 {
@@ -103,7 +83,7 @@ int main(int argc, char* argv[])
     bool time_kernel     = false;
 
     ck::utils::conv::ConvParam conv_param{
-        2, 1, 128, 256, 256, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
+        2, 1, 128, 256, 256, {3, 3}, {14, 14}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
 
     if(argc == 1)
     {
@@ -129,185 +109,94 @@ int main(int argc, char* argv[])
     const auto wei_element_op = WeiElementOp{};
     const auto out_element_op = OutElementOp{};
 
-    // bias: assume contiguous 1d vector
-    auto bias_c_desc =
-        HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(conv_param.C_)}));
-
-#if 0
-    if(conv_param.num_dim_spatial_ == 1)
-    {
-        using InLayout  = ctc::GNWC;
-        using WeiLayout = ctc::GKXC;
-        using OutLayout = ctc::GNWK;
-
-        auto device_instances = DeviceConvNdBwdDataInstances<1>{};
-
-        const auto in_g_n_c_wis_desc =
-            ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(
-                conv_param);
-
-        const auto wei_g_k_c_xs_desc =
-            ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(
-                conv_param);
-
-        const auto out_g_n_k_wos_desc =
-            ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
-                conv_param);
-
-        ck::static_for<0, std::tuple_size_v<DeviceConvNdBwdDataInstances<1>>, 1>{}([&](auto i) {
-            const auto device_instance = std::get<i>(device_instances);
-            using EachInstance         = ck::remove_cvref_t<decltype(device_instance)>;
-            run_conv_bwd_data_bias_relu<1,
-                                        InDataType,
-                                        WeiDataType,
-                                        OutDataType,
-                                        InElementOp,
-                                        WeiElementOp,
-                                        OutElementOp,
-                                        EachInstance>(do_verification,
-                                                      init_method,
-                                                      time_kernel,
-                                                      conv_param,
-                                                      in_g_n_c_wis_desc,
-                                                      wei_g_k_c_xs_desc,
-                                                      out_g_n_k_wos_desc,
-                                                      bias_c_desc,
-                                                      in_element_op,
-                                                      wei_element_op,
-                                                      out_element_op);
-        });
-    }
-    else if(conv_param.num_dim_spatial_ == 2)
-    {
-        using InLayout  = ctc::GNHWC;
-        using WeiLayout = ctc::GKYXC;
-        using OutLayout = ctc::GNHWK;
-
-        auto device_instances = DeviceConvNdBwdDataInstances<2>{};
-
-        const auto in_g_n_c_wis_desc =
-            ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(
-                conv_param);
-
-        const auto wei_g_k_c_xs_desc =
-            ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(
-                conv_param);
-
-        const auto out_g_n_k_wos_desc =
-            ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
-                conv_param);
-
-        ck::static_for<0, std::tuple_size_v<DeviceConvNdBwdDataInstances<2>>, 1>{}([&](auto i) {
-            const auto device_instance = std::get<i>(device_instances);
-            using EachInstance         = ck::remove_cvref_t<decltype(device_instance)>;
-            run_conv_bwd_data_bias_relu<2,
-                                        InDataType,
-                                        WeiDataType,
-                                        OutDataType,
-                                        InElementOp,
-                                        WeiElementOp,
-                                        OutElementOp,
-                                        EachInstance>(do_verification,
-                                                      init_method,
-                                                      time_kernel,
-                                                      conv_param,
-                                                      in_g_n_c_wis_desc,
-                                                      wei_g_k_c_xs_desc,
-                                                      out_g_n_k_wos_desc,
-                                                      bias_c_desc,
-                                                      in_element_op,
-                                                      wei_element_op,
-                                                      out_element_op);
-        });
-    }
-    else if(conv_param.num_dim_spatial_ == 3)
-    {
-        using InLayout  = ctc::GNDHWC;
-        using WeiLayout = ctc::GKZYXC;
-        using OutLayout = ctc::GNDHWK;
-
-        auto device_instances = DeviceConvNdBwdDataInstances<3>{};
-
-        const auto in_g_n_c_wis_desc =
-            ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(
-                conv_param);
-
-        const auto wei_g_k_c_xs_desc =
-            ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(
-                conv_param);
-
-        const auto out_g_n_k_wos_desc =
-            ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
-                conv_param);
-
-        ck::static_for<0, std::tuple_size_v<DeviceConvNdBwdDataInstances<3>>, 1>{}([&](auto i) {
-            const auto device_instance = std::get<i>(device_instances);
-            using EachInstance         = ck::remove_cvref_t<decltype(device_instance)>;
-            run_conv_bwd_data_bias_relu<3,
-                                        InDataType,
-                                        WeiDataType,
-                                        OutDataType,
-                                        InElementOp,
-                                        WeiElementOp,
-                                        OutElementOp,
-                                        EachInstance>(do_verification,
-                                                      init_method,
-                                                      time_kernel,
-                                                      conv_param,
-                                                      in_g_n_c_wis_desc,
-                                                      wei_g_k_c_xs_desc,
-                                                      out_g_n_k_wos_desc,
-                                                      bias_c_desc,
-                                                      in_element_op,
-                                                      wei_element_op,
-                                                      out_element_op);
-        });
-    }
-#else
     if(conv_param.num_dim_spatial_ == 2)
     {
         using InLayout  = ctc::GNHWC;
         using WeiLayout = ctc::GKYXC;
         using OutLayout = ctc::GNHWK;
 
-        auto device_instances = DeviceConvNdBwdDataInstances<2>{};
-
-        const auto in_g_n_c_wis_desc =
-            ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(
-                conv_param);
+        const auto out_g_n_k_wos_desc = HostTensorDescriptor(
+            {conv_param.G_,
+             conv_param.N_,
+             conv_param.K_,
+             conv_param.output_spatial_lengths_[0],
+             conv_param.output_spatial_lengths_[1]},
+            {
+                conv_param.K_, // g
+                conv_param.output_spatial_lengths_[0] * conv_param.output_spatial_lengths_[1] *
+                    conv_param.G_ * conv_param.K_,                                     // n
+                1,                                                                     // k
+                conv_param.output_spatial_lengths_[1] * conv_param.G_ * conv_param.K_, // ho
+                conv_param.G_ * conv_param.K_                                          // wo
+            });
 
         const auto wei_g_k_c_xs_desc =
-            ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(
-                conv_param);
+            HostTensorDescriptor({conv_param.G_,
+                                  conv_param.K_,
+                                  conv_param.C_,
+                                  conv_param.filter_spatial_lengths_[0],
+                                  conv_param.filter_spatial_lengths_[1]},
+                                 {
+                                     conv_param.K_ * conv_param.filter_spatial_lengths_[0] *
+                                         conv_param.filter_spatial_lengths_[1] * conv_param.C_, // g
+                                     conv_param.filter_spatial_lengths_[0] *
+                                         conv_param.filter_spatial_lengths_[1] * conv_param.C_, // k
+                                     1,                                                         // c
+                                     conv_param.filter_spatial_lengths_[1] * conv_param.C_,     // y
+                                     conv_param.C_                                              // x
+                                 });
 
-        const auto out_g_n_k_wos_desc =
-            ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
-                conv_param);
+        const auto bias_g_n_c_wis_desc =
+            HostTensorDescriptor({conv_param.G_,
+                                  conv_param.N_,
+                                  conv_param.C_,
+                                  conv_param.input_spatial_lengths_[0],
+                                  conv_param.input_spatial_lengths_[1]},
+                                 {
+                                     conv_param.C_, // g
+                                     0,             // n
+                                     1,             // c
+                                     0,             // hi
+                                     0              // wi
+                                 });
 
-        ck::static_for<0, std::tuple_size_v<DeviceConvNdBwdDataInstances<2>>, 1>{}([&](auto i) {
-            const auto device_instance = std::get<i>(device_instances);
-            using EachInstance         = ck::remove_cvref_t<decltype(device_instance)>;
-            run_conv_bwd_data_bias_relu<2,
-                                        InDataType,
-                                        WeiDataType,
-                                        OutDataType,
-                                        InElementOp,
-                                        WeiElementOp,
-                                        OutElementOp,
-                                        EachInstance>(do_verification,
-                                                      init_method,
-                                                      time_kernel,
-                                                      conv_param,
-                                                      in_g_n_c_wis_desc,
-                                                      wei_g_k_c_xs_desc,
-                                                      out_g_n_k_wos_desc,
-                                                      bias_c_desc,
-                                                      in_element_op,
-                                                      wei_element_op,
-                                                      out_element_op);
-        });
+        const auto in_g_n_c_wis_desc = HostTensorDescriptor(
+            {conv_param.G_,
+             conv_param.N_,
+             conv_param.C_,
+             conv_param.input_spatial_lengths_[0],
+             conv_param.input_spatial_lengths_[1]},
+            {
+                conv_param.C_, // g
+                conv_param.input_spatial_lengths_[0] * conv_param.input_spatial_lengths_[1] *
+                    conv_param.G_ * conv_param.C_,                                    // n
+                1,                                                                    // c
+                conv_param.input_spatial_lengths_[1] * conv_param.G_ * conv_param.C_, // hi
+                conv_param.G_ * conv_param.C_                                         // wi
+            });
+
+        using DeviceInstance = DeviceConvNdBwdDataInstance<2>;
+
+        run_conv_bwd_data_bias_relu<2,
+                                    OutDataType,
+                                    WeiDataType,
+                                    DDataType,
+                                    InDataType,
+                                    OutElementOp,
+                                    WeiElementOp,
+                                    InElementOp,
+                                    DeviceInstance>(do_verification,
+                                                    init_method,
+                                                    time_kernel,
+                                                    conv_param,
+                                                    out_g_n_k_wos_desc,
+                                                    wei_g_k_c_xs_desc,
+                                                    bias_g_n_c_wis_desc,
+                                                    in_g_n_c_wis_desc,
+                                                    wei_element_op,
+                                                    out_element_op,
+                                                    in_element_op);
     }
-#endif
 
     return 0;
 }

@@ -119,13 +119,13 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         ck::index_t N,
         ck::index_t K,
         ck::index_t C,
-        std::vector<ck::index_t> input_spatial_lengths,
-        std::vector<ck::index_t> filter_spatial_lengths,
-        std::vector<ck::index_t> output_spatial_lengths,
-        std::vector<ck::index_t> conv_filter_strides,
-        std::vector<ck::index_t> conv_filter_dilations,
-        std::vector<ck::index_t> input_left_pads,
-        std::vector<ck::index_t> input_right_pads,
+        std::array<ck::index_t, NDimSpatial> input_spatial_lengths,
+        std::array<ck::index_t, NDimSpatial> filter_spatial_lengths,
+        std::array<ck::index_t, NDimSpatial> output_spatial_lengths,
+        std::array<ck::index_t, NDimSpatial> conv_filter_strides,
+        std::array<ck::index_t, NDimSpatial> conv_filter_dilations,
+        std::array<ck::index_t, NDimSpatial> input_left_pads,
+        std::array<ck::index_t, NDimSpatial> input_right_pads,
         std::vector<ck::index_t> tildes)
     {
         using namespace ck;
@@ -513,13 +513,13 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                  ck::index_t N,
                  ck::index_t K,
                  ck::index_t C,
-                 std::vector<ck::index_t> input_spatial_lengths,
-                 std::vector<ck::index_t> filter_spatial_lengths,
-                 std::vector<ck::index_t> output_spatial_lengths,
-                 std::vector<ck::index_t> conv_filter_strides,
-                 std::vector<ck::index_t> conv_filter_dilations,
-                 std::vector<ck::index_t> input_left_pads,
-                 std::vector<ck::index_t> input_right_pads,
+                 std::array<ck::index_t, NDimSpatial> input_spatial_lengths,
+                 std::array<ck::index_t, NDimSpatial> filter_spatial_lengths,
+                 std::array<ck::index_t, NDimSpatial> output_spatial_lengths,
+                 std::array<ck::index_t, NDimSpatial> conv_filter_strides,
+                 std::array<ck::index_t, NDimSpatial> conv_filter_dilations,
+                 std::array<ck::index_t, NDimSpatial> input_left_pads,
+                 std::array<ck::index_t, NDimSpatial> input_right_pads,
                  ck::index_t M01,
                  ck::index_t N01,
                  CDEElementwiseOp in_element_op,
@@ -620,10 +620,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             }
         }
 
-        const ADataType* p_a_grid_;
-        const BDataType* p_b_grid_;
-        EDataType* p_c_grid_;
-        const EDataType* p_c0_grid_;
+        const void* p_a_grid_;
+        const void* p_b_grid_;
+        void* p_c_grid_;
+        const void* p_c0_grid_;
         std::vector<AGridDesc_K0_M_K1> a_grid_desc_k0_m_k1_container_;
         std::vector<BGridDesc_K0_N_K1> b_grid_desc_k0_n_k1_container_;
         std::vector<CGridDesc_M_N> c_grid_desc_m_n_container_;
@@ -647,13 +647,13 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         index_t Conv_K_;
         index_t Conv_C_;
 
-        std::vector<ck::index_t> input_spatial_lengths_;
-        std::vector<ck::index_t> filter_spatial_lengths_;
-        std::vector<ck::index_t> output_spatial_lengths_;
-        std::vector<ck::index_t> conv_filter_strides_;
-        std::vector<ck::index_t> conv_filter_dilations_;
-        std::vector<ck::index_t> input_left_pads_;
-        std::vector<ck::index_t> input_right_pads_;
+        std::array<ck::index_t, NDimSpatial> input_spatial_lengths_;
+        std::array<ck::index_t, NDimSpatial> filter_spatial_lengths_;
+        std::array<ck::index_t, NDimSpatial> output_spatial_lengths_;
+        std::array<ck::index_t, NDimSpatial> conv_filter_strides_;
+        std::array<ck::index_t, NDimSpatial> conv_filter_dilations_;
+        std::array<ck::index_t, NDimSpatial> input_left_pads_;
+        std::array<ck::index_t, NDimSpatial> input_right_pads_;
     };
 
     // Invoker
@@ -741,16 +741,19 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
                         has_main_loop>;
 
+                    // fix me
+                    using D0DataType = tuple_element_t<0, DsDataType>;
+
                     return launch_and_time_kernel(
                         stream_config,
                         kernel,
                         dim3(grid_size),
                         dim3(BlockSize),
                         0,
-                        arg.p_a_grid_,
-                        arg.p_b_grid_,
-                        arg.p_c_grid_,
-                        arg.p_c0_grid_,
+                        static_cast<const ADataType*>(arg.p_a_grid_),
+                        static_cast<const BDataType*>(arg.p_b_grid_),
+                        static_cast<EDataType*>(arg.p_c_grid_),
+                        static_cast<const D0DataType*>(arg.p_c0_grid_),
                         arg.a_grid_desc_k0_m_k1_container_[i],
                         arg.b_grid_desc_k0_n_k1_container_[i],
                         arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_
