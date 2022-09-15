@@ -10,6 +10,7 @@
 #include "ck/utility/math.hpp"
 #include "ck/utility/sequence.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/tensor_operation/gpu/device/device_permute_base.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_permute.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
@@ -19,55 +20,6 @@
 namespace ck {
 namespace tensor_operation {
 namespace device {
-
-namespace detail {
-template <typename Derived>
-struct DevicePermuteBase : BaseOperator
-{
-    bool IsSupportedArgument(const BaseArgument* arg) override final
-    {
-        const auto* argument = dynamic_cast<const typename Derived::Argument*>(arg);
-        if(!argument)
-        {
-            return false;
-        }
-
-        return Derived::IsSupportedArgument(*argument);
-    }
-
-    template <typename... Args>
-    static auto MakeArgument(Args&&... args)
-    {
-        return typename Derived::Argument{std::forward<Args>(args)...};
-    }
-
-    template <typename... Args>
-    static auto MakeArgumentPointer(Args&&... args)
-    {
-        return std::make_unique<typename Derived::Argument>(std::forward<Args>(args)...);
-    }
-
-    static auto MakeInvoker() { return typename Derived::Invoker{}; }
-
-    static auto MakeInvokerPointer() { return std::make_unique<typename Derived::Invoker>(); };
-};
-
-template <typename Derived, typename Argument>
-struct InvokerBase : BaseInvoker
-{
-    float Run(const BaseArgument* arg,
-              const StreamConfig& stream_config = StreamConfig{}) override final
-    {
-        const auto* argument = dynamic_cast<const Argument*>(arg);
-        if(!argument)
-        {
-            return 0.f;
-        }
-
-        return Derived::Run(*argument, stream_config);
-    }
-};
-} // namespace detail
 
 // Swap last 2 dimensions
 // input shape: [d[0], d[1], d[2], ..., d[NumDim-3], d[NumDim-2], d[NumDim-1]]
@@ -89,22 +41,25 @@ template <typename InDataType,
           index_t DstVectorDim,
           index_t SrcScalarPerVector,
           index_t DstScalarPerVector>
-struct DevicePermute
-    : detail::DevicePermuteBase<DevicePermute<InDataType,
-                                              OutDataType,
-                                              ElementwiseOperation,
-                                              NumDim,
-                                              BlockSize,
-                                              NPerBlock,
-                                              HPerBlock,
-                                              WPerBlock,
-                                              InBlockLdsExtraW,
-                                              InBlockTransferThreadClusterLengths,
-                                              InBlockTransferThreadClusterArrangeOrder,
-                                              SrcVectorDim,
-                                              DstVectorDim,
-                                              SrcScalarPerVector,
-                                              DstScalarPerVector>>
+struct DevicePermute : DevicePermuteBaseCRTP<NumDim,
+                                             InDataType,
+                                             OutDataType,
+                                             ElementwiseOperation,
+                                             DevicePermute<InDataType,
+                                                           OutDataType,
+                                                           ElementwiseOperation,
+                                                           NumDim,
+                                                           BlockSize,
+                                                           NPerBlock,
+                                                           HPerBlock,
+                                                           WPerBlock,
+                                                           InBlockLdsExtraW,
+                                                           InBlockTransferThreadClusterLengths,
+                                                           InBlockTransferThreadClusterArrangeOrder,
+                                                           SrcVectorDim,
+                                                           DstVectorDim,
+                                                           SrcScalarPerVector,
+                                                           DstScalarPerVector>>
 {
     static_assert(3 <= NumDim, "Only accept at least 3D dimension tensor");
     static_assert((NumDim - 2) <= SrcVectorDim && SrcVectorDim < NumDim);
@@ -204,7 +159,7 @@ struct DevicePermute
         typename GridwisePermute::DefaultBlock2TileMap block_2_tile_map_;
     };
 
-    struct Invoker : detail::InvokerBase<Invoker, Argument>
+    struct Invoker : BaseInvokerCRTP<Invoker, Argument>
     {
         static float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
