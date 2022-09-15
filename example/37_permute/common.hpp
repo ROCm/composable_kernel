@@ -261,8 +261,8 @@ inline auto copy(InputRange&& range, OutputIterator iter)
 } // namespace ranges
 
 template <typename Axes>
-inline std::enable_if_t<detail::is_random_access_range_v<Axes>, bool>
-is_valid_axes(const Axes& axes)
+inline auto is_valid_axes(const Axes& axes)
+    -> std::enable_if_t<detail::is_random_access_range_v<Axes>, bool>
 {
     using std::empty;
     if(empty(axes))
@@ -281,7 +281,7 @@ is_valid_axes(const Axes& axes)
 }
 
 template <typename Shape>
-inline std::enable_if_t<detail::is_range_v<Shape>, bool> is_valid_shape(const Shape& shape)
+inline auto is_valid_shape(const Shape& shape) -> std::enable_if_t<detail::is_range_v<Shape>, bool>
 {
     using std::begin, std::end;
     using std::empty;
@@ -289,8 +289,8 @@ inline std::enable_if_t<detail::is_range_v<Shape>, bool> is_valid_shape(const Sh
 }
 
 template <typename Shape, typename Indices>
-inline std::enable_if_t<detail::is_sized_range_v<Shape> && detail::is_sized_range_v<Indices>, bool>
-is_valid_indices(const Shape& shape, const Indices& indices)
+inline auto is_valid_indices(const Shape& shape, const Indices& indices)
+    -> std::enable_if_t<detail::is_sized_range_v<Shape> && detail::is_sized_range_v<Indices>, bool>
 {
     if(!is_valid_shape(shape))
     {
@@ -365,10 +365,10 @@ auto extend_axes(const Problem::Axes& axes)
 }
 
 template <typename Shape, typename Indices>
-std::enable_if_t<detail::is_bidirectional_range_v<Shape> && detail::is_sized_range_v<Shape> &&
-                     detail::is_bidirectional_range_v<Indices> && detail::is_sized_range_v<Indices>,
-                 bool>
-advance_indices(const Shape& shape, Indices& indices)
+auto advance_indices(const Shape& shape, Indices& indices) -> std::enable_if_t<
+    detail::is_bidirectional_range_v<Shape> && detail::is_sized_range_v<Shape> &&
+        detail::is_bidirectional_range_v<Indices> && detail::is_sized_range_v<Indices>,
+    bool>
 {
     using std::size;
     if(!(is_valid_shape(shape) && is_valid_indices(shape, indices) && size(shape) == size(indices)))
@@ -393,12 +393,12 @@ advance_indices(const Shape& shape, Indices& indices)
 }
 
 template <typename Src, typename Axes, typename Functor, typename Dest>
-std::enable_if_t<detail::is_random_access_range_v<Axes> && detail::is_sized_range_v<Axes> &&
-                     std::is_invocable_v<Functor,
-                                         std::add_lvalue_reference_t<Dest>,
-                                         std::add_lvalue_reference_t<Src>>,
-                 bool>
-host_permute(const Tensor<Src>& src, const Axes& axes, Functor functor, Tensor<Dest>& dest)
+auto host_permute(const Tensor<Src>& src, const Axes& axes, Functor functor, Tensor<Dest>& dest)
+    -> std::enable_if_t<detail::is_random_access_range_v<Axes> && detail::is_sized_range_v<Axes> &&
+                            std::is_invocable_v<Functor,
+                                                std::add_lvalue_reference_t<Dest>,
+                                                std::add_lvalue_reference_t<Src>>,
+                        bool>
 {
     const auto& shape            = src.mDesc.GetLengths();
     const auto& transposed_shape = dest.mDesc.GetLengths();
