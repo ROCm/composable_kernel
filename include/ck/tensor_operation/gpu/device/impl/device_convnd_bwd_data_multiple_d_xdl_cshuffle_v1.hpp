@@ -21,10 +21,10 @@ namespace tensor_operation {
 namespace device {
 
 // Conv backward data multiple D:
-//   input : output image A[G, N, K, Ho, Wo]
-//   input : weight B[G, K, C, Y, X],
-//   input : D0[G, N, K, Ho, Wo], D1[G, N, K, Ho, Wo], ...
-//   output : input image E[G, N, C, Hi, Wi],
+//   input : output image A: [G, N, K, Ho, Wo]
+//   input : weight B: [G, K, C, Y, X],
+//   input : D0, D1, ... : [G, N, K, Ho, Wo]
+//   output : input image E: [G, N, C, Hi, Wi]
 //   C = a_op(A) * b_op(B)
 //   E = cde_op(C, D0, D1, ...)
 template <
@@ -426,7 +426,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     using DsGridDesc_M_N    = remove_cvref_t<decltype(make_tuple(ABCDsGridDescs{}[I3]))>;
 
     // GridwiseGemm
-#if 1
+#if 0
     using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r2<
         BlockSize,
         ABDataType, // TODO: distinguish A/B datatype
@@ -470,7 +470,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         CBlockTransferScalarPerVector_NWaveNPerXdl>;
 #else
     using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
-        ADataType, // TODO: distinguish A/B datatype
+        ABDataType, // TODO: distinguish A/B datatype
         AccDataType,
         CShuffleDataType,
         DsDataType,
@@ -632,6 +632,43 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             }
         }
 
+        void Print()
+        {
+            for(size_t i = 0; i < arg.a_grid_desc_k0_m_k1_container_.size(); i++)
+            {
+                std::cout << "arg.a_grid_desc_k0_m_k1_container_{"
+                          << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I0) << ", "
+                          << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I1) << ", "
+                          << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I2) << "}"
+                          << std::endl;
+
+                std::cout << "arg.b_grid_desc_k0_n_k1_container_{"
+                          << arg.b_grid_desc_k0_n_k1_container_[i].GetLength(I0) << ", "
+                          << arg.b_grid_desc_k0_n_k1_container_[i].GetLength(I1) << ", "
+                          << arg.b_grid_desc_k0_n_k1_container_[i].GetLength(I2) << "}"
+                          << std::endl;
+
+                std::cout << "arg.e_grid_desc_m_n_container_{ "
+                          << arg.e_grid_desc_m_n_container_[i].GetLength(I0) << ", "
+                          << arg.e_grid_desc_m_n_container_[i].GetLength(I1) << "}" << std::endl;
+
+                std::cout << "arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_( "
+                          << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I0)
+                          << ", "
+                          << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I1)
+                                 a_g_n_k_wos_lengths_,
+                    a_g_n_k_wos_strides_, b_g_k_c_xs_lengths_, b_g_k_c_xs_strides_,
+                    e_g_n_c_wis_lengths_, e_g_n_c_wis_strides_,
+                    << ", " << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I2)
+                    << ", " << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I3)
+                    << ", " << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I4)
+                    << ", " << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I5)
+                    << ", " << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I6)
+                    << ", " << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I7)
+                    << " ) " << std::endl;
+            }
+        }
+
         // pointers
         const void* p_a_grid_;
         const void* p_b_grid_;
@@ -685,55 +722,13 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
+#if 0
+            arg.Print();
+#endif
+
             float ave_time = 0;
             for(size_t i = 0; i < arg.a_grid_desc_k0_m_k1_container_.size(); i++)
             {
-                {
-#if 0
-                    std::cout << "arg.a_grid_desc_k0_m_k1_container_{"
-                              << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I0) << ", "
-                              << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I1) << ", "
-                              << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I2) << "}"
-                              << std::endl;
-
-                    std::cout << "arg.b_grid_desc_k0_n_k1_container_{"
-                              << arg.b_grid_desc_k0_n_k1_container_[i].GetLength(I0) << ", "
-                              << arg.b_grid_desc_k0_n_k1_container_[i].GetLength(I1) << ", "
-                              << arg.b_grid_desc_k0_n_k1_container_[i].GetLength(I2) << "}"
-                              << std::endl;
-
-                    std::cout << "arg.e_grid_desc_m_n_container_{ "
-                              << arg.e_grid_desc_m_n_container_[i].GetLength(I0) << ", "
-                              << arg.e_grid_desc_m_n_container_[i].GetLength(I1) << "}"
-                              << std::endl;
-
-                    std::cout << "arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_( "
-                              << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I0)
-                              << ", "
-                              << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I1)
-                            a_g_n_k_wos_lengths_,
-                            a_g_n_k_wos_strides_,
-                            b_g_k_c_xs_lengths_,
-                            b_g_k_c_xs_strides_,
-                            e_g_n_c_wis_lengths_,
-                            e_g_n_c_wis_strides_,
-                              << ", "
-                              << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I2)
-                              << ", "
-                              << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I3)
-                              << ", "
-                              << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I4)
-                              << ", "
-                              << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I5)
-                              << ", "
-                              << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I6)
-                              << ", "
-                              << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I7)
-                              << " ) " << std::endl;
-
-#endif
-                }
-
                 if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
                                                 arg.b_grid_desc_k0_n_k1_container_[i],
                                                 arg.e_grid_desc_m_n_container_[i],
