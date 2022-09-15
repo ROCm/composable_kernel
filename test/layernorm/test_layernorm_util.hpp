@@ -48,9 +48,11 @@ class TestLayernorm : public ::testing::Test
     static constexpr index_t KThreadSliceSize   = std::tuple_element_t<11, Tuple>{}.value;
     static constexpr index_t XYSrcVectorDim     = std::tuple_element_t<12, Tuple>{}.value;
     static constexpr index_t XSrcVectorSize     = std::tuple_element_t<13, Tuple>{}.value;
-    static constexpr index_t GammaSrcVectorSize = std::tuple_element_t<14, Tuple>{}.value;
-    static constexpr index_t BetaSrcVectorSize  = std::tuple_element_t<15, Tuple>{}.value;
-    static constexpr index_t YDstVectorSize     = std::tuple_element_t<16, Tuple>{}.value;
+    static constexpr index_t GammaSrcVectorDim  = std::tuple_element_t<14, Tuple>{}.value;
+    static constexpr index_t GammaSrcVectorSize = std::tuple_element_t<15, Tuple>{}.value;
+    static constexpr index_t BetaSrcVectorDim   = std::tuple_element_t<16, Tuple>{}.value;
+    static constexpr index_t BetaSrcVectorSize  = std::tuple_element_t<17, Tuple>{}.value;
+    static constexpr index_t YDstVectorSize     = std::tuple_element_t<18, Tuple>{}.value;
 
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -78,7 +80,9 @@ class TestLayernorm : public ::testing::Test
                                                                          KThreadSliceSize,
                                                                          XYSrcVectorDim,
                                                                          XSrcVectorSize,
+                                                                         GammaSrcVectorDim,
                                                                          GammaSrcVectorSize,
+                                                                         BetaSrcVectorDim,
                                                                          BetaSrcVectorSize,
                                                                          YDstVectorSize>;
 
@@ -115,10 +119,8 @@ class TestLayernorm : public ::testing::Test
         auto argument_ptr    = device_instance.MakeArgumentPointer(
             lengths,
             std::vector<ck::index_t>{x.mDesc.GetStrides().begin(), x.mDesc.GetStrides().end()},
-            std::vector<ck::index_t>{gamma.mDesc.GetStrides().begin(),
-                                     gamma.mDesc.GetStrides().end()},
-            std::vector<ck::index_t>{beta.mDesc.GetStrides().begin(),
-                                     beta.mDesc.GetStrides().end()},
+            {0, 1},
+            {0, 1},
             std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
             reduceDims,
             1e-4,

@@ -20,16 +20,16 @@ template <index_t Rank, index_t Reduce>
 using device_layernorm_f32_instances = std::tuple<
     // clang-format off
         // XDataType, GammaDataType, BetaDataType, AccDataType, YDataType, Rank, NumReduceDim, BlockSize, MThreadClusterSize, KThreadClusterSize, MThreadSliceSize, KThreadSliceSize, XYSrcVectorDim, XSrcVectorSize, GammaSrcVectorSize, BetaSrcVectorSize, YDstVectorSize>
-        DeviceLayernormImpl<F32, F32, F32, F32, F32, Pass, Rank, Reduce, 256, 8, 32, 1, 8, 1, 1, 1, 1, 1>, // fallback kernel
-        DeviceLayernormImpl<F32, F32, F32, F32, F32, Pass, Rank, Reduce, 256, 8, 32, 1, 8, 1, 2, 2, 2, 2>, // fallback kernel
-        DeviceLayernormImpl<F32, F32, F32, F32, F32, Pass, Rank, Reduce, 256, 8, 32, 1, 8, 1, 4, 4, 4, 4>,
-        DeviceLayernormImpl<F32, F32, F32, F32, F32, Pass, Rank, Reduce, 256, 4, 64, 1, 8, 1, 4, 4, 4, 4>,
-        DeviceLayernormImpl<F32, F32, F32, F32, F32, Pass, Rank, Reduce, 256, 2, 128, 1, 8, 1, 4, 4, 4, 4>,
-        DeviceLayernormImpl<F32, F32, F32, F32, F32, Pass, Rank, Reduce, 256, 2, 128, 1, 16, 1, 4, 4, 4, 4>,
-        DeviceLayernormImpl<F32, F32, F32, F32, F32, Pass, Rank, Reduce, 256, 2, 128, 1, 32, 1, 4, 4, 4, 4>,
-        DeviceLayernormImpl<F32, F32, F32, F32, F32, Pass, Rank, Reduce, 256, 1, 256, 1, 8, 1, 4, 4, 4, 4>,
-        DeviceLayernormImpl<F32, F32, F32, F32, F32, Pass, Rank, Reduce, 256, 1, 256, 1, 16, 1, 4, 4, 4, 4>,
-        DeviceLayernormImpl<F32, F32, F32, F32, F32, Pass, Rank, Reduce, 256, 1, 256, 1, 32, 1, 4, 4, 4, 4>
+        DeviceLayernormImpl<F32, F32, F32, F32, F32, Pass, Rank, Reduce, 256, 8, 32, 1, 8, 1, 1, 1, 1, 1, 1, 1>, // fallback kernel
+        DeviceLayernormImpl<F32, F32, F32, F32, F32, Pass, Rank, Reduce, 256, 8, 32, 1, 8, 1, 2, 1, 2, 1, 2, 2>, // fallback kernel
+        DeviceLayernormImpl<F32, F32, F32, F32, F32, Pass, Rank, Reduce, 256, 8, 32, 1, 8, 1, 4, 1, 4, 1, 4, 4>,
+        DeviceLayernormImpl<F32, F32, F32, F32, F32, Pass, Rank, Reduce, 256, 4, 64, 1, 8, 1, 4, 1, 4, 1, 4, 4>,
+        DeviceLayernormImpl<F32, F32, F32, F32, F32, Pass, Rank, Reduce, 256, 2, 128, 1, 8, 1, 4, 1, 4, 1, 4, 4>,
+        DeviceLayernormImpl<F32, F32, F32, F32, F32, Pass, Rank, Reduce, 256, 2, 128, 1, 16, 1, 4, 1, 4, 1, 4, 4>,
+        DeviceLayernormImpl<F32, F32, F32, F32, F32, Pass, Rank, Reduce, 256, 2, 128, 1, 32, 1, 4, 1, 4, 1, 4, 4>,
+        DeviceLayernormImpl<F32, F32, F32, F32, F32, Pass, Rank, Reduce, 256, 1, 256, 1, 8, 1, 4, 1, 4, 1, 4, 4>,
+        DeviceLayernormImpl<F32, F32, F32, F32, F32, Pass, Rank, Reduce, 256, 1, 256, 1, 16, 1, 4, 1, 4, 1, 4, 4>,
+        DeviceLayernormImpl<F32, F32, F32, F32, F32, Pass, Rank, Reduce, 256, 1, 256, 1, 32, 1, 4, 1, 4, 1, 4, 4>
     // clang-format on
     >;
 
