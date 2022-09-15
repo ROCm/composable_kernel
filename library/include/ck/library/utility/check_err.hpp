@@ -33,7 +33,7 @@ check_err(const std::vector<T>& out,
 {
     if(out.size() != ref.size())
     {
-        std::cout << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
+        std::cerr << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
                   << std::endl;
         return false;
     }
@@ -51,7 +51,7 @@ check_err(const std::vector<T>& out,
             err_count++;
             if(err_count < 5)
             {
-                std::cout << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << out[i] << " != " << ref[i] << std::endl;
             }
             res = false;
@@ -59,7 +59,7 @@ check_err(const std::vector<T>& out,
     }
     if(!res)
     {
-        std::cout << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
+        std::cerr << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
     }
     return res;
 }
@@ -74,7 +74,7 @@ check_err(const std::vector<T>& out,
 {
     if(out.size() != ref.size())
     {
-        std::cout << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
+        std::cerr << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
                   << std::endl;
         return false;
     }
@@ -95,7 +95,7 @@ check_err(const std::vector<T>& out,
             err_count++;
             if(err_count < 5)
             {
-                std::cout << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
             }
             res = false;
@@ -103,7 +103,7 @@ check_err(const std::vector<T>& out,
     }
     if(!res)
     {
-        std::cout << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
+        std::cerr << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
     }
     return res;
 }
@@ -118,7 +118,7 @@ check_err(span<const T> out,
 {
     if(out.size() != ref.size())
     {
-        std::cout << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
+        std::cerr << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
                   << std::endl;
         return false;
     }
@@ -138,7 +138,7 @@ check_err(span<const T> out,
             err_count++;
             if(err_count < 5)
             {
-                std::cout << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
             }
             res = false;
@@ -146,7 +146,7 @@ check_err(span<const T> out,
     }
     if(!res)
     {
-        std::cout << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
+        std::cerr << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
     }
     return res;
 }
@@ -206,7 +206,7 @@ check_err(const std::vector<T>& out,
     }
     if(!res)
     {
-        std::cout << "max err: " << max_err << std::endl;
+        std::cerr << "max err: " << max_err << std::endl;
     }
     return res;
 }
