@@ -366,6 +366,7 @@ int main(int argc, char* argv[])
         auto ref_gemm0_argument = ref_gemm0.MakeArgument(
             a_g_m_k, b0_g_k_n, acc0_g_m_n, a_element_op, b0_element_op, acc0_element_op);
 
+        // gemm 0
         ref_gemm0_invoker.Run(ref_gemm0_argument);
 
         // mask out upper triangle
@@ -377,6 +378,7 @@ int main(int argc, char* argv[])
         auto ref_softmax_invoker  = ref_softmax.MakeInvoker();
         auto ref_softmax_argument = ref_softmax.MakeArgument(acc0_g_m_n, a1_g_m_n, 1, 0, {2});
 
+        // softmax
         ref_softmax_invoker.Run(ref_softmax_argument);
 
         auto ref_gemm1          = ReferenceGemm1Instance{};
@@ -384,8 +386,10 @@ int main(int argc, char* argv[])
         auto ref_gemm1_argument = ref_gemm1.MakeArgument(
             a1_g_m_n, b1_g_n_o, c_g_m_o_host_result, PassThrough{}, b1_element_op, c_element_op);
 
+        // gemm1
         ref_gemm1_invoker.Run(ref_gemm1_argument);
 
+        // permute
         c_gs_ms_os_host_result.ForEach([&](auto& self, auto idx) {
             const size_t& g0 = idx[0];
             const size_t& g1 = idx[1];
