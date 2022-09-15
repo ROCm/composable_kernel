@@ -60,7 +60,7 @@ struct DevicePermuteImpl : DevicePermute<NumDim, InDataType, OutDataType, Elemen
         return generate_tuple([&](auto I) { return array[I]; }, Number<N>{});
     }
 
-    static auto MakeDescriptor_N_H_W(const Lengths& lengths, const Strides stride)
+    static auto MakeDescriptor_N_H_W(const Lengths& lengths, const Strides& stride)
     {
         // create nd descriptor, shape: [d[0], d[1], d[2], ..., d[NumDim-3], d[NumDim-2],
         // d[NumDim-1]]
@@ -111,21 +111,21 @@ struct DevicePermuteImpl : DevicePermute<NumDim, InDataType, OutDataType, Elemen
 
     struct Argument : public BaseArgument
     {
-        Argument(const Lengths& inLengths,
-                 const Strides& inStrides,
-                 const Lengths& outLengths,
-                 const Strides& outStrides,
+        Argument(const Lengths& in_lengths,
+                 const Strides& in_strides,
+                 const Lengths& out_lengths,
+                 const Strides& out_strides,
                  const void* in_dev_buffer,
                  void* out_dev_buffer,
                  ElementwiseOperation elementwise_op)
             : in_dev_buffer_(static_cast<const InDataType*>(in_dev_buffer)),
               out_dev_buffer_(static_cast<OutDataType*>(out_dev_buffer)),
-              in_grid_desc_(MakeDescriptor_N_H_W(inLengths, inStrides)),
-              out_grid_desc_(MakeDescriptor_N_H_W(outLengths, outStrides)),
-              inLengths_(inLengths),
-              inStrides_(inStrides),
-              outLengths_(outLengths),
-              outStrides_(outStrides),
+              in_grid_desc_(MakeDescriptor_N_H_W(in_lengths, in_strides)),
+              out_grid_desc_(MakeDescriptor_N_H_W(out_lengths, out_strides)),
+              in_lengths_(in_lengths),
+              in_strides_(in_strides),
+              out_lengths_(out_lengths),
+              out_strides_(out_strides),
               elementwise_op_(elementwise_op),
               block_2_tile_map_(GridwisePermute::MakeDefaultBlock2TileMap(in_grid_desc_))
         {
@@ -136,10 +136,10 @@ struct DevicePermuteImpl : DevicePermute<NumDim, InDataType, OutDataType, Elemen
         InGridDesc in_grid_desc_;
         OutGridDesc out_grid_desc_;
 
-        Lengths inLengths_;
-        Strides inStrides_;
-        Lengths outLengths_;
-        Strides outStrides_;
+        Lengths in_lengths_;
+        Strides in_strides_;
+        Lengths out_lengths_;
+        Strides out_strides_;
 
         ElementwiseOperation elementwise_op_;
 
@@ -195,21 +195,21 @@ struct DevicePermuteImpl : DevicePermute<NumDim, InDataType, OutDataType, Elemen
                 return false;
             };
 
-        return IsScalarPerVectorValid(arg.inLengths_[SrcVectorDim],
-                                      arg.inStrides_[SrcVectorDim],
+        return IsScalarPerVectorValid(arg.in_lengths_[SrcVectorDim],
+                                      arg.in_strides_[SrcVectorDim],
                                       SrcScalarPerVector) &&
                IsScalarPerVectorValid(
-                   GetPaddedLength(arg.inLengths_[SrcVectorDim],
+                   GetPaddedLength(arg.in_lengths_[SrcVectorDim],
                                    (SrcVectorDim == NumDim - 2 ? HPerBlock : WPerBlock)),
-                   arg.inStrides_[SrcVectorDim],
+                   arg.in_strides_[SrcVectorDim],
                    SrcScalarPerVector) &&
-               IsScalarPerVectorValid(arg.outLengths_[DstVectorDim],
-                                      arg.outStrides_[DstVectorDim],
+               IsScalarPerVectorValid(arg.out_lengths_[DstVectorDim],
+                                      arg.out_strides_[DstVectorDim],
                                       DstScalarPerVector) &&
                IsScalarPerVectorValid(
-                   GetPaddedLength(arg.outLengths_[DstVectorDim],
+                   GetPaddedLength(arg.out_lengths_[DstVectorDim],
                                    (DstVectorDim == NumDim - 2 ? HPerBlock : WPerBlock)),
-                   arg.inStrides_[DstVectorDim],
+                   arg.in_strides_[DstVectorDim],
                    DstScalarPerVector) &&
                GridwisePermute::CheckValidity(arg.in_grid_desc_, arg.out_grid_desc_);
     };
@@ -228,18 +228,18 @@ struct DevicePermuteImpl : DevicePermute<NumDim, InDataType, OutDataType, Elemen
 
     // override methods inherited from 'DevicePermute'
     std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const Lengths& inLengths,
-                        const Strides& inStrides,
-                        const Lengths& outLengths,
-                        const Strides& outStrides,
+    MakeArgumentPointer(const Lengths& in_lengths,
+                        const Strides& in_strides,
+                        const Lengths& out_lengths,
+                        const Strides& out_strides,
                         const void* in_dev_buffer,
                         void* out_dev_buffer,
                         ElementwiseOperation elementwise_op) override final
     {
-        return std::make_unique<Argument>(inLengths,
-                                          inStrides,
-                                          outLengths,
-                                          outStrides,
+        return std::make_unique<Argument>(in_lengths,
+                                          in_strides,
+                                          out_lengths,
+                                          out_strides,
                                           in_dev_buffer,
                                           out_dev_buffer,
                                           elementwise_op);

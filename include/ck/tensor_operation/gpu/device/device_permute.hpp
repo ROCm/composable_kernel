@@ -21,10 +21,10 @@ struct DevicePermute : BaseOperator
     using Strides = Lengths;
 
     virtual std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const Lengths& inLengths,
-                        const Strides& inStrides,
-                        const Lengths& outLengths,
-                        const Strides& outStrides,
+    MakeArgumentPointer(const Lengths& in_lengths,
+                        const Strides& in_strides,
+                        const Lengths& out_lengths,
+                        const Strides& out_strides,
                         const void* in_dev_buffer,
                         void* out_dev_buffer,
                         ElementwiseOperation elementwise_op) = 0;
