@@ -82,7 +82,8 @@ struct DevicePermuteCRTP : DevicePermute<NumDim, InDataType, OutDataType, Elemen
 
     // generate other utility methods
     template <typename... Args>
-    static auto MakeArgument(Args&&... args)
+    static auto MakeArgument(Args&&... args) noexcept(
+        std::is_nothrow_constructible_v<typename DerivedDeviceOperator::Argument, Args...>)
     {
         static_assert(std::is_constructible_v<typename DerivedDeviceOperator::Argument, Args...>);
 
