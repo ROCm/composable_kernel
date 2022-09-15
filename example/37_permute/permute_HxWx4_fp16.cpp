@@ -9,7 +9,7 @@ using BundleType = F64;
 static_assert(sizeof(BundleType) % sizeof(DataType) == 0);
 
 // clang-format off
-using DevicePermuteInstance = ck::tensor_operation::device::DevicePermute
+using DevicePermuteInstance = ck::tensor_operation::device::DevicePermuteImpl
 // ######| NumDim|     InData|     OutData| Elementwise| Block|  NPer|  HPer|  WPer|   InBlock|      InBlockTransfer|           InBlockTransfer|       Src|       Dst|             Src|             Dst|
 // ######|       |       Type|        Type|   Operation|  Size| Block| Block| Block| LdsExtraW| ThreadClusterLengths| ThreadClusterArrangeOrder| VectorDim| VectorDim| ScalarPerVector| ScalarPerVector|
 // ######|       |           |            |            |      |      |      |      |          |                     |                          |          |          |                |                |
