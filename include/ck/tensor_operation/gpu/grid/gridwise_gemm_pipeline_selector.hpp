@@ -8,12 +8,18 @@
 
 namespace ck {
 
-template <index_t PipelineVersion,
+enum struct PipelineVersion
+{
+    v1,
+    v2,
+};
+
+template <PipelineVersion PipelineVer,
           index_t NumPrefetch     = 1,
           LoopScheduler LoopSched = LoopScheduler::Default>
 constexpr auto GridwiseGemmPipeline_Selector()
 {
-    if constexpr(PipelineVersion == 1)
+    if constexpr(PipelineVer == PipelineVersion::v1)
     {
         if constexpr(LoopSched == LoopScheduler::Default)
         {
@@ -24,7 +30,7 @@ constexpr auto GridwiseGemmPipeline_Selector()
             return GridwiseGemmPipelineInterwave_v1<NumPrefetch>{};
         }
     }
-    else if constexpr(PipelineVersion == 2)
+    else if constexpr(PipelineVer == PipelineVersion::v2)
     {
         return GridwiseGemmPipeline_v2{};
     }

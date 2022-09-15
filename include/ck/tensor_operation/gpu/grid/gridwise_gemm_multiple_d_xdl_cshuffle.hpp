@@ -71,7 +71,7 @@ template <typename ABDataType, // FIXME: don't assume A/B have same datatype
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched,
-          index_t PipelineVersion = 1>
+          PipelineVersion PipelineVer = PipelineVersion::v1>
 struct GridwiseGemmMultipleD_xdl_cshuffle
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
@@ -93,8 +93,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    using GridwiseGemmPipe = remove_cvref_t<decltype(
-        GridwiseGemmPipeline_Selector<PipelineVersion, NumGemmKPrefetchStage, LoopSched>())>;
+    using GridwiseGemmPipe = remove_cvref_t<
+        decltype(GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
@@ -320,10 +320,12 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         remove_cvref_t<decltype(MakeDefaultAGridDescriptor_AK0_M_AK1(AGridDesc_M_K{}))>;
     using DefaultBGridDesc_BK0_N_BK1 =
         remove_cvref_t<decltype(MakeDefaultBGridDescriptor_BK0_N_BK1(BGridDesc_N_K{}))>;
-    using EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock  = remove_cvref_t<decltype(
-        MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(EGridDesc_M_N{}))>;
-    using DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
-        MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(DsGridDesc_M_N{}))>;
+    using EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock =
+        remove_cvref_t<decltype(MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+            EGridDesc_M_N{}))>;
+    using DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock =
+        remove_cvref_t<decltype(MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+            DsGridDesc_M_N{}))>;
 
     using DefaultBlock2ETileMap =
         remove_cvref_t<decltype(MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
@@ -499,7 +501,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
 
         // gridwise GEMM pipeline
         const auto gridwise_gemm_pipeline =
-            GridwiseGemmPipeline_Selector<PipelineVersion, NumGemmKPrefetchStage, LoopSched>();
+            GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>();
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /

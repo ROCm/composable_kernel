@@ -31,20 +31,20 @@ template <typename GridwiseGemm,
           bool HasMainK0BlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdlops_v3r1(
-            const FloatAB* __restrict__ p_a_grid,
-            const FloatAB* __restrict__ p_b_grid,
-            FloatC* __restrict__ p_c_grid,
-            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-            const CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
-                c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl,
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const CElementwiseOperation c_element_op,
-            const Block2CTileMap block_2_ctile_map)
+    kernel_gemm_xdlops_v3r1(
+        const FloatAB* __restrict__ p_a_grid,
+        const FloatAB* __restrict__ p_b_grid,
+        FloatC* __restrict__ p_c_grid,
+        const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+        const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+        const CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
+            c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl,
+        const AElementwiseOperation a_element_op,
+        const BElementwiseOperation b_element_op,
+        const CElementwiseOperation c_element_op,
+        const Block2CTileMap block_2_ctile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -118,7 +118,7 @@ template <
     typename CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
     index_t CBlockTransferScalarPerVector_NWaveNPerXdl,
     index_t NumGemmKPrefetchStage = 1,
-    index_t PipelineVersion       = 1>
+    PipelineVersion PipelineVer   = PipelineVersion::v1>
 struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
 {
     static constexpr auto I0 = Number<0>{};
@@ -138,8 +138,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    using GridwiseGemmPipe = remove_cvref_t<decltype(
-        GridwiseGemmPipeline_Selector<PipelineVersion, NumGemmKPrefetchStage>())>;
+    using GridwiseGemmPipe = remove_cvref_t<
+        decltype(GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage>())>;
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
@@ -314,8 +314,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
             c_grid_desc_m_n);
     }
     using CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl =
-        remove_cvref_t<decltype(
-            MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
+        remove_cvref_t<
+            decltype(MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
                 CGridDesc_M_N{}))>;
 
     using DefaultBlock2CTileMap =
@@ -633,10 +633,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                 Sequence<0, 1, 2, 3, 4, 5>, // typename ThreadClusterArrangeOrder,
                 FloatCShuffle,              // typename SrcData,
                 FloatC,                     // typename DstData,
-                decltype(
-                    c_block_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl),
-                decltype(
-                    c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl),
+                decltype(c_block_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl),
+                decltype(c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl),
                 Sequence<0, 1, 2, 3, 4, 5>,                 // typename DimAccessOrder,
                 5,                                          // index_t VectorDim,
                 CBlockTransferScalarPerVector_NWaveNPerXdl, // index_t ScalarPerVector,

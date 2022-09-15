@@ -75,7 +75,7 @@ template <typename FloatAB,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched,
-          index_t PipelineVersion = 1>
+          PipelineVersion PipelineVer = PipelineVersion::v1>
 struct GridwiseBatchedGemmGemm_Xdl_CShuffle
 {
     static_assert(LoopSched == LoopScheduler::Default,
@@ -102,8 +102,8 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    using GridwiseGemmPipe = remove_cvref_t<decltype(
-        GridwiseGemmPipeline_Selector<PipelineVersion, NumGemmKPrefetchStage>())>;
+    using GridwiseGemmPipe = remove_cvref_t<
+        decltype(GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage>())>;
 
     template <typename ABlockDesc_AK0_M_AK1>
     __host__ __device__ static constexpr auto
@@ -294,8 +294,9 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
             c_grid_desc_m_n);
     }
 
-    using CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
-        MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}))>;
+    using CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock =
+        remove_cvref_t<decltype(MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+            CGridDesc_M_N{}))>;
 
     using DefaultBlock2CTileMap =
         remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}))>;
@@ -496,7 +497,7 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
 
         // gridwise GEMM pipeline
         // Only supports LoopScheduler::Default
-        const auto gridwise_gemm_pipeline = GridwiseGemmPipeline_Selector<PipelineVersion,
+        const auto gridwise_gemm_pipeline = GridwiseGemmPipeline_Selector<PipelineVer,
                                                                           NumGemmKPrefetchStage,
                                                                           LoopScheduler::Default>();
 

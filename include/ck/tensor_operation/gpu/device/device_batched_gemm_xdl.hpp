@@ -59,21 +59,21 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_batched_gemm_xdlops_v2r3(
-            const FloatAB* __restrict__ p_a_grid,
-            const FloatAB* __restrict__ p_b_grid,
-            FloatC* __restrict__ p_c_grid,
-            const index_t batch_count,
-            const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
-            const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
-            const CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const CElementwiseOperation c_element_op,
-            const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
-            const Block2CTileMap block_2_ctile_map)
+    kernel_batched_gemm_xdlops_v2r3(
+        const FloatAB* __restrict__ p_a_grid,
+        const FloatAB* __restrict__ p_b_grid,
+        FloatC* __restrict__ p_c_grid,
+        const index_t batch_count,
+        const AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1,
+        const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
+        const CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+        const AElementwiseOperation a_element_op,
+        const BElementwiseOperation b_element_op,
+        const CElementwiseOperation c_element_op,
+        const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
+        const Block2CTileMap block_2_ctile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     const index_t num_blocks_per_batch =
@@ -153,7 +153,7 @@ template <typename ADataType,
           ck::index_t CThreadTransferDstScalarPerVector,
           ck::index_t NumGemmKPrefetchStage = 1,
           ck::LoopScheduler LoopSched       = make_default_loop_scheduler(),
-          ck::index_t PipelineVersion       = 1>
+          ck::PipelineVersion PipelineVer   = ck::PipelineVersion::v1>
 struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
                                                        BLayout,
                                                        CLayout,
@@ -329,7 +329,7 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
                                                 CThreadTransferDstScalarPerVector,
                                                 NumGemmKPrefetchStage,
                                                 LoopSched,
-                                                PipelineVersion>;
+                                                PipelineVer>;
 
     using CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2 =
         decltype(GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(CGridDesc_M_N{}));
@@ -631,6 +631,9 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
         std::map<LoopScheduler, std::string> LoopSchedToString{
             {LoopScheduler::Default, "Default"}, {LoopScheduler::Interwave, "Interwave"}};
 
+        std::map<PipelineVersion, std::string> PipelineVersionToString{{PipelineVersion::v1, "v1"},
+                                                                       {PipelineVersion::v2, "v2"}};
+
         // clang-format off
         str << "DeviceBatchedGemmXdl"
             << "<"
@@ -644,7 +647,7 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
             << "LoopScheduler: "
             << LoopSchedToString[LoopSched] << ", "
             << "PipelineVersion: "
-            << PipelineVersion;
+            << PipelineVersionToString[PipelineVer];
         // clang-format on
 
         return str.str();
