@@ -121,7 +121,7 @@ using DeviceGemmInstance =
         true>;          // MaskOutUpperTriangle
 
 // Ref Gemm0: fp16 in, fp32 out
-using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemmUpperTriangleMinusInf<ADataType,
+using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
                                                                                 B0DataType,
                                                                                 AccDataType,
                                                                                 AccDataType,
@@ -367,6 +367,11 @@ int main(int argc, char* argv[])
             a_g_m_k, b0_g_k_n, acc0_g_m_n, a_element_op, b0_element_op, acc0_element_op);
 
         ref_gemm0_invoker.Run(ref_gemm0_argument);
+
+        // mask out upper triangle
+        acc0_g_m_n.ForEach([&](auto& self, auto idx) { 
+            if (idx[1] < idx[2]) self(idx) = -ck::NumericLimits<float>::Infinity();
+        });
 
         auto ref_softmax          = ReferenceSoftmaxInstance{};
         auto ref_softmax_invoker  = ref_softmax.MakeInvoker();
