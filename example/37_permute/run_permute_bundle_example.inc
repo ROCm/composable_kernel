@@ -5,8 +5,6 @@
 
 bool run_permute_bundle(const Problem& problem)
 {
-    constexpr std::size_t NumElemsInBundle = sizeof(BundleType) / sizeof(DataType);
-
     const auto& input_bundle_shape = problem.shape;
     const auto& input_bundle_axes  = problem.axes;
 
@@ -48,6 +46,8 @@ bool run_permute_bundle(const Problem& problem)
     std::cout << "Perf: " << ave_time << " ms" << std::endl;
 
     output_device_buf.FromDevice(data(output_bundle_tensor));
+
+    constexpr std::size_t NumElemsInBundle = sizeof(BundleType) / sizeof(DataType);
 
     // extend tensor shape from [N, H, W] to [N, H, W, NumElemsInBundle]
     //               axes  from [0, 2, 1] to [0, 2, 1, 3]
