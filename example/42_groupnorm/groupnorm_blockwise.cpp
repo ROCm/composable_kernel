@@ -17,7 +17,7 @@
 #include "ck/library/utility/host_common_util.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_groupnorm.hpp"
 
 using XDataType     = ck::half_t;
 using GammaDataType = ck::half_t;
@@ -29,24 +29,28 @@ using PassThrough   = ck::tensor_operation::element_wise::PassThrough;
 constexpr int Rank         = 5;
 constexpr int NumReduceDim = 3;
 
-using DeviceInstance = ck::tensor_operation::device::DeviceLayernormImpl<XDataType,
-                                                                         GammaDataType,
-                                                                         BetaDataType,
-                                                                         AccDataType,
-                                                                         YDataType,
-                                                                         PassThrough,
-                                                                         Rank,
-                                                                         NumReduceDim,
-                                                                         256, // BlockSize
-                                                                         8,   // ClusterM
-                                                                         32,  // ClusterK
-                                                                         1,   // SliceM
-                                                                         8,   // SliceK
-                                                                         1,  // SrcVecDim (0=M, 1=K)
-                                                                         8,  // SrcScalarPerVector
-                                                                         8,  // GammaScalarPerVector
-                                                                         8,  // BetaScalarPerVector
-                                                                         8>; // OutScalarPerVector
+using DeviceInstance =
+    ck::tensor_operation::device::DeviceLayernormImpl<XDataType,
+                                                      GammaDataType,
+                                                      BetaDataType,
+                                                      AccDataType,
+                                                      YDataType,
+                                                      PassThrough,
+                                                      Rank,
+                                                      NumReduceDim,
+                                                      256, // BlockSize
+                                                      8,   // ClusterM
+                                                      32,  // ClusterK
+                                                      1,   // SliceM
+                                                      8,   // SliceK
+                                                      1,   // SrcVecDim (0=M, 1=K)
+                                                      8,   // SrcScalarPerVector
+                                                      1,   // GammaVecDim (0=M, 1=K)
+                                                      8,   // GammaScalarPerVector
+                                                      1,   // BetaVecDim (0=M, 1=K)
+                                                      8,   // BetaScalarPerVector
+                                                      8>;  // OutScalarPerVector
+
 
 int main()
 {
@@ -58,13 +62,8 @@ int main()
 
     Tensor<XDataType> x({N, H, W, G, C});
     Tensor<YDataType> y({N, H, W, G, C});
-
-    // FIXME - Shape of gamma and beta should be [G, C] in groupnorm
-    // However, Shape of gamma and beta should be the reduce dimsension in present implementation of
-    // layernorm.
-    // reduce dimension = [H, W, C]
-    Tensor<GammaDataType> gamma({H, W, C});
-    Tensor<BetaDataType> beta({H, W, C});
+    Tensor<GammaDataType> gamma({G, C});
+    Tensor<BetaDataType> beta({G, C});
 
     x.GenerateTensorValue(GeneratorTensor_3<XDataType>{0.0, 1.0});
     gamma.GenerateTensorValue(GeneratorTensor_3<GammaDataType>{0.0, 1.0});
@@ -83,8 +82,8 @@ int main()
     auto argument_ptr    = device_instance.MakeArgumentPointer(
         {N, H, W, G, C},
         std::vector<ck::index_t>{x.mDesc.GetStrides().begin(), x.mDesc.GetStrides().end()},
-        std::vector<ck::index_t>{gamma.mDesc.GetStrides().begin(), gamma.mDesc.GetStrides().end()},
-        std::vector<ck::index_t>{beta.mDesc.GetStrides().begin(), beta.mDesc.GetStrides().end()},
+        {0, 0, 0, C, 1},
+        {0, 0, 0, C, 1},
         std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
         {1, 2, 4}, // [H, W, C]
         1e-6,
@@ -104,7 +103,25 @@ int main()
     auto invoker_ptr = device_instance.MakeInvokerPointer();
     invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
-    // TODO - reference
     bool pass = true;
+    {
+        Tensor<YDataType> host_y({N, H, W, G, C});
+        using ReferenceInstance = ck::tensor_operation::host::ReferenceGroupnorm<XDataType,
+                                                                                 GammaDataType,
+                                                                                 BetaDataType,
+                                                                                 YDataType,
+                                                                                 AccDataType,
+                                                                                 PassThrough>;
+
+        ReferenceInstance ref;
+        auto ref_argument =
+            ref.MakeArgument(x, gamma, beta, host_y, PassThrough{}, {N, H, W, G, C}, 1e-6);
+        auto ref_invoker = ref.MakeInvoker();
+        ref_invoker.Run(ref_argument);
+
+        y_dev.FromDevice(y.mData.data());
+        pass &=
+            ck::utils::check_err(y.mData, host_y.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
+    }
     return (pass ? 0 : 1);
 }
