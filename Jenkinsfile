@@ -346,15 +346,17 @@ def runCKProfiler(Map conf=[:]){
                 {
                     //cmake_build(conf)
                     //instead of building, just get the CK deb package and install it
-                    sh "mkdir composable_kernel"
-                    dir("composable_kernel"){
+                    sh 'pwd'
+                    sh 'ls'
+                    sh "mkdir Libs_composable_kernel_${env.BRANCH_NAME}"
+                    dir("Libs_composable_kernel_${env.BRANCH_NAME}"){
                         //get deb package
-                        wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}}/${env.BUILD_NUMBER}/artifacts/composable_kernel.deb
+                        wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/Libs__composable_kernel_${env.BRANCH_NAME}.deb
                         //install deb package
-                        sh "dpkg -i composable_kernel.deb"
+                        sh "dpkg -i Libs_composable_kernel_${env.BRANCH_NAME}.deb"
                     }
 
-					dir("/composable_kernel/script"){
+					dir("Libs_composable_kernel_${env.BRANCH_NAME}/script"){
                         if (params.RUN_FULL_QA){
                             def qa_log = "qa_${gpu_arch}.log"
                             sh "./run_full_performance_tests.sh 1 QA_${params.COMPILER_VERSION} ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
@@ -487,15 +489,17 @@ def runTests_and_Examples(Map conf=[:]){
                 timeout(time: 5, unit: 'HOURS')
                 {
                     //cmake_build(conf)
-                    sh "mkdir composable_kernel"
-                    dir("composable_kernel"){
+                    sh 'pwd'
+                    sh 'ls'
+                    sh "mkdir Libs_composable_kernel_${env.BRANCH_NAME}"
+                    dir("Libs_composable_kernel_${env.BRANCH_NAME}"){
                         //get deb package
-                        wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}}/${env.BUILD_NUMBER}/artifacts/composable_kernel.deb
+                        wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/Libs_composable_kernel_${env.BRANCH_NAME}.deb
                         //install deb package
-                        sh "dpkg -i composable_kernel.deb"
+                        sh "dpkg -i Libs_composable_kernel_${env.BRANCH_NAME}.deb"
                     }
                     //run tests and examples
-					dir("/composable_kernel/build"){
+					dir("Libs_composable_kernel_${env.BRANCH_NAME}/build"){
                         sh "make -j check"
                     }
                 }
@@ -547,40 +551,6 @@ def Build_CK(Map conf=[:]){
         def retimage
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
-            try {
-                //retimage = docker.build("${image}", dockerArgs + '.')
-                (retimage, image) = getDockerImage(conf)
-                withDockerContainer(image: image, args: dockerOpts) {
-                    timeout(time: 5, unit: 'MINUTES'){
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
-                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
-                            throw new Exception ("GPU not found")
-                        }
-                        else{
-                            echo "GPU is OK"
-                        }
-                    }
-                }
-            }
-            catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
-                echo "The job was cancelled or aborted"
-                throw e
-            }
-            catch(Exception ex) {
-                retimage = docker.build("${image}", dockerArgs + " --no-cache .")
-                withDockerContainer(image: image, args: dockerOpts) {
-                    timeout(time: 5, unit: 'MINUTES'){
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
-                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
-                            throw new Exception ("GPU not found")
-                        }
-                        else{
-                            echo "GPU is OK"
-                        }
-                    }
-                }
-            }
-
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 24, unit: 'HOURS')
                 {
@@ -600,9 +570,11 @@ def Build_CK(Map conf=[:]){
                         sh 'echo "Maintainer: Illia Silin <Illia.Silin@amd.com>" >> control'
                         sh 'echo "Description: Composable Kernel library for AMD GPUs" >> control'
                     }
-                    sh 'cd /'
-                    sh 'dpkg-deb --build composable_kernel'
-                    archiveArtifacts "composable_kernel.deb", fingerprint: true
+                    sh 'ls DEBIAN'
+                    dir("../"){
+                        sh 'dpkg-deb --build Libs_composable_kernel_${env.BRANCH_NAME}'
+                        archiveArtifacts "Libs_composable_kernel_${env.BRANCH_NAME}.deb", fingerprint: true
+                    }
                 }
             }
         }
