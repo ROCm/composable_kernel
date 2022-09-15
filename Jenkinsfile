@@ -577,7 +577,8 @@ def Build_CK(Map conf=[:]){
                     }
                     sh 'ls DEBIAN'
                     dir("/var/jenkins/workspace"){
-                        sh 'dpkg-deb --build Libs_composable_kernel_${env.BRANCH_NAME}'
+                        //sh 'dpkg-deb --build Libs_composable_kernel_${env.BRANCH_NAME}'
+                        sh 'make package'
                         archiveArtifacts "Libs_composable_kernel_${env.BRANCH_NAME}.deb", fingerprint: true
                     }
                 }
