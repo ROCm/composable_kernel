@@ -128,6 +128,8 @@
 // experimental feature: optimize for inter-wave scheduling policy
 #define CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING 1
 #define CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS 1
+// this will let make_default_loop_scheduler() return interwave scheduling flag by default
+#define CK_EXPERIMENTAL_DEFAULT_TO_INTER_WAVE_SCHEDULING 0
 
 // hack: have underlying assumption that need to be satsified, otherwise it's a bug
 // hack for forcing register to keep idx_diff_low_const in SGPR. idx_diff_low_const must be
