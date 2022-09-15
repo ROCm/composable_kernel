@@ -32,7 +32,7 @@ void host_elementwise4D(HostTensorB& B_nhwc,
                         const std::vector<std::size_t>& shape_nchw,
                         Functor functor)
 {
-    using btype = ck::remove_reference_t<decltype(B_nhwc(0, 0, 0, 0))>;
+    //    using btype = ck::remove_reference_t<decltype(B_nhwc(0, 0, 0, 0))>;
     for(std::size_t n = 0; n < shape_nchw[0]; ++n)
         for(std::size_t c = 0; c < shape_nchw[1]; ++c)
             for(std::size_t h = 0; h < shape_nchw[2]; ++h)
