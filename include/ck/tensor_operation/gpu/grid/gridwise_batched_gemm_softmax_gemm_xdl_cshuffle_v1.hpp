@@ -77,7 +77,7 @@ template <typename FloatAB,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched,
           bool PadN,
-          bool OnlyLowerTriangle = false>
+          bool MaskOutUpperTriangle>
 struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
 {
     static_assert(LoopSched == LoopScheduler::Default,
@@ -767,7 +767,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         index_t gemm1_k_block_outer_index = 0;
         do
         {
-            if constexpr(OnlyLowerTriangle)
+            if constexpr(MaskOutUpperTriangle)
             {
                 auto gemm0_n_block_idx = __builtin_amdgcn_readfirstlane(gemm1_k_block_outer_index * NPerBlock);
                 if((m_block_data_idx_on_grid < gemm0_n_block_idx) && ((m_block_data_idx_on_grid + MPerBlock - 1) < (gemm0_n_block_idx + NPerBlock - 1)))
@@ -792,7 +792,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                                                    acc_thread_buf,
                                                                    num_k_block_main_loop);
 
-            if constexpr(!OnlyLowerTriangle)
+            if constexpr(!MaskOutUpperTriangle)
             {
                 // Acc0 elementwise Op
 #if CK_WORKAROUND_SWDEV_XXXXXX_ATTN_KERNEL_CLANG_CANNOT_SCAVENGE_REGISTER
