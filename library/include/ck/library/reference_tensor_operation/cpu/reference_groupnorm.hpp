@@ -122,6 +122,7 @@ struct ReferenceGroupnorm : public device::BaseOperator
                                 AccDataType y        = gamma * (x - mean_val) /
                                                     ck::math::sqrt(arg.epsilon_ + var_val) +
                                                 beta;
+                                arg.acc_elementwise_op_(y, y);
                                 arg.y_(n, h, w, g, c) = type_convert<YDataType>(y);
                             }
                         }

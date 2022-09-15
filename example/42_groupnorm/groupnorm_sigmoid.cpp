@@ -24,7 +24,7 @@ using GammaDataType = ck::half_t;
 using BetaDataType  = ck::half_t;
 using YDataType     = ck::half_t;
 using AccDataType   = float;
-using PassThrough   = ck::tensor_operation::element_wise::PassThrough;
+using Sigmoid   = ck::tensor_operation::element_wise::Sigmoid;
 
 constexpr int Rank         = 5;
 constexpr int NumReduceDim = 3;
@@ -35,7 +35,7 @@ using DeviceInstance =
                                                       BetaDataType,
                                                       AccDataType,
                                                       YDataType,
-                                                      PassThrough,
+                                                      Sigmoid,
                                                       Rank,
                                                       NumReduceDim,
                                                       256, // BlockSize
@@ -91,7 +91,7 @@ int main()
         gamma_dev.GetDeviceBuffer(),
         beta_dev.GetDeviceBuffer(),
         y_dev.GetDeviceBuffer(),
-        PassThrough{});
+        Sigmoid{});
 
     if(!device_instance.IsSupportedArgument(argument_ptr.get()))
     {
@@ -111,11 +111,11 @@ int main()
                                                                                  BetaDataType,
                                                                                  YDataType,
                                                                                  AccDataType,
-                                                                                 PassThrough>;
+                                                                                 Sigmoid>;
 
         ReferenceInstance ref;
         auto ref_argument =
-            ref.MakeArgument(x, gamma, beta, host_y, PassThrough{}, {N, H, W, G, C}, 1e-6);
+            ref.MakeArgument(x, gamma, beta, host_y, Sigmoid{}, {N, H, W, G, C}, 1e-6);
         auto ref_invoker = ref.MakeInvoker();
         ref_invoker.Run(ref_argument);
 

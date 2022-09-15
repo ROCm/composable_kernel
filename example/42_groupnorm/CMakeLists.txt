@@ -1,1 +1,1 @@
-add_example_executable(example_groupnorm_blockwise groupnorm_blockwise.cpp)
+add_example_executable(example_groupnorm_sigmoid groupnorm_sigmoid.cpp)
