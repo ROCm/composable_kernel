@@ -157,7 +157,9 @@ struct is_range : std::false_type
 
 template <typename T>
 struct is_range<T,
-                std::void_t<decltype(begin(std::declval<T>())), decltype(end(std::declval<T>()))>>
+                std::void_t<decltype(begin(std::declval<T>())),
+                            decltype(end(std::declval<T>())),
+                            decltype(begin(std::declval<T>()) != end(std::declval<T>()))>>
     : std::bool_constant<is_iterator_v<ck::remove_cvref_t<decltype(begin(std::declval<T>()))>>>
 {
 };
@@ -214,6 +216,8 @@ inline constexpr bool is_random_access_range_v = is_random_access_range<Range>::
 template <typename Range>
 class to_array_proxy
 {
+    static_assert(is_range_v<Range>);
+
     public:
     explicit to_array_proxy(const Range& source) noexcept : source_(source) {}
 
@@ -237,6 +241,8 @@ class to_array_proxy
 
 template <typename Range>
 inline auto to_array(Range& range) noexcept
+    -> std::enable_if_t<detail::is_range_v<Range>,
+                        detail::to_array_proxy<ck::remove_cvref_t<Range>>>
 {
     return detail::to_array_proxy<ck::remove_cvref_t<Range>>{range};
 }
