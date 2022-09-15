@@ -585,7 +585,9 @@ def Build_CK(Map conf=[:]){
                 timeout(time: 24, unit: 'HOURS')
                 {
                     cmake_build(conf)
+                    sh 'pwd'
                     sh 'ls'
+                    sh 'rm -rf DEBIAN'
                     sh 'mkdir DEBIAN'
 					dir("DEBIAN"){
                         //populate control file
