@@ -8,11 +8,11 @@ using OutDataType = F16;
 
 // clang-format off
 using DevicePermuteInstance = ck::tensor_operation::device::DevicePermute
-// ######|     InData|     OutData| Elementwise| NumDim| Block|  NPer|  HPer|  WPer|   InBlock|      InBlockTransfer|           InBlockTransfer|       Src|       Dst|             Src|             Dst|
-// ######|       Type|        Type|   Operation|       |  Size| Block| Block| Block| LdsExtraW| ThreadClusterLengths| ThreadClusterArrangeOrder| VectorDim| VectorDim| ScalarPerVector| ScalarPerVector|
-// ######|           |            |            |       |      |      |      |      |          |                     |                          |          |          |                |                |
-// ######|           |            |            |       |      |      |      |      |          |                     |                          |          |          |                |                |
-         < InDataType, OutDataType, PassThrough,      3,   256,     1,    32,    32,         3,         S<1, 32,  8>,                S<0, 1, 2>,         2,         1,               2,               1>;
+// ######| NumDim|     InData|     OutData| Elementwise| Block|  NPer|  HPer|  WPer|   InBlock|      InBlockTransfer|           InBlockTransfer|       Src|       Dst|             Src|             Dst|
+// ######|       |       Type|        Type|   Operation|  Size| Block| Block| Block| LdsExtraW| ThreadClusterLengths| ThreadClusterArrangeOrder| VectorDim| VectorDim| ScalarPerVector| ScalarPerVector|
+// ######|       |           |            |            |      |      |      |      |          |                     |                          |          |          |                |                |
+// ######|       |           |            |            |      |      |      |      |          |                     |                          |          |          |                |                |
+         <      3, InDataType, OutDataType, PassThrough,   256,     1,    32,    32,         3,         S<1, 32,  8>,                S<0, 1, 2>,         2,         1,               2,               1>;
 // clang-format on
 
 #include "run_permute_element_example.inc"
