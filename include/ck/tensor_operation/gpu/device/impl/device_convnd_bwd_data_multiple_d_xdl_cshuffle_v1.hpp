@@ -91,9 +91,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     // TODO make A/B datatype different
     using ABDataType = ADataType;
 
-    using InDataType  = EDataType;
-    using WeiDataType = BDataType;
     using OutDataType = ADataType;
+    using WeiDataType = BDataType;
+    using InDataType  = EDataType;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -107,6 +107,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     static_assert((K1 % ABlockTransferThreadClusterLengths_K0_M_K1{}[I2]) %
                       ABlockTransferSrcScalarPerVector ==
                   0);
+
     static_assert((NPerBlock / BBlockTransferThreadClusterLengths_K0_N_K1{}[I1]) %
                       BBlockTransferSrcScalarPerVector ==
                   0);
@@ -116,31 +117,35 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
     template <ck::index_t NDim, typename ck::enable_if<NDim == 2, bool>::type = false>
     static auto MakeABCDsGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(
-        ck::index_t N,
-        ck::index_t K,
-        ck::index_t C,
-        std::array<ck::index_t, NDimSpatial> input_spatial_lengths,
-        std::array<ck::index_t, NDimSpatial> filter_spatial_lengths,
-        std::array<ck::index_t, NDimSpatial> output_spatial_lengths,
-        std::array<ck::index_t, NDimSpatial> conv_filter_strides,
-        std::array<ck::index_t, NDimSpatial> conv_filter_dilations,
-        std::array<ck::index_t, NDimSpatial> input_left_pads,
-        std::array<ck::index_t, NDimSpatial> input_right_pads,
-        std::vector<ck::index_t> tildes)
+        const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_lengths,
+        const std::array<index_t, NDimSpatial + 3>& /* out_g_n_k_wos_strides */,
+        const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_lengths,
+        const std::array<index_t, NDimSpatial + 3>& /* wei_g_k_c_xs_strides */,
+        const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_lengths,
+        const std::array<index_t, NDimSpatial + 3>& /* in_g_n_c_wis_strides */,
+        const std::array<index_t, NDimSpatial>& conv_filter_strides,
+        const std::array<index_t, NDimSpatial>& conv_filter_dilations,
+        const std::array<index_t, NDimSpatial>& input_left_pads,
+        const std::array<index_t, NDimSpatial>& input_right_pads,
+        const std::array<index_t, NDimSpatial>& tildes)
     {
         using namespace ck;
 
         index_t i_ytilde = tildes[0];
         index_t i_xtilde = tildes[1];
 
-        const index_t Hi = input_spatial_lengths[0];
-        const index_t Wi = input_spatial_lengths[1];
+        const index_t N = in_g_n_c_wis_lengths[1];
+        const index_t K = wei_g_k_c_xs_lengths[1];
+        const index_t C = wei_g_k_c_xs_lengths[2];
 
-        const index_t Ho = output_spatial_lengths[0];
-        const index_t Wo = output_spatial_lengths[1];
+        const index_t Hi = in_g_n_c_wis_lengths[3];
+        const index_t Wi = in_g_n_c_wis_lengths[4];
 
-        const index_t Y = filter_spatial_lengths[0];
-        const index_t X = filter_spatial_lengths[1];
+        const index_t Ho = out_g_n_k_wos_lengths[3];
+        const index_t Wo = out_g_n_k_wos_lengths[4];
+
+        const index_t Y = wei_g_k_c_xs_lengths[3];
+        const index_t X = wei_g_k_c_xs_lengths[4];
 
         const index_t InLeftPadH = input_left_pads[0];
         const index_t InLeftPadW = input_left_pads[1];
@@ -158,9 +163,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
         const auto out_n_ho_wo_k_grid_desc =
             make_naive_tensor_descriptor_packed(make_tuple(N, Ho, Wo, K));
-        const auto wei_k_y_x_c_grid_desc =
+        const auto wei_k_y_x_e_grid_desc =
             make_naive_tensor_descriptor_packed(make_tuple(K, Y, X, C));
-        const auto in_n_hi_wi_c_grid_desc =
+        const auto in_n_hi_wi_e_grid_desc =
             make_naive_tensor_descriptor_packed(make_tuple(N, Hi, Wi, C));
 
         if constexpr(ConvBackwardDataSpecialization ==
@@ -183,8 +188,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                             make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
             // C: input tensor
-            const auto in_n_y_ho_x_wo_c_grid_desc = transform_tensor_descriptor(
-                in_n_hi_wi_c_grid_desc,
+            const auto in_n_y_ho_x_wo_e_grid_desc = transform_tensor_descriptor(
+                in_n_hi_wi_e_grid_desc,
                 make_tuple(make_pass_through_transform(N),
                            make_embed_transform(make_tuple(I1, Ho), make_tuple(I1, ConvStrideH)),
                            make_embed_transform(make_tuple(I1, Wo), make_tuple(I1, ConvStrideW)),
@@ -193,7 +198,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                 make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
 
             const auto in_gemmm_gemmn_grid_desc = transform_tensor_descriptor(
-                in_n_y_ho_x_wo_c_grid_desc,
+                in_n_y_ho_x_wo_e_grid_desc,
                 make_tuple(make_freeze_transform(I0),
                            make_freeze_transform(I0),
                            make_merge_transform(make_tuple(N, Ho, Wo)),
@@ -296,8 +301,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
             // B weight tensor
-            const auto wei_k_ydot_ytilde_xdot_xtilde_c_grid_desc = transform_tensor_descriptor(
-                wei_k_y_x_c_grid_desc,
+            const auto wei_k_ydot_ytilde_xdot_xtilde_e_grid_desc = transform_tensor_descriptor(
+                wei_k_y_x_e_grid_desc,
                 make_tuple(make_pass_through_transform(K),
                            make_embed_transform(make_tuple(YDot, YTilde),
                                                 make_tuple(ConvStrideH / GcdStrideDilationH, I1)),
@@ -307,8 +312,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                 make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
 
-            const auto wei_k0_k1_ydotslice_xdotslice_c_grid_desc =
-                transform_tensor_descriptor(wei_k_ydot_ytilde_xdot_xtilde_c_grid_desc,
+            const auto wei_k0_k1_ydotslice_xdotslice_e_grid_desc =
+                transform_tensor_descriptor(wei_k_ydot_ytilde_xdot_xtilde_e_grid_desc,
                                             make_tuple(make_unmerge_transform(make_tuple(K0, K1)),
                                                        make_slice_transform(YDot, I0, YDotSlice),
                                                        make_slice_transform(XDot, I0, XDotSlice),
@@ -329,7 +334,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                                        Sequence<4>{}));
 
             const auto wei_gemmk0_gemmn_gemmk1_grid_desc = transform_tensor_descriptor(
-                wei_k0_k1_ydotslice_xdotslice_c_grid_desc,
+                wei_k0_k1_ydotslice_xdotslice_e_grid_desc,
                 make_tuple(make_merge_transform(make_tuple(YDotSlice, XDotSlice, K0)),
                            make_pass_through_transform(C),
                            make_pass_through_transform(K1)),
@@ -337,8 +342,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
             // C: input tensor
-            const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
-                in_n_hi_wi_c_grid_desc,
+            const auto in_n_hip_wip_e_grid_desc = transform_tensor_descriptor(
+                in_n_hi_wi_e_grid_desc,
                 make_tuple(make_pass_through_transform(N),
                            make_pad_transform(Hi, InLeftPadH, InRightPadH),
                            make_pad_transform(Wi, InLeftPadW, InRightPadW),
@@ -346,8 +351,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
 
-            const auto in_n_ytilde_htilde_xtilde_wtilde_c_grid_desc = transform_tensor_descriptor(
-                in_n_hip_wip_c_grid_desc,
+            const auto in_n_ytilde_htilde_xtilde_wtilde_e_grid_desc = transform_tensor_descriptor(
+                in_n_hip_wip_e_grid_desc,
                 make_tuple(make_pass_through_transform(N),
                            make_embed_transform(make_tuple(YTilde, HTilde),
                                                 make_tuple(ConvDilationH, ConvStrideH)),
@@ -357,8 +362,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                 make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
 
-            const auto in_n_htildeslice_wtildeslice_c_grid_desc = transform_tensor_descriptor(
-                in_n_ytilde_htilde_xtilde_wtilde_c_grid_desc,
+            const auto in_n_htildeslice_wtildeslice_e_grid_desc = transform_tensor_descriptor(
+                in_n_ytilde_htilde_xtilde_wtilde_e_grid_desc,
                 make_tuple(make_pass_through_transform(N),
                            make_freeze_transform(i_ytilde),
                            make_slice_transform(HTilde, IHTildeSliceBegin, HTildeSlice),
@@ -379,7 +384,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                            Sequence<3>{}));
 
             const auto in_gemmm_gemmn_grid_desc = transform_tensor_descriptor(
-                in_n_htildeslice_wtildeslice_c_grid_desc,
+                in_n_htildeslice_wtildeslice_e_grid_desc,
                 make_tuple(make_merge_transform(make_tuple(N, HTildeSlice, WTildeSlice)),
                            make_pass_through_transform(C)),
                 make_tuple(Sequence<0, 1, 2>{}, Sequence<3>{}),
@@ -400,16 +405,25 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     template <ck::index_t NDim, typename ck::enable_if<NDim == 2, bool>::type = false>
     static auto GetABCDsGridDesc()
     {
-        return MakeABCDsGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<2>(
-            1, 1, 1, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {0, 0});
+        return MakeABCDsGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<2>({1, 1, 1, 1, 1},
+                                                                    {1, 1, 1, 1, 1},
+                                                                    {1, 1, 1, 1, 1},
+                                                                    {1, 1, 1, 1, 1},
+                                                                    {1, 1, 1, 1, 1},
+                                                                    {1, 1, 1, 1, 1},
+                                                                    {1, 1},
+                                                                    {1, 1},
+                                                                    {1, 1},
+                                                                    {1, 1},
+                                                                    {0, 0});
     }
 
     using ABCDsGridDescs = decltype(GetABCDsGridDesc<NDimSpatial>());
 
     using AGridDesc_K0_M_K1 = remove_cvref_t<decltype(ABCDsGridDescs{}[I0])>;
     using BGridDesc_K0_N_K1 = remove_cvref_t<decltype(ABCDsGridDescs{}[I1])>;
-    using CGridDesc_M_N     = remove_cvref_t<decltype(ABCDsGridDescs{}[I2])>;
-    using DsGridDesc_M_N    = remove_cvref_t<decltype(ABCDsGridDescs{}[I3])>;
+    using EGridDesc_M_N     = remove_cvref_t<decltype(ABCDsGridDescs{}[I2])>;
+    using DsGridDesc_M_N    = remove_cvref_t<decltype(make_tuple(ABCDsGridDescs{}[I3]))>;
 
     // GridwiseGemm
 #if 1
@@ -421,8 +435,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         InMemoryDataOperationEnum::Set,
         AGridDesc_K0_M_K1,
         BGridDesc_K0_N_K1,
-        CGridDesc_M_N,
-        DsGridDesc_M_N,
+        EGridDesc_M_N,
+        tuple_element_t<0, DsGridDesc_M_N>,
         AElementwiseOp,
         BElementwiseOp,
         CDEElementwiseOp,
@@ -506,51 +520,50 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     // Argument
     struct Argument : public BaseArgument
     {
-        Argument(void* p_in_grid,
-                 const void* p_wei_grid,
-                 const void* p_out_grid,
-                 const void* p_bias_grid,
-                 ck::index_t N,
-                 ck::index_t K,
-                 ck::index_t C,
-                 std::array<ck::index_t, NDimSpatial> input_spatial_lengths,
-                 std::array<ck::index_t, NDimSpatial> filter_spatial_lengths,
-                 std::array<ck::index_t, NDimSpatial> output_spatial_lengths,
-                 std::array<ck::index_t, NDimSpatial> conv_filter_strides,
-                 std::array<ck::index_t, NDimSpatial> conv_filter_dilations,
-                 std::array<ck::index_t, NDimSpatial> input_left_pads,
-                 std::array<ck::index_t, NDimSpatial> input_right_pads,
-                 ck::index_t M01,
-                 ck::index_t N01,
-                 CDEElementwiseOp in_element_op,
-                 BElementwiseOp wei_element_op,
-                 AElementwiseOp out_element_op)
-            : p_a_grid_{p_out_grid},
-              p_b_grid_{p_wei_grid},
-              p_c_grid_{p_in_grid},
-              p_c0_grid_{p_bias_grid},
-              M01_{M01},
-              N01_{N01},
-              a_element_op_{out_element_op},
-              b_element_op_{wei_element_op},
-              c_element_op_{in_element_op},
-              Conv_N_{N},
-              Conv_K_{K},
-              Conv_C_{C},
-              input_spatial_lengths_{input_spatial_lengths},
-              filter_spatial_lengths_{filter_spatial_lengths},
-              output_spatial_lengths_{output_spatial_lengths},
+        Argument(const void* p_a,                                 // output image
+                 const void* p_b,                                 // weight
+                 const std::array<const void*, NumDTensor>& p_ds, // bias
+                 void* p_e,                                       // input image
+                 const std::array<index_t, NDimSpatial + 3>& a_g_n_k_wos_lengths,
+                 const std::array<index_t, NDimSpatial + 3>& a_g_n_k_wos_strides,
+                 const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+                 const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+                 const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>&
+                     ds_g_n_c_wis_lengths,
+                 const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>&
+                     ds_g_n_c_wis_strides,
+                 const std::array<index_t, NDimSpatial + 3>& e_g_n_c_wis_lengths,
+                 const std::array<index_t, NDimSpatial + 3>& e_g_n_c_wis_strides,
+                 const std::array<index_t, NDimSpatial>& conv_filter_strides,
+                 const std::array<index_t, NDimSpatial>& conv_filter_dilations,
+                 const std::array<index_t, NDimSpatial>& input_left_pads,
+                 const std::array<index_t, NDimSpatial>& input_right_pads,
+                 const AElementwiseOp& a_element_op,
+                 const BElementwiseOp& b_element_op,
+                 const CDEElementwiseOp& cde_element_op)
+            : p_a_grid_{p_a},
+              p_b_grid_{p_b},
+              p_d0_grid_{p_ds[I0]},
+              p_e_grid_{p_e},
+              a_element_op_{a_element_op},
+              b_element_op_{b_element_op},
+              cde_element_op_{cde_element_op},
+              a_g_n_k_wos_lengths_{a_g_n_k_wos_lengths},
+              a_g_n_k_wos_strides_{a_g_n_k_wos_strides},
+              b_g_k_c_xs_lengths_{b_g_k_c_xs_lengths},
+              b_g_k_c_xs_strides_{b_g_k_c_xs_strides},
+              ds_g_n_c_wis_lengths_{ds_g_n_c_wis_lengths},
+              ds_g_n_c_wis_strides_{ds_g_n_c_wis_strides},
+              e_g_n_c_wis_lengths_{e_g_n_c_wis_lengths},
+              e_g_n_c_wis_strides_{e_g_n_c_wis_strides},
               conv_filter_strides_{conv_filter_strides},
               conv_filter_dilations_{conv_filter_dilations},
               input_left_pads_{input_left_pads},
               input_right_pads_{input_right_pads}
         {
-            CreateABCDesc<NDimSpatial>();
-        }
+            const index_t Y = b_g_k_c_xs_lengths[3];
+            const index_t X = b_g_k_c_xs_lengths[4];
 
-        template <ck::index_t NDim, typename ck::enable_if<NDim == 2, bool>::type = false>
-        void CreateABCDesc()
-        {
             const index_t ConvStrideH = conv_filter_strides_[0];
             const index_t ConvStrideW = conv_filter_strides_[1];
 
@@ -563,9 +576,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             const auto YTilde = ConvStrideH / GcdStrideDilationH;
             const auto XTilde = ConvStrideW / GcdStrideDilationW;
 
-            const index_t Y = filter_spatial_lengths_[0];
-            const index_t X = filter_spatial_lengths_[1];
-
             for(index_t i_ytilde = 0; i_ytilde < YTilde; ++i_ytilde)
             {
                 for(index_t i_xtilde = 0; i_xtilde < XTilde; ++i_xtilde)
@@ -573,6 +583,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                     // check slice is valid
                     const auto YDotSlice = math::integer_divide_ceil(Y - i_ytilde, YTilde);
                     const auto XDotSlice = math::integer_divide_ceil(X - i_xtilde, XTilde);
+
                     if(YDotSlice * XDotSlice <= 0)
                     {
                         continue;
@@ -580,80 +591,91 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
                     const auto descs =
                         DeviceOp::MakeABCDsGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
-                            Conv_N_,
-                            Conv_K_,
-                            Conv_C_,
-                            input_spatial_lengths_,
-                            filter_spatial_lengths_,
-                            output_spatial_lengths_,
+                            a_g_n_k_wos_lengths_,
+                            a_g_n_k_wos_strides_,
+                            b_g_k_c_xs_lengths_,
+                            b_g_k_c_xs_strides_,
+                            e_g_n_c_wis_lengths_,
+                            e_g_n_c_wis_strides_,
                             conv_filter_strides_,
                             conv_filter_dilations_,
                             input_left_pads_,
                             input_right_pads_,
                             {i_ytilde, i_xtilde});
+
                     a_grid_desc_k0_m_k1_container_.push_back(descs[I0]);
                     b_grid_desc_k0_n_k1_container_.push_back(descs[I1]);
-                    c_grid_desc_m_n_container_.push_back(descs[I2]);
-                    c0_grid_desc_m_n_container_.push_back(descs[I3]);
+                    e_grid_desc_m_n_container_.push_back(descs[I2]);
+                    ds_grid_desc_m_n_container_.push_back(ck::make_tuple(descs[I3]));
 
-                    auto block_2_ctile_map =
-                        GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2], M01_, N01_);
+                    auto block_2_etile_map =
+                        GridwiseGemm::MakeDefaultBlock2CTileMap(descs[I2], 1, 1);
 
                     if(GridwiseGemm::CheckValidity(
-                           descs[I0], descs[I1], descs[I2], block_2_ctile_map))
+                           descs[I0], descs[I1], descs[I2], block_2_etile_map))
                     {
-                        c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_
-                            .push_back(
-                                GridwiseGemm::
-                                    MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
-                                        descs[I2]));
-
-                        c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_
+                        d0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_
                             .push_back(
                                 GridwiseGemm::
                                     MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
                                         descs[I3]));
 
-                        block_2_ctile_map_container_.push_back(block_2_ctile_map);
+                        e_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_
+                            .push_back(
+                                GridwiseGemm::
+                                    MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
+                                        descs[I2]));
+
+                        block_2_etile_map_container_.push_back(block_2_etile_map);
                     }
                 }
             }
         }
 
+        // pointers
         const void* p_a_grid_;
         const void* p_b_grid_;
-        void* p_c_grid_;
-        const void* p_c0_grid_;
+        const void* p_d0_grid_;
+        void* p_e_grid_;
+
+        // tensor descriptor for problem definition
         std::vector<AGridDesc_K0_M_K1> a_grid_desc_k0_m_k1_container_;
         std::vector<BGridDesc_K0_N_K1> b_grid_desc_k0_n_k1_container_;
-        std::vector<CGridDesc_M_N> c_grid_desc_m_n_container_;
-        std::vector<DsGridDesc_M_N> c0_grid_desc_m_n_container_;
-        std::vector<
-            typename GridwiseGemm::
-                CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>
-            c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_;
+        std::vector<DsGridDesc_M_N> ds_grid_desc_m_n_container_;
+        std::vector<EGridDesc_M_N> e_grid_desc_m_n_container_;
+
+        // tensor descriptor for block-wise copy
         std::vector<
             typename GridwiseGemm::
                 C0GridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>
-            c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_;
-        std::vector<typename GridwiseGemm::DefaultBlock2CTileMap> block_2_ctile_map_container_;
-        index_t M01_;
-        index_t N01_;
+            d0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_;
+
+        std::vector<
+            typename GridwiseGemm::
+                CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl>
+            e_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_;
+
+        // block-to-e-tile map
+        std::vector<typename GridwiseGemm::DefaultBlock2CTileMap> block_2_etile_map_container_;
+
+        // element-wise op
         AElementwiseOp a_element_op_;
         BElementwiseOp b_element_op_;
-        CDEElementwiseOp c_element_op_;
-        // for checking IsSupportedArgument()
-        index_t Conv_N_;
-        index_t Conv_K_;
-        index_t Conv_C_;
+        CDEElementwiseOp cde_element_op_;
 
-        std::array<ck::index_t, NDimSpatial> input_spatial_lengths_;
-        std::array<ck::index_t, NDimSpatial> filter_spatial_lengths_;
-        std::array<ck::index_t, NDimSpatial> output_spatial_lengths_;
-        std::array<ck::index_t, NDimSpatial> conv_filter_strides_;
-        std::array<ck::index_t, NDimSpatial> conv_filter_dilations_;
-        std::array<ck::index_t, NDimSpatial> input_left_pads_;
-        std::array<ck::index_t, NDimSpatial> input_right_pads_;
+        // for checking IsSupportedArgument()
+        std::array<index_t, NDimSpatial + 3> a_g_n_k_wos_lengths_;
+        std::array<index_t, NDimSpatial + 3> a_g_n_k_wos_strides_;
+        std::array<index_t, NDimSpatial + 3> b_g_k_c_xs_lengths_;
+        std::array<index_t, NDimSpatial + 3> b_g_k_c_xs_strides_;
+        std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_c_wis_lengths_;
+        std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_c_wis_strides_;
+        std::array<index_t, NDimSpatial + 3> e_g_n_c_wis_lengths_;
+        std::array<index_t, NDimSpatial + 3> e_g_n_c_wis_strides_;
+        std::array<index_t, NDimSpatial> conv_filter_strides_;
+        std::array<index_t, NDimSpatial> conv_filter_dilations_;
+        std::array<index_t, NDimSpatial> input_left_pads_;
+        std::array<index_t, NDimSpatial> input_right_pads_;
     };
 
     // Invoker
@@ -680,27 +702,33 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                               << arg.b_grid_desc_k0_n_k1_container_[i].GetLength(I2) << "}"
                               << std::endl;
 
-                    std::cout << "arg.c_grid_desc_m_n_container_{ "
-                              << arg.c_grid_desc_m_n_container_[i].GetLength(I0) << ", "
-                              << arg.c_grid_desc_m_n_container_[i].GetLength(I1) << "}"
+                    std::cout << "arg.e_grid_desc_m_n_container_{ "
+                              << arg.e_grid_desc_m_n_container_[i].GetLength(I0) << ", "
+                              << arg.e_grid_desc_m_n_container_[i].GetLength(I1) << "}"
                               << std::endl;
 
-                    std::cout << "arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_( "
-                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I0)
+                    std::cout << "arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_( "
+                              << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I0)
                               << ", "
-                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I1)
+                              << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I1)
+                            a_g_n_k_wos_lengths_,
+                            a_g_n_k_wos_strides_,
+                            b_g_k_c_xs_lengths_,
+                            b_g_k_c_xs_strides_,
+                            e_g_n_c_wis_lengths_,
+                            e_g_n_c_wis_strides_,
                               << ", "
-                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I2)
+                              << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I2)
                               << ", "
-                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I3)
+                              << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I3)
                               << ", "
-                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I4)
+                              << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I4)
                               << ", "
-                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I5)
+                              << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I5)
                               << ", "
-                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I6)
+                              << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I6)
                               << ", "
-                              << arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I7)
+                              << arg.e_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_container_[i].GetLength(I7)
                               << " ) " << std::endl;
 
 #endif
@@ -708,15 +736,15 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
                 if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
                                                 arg.b_grid_desc_k0_n_k1_container_[i],
-                                                arg.c_grid_desc_m_n_container_[i],
-                                                arg.block_2_ctile_map_container_[i]))
+                                                arg.e_grid_desc_m_n_container_[i],
+                                                arg.block_2_etile_map_container_[i]))
                 {
                     throw std::runtime_error(
                         "wrong! GridwiseGemm_km_kn_m0m1n0n1_xdlops_v3r1 has invalid setting");
                 }
 
-                const index_t grid_size = arg.block_2_ctile_map_container_[i].CalculateGridSize(
-                    arg.c_grid_desc_m_n_container_[i]);
+                const index_t grid_size = arg.block_2_etile_map_container_[i].CalculateGridSize(
+                    arg.e_grid_desc_m_n_container_[i]);
 
                 const auto K = arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I0) *
                                arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I2);
@@ -752,18 +780,18 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         0,
                         static_cast<const ADataType*>(arg.p_a_grid_),
                         static_cast<const BDataType*>(arg.p_b_grid_),
-                        static_cast<EDataType*>(arg.p_c_grid_),
-                        static_cast<const D0DataType*>(arg.p_c0_grid_),
+                        static_cast<EDataType*>(arg.p_e_grid_),
+                        static_cast<const D0DataType*>(arg.p_d0_grid_),
                         arg.a_grid_desc_k0_m_k1_container_[i],
                         arg.b_grid_desc_k0_n_k1_container_[i],
-                        arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_
+                        arg.e_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_
                             [i],
-                        arg.c0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_
+                        arg.d0_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_container_
                             [i],
                         arg.a_element_op_,
                         arg.b_element_op_,
-                        arg.c_element_op_,
-                        arg.block_2_ctile_map_container_[i]);
+                        arg.cde_element_op_,
+                        arg.block_2_etile_map_container_[i]);
                 };
 
                 if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
@@ -793,6 +821,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        const index_t ConvK = arg.b_g_k_c_xs_lengths_[1];
+        const index_t ConvC = arg.b_g_k_c_xs_lengths_[2];
+
         if constexpr(ConvBackwardDataSpecialization ==
                      ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0)
         {
@@ -809,14 +840,14 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
         // vector load A/B matrix from global memory
         if(!(ABlockTransferSrcVectorDim == 2 && BBlockTransferSrcVectorDim == 1 &&
-             arg.Conv_K_ % ABlockTransferSrcScalarPerVector == 0 &&
-             arg.Conv_C_ % BBlockTransferSrcScalarPerVector == 0))
+             ConvK % ABlockTransferSrcScalarPerVector == 0 &&
+             ConvC % BBlockTransferSrcScalarPerVector == 0))
         {
             return false;
         }
 
         // vector store C matrix into global memory
-        if(!(arg.Conv_C_ % CBlockTransferScalarPerVector_NWaveNPerXdl == 0))
+        if(!(ConvC % CBlockTransferScalarPerVector_NWaveNPerXdl == 0))
         {
             return false;
         }
@@ -826,8 +857,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         {
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
                                             arg.b_grid_desc_k0_n_k1_container_[i],
-                                            arg.c_grid_desc_m_n_container_[i],
-                                            arg.block_2_ctile_map_container_[i]))
+                                            arg.e_grid_desc_m_n_container_[i],
+                                            arg.block_2_etile_map_container_[i]))
             {
                 return false;
             }
@@ -850,9 +881,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                  const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,  // weight
                  const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,  // weight
                  const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>&
-                     ds_g_n_k_wos_lengths, // bias
+                     ds_g_n_c_wis_lengths, // bias
                  const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>&
-                     ds_g_n_k_wos_strides,                                        // bias
+                     ds_g_n_c_wis_strides,                                        // bias
                  const std::array<index_t, NDimSpatial + 3>& e_g_n_c_wis_lengths, // input image
                  const std::array<index_t, NDimSpatial + 3>& e_g_n_c_wis_strides, // input image
                  const std::array<index_t, NDimSpatial>& conv_filter_strides,
@@ -863,43 +894,25 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                  const BElementwiseOp& b_element_op,
                  const CDEElementwiseOp& cde_element_op)
     {
-        const index_t N = e_g_n_c_wis_lengths[1];
-        const index_t K = b_g_k_c_xs_lengths[1];
-        const index_t C = b_g_k_c_xs_lengths[2];
-
-        std::array<ck::index_t, NDimSpatial> input_spatial_lengths{};
-        std::array<ck::index_t, NDimSpatial> filter_spatial_lengths{};
-        std::array<ck::index_t, NDimSpatial> output_spatial_lengths{};
-
-        std::copy(a_g_n_k_wos_lengths.begin() + 3,
-                  a_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
-                  output_spatial_lengths.begin());
-        std::copy(b_g_k_c_xs_lengths.begin() + 3,
-                  b_g_k_c_xs_lengths.begin() + 3 + NDimSpatial,
-                  filter_spatial_lengths.begin());
-        std::copy(e_g_n_c_wis_lengths.begin() + 3,
-                  e_g_n_c_wis_lengths.begin() + 3 + NDimSpatial,
-                  input_spatial_lengths.begin());
-
-        return Argument{p_e,
+        return Argument{p_a,
                         p_b,
-                        p_a,
-                        p_ds[I0],
-                        N,
-                        K,
-                        C,
-                        input_spatial_lengths,
-                        filter_spatial_lengths,
-                        output_spatial_lengths,
+                        p_ds,
+                        p_e,
+                        a_g_n_k_wos_lengths,
+                        a_g_n_k_wos_strides,
+                        b_g_k_c_xs_lengths,
+                        b_g_k_c_xs_strides,
+                        ds_g_n_c_wis_lengths,
+                        ds_g_n_c_wis_strides,
+                        e_g_n_c_wis_lengths,
+                        e_g_n_c_wis_strides,
                         conv_filter_strides,
                         conv_filter_dilations,
                         input_left_pads,
                         input_right_pads,
-                        1,
-                        1,
-                        cde_element_op,
+                        a_element_op,
                         b_element_op,
-                        a_element_op};
+                        cde_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -914,9 +927,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,  // weight
         const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,  // weight
         const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>&
-            ds_g_n_k_wos_lengths, // bias
+            ds_g_n_c_wis_lengths, // bias
         const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>&
-            ds_g_n_k_wos_strides,                                        // bias
+            ds_g_n_c_wis_strides,                                        // bias
         const std::array<index_t, NDimSpatial + 3>& e_g_n_c_wis_lengths, // input image
         const std::array<index_t, NDimSpatial + 3>& e_g_n_c_wis_strides, // input image
         const std::array<index_t, NDimSpatial>& conv_filter_strides,
@@ -927,43 +940,25 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         const BElementwiseOp& b_element_op,
         const CDEElementwiseOp& cde_element_op) override
     {
-        const index_t N = e_g_n_c_wis_lengths[1];
-        const index_t K = b_g_k_c_xs_lengths[1];
-        const index_t C = b_g_k_c_xs_lengths[2];
-
-        std::array<ck::index_t, NDimSpatial> input_spatial_lengths{};
-        std::array<ck::index_t, NDimSpatial> filter_spatial_lengths{};
-        std::array<ck::index_t, NDimSpatial> output_spatial_lengths{};
-
-        std::copy(a_g_n_k_wos_lengths.begin() + 3,
-                  a_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
-                  output_spatial_lengths.begin());
-        std::copy(b_g_k_c_xs_lengths.begin() + 3,
-                  b_g_k_c_xs_lengths.begin() + 3 + NDimSpatial,
-                  filter_spatial_lengths.begin());
-        std::copy(e_g_n_c_wis_lengths.begin() + 3,
-                  e_g_n_c_wis_lengths.begin() + 3 + NDimSpatial,
-                  input_spatial_lengths.begin());
-
-        return std::make_unique<Argument>(p_e,
+        return std::make_unique<Argument>(p_a,
                                           p_b,
-                                          p_a,
-                                          p_ds[I0],
-                                          N,
-                                          K,
-                                          C,
-                                          input_spatial_lengths,
-                                          filter_spatial_lengths,
-                                          output_spatial_lengths,
+                                          p_ds,
+                                          p_e,
+                                          a_g_n_k_wos_lengths,
+                                          a_g_n_k_wos_strides,
+                                          b_g_k_c_xs_lengths,
+                                          b_g_k_c_xs_strides,
+                                          ds_g_n_c_wis_lengths,
+                                          ds_g_n_c_wis_strides,
+                                          e_g_n_c_wis_lengths,
+                                          e_g_n_c_wis_strides,
                                           conv_filter_strides,
                                           conv_filter_dilations,
                                           input_left_pads,
                                           input_right_pads,
-                                          1,
-                                          1,
-                                          cde_element_op,
+                                          a_element_op,
                                           b_element_op,
-                                          a_element_op);
+                                          cde_element_op);
     }
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
