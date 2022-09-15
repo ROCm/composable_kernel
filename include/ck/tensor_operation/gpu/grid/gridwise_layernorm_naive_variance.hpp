@@ -79,6 +79,7 @@ struct GridwiseLayernormNaiveVariance_mk_to_mk
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
+    static constexpr auto I2 = Number<2>{};
 
     static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
@@ -235,7 +236,8 @@ struct GridwiseLayernormNaiveVariance_mk_to_mk
             p_beta_global, beta_grid_desc_m_k.GetElementSpaceSize());
 
         // E(x), E[x^2], var(x)
-        int reduce_length = x_grid_desc_m_k.GetTransforms()[I0].GetUpperLengths()[I1];
+        // FIXME: Should not hack the transform from deviceOP
+        int reduce_length = x_grid_desc_m_k.GetTransforms()[I2].GetUpperLengths()[I0];
 
         index_t reducedTiles = 0;
         do
