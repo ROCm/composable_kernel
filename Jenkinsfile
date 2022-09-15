@@ -191,7 +191,7 @@ def buildHipClangJob(Map conf=[:]){
         env.HSA_ENABLE_SDMA=0
         checkout scm
 
-        def image = "composable_kernels_${params.COMPILER_VERSION}"
+        def image = getDockerImageName() //"new_ck_ub20.04_rocm5.2.3_${params.COMPILER_VERSION}"
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
         def gpu_arch = conf.get("gpu_arch", "gfx908")
 
@@ -288,7 +288,7 @@ def runCKProfiler(Map conf=[:]){
         checkout scm
 
 
-        def image = "composable_kernels_${params.COMPILER_VERSION}"
+        def image = getDockerImageName() //"new_ck_ub20.04_rocm5.2.3_${params.COMPILER_VERSION}"
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
         def gpu_arch = conf.get("gpu_arch", "gfx908")
 
@@ -369,6 +369,7 @@ def runCKProfiler(Map conf=[:]){
                             archiveArtifacts "perf_conv_bwd_data_${gpu_arch}.log"
                             archiveArtifacts "perf_gemm_bilinear_${gpu_arch}.log"
                             archiveArtifacts "perf_reduction_${gpu_arch}.log"
+                            archiveArtifacts "perf_splitK_gemm_verify_${gpu_arch}.log"
                             archiveArtifacts "perf_splitK_gemm_${gpu_arch}.log"
                             archiveArtifacts "perf_onnx_gemm_${gpu_arch}.log"
                            // stash perf files to master
@@ -431,7 +432,7 @@ def runTests_and_Examples(Map conf=[:]){
         env.HSA_ENABLE_SDMA=0
         checkout scm
 
-        def image = "composable_kernels_${params.COMPILER_VERSION}"
+        def image = getDockerImageName() //"new_ck_ub20.04_rocm5.2.3_${params.COMPILER_VERSION}"
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
         def gpu_arch = conf.get("gpu_arch", "gfx908")
 
@@ -532,7 +533,7 @@ def Build_CK(Map conf=[:]){
         checkout scm
 
 
-        def image = "composable_kernels_${params.COMPILER_VERSION}"
+        def image = getDockerImageName() //"new_ck_ub20.04_rocm5.2.3_${params.COMPILER_VERSION}"
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
         def gpu_arch = conf.get("gpu_arch", "gfx908")
 
@@ -602,7 +603,7 @@ def Build_CK_and_Reboot(Map conf=[:]){
 def process_results(Map conf=[:]){
     env.HSA_ENABLE_SDMA=0
     checkout scm
-    def image = "composable_kernels_${params.COMPILER_VERSION}"
+    def image = getDockerImageName() //"new_ck_ub20.04_rocm5.2.3_${params.COMPILER_VERSION}"
     def prefixpath = "/opt/rocm"
     def gpu_arch = conf.get("gpu_arch", "gfx908")
 
