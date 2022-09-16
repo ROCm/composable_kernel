@@ -606,9 +606,11 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-#if 1
-            arg.Print();
-#endif
+            if(stream_config.log_level_ > 0)
+            {
+                arg.Print();
+            }
+
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
                                             arg.b_grid_desc_n_k_,
                                             arg.ds_grid_desc_m_n_,
