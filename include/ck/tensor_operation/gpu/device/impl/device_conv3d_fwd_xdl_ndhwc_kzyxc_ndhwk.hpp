@@ -22,7 +22,7 @@ namespace tensor_operation {
 namespace device {
 
 /*
- * \see \link device_batched_gemm_xdl.hpp kernel_batched_gemm_xdlops_v2r3() \endlink.
+ * \see \link impl/device_batched_gemm_xdl.hpp kernel_batched_gemm_xdlops_v2r3() \endlink.
  */
 template <typename GridwiseGemm,
           typename FloatAB,

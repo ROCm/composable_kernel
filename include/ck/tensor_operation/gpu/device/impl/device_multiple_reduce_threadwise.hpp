@@ -11,7 +11,7 @@
 
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/tensor_operation/gpu/device/device_multiple_reduce.hpp"
-#include "ck/tensor_operation/gpu/device/device_reduce_common.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_reduce_common.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_2d_multiple_reduction_threadwise.hpp"
 
 #include "ck/host_utility/kernel_launch.hpp"

@@ -11,7 +11,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce.hpp"
-#include "ck/tensor_operation/gpu/device/device_reduce_common.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_reduce_common.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_2d_reduction_multiblock.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_set_buffer_value.hpp"
 #include "ck/host_utility/device_prop.hpp"
