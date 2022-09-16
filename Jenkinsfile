@@ -563,7 +563,7 @@ def Build_CK(Map conf=[:]){
                     dir("build"){
                         sh 'make package'
                         //archiveArtifacts "Libs_composable_kernel_${env.BRANCH_NAME}.deb", fingerprint: true
-                        archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
+                        archiveArtifacts artifacts: "*.deb", allowEmptyArchive: true, fingerprint: true
                     }
                 }
             }
