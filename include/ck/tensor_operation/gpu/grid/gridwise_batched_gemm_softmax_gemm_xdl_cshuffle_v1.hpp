@@ -76,8 +76,8 @@ template <typename FloatAB,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched,
-          PipelineVersion PipelineVer = PipelineVersion::v1,
-          bool PadN>
+          bool PadN,
+          PipelineVersion PipelineVer = PipelineVersion::v1>
 struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
 {
     static_assert(LoopSched == LoopScheduler::Default,
