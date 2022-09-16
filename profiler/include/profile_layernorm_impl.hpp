@@ -7,7 +7,7 @@
 
 #include "ck/ck.hpp"
 #include "profiler/include/data_type_enum.hpp"
-#include "ck/tensor_operation/gpu/device/device_layernorm_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_layernorm_impl.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
