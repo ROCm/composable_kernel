@@ -24,7 +24,7 @@ using GammaDataType = ck::half_t;
 using BetaDataType  = ck::half_t;
 using YDataType     = ck::half_t;
 using AccDataType   = float;
-using Sigmoid   = ck::tensor_operation::element_wise::Sigmoid;
+using Sigmoid       = ck::tensor_operation::element_wise::Sigmoid;
 
 constexpr int Rank         = 5;
 constexpr int NumReduceDim = 3;
@@ -50,7 +50,6 @@ using DeviceInstance =
                                                       1,   // BetaVecDim (0=M, 1=K)
                                                       8,   // BetaScalarPerVector
                                                       8>;  // OutScalarPerVector
-
 
 int main()
 {
