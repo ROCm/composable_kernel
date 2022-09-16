@@ -32,7 +32,6 @@ void host_elementwise4D(HostTensorB& B_nhwc,
                         const std::vector<std::size_t>& shape_nchw,
                         Functor functor)
 {
-    //    using btype = ck::remove_reference_t<decltype(B_nhwc(0, 0, 0, 0))>;
     for(std::size_t n = 0; n < shape_nchw[0]; ++n)
         for(std::size_t c = 0; c < shape_nchw[1]; ++c)
             for(std::size_t h = 0; h < shape_nchw[2]; ++h)
@@ -65,8 +64,10 @@ int main()
     std::array<void*, 1> output      = {b_device_buf.GetDeviceBuffer()};
 
     std::array<ck::index_t, 4> ab_lengths;
-    std::array<ck::index_t, 4> a_strides = {256, 64, 8, 1};
-    std::array<ck::index_t, 4> b_strides = {256, 1, 32, 4};
+    std::array<ck::index_t, 4> a_strides = {static_cast<int>(nchw[1]*nchw[2]*nchw[3]),
+	   static_cast<int>(nchw[2]*nchw[3]),
+	  static_cast<int>(nchw[3]), 1};
+    std::array<ck::index_t, 4> b_strides = {static_cast<int>(nhwc[1]*nhwc[2]*nhwc[3]), 1, 32, 4};
 
     // std::cout << "Length: " << ab_lengths << std::endl;
     // std::cout << "A stride: " << a_strides << std::endl;
