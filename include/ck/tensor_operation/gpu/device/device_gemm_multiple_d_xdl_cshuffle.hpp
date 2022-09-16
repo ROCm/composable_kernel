@@ -294,8 +294,6 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
     using BGridDesc_BK0_N_BK1 = remove_cvref_t<decltype(
         GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(BGridDesc_N_K{}))>;
 
-    using Block2ETileMap = typename GridwiseGemm::DefaultBlock2ETileMap;
-
     // Argument
     struct Argument : public BaseArgument
     {
@@ -393,7 +391,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
             e_grid_desc_mblock_mperblock_nblock_nperblock_;
 
         // block-to-e-tile map
-        Block2ETileMap block_2_etile_map_;
+        typename GridwiseGemm::DefaultBlock2ETileMap block_2_etile_map_;
 
         // element-wise op
         AElementwiseOperation a_element_op_;

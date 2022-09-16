@@ -202,8 +202,7 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
                   const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
                   const B1GridDesc_BK0_N_BK1& b1_grid_desc_bk0_n_bk1,
                   const CGridDesc_M_N& c_grid_desc_m_n,
-                  const Block2CTileMap& block_2_ctile_map,
-                  const std::vector<index_t>& lengths_m_n_k_o)
+                  const Block2CTileMap& block_2_ctile_map)
     {
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
@@ -215,13 +214,6 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
         const auto Gemm1N = b1_grid_desc_bk0_n_bk1.GetLength(I1);
 
         if(!(M == c_grid_desc_m_n.GetLength(I0) && Gemm1N == c_grid_desc_m_n.GetLength(I1)))
-        {
-            return false;
-        }
-
-        // K is rounded to nearest multiples of K1 during tensor transformation so instead get KRaw
-        const auto KRaw = lengths_m_n_k_o[2];
-        if(!(KRaw % AK1 == 0 && KRaw % BK1 == 0))
         {
             return false;
         }
@@ -605,9 +597,17 @@ struct GridwiseBatchedGemmGemm_Xdl_CShuffle
             static_cast<FloatAB*>(p_shared) + SharedMemTrait::b1_block_space_offset,
             b1_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
-        constexpr index_t Gemm1KPack = math::max(
-            math::lcm(MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.group_size, B1K1),
-            MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+        // selected_mfma.group_size or B1K1 <= Gemm1KPack <= selected_mfma.group_size
+        // selected_mfma.k_per_blk <= Gemm1KPack
+        //
+        // Following similar rationale behind Gemm0KPack, let Gemm1KPack be the lowest common
+        // multiples of A1K1 (predetermined by selected_mfma.group_size) and B1K1. But in this case
+        // Gemm1KPack can't be higher than A1K1 itself because A1 matrix is distributed in VGPRs
+        // with 'group_size' amount of contiguous elements. Having Gemm1KPack greater than A1K1 will
+        // cause mismatch in summation index for example c[0:7] = a1[[0:3, 8:11]] * b1[0:7].
+        // therefore we may just as well assign Gemm1KPack = group_size
+        constexpr index_t Gemm1KPack =
+            MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.group_size;
 
         auto gemm1_blockwise_gemm = BlockwiseGemmXdlops_v2<
             BlockSize,

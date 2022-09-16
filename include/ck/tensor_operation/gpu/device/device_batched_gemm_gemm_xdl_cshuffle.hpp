@@ -16,6 +16,7 @@
 #include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_gemm_xdl_cshuffle_v1.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
+#include "ck/host_utility/io.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -455,13 +456,20 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
                                            b_grid_desc_bk0_n_bk1_,
                                            b1_grid_desc_bk0_n_bk1_,
                                            c_grid_desc_m_n_,
-                                           block_2_ctile_map_,
-                                           raw_lengths_m_n_k_o_))
+                                           block_2_ctile_map_))
             {
                 c_grid_desc_mblock_mperblock_nblock_nperblock_ =
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         c_grid_desc_m_n_);
             }
+        }
+
+        void Print() const
+        {
+            std::cout << "A[AK0, M, AK1]: " << a_grid_desc_ak0_m_ak1_ << std::endl;
+            std::cout << "B0[BK0, N, BK1]: " << b_grid_desc_bk0_n_bk1_ << std::endl;
+            std::cout << "B1[BK0, N, BK1]: " << b1_grid_desc_bk0_n_bk1_ << std::endl;
+            std::cout << "C[M, N]: " << c_grid_desc_m_n_ << std::endl;
         }
 
         //  private:
@@ -499,8 +507,7 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
                                             arg.b_grid_desc_bk0_n_bk1_,
                                             arg.b1_grid_desc_bk0_n_bk1_,
                                             arg.c_grid_desc_m_n_,
-                                            arg.block_2_ctile_map_,
-                                            arg.raw_lengths_m_n_k_o_))
+                                            arg.block_2_ctile_map_))
             {
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
@@ -619,8 +626,7 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
                                            arg.b_grid_desc_bk0_n_bk1_,
                                            arg.b1_grid_desc_bk0_n_bk1_,
                                            arg.c_grid_desc_m_n_,
-                                           arg.block_2_ctile_map_,
-                                           arg.raw_lengths_m_n_k_o_);
+                                           arg.block_2_ctile_map_);
     }
 
     // polymorphic
