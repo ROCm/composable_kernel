@@ -151,19 +151,19 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-    kernel_gemm_xdlops_bwd_weight(const FloatAB* __restrict__ p_a_grid,
-                                  const FloatAB* __restrict__ p_b_grid,
-                                  FloatC* __restrict__ p_c_grid,
-                                  const AGridDesc_B_K0_M_K1 a_b_k0_m_k1_grid_desc,
-                                  const BGridDesc_B_K0_N_K1 b_b_k0_n_k1_grid_desc,
-                                  const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-                                      c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                  const AElementwiseOperation a_element_op,
-                                  const BElementwiseOperation b_element_op,
-                                  const CElementwiseOperation c_element_op,
-                                  const CBlockClusterAdaptor c_block_cluster_adaptor)
+        kernel_gemm_xdlops_bwd_weight(const FloatAB* __restrict__ p_a_grid,
+                                      const FloatAB* __restrict__ p_b_grid,
+                                      FloatC* __restrict__ p_c_grid,
+                                      const AGridDesc_B_K0_M_K1 a_b_k0_m_k1_grid_desc,
+                                      const BGridDesc_B_K0_N_K1 b_b_k0_n_k1_grid_desc,
+                                      const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+                                          c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                      const AElementwiseOperation a_element_op,
+                                      const BElementwiseOperation b_element_op,
+                                      const CElementwiseOperation c_element_op,
+                                      const CBlockClusterAdaptor c_block_cluster_adaptor)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     constexpr index_t shared_block_size =
@@ -261,8 +261,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    using GridwiseGemmPipe = remove_cvref_t<
-        decltype(GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage>())>;
+    using GridwiseGemmPipe = remove_cvref_t<decltype(
+        GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage>())>;
 
     // M0/M1/M1Padding
     static constexpr auto M1PerBlock = Number<ABlockLdsM1PerBlock>{};

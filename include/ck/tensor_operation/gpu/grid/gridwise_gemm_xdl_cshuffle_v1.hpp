@@ -30,19 +30,19 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-    kernel_gemm_xdl_cshuffle_v1(const FloatAB* __restrict__ p_a_grid,
-                                const FloatAB* __restrict__ p_b_grid,
-                                FloatC* __restrict__ p_c_grid,
-                                const AElementwiseOperation a_element_op,
-                                const BElementwiseOperation b_element_op,
-                                const CElementwiseOperation c_element_op,
-                                const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-                                const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-                                const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                const Block2CTileMap block_2_ctile_map)
+        kernel_gemm_xdl_cshuffle_v1(const FloatAB* __restrict__ p_a_grid,
+                                    const FloatAB* __restrict__ p_b_grid,
+                                    FloatC* __restrict__ p_c_grid,
+                                    const AElementwiseOperation a_element_op,
+                                    const BElementwiseOperation b_element_op,
+                                    const CElementwiseOperation c_element_op,
+                                    const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+                                    const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+                                    const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                                        c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                    const Block2CTileMap block_2_ctile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -136,8 +136,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     // FIXME: pass GridwiseGemmPipe as a template arguement into GridwiseGemm
-    using GridwiseGemmPipe = remove_cvref_t<
-        decltype(GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
+    using GridwiseGemmPipe = remove_cvref_t<decltype(
+        GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
@@ -271,9 +271,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             c_grid_desc_m_n);
     }
 
-    using CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock =
-        remove_cvref_t<decltype(MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-            CGridDesc_M_N{}))>;
+    using CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
+        MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}))>;
 
     using DefaultBlock2CTileMap =
         remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}))>;
