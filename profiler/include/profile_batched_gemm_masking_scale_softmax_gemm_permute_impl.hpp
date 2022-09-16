@@ -43,11 +43,9 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
                                             int StrideA       = -1,
                                             int StrideB0      = -1,
                                             int StrideB1      = -1,
-                                            int StrideC       = -1,
                                             int BatchStrideA  = -1,
                                             int BatchStrideB0 = -1,
                                             int BatchStrideB1 = -1,
-                                            int BatchStrideC  = -1,
                                             float alpha       = 1.f)
 
 {
@@ -93,22 +91,18 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
     const int DefaultStrideA  = ck::is_same_v<ALayout, Row> ? K : M;
     const int DefaultStrideB0 = ck::is_same_v<B0Layout, Row> ? N : K;
     const int DefaultStrideB1 = ck::is_same_v<B1Layout, Row> ? O : N;
-    const int DefaultStrideC  = ck::is_same_v<CLayout, Row> ? O : M;
 
     StrideA  = (StrideA < 0) ? DefaultStrideA : StrideA;
     StrideB0 = (StrideB0 < 0) ? DefaultStrideB0 : StrideB0;
     StrideB1 = (StrideB1 < 0) ? DefaultStrideB1 : StrideB1;
-    StrideC  = (StrideC < 0) ? DefaultStrideC : StrideC;
 
     const int DefaultBatchStrideA  = (ck::is_same_v<ALayout, Col> ? K : M) * StrideA;
     const int DefaultBatchStrideB0 = (ck::is_same_v<B0Layout, Col> ? N : K) * StrideB0;
     const int DefaultBatchStrideB1 = (ck::is_same_v<B1Layout, Col> ? O : N) * StrideB1;
-    const int DefaultBatchStrideC  = (ck::is_same_v<CLayout, Col> ? O : M) * StrideC;
 
     BatchStrideA  = BatchStrideA < 0 ? DefaultBatchStrideA : BatchStrideA;
     BatchStrideB0 = BatchStrideB0 < 0 ? DefaultBatchStrideB0 : BatchStrideB0;
     BatchStrideB1 = BatchStrideB1 < 0 ? DefaultBatchStrideB1 : BatchStrideB1;
-    BatchStrideC  = BatchStrideC < 0 ? DefaultBatchStrideC : BatchStrideC;
 
     const int BatchCount = G0 * G1;
 
@@ -198,7 +192,7 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
 
     auto a_element_op    = AElementOp{};
     auto b0_element_op   = B0ElementOp{};
-    auto acc0_element_op = Acc0ElementOp{};
+    auto acc0_element_op = Acc0ElementOp{alpha};
     auto b1_element_op   = B1ElementOp{};
     auto c_element_op    = CElementOp{};
 
@@ -227,7 +221,7 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
         auto ref_gemm0          = ReferenceGemm0Instance{};
         auto ref_gemm0_invoker  = ref_gemm0.MakeInvoker();
         auto ref_gemm0_argument = ref_gemm0.MakeArgument(
-            a_g_m_k, b0_g_k_n, acc0_g_m_n, a_element_op, b0_element_op, PassThrough{});
+            a_g_m_k, b0_g_k_n, acc0_g_m_n, a_element_op, b0_element_op, Scale{alpha});
 
         ref_gemm0_invoker.Run(ref_gemm0_argument);
 
@@ -272,20 +266,20 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
             static_cast<ADataType*>(a_g_m_k_device_buf.GetDeviceBuffer()),
             static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
             static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
-            static_cast<CDataType*>(c_g_m_o_device_buf.GetDeviceBuffer()),
+            static_cast<CDataType*>(c_gs_ms_os_device_buf.GetDeviceBuffer()),
             M,
             N,
             K,
             O,
             BatchCount,
+            c_gs_ms_os_lengths,
+            c_gs_ms_os_strides,
             StrideA,
             StrideB0,
             StrideB1,
-            StrideC,
             BatchStrideA,
             BatchStrideB0,
             BatchStrideB1,
-            BatchStrideC,
             a_element_op,
             b0_element_op,
             acc0_element_op,
@@ -323,10 +317,10 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
 
             if(do_verification)
             {
-                c_g_m_o_device_buf.FromDevice(c_g_m_o_device_result.mData.data());
+                c_gs_ms_os_device_buf.FromDevice(c_gs_ms_os_device_result.mData.data());
 
                 pass = pass &
-                       ck::utils::check_err(c_g_m_o_device_result.mData, c_gs_ms_os_host_result.mData);
+                       ck::utils::check_err(c_gs_ms_os_device_result.mData, c_gs_ms_os_host_result.mData);
 
                 if(do_log)
                 {
@@ -340,7 +334,7 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
                         std::cout << "c_gs_ms_os_host_result : ", c_gs_ms_os_host_result.mData, ",")
                         << std::endl;
                     LogRangeAsType<float>(
-                        std::cout << "c_g_m_o_device_result : ", c_g_m_o_device_result.mData, ",")
+                        std::cout << "c_gs_ms_os_device_result : ", c_gs_ms_os_device_result.mData, ",")
                         << std::endl;
                 }
             }

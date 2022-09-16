@@ -18,7 +18,7 @@ using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 template <typename Tuple>
-struct TestBatchedGemmSoftmaxGemm : public ::testing::Test
+struct TestBatchedGemmMaskingScaleSoftmaxGemmPermute : public ::testing::Test
 {
     using ADataType             = std::tuple_element_t<0, Tuple>;
     using B0DataType            = std::tuple_element_t<1, Tuple>;
@@ -179,14 +179,12 @@ struct DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128
                                           0,              // StrideA
                                           0,              // StrideB0
                                           0,              // StrideB1
-                                          0,              // StrideC
                                           0,              // BatchStrideA
                                           0,              // BatchStrideB0
                                           0,              // BatchStrideB1
-                                          0,              // BatchStrideC
                                           PassThrough{},  // a_element_op
                                           PassThrough{},  // b0_element_op
-                                          Scale{},  // acc0_element_op
+                                          Scale{1.f},  // acc0_element_op
                                           PassThrough{},  // b1_element_op
                                           PassThrough{}); // c_element_op
 

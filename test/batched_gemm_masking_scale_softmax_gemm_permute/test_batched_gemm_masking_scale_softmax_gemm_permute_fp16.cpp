@@ -2,103 +2,107 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
-#include "test_batched_gemm_softmax_gemm_util.hpp"
+#include "test_batched_gemm_masking_scale_softmax_gemm_permute_util.hpp"
 
 template <typename Tuple>
-class TestBatchedGemmSoftmaxGemmFP16 : public TestBatchedGemmSoftmaxGemm<Tuple>
+class TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16 : public TestBatchedGemmMaskingScaleSoftmaxGemmPermute<Tuple>
 {
 };
 
 // clang-format off
+template <ck::index_t... Is>
+using S = ck::Sequence<Is...>;
+using CPermuteNumDims_G_M_O =
+    S<2, 1, 1>; // "using CLayout = Row" has been replaced by CPermuteNumDims_G_M_O
 using KernelTypes = ::testing::Types<
-    std::tuple<F16, F16, F16, F16, Row, Col, Row, Row>
+    std::tuple<F16, F16, F16, F16, Row, Col, Row, CPermuteNumDims_G_M_O>
     >;
 // clang-format on
 
-TYPED_TEST_SUITE(TestBatchedGemmSoftmaxGemmFP16, KernelTypes);
+TYPED_TEST_SUITE(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16, KernelTypes);
 
-TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, Test_FP16) { this->Run(); }
+TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16, Test_FP16) { this->Run(); }
 
-TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, Test_FP16_PadM)
+TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16, Test_FP16_PadM)
 {
     this->lengths_ = std::vector<std::vector<int>>{
-        {136, 128, 32, 128, 1},
+        {136, 128, 32, 128, 2, 3},
     };
     this->Run();
 }
 
-TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, Test_FP16_PadN)
+TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16, Test_FP16_PadN)
 {
     this->lengths_ = std::vector<std::vector<int>>{
-        {128, 136, 32, 128, 1},
+        {128, 136, 32, 128, 3, 2},
     };
     this->Run();
 }
 
-TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, Test_FP16_PadK)
+TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16, Test_FP16_PadK)
 {
     this->lengths_ = std::vector<std::vector<int>>{
-        {128, 128, 40, 128, 1},
-        {128, 128, 136, 128, 1},
+        {128, 128, 40, 128, 2, 4},
+        {128, 128, 136, 128, 4, 2},
     };
     this->Run();
 }
 
-TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, Test_FP16_PadO)
+TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16, Test_FP16_PadO)
 {
     this->lengths_ = std::vector<std::vector<int>>{
-        {128, 128, 32, 136, 1},
+        {128, 128, 32, 136, 1, 3},
     };
     this->Run();
 }
 
-TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, Test_FP16_OddM)
+TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16, Test_FP16_OddM)
 {
     this->lengths_ = std::vector<std::vector<int>>{
-        {129, 128, 32, 128, 1},
+        {129, 128, 32, 128, 2, 3},
     };
     this->Run();
 }
 
-TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, Test_FP16_OddN)
+TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16, Test_FP16_OddN)
 {
     this->lengths_ = std::vector<std::vector<int>>{
-        {128, 129, 32, 128, 1},
+        {128, 129, 32, 128, 4, 3},
     };
     this->Run();
 }
 
-TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, Test_FP16_OddK)
+TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16, Test_FP16_OddK)
 {
     this->lengths_ = std::vector<std::vector<int>>{
-        {128, 128, 33, 128, 1},
-        {128, 128, 129, 128, 1},
+        {128, 128, 33, 128, 2, 3},
+        {128, 128, 129, 128, 2, 3},
     };
     this->Run();
 }
 
 // If kernel B1Layout is RowMajor, expect not to support odd O size
-TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, Test_FP16_OddO)
+TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16, Test_FP16_OddO)
 {
     this->lengths_ = std::vector<std::vector<int>>{
-        {128, 128, 32, 129, 1},
+        {128, 128, 32, 129, 2, 3},
     };
     this->Run();
 }
 
-TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, DISABLED_Bench_FP16)
+TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16, DISABLED_Bench_FP16)
 {
     this->lengths_ = std::vector<std::vector<int>>{
-        {256, 256, 64, 64, 768},
-        {256, 256, 128, 128, 768},
-        {512, 512, 64, 64, 768},
-        {512, 512, 128, 128, 768},
-        {1024, 1024, 64, 64, 768},
-        {1024, 1024, 128, 128, 768},
-        {2048, 2048, 64, 64, 768},
-        {2048, 2048, 128, 128, 768},
-        {4096, 4096, 64, 64, 768},
-        {4096, 4096, 128, 128, 768},
+        {256, 256, 64, 64, 48, 16},
+        {256, 256, 128, 128, 48, 16},
+        {512, 512, 64, 64, 48, 16},
+        {512, 512, 128, 128, 48, 16},
+        {1024, 1024, 64, 64, 48, 16},
+        {1024, 1024, 128, 128, 48, 16},
+        {2048, 2048, 64, 64, 48, 16},
+        {2048, 2048, 128, 128, 48, 16},
+        {4096, 4096, 64, 64, 48, 16},
+        {4096, 4096, 128, 128, 48, 16},
     };
     this->bench_  = true;
     this->verify_ = false;
@@ -108,7 +112,7 @@ TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, DISABLED_Bench_FP16)
 using ck::tensor_operation::device::GemmSpecialization;
 
 // TODO: enable KPadding tests when it is implemented
-TEST(TestBatchedGemmSoftmaxGemmInterface, GemmSpecializationSizeMatch)
+TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteInterface, GemmSpecializationSizeMatch)
 {
     int P = 120; // requires padding
     int Q = 128; // do not require padding
@@ -134,7 +138,7 @@ TEST(TestBatchedGemmSoftmaxGemmInterface, GemmSpecializationSizeMatch)
     // clang-format on
 }
 
-TEST(TestBatchedGemmSoftmaxGemmInterface, GemmSpecializationSizeMismatch)
+TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteInterface, GemmSpecializationSizeMismatch)
 {
     // IsSupported(M, N, K, O)
     // clang-format off
@@ -148,13 +152,13 @@ TEST(TestBatchedGemmSoftmaxGemmInterface, GemmSpecializationSizeMismatch)
     // clang-format on
 }
 
-TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, AdhocTest)
+TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16, AdhocTest)
 {
     this->lengths_ = std::vector<std::vector<int>>{
-        {49, 49, 64, 64, 24},
-        {64, 49, 64, 64, 24},
-        {1020, 1020, 64, 128, 24},
-        {576, 576, 64, 64, 24},
+        {49, 49, 64, 64, 4, 6},
+        {64, 49, 64, 64, 4, 6},
+        {1020, 1020, 64, 128, 4, 6},
+        {576, 576, 64, 64, 4,6},
     };
     this->bench_ = true;
     this->Run();

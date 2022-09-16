@@ -50,7 +50,7 @@ struct DeviceOperationInstanceFactory<
     ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute<ALayout,
                                                                B0Layout,
                                                                B1Layout,
-                                                               CLayout,
+                                                               CPermuteNumDims_G_M_Gemm1N,
                                                                ADataType,
                                                                B0DataType,
                                                                B1DataType,
@@ -83,7 +83,7 @@ struct DeviceOperationInstanceFactory<
                      is_same_v<B1DataType, half_t> && is_same_v<CDataType, half_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<B0Layout, Col> &&
-                         is_same_v<B1Layout, Row> && is_same_v<CLayout, Row>)
+                         is_same_v<B1Layout, Row> && is_same_v<CPermuteNumDims_G_M_Gemm1N, CPermuteNumDims_G_M_O>)
             {
                 add_device_batched_gemm_masking_scale_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instance(
                     op_ptrs);
