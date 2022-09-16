@@ -348,9 +348,9 @@ def runCKProfiler(Map conf=[:]){
                     sh "mkdir Libs_composable_kernel_${env.BRANCH_NAME}"
                     dir("Libs_composable_kernel_${env.BRANCH_NAME}"){
                         //get deb package
-                        wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/Libs__composable_kernel_${env.BRANCH_NAME}.deb
+                        wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/*.deb
                         //install deb package
-                        sh "dpkg -i Libs_composable_kernel_${env.BRANCH_NAME}.deb"
+                        sh "dpkg -i *.deb"
                     }
 
 					dir("Libs_composable_kernel_${env.BRANCH_NAME}/script"){
@@ -490,12 +490,12 @@ def runTests_and_Examples(Map conf=[:]){
                     sh "mkdir Libs_composable_kernel_${env.BRANCH_NAME}"
                     dir("Libs_composable_kernel_${env.BRANCH_NAME}"){
                         //get deb package
-                        wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/Libs_composable_kernel_${env.BRANCH_NAME}.deb
+                        wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/*.deb
                         //install deb package
-                        sh "dpkg -i Libs_composable_kernel_${env.BRANCH_NAME}.deb"
+                        sh "dpkg -i *.deb"
                     }
                     //run tests and examples
-					dir("Libs_composable_kernel_${env.BRANCH_NAME}/build"){
+					dir("build"){
                         sh "make -j check"
                     }
                 }
@@ -560,27 +560,10 @@ def Build_CK(Map conf=[:]){
                 timeout(time: 24, unit: 'HOURS')
                 {
                     cmake_build(conf)
-                    sh 'pwd'
-                    sh 'ls'
-                    sh 'rm -rf DEBIAN'
-                    sh 'mkdir DEBIAN'
-					dir("DEBIAN"){
-                        //populate control file
-                        sh 'echo "Package: composable_kernel" > control'
-                        sh 'echo "Version: 0.1" >> control'
-                        sh 'echo "Section: base" >> control'
-                        sh 'echo "Priority: optional" >> control'
-                        sh 'echo "Architecture: amd64" >> control'
-                        sh 'echo "Depends:" >> control'
-                        sh 'echo "Maintainer: Illia Silin <Illia.Silin@amd.com>" >> control'
-                        sh 'echo "Description: Composable Kernel library for AMD GPUs" >> control'
-                    }
-                    sh 'ls DEBIAN'
-                    dir("/var/jenkins/workspace"){
-                        //sh 'dpkg-deb --build Libs_composable_kernel_${env.BRANCH_NAME}'
-                        //sh 'make package'
-                        make package
-                        archiveArtifacts "Libs_composable_kernel_${env.BRANCH_NAME}.deb", fingerprint: true
+                    dir("build"){
+                        sh 'make package'
+                        //archiveArtifacts "Libs_composable_kernel_${env.BRANCH_NAME}.deb", fingerprint: true
+                        archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
                     }
                 }
             }
