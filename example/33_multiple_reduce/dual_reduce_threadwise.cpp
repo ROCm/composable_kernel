@@ -13,7 +13,7 @@
 #include "ck/utility/data_type.hpp"
 
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
-#include "ck/tensor_operation/gpu/device/device_multiple_reduce_threadwise.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_multiple_reduce_threadwise.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 
 #include "dual_reduce_common.hpp"

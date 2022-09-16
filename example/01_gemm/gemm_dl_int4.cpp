@@ -7,7 +7,7 @@
 
 #include "common.hpp"
 
-#include "ck/tensor_operation/gpu/device/device_gemm_dl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_dl.hpp"
 
 using ADataType       = ck::int4_t;
 using BDataType       = ck::int4_t;

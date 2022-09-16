@@ -9,7 +9,7 @@
 #include <ctime>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/device_sparse_embedding3_forward_layernorm.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_sparse_embedding3_forward_layernorm.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
