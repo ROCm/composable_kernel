@@ -64,10 +64,12 @@ int main()
     std::array<void*, 1> output      = {b_device_buf.GetDeviceBuffer()};
 
     std::array<ck::index_t, 4> ab_lengths;
-    std::array<ck::index_t, 4> a_strides = {static_cast<int>(nchw[1]*nchw[2]*nchw[3]),
-	   static_cast<int>(nchw[2]*nchw[3]),
-	  static_cast<int>(nchw[3]), 1};
-    std::array<ck::index_t, 4> b_strides = {static_cast<int>(nhwc[1]*nhwc[2]*nhwc[3]), 1, 32, 4};
+    std::array<ck::index_t, 4> a_strides = {static_cast<int>(nchw[1] * nchw[2] * nchw[3]),
+                                            static_cast<int>(nchw[2] * nchw[3]),
+                                            static_cast<int>(nchw[3]),
+                                            1};
+    std::array<ck::index_t, 4> b_strides = {
+        static_cast<int>(nhwc[1] * nhwc[2] * nhwc[3]), 1, 32, 4};
 
     // std::cout << "Length: " << ab_lengths << std::endl;
     // std::cout << "A stride: " << a_strides << std::endl;
