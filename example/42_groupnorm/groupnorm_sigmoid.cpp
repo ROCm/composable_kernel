@@ -119,8 +119,7 @@ int main()
         ref_invoker.Run(ref_argument);
 
         y_dev.FromDevice(y.mData.data());
-        pass &=
-            ck::utils::check_err(y.mData, host_y.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
+        pass &= ck::utils::check_err(y.mData, host_y.mData, "Error: Incorrect results", 1e-3, 1e-3);
     }
     return (pass ? 0 : 1);
 }
