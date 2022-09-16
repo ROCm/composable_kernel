@@ -38,7 +38,8 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
                                             int N,
                                             int K,
                                             int O,
-                                            int BatchCount    = 1,
+                                            int G0,
+                                            int G1,
                                             int StrideA       = -1,
                                             int StrideB0      = -1,
                                             int StrideB1      = -1,
@@ -46,7 +47,8 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
                                             int BatchStrideA  = -1,
                                             int BatchStrideB0 = -1,
                                             int BatchStrideB1 = -1,
-                                            int BatchStrideC  = -1)
+                                            int BatchStrideC  = -1,
+                                            float alpha       = 1.f)
 
 {
 
@@ -68,7 +70,7 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
                                                                                 AccDataType,
                                                                                 AElementOp,
                                                                                 B0ElementOp,
-                                                                                CElementOp>;
+                                                                                Acc0ElementOp>;
 
     // Ref Softmax: fp32 in, various type out
     using ReferenceSoftmaxInstance =
@@ -84,6 +86,9 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
                                                                                 CElementOp>;
 
     bool pass = true;
+
+    std::vector<ck::index_t> c_gs_ms_os_lengths{G0, G1, M, O};
+    std::vector<ck::index_t> c_gs_ms_os_strides{M * G1 * O, O, G1 * O, 1};
 
     const int DefaultStrideA  = ck::is_same_v<ALayout, Row> ? K : M;
     const int DefaultStrideB0 = ck::is_same_v<B0Layout, Row> ? N : K;
@@ -104,6 +109,8 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
     BatchStrideB0 = BatchStrideB0 < 0 ? DefaultBatchStrideB0 : BatchStrideB0;
     BatchStrideB1 = BatchStrideB1 < 0 ? DefaultBatchStrideB1 : BatchStrideB1;
     BatchStrideC  = BatchStrideC < 0 ? DefaultBatchStrideC : BatchStrideC;
+
+    const int BatchCount = G0 * G1;
 
     auto f_host_tensor_descriptor = [](std::size_t batch_count,
                                        std::size_t row,
@@ -130,18 +137,22 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
         f_host_tensor_descriptor(BatchCount, K, N, StrideB0, BatchStrideB0, B0Layout{}));
     Tensor<B1DataType> b1_g_n_o(
         f_host_tensor_descriptor(BatchCount, N, O, StrideB1, BatchStrideB1, B1Layout{}));
-    Tensor<CDataType> c_g_m_o_host_result(
-        f_host_tensor_descriptor(BatchCount, M, O, StrideC, BatchStrideC, CLayout{}));
-    Tensor<CDataType> c_g_m_o_device_result(
-        f_host_tensor_descriptor(BatchCount, M, O, StrideC, BatchStrideC, CLayout{}));
+    Tensor<CDataType> c_gs_ms_os_host_result(
+        std::vector<std::size_t>(c_gs_ms_os_lengths.begin(), c_gs_ms_os_lengths.end()),
+        std::vector<std::size_t>(c_gs_ms_os_strides.begin(), c_gs_ms_os_strides.end()));
+    Tensor<CDataType> c_gs_ms_os_device_result(
+        std::vector<std::size_t>(c_gs_ms_os_lengths.begin(), c_gs_ms_os_lengths.end()),
+        std::vector<std::size_t>(c_gs_ms_os_strides.begin(), c_gs_ms_os_strides.end()));
     // Host verification: Output of Gemm0 is input A of Gemm1
     Tensor<AccDataType> acc0_g_m_n(f_host_tensor_descriptor(BatchCount, M, N, N, M * N, Row{}));
     Tensor<ADataType> a1_g_m_n(f_host_tensor_descriptor(BatchCount, M, N, N, M * N, Row{}));
+    Tensor<CDataType> c_g_m_o_host_result(std::vector<int>{BatchCount, M, O},
+                                          std::vector<int>{M * O, O, 1});
 
     std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
     std::cout << "b0_g_k_n: " << b0_g_k_n.mDesc << std::endl;
     std::cout << "b1_g_n_o: " << b1_g_n_o.mDesc << std::endl;
-    std::cout << "c_g_m_o: " << c_g_m_o_host_result.mDesc << std::endl;
+    std::cout << "c_gs_ms_os: " << c_gs_ms_os_host_result.mDesc << std::endl;
 
     std::srand(1); // work around test flakiness
     switch(init_method)
@@ -178,7 +189,8 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
     DeviceMem a_g_m_k_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSize());
     DeviceMem b0_g_k_n_device_buf(sizeof(B0DataType) * b0_g_k_n.mDesc.GetElementSize());
     DeviceMem b1_g_n_o_device_buf(sizeof(B1DataType) * b1_g_n_o.mDesc.GetElementSize());
-    DeviceMem c_g_m_o_device_buf(sizeof(CDataType) * c_g_m_o_device_result.mDesc.GetElementSize());
+    DeviceMem c_gs_ms_os_device_buf(sizeof(CDataType) *
+                                    c_gs_ms_os_device_result.mDesc.GetElementSpaceSize());
 
     a_g_m_k_device_buf.ToDevice(a_g_m_k.mData.data());
     b0_g_k_n_device_buf.ToDevice(b0_g_k_n.mData.data());
@@ -220,7 +232,9 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
         ref_gemm0_invoker.Run(ref_gemm0_argument);
 
         // mask out upper triangle
-        
+        acc0_g_m_n.ForEach([&](auto& self, auto idx) { 
+            if (idx[1] < idx[2]) self(idx) = -ck::NumericLimits<float>::Infinity();
+        });
 
         auto ref_softmax          = ReferenceSoftmaxInstance{};
         auto ref_softmax_invoker  = ref_softmax.MakeInvoker();
@@ -234,6 +248,16 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
             a1_g_m_n, b1_g_n_o, c_g_m_o_host_result, PassThrough{}, b1_element_op, c_element_op);
 
         ref_gemm1_invoker.Run(ref_gemm1_argument);
+
+        // permute
+        c_gs_ms_os_host_result.ForEach([&](auto& self, auto idx) {
+            const size_t& g0 = idx[0];
+            const size_t& g1 = idx[1];
+
+            const size_t g = g0 * G1 + g1;
+
+            self(idx) = c_g_m_o_host_result(g, idx[2], idx[3]);
+        });
     }
 
     std::string best_op_name;
@@ -302,7 +326,7 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
                 c_g_m_o_device_buf.FromDevice(c_g_m_o_device_result.mData.data());
 
                 pass = pass &
-                       ck::utils::check_err(c_g_m_o_device_result.mData, c_g_m_o_host_result.mData);
+                       ck::utils::check_err(c_g_m_o_device_result.mData, c_gs_ms_os_host_result.mData);
 
                 if(do_log)
                 {
@@ -313,7 +337,7 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
                     LogRangeAsType<float>(std::cout << "b1_g_n_o : ", b1_g_n_o.mData, ",")
                         << std::endl;
                     LogRangeAsType<float>(
-                        std::cout << "c_g_m_o_host_result : ", c_g_m_o_host_result.mData, ",")
+                        std::cout << "c_gs_ms_os_host_result : ", c_gs_ms_os_host_result.mData, ",")
                         << std::endl;
                     LogRangeAsType<float>(
                         std::cout << "c_g_m_o_device_result : ", c_g_m_o_device_result.mData, ",")
