@@ -755,13 +755,13 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         running_max_new = NumericLimits<FloatGemmAcc>::Lowest();
 
         // decoder lower triangular mask
-        const auto thread_cluster_idx =
-                threadid_to_m_n_thread_cluster_adaptor.CalculateBottomIndex(make_multi_index(get_thread_local_1d_id()));
+        const auto thread_cluster_idx = threadid_to_m_n_thread_cluster_adaptor.CalculateBottomIndex(
+            make_multi_index(get_thread_local_1d_id()));
         const auto thread_m_cluster_id = thread_cluster_idx[I0];
         const auto thread_n_cluster_id = thread_cluster_idx[I1];
-        const index_t MPerRepeat = MPerBlock / MXdlPerWave;
-        const index_t NPerRepeat = NPerBlock / NXdlPerWave;
-        const index_t mstart = m_block_data_idx_on_grid + thread_m_cluster_id;
+        const index_t MPerRepeat       = MPerBlock / MXdlPerWave;
+        const index_t NPerRepeat       = NPerBlock / NXdlPerWave;
+        const index_t mstart           = m_block_data_idx_on_grid + thread_m_cluster_id;
 
         // gemm1 K loop
         index_t gemm1_k_block_outer_index = 0;
@@ -769,8 +769,11 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         {
             if constexpr(MaskOutUpperTriangle)
             {
-                auto gemm0_n_block_idx = __builtin_amdgcn_readfirstlane(gemm1_k_block_outer_index * NPerBlock);
-                if((m_block_data_idx_on_grid < gemm0_n_block_idx) && ((m_block_data_idx_on_grid + MPerBlock - 1) < (gemm0_n_block_idx + NPerBlock - 1)))
+                auto gemm0_n_block_idx =
+                    __builtin_amdgcn_readfirstlane(gemm1_k_block_outer_index * NPerBlock);
+                if((m_block_data_idx_on_grid < gemm0_n_block_idx) &&
+                   ((m_block_data_idx_on_grid + MPerBlock - 1) <
+                    (gemm0_n_block_idx + NPerBlock - 1)))
                 {
                     continue;
                 }
@@ -807,40 +810,45 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             }
             else
             {
-            const index_t nstart = gemm1_k_block_outer_index * NPerBlock;
-            
-            static_for<0, m0, 1>{}([&](auto m0_i) {
-                const index_t m_global = mstart + m0_i * MPerRepeat;
-                const index_t acc_idx_m0 = m0_i * n0 * n2 * n4;
-                static_for<0, n0, 1>{}([&](auto n0_i) {
-                    // constexpr auto nrepeat_i = n0_i * NPerRepeat;
-                    // const index_t nstartxdl = nstart + nrepeat_i;
-                    const index_t nstartxdl = nstart + n0_i * NPerRepeat;
-                    const index_t acc_idx_n0 = acc_idx_m0 + n0_i * n2 * n4;
-                    static_for<0, n2, 1>{}([&](auto n2_i) {
-                        const index_t nstartgroup = nstartxdl + thread_n_cluster_id * n4 + n2_i * AccN3 * n4;
-                        const index_t acc_idx_n2 = acc_idx_n0 + n2_i * n4;
-                        static_for<0, n4, 1>{}([&](auto n4_i) {
-                            const index_t n_global = nstartgroup + n4_i;
-                            const auto acc_offset = Number<acc_idx_n2 + n4_i>{};
-                            if (n_global > m_global)
-                            {
-                                acc_thread_buf(acc_offset) = -ck::NumericLimits<float>::Infinity();
-                            }
-                            else
-                            {
-                                // Acc0 elementwise Op
-                                #if CK_WORKAROUND_SWDEV_XXXXXX_ATTN_KERNEL_CLANG_CANNOT_SCAVENGE_REGISTER
-                                    acc_element_op(acc_thread_buf(acc_offset), acc_thread_buf[acc_offset]);
-                                #else
+                const index_t nstart = gemm1_k_block_outer_index * NPerBlock;
+
+                static_for<0, m0, 1>{}([&](auto m0_i) {
+                    const index_t m_global   = mstart + m0_i * MPerRepeat;
+                    const index_t acc_idx_m0 = m0_i * n0 * n2 * n4;
+                    static_for<0, n0, 1>{}([&](auto n0_i) {
+                        // constexpr auto nrepeat_i = n0_i * NPerRepeat;
+                        // const index_t nstartxdl = nstart + nrepeat_i;
+                        const index_t nstartxdl  = nstart + n0_i * NPerRepeat;
+                        const index_t acc_idx_n0 = acc_idx_m0 + n0_i * n2 * n4;
+                        static_for<0, n2, 1>{}([&](auto n2_i) {
+                            const index_t nstartgroup =
+                                nstartxdl + thread_n_cluster_id * n4 + n2_i * AccN3 * n4;
+                            const index_t acc_idx_n2 = acc_idx_n0 + n2_i * n4;
+                            static_for<0, n4, 1>{}([&](auto n4_i) {
+                                const index_t n_global = nstartgroup + n4_i;
+                                const auto acc_offset  = Number<acc_idx_n2 + n4_i>{};
+                                if(n_global > m_global)
+                                {
+                                    acc_thread_buf(acc_offset) =
+                                        -ck::NumericLimits<float>::Infinity();
+                                }
+                                else
+                                {
+// Acc0 elementwise Op
+#if CK_WORKAROUND_SWDEV_XXXXXX_ATTN_KERNEL_CLANG_CANNOT_SCAVENGE_REGISTER
+                                    acc_element_op(acc_thread_buf(acc_offset),
+                                                   acc_thread_buf[acc_offset]);
+#else
                                     ElementOpPredicatedResetNaNToMinusInf<PadN>{}.Run(
-                                        acc_thread_buf(acc_offset), acc_element_op, acc_thread_buf[acc_offset]);
-                                #endif
-                            }
+                                        acc_thread_buf(acc_offset),
+                                        acc_element_op,
+                                        acc_thread_buf[acc_offset]);
+#endif
+                                }
+                            });
                         });
                     });
                 });
-            });
             }
 
             block_sync_lds(); // wait for lds read in gemm0 blockwise gemm

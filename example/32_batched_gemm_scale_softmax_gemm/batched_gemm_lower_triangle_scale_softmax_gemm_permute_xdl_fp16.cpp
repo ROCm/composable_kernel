@@ -370,8 +370,9 @@ int main(int argc, char* argv[])
         ref_gemm0_invoker.Run(ref_gemm0_argument);
 
         // mask out upper triangle
-        acc0_g_m_n.ForEach([&](auto& self, auto idx) { 
-            if (idx[1] < idx[2]) self(idx) = -ck::NumericLimits<float>::Infinity();
+        acc0_g_m_n.ForEach([&](auto& self, auto idx) {
+            if(idx[1] < idx[2])
+                self(idx) = -ck::NumericLimits<float>::Infinity();
         });
 
         auto ref_softmax          = ReferenceSoftmaxInstance{};

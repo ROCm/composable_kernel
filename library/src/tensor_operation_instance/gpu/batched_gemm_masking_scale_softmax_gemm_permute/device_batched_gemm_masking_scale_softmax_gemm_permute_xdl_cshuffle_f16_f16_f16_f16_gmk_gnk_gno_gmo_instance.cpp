@@ -27,7 +27,7 @@ using CPermuteNumDims_G_M_O =
     S<2, 1, 1>; // "using CLayout = Row" has been replaced by CPermuteNumDims_G_M_O
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using Scale = ck::tensor_operation::element_wise::Scale;
+using Scale       = ck::tensor_operation::element_wise::Scale;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 static constexpr auto GemmPadded =
@@ -61,18 +61,18 @@ using device_batched_gemm_masking_scale_softmax_gemm_permute_xdl_cshuffle_f16_f1
 
 void add_device_batched_gemm_masking_scale_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instance(
     std::vector<std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<Row,
-                                                             Col,
-                                                             Row,
-                                                             CPermuteNumDims_G_M_O,
-                                                             F16,
-                                                             F16,
-                                                             F16,
-                                                             F16,
-                                                             PassThrough,
-                                                             PassThrough,
-                                                             Scale,
-                                                             PassThrough,
-                                                             PassThrough>>>& instances)
+                                                                    Col,
+                                                                    Row,
+                                                                    CPermuteNumDims_G_M_O,
+                                                                    F16,
+                                                                    F16,
+                                                                    F16,
+                                                                    F16,
+                                                                    PassThrough,
+                                                                    PassThrough,
+                                                                    Scale,
+                                                                    PassThrough,
+                                                                    PassThrough>>>& instances)
 {
     add_device_operation_instances(
         instances,

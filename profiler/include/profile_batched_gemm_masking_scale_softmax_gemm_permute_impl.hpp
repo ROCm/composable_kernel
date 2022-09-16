@@ -31,22 +31,22 @@ template <typename ADataType,
           typename B1Layout,
           typename CPermuteNumDims_G_M_O>
 bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verification,
-                                            int init_method,
-                                            bool do_log,
-                                            bool time_kernel,
-                                            int M,
-                                            int N,
-                                            int K,
-                                            int O,
-                                            int G0,
-                                            int G1,
-                                            int StrideA       = -1,
-                                            int StrideB0      = -1,
-                                            int StrideB1      = -1,
-                                            int BatchStrideA  = -1,
-                                            int BatchStrideB0 = -1,
-                                            int BatchStrideB1 = -1,
-                                            float alpha       = 1.f)
+                                                                  int init_method,
+                                                                  bool do_log,
+                                                                  bool time_kernel,
+                                                                  int M,
+                                                                  int N,
+                                                                  int K,
+                                                                  int O,
+                                                                  int G0,
+                                                                  int G1,
+                                                                  int StrideA       = -1,
+                                                                  int StrideB0      = -1,
+                                                                  int StrideB1      = -1,
+                                                                  int BatchStrideA  = -1,
+                                                                  int BatchStrideB0 = -1,
+                                                                  int BatchStrideB1 = -1,
+                                                                  float alpha       = 1.f)
 
 {
 
@@ -196,19 +196,20 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
     auto b1_element_op   = B1ElementOp{};
     auto c_element_op    = CElementOp{};
 
-    using DeviceOp = tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute<ALayout,
-                                                                            B0Layout,
-                                                                            B1Layout,
-                                                                            CPermuteNumDims_G_M_O,
-                                                                            ADataType,
-                                                                            B0DataType,
-                                                                            B1DataType,
-                                                                            CDataType,
-                                                                            AElementOp,
-                                                                            B0ElementOp,
-                                                                            Acc0ElementOp,
-                                                                            B1ElementOp,
-                                                                            CElementOp>;
+    using DeviceOp =
+        tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute<ALayout,
+                                                                      B0Layout,
+                                                                      B1Layout,
+                                                                      CPermuteNumDims_G_M_O,
+                                                                      ADataType,
+                                                                      B0DataType,
+                                                                      B1DataType,
+                                                                      CDataType,
+                                                                      AElementOp,
+                                                                      B0ElementOp,
+                                                                      Acc0ElementOp,
+                                                                      B1ElementOp,
+                                                                      CElementOp>;
 
     // get device op instances
     const auto op_ptrs = tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -226,8 +227,9 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
         ref_gemm0_invoker.Run(ref_gemm0_argument);
 
         // mask out upper triangle
-        acc0_g_m_n.ForEach([&](auto& self, auto idx) { 
-            if (idx[1] < idx[2]) self(idx) = -ck::NumericLimits<float>::Infinity();
+        acc0_g_m_n.ForEach([&](auto& self, auto idx) {
+            if(idx[1] < idx[2])
+                self(idx) = -ck::NumericLimits<float>::Infinity();
         });
 
         auto ref_softmax          = ReferenceSoftmaxInstance{};
@@ -319,8 +321,8 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
             {
                 c_gs_ms_os_device_buf.FromDevice(c_gs_ms_os_device_result.mData.data());
 
-                pass = pass &
-                       ck::utils::check_err(c_gs_ms_os_device_result.mData, c_gs_ms_os_host_result.mData);
+                pass = pass & ck::utils::check_err(c_gs_ms_os_device_result.mData,
+                                                   c_gs_ms_os_host_result.mData);
 
                 if(do_log)
                 {
@@ -333,8 +335,9 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
                     LogRangeAsType<float>(
                         std::cout << "c_gs_ms_os_host_result : ", c_gs_ms_os_host_result.mData, ",")
                         << std::endl;
-                    LogRangeAsType<float>(
-                        std::cout << "c_gs_ms_os_device_result : ", c_gs_ms_os_device_result.mData, ",")
+                    LogRangeAsType<float>(std::cout << "c_gs_ms_os_device_result : ",
+                                          c_gs_ms_os_device_result.mData,
+                                          ",")
                         << std::endl;
                 }
             }

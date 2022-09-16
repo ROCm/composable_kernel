@@ -42,15 +42,15 @@ struct TestBatchedGemmMaskingScaleSoftmaxGemmPermute : public ::testing::Test
 
     void RunSingle(int M, int N, int K, int O, int G0, int G1)
     {
-        bool pass = ck::profiler::profile_batched_gemm_masking_scale_softmax_gemm_permute_impl<ADataType,
-                                                                         B0DataType,
-                                                                         B1DataType,
-                                                                         CDataType,
-                                                                         ALayout,
-                                                                         B0Layout,
-                                                                         B1Layout,
-                                                                         CPermuteNumDims_G_M_O>(
-            verify_, 1, false, bench_, M, N, K, O, G0, G1);
+        bool pass = ck::profiler::profile_batched_gemm_masking_scale_softmax_gemm_permute_impl<
+            ADataType,
+            B0DataType,
+            B1DataType,
+            CDataType,
+            ALayout,
+            B0Layout,
+            B1Layout,
+            CPermuteNumDims_G_M_O>(verify_, 1, false, bench_, M, N, K, O, G0, G1);
 
         EXPECT_TRUE(pass);
     }
@@ -59,12 +59,12 @@ struct TestBatchedGemmMaskingScaleSoftmaxGemmPermute : public ::testing::Test
     {
         for(auto lengths : this->lengths_)
         {
-            int M          = lengths[0];
-            int N          = lengths[1];
-            int K          = lengths[2];
-            int O          = lengths[3];
-            int G0         = lengths[4];
-            int G1         = lengths[5];
+            int M  = lengths[0];
+            int N  = lengths[1];
+            int K  = lengths[2];
+            int O  = lengths[3];
+            int G0 = lengths[4];
+            int G1 = lengths[5];
 
             this->RunSingle(M, N, K, O, G0, G1);
         }
@@ -75,7 +75,7 @@ template <GemmSpecialization GemmSpec>
 struct DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128
 {
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-    using Scale = ck::tensor_operation::element_wise::Scale;
+    using Scale       = ck::tensor_operation::element_wise::Scale;
 
     using ALayout  = Row;
     using B0Layout = Col;
@@ -174,8 +174,8 @@ struct DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128
                                           K,
                                           O,
                                           0,              // BatchCount
-                                          {0, 0, M, O}, // gs ms ns lengths
-                                          {0, O, 0, 1}, // gs ms ns strides
+                                          {0, 0, M, O},   // gs ms ns lengths
+                                          {0, O, 0, 1},   // gs ms ns strides
                                           0,              // StrideA
                                           0,              // StrideB0
                                           0,              // StrideB1
@@ -184,7 +184,7 @@ struct DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128
                                           0,              // BatchStrideB1
                                           PassThrough{},  // a_element_op
                                           PassThrough{},  // b0_element_op
-                                          Scale{1.f},  // acc0_element_op
+                                          Scale{1.f},     // acc0_element_op
                                           PassThrough{},  // b1_element_op
                                           PassThrough{}); // c_element_op
 

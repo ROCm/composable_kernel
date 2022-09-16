@@ -5,7 +5,8 @@
 #include "test_batched_gemm_masking_scale_softmax_gemm_permute_util.hpp"
 
 template <typename Tuple>
-class TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16 : public TestBatchedGemmMaskingScaleSoftmaxGemmPermute<Tuple>
+class TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16
+    : public TestBatchedGemmMaskingScaleSoftmaxGemmPermute<Tuple>
 {
 };
 
@@ -158,7 +159,7 @@ TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16, AdhocTest)
         {49, 49, 64, 64, 4, 6},
         {64, 49, 64, 64, 4, 6},
         {1020, 1020, 64, 128, 4, 6},
-        {576, 576, 64, 64, 4,6},
+        {576, 576, 64, 64, 4, 6},
     };
     this->bench_ = true;
     this->Run();

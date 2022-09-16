@@ -25,18 +25,18 @@ using CPermuteNumDims_G_M_O =
 
 void add_device_batched_gemm_masking_scale_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instance(
     std::vector<std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<Row,
-                                                             Col,
-                                                             Row,
-                                                             CPermuteNumDims_G_M_O,
-                                                             F16,
-                                                             F16,
-                                                             F16,
-                                                             F16,
-                                                             PassThrough,
-                                                             PassThrough,
-                                                             Scale,
-                                                             PassThrough,
-                                                             PassThrough>>>& instances);
+                                                                    Col,
+                                                                    Row,
+                                                                    CPermuteNumDims_G_M_O,
+                                                                    F16,
+                                                                    F16,
+                                                                    F16,
+                                                                    F16,
+                                                                    PassThrough,
+                                                                    PassThrough,
+                                                                    Scale,
+                                                                    PassThrough,
+                                                                    PassThrough>>>& instances);
 
 template <typename ALayout,
           typename B0Layout,
@@ -48,32 +48,32 @@ template <typename ALayout,
           typename CDataType>
 struct DeviceOperationInstanceFactory<
     ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute<ALayout,
-                                                               B0Layout,
-                                                               B1Layout,
-                                                               CPermuteNumDims_G_M_Gemm1N,
-                                                               ADataType,
-                                                               B0DataType,
-                                                               B1DataType,
-                                                               CDataType,
-                                                               PassThrough,
-                                                               PassThrough,
-                                                               Scale,
-                                                               PassThrough,
-                                                               PassThrough>>
+                                                                      B0Layout,
+                                                                      B1Layout,
+                                                                      CPermuteNumDims_G_M_Gemm1N,
+                                                                      ADataType,
+                                                                      B0DataType,
+                                                                      B1DataType,
+                                                                      CDataType,
+                                                                      PassThrough,
+                                                                      PassThrough,
+                                                                      Scale,
+                                                                      PassThrough,
+                                                                      PassThrough>>
 {
     using DeviceOp = DeviceBatchedGemmSoftmaxGemmPermute<ALayout,
-                                                  B0Layout,
-                                                  B1Layout,
-                                                  CPermuteNumDims_G_M_Gemm1N,
-                                                  ADataType,
-                                                  B0DataType,
-                                                  B1DataType,
-                                                  CDataType,
-                                                  PassThrough,
-                                                  PassThrough,
-                                                  Scale,
-                                                  PassThrough,
-                                                  PassThrough>;
+                                                         B0Layout,
+                                                         B1Layout,
+                                                         CPermuteNumDims_G_M_Gemm1N,
+                                                         ADataType,
+                                                         B0DataType,
+                                                         B1DataType,
+                                                         CDataType,
+                                                         PassThrough,
+                                                         PassThrough,
+                                                         Scale,
+                                                         PassThrough,
+                                                         PassThrough>;
 
     static auto GetInstances()
     {
@@ -83,7 +83,8 @@ struct DeviceOperationInstanceFactory<
                      is_same_v<B1DataType, half_t> && is_same_v<CDataType, half_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<B0Layout, Col> &&
-                         is_same_v<B1Layout, Row> && is_same_v<CPermuteNumDims_G_M_Gemm1N, CPermuteNumDims_G_M_O>)
+                         is_same_v<B1Layout, Row> &&
+                         is_same_v<CPermuteNumDims_G_M_Gemm1N, CPermuteNumDims_G_M_O>)
             {
                 add_device_batched_gemm_masking_scale_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instance(
                     op_ptrs);
