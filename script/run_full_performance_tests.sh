@@ -40,85 +40,103 @@ function print_log_header(){
 #run gemm tests
 export gemm_log="perf_gemm_${gpu_arch}.log"
 print_log_header $gemm_log $env_type $branch $host_name
-./profile_gemm.sh gemm 0 0 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 1 0 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 2 0 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 3 0 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 0 1 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 1 1 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 2 1 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 3 1 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 0 2 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 1 2 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 2 2 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 3 2 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 0 3 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 1 3 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 2 3 $verify 1 0 1 | tee -a $gemm_log
-./profile_gemm.sh gemm 3 3 $verify 1 0 1 | tee -a $gemm_log
+./profile_gemm.sh gemm 0 0 $verify 1 0 1 2>&1 | tee -a $gemm_log
+./profile_gemm.sh gemm 1 0 $verify 1 0 1 2>&1 | tee -a $gemm_log
+./profile_gemm.sh gemm 2 0 $verify 1 0 1 2>&1 | tee -a $gemm_log
+./profile_gemm.sh gemm 3 0 $verify 1 0 1 2>&1 | tee -a $gemm_log
+./profile_gemm.sh gemm 0 1 $verify 1 0 1 2>&1 | tee -a $gemm_log
+./profile_gemm.sh gemm 1 1 $verify 1 0 1 2>&1 | tee -a $gemm_log
+./profile_gemm.sh gemm 2 1 $verify 1 0 1 2>&1 | tee -a $gemm_log
+./profile_gemm.sh gemm 3 1 $verify 1 0 1 2>&1 | tee -a $gemm_log
+./profile_gemm.sh gemm 0 2 $verify 1 0 1 2>&1 | tee -a $gemm_log
+./profile_gemm.sh gemm 1 2 $verify 1 0 1 2>&1 | tee -a $gemm_log
+./profile_gemm.sh gemm 2 2 $verify 1 0 1 2>&1 | tee -a $gemm_log
+./profile_gemm.sh gemm 3 2 $verify 1 0 1 2>&1 | tee -a $gemm_log
+./profile_gemm.sh gemm 0 3 $verify 1 0 1 2>&1 | tee -a $gemm_log
+./profile_gemm.sh gemm 1 3 $verify 1 0 1 2>&1 | tee -a $gemm_log
+./profile_gemm.sh gemm 2 3 $verify 1 0 1 2>&1 | tee -a $gemm_log
+./profile_gemm.sh gemm 3 3 $verify 1 0 1 2>&1 | tee -a $gemm_log
 
 #run batched_gemm tests
 export batched_gemm_log="perf_batched_gemm_${gpu_arch}.log"
 print_log_header $batched_gemm_log $env_type $branch $host_name
-./profile_batched_gemm.sh batched_gemm 0 0 $verify 1 0 1 | tee -a $batched_gemm_log
-./profile_batched_gemm.sh batched_gemm 0 1 $verify 1 0 1 | tee -a $batched_gemm_log
-./profile_batched_gemm.sh batched_gemm 0 2 $verify 1 0 1 | tee -a $batched_gemm_log
-./profile_batched_gemm.sh batched_gemm 0 3 $verify 1 0 1 | tee -a $batched_gemm_log
-./profile_batched_gemm.sh batched_gemm 1 0 $verify 1 0 1 | tee -a $batched_gemm_log
-./profile_batched_gemm.sh batched_gemm 1 1 $verify 1 0 1 | tee -a $batched_gemm_log
-./profile_batched_gemm.sh batched_gemm 1 2 $verify 1 0 1 | tee -a $batched_gemm_log
-./profile_batched_gemm.sh batched_gemm 1 3 $verify 1 0 1 | tee -a $batched_gemm_log
-./profile_batched_gemm.sh batched_gemm 2 0 $verify 1 0 1 | tee -a $batched_gemm_log
-./profile_batched_gemm.sh batched_gemm 2 1 $verify 1 0 1 | tee -a $batched_gemm_log
-./profile_batched_gemm.sh batched_gemm 2 2 $verify 1 0 1 | tee -a $batched_gemm_log
-./profile_batched_gemm.sh batched_gemm 2 3 $verify 1 0 1 | tee -a $batched_gemm_log
-./profile_batched_gemm.sh batched_gemm 3 0 $verify 1 0 1 | tee -a $batched_gemm_log
-./profile_batched_gemm.sh batched_gemm 3 1 $verify 1 0 1 | tee -a $batched_gemm_log
-./profile_batched_gemm.sh batched_gemm 3 2 $verify 1 0 1 | tee -a $batched_gemm_log
-./profile_batched_gemm.sh batched_gemm 3 3 $verify 1 0 1 | tee -a $batched_gemm_log
+./profile_batched_gemm.sh batched_gemm 0 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_log
+./profile_batched_gemm.sh batched_gemm 0 1 $verify 1 0 1 2>&1 | tee -a $batched_gemm_log
+./profile_batched_gemm.sh batched_gemm 0 2 $verify 1 0 1 2>&1 | tee -a $batched_gemm_log
+./profile_batched_gemm.sh batched_gemm 0 3 $verify 1 0 1 2>&1 | tee -a $batched_gemm_log
+./profile_batched_gemm.sh batched_gemm 1 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_log
+./profile_batched_gemm.sh batched_gemm 1 1 $verify 1 0 1 2>&1 | tee -a $batched_gemm_log
+./profile_batched_gemm.sh batched_gemm 1 2 $verify 1 0 1 2>&1 | tee -a $batched_gemm_log
+./profile_batched_gemm.sh batched_gemm 1 3 $verify 1 0 1 2>&1 | tee -a $batched_gemm_log
+./profile_batched_gemm.sh batched_gemm 2 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_log
+./profile_batched_gemm.sh batched_gemm 2 1 $verify 1 0 1 2>&1 | tee -a $batched_gemm_log
+./profile_batched_gemm.sh batched_gemm 2 2 $verify 1 0 1 2>&1 | tee -a $batched_gemm_log
+./profile_batched_gemm.sh batched_gemm 2 3 $verify 1 0 1 2>&1 | tee -a $batched_gemm_log
+./profile_batched_gemm.sh batched_gemm 3 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_log
+./profile_batched_gemm.sh batched_gemm 3 1 $verify 1 0 1 2>&1 | tee -a $batched_gemm_log
+./profile_batched_gemm.sh batched_gemm 3 2 $verify 1 0 1 2>&1 | tee -a $batched_gemm_log
+./profile_batched_gemm.sh batched_gemm 3 3 $verify 1 0 1 2>&1 | tee -a $batched_gemm_log
 
 #run grouped_gemm tests
 export grouped_gemm_log="perf_grouped_gemm_${gpu_arch}.log"
 print_log_header $grouped_gemm_log $env_type $branch $host_name
-./profile_grouped_gemm.sh grouped_gemm 1 0 $verify 1 0 1 | tee -a $grouped_gemm_log
-./profile_grouped_gemm.sh grouped_gemm 1 1 $verify 1 0 1 | tee -a $grouped_gemm_log
-./profile_grouped_gemm.sh grouped_gemm 1 2 $verify 1 0 1 | tee -a $grouped_gemm_log
-./profile_grouped_gemm.sh grouped_gemm 1 3 $verify 1 0 1 | tee -a $grouped_gemm_log
+./profile_grouped_gemm.sh grouped_gemm 1 0 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_log
+./profile_grouped_gemm.sh grouped_gemm 1 1 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_log
+./profile_grouped_gemm.sh grouped_gemm 1 2 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_log
+./profile_grouped_gemm.sh grouped_gemm 1 3 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_log
 
 #run GEMM+Bilinear tests
 export gemm_bilinear_log="perf_gemm_bilinear_${gpu_arch}.log"
 print_log_header $gemm_bilinear_log $env_type $branch $host_name
-./profile_gemm_bilinear.sh gemm_bilinear 1 0 $verify 1 0 1 | tee -a $gemm_bilinear_log
-./profile_gemm_bilinear.sh gemm_bilinear 1 1 $verify 1 0 1 | tee -a $gemm_bilinear_log
-./profile_gemm_bilinear.sh gemm_bilinear 1 2 $verify 1 0 1 | tee -a $gemm_bilinear_log
-./profile_gemm_bilinear.sh gemm_bilinear 1 3 $verify 1 0 1 | tee -a $gemm_bilinear_log
+./profile_gemm_bilinear.sh gemm_bilinear 1 0 $verify 1 0 1 2>&1 | tee -a $gemm_bilinear_log
+./profile_gemm_bilinear.sh gemm_bilinear 1 1 $verify 1 0 1 2>&1 | tee -a $gemm_bilinear_log
+./profile_gemm_bilinear.sh gemm_bilinear 1 2 $verify 1 0 1 2>&1 | tee -a $gemm_bilinear_log
+./profile_gemm_bilinear.sh gemm_bilinear 1 3 $verify 1 0 1 2>&1 | tee -a $gemm_bilinear_log
 
 #run conv_fwd tests
 export conv_fwd_log="perf_conv_fwd_${gpu_arch}.log"
 print_log_header $conv_fwd_log $env_type $branch $host_name
-./profile_conv_fwd.sh conv_fwd 0 1 $verify 1 0 1 256 | tee -a $conv_fwd_log
-./profile_conv_fwd.sh conv_fwd 1 1 $verify 1 0 1 256 | tee -a $conv_fwd_log
-./profile_conv_fwd.sh conv_fwd 2 1 $verify 1 0 1 256 | tee -a $conv_fwd_log
-./profile_conv_fwd.sh conv_fwd 3 1 $verify 1 0 1 256 | tee -a $conv_fwd_log
+./profile_conv_fwd.sh conv_fwd 0 1 $verify 1 0 1 256 2>&1 | tee -a $conv_fwd_log
+./profile_conv_fwd.sh conv_fwd 1 1 $verify 1 0 1 256 2>&1 | tee -a $conv_fwd_log
+./profile_conv_fwd.sh conv_fwd 2 1 $verify 1 0 1 256 2>&1 | tee -a $conv_fwd_log
+./profile_conv_fwd.sh conv_fwd 3 1 $verify 1 0 1 256 2>&1 | tee -a $conv_fwd_log
 
 #run conv_bwd_data tests
 export conv_bwd_data_log="perf_conv_bwd_data_${gpu_arch}.log"
 print_log_header $conv_bwd_data_log $env_type $branch $host_name
-./profile_conv_bwd_data.sh conv_bwd_data 0 1 $verify 1 0 1 256 | tee -a $conv_bwd_data_log
-./profile_conv_bwd_data.sh conv_bwd_data 1 1 $verify 1 0 1 256 | tee -a $conv_bwd_data_log
-./profile_conv_bwd_data.sh conv_bwd_data 2 1 $verify 1 0 1 256 | tee -a $conv_bwd_data_log
-./profile_conv_bwd_data.sh conv_bwd_data 3 1 $verify 1 0 1 256 | tee -a $conv_bwd_data_log
+./profile_conv_bwd_data.sh conv_bwd_data 0 1 $verify 1 0 1 256 2>&1 | tee -a $conv_bwd_data_log
+./profile_conv_bwd_data.sh conv_bwd_data 1 1 $verify 1 0 1 256 2>&1 | tee -a $conv_bwd_data_log
+./profile_conv_bwd_data.sh conv_bwd_data 2 1 $verify 1 0 1 256 2>&1 | tee -a $conv_bwd_data_log
+./profile_conv_bwd_data.sh conv_bwd_data 3 1 $verify 1 0 1 256 2>&1 | tee -a $conv_bwd_data_log
 
 #run resnet50 tests
 export resnet256_log="perf_resnet50_N256_${gpu_arch}.log"
 print_log_header $resnet256_log $env_type $branch $host_name
-./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 $verify 1 0 1 256 | tee -a $resnet256_log
+./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 $verify 1 0 1 256 2>&1 | tee -a $resnet256_log
 export resnet4_log="perf_resnet50_N4_${gpu_arch}.log"
 print_log_header $resnet4_log $env_type $branch $host_name
-./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 $verify 1 0 1 4 | tee -a $resnet4_log
+./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 $verify 1 0 1 4 2>&1 | tee -a $resnet4_log
 
 #run reduction tests
 export reduction_log="perf_reduction_${gpu_arch}.log"
 print_log_header $reduction_log $env_type $branch $host_name
-./profile_reduce_with_index.sh $verify 2 10 --half | tee -a $reduction_log
-./profile_reduce_no_index.sh $verify 2 10 --half | tee -a $reduction_log
+./profile_reduce_with_index.sh $verify 2 10 --half 2>&1 | tee -a $reduction_log
+./profile_reduce_no_index.sh $verify 2 10 --half 2>&1 | tee -a $reduction_log
+
+#run splitK_gemm tests
+export splitK_gemm_log="perf_splitK_gemm_${gpu_arch}.log"
+print_log_header $splitK_gemm_log $env_type $branch $host_name
+./profile_splitK_gemm.sh gemm_splitk 0 0 $verify 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
+./profile_splitK_gemm.sh gemm_splitk 0 1 $verify 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
+./profile_splitK_gemm.sh gemm_splitk 0 2 $verify 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
+./profile_splitK_gemm.sh gemm_splitk 0 3 $verify 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
+./profile_splitK_gemm.sh gemm_splitk 1 0 $verify 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
+./profile_splitK_gemm.sh gemm_splitk 1 1 $verify 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
+./profile_splitK_gemm.sh gemm_splitk 1 2 $verify 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
+./profile_splitK_gemm.sh gemm_splitk 1 3 $verify 1 0 1 4 2>&1 | tee -a $splitK_gemm_log
+
+#run ONNX gemm tests
+export onnx_log="perf_onnx_gemm_${gpu_arch}.log"
+print_log_header $onnx_log $env_type $branch $host_name
+./profile_onnx_gemm.sh gemm 0 0 $verify 1 0 1 2>&1 | tee -a $onnx_log
+./profile_onnx_gemm.sh gemm 1 0 $verify 1 0 1 2>&1 | tee -a $onnx_log

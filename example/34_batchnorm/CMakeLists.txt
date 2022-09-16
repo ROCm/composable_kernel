@@ -1,0 +1,2 @@
+add_example_executable(example_batchnorm_forward batchnorm_forward_nhwc.cpp)
+add_example_executable(example_batchnorm_infer batchnorm_infer_nhwc.cpp)

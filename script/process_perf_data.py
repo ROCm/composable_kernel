@@ -127,11 +127,16 @@ def parse_logfile(logfile):
                 lst=line.split()
                 res.append(lst[1])
     #parse all other performance tests:
-    elif 'resnet50' or 'batched_gemm' or 'grouped_gemm' or 'conv_bwd_data' or 'gemm_bilinear' or 'reduction' in logfile:
+    elif 'resnet50' in logfile or 'batched_gemm' in logfile or 'grouped_gemm' in logfile or 'conv_bwd_data' in logfile or 'gemm_bilinear' in logfile or 'reduction' in logfile:
         for line in open(logfile):
             if 'Best Perf' in line:
                 lst=line.split()
                 res.append(lst[4])
+    elif 'onnx_gemm' in logfile or 'splitK_gemm' in logfile:
+        for line in open(logfile):
+            if 'Best Perf' in line:
+                lst=line.split()
+                res.append(lst[33])
     return res
 
 
@@ -281,6 +286,14 @@ def main():
             for i in range(1,50):
                 testlist.append("Layer%i"%i)
             table_name="ck_resnet50_N256_tflops"
+        if 'onnx_gemm' in filename:
+            for i in range(1,len(results)+1):
+                testlist.append("Test%i"%i)
+            table_name="ck_onnx_gemm_tflops"
+        if 'splitK_gemm' in filename:
+            for i in range(1,len(results)+1):
+                testlist.append("Test%i"%i)
+            table_name="ck_splitK_gemm_tflops"
 
         tflops_base = get_baseline(table_name,conn)
         store_new_test_result(table_name, results, testlist, branch_name, node_id, gpu_arch, compute_units, rocm_vers, hip_vers, environment, conn)

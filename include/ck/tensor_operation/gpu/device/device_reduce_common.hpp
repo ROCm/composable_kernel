@@ -35,6 +35,25 @@ std::pair<long_index_t, long_index_t> get_2d_lengths(const std::vector<index_t>&
     return std::make_pair(invariant_total_length, reduce_total_length);
 };
 
+template <index_t Rank, int NumReduceDim>
+std::pair<long_index_t, long_index_t> get_2d_lengths(const std::array<index_t, Rank>& inLengths)
+{
+    static_assert(Rank <= 6, "bigger Rank size not supported!");
+
+    long_index_t invariant_total_length = 1;
+    long_index_t reduce_total_length    = 1;
+
+    constexpr int NumInvariantDim = Rank - NumReduceDim;
+
+    for(int i = NumInvariantDim; i < Rank; i++)
+        reduce_total_length *= inLengths[i];
+
+    for(int i = 0; i < NumInvariantDim; i++)
+        invariant_total_length *= inLengths[i];
+
+    return std::make_pair(invariant_total_length, reduce_total_length);
+};
+
 // helper functions using variadic template arguments
 template <index_t... Ns>
 auto make_tuple_from_array_and_index_seq(const std::vector<index_t>& lengths, Sequence<Ns...>)
@@ -80,6 +99,39 @@ std::vector<index_t> shuffle_tensor_dimensions(const std::vector<index_t>& origL
         if((reduceFlag & (1 << i)) > 0)
         {
             newLengthsStrides.push_back(origLengthsStrides[i]);
+        };
+
+    return newLengthsStrides;
+};
+
+template <index_t Rank, index_t NumReduceDim>
+std::array<index_t, Rank>
+shuffle_tensor_dimensions(const std::array<index_t, Rank>& origLengthsStrides,
+                          const std::array<int, NumReduceDim>& reduceDims)
+{
+    std::array<index_t, Rank> newLengthsStrides;
+
+    int reduceFlag = 0;
+
+    // flag the bits for the reduceDims
+    for(int i = 0; i < NumReduceDim; i++)
+    {
+        reduceFlag |= 1 << reduceDims[i];
+    };
+
+    // collect invariant dimensions
+    int pos = 0;
+    for(int i = 0; i < Rank; i++)
+        if((reduceFlag & (1 << i)) == 0)
+        {
+            newLengthsStrides[pos++] = origLengthsStrides[i];
+        };
+
+    // collect reduce dimensions
+    for(int i = 0; i < Rank; i++)
+        if((reduceFlag & (1 << i)) > 0)
+        {
+            newLengthsStrides[pos++] = origLengthsStrides[i];
         };
 
     return newLengthsStrides;

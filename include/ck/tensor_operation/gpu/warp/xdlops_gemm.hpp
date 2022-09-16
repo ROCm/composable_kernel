@@ -819,7 +819,7 @@ struct XdlopsGemm
         index_t n_offset = blk_i * mfma_instr.n_per_blk + blk_td;
         index_t m_offset = xdlops_i * mfma_instr.m_per_blk + blk_id * mfma_instr.group_size;
 
-        return CIndex{m_offset, n_offset};
+        return TransposeC ? CIndex{n_offset, m_offset} : CIndex{m_offset, n_offset};
     }
 
     static constexpr auto mfma = MfmaSelector<base_type, MPerXdlops, NPerXdlops>{};

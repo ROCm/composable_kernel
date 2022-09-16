@@ -13,7 +13,6 @@
 #include "ck/tensor_operation/gpu/device/device_conv_bwd_weight.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_bwd_weight.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_unary_elementwise_1d.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
