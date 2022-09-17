@@ -343,17 +343,17 @@ def runCKProfiler(Map conf=[:]){
                 {
                     //cmake_build(conf)
                     //instead of building, just get the CK deb package and install it
-                    sh 'pwd'
-                    sh 'ls'
-                    sh "mkdir Libs_composable_kernel_${env.BRANCH_NAME}"
-                    dir("Libs_composable_kernel_${env.BRANCH_NAME}"){
-                        //get deb package
-                        wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/*.deb
-                        //install deb package
-                        sh "dpkg -i *.deb"
-                    }
+                    //sh 'pwd'
+                    //sh 'ls'
+                    //sh "mkdir Libs_composable_kernel_${env.BRANCH_NAME}"
+                    //dir("Libs_composable_kernel_${env.BRANCH_NAME}"){
+                    //get deb package
+                    wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/*.deb
+                    //install deb package
+                    sh "dpkg -i *.deb"
+                    //}
 
-					dir("Libs_composable_kernel_${env.BRANCH_NAME}/script"){
+					dir("script"){
                         if (params.RUN_FULL_QA){
                             def qa_log = "qa_${gpu_arch}.log"
                             sh "./run_full_performance_tests.sh 1 QA_${params.COMPILER_VERSION} ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
@@ -485,15 +485,15 @@ def runTests_and_Examples(Map conf=[:]){
                 timeout(time: 5, unit: 'HOURS')
                 {
                     //cmake_build(conf)
-                    sh 'pwd'
-                    sh 'ls'
-                    sh "mkdir Libs_composable_kernel_${env.BRANCH_NAME}"
-                    dir("Libs_composable_kernel_${env.BRANCH_NAME}"){
-                        //get deb package
-                        wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/*.deb
-                        //install deb package
-                        sh "dpkg -i *.deb"
-                    }
+                    //sh 'pwd'
+                    //sh 'ls'
+                    //sh "mkdir Libs_composable_kernel_${env.BRANCH_NAME}"
+                    //dir("Libs_composable_kernel_${env.BRANCH_NAME}"){
+                    //get deb package
+                    wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/*.deb
+                    //install deb package
+                    sh "dpkg -i *.deb"
+                    //}
                     //run tests and examples
 					dir("build"){
                         sh "make -j check"
