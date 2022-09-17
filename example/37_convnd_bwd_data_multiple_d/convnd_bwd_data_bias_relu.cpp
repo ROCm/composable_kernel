@@ -113,10 +113,6 @@ int main(int argc, char* argv[])
 
     if(conv_param.num_dim_spatial_ == 2)
     {
-        using InLayout  = ctc::GNHWC;
-        using WeiLayout = ctc::GKYXC;
-        using OutLayout = ctc::GNHWK;
-
         const auto out_g_n_k_wos_desc = HostTensorDescriptor(
             {conv_param.G_,
              conv_param.N_,
