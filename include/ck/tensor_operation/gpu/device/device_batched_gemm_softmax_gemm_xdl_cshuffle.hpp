@@ -418,7 +418,8 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched,
-        matrix_padder.PadN>;
+        matrix_padder.PadN,
+        false>;
 
     // Argument
     struct Argument : public BaseArgument
