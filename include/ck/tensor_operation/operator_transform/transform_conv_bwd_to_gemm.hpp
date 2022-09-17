@@ -8,6 +8,7 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -33,7 +34,7 @@ struct TransformConvBwdDataToGemm_v1
 
     template <typename ALayout,
               typename std::enable_if<NDimSpatial == 2 &&
-                                          is_same_v<ALayout, tensor_layout::convolution::GNHWC>,
+                                          is_same_v<ALayout, tensor_layout::convolution::GNHWK>,
                                       bool>::type = false>
     static auto MakeADescriptor_AK0_M_AK1(
         const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_lengths,
@@ -162,10 +163,14 @@ struct TransformConvBwdDataToGemm_v1
                 make_tuple(Sequence<1, 3, 5>{}, Sequence<0, 2, 4>{}, Sequence<6>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
+            const index_t GemmAK0 = out_desc_gemmak0_gemmmraw_gemmak1.GetLength(I0);
+            const index_t GemmAK1 = out_desc_gemmak0_gemmmraw_gemmak1.GetLength(I2);
+
             const auto out_desc_gemmak0_gemmm_gemmak1 =
-                PadTensorDescriptor(out_desc_gemmak0_gemmmraw_gemmak1,
-                                    make_tuple(ignore, GemmMPerBlock, ignore),
-                                    Sequence<false, DoPadGemmM, false>{});
+                ck::tensor_operation::device::PadTensorDescriptor(
+                    out_desc_gemmak0_gemmmraw_gemmak1,
+                    make_tuple(GemmAK0, GemmMPerBlock, GemmAK1),
+                    Sequence<false, DoPadGemmM, false>{});
 
             return out_desc_gemmak0_gemmm_gemmak1;
         }
@@ -265,10 +270,14 @@ struct TransformConvBwdDataToGemm_v1
                 make_tuple(Sequence<2, 3, 0>{}, Sequence<4>{}, Sequence<1>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
+            const index_t GemmBK0 = wei_desc_gemmbk0_gemmnraw_gemmbk1.GetLength(I0);
+            const index_t GemmBK1 = wei_desc_gemmbk0_gemmnraw_gemmbk1.GetLength(I2);
+
             const auto wei_desc_gemmbk0_gemmn_gemmbk1 =
-                PadTensorDescriptor(wei_desc_gemmbk0_gemmnraw_gemmbk1,
-                                    make_tuple(ignore, GemmNPerBlock, ignore),
-                                    Sequence<false, DoPadGemmN, false>{});
+                ck::tensor_operation::device::PadTensorDescriptor(
+                    wei_desc_gemmbk0_gemmnraw_gemmbk1,
+                    make_tuple(GemmBK0, GemmNPerBlock, GemmBK1),
+                    Sequence<false, DoPadGemmN, false>{});
 
             return wei_desc_gemmbk0_gemmn_gemmbk1;
         }
@@ -276,7 +285,7 @@ struct TransformConvBwdDataToGemm_v1
 
     template <typename CLayout,
               typename std::enable_if<NDimSpatial == 2 &&
-                                          is_same_v<CLayout, tensor_layout::convolution::GNHWK>,
+                                          is_same_v<CLayout, tensor_layout::convolution::GNHWC>,
                                       bool>::type = false>
     static auto
     MakeCDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_lengths,
@@ -395,10 +404,10 @@ struct TransformConvBwdDataToGemm_v1
                 make_tuple(Sequence<0, 1, 2>{}, Sequence<3>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-            const auto in_desc_gemmm_gemmn =
-                PadTensorDescriptor(in_desc_gemmmraw_gemmnraw,
-                                    make_tuple(GemmMPerBlock, GemmNPerBlock),
-                                    Sequence<DoPadGemmM, DoPadGemmN>{});
+            const auto in_desc_gemmm_gemmn = ck::tensor_operation::device::PadTensorDescriptor(
+                in_desc_gemmmraw_gemmnraw,
+                make_tuple(GemmMPerBlock, GemmNPerBlock),
+                Sequence<DoPadGemmM, DoPadGemmN>{});
 
             return in_desc_gemmm_gemmn;
         }
