@@ -154,6 +154,10 @@ def cmake_build(Map conf=[:]){
     }else{
         setup_args = " -DCMAKE_BUILD_TYPE=release" + setup_args
     }
+    if(env.CCACHE_HOST)
+    {
+        setup_args = " -DCMAKE_CXX_COMPILER_LAUNCHER='ccache' -DCMAKE_C_COMPILER_LAUNCHER='ccache' " + setup_args
+    }
 
     def pre_setup_cmd = """
             echo \$HSA_ENABLE_SDMA
@@ -484,19 +488,13 @@ def runTests_and_Examples(Map conf=[:]){
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 5, unit: 'HOURS')
                 {
-                    //cmake_build(conf)
-                    //sh '''
-                    //    pwd
-                    //    ls
-                    //    rm -rf build
-                    //    mkdir build
-                    //'''
                     dir("build"){
                         sh """
                             rm -rf build
                             mkdir build
                             wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/*.deb
-                            dpkg -i *.deb
+                            ls
+                            dpkg -x *.deb .
                             make -j check
                         """
                     }
