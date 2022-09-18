@@ -494,9 +494,7 @@ def runTests_and_Examples(Map conf=[:]){
                     dir("build"){
                         sh '''
                             wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/*.deb
-                            //install deb package
                             dpkg -i *.deb
-                            //run tests and examples
                             make -j check
                         '''
                     }
