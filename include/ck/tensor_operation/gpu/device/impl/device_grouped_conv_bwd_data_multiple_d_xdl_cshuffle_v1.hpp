@@ -623,44 +623,23 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
         void Print() const
         {
-            for(size_t i = 0; i < a_grid_desc_ak0_m_ak1_container_.size(); i++)
+            for(size_t i = 0; i < num_gemm_; i++)
             {
-                std::cout << "a_grid_desc_ak0_m_ak1_container_{"
-                          << a_grid_desc_ak0_m_ak1_container_[i].GetLength(I0) << ", "
-                          << a_grid_desc_ak0_m_ak1_container_[i].GetLength(I1) << ", "
-                          << a_grid_desc_ak0_m_ak1_container_[i].GetLength(I2) << "}" << std::endl;
+                std::cout << "a_grid_desc_ak0_m_ak1_container_"
+                          << a_grid_desc_ak0_m_ak1_container_[i] << std::endl;
 
-                std::cout << "b_grid_desc_bk0_n_bk1_container_{"
-                          << b_grid_desc_bk0_n_bk1_container_[i].GetLength(I0) << ", "
-                          << b_grid_desc_bk0_n_bk1_container_[i].GetLength(I1) << ", "
-                          << b_grid_desc_bk0_n_bk1_container_[i].GetLength(I2) << "}" << std::endl;
+                std::cout << "b_grid_desc_bk0_n_bk1_container_"
+                          << b_grid_desc_bk0_n_bk1_container_[i] << std::endl;
 
                 static_for<0, NumDTensor, 1>{}([&](auto j) {
-                    std::cout << "ds_grid_desc_mblock_mperblock_nblock_nperblock_container_{ "
+                    std::cout << "ds_grid_desc_mblock_mperblock_nblock_nperblock_container_"
                               << ds_grid_desc_mblock_mperblock_nblock_nperblock_container_[i][j]
-                                     .GetLength(I0)
-                              << ", "
-                              << ds_grid_desc_mblock_mperblock_nblock_nperblock_container_[i][j]
-                                     .GetLength(I1)
-                              << ", "
-                              << ds_grid_desc_mblock_mperblock_nblock_nperblock_container_[i][j]
-                                     .GetLength(I2)
-                              << ", "
-                              << ds_grid_desc_mblock_mperblock_nblock_nperblock_container_[i][j]
-                                     .GetLength(I3)
-                              << " } " << std::endl;
+                              << std::endl;
                 });
 
-                std::cout
-                    << "e_grid_desc_mblock_mperblock_nblock_nperblock_container_{ "
-                    << e_grid_desc_mblock_mperblock_nblock_nperblock_container_[i].GetLength(I0)
-                    << ", "
-                    << e_grid_desc_mblock_mperblock_nblock_nperblock_container_[i].GetLength(I1)
-                    << ", "
-                    << e_grid_desc_mblock_mperblock_nblock_nperblock_container_[i].GetLength(I2)
-                    << ", "
-                    << e_grid_desc_mblock_mperblock_nblock_nperblock_container_[i].GetLength(I3)
-                    << "}" << std::endl;
+                std::cout << "e_grid_desc_mblock_mperblock_nblock_nperblock_container_"
+                          << e_grid_desc_mblock_mperblock_nblock_nperblock_container_[i]
+                          << std::endl;
             }
         }
 
