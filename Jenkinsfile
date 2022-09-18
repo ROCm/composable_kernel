@@ -488,13 +488,20 @@ def runTests_and_Examples(Map conf=[:]){
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 5, unit: 'HOURS')
                 {
+                    sh """
+                        pwd
+                        ls 
+                        rm -rf build
+                        mkdir build
+                    """
                     dir("build"){
+                        //wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/*.deb
                         sh """
-                            rm -rf build
-                            mkdir build
-                            wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/*.deb
-                            ls
-                            dpkg -x *.deb .
+                            wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/composablekernel-dev_*_amd64.deb
+                            wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/composablekernel-tests_*_amd64.deb
+                            ls -ltr
+                            dpkg -x composablekernel-dev_*_amd64.deb .
+                            dpkg -x composablekernel-tests_*_amd64.deb .
                             make -j check
                         """
                     }
