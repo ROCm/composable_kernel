@@ -301,7 +301,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         const std::array<index_t, NDimSpatial>& input_right_pads,
         const std::array<index_t, NDimSpatial>& tildes)
     {
-#if 1
+#if 0
         index_t i_ytilde = tildes[0];
         index_t i_xtilde = tildes[1];
 
@@ -607,7 +607,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         using DLayout = tuple_element_t<0, DsLayout>;
 
         const auto d0_desc_gemmm_gemmn =
-            transform_conv_to_gemm.template MakeCDescriptor_M_N<DLayout>(out_g_n_k_wos_lengths,
+            transform_conv_to_gemm.template MakeDDescriptor_M_N<DLayout>(out_g_n_k_wos_lengths,
                                                                          out_g_n_k_wos_strides,
                                                                          wei_g_k_c_xs_lengths,
                                                                          wei_g_k_c_xs_strides,
@@ -1128,9 +1128,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         static_for<0, NumDTensor, 1>{}([&](auto i) {
             using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
 
-            if constexpr(is_same_v<DLayout, tensor_layout::convolution::GNHWC>)
+            if constexpr(is_same_v<DLayout, tensor_layout::convolution::GNHWC> ||
+                         is_same_v<DLayout, tensor_layout::convolution::G_NHW_C>)
             {
-                // vector store C matrix into global memory
+                // vector load D matrix from global memory
                 if(!(ConvC % CDEBlockTransferScalarPerVector_NPerBlock == 0))
                 {
                     ds_valid = false;
