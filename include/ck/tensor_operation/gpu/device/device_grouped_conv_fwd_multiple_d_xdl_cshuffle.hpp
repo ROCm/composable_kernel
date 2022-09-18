@@ -117,7 +117,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_conv_fwd__multiple_d_xdl_cshuffle(
+        kernel_grouped_conv_fwd_multiple_d_xdl_cshuffle(
             const ABDataType* __restrict__ p_a_grid,
             const ABDataType* __restrict__ p_b_grid,
             DsPointer p_ds_grid,
@@ -617,7 +617,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
             auto launch_kernel = [&](auto has_main_k_block_loop) {
                 constexpr bool has_main_loop = has_main_k_block_loop.value;
 
-                const auto kernel = kernel_grouped_conv_fwd__multiple_d_xdl_cshuffle<
+                const auto kernel = kernel_grouped_conv_fwd_multiple_d_xdl_cshuffle<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     typename GridwiseGemm::DsGridPointer,
