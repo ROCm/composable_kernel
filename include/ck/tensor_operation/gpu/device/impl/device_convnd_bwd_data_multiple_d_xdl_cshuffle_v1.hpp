@@ -711,12 +711,13 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            //          if(stream_config_.log_level_ > 0)
+            if(stream_config.log_level_ > 0)
             {
                 arg.Print();
             }
 
             float ave_time = 0;
+
             for(size_t i = 0; i < arg.num_gemm_; i++)
             {
                 if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_container_[i],
