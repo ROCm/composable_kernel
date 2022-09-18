@@ -485,25 +485,18 @@ def runTests_and_Examples(Map conf=[:]){
                 timeout(time: 5, unit: 'HOURS')
                 {
                     //cmake_build(conf)
-                    sh '''
-                        pwd
-                        ls
-                        rm -rf build
-                        mkdir build
-                    '''
-                    //sh 'ls'
-                    //sh "mkdir Libs_composable_kernel_${env.BRANCH_NAME}"
+                    //sh '''
+                    //    pwd
+                    //    ls
+                    //    rm -rf build
+                    //    mkdir build
+                    //'''
                     dir("build"){
-                        //get deb package
                         sh '''
                             wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/*.deb
-                            ls
                             //install deb package
                             dpkg -i *.deb
-                            //}
                             //run tests and examples
-					        //dir("build"){
-                            ls
                             make -j check
                         '''
                     }
