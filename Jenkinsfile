@@ -492,11 +492,13 @@ def runTests_and_Examples(Map conf=[:]){
                     //    mkdir build
                     //'''
                     dir("build"){
-                        sh '''
+                        sh """
+                            rm -rf build
+                            mkdir build
                             wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/*.deb
                             dpkg -i *.deb
                             make -j check
-                        '''
+                        """
                     }
                 }
             }
