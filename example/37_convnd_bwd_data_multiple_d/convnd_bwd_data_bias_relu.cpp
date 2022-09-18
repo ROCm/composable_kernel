@@ -32,7 +32,7 @@ using DeviceConvNdBwdDataInstance =
         NDimSpatial,
         ck::tensor_layout::convolution::GNHWK,
         ck::tensor_layout::convolution::GKYXC,
-        ck::Tuple<ck::tensor_layout::convolution::G_NHW_C>,
+        ck::Tuple<ck::tensor_layout::convolution::GC>,
         ck::tensor_layout::convolution::GNHWC,
         OutDataType,
         WeiDataType,
