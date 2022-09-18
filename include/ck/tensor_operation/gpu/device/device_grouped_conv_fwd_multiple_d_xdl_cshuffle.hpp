@@ -452,6 +452,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
               p_b_grid_{static_cast<const BDataType*>(p_b)},
               p_ds_grid_{},
               p_e_grid_{static_cast<EDataType*>(p_e)},
+              num_group_{a_g_n_c_wis_lengths[0]},
               a_grid_desc_m_k_{DeviceOp::MakeAGridDescriptor_M_K<ALayout>(a_g_n_c_wis_lengths,
                                                                           a_g_n_c_wis_strides,
                                                                           b_g_k_c_xs_lengths,
@@ -546,6 +547,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
         EDataType* p_e_grid_;
 
         // tensor descriptors for problem definiton
+        index_t num_group_;
         AGridDesc_M_K a_grid_desc_m_k_;
         BGridDesc_N_K b_grid_desc_n_k_;
         DsGridDesc_M_N ds_grid_desc_m_n_;
@@ -607,8 +609,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
             }
 
             const index_t grid_size =
-                arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) *
-                arg.a_g_n_c_wis_lengths_[0]; // Group count
+                arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * arg.num_group_;
 
             const auto K =
                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);

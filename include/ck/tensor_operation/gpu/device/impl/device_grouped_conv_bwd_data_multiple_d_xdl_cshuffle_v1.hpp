@@ -456,6 +456,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
               p_b_grid_{static_cast<const BDataType*>(p_b)},
               p_ds_grid_{},
               p_e_grid_{static_cast<EDataType*>(p_e)},
+              num_group_{a_g_n_k_wos_lengths[0]},
               num_gemm_{},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
@@ -480,12 +481,11 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                 p_ds_grid_(i) = static_cast<const DDataType*>(p_ds[i]);
             });
 
-            // A/B/E Batch Stride
+            // A/B/Ds/E Batch Stride
             compute_ptr_offset_of_batch_.BatchStrideA_ = a_g_n_k_wos_strides[0];
             compute_ptr_offset_of_batch_.BatchStrideB_ = b_g_k_c_xs_strides[0];
             compute_ptr_offset_of_batch_.BatchStrideE_ = e_g_n_c_wis_strides[0];
 
-            // Ds batch stride
             static_for<0, NumDTensor, 1>{}([&](auto i) {
                 compute_ptr_offset_of_batch_.BatchStrideDs_(i) = ds_g_n_c_wis_strides[i][0];
             });
@@ -506,6 +506,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             const auto YTilde = ConvStrideH / GcdStrideDilationH;
             const auto XTilde = ConvStrideW / GcdStrideDilationW;
 
+            // number of GEMM
             num_gemm_ = YTilde * XTilde;
 
             for(index_t i_ytilde = 0; i_ytilde < YTilde; ++i_ytilde)
@@ -623,7 +624,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
         void Print() const
         {
-            for(size_t i = 0; i < num_gemm_; i++)
+            for(index_t i = 0; i < num_gemm_; i++)
             {
                 std::cout << "a_grid_desc_ak0_m_ak1_container_"
                           << a_grid_desc_ak0_m_ak1_container_[i] << std::endl;
@@ -650,7 +651,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         EDataType* p_e_grid_;
 
         // tensor descriptor for problem definition
-        std::size_t num_gemm_;
+        index_t num_group_;
+        index_t num_gemm_;
         std::vector<AGridDesc_M_K> a_grid_desc_m_k_container_;
         std::vector<BGridDesc_N_K> b_grid_desc_n_k_container_;
         std::vector<DsGridDesc_M_N> ds_grid_desc_m_n_container_;
@@ -704,7 +706,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
             float ave_time = 0;
 
-            for(size_t i = 0; i < arg.num_gemm_; i++)
+            for(index_t i = 0; i < arg.num_gemm_; i++)
             {
                 if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_container_[i],
                                                 arg.b_grid_desc_n_k_container_[i],
@@ -716,7 +718,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                 }
 
                 const index_t grid_size = arg.block_2_etile_map_container_[i].CalculateGridSize(
-                    arg.e_grid_desc_m_n_container_[i]);
+                                              arg.e_grid_desc_m_n_container_[i]) *
+                                          arg.num_group_;
 
                 const auto GemmK = arg.a_grid_desc_m_k_container_[i].GetLength(I1);
 

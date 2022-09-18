@@ -31,25 +31,24 @@ struct TransformConvBwdDataToGemm_v1
               typename std::enable_if<NDimSpatial == 2 &&
                                           is_same_v<ALayout, tensor_layout::convolution::GNHWK>,
                                       bool>::type = false>
-    static auto
-    MakeADescriptor_AK0_M_AK1(const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_lengths,
-                              const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_strides,
-                              const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_lengths,
-                              const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_strides,
-                              const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_lengths,
-                              const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_strides,
-                              const std::array<index_t, NDimSpatial>& conv_filter_strides,
-                              const std::array<index_t, NDimSpatial>& conv_filter_dilations,
-                              const std::array<index_t, NDimSpatial>& input_left_pads,
-                              const std::array<index_t, NDimSpatial>& input_right_pads,
-                              const std::array<index_t, NDimSpatial>& tildes)
+    static auto MakeADescriptor_AK0_M_AK1(
+        const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_lengths,
+        const std::array<index_t, NDimSpatial + 3>& /* out_g_n_k_wos_strides */,
+        const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_lengths,
+        const std::array<index_t, NDimSpatial + 3>& /* wei_g_k_c_xs_strides */,
+        const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_lengths,
+        const std::array<index_t, NDimSpatial + 3>& /* in_g_n_c_wis_strides */,
+        const std::array<index_t, NDimSpatial>& conv_filter_strides,
+        const std::array<index_t, NDimSpatial>& conv_filter_dilations,
+        const std::array<index_t, NDimSpatial>& input_left_pads,
+        const std::array<index_t, NDimSpatial>& /* input_right_pads */,
+        const std::array<index_t, NDimSpatial>& tildes)
     {
         index_t i_ytilde = tildes[0];
         index_t i_xtilde = tildes[1];
 
         const index_t N = in_g_n_c_wis_lengths[1];
         const index_t K = wei_g_k_c_xs_lengths[1];
-        const index_t C = wei_g_k_c_xs_lengths[2];
 
         const index_t Hi = in_g_n_c_wis_lengths[3];
         const index_t Wi = in_g_n_c_wis_lengths[4];
@@ -63,20 +62,13 @@ struct TransformConvBwdDataToGemm_v1
         const index_t InLeftPadH = input_left_pads[0];
         const index_t InLeftPadW = input_left_pads[1];
 
-        const index_t InRightPadH = input_right_pads[0];
-        const index_t InRightPadW = input_right_pads[1];
-
         const index_t ConvStrideH = conv_filter_strides[0];
         const index_t ConvStrideW = conv_filter_strides[1];
 
         const index_t ConvDilationH = conv_filter_dilations[0];
         const index_t ConvDilationW = conv_filter_dilations[1];
 
-        const index_t GemmAK1 = AK1;
-        const index_t GemmBK1 = BK1;
-
         const index_t AK0 = K / AK1;
-        const index_t BK0 = K / BK1;
 
         // assume packed
         const auto out_n_ho_wo_k_grid_desc =
@@ -202,18 +194,18 @@ struct TransformConvBwdDataToGemm_v1
               typename std::enable_if<NDimSpatial == 2 &&
                                           is_same_v<BLayout, tensor_layout::convolution::GKYXC>,
                                       bool>::type = false>
-    static auto
-    MakeBDescriptor_BK0_N_BK1(const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_lengths,
-                              const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_strides,
-                              const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_lengths,
-                              const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_strides,
-                              const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_lengths,
-                              const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_strides,
-                              const std::array<index_t, NDimSpatial>& conv_filter_strides,
-                              const std::array<index_t, NDimSpatial>& conv_filter_dilations,
-                              const std::array<index_t, NDimSpatial>& input_left_pads,
-                              const std::array<index_t, NDimSpatial>& input_right_pads,
-                              const std::array<index_t, NDimSpatial>& tildes)
+    static auto MakeBDescriptor_BK0_N_BK1(
+        const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_lengths,
+        const std::array<index_t, NDimSpatial + 3>& /* out_g_n_k_wos_strides */,
+        const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_lengths,
+        const std::array<index_t, NDimSpatial + 3>& /* wei_g_k_c_xs_strides */,
+        const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_lengths,
+        const std::array<index_t, NDimSpatial + 3>& /* in_g_n_c_wis_strides */,
+        const std::array<index_t, NDimSpatial>& conv_filter_strides,
+        const std::array<index_t, NDimSpatial>& conv_filter_dilations,
+        const std::array<index_t, NDimSpatial>& /* input_left_pads */,
+        const std::array<index_t, NDimSpatial>& /* input_right_pads */,
+        const std::array<index_t, NDimSpatial>& tildes)
     {
         index_t i_ytilde = tildes[0];
         index_t i_xtilde = tildes[1];
@@ -222,20 +214,11 @@ struct TransformConvBwdDataToGemm_v1
         const index_t K = wei_g_k_c_xs_lengths[1];
         const index_t C = wei_g_k_c_xs_lengths[2];
 
-        const index_t Hi = in_g_n_c_wis_lengths[3];
-        const index_t Wi = in_g_n_c_wis_lengths[4];
-
         const index_t Ho = out_g_n_k_wos_lengths[3];
         const index_t Wo = out_g_n_k_wos_lengths[4];
 
         const index_t Y = wei_g_k_c_xs_lengths[3];
         const index_t X = wei_g_k_c_xs_lengths[4];
-
-        const index_t InLeftPadH = input_left_pads[0];
-        const index_t InLeftPadW = input_left_pads[1];
-
-        const index_t InRightPadH = input_right_pads[0];
-        const index_t InRightPadW = input_right_pads[1];
 
         const index_t ConvStrideH = conv_filter_strides[0];
         const index_t ConvStrideW = conv_filter_strides[1];
@@ -243,10 +226,6 @@ struct TransformConvBwdDataToGemm_v1
         const index_t ConvDilationH = conv_filter_dilations[0];
         const index_t ConvDilationW = conv_filter_dilations[1];
 
-        const index_t GemmAK1 = AK1;
-        const index_t GemmBK1 = BK1;
-
-        const index_t AK0 = K / AK1;
         const index_t BK0 = K / BK1;
 
         // assume packed
@@ -284,25 +263,6 @@ struct TransformConvBwdDataToGemm_v1
 
             const auto YDot = math::integer_divide_ceil(Y, YTilde);
             const auto XDot = math::integer_divide_ceil(X, XTilde);
-
-            const auto HTilde =
-                Ho + math::integer_divide_ceil(ConvDilationH * (Y - I1), ConvStrideH);
-            const auto WTilde =
-                Wo + math::integer_divide_ceil(ConvDilationW * (X - I1), ConvStrideW);
-
-            // only work on HTilde and WTilde that contribute to non-padding area of input tensor
-            const auto IHTildeSliceBegin = math::integer_divide_floor(
-                math::max(I0, InLeftPadH - ConvDilationH * (YTilde - I1)), ConvStrideH);
-            const auto IWTildeSliceBegin = math::integer_divide_floor(
-                math::max(I0, InLeftPadW - ConvDilationW * (XTilde - I1)), ConvStrideW);
-
-            const auto IHTildeSliceEnd = math::min(
-                HTilde, math::integer_divide_ceil(InLeftPadH + Hi - I1, ConvStrideH) + I1);
-            const auto IWTildeSliceEnd = math::min(
-                WTilde, math::integer_divide_ceil(InLeftPadW + Wi - I1, ConvStrideW) + I1);
-
-            const auto HTildeSlice = IHTildeSliceEnd - IHTildeSliceBegin;
-            const auto WTildeSlice = IWTildeSliceEnd - IWTildeSliceBegin;
 
             // GemmK is different for each GEMM
             const auto YDotSlice = math::integer_divide_ceil(Y - i_ytilde, YTilde);
@@ -368,9 +328,9 @@ struct TransformConvBwdDataToGemm_v1
                                       bool>::type = false>
     static auto
     MakeCDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_strides,
+                        const std::array<index_t, NDimSpatial + 3>& /* out_g_n_k_wos_strides */,
                         const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_strides,
+                        const std::array<index_t, NDimSpatial + 3>& /* wei_g_k_c_xs_strides */,
                         const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_lengths,
                         const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_strides,
                         const std::array<index_t, NDimSpatial>& conv_filter_strides,
@@ -383,7 +343,6 @@ struct TransformConvBwdDataToGemm_v1
         index_t i_xtilde = tildes[1];
 
         const index_t N = in_g_n_c_wis_lengths[1];
-        const index_t K = wei_g_k_c_xs_lengths[1];
         const index_t C = wei_g_k_c_xs_lengths[2];
 
         const index_t Hi = in_g_n_c_wis_lengths[3];
@@ -406,12 +365,6 @@ struct TransformConvBwdDataToGemm_v1
 
         const index_t ConvDilationH = conv_filter_dilations[0];
         const index_t ConvDilationW = conv_filter_dilations[1];
-
-        const index_t GemmAK1 = AK1;
-        const index_t GemmBK1 = BK1;
-
-        const index_t AK0 = K / AK1;
-        const index_t BK0 = K / BK1;
 
         // assume strided
         const auto in_n_hi_wi_c_grid_desc =
@@ -459,9 +412,6 @@ struct TransformConvBwdDataToGemm_v1
             const auto YTilde = ConvStrideH / GcdStrideDilationH;
             const auto XTilde = ConvStrideW / GcdStrideDilationW;
 
-            const auto YDot = math::integer_divide_ceil(Y, YTilde);
-            const auto XDot = math::integer_divide_ceil(X, XTilde);
-
             const auto HTilde =
                 Ho + math::integer_divide_ceil(ConvDilationH * (Y - I1), ConvStrideH);
             const auto WTilde =
@@ -480,10 +430,6 @@ struct TransformConvBwdDataToGemm_v1
 
             const auto HTildeSlice = IHTildeSliceEnd - IHTildeSliceBegin;
             const auto WTildeSlice = IWTildeSliceEnd - IWTildeSliceBegin;
-
-            // GemmK is different for each GEMM
-            const auto YDotSlice = math::integer_divide_ceil(Y - i_ytilde, YTilde);
-            const auto XDotSlice = math::integer_divide_ceil(X - i_xtilde, XTilde);
 
             // C: input tensor
             const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
@@ -551,22 +497,18 @@ struct TransformConvBwdDataToGemm_v1
                                       bool>::type = false>
     static auto
     MakeCDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_strides,
+                        const std::array<index_t, NDimSpatial + 3>& /* out_g_n_k_wos_strides */,
                         const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_strides,
+                        const std::array<index_t, NDimSpatial + 3>& /* wei_g_k_c_xs_strides */,
                         const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_strides,
+                        const std::array<index_t, NDimSpatial + 3>& /* in_g_n_c_wis_strides */,
                         const std::array<index_t, NDimSpatial>& conv_filter_strides,
                         const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                         const std::array<index_t, NDimSpatial>& input_left_pads,
-                        const std::array<index_t, NDimSpatial>& input_right_pads,
-                        const std::array<index_t, NDimSpatial>& tildes)
+                        const std::array<index_t, NDimSpatial>& /* input_right_pads */,
+                        const std::array<index_t, NDimSpatial>& /* tildes */)
     {
-        index_t i_ytilde = tildes[0];
-        index_t i_xtilde = tildes[1];
-
         const index_t N = in_g_n_c_wis_lengths[1];
-        const index_t K = wei_g_k_c_xs_lengths[1];
         const index_t C = wei_g_k_c_xs_lengths[2];
 
         const index_t Hi = in_g_n_c_wis_lengths[3];
@@ -581,20 +523,11 @@ struct TransformConvBwdDataToGemm_v1
         const index_t InLeftPadH = input_left_pads[0];
         const index_t InLeftPadW = input_left_pads[1];
 
-        const index_t InRightPadH = input_right_pads[0];
-        const index_t InRightPadW = input_right_pads[1];
-
         const index_t ConvStrideH = conv_filter_strides[0];
         const index_t ConvStrideW = conv_filter_strides[1];
 
         const index_t ConvDilationH = conv_filter_dilations[0];
         const index_t ConvDilationW = conv_filter_dilations[1];
-
-        const index_t GemmAK1 = AK1;
-        const index_t GemmBK1 = BK1;
-
-        const index_t AK0 = K / AK1;
-        const index_t BK0 = K / BK1;
 
         if constexpr(ConvBwdDataSpecialization ==
                      ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::
@@ -612,9 +545,6 @@ struct TransformConvBwdDataToGemm_v1
 
             const auto YTilde = ConvStrideH / GcdStrideDilationH;
             const auto XTilde = ConvStrideW / GcdStrideDilationW;
-
-            const auto YDot = math::integer_divide_ceil(Y, YTilde);
-            const auto XDot = math::integer_divide_ceil(X, XTilde);
 
             const auto HTilde =
                 Ho + math::integer_divide_ceil(ConvDilationH * (Y - I1), ConvStrideH);
@@ -634,10 +564,6 @@ struct TransformConvBwdDataToGemm_v1
 
             const auto HTildeSlice = IHTildeSliceEnd - IHTildeSliceBegin;
             const auto WTildeSlice = IWTildeSliceEnd - IWTildeSliceBegin;
-
-            // GemmK is different for each GEMM
-            const auto YDotSlice = math::integer_divide_ceil(Y - i_ytilde, YTilde);
-            const auto XDotSlice = math::integer_divide_ceil(X - i_xtilde, XTilde);
 
             // bias tensor
             const auto in_gemmmraw_gemmnraw_grid_desc = make_naive_tensor_descriptor(
