@@ -44,6 +44,8 @@ using DeviceConvNdBwdDataInstance =
         WeiElementOp,
         InElementOp,
         ConvBwdDataDefault,
+        false, // DoPadGemmM
+        false, // DoPadGemmN
         1,
         256,
         128,

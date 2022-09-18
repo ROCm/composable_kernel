@@ -209,6 +209,8 @@ template <index_t NDimSpatial,
           typename BElementwiseOp,   // weight
           typename CDEElementwiseOp, // C, bias, and input image
           ConvolutionBackwardDataSpecialization ConvBackwardDataSpecialization,
+          bool DoPadGemmM,
+          bool DoPadGemmN,
           index_t NumGemmKPrefetchStage,
           index_t BlockSize,
           index_t MPerBlock,
@@ -283,8 +285,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                       BK1,
                                       MPerBlock,
                                       NPerBlock,
-                                      true,
-                                      true>{};
+                                      DoPadGemmM,
+                                      DoPadGemmN>{};
 
     static auto MakeABCDsGridDescriptor_A_ak0_m_ak1_B_bk0_n_bk1_C_M_N(
         const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_lengths,
