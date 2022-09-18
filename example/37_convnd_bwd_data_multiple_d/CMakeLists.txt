@@ -1,1 +1,0 @@
-add_example_executable(example_convnd_bwd_data_bias_relu convnd_bwd_data_bias_relu.cpp)

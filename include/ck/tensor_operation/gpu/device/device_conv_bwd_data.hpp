@@ -44,45 +44,6 @@ struct DeviceConvBwdData : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-#if 1
-// bwd data multiple d
-template <ck::index_t NumDimSpatial,
-          typename InLayout,
-          typename WeiLayout,
-          typename OutLayout,
-          typename DsLayout,
-          typename InDataType,
-          typename WeiDataType,
-          typename OutDataType,
-          typename DsDataType,
-          typename DsElementwiseOperation,
-          typename WeiElementwiseOperation,
-          typename OutElementwiseOperation>
-struct DeviceConvBwdDataMultipleD : public BaseOperator
-{
-    virtual std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(void* p_in,
-                        const void* p_wei,
-                        const void* p_out,
-                        const void* p_bias,
-                        ck::index_t N,
-                        ck::index_t K,
-                        ck::index_t C,
-                        std::vector<ck::index_t> input_spatial_lengths,
-                        std::vector<ck::index_t> filter_spatial_lengths,
-                        std::vector<ck::index_t> output_spatial_lengths,
-                        std::vector<ck::index_t> conv_filter_strides,
-                        std::vector<ck::index_t> conv_filter_dilations,
-                        std::vector<ck::index_t> input_left_pads,
-                        std::vector<ck::index_t> input_right_pads,
-                        DsElementwiseOperation in_element_op,
-                        WeiElementwiseOperation wei_element_op,
-                        OutElementwiseOperation out_element_op) = 0;
-
-    virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
-};
-#endif
-
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "convnd_bwd_data_bias_relu_common.hpp"
+#include "grouped_conv_bwd_data_bias_relu_common.hpp"
 
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_bwd_data_multiple_d.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_convnd_bwd_data_multiple_d_xdl_cshuffle_v1.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_data_multiple_d_xdl_cshuffle_v1.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
