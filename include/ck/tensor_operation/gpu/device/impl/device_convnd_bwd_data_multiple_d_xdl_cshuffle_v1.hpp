@@ -265,18 +265,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     // TODO make A/B datatype different
     using ABDataType = ADataType;
 
-    using OutDataType = ADataType;
-    using WeiDataType = BDataType;
-    using InDataType  = EDataType;
-
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
-    static constexpr auto I4 = Number<4>{};
-    static constexpr auto I5 = Number<5>{};
-    static constexpr auto I6 = Number<6>{};
-    static constexpr auto I7 = Number<7>{};
 
     static constexpr auto transform_conv_to_gemm =
         TransformConvBwdDataToGemm_v1<NDimSpatial,
