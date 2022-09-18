@@ -497,11 +497,11 @@ def runTests_and_Examples(Map conf=[:]){
                     dir("build"){
                         //wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/*.deb
                         sh """
-                            wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/composablekernel-dev_*_amd64.deb
-                            wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/composablekernel-tests_*_amd64.deb
+                            wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/composablekernel-dev_0.2.0-${env.CHANGE_ID}_amd64.deb
+                            wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/composablekernel-tests_0.2.0-${env.CHANGE_ID}_amd64.deb
                             ls -ltr
-                            dpkg -x composablekernel-dev_*_amd64.deb .
-                            dpkg -x composablekernel-tests_*_amd64.deb .
+                            dpkg -x composablekernel-dev_0.2.0-${env.CHANGE_ID}_amd64.deb .
+                            dpkg -x composablekernel-tests_0.2.0-${env.CHANGE_ID}_amd64.deb .
                             make -j check
                         """
                     }
