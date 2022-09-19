@@ -772,7 +772,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                 auto gemm0_n_block_idx =
                     __builtin_amdgcn_readfirstlane(gemm1_k_block_outer_index * NPerBlock);
                 if((m_block_data_idx_on_grid < gemm0_n_block_idx) &&
-                   (m_block_data_idx_on_grid < (gemm0_n_block_idx + NPerBlock - 1)))
+                   ((m_block_data_idx_on_grid + MPerBlock - 1) < gemm0_n_block_idx))
                 {
                     continue;
                 }
