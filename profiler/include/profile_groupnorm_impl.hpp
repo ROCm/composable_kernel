@@ -49,7 +49,7 @@ template <typename XDataType,
           typename BetaDataType,
           typename AccDataType,
           typename YDataType>
-void profile_groupnorm_impl(int do_verification,
+bool profile_groupnorm_impl(int do_verification,
                             int init_method,
                             bool do_log,
                             bool time_kernel,
@@ -61,7 +61,7 @@ void profile_groupnorm_impl(int do_verification,
     using Sigmoid = ck::tensor_operation::element_wise::Sigmoid;
 
     if(length.size() != 5)
-        return;
+        return false;
 
     index_t G = length[3];
     index_t C = length[4];
@@ -156,6 +156,8 @@ void profile_groupnorm_impl(int do_verification,
         }
     }
 
+    int num_kernel = 0;
+
     for(auto& inst_ptr : instances)
     {
         auto argument_ptr = inst_ptr->MakeArgumentPointer(
@@ -172,12 +174,13 @@ void profile_groupnorm_impl(int do_verification,
             y_dev.GetDeviceBuffer(),
             Sigmoid{});
 
-        if(!inst_ptr->IsSupportedArgument(argument_ptr.get()))
+        if(inst_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            std::cout << inst_ptr->GetTypeString() << " skipped due to unsupported argument: ";
-            LogRange(std::cout << "input lengths = [", length, "], ") << std::endl;
-
-            return;
+            ++num_kernel;
+        }
+        else
+        {
+            continue;
         }
 
         auto invoker_ptr = inst_ptr->MakeInvokerPointer();
@@ -191,8 +194,9 @@ void profile_groupnorm_impl(int do_verification,
 
         float gb_per_sec = num_bytes / 1.E6 / avg_time;
 
-        std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << gb_per_sec << " GB/s, "
-                  << inst_ptr->GetTypeString() << std::endl;
+        if(time_kernel)
+            std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << gb_per_sec << " GB/s, "
+                      << inst_ptr->GetTypeString() << std::endl;
 
         if(avg_time < best_avg_time)
         {
@@ -219,18 +223,30 @@ void profile_groupnorm_impl(int do_verification,
             {
                 std::cout << inst_ptr->GetTypeString() << " failed verification: ";
                 LogRange(std::cout << "lengths = [", length, ", ") << "]." << std::endl;
-                return;
+                return false;
             }
             else
             {
-                std::cout << "pass" << std::endl;
+                if(time_kernel)
+                    std::cout << "pass" << std::endl;
             }
         }
     }
 
-    LogRange(std::cout << "length = ", length, ",") << ", ";
-    std::cout << "best perf = " << best_avg_time << " ms, " << best_gb_per_sec << " GB/s, "
-              << best_instance_name << std::endl;
+    if(time_kernel)
+    {
+        LogRange(std::cout << "length = ", length, ",") << ", ";
+        std::cout << "num_kernel = " << num_kernel << ", best perf = " << best_avg_time << " ms, "
+                  << best_gb_per_sec << " GB/s, " << best_instance_name << std::endl;
+    }
+
+    if(num_kernel == 0)
+    {
+        std::cout << "Error: No kernel is tested" << std::endl;
+        return false;
+    }
+
+    return true;
 }
 
 } // namespace profiler

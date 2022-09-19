@@ -52,7 +52,7 @@ void print_help_groupnorm()
               << "arg5: print tensor value (0: no; 1: yes)\n"
               << "arg6: time kernel (0=n0, 1=yes)\n"
               << "arg7: out elementwise op (0=passthrough, 1=sigmoid)\n"
-              << "--length: tensor extents (e.g, --length 1024 1024) \n"
+              << "--length: tensor extents (e.g, --length 1 16 16 32 40) \n"
               << std::endl;
 }
 
