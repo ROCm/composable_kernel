@@ -57,24 +57,6 @@ struct BaseOperator
     virtual ~BaseOperator() {}
 };
 
-template <typename DerivedInvoker, typename Argument>
-struct BaseInvokerCRTP : BaseInvoker
-{
-    static_assert(std::is_class_v<Argument> && std::is_base_of_v<BaseArgument, Argument>);
-
-    float Run(const BaseArgument* arg,
-              const StreamConfig& stream_config = StreamConfig{}) override final
-    {
-        const auto* const argument = dynamic_cast<const Argument*>(arg);
-        if(!argument)
-        {
-            return NAN;
-        }
-
-        return DerivedInvoker::Run(*argument, stream_config);
-    }
-};
-
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

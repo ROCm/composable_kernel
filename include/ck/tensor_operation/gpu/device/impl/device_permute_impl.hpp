@@ -146,7 +146,7 @@ struct DevicePermuteImpl : DevicePermute<NumDim, InDataType, OutDataType, Elemen
         Block2TileMap block_2_tile_map_;
     };
 
-    struct Invoker : BaseInvokerCRTP<Invoker, Argument>
+    struct Invoker : BaseInvoker
     {
         static float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
@@ -172,6 +172,18 @@ struct DevicePermuteImpl : DevicePermute<NumDim, InDataType, OutDataType, Elemen
                                                         arg.elementwise_op_,
                                                         arg.block_2_tile_map_);
             return elapsed_time;
+        }
+
+        float Run(const BaseArgument* arg,
+                  const StreamConfig& stream_config = StreamConfig{}) override final
+        {
+            const auto* const argument = dynamic_cast<const Argument*>(arg);
+            if(!argument)
+            {
+                return NAN;
+            }
+
+            return Run(*argument, stream_config);
         }
     };
 
