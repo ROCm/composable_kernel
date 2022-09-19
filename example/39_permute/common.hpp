@@ -283,6 +283,8 @@ inline auto is_valid_axes(const Axes& axes)
 template <typename Shape>
 inline auto is_valid_shape(const Shape& shape) -> std::enable_if_t<detail::is_range_v<Shape>, bool>
 {
+    static_assert(std::is_unsigned_v<ck::remove_cvref_t<decltype(*std::begin(shape))>>);
+
     using std::begin, std::end;
     using std::empty;
     return !empty(shape) && std::all_of(begin(shape), end(shape), [](auto dim) { return 0 < dim; });
@@ -292,6 +294,8 @@ template <typename Shape, typename Indices>
 inline auto is_valid_indices(const Shape& shape, const Indices& indices)
     -> std::enable_if_t<detail::is_sized_range_v<Shape> && detail::is_sized_range_v<Indices>, bool>
 {
+    static_assert(std::is_unsigned_v<ck::remove_cvref_t<decltype(*std::begin(indices))>>);
+
     if(!is_valid_shape(shape))
     {
         return false;
