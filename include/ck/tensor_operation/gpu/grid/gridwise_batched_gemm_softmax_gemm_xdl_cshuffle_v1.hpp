@@ -75,7 +75,8 @@ template <typename FloatAB,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
-          LoopScheduler LoopSched>
+          LoopScheduler LoopSched,
+          bool PadN>
 struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
 {
     static_assert(LoopSched == LoopScheduler::Default,
@@ -182,11 +183,19 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
 
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
-        return math::max((SharedMemTrait::a_block_space_size_aligned +
-                          SharedMemTrait::b_block_space_size_aligned) *
-                                 sizeof(FloatAB) +
-                             SharedMemTrait::reduction_workspace * sizeof(FloatGemmAcc),
-                         SharedMemTrait::c_block_size * sizeof(FloatCShuffle));
+        const index_t gemm0_bytes_end = (SharedMemTrait::a_block_space_size_aligned +
+                                         SharedMemTrait::b_block_space_size_aligned) *
+                                        sizeof(FloatAB);
+        const index_t gemm1_bytes_end =
+            (SharedMemTrait::b1_block_space_offset + SharedMemTrait::b1_block_space_size_aligned) *
+            sizeof(FloatAB);
+        const index_t softmax_bytes_end = (SharedMemTrait::reduction_space_offset +
+                                           SharedMemTrait::reduction_space_size_aligned) *
+                                          sizeof(FloatGemmAcc);
+        const index_t c_block_bytes_end =
+            SharedMemTrait::c_block_space_size * sizeof(FloatCShuffle);
+
+        return math::max(gemm0_bytes_end, gemm1_bytes_end, softmax_bytes_end, c_block_bytes_end);
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
@@ -236,8 +245,6 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         {
             return false;
         }
-
-        assert(num_gemm1_k_outer_loop * num_gemm1_k_inner_loop == N / Gemm1KPerBlock);
 
         if(!block_2_ctile_map.CheckValidity(c_grid_desc_m_n))
         {
@@ -302,23 +309,56 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
 
         static constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
             a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
-        static constexpr auto b0_block_space_size_aligned = math::integer_least_multiple(
+        static constexpr auto b_block_space_size_aligned = math::integer_least_multiple(
             b_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
         static constexpr auto b1_block_space_size_aligned = math::integer_least_multiple(
             b1_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
 
-        // B1 can reuse B's LDS
-        static constexpr auto b_block_space_size_aligned =
-            math::max(b0_block_space_size_aligned.value, b1_block_space_size_aligned.value);
+        static constexpr auto a_block_space_offset  = 0;
+        static constexpr auto b_block_space_offset  = a_block_space_size_aligned.value;
+        static constexpr auto b1_block_space_offset = 0;
 
         // LDS allocation for reduction
-        static constexpr index_t reduction_workspace = BlockSize;
+        static constexpr index_t reduction_space_size_aligned =
+            math::integer_least_multiple(BlockSize, max_lds_align);
+
+        static constexpr auto reduction_space_offset = 0;
 
         // LDS allocation for C shuffle in LDS
         static constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
             GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
-        static constexpr auto c_block_size =
+        static constexpr auto c_block_space_size =
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
+    };
+
+    template <bool Pred>
+    struct ElementOpPredicatedResetNaNToMinusInf;
+
+    template <>
+    struct ElementOpPredicatedResetNaNToMinusInf<true>
+    {
+        template <typename ElementOp, typename OutT, typename InT>
+        __host__ __device__ void Run(OutT& y, const ElementOp& op, const InT& x)
+        {
+            if(ck::math::isnan(x))
+            {
+                y = -ck::NumericLimits<float>::Infinity();
+            }
+            else
+            {
+                op(y, x);
+            }
+        }
+    };
+
+    template <>
+    struct ElementOpPredicatedResetNaNToMinusInf<false>
+    {
+        template <typename ElementOp, typename OutT, typename InT>
+        __host__ __device__ void Run(OutT& y, const ElementOp& op, const InT& x)
+        {
+            op(y, x);
+        }
     };
 
     template <bool HasMainKBlockLoop, typename Block2CTileMap>
@@ -339,10 +379,20 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
                                const Block2CTileMap& block_2_ctile_map)
     {
-        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
-        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
+        const auto a_grid_buf =
+            conditional_expr<PadN>(make_dynamic_buffer<AddressSpaceEnum::Global>(
+                                       p_a_grid,
+                                       a_grid_desc_ak0_m_ak1.GetElementSpaceSize(),
+                                       NumericLimits<FloatAB>::QuietNaN()),
+                                   make_dynamic_buffer<AddressSpaceEnum::Global>(
+                                       p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize()));
+        const auto b_grid_buf =
+            conditional_expr<PadN>(make_dynamic_buffer<AddressSpaceEnum::Global>(
+                                       p_b_grid,
+                                       b_grid_desc_bk0_n_bk1.GetElementSpaceSize(),
+                                       NumericLimits<FloatAB>::QuietNaN()),
+                                   make_dynamic_buffer<AddressSpaceEnum::Global>(
+                                       p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize()));
         const auto b1_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b1_grid, b1_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -471,10 +521,11 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
 
         // LDS allocation for A and B: be careful of alignment
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<FloatAB*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+            static_cast<FloatAB*>(p_shared) + SharedMemTrait::a_block_space_offset,
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<FloatAB*>(p_shared) + SharedMemTrait::a_block_space_size_aligned,
+            static_cast<FloatAB*>(p_shared) + SharedMemTrait::b_block_space_offset,
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1, 0, 0);
@@ -549,11 +600,11 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             FloatAB,
             decltype(acc_thread_desc_k0_m_k1),
             decltype(a1_thread_desc_k0_m_k1),
-            decltype(acc_element_op),
+            tensor_operation::element_wise::PassThrough,
             Sequence<A1ThreadSliceK0, A1ThreadSliceM, A1ThreadSliceK1>,
             Sequence<1, 0, 2>,
             2,
-            n4>{acc_element_op};
+            n4>{tensor_operation::element_wise::PassThrough{}};
 
         // B1 matrix blockwise copy
         auto b1_blockwise_copy =
@@ -591,12 +642,20 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
 
         // reuse LDS space for gemm0's b_block_buf
         auto b1_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<FloatAB*>(p_shared) + SharedMemTrait::a_block_space_size_aligned,
+            static_cast<FloatAB*>(p_shared) + SharedMemTrait::b1_block_space_offset,
             b1_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
-        constexpr index_t Gemm1KPack = math::max(
-            math::lcm(MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.group_size, B1K1),
-            MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+        // selected_mfma.group_size or B1K1 <= Gemm1KPack <= selected_mfma.group_size
+        // selected_mfma.k_per_blk <= Gemm1KPack
+        //
+        // Following similar rationale behind Gemm0KPack, let Gemm1KPack be the lowest common
+        // multiples of A1K1 (predetermined by selected_mfma.group_size) and B1K1. But in this case
+        // Gemm1KPack can't be higher than A1K1 itself because A1 matrix is distributed in VGPRs
+        // with 'group_size' amount of contiguous elements. Having Gemm1KPack greater than A1K1 will
+        // cause mismatch in summation index for example c[0:7] = a1[[0:3, 8:11]] * b1[0:7].
+        // therefore we may just as well assign Gemm1KPack = group_size
+        constexpr index_t Gemm1KPack =
+            MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.group_size;
 
         auto gemm1_blockwise_gemm = BlockwiseGemmXdlops_v2<
             BlockSize,
@@ -617,7 +676,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             true,       // TransposeC
             Gemm1KPack, // AMmaKStride
             Gemm1KPack * XdlopsGemm<FloatAB, MPerXdl, NPerXdl, Gemm1KPack, false>{}.K0PerXdlops>{
-            make_tuple(0, 0, 0, 0)}; // TransposeC
+            // BMmaKStride
+            make_tuple(0, 0, 0, 0)}; // A_origin
 
         auto acc1_thread_buf = gemm1_blockwise_gemm.GetCThreadBuffer();
 
@@ -625,10 +685,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         // Blockwise softmax
         //
         auto workspace_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<FloatGemmAcc*>(p_shared) +
-                SharedMemTrait::a_block_space_size_aligned * sizeof(FloatAB) / 4 +
-                SharedMemTrait::b_block_space_size_aligned * sizeof(FloatAB) / 4,
-            SharedMemTrait::reduction_workspace);
+            static_cast<FloatGemmAcc*>(p_shared) + SharedMemTrait::reduction_space_offset,
+            SharedMemTrait::reduction_space_size_aligned);
 
         // get acc0 8D thread cluster
         constexpr auto thread_cluster_m0_n0_m1_n1_m2_n2_n3_n4 =
@@ -667,7 +725,12 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                                   FloatGemmAcc,
                                                   decltype(threadid_to_m_n_thread_cluster_adaptor),
                                                   decltype(thread_cluster_desc_m_n),
-                                                  decltype(thread_slice_desc_m_n)>{};
+                                                  decltype(thread_slice_desc_m_n)
+#if CK_WORKAROUND_SWDEV_XXXXXX_ATTN_KERNEL_CLANG_CANNOT_SCAVENGE_REGISTER
+                                                      ,
+                                                  true
+#endif
+                                                  >{};
 
         const index_t num_gemm1_k_block_outer_loop =
             b_grid_desc_bk0_n_bk1.GetLength(I1) / NPerBlock;
@@ -706,6 +769,20 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                                                    blockwise_gemm,
                                                                    acc_thread_buf,
                                                                    num_k_block_main_loop);
+
+            // Acc0 elementwise Op
+#if CK_WORKAROUND_SWDEV_XXXXXX_ATTN_KERNEL_CLANG_CANNOT_SCAVENGE_REGISTER
+            static_for<0, acc_thread_buf.Size(), 1>{}(
+                [&](auto i) { acc_element_op(acc_thread_buf(i), acc_thread_buf[i]); });
+#else
+            static_for<0, acc_thread_buf.Size(), 1>{}([&](auto i) {
+                ElementOpPredicatedResetNaNToMinusInf<PadN>{}.Run(
+                    acc_thread_buf(i), acc_element_op, acc_thread_buf[i]);
+            });
+#endif
+
+            block_sync_lds(); // wait for lds read in gemm0 blockwise gemm
+
             // softmax
             SoftmaxBuf& max = blockwise_softmax.max_value_buf;
             SoftmaxBuf& sum = blockwise_softmax.sum_value_buf;
@@ -717,7 +794,6 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             running_sum_new = mathext::exp(running_max - running_max_new) * running_sum +
                               mathext::exp(max - running_max_new) * sum;
 
-            block_sync_lds();
             // gemm1
             {
                 // TODO: explore using dynamic buffer for a1 thread buffer
@@ -736,12 +812,13 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                 b1_blockwise_copy.MoveSrcSliceWindow(b1_grid_desc_bk0_n_bk1,
                                                      b1_block_slice_copy_step);
 
+                block_sync_lds(); // wait for reduction LDS read
+
                 b1_blockwise_copy.RunWrite(b1_block_desc_bk0_n_bk1, b1_block_buf);
 
                 // main body
                 if constexpr(num_gemm1_k_block_inner_loop > 1)
                 {
-
                     static_for<0, num_gemm1_k_block_inner_loop - 1, 1>{}([&](auto i) {
                         a1_blockwise_copy.Run(acc_thread_desc_k0_m_k1,
                                               make_tuple(Number<i * A1ThreadSliceK0>{}, I0, I0),
@@ -749,6 +826,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                               a1_thread_desc_k0_m_k1,
                                               make_tuple(I0, I0, I0),
                                               a1_thread_buf);
+
                         b1_blockwise_copy.RunRead(b1_grid_desc_bk0_n_bk1, b1_grid_buf);
 
                         block_sync_lds();
@@ -773,6 +851,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                         a1_thread_desc_k0_m_k1,
                         make_tuple(I0, I0, I0),
                         a1_thread_buf);
+
                     block_sync_lds();
 
                     gemm1_blockwise_gemm.Run(a1_thread_buf, b1_block_buf, acc1_thread_buf);
@@ -817,6 +896,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             running_max = running_max_new;
             running_sum = running_sum_new;
 
+            block_sync_lds(); // wait for gemm1 LDS read
         } while(++gemm1_k_block_outer_index < num_gemm1_k_block_outer_loop); // end j loop
 
         // shuffle C and write out

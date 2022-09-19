@@ -16,7 +16,8 @@ template <index_t BlockSize,
           typename AccDataType,
           typename ThreadMap_M_K, // thread_id to m_k
           typename ThreadClusterDesc_M_K,
-          typename ThreadSliceDesc_M_K>
+          typename ThreadSliceDesc_M_K,
+          bool IgnoreNaN = false>
 struct BlockwiseSoftmax
 {
     static constexpr auto I0         = Number<0>{};
@@ -27,11 +28,33 @@ struct BlockwiseSoftmax
     using ThreadSliceDesc_M = decltype(
         make_naive_tensor_descriptor_packed(make_tuple(ThreadSliceDesc_M_K{}.GetLength(I0))));
 
-    using ThreadwiseMaxReduce = ThreadwiseReduction<AccDataType,
-                                                    ThreadSliceDesc_M_K,
-                                                    ThreadSliceDesc_M,
-                                                    reduce::Max,
-                                                    false>;
+    using ThreadwiseMaxReduce = typename conditional<
+        IgnoreNaN,
+        ThreadwiseReduction<AccDataType,
+                            ThreadSliceDesc_M_K,
+                            ThreadSliceDesc_M,
+                            reduce::Max,
+                            false,
+                            detail::AccumulateWithNanIgnore<reduce::Max, AccDataType>>,
+        ThreadwiseReduction<AccDataType,
+                            ThreadSliceDesc_M_K,
+                            ThreadSliceDesc_M,
+                            reduce::Max,
+                            false>>::type;
+
+    using ThreadwiseSumReduce = typename conditional<
+        IgnoreNaN,
+        ThreadwiseReduction<AccDataType,
+                            ThreadSliceDesc_M_K,
+                            ThreadSliceDesc_M,
+                            reduce::Add,
+                            false,
+                            detail::AccumulateWithNanIgnore<reduce::Add, AccDataType>>,
+        ThreadwiseReduction<AccDataType,
+                            ThreadSliceDesc_M_K,
+                            ThreadSliceDesc_M,
+                            reduce::Add,
+                            false>>::type;
 
     using ThreadClusterLengths_M_K = decltype(ThreadClusterDesc_M_K{}.GetLengths());
 
@@ -48,12 +71,6 @@ struct BlockwiseSoftmax
                                                                 ThreadMap_M_K,
                                                                 reduce::Add,
                                                                 false>;
-
-    using ThreadwiseSumReduce = ThreadwiseReduction<AccDataType,
-                                                    ThreadSliceDesc_M_K,
-                                                    ThreadSliceDesc_M,
-                                                    reduce::Add,
-                                                    false>;
 
     using BufferType = StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MRepeat, true>;
 
@@ -74,7 +91,9 @@ struct BlockwiseSoftmax
         static_for<0, MRepeat, 1>{}([&](auto iM) {
             static_for<0, KRepeat, 1>{}([&](auto iK) {
                 auto offset = Number<ThreadSliceDesc_M_K{}.CalculateOffset(make_tuple(iM, iK))>{};
-                in_thread_buf(offset) = math::exp(in_thread_buf[offset] - max_value_buf(iM));
+                in_thread_buf(offset) = IgnoreNaN && ck::math::isnan(in_thread_buf[offset])
+                                            ? 0
+                                            : math::exp(in_thread_buf[offset] - max_value_buf(iM));
             });
         });
 

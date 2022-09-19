@@ -114,4 +114,18 @@ struct conditional<false, X, Y>
 template <bool predicate, class X, class Y>
 using conditional_t = typename conditional<predicate, X, Y>::type;
 
+// z = predicate ? x : y
+template <bool predicate, typename X, typename Y>
+constexpr auto conditional_expr(X&& x, Y&& y)
+{
+    if constexpr(predicate)
+    {
+        return std::forward<X>(x);
+    }
+    else
+    {
+        return std::forward<Y>(y);
+    }
+}
+
 } // namespace ck

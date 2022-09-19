@@ -17,9 +17,12 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using Normalize = ck::tensor_operation::element_wise::Normalize;
-using DeviceNormalizeFromMeanMeanSquarePtr =
-    ck::tensor_operation::device::DeviceElementwisePtr<5, 1, 2, Normalize>;
+using Normalize                            = ck::tensor_operation::element_wise::Normalize;
+using DeviceNormalizeFromMeanMeanSquarePtr = ck::tensor_operation::device::DeviceElementwiseBasePtr<
+    Tuple<half_t, float, float, half_t, half_t>,
+    Tuple<half_t>,
+    Normalize,
+    2>;
 
 void add_device_normalize_from_mean_squaremean_f16_f32_f32_f16_f16_instances(
     std::vector<DeviceNormalizeFromMeanMeanSquarePtr>& instances);

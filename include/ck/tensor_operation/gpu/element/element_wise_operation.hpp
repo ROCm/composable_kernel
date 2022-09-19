@@ -98,6 +98,18 @@ struct AddReluAdd
         int32_t c = b + x2;
         y         = c;
     }
+
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+    template <>
+    __host__ __device__ constexpr void operator()<int4_t, int8_t, int4_t, int4_t>(
+        int4_t& y, const int8_t& x0, const int4_t& x1, const int4_t& x2) const
+    {
+        int32_t a = x0 + x1;
+        int32_t b = a > 0 ? a : 0;
+        int32_t c = b + x2;
+        y         = c;
+    }
+#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 };
 
 struct AddHardswishAdd
@@ -177,7 +189,11 @@ struct AddAddFastGelu
     template <typename T>
     static inline constexpr bool is_valid_param_type_v =
         std::is_same_v<T, float> || std::is_same_v<T, half_t> || std::is_same_v<T, bhalf_t> ||
-        std::is_same_v<T, int32_t> || std::is_same_v<T, int8_t>;
+        std::is_same_v<T, int32_t> || std::is_same_v<T, int8_t>
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+        || std::is_same_v<T, ck::int4_t>
+#endif
+        ;
 
     template <typename E, typename C, typename D0, typename D1>
     __host__ __device__ constexpr void
@@ -198,17 +214,44 @@ struct Normalize
     // FIXME: is double absolutely necessary?
     Normalize(double epsilon = 1e-4) : epsilon_(epsilon) {}
 
-    template <typename T>
-    __host__ __device__ constexpr void operator()(
-        T& y, const T& x, const T& mean, const T& mean_square, const T& gamma, const T& beta) const;
+    template <typename T1, typename T2, typename T3>
+    __host__ __device__ constexpr void operator()(T1& y,
+                                                  const T1& x,
+                                                  const T2& mean,
+                                                  const T2& mean_square,
+                                                  const T3& gamma,
+                                                  const T3& beta) const;
 
     template <>
-    __host__ __device__ constexpr void operator()<float>(float& y,
-                                                         const float& x,
-                                                         const float& mean,
-                                                         const float& mean_square,
-                                                         const float& gamma,
-                                                         const float& beta) const
+    __host__ __device__ constexpr void operator()<half_t, float, half_t>(half_t& y,
+                                                                         const half_t& x,
+                                                                         const float& mean,
+                                                                         const float& mean_square,
+                                                                         const half_t& gamma,
+                                                                         const half_t& beta) const
+    {
+        using ck::math::sqrt;
+
+        float variance = mean_square - (mean * mean);
+
+        float tmp_x     = type_convert<float>(x);
+        float tmp_gamma = type_convert<float>(gamma);
+        float tmp_beta  = type_convert<float>(beta);
+
+        float tmp_y =
+            ((tmp_x - mean) / sqrt(variance + type_convert<float>(epsilon_))) * tmp_gamma +
+            tmp_beta;
+
+        y = type_convert<half_t>(tmp_y);
+    };
+
+    template <>
+    __host__ __device__ constexpr void operator()<float, float, float>(float& y,
+                                                                       const float& x,
+                                                                       const float& mean,
+                                                                       const float& mean_square,
+                                                                       const float& gamma,
+                                                                       const float& beta) const
     {
         using ck::math::sqrt;
 
@@ -217,12 +260,12 @@ struct Normalize
     };
 
     template <>
-    __host__ __device__ constexpr void operator()<double>(double& y,
-                                                          const double& x,
-                                                          const double& mean,
-                                                          const double& mean_square,
-                                                          const double& gamma,
-                                                          const double& beta) const
+    __host__ __device__ constexpr void operator()<double, double, double>(double& y,
+                                                                          const double& x,
+                                                                          const double& mean,
+                                                                          const double& mean_square,
+                                                                          const double& gamma,
+                                                                          const double& beta) const
     {
         using ck::math::sqrt;
 
