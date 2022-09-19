@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <array>
+#include <vector>
 
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 
@@ -11,14 +11,14 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-// Convolution Forward:
-//   input : input image A[G, N, C, Hi, Wi],
+// Conv backward data multiple D:
+//   input : output image A[G, N, K, Ho, Wo]
 //   input : weight B[G, K, C, Y, X],
 //   input : D0[G, N, K, Ho, Wo], D1[G, N, K, Ho, Wo], ...
-//   output : output image E[G, N, K, Ho, Wo]
+//   output : input image E[G, N, C, Hi, Wi],
 //   C = a_op(A) * b_op(B)
 //   E = cde_op(C, D0, D1, ...)
-template <index_t NDimSpatial,
+template <ck::index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
           typename DsLayout,
@@ -30,25 +30,27 @@ template <index_t NDimSpatial,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation>
-struct DeviceGroupedConvFwdMultipleD : public BaseOperator
+struct DeviceGroupedConvBwdDataMultipleD : public BaseOperator
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
     static_assert(NumDTensor == DsLayout::Size(), "wrong! Inconsistent NumDTensor");
 
     virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(
-        const void* p_a, // input image
-        const void* p_b, // weight
-        const std::array<const void*, NumDTensor>& p_ds,
-        void* p_e, // output image
-        const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
-        const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
-        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
-        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_lengths,
-        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides,
-        const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-        const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+        const void* p_a,                                                 // output image
+        const void* p_b,                                                 // weight
+        const std::array<const void*, NumDTensor>& p_ds,                 // bias
+        void* p_e,                                                       // input image
+        const std::array<index_t, NDimSpatial + 3>& a_g_n_k_wos_lengths, // output image
+        const std::array<index_t, NDimSpatial + 3>& a_g_n_k_wos_strides, // output image
+        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,  // weight
+        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,  // weight
+        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>&
+            ds_g_n_k_wos_lengths, // bias
+        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>&
+            ds_g_n_k_wos_strides,                                        // bias
+        const std::array<index_t, NDimSpatial + 3>& e_g_n_c_wis_lengths, // input image
+        const std::array<index_t, NDimSpatial + 3>& e_g_n_c_wis_strides, // input image
         const std::array<index_t, NDimSpatial>& conv_filter_strides,
         const std::array<index_t, NDimSpatial>& conv_filter_dilations,
         const std::array<index_t, NDimSpatial>& input_left_pads,
