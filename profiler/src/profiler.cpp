@@ -136,6 +136,10 @@ int main(int argc, char* argv[])
     {
         return profile_layernorm(argc, argv);
     }
+    else if(strcmp(argv[1], "groupnorm") == 0)
+    {
+        return profile_groupnorm(argc, argv);
+    }
     else
     {
         print_helper_message();
