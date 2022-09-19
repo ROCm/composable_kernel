@@ -58,7 +58,7 @@ using Acc0ElementOp = ck::tensor_operation::element_wise::Scale;
 using B1ElementOp   = PassThrough;
 using CElementOp    = PassThrough;
 
-static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNOPadding;
+static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
 
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<

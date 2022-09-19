@@ -384,20 +384,10 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
                                const Block2CTileMap& block_2_ctile_map)
     {
-        const auto a_grid_buf =
-            conditional_expr<PadN>(make_dynamic_buffer<AddressSpaceEnum::Global>(
-                                       p_a_grid,
-                                       a_grid_desc_ak0_m_ak1.GetElementSpaceSize(),
-                                       NumericLimits<FloatAB>::QuietNaN()),
-                                   make_dynamic_buffer<AddressSpaceEnum::Global>(
-                                       p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize()));
-        const auto b_grid_buf =
-            conditional_expr<PadN>(make_dynamic_buffer<AddressSpaceEnum::Global>(
-                                       p_b_grid,
-                                       b_grid_desc_bk0_n_bk1.GetElementSpaceSize(),
-                                       NumericLimits<FloatAB>::QuietNaN()),
-                                   make_dynamic_buffer<AddressSpaceEnum::Global>(
-                                       p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize()));
+        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
+        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         const auto b1_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b1_grid, b1_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -414,6 +404,9 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         {
             return;
         }
+
+        // fetch origin N dim(before padding)
+        const index_t n_raw = b_grid_desc_bk0_n_bk1.GetTransforms()[I0].GetUpperLengths()[I0];
 
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
@@ -794,20 +787,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                                                    acc_thread_buf,
                                                                    num_k_block_main_loop);
 
-            if constexpr(!MaskOutUpperTriangle)
-            {
-                // Acc0 elementwise Op
-#if CK_WORKAROUND_SWDEV_XXXXXX_ATTN_KERNEL_CLANG_CANNOT_SCAVENGE_REGISTER
-                static_for<0, acc_thread_buf.Size(), 1>{}(
-                    [&](auto i) { acc_element_op(acc_thread_buf(i), acc_thread_buf[i]); });
-#else
-                static_for<0, acc_thread_buf.Size(), 1>{}([&](auto i) {
-                    ElementOpPredicatedResetNaNToMinusInf<PadN>{}.Run(
-                        acc_thread_buf(i), acc_element_op, acc_thread_buf[i]);
-                });
-#endif
-            }
-            else
+            // do MNK padding or upper triangular masking
+            if constexpr(MaskOutUpperTriangle || PadN)
             {
                 const index_t nstart = gemm1_k_block_outer_index * NPerBlock;
 
@@ -826,28 +807,42 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                             static_for<0, n4, 1>{}([&](auto n4_i) {
                                 const index_t n_global = nstartgroup + n4_i;
                                 const auto acc_offset  = Number<acc_idx_n2 + n4_i>{};
-                                if(n_global > m_global)
+                                if constexpr(MaskOutUpperTriangle)
                                 {
-                                    acc_thread_buf(acc_offset) =
-                                        -ck::NumericLimits<float>::Infinity();
+                                    if(n_global > m_global || n_global > n_raw)
+                                    {
+                                        acc_thread_buf(acc_offset) =
+                                            -ck::NumericLimits<float>::Infinity();
+                                    }
+                                    else
+                                    {
+                                        acc_element_op(acc_thread_buf(acc_offset),
+                                                       acc_thread_buf[acc_offset]);
+                                    }
                                 }
                                 else
                                 {
-// Acc0 elementwise Op
-#if CK_WORKAROUND_SWDEV_XXXXXX_ATTN_KERNEL_CLANG_CANNOT_SCAVENGE_REGISTER
-                                    acc_element_op(acc_thread_buf(acc_offset),
-                                                   acc_thread_buf[acc_offset]);
-#else
-                                    ElementOpPredicatedResetNaNToMinusInf<PadN>{}.Run(
-                                        acc_thread_buf(acc_offset),
-                                        acc_element_op,
-                                        acc_thread_buf[acc_offset]);
-#endif
+                                    // ignore m_global;
+                                    if(n_global > n_raw)
+                                    {
+                                        acc_thread_buf(acc_offset) =
+                                            -ck::NumericLimits<float>::Infinity();
+                                    }
+                                    else
+                                    {
+                                        acc_element_op(acc_thread_buf(acc_offset),
+                                                       acc_thread_buf[acc_offset]);
+                                    }
                                 }
                             });
                         });
                     });
                 });
+            }
+            else
+            {
+                static_for<0, acc_thread_buf.Size(), 1>{}(
+                    [&](auto i) { acc_element_op(acc_thread_buf(i), acc_thread_buf[i]); });
             }
 
             block_sync_lds(); // wait for lds read in gemm0 blockwise gemm

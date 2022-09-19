@@ -196,7 +196,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             MPerBlock, NPerBlock, KPerBlock, Gemm1NPerBlock};
 
     // FIXME: pad K
-    static_assert(!matrix_padder.PadK, "KPadding is currently not supported");
+    // static_assert(!matrix_padder.PadK, "KPadding is currently not supported");
 
     static auto MakeAGridDescriptor_AK0_M_AK1(index_t MRaw, index_t KRaw, index_t StrideA)
     {
