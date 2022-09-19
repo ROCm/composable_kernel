@@ -496,12 +496,14 @@ def runTests_and_Examples(Map conf=[:]){
                     """
                     dir("build"){
                         //wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/*.deb
+                        //wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/composablekernel-dev_0.2.0-${env.CHANGE_ID}_amd64.deb
+                        //wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/composablekernel-tests_0.2.0-${env.CHANGE_ID}_amd64.deb
+                        //dpkg -x composablekernel-dev_0.2.0-${env.CHANGE_ID}_amd64.deb .
+                        //dpkg -x composablekernel-tests_0.2.0-${env.CHANGE_ID}_amd64.deb .
                         sh """
-                            wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/composablekernel-dev_0.2.0-${env.CHANGE_ID}_amd64.deb
-                            wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/composablekernel-tests_0.2.0-${env.CHANGE_ID}_amd64.deb
+                            unstash "*.deb"
                             ls -ltr
-                            dpkg -x composablekernel-dev_0.2.0-${env.CHANGE_ID}_amd64.deb .
-                            dpkg -x composablekernel-tests_0.2.0-${env.CHANGE_ID}_amd64.deb .
+                            dpkg -x *.deb .
                             make -j check
                         """
                     }
@@ -571,6 +573,7 @@ def Build_CK(Map conf=[:]){
                         sh 'make package'
                         //archiveArtifacts "Libs_composable_kernel_${env.BRANCH_NAME}.deb", fingerprint: true
                         archiveArtifacts artifacts: "*.deb", allowEmptyArchive: true, fingerprint: true
+                        stash "*.deb"
                     }
                 }
             }
