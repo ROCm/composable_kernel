@@ -107,16 +107,14 @@ TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, DISABLED_Bench_FP16)
 
 TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, DISABLED_Bench_FP16_IrregularK)
 {
-    this->lengths_ = std::vector<std::vector<int>>{
-        {256, 256, 160, 160, 16},
-        {256, 64, 160, 64, 16},
-        {1024, 1024, 80, 80, 16},
-        {1024, 64, 80, 64, 16},
-        {4096, 4096, 40, 40, 16},
-        {4096, 64, 40, 64, 16}
-    };
-    this->bench_  = true;
-    this->verify_ = false;
+    this->lengths_ = std::vector<std::vector<int>>{{256, 256, 160, 160, 16},
+                                                   {256, 64, 160, 64, 16},
+                                                   {1024, 1024, 80, 80, 16},
+                                                   {1024, 64, 80, 64, 16},
+                                                   {4096, 4096, 40, 40, 16},
+                                                   {4096, 64, 40, 64, 16}};
+    this->bench_   = true;
+    this->verify_  = false;
     this->Run();
 }
 

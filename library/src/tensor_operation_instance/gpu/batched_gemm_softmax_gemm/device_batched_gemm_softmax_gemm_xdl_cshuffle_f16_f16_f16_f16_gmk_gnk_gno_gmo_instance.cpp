@@ -69,7 +69,7 @@ using device_batched_gemm_softmax_gemm_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_
         DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle<     Row,      Col,      Row,     Row,   F16,    F16,    F16,   F16,     F32,      F16, PassThrough, PassThrough, PassThrough, PassThrough, PassThrough,     GemmPadded,        1,   256,    128,   128,    40,    64,    32,   4,   4,    2,   32,   32,     1,     4,     2,     S<2,128, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,     false,      S<2,128, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               4,               4,      false,     S<16, 16, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           2,               S<1, 32, 1, 8>,               8>,
         DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle<     Row,      Col,      Row,     Row,   F16,    F16,    F16,   F16,     F32,      F16, PassThrough, PassThrough, PassThrough, PassThrough, PassThrough,     GemmPadded,        1,   256,    128,   128,    40,   128,    32,   4,   4,    2,   32,   32,     1,     4,     4,     S<2,128, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,     false,      S<2,128, 1>,      S<1, 0, 2>,      S<1, 0, 2>,               2,               4,               4,      false,     S< 8, 32, 1>,      S<0, 2, 1>,      S<0, 2, 1>,               1,               4,               2,      false,           1,           2,               S<1, 32, 1, 8>,               8>
         // clang-format on
-    >;
+        >;
 
 void add_device_batched_gemm_softmax_gemm_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instance(
     std::vector<std::unique_ptr<DeviceBatchedGemmSoftmaxGemm<Row,
