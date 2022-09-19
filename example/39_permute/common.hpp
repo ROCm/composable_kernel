@@ -387,8 +387,6 @@ auto advance_indices(const Shape& shape, Indices& indices) -> std::enable_if_t<
     auto idx = rbegin(indices);
     for(; carry && dim != rend(shape) && idx != rend(indices); ++dim, ++idx)
     {
-        assert(*idx < *dim);
-
         *idx  = (*idx + carry);
         carry = ((*idx == *dim) ? (*idx = 0, true) : false);
     }
