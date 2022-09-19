@@ -10,6 +10,7 @@
 #include <thread>
 
 #include "ck/utility/math_v2.hpp"
+#include "ck/utility/ignore.hpp"
 #include "ck/tensor_operation/gpu/device/device_batchnorm_forward.hpp"
 
 namespace ck {
@@ -51,11 +52,11 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
               resultRunningMean_(resultRunningMean),
               resultRunningVariance_(resultRunningVariance)
         {
-            (void)xStrides;
-            (void)yStrides;
-            (void)bnScaleBiasStrides;
-            (void)bnMeanVarStrides;
-            (void)reduceDims;
+            ignore = xStrides;
+            ignore = yStrides;
+            ignore = bnScaleBiasStrides;
+            ignore = bnMeanVarStrides;
+            ignore = reduceDims;
 
             if(xyLengths.size() != 4 || bnScaleBiasMeanVarLengths.size() != 1 ||
                bnScaleBiasMeanVarLengths[0] != xyLengths[3])
