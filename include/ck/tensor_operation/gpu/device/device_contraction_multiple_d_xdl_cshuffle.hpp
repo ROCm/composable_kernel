@@ -320,10 +320,6 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
         BElementwiseOperation,
         CDEElementwiseOperation,
         InMemoryDataOperationEnum::Set,
-        AGridDesc_M_K,
-        BGridDesc_N_K,
-        DsGridDesc_M_N,
-        EGridDesc_M_N,
         NumGemmKPrefetchStage,
         BlockSize,
         MPerBlock,
@@ -357,12 +353,19 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
         CDEBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
 
-    using AGridDesc_AK0_M_AK1 = remove_cvref_t<decltype(
+    // desc for blockwise copy
+    using AGridDesc_AK0_M_AK1                          = remove_cvref_t<decltype(
         GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(AGridDesc_M_K{}))>;
-    using BGridDesc_BK0_N_BK1 = remove_cvref_t<decltype(
+    using BGridDesc_BK0_N_BK1                          = remove_cvref_t<decltype(
         GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(BGridDesc_N_K{}))>;
+    using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
+        GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(DsGridDesc_M_N{}))>;
+    using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock  = remove_cvref_t<decltype(
+        GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(EGridDesc_M_N{}))>;
 
-    using Block2ETileMap = typename GridwiseGemm::DefaultBlock2ETileMap;
+    // block-to-e-tile map
+    using Block2ETileMap =
+        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -475,10 +478,9 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
         // tensor descriptors for block/thread-wise copy
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
-        typename GridwiseGemm::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+        DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
             ds_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-            e_grid_desc_mblock_mperblock_nblock_nperblock_;
+        EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock e_grid_desc_mblock_mperblock_nblock_nperblock_;
 
         // block-to-e-tile map
         Block2ETileMap block_2_etile_map_;
@@ -535,9 +537,9 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                     CDEElementwiseOperation,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
-                    typename GridwiseGemm::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    typename GridwiseGemm::DefaultBlock2ETileMap,
+                    DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                    DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                    DeviceOp::Block2ETileMap,
                     has_main_loop>;
 
                 return launch_and_time_kernel(stream_config,
