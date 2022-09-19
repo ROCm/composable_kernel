@@ -19,15 +19,31 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_groupnorm.hpp"
 
+constexpr int Rank         = 5;
+constexpr int NumReduceDim = 3;
+
 using XDataType     = ck::half_t;
 using GammaDataType = ck::half_t;
 using BetaDataType  = ck::half_t;
 using YDataType     = ck::half_t;
 using AccDataType   = float;
-using Sigmoid       = ck::tensor_operation::element_wise::Sigmoid;
 
-constexpr int Rank         = 5;
-constexpr int NumReduceDim = 3;
+struct YElementOp
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(ck::is_same<T, float>::value || ck::is_same<T, double>::value ||
+                          ck::is_same<T, ck::half_t>::value,
+                      "Data type is not supported by this operation!");
+
+        T a;
+
+        ck::tensor_operation::element_wise::Sigmoid{}(a, x);
+
+        y = x * a;
+    };
+};
 
 using DeviceInstance =
     ck::tensor_operation::device::DeviceLayernormImpl<XDataType,
@@ -35,7 +51,7 @@ using DeviceInstance =
                                                       BetaDataType,
                                                       AccDataType,
                                                       YDataType,
-                                                      Sigmoid,
+                                                      YElementOp,
                                                       Rank,
                                                       NumReduceDim,
                                                       256, // BlockSize
@@ -77,6 +93,8 @@ int main()
     gamma_dev.ToDevice(gamma.mData.data());
     beta_dev.ToDevice(beta.mData.data());
 
+    const auto y_element_op = YElementOp{};
+
     auto device_instance = DeviceInstance{};
     auto argument_ptr    = device_instance.MakeArgumentPointer(
         {N, H, W, G, C},
@@ -84,13 +102,13 @@ int main()
         {0, 0, 0, C, 1},
         {0, 0, 0, C, 1},
         std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
-        {1, 2, 4}, // [H, W, C]
+        {1, 2, 4}, // reduction dimension: [H, W, C]
         1e-6,
         x_dev.GetDeviceBuffer(),
         gamma_dev.GetDeviceBuffer(),
         beta_dev.GetDeviceBuffer(),
         y_dev.GetDeviceBuffer(),
-        Sigmoid{});
+        y_element_op);
 
     if(!device_instance.IsSupportedArgument(argument_ptr.get()))
     {
@@ -98,9 +116,18 @@ int main()
         return 1;
     };
 
-    bool time_kernel = false;
+    bool time_kernel = true;
     auto invoker_ptr = device_instance.MakeInvokerPointer();
-    invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+    float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel, true});
+
+    std::size_t num_btype = sizeof(XDataType) * N * H * W * G * C +
+                            sizeof(YDataType) * N * H * W * G * C + sizeof(GammaDataType) * G * C +
+                            sizeof(BetaDataType) * G * C;
+
+    float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+    std::cout << "Perf: " << ave_time << " ms, " << gb_per_sec << " GB/s, "
+              << device_instance.GetTypeString() << std::endl;
 
     bool pass = true;
     {
@@ -110,16 +137,17 @@ int main()
                                                                                  BetaDataType,
                                                                                  YDataType,
                                                                                  AccDataType,
-                                                                                 Sigmoid>;
+                                                                                 YElementOp>;
 
         ReferenceInstance ref;
         auto ref_argument =
-            ref.MakeArgument(x, gamma, beta, host_y, Sigmoid{}, {N, H, W, G, C}, 1e-6);
+            ref.MakeArgument(x, gamma, beta, host_y, y_element_op, {N, H, W, G, C}, 1e-6);
         auto ref_invoker = ref.MakeInvoker();
         ref_invoker.Run(ref_argument);
 
         y_dev.FromDevice(y.mData.data());
         pass &= ck::utils::check_err(y.mData, host_y.mData, "Error: Incorrect results", 1e-3, 1e-3);
     }
+
     return (pass ? 0 : 1);
 }
