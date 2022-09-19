@@ -501,7 +501,7 @@ def runTests_and_Examples(Map conf=[:]){
                         //dpkg -x composablekernel-dev_0.2.0-${env.CHANGE_ID}_amd64.deb .
                         //dpkg -x composablekernel-tests_0.2.0-${env.CHANGE_ID}_amd64.deb .
                         sh """
-                            unstash "*.deb"
+                            unstash 'packages'
                             ls -ltr
                             dpkg -x *.deb .
                             make -j check
@@ -573,7 +573,7 @@ def Build_CK(Map conf=[:]){
                         sh 'make package'
                         //archiveArtifacts "Libs_composable_kernel_${env.BRANCH_NAME}.deb", fingerprint: true
                         archiveArtifacts artifacts: "*.deb", allowEmptyArchive: true, fingerprint: true
-                        stash "*.deb"
+                        stash includes: '*.deb', name: 'packages'
                     }
                 }
             }
