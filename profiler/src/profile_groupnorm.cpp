@@ -5,10 +5,10 @@
 #include <vector>
 #include <unordered_map>
 
+#include "profiler/include/data_type_enum.hpp"
 #include "profiler/include/profile_groupnorm_impl.hpp"
 
 using ck::index_t;
-using ck::profiler::ElementwiseOpEnum;
 
 struct GroupnormArgParser
 {
@@ -50,23 +50,21 @@ void print_help_groupnorm()
               << "arg3: verification (0: no; 1: yes)\n"
               << "arg4: initialization (0: no init; 1: integer value; 2: decimal value)\n"
               << "arg5: print tensor value (0: no; 1: yes)\n"
-              << "arg6: time kernel (0=n0, 1=yes)\n"
-              << "arg7: out elementwise op (0=passthrough, 1=sigmoid)\n"
+              << "arg6: time kernel (0=no, 1=yes)\n"
               << "--length: tensor extents (e.g, --length 1 16 16 32 40) \n"
               << std::endl;
 }
 
 int profile_groupnorm(int argc, char* argv[])
 {
-    ck::DataTypeEnum data_type         = ck::DataTypeEnum::Half;
-    bool do_verification               = false;
-    int init_method                    = 0;
-    bool do_log                        = 0;
-    bool time_kernel                   = 1;
-    ElementwiseOpEnum outElementwiseOp = ElementwiseOpEnum::eSigmoid;
-    std::vector<index_t> length        = {1, 16, 16, 32, 40};
+    ck::DataTypeEnum data_type  = ck::DataTypeEnum::Half;
+    bool do_verification        = false;
+    int init_method             = 0;
+    bool do_log                 = 0;
+    bool time_kernel            = 1;
+    std::vector<index_t> length = {64, 16, 16, 32, 40};
 
-    if(argc != 1 && argc != 14)
+    if(argc != 1 && argc != 13)
     {
         print_help_groupnorm();
         return 0;
@@ -74,12 +72,11 @@ int profile_groupnorm(int argc, char* argv[])
 
     if(argc == 14)
     {
-        data_type        = static_cast<ck::DataTypeEnum>(std::stoi(argv[2]));
-        do_verification  = std::stoi(argv[3]);
-        init_method      = std::stoi(argv[4]);
-        do_log           = std::stoi(argv[5]);
-        time_kernel      = std::stoi(argv[6]);
-        outElementwiseOp = static_cast<ElementwiseOpEnum>(std::stoi(argv[7]));
+        data_type       = static_cast<ck::DataTypeEnum>(std::stoi(argv[2]));
+        do_verification = std::stoi(argv[3]);
+        init_method     = std::stoi(argv[4]);
+        do_log          = std::stoi(argv[5]);
+        time_kernel     = std::stoi(argv[6]);
 
         // parse the long options
         GroupnormArgParser arg_parser;
@@ -90,10 +87,15 @@ int profile_groupnorm(int argc, char* argv[])
     using F16 = ck::half_t;
     using F32 = float;
 
-    if(data_type == ck::DataTypeEnum::Half && outElementwiseOp == ElementwiseOpEnum::eSigmoid)
+    if(data_type == ck::DataTypeEnum::Float)
+    {
+        ck::profiler::profile_groupnorm_impl<F32, F32, F32, F32, F32>(
+            do_verification, init_method, do_log, time_kernel, length);
+    }
+    else if(data_type == ck::DataTypeEnum::Half)
     {
         ck::profiler::profile_groupnorm_impl<F16, F16, F16, F32, F16>(
-            do_verification, init_method, do_log, time_kernel, length, outElementwiseOp);
+            do_verification, init_method, do_log, time_kernel, length);
     }
     else
     {
@@ -102,10 +104,3 @@ int profile_groupnorm(int argc, char* argv[])
 
     return 0;
 }
-
-// hijack main() for quick debugging
-// int main(int argc, char* argv[])
-// {
-//     profile_groupnorm(argc, argv);
-//     return 0;
-// }

@@ -7,7 +7,6 @@
 using F16 = ck::half_t;
 using F32 = float;
 using ck::index_t;
-using ck::profiler::ElementwiseOpEnum;
 
 template <typename Tuple>
 class TestGroupnorm : public ::testing::Test
@@ -31,12 +30,12 @@ class TestGroupnorm : public ::testing::Test
 
         for(auto length : lengths)
         {
-            bool success = ck::profiler::profile_groupnorm_impl<XDataType,
-                                                                GammaDataType,
-                                                                BetaDataType,
-                                                                AccDataType,
-                                                                YDataType>(
-                true, 2, false, false, length, ElementwiseOpEnum::eSigmoid);
+            bool success =
+                ck::profiler::profile_groupnorm_impl<XDataType,
+                                                     GammaDataType,
+                                                     BetaDataType,
+                                                     AccDataType,
+                                                     YDataType>(true, 2, false, false, length);
             EXPECT_TRUE(success);
         }
     }

@@ -15,8 +15,7 @@ namespace instance {
 using F16 = ck::half_t;
 using F32 = float;
 
-using Pass    = ck::tensor_operation::element_wise::PassThrough;
-using Sigmoid = ck::tensor_operation::element_wise::Sigmoid;
+using Pass = ck::tensor_operation::element_wise::PassThrough;
 
 template <typename OutElementwise, index_t Rank, index_t Reduce>
 using device_layernorm_f16_instances = std::tuple<
@@ -36,22 +35,22 @@ using device_layernorm_f16_instances = std::tuple<
     // clang-format on
     >;
 
-void add_device_layernorm_f16_rank2_instances(
-    std::vector<DeviceLayernormPtr<F16, F16, F16, F32, F16, Pass, 2, 1>>& instances)
+void add_device_layernorm_rank_2_1_f16_instances(
+    std::vector<std::unique_ptr<DeviceLayernorm<F16, F16, F16, F32, F16, Pass, 2, 1>>>& instances)
 {
     add_device_operation_instances(instances, device_layernorm_f16_instances<Pass, 2, 1>{});
 }
 
-void add_device_layernorm_f16_rank4_instances(
-    std::vector<DeviceLayernormPtr<F16, F16, F16, F32, F16, Pass, 4, 3>>& instances)
+void add_device_layernorm_rank_4_3_f16_instances(
+    std::vector<std::unique_ptr<DeviceLayernorm<F16, F16, F16, F32, F16, Pass, 4, 3>>>& instances)
 {
     add_device_operation_instances(instances, device_layernorm_f16_instances<Pass, 4, 3>{});
 }
 
-void add_device_groupnorm_f16_instances(
-    std::vector<DeviceLayernormPtr<F16, F16, F16, F32, F16, Sigmoid, 5, 3>>& instances)
+void add_device_layernorm_rank_5_3_f16_instances(
+    std::vector<std::unique_ptr<DeviceLayernorm<F16, F16, F16, F32, F16, Pass, 5, 3>>>& instances)
 {
-    add_device_operation_instances(instances, device_layernorm_f16_instances<Sigmoid, 5, 3>{});
+    add_device_operation_instances(instances, device_layernorm_f16_instances<Pass, 5, 3>{});
 }
 
 } // namespace instance

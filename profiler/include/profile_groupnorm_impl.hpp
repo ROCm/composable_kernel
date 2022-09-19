@@ -6,8 +6,8 @@
 #include <iomanip>
 
 #include "ck/ck.hpp"
-#include "profiler/include/data_type_enum.hpp"
-#include "ck/tensor_operation/gpu/device/device_layernorm_impl.hpp"
+
+#include "ck/library/tensor_operation_instance/gpu/layernorm.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -16,33 +16,7 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_groupnorm.hpp"
 
 namespace ck {
-namespace tensor_operation {
-namespace device {
-namespace instance {
-
-using F16     = ck::half_t;
-using F32     = float;
-using Sigmoid = ck::tensor_operation::element_wise::Sigmoid;
-
-void add_device_groupnorm_f16_instances(
-    std::vector<DeviceLayernormPtr<F16, F16, F16, F32, F16, Sigmoid, 5, 3>>&);
-
-void add_device_groupnorm_f32_instances(
-    std::vector<DeviceLayernormPtr<F32, F32, F32, F32, F32, Sigmoid, 5, 3>>&);
-
-} // namespace instance
-} // namespace device
-} // namespace tensor_operation
-} // namespace ck
-
-namespace ck {
 namespace profiler {
-
-enum struct ElementwiseOpEnum
-{
-    ePassthrough = 0,
-    eSigmoid     = 1
-};
 
 template <typename XDataType,
           typename GammaDataType,
@@ -53,12 +27,9 @@ bool profile_groupnorm_impl(int do_verification,
                             int init_method,
                             bool do_log,
                             bool time_kernel,
-                            std::vector<index_t> length,
-                            ElementwiseOpEnum OutelementwiseOp)
+                            std::vector<index_t> length)
 {
-    using F16     = ck::half_t;
-    using F32     = float;
-    using Sigmoid = ck::tensor_operation::element_wise::Sigmoid;
+    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
     if(length.size() != 5)
         return false;
@@ -104,35 +75,21 @@ bool profile_groupnorm_impl(int do_verification,
     beta_dev.ToDevice(beta.mData.data());
 
     // add device normalization instances
-    std::vector<tensor_operation::device::DeviceLayernormPtr<XDataType,
-                                                             GammaDataType,
-                                                             BetaDataType,
-                                                             AccDataType,
-                                                             YDataType,
-                                                             Sigmoid,
-                                                             5,
-                                                             3>>
-        instances;
+    using DeviceOp = ck::tensor_operation::device::DeviceLayernorm<XDataType,
+                                                                   GammaDataType,
+                                                                   BetaDataType,
+                                                                   AccDataType,
+                                                                   YDataType,
+                                                                   PassThrough,
+                                                                   5,
+                                                                   3>;
 
-    if constexpr(is_same<XDataType, F16>::value && is_same<GammaDataType, F16>::value &&
-                 is_same<BetaDataType, F16>::value && is_same<YDataType, F16>::value &&
-                 is_same<AccDataType, F32>::value)
-    {
-        if(OutelementwiseOp == ElementwiseOpEnum::eSigmoid)
-            tensor_operation::device::instance::add_device_groupnorm_f16_instances(instances);
-    }
-    else if constexpr(is_same<XDataType, F32>::value && is_same<GammaDataType, F32>::value &&
-                      is_same<BetaDataType, F32>::value && is_same<YDataType, F32>::value &&
-                      is_same<AccDataType, F32>::value)
-    {
-        if(OutelementwiseOp == ElementwiseOpEnum::eSigmoid)
-            tensor_operation::device::instance::add_device_groupnorm_f32_instances(instances);
-    }
+    // get device op instances
+    const auto instance_ptrs =
+        ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+            DeviceOp>::GetInstances();
 
-    if(instances.size() <= 0)
-    {
-        throw std::runtime_error("wrong! no device normalization instance found");
-    }
+    std::cout << "found " << instance_ptrs.size() << " instances" << std::endl;
 
     std::string best_instance_name;
     float best_avg_time   = std::numeric_limits<float>::max();
@@ -140,25 +97,22 @@ bool profile_groupnorm_impl(int do_verification,
 
     if(do_verification)
     {
-        if(OutelementwiseOp == ElementwiseOpEnum::eSigmoid)
-        {
-            using ReferenceInstance = ck::tensor_operation::host::ReferenceGroupnorm<XDataType,
-                                                                                     GammaDataType,
-                                                                                     BetaDataType,
-                                                                                     YDataType,
-                                                                                     AccDataType,
-                                                                                     Sigmoid>;
+        using ReferenceInstance = ck::tensor_operation::host::ReferenceGroupnorm<XDataType,
+                                                                                 GammaDataType,
+                                                                                 BetaDataType,
+                                                                                 YDataType,
+                                                                                 AccDataType,
+                                                                                 PassThrough>;
 
-            ReferenceInstance ref;
-            auto ref_argument = ref.MakeArgument(x, gamma, beta, host_y, Sigmoid{}, length, 1e-6);
-            auto ref_invoker  = ref.MakeInvoker();
-            ref_invoker.Run(ref_argument);
-        }
+        ReferenceInstance ref;
+        auto ref_argument = ref.MakeArgument(x, gamma, beta, host_y, PassThrough{}, length, 1e-6);
+        auto ref_invoker  = ref.MakeInvoker();
+        ref_invoker.Run(ref_argument);
     }
 
     int num_kernel = 0;
 
-    for(auto& inst_ptr : instances)
+    for(auto& inst_ptr : instance_ptrs)
     {
         auto argument_ptr = inst_ptr->MakeArgumentPointer(
             length,
@@ -172,7 +126,7 @@ bool profile_groupnorm_impl(int do_verification,
             gamma_dev.GetDeviceBuffer(),
             beta_dev.GetDeviceBuffer(),
             y_dev.GetDeviceBuffer(),
-            Sigmoid{});
+            PassThrough{});
 
         if(inst_ptr->IsSupportedArgument(argument_ptr.get()))
         {
