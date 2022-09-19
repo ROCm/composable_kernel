@@ -18,11 +18,6 @@
 #include "ck/tensor_operation/gpu/device/device_batchnorm_forward_impl.hpp"
 #include "ck/library/utility/host_common_util.hpp"
 
-template <typename InOutDataType, typename AccDataType>
-using ReferenceBatchNormFwdInstance =
-    ck::tensor_operation::host::ReferenceBatchNormFwd_Input_N_H_W_C_Output_C<InOutDataType,
-                                                                             AccDataType>;
-
 static struct option long_options[] = {{"inOutLengths", required_argument, nullptr, 'D'},
                                        {"verify", required_argument, nullptr, 'v'},
                                        {"help", no_argument, nullptr, '?'},
@@ -339,7 +334,15 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
 
     if(do_verification)
     {
-        auto batchNormFwd_ref = ReferenceBatchNormFwdInstance<InOutDataType, AccDataType>{};
+
+        using ReferenceBatchNormFwdInstance =
+            ck::tensor_operation::host::ReferenceBatchNormFwd_Input_N_H_W_C_Output_C<InOutDataType,
+                                                                                     InOutDataType,
+                                                                                     AccDataType,
+                                                                                     AccDataType,
+                                                                                     AccDataType>;
+
+        auto batchNormFwd_ref = ReferenceBatchNormFwdInstance{};
 
         auto argument_ptr_ref = batchNormFwd_ref.MakeArgumentPointer(
             i_inOutLengths,
