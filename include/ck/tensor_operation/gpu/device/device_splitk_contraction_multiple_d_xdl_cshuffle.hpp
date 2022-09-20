@@ -614,7 +614,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
                   b_grid_desc_n_k_, split_k)},
               ds_grid_desc_mblock_mperblock_nblock_nperblock_{},
               e_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              block_2_etile_map_{GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_)},
+              block_2_etile_map_{
+                  GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_, split_k)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op},
@@ -672,15 +673,22 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
             }
 
             e_nz_stride_ = e_gs_ms_ns_strides[NumDimG + NumDimM + NumDimN - 1];
+
+            Print();
         }
 
         void Print() const
         {
-            std::cout << "A[M, K]: " << a_grid_desc_m_k_ << std::endl;
-            std::cout << "B[N, K]: " << b_grid_desc_n_k_ << std::endl;
-            static_for<0, NumDTensor, 1>{}(
-                [&](auto i) { std::cout << "Ds[M, N]: " << ds_grid_desc_m_n_[i] << std::endl; });
-            std::cout << "E[M, N]: " << e_grid_desc_m_n_ << std::endl;
+            std::cout << "A[M, K]: " << a_grid_desc_m_k_.GetLength(I0) << ", "
+                      << a_grid_desc_m_k_.GetLength(I1) << std::endl;
+            std::cout << "B[N, K]: " << b_grid_desc_n_k_.GetLength(I0) << ", "
+                      << b_grid_desc_n_k_.GetLength(I1) << std::endl;
+            static_for<0, NumDTensor, 1>{}([&](auto i) {
+                std::cout << "Ds[M, N]: " << ds_grid_desc_m_n_[i].GetLength(I0) << ", "
+                          << ds_grid_desc_m_n_[i].GetLength(I1) << std::endl;
+            });
+            std::cout << "E[M, N]: " << e_grid_desc_m_n_.GetLength(I0) << ", "
+                      << e_grid_desc_m_n_.GetLength(I1) << std::endl;
         }
 
         //  private:

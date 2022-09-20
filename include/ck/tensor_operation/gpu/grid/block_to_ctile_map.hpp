@@ -209,6 +209,8 @@ struct BlockToCTileMap_KSplit_M00_N0_M01Adapt
         const auto M0 = math::integer_divide_ceil(c_grid_desc_m_n_.GetLength(I0), MPerBlock);
         const auto N0 = math::integer_divide_ceil(c_grid_desc_m_n_.GetLength(I1), NPerBlock);
 
+        block_1d_id = block_1d_id % (M0 * N0 * KSplit_); // hide groups
+
         const index_t idx_ksplit = block_1d_id / (M0 * N0);
         block_1d_id              = block_1d_id % (M0 * N0);
 

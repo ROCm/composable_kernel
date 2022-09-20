@@ -96,7 +96,7 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
-        // A matrix in LDS memory, dst of blockwise copy
+        // A matrix in LDS memory, src of blockwise copy
         return make_naive_tensor_descriptor(
             make_tuple(AK0PerBlock, Number<MPerBlock>{}, AK1),
             make_tuple(Number<MPerBlock + ABlockLdsExtraM>{} * AK1, AK1, I1));
@@ -115,7 +115,7 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
 
     __host__ __device__ static constexpr auto GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()
     {
-        // B matrix in LDS memory, dst of blockwise copy
+        // B matrix in LDS memory, src of blockwise copy
         return make_naive_tensor_descriptor(
             make_tuple(BK0PerBlock, Number<NPerBlock>{}, BK1),
             make_tuple(Number<NPerBlock + BBlockLdsExtraN>{} * BK1, BK1, I1));
@@ -276,10 +276,10 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
 
     // return block_id to E matrix tile idx (m0, n0) mapping
     __host__ __device__ static constexpr auto
-    MakeDefaultBlock2ETileMap(const EGridDesc_M_N& e_grid_desc_m_n)
+    MakeDefaultBlock2ETileMap(const EGridDesc_M_N& e_grid_desc_m_n, const int split_k)
     {
-        return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, EGridDesc_M_N>(
-            e_grid_desc_m_n);
+        return BlockToCTileMap_KSplit_M00_N0_M01Adapt<MPerBlock, NPerBlock, EGridDesc_M_N>(
+            e_grid_desc_m_n, 8, split_k);
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
@@ -367,13 +367,13 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
         MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(DsGridDesc_M_N{}))>;
 
     using DefaultBlock2ETileMap =
-        remove_cvref_t<decltype(MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
+        remove_cvref_t<decltype(MakeDefaultBlock2ETileMap(EGridDesc_M_N{}, 1))>;
 
     using DsGridPointer = decltype(MakeDsGridPointer());
 
     template <bool HasMainKBlockLoop,
-              typename AGridDesc_ABK_AK0_M_AK1,
-              typename BGridDesc_BK0_N_BK1,
+              typename AGridDesc_AKB_AK0_M_AK1,
+              typename BGridDesc_BKB_BK0_N_BK1,
               typename Block2ETileMap>
     __device__ static void Run(const ABDataType* __restrict__ p_a_grid,
                                const ABDataType* __restrict__ p_b_grid,
@@ -383,8 +383,8 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
                                const AElementwiseOperation& a_element_op,
                                const BElementwiseOperation& b_element_op,
                                const CDEElementwiseOperation& cde_element_op,
-                               const AGridDesc_ABK_AK0_M_AK1& a_grid_desc_akb_ak0_m_ak1,
-                               const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
+                               const AGridDesc_AKB_AK0_M_AK1& a_grid_desc_akb_ak0_m_ak1,
+                               const BGridDesc_BKB_BK0_N_BK1& b_grid_desc_kb_bk0_n_bk1,
                                const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
                                    ds_grid_desc_mblock_mperblock_nblock_nperblock,
                                const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
@@ -395,7 +395,7 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
             p_a_grid, a_grid_desc_akb_ak0_m_ak1.GetElementSpaceSize());
 
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
+            p_b_grid, b_grid_desc_kb_bk0_n_bk1.GetElementSpaceSize());
 
         const auto ds_grid_buf = generate_tuple(
             [&](auto i) {
@@ -413,7 +413,7 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
             block_2_etile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
 
         if(!block_2_etile_map.ValidCTileIndex(
-               block_work_idx,
+               make_tuple(block_work_idx[I1], block_work_idx[I2]),
                make_tuple(e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I0),
                           e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2))))
         {
@@ -421,11 +421,13 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
         }
 
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
+        const index_t k_batch_id = block_work_idx[I0];
+
         const index_t m_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_work_idx[I0] * MPerBlock);
+            __builtin_amdgcn_readfirstlane(block_work_idx[I1] * MPerBlock);
 
         const index_t n_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_work_idx[I1] * NPerBlock);
+            __builtin_amdgcn_readfirstlane(block_work_idx[I2] * NPerBlock);
 
         // lds max alignment
         constexpr auto max_lds_align = math::lcm(AK1, BK1);
@@ -465,7 +467,7 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
                                                 true,
                                                 NumGemmKPrefetchStage>(
                 a_grid_desc_akb_ak0_m_ak1,
-                make_multi_index(0, 0, m_block_data_idx_on_grid, 0),
+                make_multi_index(k_batch_id, 0, m_block_data_idx_on_grid, 0),
                 a_element_op,
                 a_block_desc_akb_ak0_m_ak1,
                 make_multi_index(0, 0, 0, 0),
@@ -482,7 +484,7 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
                                                 BBlockTransferThreadClusterArrangeOrder,
                                                 ABDataType,
                                                 ABDataType,
-                                                decltype(b_grid_desc_bk0_n_bk1),
+                                                decltype(b_grid_desc_kb_bk0_n_bk1),
                                                 decltype(b_block_desc_bkb_bk0_n_bk1),
                                                 BBlockTransferSrcAccessOrder,
                                                 Sequence<0, 2, 1, 3>,
@@ -495,8 +497,8 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
                                                 BThreadTransferSrcResetCoordinateAfterRun,
                                                 true,
                                                 NumGemmKPrefetchStage>(
-                b_grid_desc_bk0_n_bk1,
-                make_multi_index(0, 0, n_block_data_idx_on_grid, 0),
+                b_grid_desc_kb_bk0_n_bk1,
+                make_multi_index(k_batch_id, 0, n_block_data_idx_on_grid, 0),
                 b_element_op,
                 b_block_desc_bkb_bk0_n_bk1,
                 make_multi_index(0, 0, 0, 0),
@@ -556,7 +558,7 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
                                                                a_grid_buf,
                                                                a_block_buf,
                                                                a_block_slice_copy_step,
-                                                               b_grid_desc_bk0_n_bk1,
+                                                               b_grid_desc_kb_bk0_n_bk1,
                                                                b_block_desc_bkb_bk0_n_bk1,
                                                                b_blockwise_copy,
                                                                b_grid_buf,
@@ -700,7 +702,7 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
                 make_tuple(make_multi_index(0, 0, 0, 0)),
                 generate_tuple(
                     [&](auto) {
-                        return make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0);
+                        return make_multi_index(block_work_idx[I1], 0, block_work_idx[I2], 0);
                     },
                     Number<NumDTensor>{}));
 
@@ -731,7 +733,7 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
                 {c_ds_desc_refs,
                  idx_c_ds_block_begin,
                  tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
-                 make_tuple(make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0)),
+                 make_tuple(make_multi_index(block_work_idx[I1], 0, block_work_idx[I2], 0)),
                  cde_element_op};
 
             // space filling curve for threadwise C in VGPR before shuffle
