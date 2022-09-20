@@ -27,8 +27,8 @@ template <typename GridwiseGemm,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
-          typename AGridDesc_AK0_M_AK1,
-          typename BGridDesc_BK0_N_BK1,
+          typename AGridDesc_AKB_AK0_M_AK1,
+          typename BGridDesc_BKB_BK0_N_BK1,
           typename DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
           typename EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
           typename ComputePtrOffsetOfBatch,
@@ -47,8 +47,8 @@ __global__ void
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
             const CDEElementwiseOperation cde_element_op,
-            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+            const AGridDesc_AKB_AK0_M_AK1 a_grid_desc_akb_ak0_m_ak1,
+            const BGridDesc_BKB_BK0_N_BK1 b_grid_desc_bkb_bk0_n_bk1,
             const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
                 ds_grid_desc_mblock_mperblock_nblock_nperblock,
             const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
@@ -88,8 +88,8 @@ __global__ void
                                                   a_element_op,
                                                   b_element_op,
                                                   cde_element_op,
-                                                  a_grid_desc_ak0_m_ak1,
-                                                  b_grid_desc_bk0_n_bk1,
+                                                  a_grid_desc_akb_ak0_m_ak1,
+                                                  b_grid_desc_bkb_bk0_n_bk1,
                                                   ds_grid_desc_mblock_mperblock_nblock_nperblock,
                                                   e_grid_desc_mblock_mperblock_nblock_nperblock,
                                                   block_2_etile_map);
@@ -102,8 +102,8 @@ __global__ void
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = cde_element_op;
-    ignore = a_grid_desc_ak0_m_ak1;
-    ignore = b_grid_desc_bk0_n_bk1;
+    ignore = a_grid_desc_akb_ak0_m_ak1;
+    ignore = b_grid_desc_bkb_bk0_n_bk1;
     ignore = ds_grid_desc_mblock_mperblock_nblock_nperblock;
     ignore = e_grid_desc_mblock_mperblock_nblock_nperblock;
     ignore = block_2_etile_map;
@@ -567,9 +567,9 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
         CDEBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
 
-    using AGridDesc_AK0_M_AK1 = remove_cvref_t<decltype(
+    using AGridDesc_AKB_AK0_M_AK1 = remove_cvref_t<decltype(
         GridwiseGemm::MakeDefaultAGridDescriptor_AKB_AK0_M_AK1(AGridDesc_M_K{}, 1))>;
-    using BGridDesc_BK0_N_BK1 = remove_cvref_t<decltype(
+    using BGridDesc_BKB_BK0_N_BK1 = remove_cvref_t<decltype(
         GridwiseGemm::MakeDefaultBGridDescriptor_BKB_BK0_N_BK1(BGridDesc_N_K{}, 1))>;
 
     using Block2ETileMap = typename GridwiseGemm::DefaultBlock2ETileMap;
@@ -608,9 +608,9 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
                   DeviceOp::MakeDsGridDescriptor_G_M_N(ds_gs_ms_ns_lengths, ds_gs_ms_ns_strides)},
               e_grid_desc_g_m_n_{
                   DeviceOp::MakeEGridDescriptor_G_M_N(e_gs_ms_ns_lengths, e_gs_ms_ns_strides)},
-              a_grid_desc_ak0_m_ak1_{GridwiseGemm::MakeDefaultAGridDescriptor_AKB_AK0_M_AK1(
+              a_grid_desc_akb_ak0_m_ak1_{GridwiseGemm::MakeDefaultAGridDescriptor_AKB_AK0_M_AK1(
                   a_grid_desc_m_k_, split_k)},
-              b_grid_desc_bk0_n_bk1_{GridwiseGemm::MakeDefaultBGridDescriptor_BKB_BK0_N_BK1(
+              b_grid_desc_bkb_bk0_n_bk1_{GridwiseGemm::MakeDefaultBGridDescriptor_BKB_BK0_N_BK1(
                   b_grid_desc_n_k_, split_k)},
               ds_grid_desc_mblock_mperblock_nblock_nperblock_{},
               e_grid_desc_mblock_mperblock_nblock_nperblock_{},
@@ -708,8 +708,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
         EGridDesc_G_M_N e_grid_desc_g_m_n_;
 
         // tensor descriptors for block/thread-wise copy
-        AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
-        BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
+        AGridDesc_AKB_AK0_M_AK1 a_grid_desc_akb_ak0_m_ak1_;
+        BGridDesc_BKB_BK0_N_BK1 b_grid_desc_bkb_bk0_n_bk1_;
         typename GridwiseGemm::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             ds_grid_desc_mblock_mperblock_nblock_nperblock_;
         typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
@@ -763,8 +763,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
             const index_t grid_size =
                 arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * G;
 
-            const auto K =
-                arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
+            const auto K = arg.a_grid_desc_akb_ak0_m_ak1_.GetLength(I1) *
+                           arg.a_grid_desc_akb_ak0_m_ak1_.GetLength(I3);
 
             auto launch_kernel = [&](auto has_main_k_block_loop) {
                 constexpr bool has_main_loop = has_main_k_block_loop.value;
@@ -777,8 +777,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CDEElementwiseOperation,
-                    DeviceOp::AGridDesc_AK0_M_AK1,
-                    DeviceOp::BGridDesc_BK0_N_BK1,
+                    DeviceOp::AGridDesc_AKB_AK0_M_AK1,
+                    DeviceOp::BGridDesc_BKB_BK0_N_BK1,
                     typename GridwiseGemm::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     ComputePtrOffsetOfStridedBatch,
@@ -798,8 +798,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
                                               arg.a_element_op_,
                                               arg.b_element_op_,
                                               arg.cde_element_op_,
-                                              arg.a_grid_desc_ak0_m_ak1_,
-                                              arg.b_grid_desc_bk0_n_bk1_,
+                                              arg.a_grid_desc_akb_ak0_m_ak1_,
+                                              arg.b_grid_desc_bkb_bk0_n_bk1_,
                                               arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
                                               arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
                                               arg.compute_ptr_offset_of_batch_,
@@ -846,10 +846,11 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
                       "wrong!");
 
         // vector memory access of A: could be on M or AK1 dimension
-        if constexpr(ABlockTransferSrcVectorDim == 1)
+        if constexpr(ABlockTransferSrcVectorDim == 2)
         {
             if(!(arg.a_mz_stride_ == 1 &&
-                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I1) % ABlockTransferSrcScalarPerVector == 0))
+                 arg.a_grid_desc_akb_ak0_m_ak1_.GetLength(I2) % ABlockTransferSrcScalarPerVector ==
+                     0))
             {
                 return false;
             }
@@ -857,17 +858,19 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
         else
         {
             if(!(arg.a_kz_stride_ == 1 &&
-                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I2) % ABlockTransferSrcScalarPerVector == 0))
+                 arg.a_grid_desc_akb_ak0_m_ak1_.GetLength(I3) % ABlockTransferSrcScalarPerVector ==
+                     0))
             {
                 return false;
             }
         }
 
         // vector memory access of B: could be on N or BK1 dimension
-        if constexpr(BBlockTransferSrcVectorDim == 1)
+        if constexpr(BBlockTransferSrcVectorDim == 2)
         {
             if(!(arg.b_nz_stride_ == 1 &&
-                 arg.b_grid_desc_bk0_n_bk1_.GetLength(I1) % BBlockTransferSrcScalarPerVector == 0))
+                 arg.b_grid_desc_bkb_bk0_n_bk1_.GetLength(I2) % BBlockTransferSrcScalarPerVector ==
+                     0))
             {
                 return false;
             }
@@ -875,7 +878,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
         else
         {
             if(!(arg.b_kz_stride_ == 1 &&
-                 arg.b_grid_desc_bk0_n_bk1_.GetLength(I2) % BBlockTransferSrcScalarPerVector == 0))
+                 arg.b_grid_desc_bkb_bk0_n_bk1_.GetLength(I3) % BBlockTransferSrcScalarPerVector ==
+                     0))
             {
                 return false;
             }
