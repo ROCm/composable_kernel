@@ -553,7 +553,7 @@ def Build_CK(Map conf=[:]){
                         //sh 'make package'
                         //archiveArtifacts artifacts: "*.deb", allowEmptyArchive: true, fingerprint: true
                         //stash includes: '*.deb', name: 'packages'
-                        make -j check
+                        sh 'make -j check'
                         sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
                         stash "ckProfiler.tar.gz"
                     }
