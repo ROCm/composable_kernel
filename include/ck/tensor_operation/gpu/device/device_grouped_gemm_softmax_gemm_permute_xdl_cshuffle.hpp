@@ -211,9 +211,6 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
         GemmGemmPadder<GemmSpec, index_t, index_t, index_t, index_t>{
             MPerBlock, NPerBlock, KPerBlock, Gemm1NPerBlock};
 
-    // FIXME: pad K
-    // static_assert(!matrix_padder.PadK, "KPadding is currently not supported");
-
     static auto MakeAGridDescriptor_AK0_M_AK1(index_t MRaw, index_t KRaw, index_t StrideA)
     {
         const auto a_grid_desc_mraw_kraw = [&]() {

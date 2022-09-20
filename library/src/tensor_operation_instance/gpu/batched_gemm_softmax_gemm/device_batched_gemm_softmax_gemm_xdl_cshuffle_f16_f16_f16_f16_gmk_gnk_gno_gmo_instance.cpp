@@ -27,7 +27,7 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 static constexpr auto GemmPadded =
-    ck::tensor_operation::device::GemmSpecialization::MNKOPadding; // Padding K is currently flawed
+    ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
 
 // c[g, m, n] = a[g, m, k] * b[g, n, k]
 using device_batched_gemm_softmax_gemm_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances =
