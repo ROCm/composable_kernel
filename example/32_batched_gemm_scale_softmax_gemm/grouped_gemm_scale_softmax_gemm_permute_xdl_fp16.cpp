@@ -58,7 +58,7 @@ using Acc0ElementOp = ck::tensor_operation::element_wise::Scale;
 using B1ElementOp   = PassThrough;
 using CElementOp    = PassThrough;
 
-static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNPadding;
+static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
 
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle<
@@ -117,7 +117,8 @@ using DeviceGemmInstance =
         1,              // CShuffleMXdlPerWavePerShuffle
         2,              // CShuffleNXdlPerWavePerShuffle
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        8>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
+        8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+        false>;
 
 // Ref Gemm0: fp16 in, fp32 out
 using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
@@ -180,8 +181,8 @@ int main(int argc, char* argv[])
     {
         int M     = 128 * (rand() % 8 + 1);
         int N     = 128 * (rand() % 8 + 1);
-        int K     = 64;
-        int O     = 64 * (rand() % 2 + 1);
+        int K     = 40;
+        int O     = 40 * (rand() % 2 + 1);
         int Batch = rand() % 8 + 1;
 
         const int StrideA  = ck::is_same_v<ALayout, Row> ? K : M;
