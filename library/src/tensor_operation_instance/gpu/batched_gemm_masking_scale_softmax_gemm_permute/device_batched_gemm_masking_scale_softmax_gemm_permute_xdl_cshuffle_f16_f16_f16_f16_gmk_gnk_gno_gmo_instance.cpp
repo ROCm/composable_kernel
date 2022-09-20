@@ -30,8 +30,7 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using Scale       = ck::tensor_operation::element_wise::Scale;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
-static constexpr auto GemmPadded =
-    ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
+static constexpr auto GemmPadded  = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
 
 // c[g, m, n] = a[g, m, k] * b[g, n, k]
 using device_batched_gemm_masking_scale_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances =

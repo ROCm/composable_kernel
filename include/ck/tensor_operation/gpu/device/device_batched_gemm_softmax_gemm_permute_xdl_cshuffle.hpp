@@ -408,7 +408,10 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
 
         __host__ __device__ bool IsUpperTriangle(index_t m, index_t n) const { return n > m; }
 
-        __host__ __device__ bool IsNOutOfBound(/*index_t m, */ index_t n) const { return n >= NRaw_; }
+        __host__ __device__ bool IsNOutOfBound(/*index_t m, */ index_t n) const
+        {
+            return n >= NRaw_;
+        }
 
         __host__ __device__ bool IsMaskedElement(index_t m, index_t n) const
         {

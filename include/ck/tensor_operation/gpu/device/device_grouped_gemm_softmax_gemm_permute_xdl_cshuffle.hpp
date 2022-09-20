@@ -420,7 +420,10 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
 
         __host__ __device__ bool IsUpperTriangle(index_t m, index_t n) const { return n > m; }
 
-        __host__ __device__ bool IsNOutOfBound(/*index_t m, */ index_t n) const { return n >= NRaw_; }
+        __host__ __device__ bool IsNOutOfBound(/*index_t m, */ index_t n) const
+        {
+            return n >= NRaw_;
+        }
 
         __host__ __device__ bool IsMaskedElement(index_t m, index_t n) const
         {
@@ -646,7 +649,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                                  problem_desc_vec[i].BatchStrideB1,
                                                  c_grid_desc_g_m_n);
 
-                // C0 mask 
+                // C0 mask
                 const auto c0_matrix_mask = C0MatrixMask(problem_desc_vec[i].N);
 
                 grid_size_ += grid_size_grp;
