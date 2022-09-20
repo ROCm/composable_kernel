@@ -232,6 +232,21 @@ struct Gelu
     }
 };
 
+struct Sigmoid
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = 1 / (ck::type_convert<T>(1) + exp(-x));
+    };
+
+    int32_t divider_ = 1;
+};
+
 } // namespace element_wise
 } // namespace tensor_operation
 } // namespace ck

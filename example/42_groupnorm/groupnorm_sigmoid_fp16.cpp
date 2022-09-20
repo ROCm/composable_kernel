@@ -12,22 +12,39 @@
 #include "ck/tensor_operation/gpu/device/device_layernorm_impl.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 
+#include "ck/library/utility/fill.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_common_util.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_groupnorm.hpp"
+
+constexpr int Rank         = 5;
+constexpr int NumReduceDim = 3;
 
 using XDataType     = ck::half_t;
 using GammaDataType = ck::half_t;
 using BetaDataType  = ck::half_t;
 using YDataType     = ck::half_t;
 using AccDataType   = float;
-using PassThrough   = ck::tensor_operation::element_wise::PassThrough;
 
-constexpr int Rank         = 2;
-constexpr int NumReduceDim = 1;
+struct YElementOp
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(ck::is_same<T, float>::value || ck::is_same<T, double>::value ||
+                          ck::is_same<T, ck::half_t>::value,
+                      "Data type is not supported by this operation!");
+
+        T a;
+
+        ck::tensor_operation::element_wise::Sigmoid{}(a, x);
+
+        y = x * a;
+    };
+};
 
 using DeviceInstance =
     ck::tensor_operation::device::DeviceLayernormImpl<XDataType,
@@ -35,7 +52,7 @@ using DeviceInstance =
                                                       BetaDataType,
                                                       AccDataType,
                                                       YDataType,
-                                                      PassThrough,
+                                                      YElementOp,
                                                       Rank,
                                                       NumReduceDim,
                                                       256, // BlockSize
@@ -51,32 +68,41 @@ using DeviceInstance =
                                                       8,   // BetaScalarPerVector
                                                       8>;  // OutScalarPerVector
 
-int main()
+int main(int argc, char* argv[])
 {
-    bool time_kernel = false;
+    ck::index_t N = 128;
+    ck::index_t H = 16;
+    ck::index_t W = 16;
+    ck::index_t G = 32;
+    ck::index_t C = 40;
 
-    ck::index_t M      = 1024;
-    ck::index_t N      = 1024;
-    ck::index_t Stride = N;
+    if(argc == 1)
+    {
+        // use default case
+    }
+    else if(argc == 6)
+    {
+        N = std::stoi(argv[1]);
+        H = std::stoi(argv[2]);
+        W = std::stoi(argv[3]);
+        G = std::stoi(argv[4]);
+        C = std::stoi(argv[5]);
+    }
+    else
+    {
+        std::cerr << "arg1 to 5: N, H, W, G, C" << std::endl;
 
-    auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
-        return HostTensorDescriptor(std::vector<std::size_t>({len}),
-                                    std::vector<std::size_t>({stride}));
-    };
+        return 1;
+    }
 
-    auto f_host_tensor_descriptor2d = [](std::size_t row, std::size_t col, std::size_t stride) {
-        return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                    std::vector<std::size_t>({stride, 1}));
-    };
+    Tensor<XDataType> x({N, H, W, G, C});
+    Tensor<YDataType> y({N, H, W, G, C});
+    Tensor<GammaDataType> gamma({G, C});
+    Tensor<BetaDataType> beta({G, C});
 
-    Tensor<XDataType> x(f_host_tensor_descriptor2d(M, N, Stride));
-    Tensor<GammaDataType> gamma(f_host_tensor_descriptor1d(N, 1));
-    Tensor<BetaDataType> beta(f_host_tensor_descriptor1d(N, 1));
-    Tensor<YDataType> y(f_host_tensor_descriptor2d(M, N, Stride));
-
-    x.GenerateTensorValue(GeneratorTensor_3<XDataType>{0.0, 1.0});
-    gamma.GenerateTensorValue(GeneratorTensor_3<GammaDataType>{0.0, 1.0});
-    beta.GenerateTensorValue(GeneratorTensor_3<BetaDataType>{0.0, 1.0});
+    ck::utils::FillUniformDistribution<XDataType>{0.f, 1.f}(x.begin(), x.end());
+    ck::utils::FillUniformDistribution<GammaDataType>{0.f, 1.f}(gamma.begin(), gamma.end());
+    ck::utils::FillUniformDistribution<BetaDataType>{0.f, 1.f}(beta.begin(), beta.end());
 
     DeviceMem x_dev(sizeof(XDataType) * x.mDesc.GetElementSpaceSize());
     DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpaceSize());
@@ -87,20 +113,22 @@ int main()
     gamma_dev.ToDevice(gamma.mData.data());
     beta_dev.ToDevice(beta.mData.data());
 
+    const auto y_element_op = YElementOp{};
+
     auto device_instance = DeviceInstance{};
     auto argument_ptr    = device_instance.MakeArgumentPointer(
-        {M, N},
+        {N, H, W, G, C},
         std::vector<ck::index_t>{x.mDesc.GetStrides().begin(), x.mDesc.GetStrides().end()},
-        {0, 1},
-        {0, 1},
+        {0, 0, 0, C, 1},
+        {0, 0, 0, C, 1},
         std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
-        {1},
-        1e-4,
+        {1, 2, 4}, // reduction dimension: [H, W, C]
+        1e-6,
         x_dev.GetDeviceBuffer(),
         gamma_dev.GetDeviceBuffer(),
         beta_dev.GetDeviceBuffer(),
         y_dev.GetDeviceBuffer(),
-        PassThrough{});
+        y_element_op);
 
     if(!device_instance.IsSupportedArgument(argument_ptr.get()))
     {
@@ -109,29 +137,36 @@ int main()
     };
 
     auto invoker_ptr = device_instance.MakeInvokerPointer();
-    invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+    float ave_time   = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true, true});
+
+    std::size_t num_btype = sizeof(XDataType) * N * H * W * G * C +
+                            sizeof(YDataType) * N * H * W * G * C + sizeof(GammaDataType) * G * C +
+                            sizeof(BetaDataType) * G * C;
+
+    float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+    std::cout << "Perf: " << ave_time << " ms, " << gb_per_sec << " GB/s, "
+              << device_instance.GetTypeString() << std::endl;
 
     bool pass = true;
     {
-        Tensor<YDataType> host_y(f_host_tensor_descriptor2d(M, N, Stride));
-        using ReferenceInstance = ck::tensor_operation::host::ReferenceLayernorm<XDataType,
+        Tensor<YDataType> host_y({N, H, W, G, C});
+        using ReferenceInstance = ck::tensor_operation::host::ReferenceGroupnorm<XDataType,
                                                                                  GammaDataType,
                                                                                  BetaDataType,
                                                                                  YDataType,
                                                                                  AccDataType,
-                                                                                 PassThrough,
-                                                                                 Rank,
-                                                                                 NumReduceDim>;
+                                                                                 YElementOp>;
 
         ReferenceInstance ref;
         auto ref_argument =
-            ref.MakeArgument(x, gamma, beta, host_y, PassThrough{}, {M, N}, {1}, 1e-4);
+            ref.MakeArgument(x, gamma, beta, host_y, y_element_op, {N, H, W, G, C}, 1e-6);
         auto ref_invoker = ref.MakeInvoker();
         ref_invoker.Run(ref_argument);
 
         y_dev.FromDevice(y.mData.data());
-        pass &=
-            ck::utils::check_err(y.mData, host_y.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
+        pass &= ck::utils::check_err(y.mData, host_y.mData, "Error: Incorrect results", 1e-3, 1e-3);
     }
+
     return (pass ? 0 : 1);
 }
