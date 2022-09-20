@@ -53,4 +53,4 @@ using KernelTypes = ::testing::Types<
     std::tuple<F32, F32, F32, F32, F32>>;
 
 TYPED_TEST_SUITE(TestGroupnorm, KernelTypes);
-TYPED_TEST(TestGroupnorm, Test_FP16) { this->Run(); }
+TYPED_TEST(TestGroupnorm, Test_FP32) { this->Run(); }
