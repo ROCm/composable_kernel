@@ -17,17 +17,25 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_layernorm_f16_rank2_instances(
-    std::vector<DeviceLayernormPtr<F16, F16, F16, F32, F16, PassThrough, 2, 1>>&);
+// FP16
+void add_device_layernorm_rank_2_1_f16_instances(
+    std::vector<std::unique_ptr<DeviceLayernorm<F16, F16, F16, F32, F16, PassThrough, 2, 1>>>&);
 
-void add_device_layernorm_f16_rank4_instances(
-    std::vector<DeviceLayernormPtr<F16, F16, F16, F32, F16, PassThrough, 4, 3>>&);
+void add_device_layernorm_rank_4_3_f16_instances(
+    std::vector<std::unique_ptr<DeviceLayernorm<F16, F16, F16, F32, F16, PassThrough, 4, 3>>>&);
 
-void add_device_layernorm_f32_rank2_instances(
-    std::vector<DeviceLayernormPtr<F32, F32, F32, F32, F32, PassThrough, 2, 1>>&);
+void add_device_layernorm_rank_5_3_f16_instances(
+    std::vector<std::unique_ptr<DeviceLayernorm<F16, F16, F16, F32, F16, PassThrough, 5, 3>>>&);
 
-void add_device_layernorm_f32_rank4_instances(
-    std::vector<DeviceLayernormPtr<F32, F32, F32, F32, F32, PassThrough, 4, 3>>&);
+// FP32
+void add_device_layernorm_rank_2_1_f32_instances(
+    std::vector<std::unique_ptr<DeviceLayernorm<F32, F32, F32, F32, F32, PassThrough, 2, 1>>>&);
+
+void add_device_layernorm_rank_4_3_f32_instances(
+    std::vector<std::unique_ptr<DeviceLayernorm<F32, F32, F32, F32, F32, PassThrough, 4, 3>>>&);
+
+void add_device_layernorm_rank_5_3_f32_instances(
+    std::vector<std::unique_ptr<DeviceLayernorm<F32, F32, F32, F32, F32, PassThrough, 5, 3>>>&);
 
 template <typename XDataType,
           typename GammaDataType,
@@ -62,17 +70,33 @@ struct DeviceOperationInstanceFactory<
                      is_same_v<BetaDataType, F16> && is_same_v<YDataType, F16>)
         {
             if constexpr(Rank == 2 && NumReduceDim == 1)
-                add_device_layernorm_f16_rank2_instances(op_ptrs);
+            {
+                add_device_layernorm_rank_2_1_f16_instances(op_ptrs);
+            }
             else if constexpr(Rank == 4 && NumReduceDim == 3)
-                add_device_layernorm_f16_rank4_instances(op_ptrs);
+            {
+                add_device_layernorm_rank_4_3_f16_instances(op_ptrs);
+            }
+            else if constexpr(Rank == 5 && NumReduceDim == 3)
+            {
+                add_device_layernorm_rank_5_3_f16_instances(op_ptrs);
+            }
         }
         else if constexpr(is_same_v<XDataType, F32> && is_same_v<GammaDataType, F32> &&
                           is_same_v<BetaDataType, F32> && is_same_v<YDataType, F32>)
         {
             if constexpr(Rank == 2 && NumReduceDim == 1)
-                add_device_layernorm_f32_rank2_instances(op_ptrs);
+            {
+                add_device_layernorm_rank_2_1_f32_instances(op_ptrs);
+            }
             else if constexpr(Rank == 4 && NumReduceDim == 3)
-                add_device_layernorm_f32_rank4_instances(op_ptrs);
+            {
+                add_device_layernorm_rank_4_3_f32_instances(op_ptrs);
+            }
+            else if constexpr(Rank == 5 && NumReduceDim == 3)
+            {
+                add_device_layernorm_rank_5_3_f32_instances(op_ptrs);
+            }
         }
 
         return op_ptrs;

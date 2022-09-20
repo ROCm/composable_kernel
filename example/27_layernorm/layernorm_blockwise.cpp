@@ -29,24 +29,27 @@ using PassThrough   = ck::tensor_operation::element_wise::PassThrough;
 constexpr int Rank         = 2;
 constexpr int NumReduceDim = 1;
 
-using DeviceInstance = ck::tensor_operation::device::DeviceLayernormImpl<XDataType,
-                                                                         GammaDataType,
-                                                                         BetaDataType,
-                                                                         AccDataType,
-                                                                         YDataType,
-                                                                         PassThrough,
-                                                                         Rank,
-                                                                         NumReduceDim,
-                                                                         256, // BlockSize
-                                                                         8,   // ClusterM
-                                                                         32,  // ClusterK
-                                                                         1,   // SliceM
-                                                                         8,   // SliceK
-                                                                         1,  // SrcVecDim (0=M, 1=K)
-                                                                         8,  // SrcScalarPerVector
-                                                                         8,  // GammaScalarPerVector
-                                                                         8,  // BetaScalarPerVector
-                                                                         8>; // OutScalarPerVector
+using DeviceInstance =
+    ck::tensor_operation::device::DeviceLayernormImpl<XDataType,
+                                                      GammaDataType,
+                                                      BetaDataType,
+                                                      AccDataType,
+                                                      YDataType,
+                                                      PassThrough,
+                                                      Rank,
+                                                      NumReduceDim,
+                                                      256, // BlockSize
+                                                      8,   // ClusterM
+                                                      32,  // ClusterK
+                                                      1,   // SliceM
+                                                      8,   // SliceK
+                                                      1,   // SrcVecDim (0=M, 1=K)
+                                                      8,   // SrcScalarPerVector
+                                                      1,   // GammaVecDim (0=M, 1=K)
+                                                      8,   // GammaScalarPerVector
+                                                      1,   // BetaVecDim (0=M, 1=K)
+                                                      8,   // BetaScalarPerVector
+                                                      8>;  // OutScalarPerVector
 
 int main()
 {
@@ -88,8 +91,8 @@ int main()
     auto argument_ptr    = device_instance.MakeArgumentPointer(
         {M, N},
         std::vector<ck::index_t>{x.mDesc.GetStrides().begin(), x.mDesc.GetStrides().end()},
-        std::vector<ck::index_t>{gamma.mDesc.GetStrides().begin(), gamma.mDesc.GetStrides().end()},
-        std::vector<ck::index_t>{beta.mDesc.GetStrides().begin(), beta.mDesc.GetStrides().end()},
+        {0, 1},
+        {0, 1},
         std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
         {1},
         1e-4,

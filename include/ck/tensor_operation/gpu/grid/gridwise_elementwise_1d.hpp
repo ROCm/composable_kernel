@@ -83,6 +83,8 @@ struct GridwiseElementwise_1D
 
         auto in_global_buf_tuple = generate_tuple(
             [&](auto I) {
+                static_assert(in_grid_1d_desc_tuple[I].GetNumOfDimension() == 1);
+
                 return make_dynamic_buffer<AddressSpaceEnum::Global>(
                     p_in_global_tuple[I], in_grid_1d_desc_tuple[I].GetElementSpaceSize());
             },
@@ -90,6 +92,8 @@ struct GridwiseElementwise_1D
 
         auto out_global_buf_tuple = generate_tuple(
             [&](auto I) {
+                static_assert(out_grid_1d_desc_tuple[I].GetNumOfDimension() == 1);
+
                 return make_dynamic_buffer<AddressSpaceEnum::Global>(
                     p_out_global_tuple[I], out_grid_1d_desc_tuple[I].GetElementSpaceSize());
             },

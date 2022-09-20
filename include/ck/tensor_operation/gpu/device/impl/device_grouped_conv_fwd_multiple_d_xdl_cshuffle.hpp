@@ -117,7 +117,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_batch_gemm_multiple_d_xdl_cshuffle(
+        kernel_grouped_conv_fwd_multiple_d_xdl_cshuffle(
             const ABDataType* __restrict__ p_a_grid,
             const ABDataType* __restrict__ p_b_grid,
             DsPointer p_ds_grid,
@@ -136,8 +136,7 @@ __global__ void
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
-
-#if 1
+    // offset base pointer for each work-group
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
@@ -174,24 +173,6 @@ __global__ void
                                                   ds_grid_desc_mblock_mperblock_nblock_nperblock,
                                                   e_grid_desc_mblock_mperblock_nblock_nperblock_,
                                                   block_2_ctile_map);
-#else
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
-                                                  p_b_grid,
-                                                  p_ds_grid,
-                                                  p_e_grid,
-                                                  p_shared,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  cde_element_op,
-                                                  a_grid_desc_k0_m_k1,
-                                                  b_grid_desc_k0_n_k1,
-                                                  ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  e_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                                  block_2_ctile_map);
-#endif
-
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -378,6 +359,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
             Number<NumDTensor>{});
     }
 
+    // desc for problem definition
     using AGridDesc_M_K  = remove_cvref_t<decltype(
         MakeAGridDescriptor_M_K<ALayout>({}, {}, {}, {}, {}, {}, {}, {}, {}, {}))>;
     using BGridDesc_N_K  = remove_cvref_t<decltype(MakeBGridDescriptor_N_K<BLayout>({}, {}))>;
@@ -395,10 +377,6 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
         BElementwiseOperation,
         CDEElementwiseOperation,
         InMemoryDataOperationEnum::Set,
-        AGridDesc_M_K,
-        BGridDesc_N_K,
-        DsGridDesc_M_N,
-        EGridDesc_M_N,
         NumGemmKPrefetchStage,
         BlockSize,
         MPerBlock,
@@ -432,12 +410,19 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
         CDEBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
 
-    using AGridDesc_AK0_M_AK1 = remove_cvref_t<decltype(
+    // desc for blockwise copy
+    using AGridDesc_AK0_M_AK1                          = remove_cvref_t<decltype(
         GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(AGridDesc_M_K{}))>;
-    using BGridDesc_BK0_N_BK1 = remove_cvref_t<decltype(
+    using BGridDesc_BK0_N_BK1                          = remove_cvref_t<decltype(
         GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(BGridDesc_N_K{}))>;
+    using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
+        GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(DsGridDesc_M_N{}))>;
+    using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock  = remove_cvref_t<decltype(
+        GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(EGridDesc_M_N{}))>;
 
-    using Block2ETileMap = typename GridwiseGemm::DefaultBlock2ETileMap;
+    // block-to-e-tile map
+    using Block2ETileMap =
+        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -467,6 +452,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
               p_b_grid_{static_cast<const BDataType*>(p_b)},
               p_ds_grid_{},
               p_e_grid_{static_cast<EDataType*>(p_e)},
+              num_group_{a_g_n_c_wis_lengths[0]},
               a_grid_desc_m_k_{DeviceOp::MakeAGridDescriptor_M_K<ALayout>(a_g_n_c_wis_lengths,
                                                                           a_g_n_c_wis_strides,
                                                                           b_g_k_c_xs_lengths,
@@ -561,6 +547,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
         EDataType* p_e_grid_;
 
         // tensor descriptors for problem definiton
+        index_t num_group_;
         AGridDesc_M_K a_grid_desc_m_k_;
         BGridDesc_N_K b_grid_desc_n_k_;
         DsGridDesc_M_N ds_grid_desc_m_n_;
@@ -569,14 +556,14 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
         // tensor descriptors for block/thread-wise copy
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
-        typename GridwiseGemm::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+        DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
             ds_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-            e_grid_desc_mblock_mperblock_nblock_nperblock_;
+        EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock e_grid_desc_mblock_mperblock_nblock_nperblock_;
 
         // block-to-e-tile map
         Block2ETileMap block_2_etile_map_;
 
+        // for computing batch offset
         ComputePtrOffsetOfStridedBatch<NumDTensor> compute_ptr_offset_of_batch_;
 
         // element-wise op
@@ -622,8 +609,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
             }
 
             const index_t grid_size =
-                arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) *
-                arg.a_g_n_c_wis_lengths_[0]; // Group count
+                arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * arg.num_group_;
 
             const auto K =
                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
@@ -631,7 +617,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
             auto launch_kernel = [&](auto has_main_k_block_loop) {
                 constexpr bool has_main_loop = has_main_k_block_loop.value;
 
-                const auto kernel = kernel_batch_gemm_multiple_d_xdl_cshuffle<
+                const auto kernel = kernel_grouped_conv_fwd_multiple_d_xdl_cshuffle<
                     GridwiseGemm,
                     ADataType, // TODO: distiguish A/B datatype
                     typename GridwiseGemm::DsGridPointer,
@@ -641,8 +627,8 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
                     CDEElementwiseOperation,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
-                    typename GridwiseGemm::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                    DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                    DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                     Block2ETileMap,
                     ComputePtrOffsetOfStridedBatch<NumDTensor>,
                     has_main_loop>;
@@ -798,7 +784,8 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle
                          is_same_v<DLayout, ctc::G_NDHW_K> || is_same_v<DLayout, ctc::GNWK> ||
                          is_same_v<DLayout, ctc::GNHWK> || is_same_v<DLayout, ctc::GNDHWK> ||
                          is_same_v<DLayout, ctc::NWGK> || is_same_v<DLayout, ctc::NHWGK> ||
-                         is_same_v<DLayout, ctc::NDHWGK>)
+                         is_same_v<DLayout, ctc::NDHWGK> || is_same_v<DLayout, ctc::GK> ||
+                         is_same_v<DLayout, ctc::G_K>)
             {
                 const index_t K = arg.ds_g_n_k_wos_lengths_[i][2];
 
