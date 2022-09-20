@@ -12,38 +12,6 @@
 
 namespace ck {
 
-template <index_t K_BlockTileSize, index_t KThreadSliceSize>
-struct GetReduceCountPerThreadForBlockwiseWelford
-{
-    GetReduceCountPerThreadForBlockwiseWelford(index_t numBlockTileIteration,
-                                               long_index_t reduce_length)
-        : numBlockTileIteration_{numBlockTileIteration}
-    {
-        count_in_last_tile = reduce_length % K_BlockTileSize;
-    };
-
-    __device__ index_t operator()(index_t thread_k_cluster_id) const
-    {
-        if(count_in_last_tile == 0)
-            return (KThreadSliceSize * numBlockTileIteration_);
-        else
-        {
-            index_t num_complete_slice  = count_in_last_tile / KThreadSliceSize;
-            index_t count_in_last_slice = count_in_last_tile % KThreadSliceSize;
-
-            if(thread_k_cluster_id < num_complete_slice)
-                return (KThreadSliceSize * numBlockTileIteration_);
-            else if(thread_k_cluster_id == num_complete_slice)
-                return (KThreadSliceSize * (numBlockTileIteration_ - 1) + count_in_last_slice);
-            else
-                return (KThreadSliceSize * (numBlockTileIteration_ - 1));
-        };
-    };
-
-    index_t numBlockTileIteration_;
-    index_t count_in_last_tile;
-};
-
 template <typename GridwiseBatchrNormForwardWithBlockwiseWelford_,
           typename XDataType,
           typename YDataType,
