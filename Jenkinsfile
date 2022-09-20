@@ -276,12 +276,6 @@ def buildHipClangJobAndReboot(Map conf=[:]){
     }
 }
 
-
-
-
-
-
-
 def runCKProfiler(Map conf=[:]){
         show_node_info()
 
@@ -344,15 +338,20 @@ def runCKProfiler(Map conf=[:]){
                 {
                     //cmake_build(conf)
                     //instead of building, just get the CK deb package and install it
-                    //sh 'pwd'
-                    //sh 'ls'
-                    //sh "mkdir Libs_composable_kernel_${env.BRANCH_NAME}"
-                    //dir("Libs_composable_kernel_${env.BRANCH_NAME}"){
-                    //get deb package
-                    wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/*.deb
-                    //install deb package
-                    sh "dpkg -i *.deb"
-                    //}
+                    sh """
+                        pwd
+                        ls 
+                        rm -rf build
+                        mkdir build
+                    """
+                    dir("build"){
+                        unstash 'packages'
+                        sh """
+                            ls -ltr
+                            dpkg -x composablekernel-dev_*.deb .
+                            dpkg -x composablekernel-tests_*.deb .
+                        """
+                    }
 
 					dir("script"){
                         if (params.RUN_FULL_QA){
@@ -394,7 +393,6 @@ def runCKProfiler(Map conf=[:]){
                             stash name: "perf_resnet50_N4.log"
                             //we will process the results on the master node
                         }
-
 					}
                 }
             }
@@ -418,11 +416,6 @@ def runPerfTest(Map conf=[:]){
     }
 }
 
-
-
-
-
-
 def runTests_and_Examples(Map conf=[:]){
         show_node_info()
 
@@ -443,7 +436,6 @@ def runTests_and_Examples(Map conf=[:]){
         }
 
         def variant = env.STAGE_NAME
-
         def retimage
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
@@ -490,15 +482,11 @@ def runTests_and_Examples(Map conf=[:]){
                         mkdir build
                     """
                     dir("build"){
-                        //wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/*.deb
-                        //wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/composablekernel-dev_0.2.0-${env.CHANGE_ID}_amd64.deb
-                        //wget http://micimaster.amd.com/blue/organizations/jenkins/MLLibs%2Fcomposable_kernel/detail/${env.BRANCH_NAME}/${env.BUILD_NUMBER}/artifacts/composablekernel-tests_0.2.0-${env.CHANGE_ID}_amd64.deb
-                        //dpkg -x composablekernel-dev_0.2.0-${env.CHANGE_ID}_amd64.deb .
-                        //dpkg -x composablekernel-tests_0.2.0-${env.CHANGE_ID}_amd64.deb .
                         unstash 'packages'
                         sh """
                             ls -ltr
-                            dpkg -x *.deb .
+                            dpkg -x composablekernel-dev_*.deb .
+                            dpkg -x composablekernel-tests_*.deb .
                             make -j check
                         """
                     }
@@ -756,7 +744,6 @@ pipeline {
                     environment{
                         setup_args = "${params.COMPILER_VERSION == "release" ? """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 --offload-arch=gfx90a -O3 " """ : """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 --offload-arch=gfx90a -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" """ }"
                         execute_args = "${params.COMPILER_VERSION == "release" ? """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 --offload-arch=gfx90a -O3" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ : """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 --offload-arch=gfx90a -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ }"
-
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
