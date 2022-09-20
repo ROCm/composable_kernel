@@ -5,6 +5,7 @@
 #include <vector>
 #include <unordered_map>
 
+#include "profiler/include/data_type_enum.hpp"
 #include "profiler/include/profile_layernorm_impl.hpp"
 
 using ck::index_t;
@@ -49,7 +50,7 @@ void print_help_layernorm()
               << "arg2: verification (0: no; 1: yes)\n"
               << "arg3: initialization (0: no init; 1: integer value; 2: decimal value)\n"
               << "arg4: print tensor value (0: no; 1: yes)\n"
-              << "arg5: time kernel (0=n0, 1=yes)\n"
+              << "arg5: time kernel (0=no, 1=yes)\n"
               << "--length: tensor extents (e.g, --length 1024 1024) \n"
               << "--strideXY: tensor strides (e.g, --strideXY 1024 1)\n"
               << "--strideGamma: tensor strides (e.g, --strideGamma 1)\n"
@@ -114,10 +115,3 @@ int profile_layernorm(int argc, char* argv[])
 
     return 0;
 }
-
-// hijack main() for quick debugging
-// int main(int argc, char* argv[])
-// {
-//     profile_layernorm(argc, argv);
-//     return 0;
-// }

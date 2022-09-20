@@ -31,7 +31,7 @@ std::string serialize_range(const Range& range)
 }
 
 template <typename Tuple>
-class TestLayernorm : public ::testing::Test
+class TestLayernorm2d : public ::testing::Test
 {
     protected:
     using XDataType                             = std::tuple_element_t<0, Tuple>;
@@ -48,9 +48,11 @@ class TestLayernorm : public ::testing::Test
     static constexpr index_t KThreadSliceSize   = std::tuple_element_t<11, Tuple>{}.value;
     static constexpr index_t XYSrcVectorDim     = std::tuple_element_t<12, Tuple>{}.value;
     static constexpr index_t XSrcVectorSize     = std::tuple_element_t<13, Tuple>{}.value;
-    static constexpr index_t GammaSrcVectorSize = std::tuple_element_t<14, Tuple>{}.value;
-    static constexpr index_t BetaSrcVectorSize  = std::tuple_element_t<15, Tuple>{}.value;
-    static constexpr index_t YDstVectorSize     = std::tuple_element_t<16, Tuple>{}.value;
+    static constexpr index_t GammaSrcVectorDim  = std::tuple_element_t<14, Tuple>{}.value;
+    static constexpr index_t GammaSrcVectorSize = std::tuple_element_t<15, Tuple>{}.value;
+    static constexpr index_t BetaSrcVectorDim   = std::tuple_element_t<16, Tuple>{}.value;
+    static constexpr index_t BetaSrcVectorSize  = std::tuple_element_t<17, Tuple>{}.value;
+    static constexpr index_t YDstVectorSize     = std::tuple_element_t<18, Tuple>{}.value;
 
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -78,23 +80,24 @@ class TestLayernorm : public ::testing::Test
                                                                          KThreadSliceSize,
                                                                          XYSrcVectorDim,
                                                                          XSrcVectorSize,
+                                                                         GammaSrcVectorDim,
                                                                          GammaSrcVectorSize,
+                                                                         BetaSrcVectorDim,
                                                                          BetaSrcVectorSize,
                                                                          YDstVectorSize>;
 
-    TestLayernorm() : ref_instance_invoker_(ReferenceInstance{}.MakeInvoker()) {}
+    TestLayernorm2d() : ref_instance_invoker_(ReferenceInstance{}.MakeInvoker()) {}
 
-    void RunSingle(std::vector<index_t> lengths, std::vector<index_t> reduceDims)
+    void RunSingle(const std::vector<index_t>& lengths,
+                   const std::vector<index_t>& reduceDims,
+                   const std::vector<index_t>& GammaLength,
+                   const std::vector<index_t>& GammaStride,
+                   const std::vector<index_t>& BetaLength,
+                   const std::vector<index_t>& BetaStride)
     {
-        std::vector<index_t> reduceLength(reduceDims.size());
-        for(int i = 0; i < NumReduceDim; ++i)
-        {
-            reduceLength[i] = lengths[reduceDims[i]];
-        }
-
         Tensor<XDataType> x(lengths);
-        Tensor<GammaDataType> gamma(reduceLength);
-        Tensor<BetaDataType> beta(reduceLength);
+        Tensor<GammaDataType> gamma(GammaLength);
+        Tensor<BetaDataType> beta(BetaLength);
         Tensor<YDataType> y(lengths);
         Tensor<YDataType> y_ref(lengths);
 
@@ -115,10 +118,8 @@ class TestLayernorm : public ::testing::Test
         auto argument_ptr    = device_instance.MakeArgumentPointer(
             lengths,
             std::vector<ck::index_t>{x.mDesc.GetStrides().begin(), x.mDesc.GetStrides().end()},
-            std::vector<ck::index_t>{gamma.mDesc.GetStrides().begin(),
-                                     gamma.mDesc.GetStrides().end()},
-            std::vector<ck::index_t>{beta.mDesc.GetStrides().begin(),
-                                     beta.mDesc.GetStrides().end()},
+            GammaStride,
+            BetaStride,
             std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
             reduceDims,
             1e-4,
@@ -163,17 +164,16 @@ class TestLayernorm : public ::testing::Test
 
     void Run()
     {
-        for(auto length : this->lengths_)
+        std::vector<std::vector<index_t>> lengths = {
+            {4, 256}, {8, 511}, {9, 1032}, {4, 2048}, {1, 8192}, {4000, 2000}};
+
+        for(auto length : lengths)
         {
-            this->RunSingle(length, reduceDims_[0]);
+            this->RunSingle(length, {1}, {length[1]}, {0, 1}, {length[1]}, {0, 1});
         }
     }
 
-    std::vector<std::vector<index_t>> lengths_ = {
-        {4, 256}, {8, 511}, {9, 1032}, {4, 2048}, {1, 8192}, {4000, 2000}};
-
-    std::vector<std::vector<index_t>> reduceDims_ = {{1}};
-
     typename ReferenceInstance::Invoker ref_instance_invoker_;
 };
+
 } // namespace ck
