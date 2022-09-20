@@ -23,6 +23,7 @@ set(PROFILER_SOURCE
     src/profile_conv_bwd_weight.cpp
     src/profile_grouped_conv_fwd.cpp
     src/profile_reduce.cpp
+    src/profile_groupnorm.cpp
     src/profile_layernorm.cpp
     src/profile_normalization.cpp
 )

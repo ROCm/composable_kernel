@@ -884,9 +884,10 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                     FloatGemmAcc c_new =
                         (running_sum[iM] * math::exp(running_max[iM] - running_max_new[iM]) * c +
                          math::exp(max[iM] - running_max_new[iM]) * acc1) /
-                        running_sum_new[iM]; // O_new
+                        running_sum_new[iM]; // Formula by Dao et al.,
+                                             // https://arxiv.org/pdf/2205.14135v2.pdf section 3.1
 
-                    c_thread_buf(I) = c_new;
+                    c_thread_buf(I) = c_new; // O_new
                 });
             });
 

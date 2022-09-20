@@ -92,6 +92,12 @@ struct GNDHWC : public BaseTensorLayout
     static constexpr const char* name = "GNDHWC";
 };
 
+// for input bias
+struct GC : public BaseTensorLayout
+{
+    static constexpr const char* name = "GC";
+};
+
 // input tensor
 // packed NWGC/NHWGC/NDHWGC
 struct NWGC : public BaseTensorLayout
@@ -124,6 +130,12 @@ struct G_NHW_C : public BaseTensorLayout
 struct G_NDHW_C : public BaseTensorLayout
 {
     static constexpr const char* name = "G_NDHW_C";
+};
+
+// for input bias
+struct G_C : public BaseTensorLayout
+{
+    static constexpr const char* name = "G_C";
 };
 
 // weight tensor
@@ -296,6 +308,12 @@ struct GNDHWK : public BaseTensorLayout
     static constexpr const char* name = "GNDHWK";
 };
 
+// for output bias
+struct GK : public BaseTensorLayout
+{
+    static constexpr const char* name = "GK";
+};
+
 // output tensor
 // packed NWGK/NHWGK/NDHWGK
 struct NWGK : public BaseTensorLayout
@@ -328,6 +346,12 @@ struct G_NHW_K : public BaseTensorLayout
 struct G_NDHW_K : public BaseTensorLayout
 {
     static constexpr const char* name = "G_NDHW_K";
+};
+
+// for output bias
+struct G_K : public BaseTensorLayout
+{
+    static constexpr const char* name = "G_K";
 };
 
 // K-reduced output tensor (packed)
