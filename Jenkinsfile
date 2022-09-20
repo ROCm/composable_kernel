@@ -341,18 +341,16 @@ def runCKProfiler(Map conf=[:]){
                     sh """
                         pwd
                         ls 
+                        rm -rf build
+                        mkdir build
                     """
-                    //rm -rf build
-                    //mkdir build
                     dir("build"){
-                        //unstash 'packages'
-                        unstash 'ckProfiler'
+                        unstash 'ckProfiler.tar.gz'
                         sh """
+                            tar -xvf ckProfiler.tar.gz
                             ls -ltr
                             ls -ltr bin
                         """
-                        //dpkg -x composablekernel-dev_*.deb .
-                        //dpkg -x composablekernel-tests_*.deb .
                     }
 
 					dir("script"){
@@ -480,9 +478,9 @@ def runTests_and_Examples(Map conf=[:]){
                     sh """
                         pwd
                         ls 
+                        rm -rf build
+                        mkdir build
                     """
-                    //rm -rf build
-                    //mkdir build
                     dir("build"){
                         //unstash 'packages'
                         sh """
@@ -556,7 +554,8 @@ def Build_CK(Map conf=[:]){
                         //archiveArtifacts artifacts: "*.deb", allowEmptyArchive: true, fingerprint: true
                         //stash includes: '*.deb', name: 'packages'
                         make -j check
-                        stash includes: 'bin/ckProfiler', name: 'ckProfiler'
+                        sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
+                        stash "ckProfiler.tar.gz"
                     }
                 }
             }
