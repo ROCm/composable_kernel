@@ -14,7 +14,7 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_split_k_multiple_d_xdl_cshuffle.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
@@ -520,7 +520,7 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
     };
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
+    using GridwiseGemm = GridwiseGemmSplitKMultipleD_xdl_cshuffle<
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
         CShuffleDataType,
@@ -568,7 +568,7 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
         LoopSched>;
 
     using AGridDesc_AK0_M_AK1 = remove_cvref_t<decltype(
-        GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(AGridDesc_M_K{}))>;
+        GridwiseGemm::MakeDefaultAGridDescriptor_AKB_AK0_M_AK1(AGridDesc_M_K{}, 1))>;
     using BGridDesc_BK0_N_BK1 = remove_cvref_t<decltype(
         GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(BGridDesc_N_K{}))>;
 
@@ -608,8 +608,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
                   DeviceOp::MakeDsGridDescriptor_G_M_N(ds_gs_ms_ns_lengths, ds_gs_ms_ns_strides)},
               e_grid_desc_g_m_n_{
                   DeviceOp::MakeEGridDescriptor_G_M_N(e_gs_ms_ns_lengths, e_gs_ms_ns_strides)},
-              a_grid_desc_ak0_m_ak1_{
-                  GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_)},
+              a_grid_desc_ak0_m_ak1_{GridwiseGemm::MakeDefaultAGridDescriptor_AKB_AK0_M_AK1(
+                  a_grid_desc_m_k_, split_k)},
               b_grid_desc_bk0_n_bk1_{
                   GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k_)},
               ds_grid_desc_mblock_mperblock_nblock_nperblock_{},
@@ -833,7 +833,7 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
         }
 
         // check vector access
-        static_assert((ABlockTransferSrcVectorDim == 1 || ABlockTransferSrcVectorDim == 2) &&
+        static_assert((ABlockTransferSrcVectorDim == 2 || ABlockTransferSrcVectorDim == 3) &&
                           (BBlockTransferSrcVectorDim == 1 || BBlockTransferSrcVectorDim == 2),
                       "wrong!");
 

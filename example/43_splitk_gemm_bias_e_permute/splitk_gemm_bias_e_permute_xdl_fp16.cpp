@@ -33,11 +33,10 @@ using DDataType        = F16;
 using DsDataType       = ck::Tuple<DDataType>;
 using EDataType        = F16;
 
-static constexpr ck::index_t NumDimG   = 2;
-static constexpr ck::index_t NumDimM   = 2;
-static constexpr ck::index_t NumDimN   = 2;
-static constexpr ck::index_t NumDimK   = 1;
-static constexpr ck::index_t NumSplitK = 2;
+static constexpr ck::index_t NumDimG = 2;
+static constexpr ck::index_t NumDimM = 2;
+static constexpr ck::index_t NumDimN = 2;
+static constexpr ck::index_t NumDimK = 1;
 
 using AElementOp   = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp   = ck::tensor_operation::element_wise::PassThrough;
@@ -50,11 +49,11 @@ static constexpr auto DESpec = ck::tensor_operation::device::TensorSpecializatio
 
 // clang-format off
 using DeviceOpInstanceKKNN = ck::tensor_operation::device::
-        //############################################| NumDimG| NumDimM| NumDimN| NumDimK| AData| BData| AccData| CShuffle|     DsData| EData|            A|           B|          CDE|           Gemm|              A|              B|             DE| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
-        //############################################|        |        |        |        |  Type|  Type|    Type| DataType|       Type|  Type|  Elementwise| Elementwise|  Elementwise| Spacialization| Spacialization| Spacialization| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
-        //############################################|        |        |        |        |      |      |        |         |           |      |    Operation|   Operation|    Operation|               |               |               |               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-        //############################################|        |        |        |        |      |      |        |         |           |      |             |            |             |               |               |               |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
-        DeviceSplitKContractionMultipleD_Xdl_CShuffle< NumDimG, NumDimM, NumDimN, NumDimK,   F16,   F16,     F32,      F16, DsDataType,   F16,   AElementOp,  BElementOp, CDEElementOp,       GemmSpec,         ABSpec,         ABSpec,         DESpec,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,              S<1, 32, 1, 4>,               8>;
+        //############################################| NumDimG| NumDimM| NumDimN| NumDimK| AData| BData| AccData| CShuffle|     DsData| EData|            A|           B|          CDE|           Gemm|              A|              B|             DE| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|CBlockTransferClusterLengths|   CBlockTransfer|
+        //############################################|        |        |        |        |  Type|  Type|    Type| DataType|       Type|  Type|  Elementwise| Elementwise|  Elementwise| Spacialization| Spacialization| Spacialization| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|        _MBlock_MWaveMPerXdl|  ScalarPerVector|
+        //############################################|        |        |        |        |      |      |        |         |           |      |    Operation|   Operation|    Operation|               |               |               |               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|        _NBlock_NWaveNPerXdl|    _NWaveNPerXdl|
+        //############################################|        |        |        |        |      |      |        |         |           |      |             |            |             |               |               |               |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                            |                 |
+        DeviceSplitKContractionMultipleD_Xdl_CShuffle<  NumDimG, NumDimM, NumDimN, NumDimK,   F16,   F16,     F32,      F16, DsDataType,   F16,   AElementOp,  BElementOp, CDEElementOp,       GemmSpec,         ABSpec,         ABSpec,         DESpec,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,  S<1, 4, 64, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,              S<1, 32, 1, 4>,               8>;
 // clang-format on
 
 using DeviceOpInstance = DeviceOpInstanceKKNN;
@@ -202,6 +201,7 @@ int main(int argc, char* argv[])
     bool do_verification = true;
     int init_method      = 1;
     bool time_kernel     = false;
+    int split_k          = 2;
 
     ck::index_t G0 = 1;
     ck::index_t G1 = 2;
@@ -212,7 +212,7 @@ int main(int argc, char* argv[])
     ck::index_t N0 = 16;
     ck::index_t N1 = 128;
 
-    ck::index_t K0 = 64 * NumSplitK;
+    ck::index_t K0 = 64 * 2;
 
     // A[G0, G1, M0, M1, K0]
     std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M0, M1, K0};
@@ -233,11 +233,12 @@ int main(int argc, char* argv[])
     {
         // use default case
     }
-    else if(argc == 4)
+    else if(argc == 5)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
+        split_k         = std::stoi(argv[4]);
     }
     else
     {
@@ -318,7 +319,7 @@ int main(int argc, char* argv[])
                                     a_element_op,
                                     b_element_op,
                                     cde_element_op,
-                                    NumSplitK);
+                                    split_k);
 
     if(!op.IsSupportedArgument(argument))
     {
