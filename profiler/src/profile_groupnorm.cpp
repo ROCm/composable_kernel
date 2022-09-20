@@ -70,7 +70,7 @@ int profile_groupnorm(int argc, char* argv[])
         return 0;
     }
 
-    if(argc == 14)
+    if(argc == 13)
     {
         data_type       = static_cast<ck::DataTypeEnum>(std::stoi(argv[2]));
         do_verification = std::stoi(argv[3]);
