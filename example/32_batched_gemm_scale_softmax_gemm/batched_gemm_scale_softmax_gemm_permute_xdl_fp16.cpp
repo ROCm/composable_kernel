@@ -58,7 +58,7 @@ using Acc0ElementOp = ck::tensor_operation::element_wise::Scale;
 using B1ElementOp   = PassThrough;
 using CElementOp    = PassThrough;
 
-static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNOPadding;
+static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNPadding;
 
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<
@@ -149,8 +149,8 @@ int main(int argc, char* argv[])
 
     // GEMM shape for A/B0/B1/C
     // C_g_m_o = A_g_m_k * B0_g_k_n * B1_g_n_o
-    ck::index_t M             = 128;
-    ck::index_t N             = 1024;
+    ck::index_t M             = 120;
+    ck::index_t N             = 1000;
     ck::index_t K             = 64;
     ck::index_t O             = 128;
     ck::index_t StrideA       = -1;
