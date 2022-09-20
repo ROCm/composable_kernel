@@ -797,7 +797,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             // check if it's 1x1, stride=1 pad = 0 conv
             for(int i = 0; i < NDimSpatial; i++)
             {
-                if(!(arg.filter_spatial_lengths_[i] == 1 && arg.conv_filter_strides_[i] == 1 &&
+                if(!(arg.b_g_k_c_xs_lengths_[3 + i] == 1 && arg.conv_filter_strides_[i] == 1 &&
                      arg.input_left_pads_[i] == 0 && arg.input_right_pads_[i] == 0))
                 {
                     return false;
