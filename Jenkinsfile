@@ -341,16 +341,16 @@ def runCKProfiler(Map conf=[:]){
                     sh """
                         pwd
                         ls 
-                        rm -rf build
-                        mkdir build
                     """
+                    //rm -rf build
+                    //mkdir build
                     dir("build"){
-                        unstash 'packages'
+                        //unstash 'packages'
                         sh """
-                            ls -ltr
-                            dpkg -x composablekernel-dev_*.deb .
-                            dpkg -x composablekernel-tests_*.deb .
+                            ls -ltr bin
                         """
+                        //dpkg -x composablekernel-dev_*.deb .
+                        //dpkg -x composablekernel-tests_*.deb .
                     }
 
 					dir("script"){
@@ -478,17 +478,17 @@ def runTests_and_Examples(Map conf=[:]){
                     sh """
                         pwd
                         ls 
-                        rm -rf build
-                        mkdir build
                     """
+                    //rm -rf build
+                    //mkdir build
                     dir("build"){
-                        unstash 'packages'
+                        //unstash 'packages'
                         sh """
-                            ls -ltr
-                            dpkg -x composablekernel-dev_*.deb .
-                            dpkg -x composablekernel-tests_*.deb .
+                            ls -ltr bin
                             make -j check
                         """
+                        //dpkg -x composablekernel-dev_*.deb .
+                        //dpkg -x composablekernel-tests_*.deb .
                     }
                 }
             }
