@@ -3,15 +3,16 @@
 
 #pragma once
 
-#include <thread>
-#include <vector>
-#include <numeric>
 #include <algorithm>
-#include <utility>
 #include <cassert>
 #include <iostream>
+#include <numeric>
+#include <thread>
+#include <utility>
+#include <vector>
 
 #include "ck/utility/data_type.hpp"
+#include "ck/utility/span.hpp"
 
 template <typename Range>
 std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
@@ -235,6 +236,9 @@ auto make_ParallelTensorFunctor(F f, Xs... xs)
 template <typename T>
 struct Tensor
 {
+    using Descriptor = HostTensorDescriptor;
+    using Data       = std::vector<T>;
+
     template <typename X>
     Tensor(std::initializer_list<X> lens) : mDesc(lens), mData(mDesc.GetElementSpaceSize())
     {
@@ -251,7 +255,7 @@ struct Tensor
     {
     }
 
-    Tensor(const HostTensorDescriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpaceSize()) {}
+    Tensor(const Descriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpaceSize()) {}
 
     template <typename OutT>
     Tensor<OutT> CopyAsType() const
@@ -278,15 +282,17 @@ struct Tensor
     {
     }
 
-    const std::vector<std::size_t>& GetLengths() const { return mDesc.GetLengths(); }
+    decltype(auto) GetLengths() const { return mDesc.GetLengths(); }
 
-    const std::vector<std::size_t>& GetStrides() const { return mDesc.GetStrides(); }
+    decltype(auto) GetStrides() const { return mDesc.GetStrides(); }
 
     std::size_t GetNumOfDimension() const { return mDesc.GetNumOfDimension(); }
 
     std::size_t GetElementSize() const { return mDesc.GetElementSize(); }
 
     std::size_t GetElementSpaceSize() const { return mDesc.GetElementSpaceSize(); }
+
+    std::size_t GetElementSpaceSizeInBytes() const { return sizeof(T) * GetElementSpaceSize(); }
 
     void SetZero()
     {
@@ -425,14 +431,40 @@ struct Tensor
         return mData[mDesc.GetOffsetFromMultiIndex(idx)];
     }
 
-    typename std::vector<T>::iterator begin() { return mData.begin(); }
+    typename Data::iterator begin() { return mData.begin(); }
 
-    typename std::vector<T>::iterator end() { return mData.end(); }
+    typename Data::iterator end() { return mData.end(); }
 
-    typename std::vector<T>::const_iterator begin() const { return mData.begin(); }
+    typename Data::pointer data() { return mData.data(); }
 
-    typename std::vector<T>::const_iterator end() const { return mData.end(); }
+    typename Data::const_iterator begin() const { return mData.begin(); }
 
-    HostTensorDescriptor mDesc;
-    std::vector<T> mData;
+    typename Data::const_iterator end() const { return mData.end(); }
+
+    typename Data::const_pointer data() const { return mData.data(); }
+
+    typename Data::size_type size() const { return mData.size(); }
+
+    template <typename U = T>
+    auto AsSpan() const
+    {
+        constexpr std::size_t FromSize = sizeof(T);
+        constexpr std::size_t ToSize   = sizeof(U);
+
+        using Element = std::add_const_t<std::remove_reference_t<U>>;
+        return ck::span<Element>{reinterpret_cast<Element*>(data()), size() * FromSize / ToSize};
+    }
+
+    template <typename U = T>
+    auto AsSpan()
+    {
+        constexpr std::size_t FromSize = sizeof(T);
+        constexpr std::size_t ToSize   = sizeof(U);
+
+        using Element = std::remove_reference_t<U>;
+        return ck::span<Element>{reinterpret_cast<Element*>(data()), size() * FromSize / ToSize};
+    }
+
+    Descriptor mDesc;
+    Data mData;
 };
