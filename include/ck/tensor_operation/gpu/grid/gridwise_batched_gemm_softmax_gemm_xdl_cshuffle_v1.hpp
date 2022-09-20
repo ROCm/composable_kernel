@@ -366,7 +366,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         }
     };
 
-    template <bool HasMainKBlockLoop, typename Block2CTileMap>
+    template <bool HasMainKBlockLoop, typename Block2CTileMap, typename C0MatrixMask>
     __device__ static void Run(const FloatAB* __restrict__ p_a_grid,
                                const FloatAB* __restrict__ p_b_grid,
                                const FloatAB* __restrict__ p_b1_grid,
@@ -382,7 +382,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                const B1GridDesc_BK0_N_BK1& b1_grid_desc_bk0_n_bk1,
                                const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
-                               const Block2CTileMap& block_2_ctile_map)
+                               const Block2CTileMap& block_2_ctile_map,
+                               const C0MatrixMask& c0_matrix_mask)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
@@ -404,9 +405,6 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         {
             return;
         }
-
-        // fetch origin N dim(before padding)
-        const index_t n_raw = b_grid_desc_bk0_n_bk1.GetTransforms()[I0].GetUpperLengths()[I0];
 
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
@@ -764,8 +762,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             {
                 auto gemm0_n_block_idx =
                     __builtin_amdgcn_readfirstlane(gemm1_k_block_outer_index * NPerBlock);
-                if((m_block_data_idx_on_grid < gemm0_n_block_idx) &&
-                   ((m_block_data_idx_on_grid + MPerBlock - 1) < gemm0_n_block_idx))
+                if(c0_matrix_mask.IsUpperTriangle(m_block_data_idx_on_grid, gemm0_n_block_idx) &&
+                   c0_matrix_mask.IsUpperTriangle(m_block_data_idx_on_grid + MPerBlock - 1, gemm0_n_block_idx))
                 {
                     continue;
                 }
@@ -809,7 +807,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                 const auto acc_offset  = Number<acc_idx_n2 + n4_i>{};
                                 if constexpr(MaskOutUpperTriangle)
                                 {
-                                    if(n_global > m_global || n_global > n_raw)
+                                    if(c0_matrix_mask.IsMaskedElement(m_global, n_global))
                                     {
                                         acc_thread_buf(acc_offset) =
                                             -ck::NumericLimits<float>::Infinity();
@@ -823,7 +821,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                 else
                                 {
                                     // ignore m_global;
-                                    if(n_global > n_raw)
+                                    if(c0_matrix_mask.IsNOutOfBound(n_global))
                                     {
                                         acc_thread_buf(acc_offset) =
                                             -ck::NumericLimits<float>::Infinity();
