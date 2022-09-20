@@ -570,7 +570,7 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
     using AGridDesc_AK0_M_AK1 = remove_cvref_t<decltype(
         GridwiseGemm::MakeDefaultAGridDescriptor_AKB_AK0_M_AK1(AGridDesc_M_K{}, 1))>;
     using BGridDesc_BK0_N_BK1 = remove_cvref_t<decltype(
-        GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(BGridDesc_N_K{}))>;
+        GridwiseGemm::MakeDefaultBGridDescriptor_BKB_BK0_N_BK1(BGridDesc_N_K{}, 1))>;
 
     using Block2ETileMap = typename GridwiseGemm::DefaultBlock2ETileMap;
 
@@ -610,8 +610,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
                   DeviceOp::MakeEGridDescriptor_G_M_N(e_gs_ms_ns_lengths, e_gs_ms_ns_strides)},
               a_grid_desc_ak0_m_ak1_{GridwiseGemm::MakeDefaultAGridDescriptor_AKB_AK0_M_AK1(
                   a_grid_desc_m_k_, split_k)},
-              b_grid_desc_bk0_n_bk1_{
-                  GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k_)},
+              b_grid_desc_bk0_n_bk1_{GridwiseGemm::MakeDefaultBGridDescriptor_BKB_BK0_N_BK1(
+                  b_grid_desc_n_k_, split_k)},
               ds_grid_desc_mblock_mperblock_nblock_nperblock_{},
               e_grid_desc_mblock_mperblock_nblock_nperblock_{},
               block_2_etile_map_{GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_)},
@@ -834,7 +834,7 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
 
         // check vector access
         static_assert((ABlockTransferSrcVectorDim == 2 || ABlockTransferSrcVectorDim == 3) &&
-                          (BBlockTransferSrcVectorDim == 1 || BBlockTransferSrcVectorDim == 2),
+                          (BBlockTransferSrcVectorDim == 2 || BBlockTransferSrcVectorDim == 3),
                       "wrong!");
 
         // vector memory access of A: could be on M or AK1 dimension
