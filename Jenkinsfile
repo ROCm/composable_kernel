@@ -346,7 +346,9 @@ def runCKProfiler(Map conf=[:]){
                     //mkdir build
                     dir("build"){
                         //unstash 'packages'
+                        unstash 'ckProfiler'
                         sh """
+                            ls -ltr
                             ls -ltr bin
                         """
                         //dpkg -x composablekernel-dev_*.deb .
@@ -484,7 +486,7 @@ def runTests_and_Examples(Map conf=[:]){
                     dir("build"){
                         //unstash 'packages'
                         sh """
-                            ls -ltr bin
+                            ls -ltr
                             make -j check
                         """
                         //dpkg -x composablekernel-dev_*.deb .
@@ -550,9 +552,11 @@ def Build_CK(Map conf=[:]){
                 {
                     cmake_build(conf)
                     dir("build"){
-                        sh 'make package'
-                        archiveArtifacts artifacts: "*.deb", allowEmptyArchive: true, fingerprint: true
-                        stash includes: '*.deb', name: 'packages'
+                        //sh 'make package'
+                        //archiveArtifacts artifacts: "*.deb", allowEmptyArchive: true, fingerprint: true
+                        //stash includes: '*.deb', name: 'packages'
+                        make -j check
+                        stash includes: 'bin/ckProfiler', name: 'ckProfiler'
                     }
                 }
             }
@@ -734,13 +738,13 @@ pipeline {
             }
         }
     
-		stage("Build CK")
+		stage("Build CK and run Tests")
         {
             parallel
             {
-                stage("Build CK targets")
+                stage("Build CK and run Tests")
                 {
-                    agent{ label rocmnode("nogpu") }
+                    agent{ label rocmnode("gfx908 || gfx90a") }
                     environment{
                         setup_args = "${params.COMPILER_VERSION == "release" ? """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 --offload-arch=gfx90a -O3 " """ : """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 --offload-arch=gfx90a -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" """ }"
                         execute_args = "${params.COMPILER_VERSION == "release" ? """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 --offload-arch=gfx90a -O3" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ : """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 --offload-arch=gfx90a -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ }"
@@ -752,7 +756,8 @@ pipeline {
             }
         }
 
- 		stage("Tests")
+ 		/*
+        stage("Tests")
         {
             when {
                 beforeAgent true
@@ -772,7 +777,7 @@ pipeline {
                 }
             }
         }       
-        /*
+        
         //at present this stage only builds binaries. 
         //we will now build all binaries in a separate stage.
         //once we have some tests to run in this stage, we can enable it again.
