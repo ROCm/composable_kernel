@@ -57,7 +57,7 @@ using KernelTypes = ::testing::Types<std::tuple<float>,
 TYPED_TEST_SUITE(TestConvndBwdData, KernelTypes);
 
 // 1d
-TEST_F(TestConvndBwdData, Conv1dBwdData)
+TYPED_TEST(TestConvndBwdData, Conv1dBwdData)
 {
     this->conv_params.clear();
     this->conv_params.push_back({1, 1, 128, 128, 256, {1}, {14}, {2}, {1}, {0}, {0}});
@@ -67,7 +67,7 @@ TEST_F(TestConvndBwdData, Conv1dBwdData)
 }
 
 // 2d
-TEST_F(TestConvndBwdData, Conv2dBwdData)
+TYPED_TEST(TestConvndBwdData, Conv2dBwdData)
 {
     this->conv_params.clear();
     this->conv_params.push_back(
@@ -80,7 +80,7 @@ TEST_F(TestConvndBwdData, Conv2dBwdData)
 }
 
 // 3d
-TEST_F(TestConvndBwdData, Conv3dBwdData)
+TYPED_TEST(TestConvndBwdData, Conv3dBwdData)
 {
     this->conv_params.clear();
     this->conv_params.push_back(
