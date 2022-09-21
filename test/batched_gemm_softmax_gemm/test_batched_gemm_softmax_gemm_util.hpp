@@ -29,14 +29,19 @@ struct TestBatchedGemmSoftmaxGemm : public ::testing::Test
     using B1Layout   = std::tuple_element_t<6, Tuple>;
     using CLayout    = std::tuple_element_t<7, Tuple>;
 
-    std::vector<std::vector<int>> lengths_ = {
-        {256, 256, 64, 64, 4},
-        {256, 256, 128, 128, 4},
-        {512, 512, 64, 64, 2},
-        {512, 512, 128, 128, 2},
-        {1024, 1024, 64, 64, 1},
-        {1024, 1024, 128, 128, 1},
-    };
+    std::vector<std::vector<int>> lengths_ = {{256, 256, 64, 64, 4},
+                                              {256, 256, 128, 128, 4},
+                                              {512, 512, 64, 64, 2},
+                                              {512, 512, 128, 128, 2},
+                                              {1024, 1024, 64, 64, 1},
+                                              {1024, 1024, 128, 128, 1},
+                                              {256, 256, 160, 160, 4},
+                                              {256, 64, 160, 64, 4},
+                                              {1024, 1024, 80, 80, 2},
+                                              {1024, 64, 80, 64, 2},
+                                              {4096, 4096, 40, 40, 1},
+                                              {4096, 64, 40, 64, 1}};
+
     bool bench_  = false;
     bool verify_ = true;
 
@@ -155,7 +160,8 @@ struct DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128
             1,              // CShuffleMXdlPerWavePerShuffle
             2,              // CShuffleNXdlPerWavePerShuffle
             S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-            8>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
+            8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+            false>;
 
     bool IsSupported(int M, int N, int K, int O)
     {

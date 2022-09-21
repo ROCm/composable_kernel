@@ -55,7 +55,7 @@ using Acc0ElementOp = ck::tensor_operation::element_wise::Scale;
 using B1ElementOp   = PassThrough;
 using CElementOp    = PassThrough;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
+static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
 
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle<
     ALayout,
@@ -73,7 +73,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmSoftma
     Acc0ElementOp,
     B1ElementOp,
     CElementOp,
-    GemmDefault,
+    GemmSpec,
     1,
     256,
     128,         // MPerBlock
@@ -113,7 +113,8 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmSoftma
     1,              // CShuffleMXdlPerWavePerShuffle
     2,              // CShuffleNXdlPerWavePerShuffle
     S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-    8>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
+    8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+    false>;
 
 // Ref Gemm0: fp16 in, fp32 out
 using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
@@ -144,8 +145,8 @@ int main(int argc, char* argv[])
     bool time_kernel     = false;
 
     // GEMM shape
-    ck::index_t M             = 1024;
-    ck::index_t N             = 1024;
+    ck::index_t M             = 1020;
+    ck::index_t N             = 1020;
     ck::index_t K             = 64;
     ck::index_t O             = 128;
     ck::index_t BatchCount    = 4;
