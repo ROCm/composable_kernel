@@ -275,12 +275,18 @@ int main(int argc, char* argv[])
     case 1:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
         b_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        // d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<BDataType>{0});
         break;
-    default:
+    case 2:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b_gs_ns_ks.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
         d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        break;
+    default:
+        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
+        b_gs_ns_ks.GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<BDataType>{0});
         break;
     }
 
@@ -389,28 +395,9 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
 
-        for(size_t g0 = 0; g0 < e_gs_ms_ns_host_result.mDesc.GetLengths()[0]; ++g0)
-        {
-            for(size_t g1 = 0; g1 < e_gs_ms_ns_host_result.mDesc.GetLengths()[1]; ++g1)
-            {
-                for(size_t m0 = 0; m0 < e_gs_ms_ns_host_result.mDesc.GetLengths()[2]; ++m0)
-                {
-                    for(size_t m1 = 0; m1 < e_gs_ms_ns_host_result.mDesc.GetLengths()[3]; ++m1)
-                    {
-                        for(size_t n0 = 0; n0 < e_gs_ms_ns_host_result.mDesc.GetLengths()[4]; ++n0)
-                        {
-                            for(size_t n1 = 0; n1 < e_gs_ms_ns_host_result.mDesc.GetLengths()[5];
-                                ++n1)
-                            {
-                                cde_element_op(e_gs_ms_ns_host_result(g0, g1, m0, m1, n0, n1),
-                                               c_ms_ns_host_result(g0, g1, m0, m1, n0, n1),
-                                               d_gs_ms_ns(g0, g1, m0, m1, n0, n1));
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        e_gs_ms_ns_host_result.ForEach([&](auto&, auto idx) {
+            cde_element_op(e_gs_ms_ns_host_result(idx), c_ms_ns_host_result(idx), d_gs_ms_ns(idx));
+        });
 
         return ck::utils::check_err(e_gs_ms_ns_device_result.mData, e_gs_ms_ns_host_result.mData)
                    ? 0
