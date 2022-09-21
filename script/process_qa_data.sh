@@ -10,15 +10,14 @@
 # please contact Illia.Silin@amd.com for more details
 
 #process results
-gpu_arch=$1
-python3 process_perf_data.py perf_gemm_"$gpu_arch".log
-python3 process_perf_data.py perf_resnet50_N256_"$gpu_arch".log
-python3 process_perf_data.py perf_resnet50_N4_"$gpu_arch".log
-python3 process_perf_data.py perf_batched_gemm_"$gpu_arch".log
-python3 process_perf_data.py perf_grouped_gemm_"$gpu_arch".log
-python3 process_perf_data.py perf_conv_fwd_"$gpu_arch".log
-python3 process_perf_data.py perf_conv_bwd_data_"$gpu_arch".log
-python3 process_perf_data.py perf_gemm_bilinear_"$gpu_arch".log
-python3 process_perf_data.py perf_reduction_"$gpu_arch".log
-python3 process_perf_data.py perf_splitK_gemm_"$gpu_arch".log
-python3 process_perf_data.py perf_onnx_gemm_"$gpu_arch".log
+python3 process_perf_data.py perf_gemm.log
+python3 process_perf_data.py perf_resnet50_N256.log
+python3 process_perf_data.py perf_resnet50_N4.log
+python3 process_perf_data.py perf_batched_gemm.log
+python3 process_perf_data.py perf_grouped_gemm.log
+python3 process_perf_data.py perf_conv_fwd.log
+python3 process_perf_data.py perf_conv_bwd_data.log
+python3 process_perf_data.py perf_gemm_bilinear.log
+python3 process_perf_data.py perf_reduction.log
+python3 process_perf_data.py perf_splitK_gemm.log
+python3 process_perf_data.py perf_onnx_gemm.log
