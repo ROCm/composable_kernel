@@ -649,6 +649,9 @@ struct BlockwiseGemmXdlops_v2
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
 
+    static_assert(KPerThread % KPack == 0,
+                  "Wrong KPack setting; try increasing KPerThread or decreasing KPack");
+
     StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
                               FloatAcc,
                               MRepeat * NRepeat,

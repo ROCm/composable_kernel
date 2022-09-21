@@ -238,10 +238,6 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
         BElementwiseOperation,
         CDEElementwiseOperation,
         InMemoryDataOperationEnum::Set,
-        AGridDesc_M_K,
-        BGridDesc_N_K,
-        DsGridDesc_M_N,
-        EGridDesc_M_N,
         NumPrefetch, // NumGemmKPrefetchStage
         BlockSize,
         MPerBlock,
@@ -275,19 +271,19 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
         CDEBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
 
-    using AGridDesc_AK0_M_AK1 = remove_cvref_t<decltype(
+    using AGridDesc_AK0_M_AK1                          = remove_cvref_t<decltype(
         GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(AGridDesc_M_K{}))>;
-    using BGridDesc_BK0_N_BK1 = remove_cvref_t<decltype(
+    using BGridDesc_BK0_N_BK1                          = remove_cvref_t<decltype(
         GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(BGridDesc_N_K{}))>;
+    using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
+        GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(DsGridDesc_M_N{}))>;
+    using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock  = remove_cvref_t<decltype(
+        GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(EGridDesc_M_N{}))>;
 
     struct GroupedGemmBlock2ETileMap
     {
-        using UnderlyingBlock2ETileMap = typename GridwiseGemm::DefaultBlock2ETileMap;
-
-        static_assert(
-            std::is_same<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{})),
-                         typename GridwiseGemm::DefaultBlock2ETileMap>::value,
-            "Wrong! Should be the same type name");
+        using Block2ETileMap =
+            remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
 
         GroupedGemmBlock2ETileMap()
         {
@@ -321,7 +317,7 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
             return block_2_etile_map_.CheckValidity(e_grid_desc_m_n);
         }
 
-        typename GridwiseGemm::DefaultBlock2ETileMap block_2_etile_map_;
+        Block2ETileMap block_2_etile_map_;
         ck::index_t BlockStart_;
     };
 
@@ -342,10 +338,9 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
         // tensor descriptors for block/thread-wise copy
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
-        typename GridwiseGemm::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+        DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
             ds_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-            e_grid_desc_mblock_mperblock_nblock_nperblock_;
+        EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock e_grid_desc_mblock_mperblock_nblock_nperblock_;
 
         // block-to-e-tile map
         GroupedGemmBlock2ETileMap block_2_etile_map_;
@@ -440,7 +435,7 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                                                block_2_etile_map))
                 {
                     // tensor descriptors for block/thread-wise copy
-                    typename GridwiseGemm::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                    DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
                         ds_grid_desc_mblock_mperblock_nblock_nperblock;
 
                     static_for<0, NumDTensor, 1>{}([&](auto j) {

@@ -34,11 +34,13 @@ struct DeviceGroupedConvFwdMultipleD : public BaseOperator
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
+    static_assert(NumDTensor == DsLayout::Size(), "wrong! Inconsistent NumDTensor");
+
     virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(
-        const void* p_a,
-        const void* p_b,
+        const void* p_a, // input image
+        const void* p_b, // weight
         const std::array<const void*, NumDTensor>& p_ds,
-        void* p_e,
+        void* p_e, // output image
         const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
         const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
         const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
