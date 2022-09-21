@@ -19,7 +19,7 @@ def runShell(String command){
 }
 
 def getDockerImageName(){
-    def img = "${env.CK_IMAGE_URL}:new_ck_ub20.04_rocm5.2.3_${params.COMPILER_VERSION}"
+    def img = "${env.CK_IMAGE_URL}:ck_ub20.04_rocm5.2.3_${params.COMPILER_VERSION}"
     return img
 }
 
@@ -282,7 +282,6 @@ def runCKProfiler(Map conf=[:]){
         env.HSA_ENABLE_SDMA=0
         checkout scm
 
-
         def image = getDockerImageName()
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
 
@@ -337,20 +336,14 @@ def runCKProfiler(Map conf=[:]){
                 timeout(time: 24, unit: 'HOURS')
                 {
                     //cmake_build(conf)
-                    //instead of building, just get the CK deb package and install it
+                    //instead of building, just unstash the ckProfiler and install it
                     sh """
-                        pwd
-                        ls 
                         rm -rf build
                         mkdir build
                     """
                     dir("build"){
                         unstash 'ckProfiler.tar.gz'
-                        sh """
-                            tar -xvf ckProfiler.tar.gz
-                            ls -ltr
-                            ls -ltr bin
-                        """
+                        sh 'tar -xvf ckProfiler.tar.gz'
                     }
 
 					dir("script"){
@@ -416,7 +409,7 @@ def runPerfTest(Map conf=[:]){
     }
 }
 
-def runTests_and_Examples(Map conf=[:]){
+def Build_CK(Map conf=[:]){
         show_node_info()
 
         env.HSA_ENABLE_SDMA=0
@@ -471,89 +464,14 @@ def runTests_and_Examples(Map conf=[:]){
                     }
                 }
             }
-
-            withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
-                timeout(time: 5, unit: 'HOURS')
-                {
-                    sh """
-                        pwd
-                        ls 
-                        rm -rf build
-                        mkdir build
-                    """
-                    dir("build"){
-                        //unstash 'packages'
-                        sh """
-                            ls -ltr
-                            make -j check
-                        """
-                        //dpkg -x composablekernel-dev_*.deb .
-                        //dpkg -x composablekernel-tests_*.deb .
-                    }
-                }
-            }
-        }
-        return retimage
-}
-
-def runTests(Map conf=[:]){
-    try{
-        runTests_and_Examples(conf)
-    }
-    catch(e){
-        echo "throwing error exception in tests"
-        echo 'Exception occurred: ' + e.toString()
-        throw e
-    }
-    finally{
-        if (!conf.get("no_reboot", false)) {
-            reboot()
-        }
-    }
-}
-
-def Build_CK(Map conf=[:]){
-        show_node_info()
-
-        env.HSA_ENABLE_SDMA=0
-        checkout scm
-
-        def image = getDockerImageName() 
-        def prefixpath = conf.get("prefixpath", "/opt/rocm")
-
-        // Jenkins is complaining about the render group 
-        def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
-        if (conf.get("enforce_xnack_on", false)) {
-            dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
-        }
-        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' "
-        if (params.COMPILER_VERSION != "release"){
-            dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
-        }
-
-        def variant = env.STAGE_NAME
-        def retimage
-
-        gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
-            try {
-                (retimage, image) = getDockerImage(conf)
-            }
-            catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
-                echo "The job was cancelled or aborted"
-                throw e
-            }
-            catch(Exception ex) {
-                retimage = docker.build("${image}", dockerArgs + " --no-cache .")
-            }
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 24, unit: 'HOURS')
                 {
                     cmake_build(conf)
                     dir("build"){
-                        //sh 'make package'
-                        //archiveArtifacts artifacts: "*.deb", allowEmptyArchive: true, fingerprint: true
-                        //stash includes: '*.deb', name: 'packages'
+                        //run tests and examples
                         sh 'make -j check'
+                        //we only need the ckProfiler to run the performance tests, so we pack and stash it
                         sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
                         stash "ckProfiler.tar.gz"
                     }
@@ -660,8 +578,8 @@ pipeline {
             description: "Force building docker image (default: true)")
         string(
             name: 'COMPILER_VERSION', 
-            defaultValue: 'ck-9110', 
-            description: 'Specify which version of compiler to use: ck-9110 (default), release, or amd-stg-open.')
+            defaultValue: 'release', 
+            description: 'Specify which version of compiler to use: ck-9110, release (default), or amd-stg-open.')
         string(
             name: 'BUILD_COMPILER', 
             defaultValue: 'hipcc', 
@@ -756,27 +674,6 @@ pipeline {
         }
 
  		/*
-        stage("Tests")
-        {
-            when {
-                beforeAgent true
-                expression { !params.TEST_NODE_PERFORMANCE.toBoolean() }
-            }
-            parallel
-            {
-                stage("Run Tests")
-                {
-                    agent{ label rocmnode("gfx908 || gfx90a")}
-                    environment{
-                        setup_args = "${params.COMPILER_VERSION == "release" ? """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 --offload-arch=gfx90a -O3 " -DBUILD_DEV=On """ : """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 --offload-arch=gfx90a -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -DBUILD_DEV=On """}"
-                    }
-                    steps{
-                        runTests(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release')
-                    }
-                }
-            }
-        }       
-        
         //at present this stage only builds binaries. 
         //we will now build all binaries in a separate stage.
         //once we have some tests to run in this stage, we can enable it again.
