@@ -28,6 +28,7 @@ struct TestBatchedGemmMaskingScaleSoftmaxGemmPermute : public ::testing::Test
     using B0Layout              = std::tuple_element_t<5, Tuple>;
     using B1Layout              = std::tuple_element_t<6, Tuple>;
     using CPermuteNumDims_G_M_O = std::tuple_element_t<7, Tuple>;
+    using MaskingType           = std::tuple_element_t<8, Tuple>;
 
     std::vector<std::vector<int>> lengths_ = {
         {256, 256, 64, 64, 6, 4},
@@ -50,7 +51,8 @@ struct TestBatchedGemmMaskingScaleSoftmaxGemmPermute : public ::testing::Test
             ALayout,
             B0Layout,
             B1Layout,
-            CPermuteNumDims_G_M_O>(verify_, 1, false, bench_, M, N, K, O, G0, G1);
+            CPermuteNumDims_G_M_O,
+            MaskingType::value>(verify_, 1, false, bench_, M, N, K, O, G0, G1);
 
         EXPECT_TRUE(pass);
     }
@@ -159,7 +161,7 @@ struct DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128
             2,              // CShuffleNXdlPerWavePerShuffle
             S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
             8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
-            true>;          // Masking
+            true>;          // MaskOutUpperTriangle
 
     bool IsSupported(int M, int N, int K, int O)
     {

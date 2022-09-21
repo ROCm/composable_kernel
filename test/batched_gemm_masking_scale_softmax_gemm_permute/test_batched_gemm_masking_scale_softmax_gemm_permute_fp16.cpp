@@ -10,13 +10,18 @@ class TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16
 {
 };
 
-// clang-format off
+using NoMask = std::true_type;
+using Masked = std::false_type;
+
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 using CPermuteNumDims_G_M_O =
     S<2, 1, 1>; // "using CLayout = Row" has been replaced by CPermuteNumDims_G_M_O
+
+// clang-format off
 using KernelTypes = ::testing::Types<
-    std::tuple<F16, F16, F16, F16, Row, Col, Row, CPermuteNumDims_G_M_O>
+    std::tuple<F16, F16, F16, F16, Row, Col, Row, CPermuteNumDims_G_M_O, NoMask>,
+    std::tuple<F16, F16, F16, F16, Row, Col, Row, CPermuteNumDims_G_M_O, Masked>
     >;
 // clang-format on
 

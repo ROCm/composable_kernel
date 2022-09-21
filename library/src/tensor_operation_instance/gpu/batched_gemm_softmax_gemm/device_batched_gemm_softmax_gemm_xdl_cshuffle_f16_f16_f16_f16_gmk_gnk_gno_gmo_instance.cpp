@@ -83,7 +83,8 @@ void add_device_batched_gemm_softmax_gemm_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_g
                                                              PassThrough,
                                                              PassThrough,
                                                              PassThrough,
-                                                             PassThrough>>>& instances)
+                                                             PassThrough,
+                                                             false>>>& instances)
 {
     add_device_operation_instances(
         instances,

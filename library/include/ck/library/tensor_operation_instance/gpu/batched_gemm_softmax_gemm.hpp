@@ -30,7 +30,8 @@ void add_device_batched_gemm_softmax_gemm_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_g
                                                              PassThrough,
                                                              PassThrough,
                                                              PassThrough,
-                                                             PassThrough>>>& instances);
+                                                             PassThrough,
+                                                             false>>>& instances);
 
 template <typename ALayout,
           typename B0Layout,
@@ -53,7 +54,8 @@ struct DeviceOperationInstanceFactory<
                                                                PassThrough,
                                                                PassThrough,
                                                                PassThrough,
-                                                               PassThrough>>
+                                                               PassThrough,
+                                                               false>>
 {
     using DeviceOp = DeviceBatchedGemmSoftmaxGemm<ALayout,
                                                   B0Layout,
@@ -67,7 +69,8 @@ struct DeviceOperationInstanceFactory<
                                                   PassThrough,
                                                   PassThrough,
                                                   PassThrough,
-                                                  PassThrough>;
+                                                  PassThrough,
+                                                  false>;
 
     static auto GetInstances()
     {

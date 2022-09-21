@@ -201,7 +201,8 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
                                                                             B0ElementOp,
                                                                             Acc0ElementOp,
                                                                             B1ElementOp,
-                                                                            CElementOp>;
+                                                                            CElementOp,
+                                                                            false>;
 
     // get device op instances
     const auto op_ptrs = tensor_operation::device::instance::DeviceOperationInstanceFactory<

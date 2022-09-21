@@ -29,7 +29,8 @@ template <typename ADataType,
           typename ALayout,
           typename B0Layout,
           typename B1Layout,
-          typename CPermuteNumDims_G_M_O>
+          typename CPermuteNumDims_G_M_O,
+          bool MaskOutUpperTriangle> // TODO: enum for various masks
 bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verification,
                                                                   int init_method,
                                                                   bool do_log,
@@ -209,7 +210,8 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
                                                                       B0ElementOp,
                                                                       Acc0ElementOp,
                                                                       B1ElementOp,
-                                                                      CElementOp>;
+                                                                      CElementOp,
+                                                                      MaskOutUpperTriangle>;
 
     // get device op instances
     const auto op_ptrs = tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -228,7 +230,7 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
 
         // mask out upper triangle
         acc0_g_m_n.ForEach([&](auto& self, auto idx) {
-            if(idx[1] < idx[2])
+            if(MaskOutUpperTriangle && idx[1] < idx[2])
                 self(idx) = -ck::NumericLimits<float>::Infinity();
         });
 

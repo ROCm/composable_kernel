@@ -185,7 +185,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                                  BElementwiseOperation,
                                                  AccElementwiseOperation,
                                                  B1ElementwiseOperation,
-                                                 CElementwiseOperation>
+                                                 CElementwiseOperation,
+                                                 MaskOutUpperTriangle>
 {
     using DeviceOp = DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle;
     using ProblemDesc =
@@ -201,7 +202,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                                      BElementwiseOperation,
                                                      AccElementwiseOperation,
                                                      B1ElementwiseOperation,
-                                                     CElementwiseOperation>::ProblemDesc;
+                                                     CElementwiseOperation,
+                                                     MaskOutUpperTriangle>::ProblemDesc;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};

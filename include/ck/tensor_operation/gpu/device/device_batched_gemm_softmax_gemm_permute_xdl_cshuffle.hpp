@@ -187,7 +187,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                                  BElementwiseOperation,
                                                  AccElementwiseOperation,
                                                  B1ElementwiseOperation,
-                                                 CElementwiseOperation>
+                                                 CElementwiseOperation,
+                                                 MaskOutUpperTriangle>
 {
     using DeviceOp = DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle;
 
