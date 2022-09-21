@@ -246,34 +246,6 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
         return (grid_desc_m_padded);
     };
 
-    static auto MakeX1dDescriptorForBufferSet(const std::array<index_t, Rank>& xLengths,
-                                              const std::array<index_t, Rank>& xStrides)
-    {
-        const auto tupleXLengths =
-            generate_tuple([&](auto I) { return xLengths[I]; }, Number<Rank>{});
-        const auto tupleXStrides =
-            generate_tuple([&](auto I) { return xStrides[I]; }, Number<Rank>{});
-
-        const auto raw_grid_desc = make_naive_tensor_descriptor(tupleXLengths, tupleXStrides);
-
-        auto grid_desc_m = transform_tensor_descriptor(
-            raw_grid_desc,
-            make_tuple(make_merge_transform(tupleXLengths)),
-            make_tuple(typename arithmetic_sequence_gen<0, Rank, 1>::type{}),
-            make_tuple(Sequence<0>{}));
-
-        const auto length = grid_desc_m.GetLength(Number<0>{});
-
-        const auto pad = math::integer_least_multiple(length, BlockSize) - length;
-
-        auto grid_desc_m_padded =
-            transform_tensor_descriptor(grid_desc_m,
-                                        make_tuple(make_right_pad_transform(length, pad)),
-                                        make_tuple(Sequence<0>{}),
-                                        make_tuple(Sequence<0>{}));
-        return (grid_desc_m_padded);
-    };
-
     using XYGridDesc_M_K             = decltype(MakeXY2dDescriptor({1}, {1}, 1, 1));
     using ScaleBiasMeanVarGridDesc_M = decltype(MakeScaleBiasMeanVar1dDescriptor({1}, {1}));
 
