@@ -96,7 +96,7 @@ TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16, Test_FP16_OddO)
     this->Run();
 }
 
-TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16, Bench_FP16_IrregularK)
+TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16, DISABLED_Bench_FP16_IrregularK)
 {
     this->lengths_ = std::vector<std::vector<int>>{{256, 256, 160, 160, 1, 16},
                                                    {256, 64, 160, 64, 1, 16},
