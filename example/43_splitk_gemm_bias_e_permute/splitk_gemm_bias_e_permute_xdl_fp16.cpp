@@ -275,8 +275,7 @@ int main(int argc, char* argv[])
     case 1:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
         b_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
-        // d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<BDataType>{0});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
         break;
     case 2:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
@@ -286,7 +285,7 @@ int main(int argc, char* argv[])
     default:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
         b_gs_ns_ks.GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
-        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<BDataType>{0});
+        d_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
         break;
     }
 
