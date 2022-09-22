@@ -3,27 +3,27 @@
 
 #include <cstring>
 
-// int profile_gemm(int, char*[]);
-// int profile_gemm_splitk(int, char*[]);
-// int profile_gemm_bilinear(int, char*[]);
-// int profile_gemm_add_add_fastgelu(int, char*[]);
-// int profile_gemm_reduce(int, char*[]);
-// int profile_gemm_bias_add_reduce(int, char*[]);
-// int profile_batched_gemm(int, char*[]);
-// int profile_batched_gemm_gemm(int, char*[]);
-// int profile_batched_gemm_add_relu_gemm_add(int, char*[]);
-// int profile_batched_gemm_reduce(int, char*[]);
-// int profile_grouped_gemm(int, char*[]);
-// int profile_conv_fwd(int, char*[]);
-// int profile_conv_fwd_bias_relu(int, char*[]);
-// int profile_conv_fwd_bias_relu_add(int, char*[]);
-// int profile_conv_bwd_data(int, char*[]);
-// int profile_conv_bwd_weight(int, char*[]);
-// int profile_grouped_conv_fwd(int, char*[]);
-// int profile_normalization(int, char*[]);
+int profile_gemm(int, char*[]);
+int profile_gemm_splitk(int, char*[]);
+int profile_gemm_bilinear(int, char*[]);
+int profile_gemm_add_add_fastgelu(int, char*[]);
+int profile_gemm_reduce(int, char*[]);
+int profile_gemm_bias_add_reduce(int, char*[]);
+int profile_batched_gemm(int, char*[]);
+int profile_batched_gemm_gemm(int, char*[]);
+int profile_batched_gemm_add_relu_gemm_add(int, char*[]);
+int profile_batched_gemm_reduce(int, char*[]);
+int profile_grouped_gemm(int, char*[]);
+int profile_conv_fwd(int, char*[]);
+int profile_conv_fwd_bias_relu(int, char*[]);
+int profile_conv_fwd_bias_relu_add(int, char*[]);
+int profile_conv_bwd_data(int, char*[]);
+int profile_conv_bwd_weight(int, char*[]);
+int profile_grouped_conv_fwd(int, char*[]);
+int profile_normalization(int, char*[]);
 int profile_layernorm(int, char*[]);
 int profile_groupnorm(int, char*[]);
-// int profile_reduce(int, char*[]);
+int profile_reduce(int, char*[]);
 
 static void print_helper_message()
 {
@@ -57,7 +57,6 @@ int main(int argc, char* argv[])
 
         return 0;
     }
-#if 0
     else if(strcmp(argv[1], "gemm") == 0)
     {
         return profile_gemm(argc, argv);
@@ -134,7 +133,6 @@ int main(int argc, char* argv[])
     {
         return profile_normalization(argc, argv);
     }
-#endif
     else if(strcmp(argv[1], "layernorm") == 0)
     {
         return profile_layernorm(argc, argv);
