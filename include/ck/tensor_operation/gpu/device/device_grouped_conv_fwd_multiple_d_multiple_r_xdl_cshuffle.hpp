@@ -22,6 +22,7 @@
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/io.hpp"
+#include "ck/library/utility/numeric.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -410,10 +411,9 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
     {
         const index_t N = r_g_n_wos_lengths[1];
 
-        const index_t NHoWo = N * std::accumulate(r_g_n_wos_lengths.begin() + 2,
-                                                  r_g_n_wos_lengths.begin() + 2 + NDimSpatial,
-                                                  index_t{1},
-                                                  std::multiplies<index_t>());
+        const index_t NHoWo =
+            N * ck::accumulate_n<index_t>(
+                    r_g_n_wos_lengths.begin() + 2, NDimSpatial, 1, std::multiplies<>());
 
         const auto r_grid_desc_mraw = make_naive_tensor_descriptor_packed(make_tuple(NHoWo));
 
@@ -435,10 +435,9 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
 
         const index_t WoStride = r_g_n_wos_strides[NDimSpatial + 2];
 
-        const index_t NHoWo = N * std::accumulate(r_g_n_wos_lengths.begin() + 2,
-                                                  r_g_n_wos_lengths.begin() + 2 + NDimSpatial,
-                                                  index_t{1},
-                                                  std::multiplies<index_t>());
+        const index_t NHoWo =
+            N * ck::accumulate_n<index_t>(
+                    r_g_n_wos_lengths.begin() + 2, NDimSpatial, 1, std::multiplies<>());
 
         const auto r_grid_desc_mraw =
             make_naive_tensor_descriptor(make_tuple(NHoWo), make_tuple(WoStride));

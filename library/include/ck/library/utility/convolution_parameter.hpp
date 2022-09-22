@@ -10,6 +10,8 @@
 
 #include "ck/ck.hpp"
 
+#include "ck/library/utility/numeric.hpp"
+
 namespace ck {
 namespace utils {
 namespace conv {
@@ -55,10 +57,8 @@ struct ConvParam
         // sizeof(InDataType) * (G * N * C * <input spatial lengths product>) +
         return sizeof(InDataType) *
                (G_ * N_ * C_ *
-                std::accumulate(std::begin(input_spatial_lengths_),
-                                std::begin(input_spatial_lengths_) + num_dim_spatial_,
-                                static_cast<std::size_t>(1),
-                                std::multiplies<std::size_t>()));
+                ck::accumulate_n<std::size_t>(
+                    std::begin(input_spatial_lengths_), num_dim_spatial_, 1, std::multiplies<>()));
     }
 
     template <typename WeiDataType>
@@ -67,10 +67,8 @@ struct ConvParam
         // sizeof(WeiDataType) * (G * K * C * <filter spatial lengths product>) +
         return sizeof(WeiDataType) *
                (G_ * K_ * C_ *
-                std::accumulate(std::begin(filter_spatial_lengths_),
-                                std::begin(filter_spatial_lengths_) + num_dim_spatial_,
-                                static_cast<std::size_t>(1),
-                                std::multiplies<std::size_t>()));
+                ck::accumulate_n<std::size_t>(
+                    std::begin(filter_spatial_lengths_), num_dim_spatial_, 1, std::multiplies<>()));
     }
 
     template <typename OutDataType>
