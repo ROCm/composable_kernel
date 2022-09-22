@@ -25,16 +25,15 @@ void host_conv_nchw_kcyx_nkhw(const Tensor<TIn>& in,
 
     auto f_nchw = [&](auto n, auto k, auto ho, auto wo) {
         float v = 0;
-        for(int c = 0; c < wei.mDesc.GetLengths()[1]; ++c)
+        for(int c = 0; c < wei.GetLengths()[1]; ++c)
         {
-            for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
+            for(int y = 0; y < wei.GetLengths()[2]; ++y)
             {
                 int hi = ho * conv_strides[I0] + y * conv_dilations[I0] - in_left_pads[I0];
-                for(int x = 0; x < wei.mDesc.GetLengths()[3]; ++x)
+                for(int x = 0; x < wei.GetLengths()[3]; ++x)
                 {
                     int wi = wo * conv_strides[I1] + x * conv_dilations[I1] - in_left_pads[I1];
-                    if(hi >= 0 && hi < in.mDesc.GetLengths()[2] && wi >= 0 &&
-                       wi < in.mDesc.GetLengths()[3])
+                    if(hi >= 0 && hi < in.GetLengths()[2] && wi >= 0 && wi < in.GetLengths()[3])
                     {
                         v += ck::type_convert<float>(in(n, c, hi, wi)) *
                              ck::type_convert<float>(wei(k, c, y, x));
@@ -45,11 +44,9 @@ void host_conv_nchw_kcyx_nkhw(const Tensor<TIn>& in,
         out(n, k, ho, wo) = ck::type_convert<TOut>(v);
     };
 
-    make_ParallelTensorFunctor(f_nchw,
-                               out.mDesc.GetLengths()[0],
-                               out.mDesc.GetLengths()[1],
-                               out.mDesc.GetLengths()[2],
-                               out.mDesc.GetLengths()[3])(std::thread::hardware_concurrency());
+    make_ParallelTensorFunctor(
+        f_nchw, out.GetLengths()[0], out.GetLengths()[1], out.GetLengths()[2], out.GetLengths()[3])(
+        std::thread::hardware_concurrency());
 }
 
 template <typename TIn,
@@ -72,13 +69,13 @@ void host_conv3d_ndhwc_kzyxc_ndhwk(const Tensor<TIn>& in,
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
     constexpr auto I2 = Number<2>{};
-    const auto Di     = in.mDesc.GetLengths()[1];
-    const auto Hi     = in.mDesc.GetLengths()[2];
-    const auto Wi     = in.mDesc.GetLengths()[3];
-    const auto Z      = wei.mDesc.GetLengths()[1];
-    const auto Y      = wei.mDesc.GetLengths()[2];
-    const auto X      = wei.mDesc.GetLengths()[3];
-    const auto C      = wei.mDesc.GetLengths()[4];
+    const auto Di     = in.GetLengths()[1];
+    const auto Hi     = in.GetLengths()[2];
+    const auto Wi     = in.GetLengths()[3];
+    const auto Z      = wei.GetLengths()[1];
+    const auto Y      = wei.GetLengths()[2];
+    const auto X      = wei.GetLengths()[3];
+    const auto C      = wei.GetLengths()[4];
 
     auto f_ndhwc = [&](auto n, auto do_tmp, auto ho_tmp, auto wo_tmp, auto k) {
         // do__ must be converted to signed integer, otherwise zmin might be wrong in cases
@@ -144,9 +141,9 @@ void host_conv3d_ndhwc_kzyxc_ndhwk(const Tensor<TIn>& in,
     };
 
     make_ParallelTensorFunctor(f_ndhwc,
-                               out.mDesc.GetLengths()[0],
-                               out.mDesc.GetLengths()[1],
-                               out.mDesc.GetLengths()[2],
-                               out.mDesc.GetLengths()[3],
-                               out.mDesc.GetLengths()[4])(std::thread::hardware_concurrency() - 4);
+                               out.GetLengths()[0],
+                               out.GetLengths()[1],
+                               out.GetLengths()[2],
+                               out.GetLengths()[3],
+                               out.GetLengths()[4])(std::thread::hardware_concurrency() - 4);
 }

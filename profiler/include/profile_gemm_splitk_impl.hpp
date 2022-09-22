@@ -8,17 +8,18 @@
 #include <typeinfo>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_splitk.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/gemm_splitk.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+#include "ck/library/utility/literals.hpp"
 
 namespace ck {
 namespace profiler {
@@ -44,17 +45,17 @@ bool profile_gemm_splitk_impl(int do_verification,
 {
     bool pass = true;
 
+    using namespace ck::literals;
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
+            if constexpr(is_same_v<decltype(layout), tensor_layout::gemm::RowMajor>)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
+                return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
             else
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
+                return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
 
@@ -63,9 +64,9 @@ bool profile_gemm_splitk_impl(int do_verification,
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
-    std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
-    std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
-    std::cout << "c_m_n: " << c_m_n_device_result.mDesc << std::endl;
+    std::cout << "a_m_k: " << a_m_k.GetDesc() << std::endl;
+    std::cout << "b_k_n: " << b_k_n.GetDesc() << std::endl;
+    std::cout << "c_m_n: " << c_m_n_device_result.GetDesc() << std::endl;
 
     switch(init_method)
     {
@@ -87,13 +88,13 @@ bool profile_gemm_splitk_impl(int do_verification,
     const auto b_element_op = BElementOp{};
     const auto c_element_op = CElementOp{};
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_m_k.GetMemorySize());
+    DeviceMem b_device_buf(b_k_n.GetMemorySize());
+    DeviceMem c_device_buf(c_m_n_device_result.GetMemorySize());
 
-    a_device_buf.ToDevice(a_m_k.mData.data());
-    b_device_buf.ToDevice(b_k_n.mData.data());
-    c_device_buf.ToDevice(c_m_n_device_result.mData.data());
+    a_device_buf.ToDevice(a_m_k.data());
+    b_device_buf.ToDevice(b_k_n.data());
+    c_device_buf.ToDevice(c_m_n_device_result.data());
 
     using DeviceOp = ck::tensor_operation::device::DeviceGemmSplitK<ALayout,
                                                                     BLayout,
@@ -139,20 +140,19 @@ bool profile_gemm_splitk_impl(int do_verification,
     // profile device GEMM instances
     for(auto& op_ptr : op_ptrs)
     {
-        auto argument_ptr =
-            op_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                                        static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-                                        static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                        M,
-                                        N,
-                                        K,
-                                        StrideA,
-                                        StrideB,
-                                        StrideC,
-                                        a_element_op,
-                                        b_element_op,
-                                        c_element_op,
-                                        KBatch);
+        auto argument_ptr = op_ptr->MakeArgumentPointer(a_device_buf.GetDeviceBuffer(),
+                                                        b_device_buf.GetDeviceBuffer(),
+                                                        c_device_buf.GetDeviceBuffer(),
+                                                        M,
+                                                        N,
+                                                        K,
+                                                        StrideA,
+                                                        StrideB,
+                                                        StrideC,
+                                                        a_element_op,
+                                                        b_element_op,
+                                                        c_element_op,
+                                                        KBatch);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
@@ -166,7 +166,7 @@ bool profile_gemm_splitk_impl(int do_verification,
             float ave_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
-            std::size_t flop = std::size_t(2) * M * N * K;
+            std::size_t flop = 2_uz * M * N * K;
 
             std::size_t num_btype =
                 sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
@@ -188,18 +188,17 @@ bool profile_gemm_splitk_impl(int do_verification,
 
             if(do_verification)
             {
-                c_device_buf.FromDevice(c_m_n_device_result.mData.data());
+                c_device_buf.FromDevice(c_m_n_device_result.data());
 
-                pass =
-                    pass & ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
+                pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
 
                 if(do_log)
                 {
-                    LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
+                    LogRangeAsType<float>(std::cout << "a : ", a_m_k, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "b: ", b_k_n, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "c_host  : ", c_m_n_host_result, ",")
                         << std::endl;
-                    LogRangeAsType<float>(std::cout << "c_device: ", c_m_n_device_result.mData, ",")
+                    LogRangeAsType<float>(std::cout << "c_device: ", c_m_n_device_result, ",")
                         << std::endl;
                 }
             }

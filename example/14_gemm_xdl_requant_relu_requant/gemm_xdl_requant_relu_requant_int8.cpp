@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
+#include <cstdlib>
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
-#include <cstdlib>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -12,11 +12,12 @@
 #include "ck/tensor_operation/gpu/device/device_gemm_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+#include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
-#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/literals.hpp"
 
 struct RequantReluRequant
 {
@@ -155,17 +156,17 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
+    using namespace ck::literals;
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
+            if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
+                return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
             else
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
+                return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
 
@@ -174,9 +175,9 @@ int main(int argc, char* argv[])
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
-    std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
-    std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
-    std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
+    std::cout << "a_m_k: " << a_m_k.GetDesc() << std::endl;
+    std::cout << "b_k_n: " << b_k_n.GetDesc() << std::endl;
+    std::cout << "c_m_n: " << c_m_n_host_result.GetDesc() << std::endl;
 
     switch(init_method)
     {
@@ -190,12 +191,12 @@ int main(int argc, char* argv[])
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
     }
 
-    DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_m_k_device_buf(a_m_k.GetMemorySize());
+    DeviceMem b_k_n_device_buf(b_k_n.GetMemorySize());
+    DeviceMem c_m_n_device_buf(c_m_n_device_result.GetMemorySize());
 
-    a_m_k_device_buf.ToDevice(a_m_k.mData.data());
-    b_k_n_device_buf.ToDevice(b_k_n.mData.data());
+    a_m_k_device_buf.ToDevice(a_m_k.data());
+    b_k_n_device_buf.ToDevice(b_k_n.data());
 
     auto a_element_op = PassThrough{};
     auto b_element_op = PassThrough{};
@@ -204,9 +205,9 @@ int main(int argc, char* argv[])
     // do GEMM
     auto gemm     = DeviceGemmInstance{};
     auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-                                      static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-                                      static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+    auto argument = gemm.MakeArgument(a_m_k_device_buf.GetDeviceBuffer(),
+                                      b_k_n_device_buf.GetDeviceBuffer(),
+                                      c_m_n_device_buf.GetDeviceBuffer(),
                                       M,
                                       N,
                                       K,
@@ -237,7 +238,7 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
-    c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
+    c_m_n_device_buf.FromDevice(c_m_n_device_result.data());
 
     if(do_verification)
     {
@@ -249,7 +250,7 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
 
-        return ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData) ? 0 : 1;
+        return ck::utils::check_err(c_m_n_device_result, c_m_n_host_result) ? 0 : 1;
     }
 
     return 0;

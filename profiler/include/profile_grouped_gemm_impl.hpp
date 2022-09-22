@@ -6,18 +6,19 @@
 #include <iomanip>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/grouped_gemm.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+#include "ck/library/utility/literals.hpp"
 
 namespace ck {
 namespace profiler {
@@ -43,17 +44,17 @@ bool profile_grouped_gemm_impl(int do_verification,
 
     bool pass = true;
 
+    using namespace ck::literals;
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
+            if constexpr(is_same_v<decltype(layout), tensor_layout::gemm::RowMajor>)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
+                return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
             else
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
+                return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
 
@@ -79,9 +80,9 @@ bool profile_grouped_gemm_impl(int do_verification,
         c_m_n_device_results.push_back(
             Tensor<CDataType>(f_host_tensor_descriptor(Ms[i], Ns[i], StrideCs[i], CLayout{})));
 
-        std::cout << "group: " << i << " a_m_k[" << i << "]:" << a_m_k[i].mDesc << ", b_k_n[" << i
-                  << "]:" << b_k_n[i].mDesc << ", c_m_n_device_results[" << i
-                  << "]:" << c_m_n_device_results[i].mDesc << std::endl;
+        std::cout << "group: " << i << " a_m_k[" << i << "]:" << a_m_k[i].GetDesc() << ", b_k_n["
+                  << i << "]:" << b_k_n[i].GetDesc() << ", c_m_n_device_results[" << i
+                  << "]:" << c_m_n_device_results[i].GetDesc() << std::endl;
 
         std::size_t num_thread = 1;
         switch(init_method)
@@ -132,17 +133,15 @@ bool profile_grouped_gemm_impl(int do_verification,
 
     for(std::size_t i = 0; i < group_count; i++)
     {
-        a_device_buf.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(ADataType) * a_m_k[i].mDesc.GetElementSpaceSize()));
-        b_device_buf.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(BDataType) * b_k_n[i].mDesc.GetElementSpaceSize()));
+        a_device_buf.emplace_back(std::make_unique<DeviceMem>(a_m_k[i].GetMemorySize()));
+        b_device_buf.emplace_back(std::make_unique<DeviceMem>(b_k_n[i].GetMemorySize()));
 
-        c_device_buf.emplace_back(std::make_unique<DeviceMem>(
-            sizeof(CDataType) * c_m_n_device_results[i].mDesc.GetElementSpaceSize()));
+        c_device_buf.emplace_back(
+            std::make_unique<DeviceMem>(c_m_n_device_results[i].GetMemorySize()));
 
-        a_device_buf[i]->ToDevice(a_m_k[i].mData.data());
-        b_device_buf[i]->ToDevice(b_k_n[i].mData.data());
-        c_device_buf[i]->ToDevice(c_m_n_device_results[i].mData.data());
+        a_device_buf[i]->ToDevice(a_m_k[i].data());
+        b_device_buf[i]->ToDevice(b_k_n[i].data());
+        c_device_buf[i]->ToDevice(c_m_n_device_results[i].data());
 
         gemm_descs.push_back({Ms[i], Ns[i], Ks[i], StrideAs[i], StrideBs[i], StrideCs[i], {}});
 
@@ -207,7 +206,7 @@ bool profile_grouped_gemm_impl(int do_verification,
             std::size_t flop = 0, num_btype = 0;
             for(std::size_t i = 0; i < gemm_descs.size(); i++)
             {
-                flop += std::size_t(2) * Ms[i] * Ns[i] * Ks[i];
+                flop += 2_uz * Ms[i] * Ns[i] * Ks[i];
 
                 num_btype += sizeof(ADataType) * Ms[i] * Ks[i] + sizeof(BDataType) * Ks[i] * Ns[i] +
                              sizeof(CDataType) * Ms[i] * Ns[i];
@@ -232,7 +231,7 @@ bool profile_grouped_gemm_impl(int do_verification,
                 for(std::size_t i = 0; i < gemm_descs.size(); i++)
                 {
 
-                    c_device_buf[i]->FromDevice(c_m_n_device_results[i].mData.data());
+                    c_device_buf[i]->FromDevice(c_m_n_device_results[i].data());
 
                     Tensor<CDataType> c_m_n_host_result(
                         f_host_tensor_descriptor(Ms[i], Ns[i], StrideCs[i], CLayout{}));
@@ -257,19 +256,16 @@ bool profile_grouped_gemm_impl(int do_verification,
                                                               c_element_op);
 
                     ref_invoker.Run(ref_argument);
-                    pass = pass && ck::utils::check_err(c_m_n_device_results[i].mData,
-                                                        c_m_n_host_result.mData);
+                    pass = pass && ck::utils::check_err(c_m_n_device_results[i], c_m_n_host_result);
 
                     if(do_log)
                     {
-                        LogRangeAsType<float>(std::cout << "a : ", a_m_k[i].mData, ",")
-                            << std::endl;
-                        LogRangeAsType<float>(std::cout << "b: ", b_k_n[i].mData, ",") << std::endl;
+                        LogRangeAsType<float>(std::cout << "a : ", a_m_k[i], ",") << std::endl;
+                        LogRangeAsType<float>(std::cout << "b: ", b_k_n[i], ",") << std::endl;
                         LogRangeAsType<float>(
-                            std::cout << "c_device: ", c_m_n_device_results[i].mData, ",")
+                            std::cout << "c_device: ", c_m_n_device_results[i], ",")
                             << std::endl;
-                        LogRangeAsType<float>(
-                            std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
+                        LogRangeAsType<float>(std::cout << "c_host  : ", c_m_n_host_result, ",")
                             << std::endl;
                     }
                 }

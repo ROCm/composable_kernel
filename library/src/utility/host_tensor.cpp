@@ -36,9 +36,9 @@ std::size_t HostTensorDescriptor::GetElementSpaceSize() const
     return space;
 }
 
-const std::vector<std::size_t>& HostTensorDescriptor::GetLengths() const { return mLens; }
+ck::span<const std::size_t> HostTensorDescriptor::GetLengths() const { return mLens; }
 
-const std::vector<std::size_t>& HostTensorDescriptor::GetStrides() const { return mStrides; }
+ck::span<const std::size_t> HostTensorDescriptor::GetStrides() const { return mStrides; }
 
 std::ostream& operator<<(std::ostream& os, const HostTensorDescriptor& desc)
 {

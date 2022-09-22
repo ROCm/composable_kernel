@@ -15,13 +15,15 @@ bool run_permute_element(const Problem& problem)
 
     ck::utils::FillUniformDistribution<InDataType>{-1.f, 1.f}(input_tensor);
 
-    DeviceMem input_device_buf(input_tensor.GetElementSpaceSizeInBytes());
-    DeviceMem output_device_buf(output_tensor.GetElementSpaceSizeInBytes());
+    DeviceMem input_device_buf(input_tensor.GetMemorySize());
+    DeviceMem output_device_buf(output_tensor.GetMemorySize());
 
     using std::data;
     input_device_buf.ToDevice(data(input_tensor));
 
     static_assert(std::is_default_constructible_v<DevicePermuteInstance>);
+
+    using ck::utils::to_array;
 
     auto permute  = DevicePermuteInstance{};
     auto argument = permute.MakeArgument(to_array(input_shape),

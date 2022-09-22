@@ -8,19 +8,19 @@
 #include <typeinfo>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_conv_fwd.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/convolution_forward.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 #include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
+#include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/utility/convolution_parameter.hpp"
-#include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 
 namespace ck {
 namespace profiler {
@@ -60,9 +60,9 @@ bool profile_conv_fwd_impl(int do_verification,
     Tensor<OutDataType> host_output(out_g_n_k_wos_desc);
     Tensor<OutDataType> device_output(out_g_n_k_wos_desc);
 
-    std::cout << "input: " << input.mDesc << std::endl;
-    std::cout << "weight: " << weight.mDesc << std::endl;
-    std::cout << "output: " << host_output.mDesc << std::endl;
+    std::cout << "input: " << input.GetDesc() << std::endl;
+    std::cout << "weight: " << weight.GetDesc() << std::endl;
+    std::cout << "output: " << host_output.GetDesc() << std::endl;
 
     switch(init_method)
     {
@@ -76,12 +76,12 @@ bool profile_conv_fwd_impl(int do_verification,
         weight.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
     }
 
-    DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpaceSize());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * weight.mDesc.GetElementSpaceSize());
-    DeviceMem out_device_buf(sizeof(OutDataType) * device_output.mDesc.GetElementSpaceSize());
+    DeviceMem in_device_buf(input.GetMemorySize());
+    DeviceMem wei_device_buf(weight.GetMemorySize());
+    DeviceMem out_device_buf(device_output.GetMemorySize());
 
-    in_device_buf.ToDevice(input.mData.data());
-    wei_device_buf.ToDevice(weight.mData.data());
+    in_device_buf.ToDevice(input.data());
+    wei_device_buf.ToDevice(weight.data());
 
     // run reference op
     if(do_verification)
@@ -139,23 +139,22 @@ bool profile_conv_fwd_impl(int do_verification,
 
     for(auto& op_ptr : op_ptrs)
     {
-        auto argument_ptr =
-            op_ptr->MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-                                        static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
-                                        static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-                                        conv_param.N_,
-                                        conv_param.K_,
-                                        conv_param.C_,
-                                        conv_param.input_spatial_lengths_,
-                                        conv_param.filter_spatial_lengths_,
-                                        conv_param.GetOutputSpatialLengths(),
-                                        conv_param.conv_filter_strides_,
-                                        conv_param.conv_filter_dilations_,
-                                        conv_param.input_left_pads_,
-                                        conv_param.input_right_pads_,
-                                        in_element_op,
-                                        wei_element_op,
-                                        out_element_op);
+        auto argument_ptr = op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
+                                                        wei_device_buf.GetDeviceBuffer(),
+                                                        out_device_buf.GetDeviceBuffer(),
+                                                        conv_param.N_,
+                                                        conv_param.K_,
+                                                        conv_param.C_,
+                                                        conv_param.input_spatial_lengths_,
+                                                        conv_param.filter_spatial_lengths_,
+                                                        conv_param.GetOutputSpatialLengths(),
+                                                        conv_param.conv_filter_strides_,
+                                                        conv_param.conv_filter_dilations_,
+                                                        conv_param.input_left_pads_,
+                                                        conv_param.input_right_pads_,
+                                                        in_element_op,
+                                                        wei_element_op,
+                                                        out_element_op);
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
@@ -189,17 +188,17 @@ bool profile_conv_fwd_impl(int do_verification,
 
             if(do_verification)
             {
-                out_device_buf.FromDevice(device_output.mData.data());
+                out_device_buf.FromDevice(device_output.data());
 
-                pass = pass & ck::utils::check_err(device_output.mData, host_output.mData);
+                pass = pass & ck::utils::check_err(device_output, host_output);
 
                 if(do_log)
                 {
-                    LogRangeAsType<float>(std::cout << "input : ", input.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "weight: ", weight.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "host_output  : ", host_output.mData, ",")
+                    LogRangeAsType<float>(std::cout << "input : ", input, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "weight: ", weight, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "host_output  : ", host_output, ",")
                         << std::endl;
-                    LogRangeAsType<float>(std::cout << "device_output: ", device_output.mData, ",")
+                    LogRangeAsType<float>(std::cout << "device_output: ", device_output, ",")
                         << std::endl;
                 }
             }

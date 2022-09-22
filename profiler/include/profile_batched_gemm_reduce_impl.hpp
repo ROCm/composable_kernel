@@ -4,17 +4,18 @@
 #pragma once
 
 #include "ck/ck.hpp"
-#include "ck/utility/reduction_operator.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_reduce.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/utility/reduction_operator.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
+#include "ck/library/utility/literals.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -73,20 +74,20 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
 {
     bool pass = true;
 
+    using namespace ck::literals;
+
     auto f_host_tensor_descriptor = [](std::size_t batch_count,
                                        std::size_t row,
                                        std::size_t col,
                                        std::size_t stride,
                                        auto layout) {
-        if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
+        if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({row * stride, stride, 1}));
+            return HostTensorDescriptor({batch_count, row, col}, {row * stride, stride, 1_uz});
         }
         else
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({col * stride, 1, stride}));
+            return HostTensorDescriptor({batch_count, row, col}, {col * stride, 1_uz, stride});
         }
     };
 
@@ -95,23 +96,19 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
 
     Tensor<CDataType> c_g_m_n_host_result(
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> d0_g_m_host_result(HostTensorDescriptor(std::vector<std::size_t>(
-        {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
-    Tensor<ReduceDataType> d1_g_m_host_result(HostTensorDescriptor(std::vector<std::size_t>(
-        {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
+    Tensor<ReduceDataType> d0_g_m_host_result(HostTensorDescriptor({BatchCount, M}));
+    Tensor<ReduceDataType> d1_g_m_host_result(HostTensorDescriptor({BatchCount, M}));
 
     Tensor<CDataType> c_g_m_n_device_result(
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> d0_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
-        {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
-    Tensor<ReduceDataType> d1_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
-        {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
+    Tensor<ReduceDataType> d0_g_m_device_result(HostTensorDescriptor({BatchCount, M}));
+    Tensor<ReduceDataType> d1_g_m_device_result(HostTensorDescriptor({BatchCount, M}));
 
-    std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
-    std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;
-    std::cout << "c_g_m_n: " << c_g_m_n_host_result.mDesc << std::endl;
-    std::cout << "d0_g_m: " << d0_g_m_host_result.mDesc << std::endl;
-    std::cout << "d1_g_m: " << d1_g_m_host_result.mDesc << std::endl;
+    std::cout << "a_g_m_k: " << a_g_m_k.GetDesc() << std::endl;
+    std::cout << "b_g_k_n: " << b_g_k_n.GetDesc() << std::endl;
+    std::cout << "c_g_m_n: " << c_g_m_n_host_result.GetDesc() << std::endl;
+    std::cout << "d0_g_m: " << d0_g_m_host_result.GetDesc() << std::endl;
+    std::cout << "d1_g_m: " << d1_g_m_host_result.GetDesc() << std::endl;
 
     std::size_t num_thread = std::thread::hardware_concurrency();
     switch(init_method)
@@ -194,19 +191,17 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
         }
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_g_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem c_device_buf(sizeof(CDataType) * c_g_m_n_device_result.mDesc.GetElementSpaceSize());
-    DeviceMem reduce0_device_buf(sizeof(ReduceDataType) *
-                                 d0_g_m_device_result.mDesc.GetElementSpaceSize());
-    DeviceMem reduce1_device_buf(sizeof(ReduceDataType) *
-                                 d1_g_m_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_g_m_k.GetMemorySize());
+    DeviceMem b_device_buf(b_g_k_n.GetMemorySize());
+    DeviceMem c_device_buf(c_g_m_n_device_result.GetMemorySize());
+    DeviceMem reduce0_device_buf(d0_g_m_device_result.GetMemorySize());
+    DeviceMem reduce1_device_buf(d1_g_m_device_result.GetMemorySize());
 
     std::array<void*, 2> p_reduces = {reduce0_device_buf.GetDeviceBuffer(),
                                       reduce1_device_buf.GetDeviceBuffer()};
 
-    a_device_buf.ToDevice(a_g_m_k.mData.data());
-    b_device_buf.ToDevice(b_g_k_n.mData.data());
+    a_device_buf.ToDevice(a_g_m_k.data());
+    b_device_buf.ToDevice(b_g_k_n.data());
 
     // add device GEMM instances
     std::vector<ck::tensor_operation::device::instance::DeviceGemmReduceNoOpPtr> gemm_ptrs;
@@ -293,7 +288,7 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
 
             std::string gemm_name = gemm_ptr->GetTypeString();
 
-            std::size_t flop      = std::size_t(2) * BatchCount * M * N * K;
+            std::size_t flop      = 2_uz * BatchCount * M * N * K;
             std::size_t num_btype = sizeof(ADataType) * BatchCount * M * K +
                                     sizeof(BDataType) * BatchCount * K * N +
                                     sizeof(CDataType) * BatchCount * M * N;
@@ -315,16 +310,13 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
 
             if(do_verification)
             {
-                c_device_buf.FromDevice(c_g_m_n_device_result.mData.data());
-                reduce0_device_buf.FromDevice(d0_g_m_device_result.mData.data());
-                reduce1_device_buf.FromDevice(d1_g_m_device_result.mData.data());
+                c_device_buf.FromDevice(c_g_m_n_device_result.data());
+                reduce0_device_buf.FromDevice(d0_g_m_device_result.data());
+                reduce1_device_buf.FromDevice(d1_g_m_device_result.data());
 
-                bool c_error =
-                    ck::utils::check_err(c_g_m_n_device_result.mData, c_g_m_n_host_result.mData);
-                bool d0_error =
-                    ck::utils::check_err(d0_g_m_device_result.mData, d0_g_m_host_result.mData);
-                bool d1_error =
-                    ck::utils::check_err(d1_g_m_device_result.mData, d1_g_m_host_result.mData);
+                bool c_error  = ck::utils::check_err(c_g_m_n_device_result, c_g_m_n_host_result);
+                bool d0_error = ck::utils::check_err(d0_g_m_device_result, d0_g_m_host_result);
+                bool d1_error = ck::utils::check_err(d1_g_m_device_result, d1_g_m_host_result);
 
                 pass = pass && (c_error == true);
                 pass = pass && (d0_error == true);
@@ -332,22 +324,19 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
 
                 if(do_log)
                 {
-                    LogRangeAsType<float>(std::cout << "a : ", a_g_m_k.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "b: ", b_g_k_n.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "c_host: ", c_g_m_n_host_result.mData, ",")
+                    LogRangeAsType<float>(std::cout << "a : ", a_g_m_k, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "b: ", b_g_k_n, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "c_host: ", c_g_m_n_host_result, ",")
                         << std::endl;
-                    LogRangeAsType<float>(
-                        std::cout << "c_device: ", c_g_m_n_device_result.mData, ",")
+                    LogRangeAsType<float>(std::cout << "c_device: ", c_g_m_n_device_result, ",")
                         << std::endl;
-                    LogRangeAsType<float>(std::cout << "d0_host: ", d0_g_m_host_result.mData, ",")
+                    LogRangeAsType<float>(std::cout << "d0_host: ", d0_g_m_host_result, ",")
                         << std::endl;
-                    LogRangeAsType<float>(
-                        std::cout << "d0_device: ", d0_g_m_device_result.mData, ",")
+                    LogRangeAsType<float>(std::cout << "d0_device: ", d0_g_m_device_result, ",")
                         << std::endl;
-                    LogRangeAsType<float>(std::cout << "d1_host: ", d1_g_m_host_result.mData, ",")
+                    LogRangeAsType<float>(std::cout << "d1_host: ", d1_g_m_host_result, ",")
                         << std::endl;
-                    LogRangeAsType<float>(
-                        std::cout << "d1_device: ", d1_g_m_device_result.mData, ",")
+                    LogRangeAsType<float>(std::cout << "d1_device: ", d1_g_m_device_result, ",")
                         << std::endl;
                 }
             }

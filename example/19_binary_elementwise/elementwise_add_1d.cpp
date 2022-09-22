@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include <iostream>
 #include <cstdlib>
+#include <iostream>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
@@ -53,8 +53,7 @@ int main()
     ck::index_t M = 1024;
 
     auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
-        return HostTensorDescriptor(std::vector<std::size_t>({len}),
-                                    std::vector<std::size_t>({stride}));
+        return HostTensorDescriptor({len}, {stride});
     };
 
     Tensor<ABDataType> a_m(f_host_tensor_descriptor1d(M, 1));
@@ -64,12 +63,12 @@ int main()
     a_m.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
     b_m.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
 
-    DeviceMem a_m_device_buf(sizeof(ABDataType) * a_m.mDesc.GetElementSpaceSize());
-    DeviceMem b_m_device_buf(sizeof(ABDataType) * b_m.mDesc.GetElementSpaceSize());
-    DeviceMem c_m_device_buf(sizeof(CDataType) * c_m.mDesc.GetElementSpaceSize());
+    DeviceMem a_m_device_buf(a_m.GetMemorySize());
+    DeviceMem b_m_device_buf(b_m.GetMemorySize());
+    DeviceMem c_m_device_buf(c_m.GetMemorySize());
 
-    a_m_device_buf.ToDevice(a_m.mData.data());
-    b_m_device_buf.ToDevice(b_m.mData.data());
+    a_m_device_buf.ToDevice(a_m.data());
+    b_m_device_buf.ToDevice(b_m.data());
 
     std::array<const void*, 2> input = {a_m_device_buf.GetDeviceBuffer(),
                                         b_m_device_buf.GetDeviceBuffer()};
@@ -99,14 +98,13 @@ int main()
     bool pass = true;
     if(do_verification)
     {
-        c_m_device_buf.FromDevice(c_m.mData.data());
+        c_m_device_buf.FromDevice(c_m.data());
         Tensor<CDataType> host_c_m(f_host_tensor_descriptor1d(M, 1));
 
         host_elementwise1D<Tensor<ABDataType>, Tensor<ABDataType>, Tensor<CDataType>, Add>(
             host_c_m, a_m, b_m, M, Add{});
 
-        pass &= ck::utils::check_err(
-            c_m.mData, host_c_m.mData, "Error: Incorrect results c", 1e-3, 1e-3);
+        pass &= ck::utils::check_err(c_m, host_c_m, "Error: Incorrect results c", 1e-3, 1e-3);
     }
 
     return pass ? 0 : 1;

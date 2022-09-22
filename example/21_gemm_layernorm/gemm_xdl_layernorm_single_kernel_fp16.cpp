@@ -2,20 +2,22 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
-#include <numeric>
 #include <initializer_list>
+#include <numeric>
 
 #include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_xdl_layernorm_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm_layernorm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_xdl_layernorm_cshuffle.hpp"
-#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/utility/reduction_operator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_gemm_layernorm.hpp"
-#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 
 // This example demonstrate a single kernel that runs GEMM layer and laynorm in one fused kernel
 //
@@ -130,17 +132,17 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
+    using namespace ck::literals;
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
+            if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
+                return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
             else
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
+                return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
 
@@ -154,13 +156,13 @@ int main(int argc, char* argv[])
     Tensor<C0DataType> c0_n_gamma(HostTensorDescriptor(std::vector<size_t>({size_t(N)})));
     Tensor<C0DataType> c0_n_beta(HostTensorDescriptor(std::vector<size_t>({size_t(N)})));
 
-    std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
-    std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
-    std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
-    std::cout << "c0_n_bias: " << c0_n_bias.mDesc << std::endl;
-    std::cout << "c0_m_n_add: " << c0_m_n_add.mDesc << std::endl;
-    std::cout << "c0_n_gamma: " << c0_n_gamma.mDesc << std::endl;
-    std::cout << "c0_n_beta: " << c0_n_beta.mDesc << std::endl;
+    std::cout << "a_m_k: " << a_m_k.GetDesc() << std::endl;
+    std::cout << "b_k_n: " << b_k_n.GetDesc() << std::endl;
+    std::cout << "c_m_n: " << c_m_n_host_result.GetDesc() << std::endl;
+    std::cout << "c0_n_bias: " << c0_n_bias.GetDesc() << std::endl;
+    std::cout << "c0_m_n_add: " << c0_m_n_add.GetDesc() << std::endl;
+    std::cout << "c0_n_gamma: " << c0_n_gamma.GetDesc() << std::endl;
+    std::cout << "c0_n_beta: " << c0_n_beta.GetDesc() << std::endl;
 
     switch(init_method)
     {
@@ -185,20 +187,20 @@ int main(int argc, char* argv[])
     c_m_n_host_result.GenerateTensorValue(GeneratorTensor_1<CDataType>{0});
     acc_m_n_host_result.GenerateTensorValue(GeneratorTensor_1<AccDataType>{0});
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
-    DeviceMem c0_bias_buf(sizeof(C0DataType) * c0_n_bias.mDesc.GetElementSpaceSize());
-    DeviceMem c0_add_buf(sizeof(C0DataType) * c0_m_n_add.mDesc.GetElementSpaceSize());
-    DeviceMem c0_gamma_buf(sizeof(C0DataType) * c0_n_gamma.mDesc.GetElementSpaceSize());
-    DeviceMem c0_beta_buf(sizeof(C0DataType) * c0_n_beta.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_m_k.GetMemorySize());
+    DeviceMem b_device_buf(b_k_n.GetMemorySize());
+    DeviceMem c_device_buf(c_m_n_device_result.GetMemorySize());
+    DeviceMem c0_bias_buf(c0_n_bias.GetMemorySize());
+    DeviceMem c0_add_buf(c0_m_n_add.GetMemorySize());
+    DeviceMem c0_gamma_buf(c0_n_gamma.GetMemorySize());
+    DeviceMem c0_beta_buf(c0_n_beta.GetMemorySize());
 
-    a_device_buf.ToDevice(a_m_k.mData.data());
-    b_device_buf.ToDevice(b_k_n.mData.data());
-    c0_bias_buf.ToDevice(c0_n_bias.mData.data());
-    c0_add_buf.ToDevice(c0_m_n_add.mData.data());
-    c0_gamma_buf.ToDevice(c0_n_gamma.mData.data());
-    c0_beta_buf.ToDevice(c0_n_beta.mData.data());
+    a_device_buf.ToDevice(a_m_k.data());
+    b_device_buf.ToDevice(b_k_n.data());
+    c0_bias_buf.ToDevice(c0_n_bias.data());
+    c0_add_buf.ToDevice(c0_m_n_add.data());
+    c0_gamma_buf.ToDevice(c0_n_gamma.data());
+    c0_beta_buf.ToDevice(c0_n_beta.data());
 
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
@@ -208,13 +210,13 @@ int main(int argc, char* argv[])
     // do GEMM
     auto gemm     = DeviceGemmInstance{};
     auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                                      static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-                                      static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                      static_cast<C0DataType*>(c0_add_buf.GetDeviceBuffer()),
-                                      static_cast<C0DataType*>(c0_bias_buf.GetDeviceBuffer()),
-                                      static_cast<C0DataType*>(c0_gamma_buf.GetDeviceBuffer()),
-                                      static_cast<C0DataType*>(c0_beta_buf.GetDeviceBuffer()),
+    auto argument = gemm.MakeArgument(a_device_buf.GetDeviceBuffer(),
+                                      b_device_buf.GetDeviceBuffer(),
+                                      c_device_buf.GetDeviceBuffer(),
+                                      c0_add_buf.GetDeviceBuffer(),
+                                      c0_bias_buf.GetDeviceBuffer(),
+                                      c0_gamma_buf.GetDeviceBuffer(),
+                                      c0_beta_buf.GetDeviceBuffer(),
                                       M,
                                       N,
                                       K,
@@ -252,7 +254,7 @@ int main(int argc, char* argv[])
     bool pass = true;
     if(do_verification)
     {
-        c_device_buf.FromDevice(c_m_n_device_result.mData.data());
+        c_device_buf.FromDevice(c_m_n_device_result.data());
 
         auto ref_gemm    = ReferenceInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
@@ -274,15 +276,12 @@ int main(int argc, char* argv[])
         if constexpr(std::is_same<CShuffleDataType, F32>::value)
         {
             pass &= ck::utils::check_err(
-                c_m_n_device_result.mData, c_m_n_host_result.mData, "Error: Incorrect results c");
+                c_m_n_device_result, c_m_n_host_result, "Error: Incorrect results c");
         }
         else if constexpr(std::is_same<CShuffleDataType, F16>::value)
         {
-            pass &= ck::utils::check_err(c_m_n_device_result.mData,
-                                         c_m_n_host_result.mData,
-                                         "Error: Incorrect results c",
-                                         1e-2,
-                                         1e-2);
+            pass &= ck::utils::check_err(
+                c_m_n_device_result, c_m_n_host_result, "Error: Incorrect results c", 1e-2, 1e-2);
         }
     }
     return pass ? 0 : 1;

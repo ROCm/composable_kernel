@@ -103,8 +103,7 @@ class OpInstanceRunEngine
             }
         }
         AllocateDeviceInputTensors(std::make_index_sequence<kNInArgs_>{});
-        out_device_buffer_ = std::make_unique<DeviceMem>(sizeof(OutDataType) *
-                                                         out_tensor_->mDesc.GetElementSpaceSize());
+        out_device_buffer_ = std::make_unique<DeviceMem>(out_tensor_->GetMemorySize());
         out_device_buffer_->SetZero();
     }
 
@@ -219,10 +218,7 @@ class OpInstanceRunEngine
     void AllocateDeviceInputTensorsImpl()
     {
         const auto& ts = std::get<Index>(in_tensors_);
-        in_device_buffers_
-            .emplace_back(
-                std::make_unique<DeviceMem>(sizeof(std::tuple_element_t<Index, InArgsTypesTuple>) *
-                                            ts->mDesc.GetElementSpaceSize()))
+        in_device_buffers_.emplace_back(std::make_unique<DeviceMem>(ts->GetMemorySize()))
             ->ToDevice(ts->mData.data());
     }
 

@@ -3,18 +3,20 @@
 
 #pragma once
 
-#include <vector>
 #include <iostream>
+#include <vector>
+
 #include <gtest/gtest.h>
 
 #include "ck/ck.hpp"
 #include "ck/utility/number.hpp"
 #include "ck/tensor_operation/gpu/device/device_layernorm_impl.hpp"
 
-#include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/host_tensor.hpp"
-#include "ck/library/utility/device_memory.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/ranges.hpp"
 
 namespace ck {
 
@@ -105,29 +107,31 @@ class TestLayernorm2d : public ::testing::Test
         gamma.GenerateTensorValue(GeneratorTensor_3<GammaDataType>{0.0, 1.0});
         beta.GenerateTensorValue(GeneratorTensor_3<BetaDataType>{0.0, 1.0});
 
-        DeviceMem x_dev(sizeof(XDataType) * x.mDesc.GetElementSpaceSize());
-        DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpaceSize());
-        DeviceMem beta_dev(sizeof(BetaDataType) * beta.mDesc.GetElementSpaceSize());
-        DeviceMem y_dev(sizeof(YDataType) * y.mDesc.GetElementSpaceSize());
+        DeviceMem x_dev(x.GetMemorySize());
+        DeviceMem gamma_dev(gamma.GetMemorySize());
+        DeviceMem beta_dev(beta.GetMemorySize());
+        DeviceMem y_dev(y.GetMemorySize());
 
-        x_dev.ToDevice(x.mData.data());
-        gamma_dev.ToDevice(gamma.mData.data());
-        beta_dev.ToDevice(beta.mData.data());
+        x_dev.ToDevice(x.data());
+        gamma_dev.ToDevice(gamma.data());
+        beta_dev.ToDevice(beta.data());
+
+        using Indices = std::vector<ck::index_t>;
 
         auto device_instance = DeviceInstance{};
-        auto argument_ptr    = device_instance.MakeArgumentPointer(
-            lengths,
-            std::vector<ck::index_t>{x.mDesc.GetStrides().begin(), x.mDesc.GetStrides().end()},
-            GammaStride,
-            BetaStride,
-            std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
-            reduceDims,
-            1e-4,
-            x_dev.GetDeviceBuffer(),
-            gamma_dev.GetDeviceBuffer(),
-            beta_dev.GetDeviceBuffer(),
-            y_dev.GetDeviceBuffer(),
-            PassThrough{});
+        auto argument_ptr =
+            device_instance.MakeArgumentPointer(lengths,
+                                                ck::ranges::to<Indices>(x.GetStrides()),
+                                                GammaStride,
+                                                BetaStride,
+                                                ck::ranges::to<Indices>(y.GetStrides()),
+                                                reduceDims,
+                                                1e-4,
+                                                x_dev.GetDeviceBuffer(),
+                                                gamma_dev.GetDeviceBuffer(),
+                                                beta_dev.GetDeviceBuffer(),
+                                                y_dev.GetDeviceBuffer(),
+                                                PassThrough{});
 
         if(!device_instance.IsSupportedArgument(argument_ptr.get()))
         {
@@ -140,19 +144,18 @@ class TestLayernorm2d : public ::testing::Test
         ref_instance_invoker_.Run(
             {x, gamma, beta, y_ref, PassThrough{}, lengths, reduceDims, 1e-4});
 
-        y_dev.FromDevice(y.mData.data());
+        y_dev.FromDevice(y.data());
 
         bool pass;
 
-        if(std::is_same<XDataType, int8_t>::value)
+        if constexpr(std::is_same_v<XDataType, int8_t>)
         {
-            EXPECT_TRUE(pass = ck::utils::check_err(
-                            y.mData, y_ref.mData, "Error: Incorrect results!", 0, 1));
+            EXPECT_TRUE(pass = ck::utils::check_err(y, y_ref, "Error: Incorrect results!", 0, 1));
         }
         else
         {
-            EXPECT_TRUE(pass = ck::utils::check_err(
-                            y.mData, y_ref.mData, "Error: Incorrect results d1", 1e-3, 1e-3));
+            EXPECT_TRUE(
+                pass = ck::utils::check_err(y, y_ref, "Error: Incorrect results d1", 1e-3, 1e-3));
         }
 
         if(!pass)

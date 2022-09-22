@@ -30,7 +30,7 @@ struct ReferenceSoftmax : public device::BaseOperator
             : in_(in), out_(out), alpha_(alpha), beta_(beta), sm_reduce_dims_(sm_reduce_dims)
         {
             // std::cout << "debug: scalar dims: ";
-            for(size_t i = 0; i < in.mDesc.GetNumOfDimension(); i++)
+            for(size_t i = 0; i < in.GetNumOfDimension(); i++)
             {
                 if(std::find(sm_reduce_dims.begin(), sm_reduce_dims.end(), i) ==
                    sm_reduce_dims.end())
@@ -58,7 +58,7 @@ struct ReferenceSoftmax : public device::BaseOperator
             std::vector<size_t> scalar_lengths;
             for(index_t dim : arg.sm_scalar_dims_)
             {
-                scalar_lengths.push_back(arg.in_.mDesc.GetLengths()[dim]);
+                scalar_lengths.push_back(arg.in_.GetLengths()[dim]);
             }
 
             Tensor<AccDataType> reduce_max(scalar_lengths);
@@ -84,7 +84,7 @@ struct ReferenceSoftmax : public device::BaseOperator
             // LogRangeAsType<float>(std::cout << "reduce_max: ", reduce_max.mData, ",") <<
             // std::endl;
 
-            Tensor<AccDataType> in_stable(arg.in_.mDesc);
+            Tensor<AccDataType> in_stable(arg.in_.GetDesc());
             in_stable.ForEach([&](auto& self, auto idx) {
                 // numerator = exp(x - max(x))
                 self(idx) = std::exp(static_cast<AccDataType>(arg.in_(idx)) -

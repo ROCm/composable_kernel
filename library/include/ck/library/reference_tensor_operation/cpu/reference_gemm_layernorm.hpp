@@ -5,7 +5,9 @@
 
 #include <iostream>
 #include <sstream>
+
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -38,11 +40,11 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
                              const Tensor<InDataType>& beta,     // 1xN
                              const InDataType epsilon = 1e-5)
     {
-        assert(acc.mDesc.GetLengths()[1] == gamma.mDesc.GetLengths()[0] &&
-               acc.mDesc.GetLengths()[1] == beta.mDesc.GetLengths()[0]);
+        assert(acc.GetLengths()[1] == gamma.GetLengths()[0] &&
+               acc.GetLengths()[1] == beta.GetLengths()[0]);
 
-        size_t M = acc.mDesc.GetLengths()[0];
-        size_t N = acc.mDesc.GetLengths()[1];
+        size_t M = acc.GetLengths()[0];
+        size_t N = acc.GetLengths()[1];
 
         Tensor<ComputeDataType> avg_acc_sq(HostTensorDescriptor(std::vector<size_t>({M})));
         Tensor<ComputeDataType> avg_acc(HostTensorDescriptor(std::vector<size_t>({M})));
@@ -131,7 +133,7 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
 
         float Run(const Argument& arg)
         {
-            Tensor<AccDataType> acc_m_n(arg.c_m_n_.mDesc);
+            Tensor<AccDataType> acc_m_n(arg.c_m_n_.GetDesc());
             acc_m_n.GenerateTensorValue(GeneratorTensor_1<AccDataType>{0});
 
             auto ref_gemm     = ReferenceGemmInstance{};

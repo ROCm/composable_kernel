@@ -37,10 +37,10 @@ bool run_grouped_conv_conv_fwd(bool do_verification,
     Tensor<Out1DataType> out1_host(out1_g_n_k_wos_desc);
     Tensor<Out1DataType> out1_device(out1_g_n_k_wos_desc);
 
-    std::cout << "in0: " << in0.mDesc << std::endl;
-    std::cout << "wei0: " << wei0.mDesc << std::endl;
-    std::cout << "wei1: " << wei1.mDesc << std::endl;
-    std::cout << "out1: " << out1_host.mDesc << std::endl;
+    std::cout << "in0: " << in0.GetDesc() << std::endl;
+    std::cout << "wei0: " << wei0.GetDesc() << std::endl;
+    std::cout << "wei1: " << wei1.GetDesc() << std::endl;
+    std::cout << "out1: " << out1_host.GetDesc() << std::endl;
 
     switch(init_method)
     {
@@ -57,27 +57,27 @@ bool run_grouped_conv_conv_fwd(bool do_verification,
     }
 
 #ifdef BUILD_INT4_EXAMPLE
-    DeviceMem in0_device_buf(sizeof(KernelIn0DataType) * in0.mDesc.GetElementSpaceSize());
-    DeviceMem wei0_device_buf(sizeof(KernelWei0DataType) * wei0.mDesc.GetElementSpaceSize());
-    DeviceMem wei1_device_buf(sizeof(KernelWei1DataType) * wei1.mDesc.GetElementSpaceSize());
-    DeviceMem out1_device_buf(sizeof(KernelOut1DataType) * out1_device.mDesc.GetElementSpaceSize());
+    DeviceMem in0_device_buf(in0.GetMemorySize());
+    DeviceMem wei0_device_buf(wei0.GetMemorySize());
+    DeviceMem wei1_device_buf(wei1.GetMemorySize());
+    DeviceMem out1_device_buf(out1_device.GetMemorySize());
 
     const Tensor<KernelIn0DataType> in0_converted(in0);
     const Tensor<KernelWei0DataType> wei0_converted(wei0);
     const Tensor<KernelWei1DataType> wei1_converted(wei1);
 
-    in0_device_buf.ToDevice(in0_converted.mData.data());
-    wei0_device_buf.ToDevice(wei0_converted.mData.data());
-    wei1_device_buf.ToDevice(wei1_converted.mData.data());
+    in0_device_buf.ToDevice(in0_converted.data());
+    wei0_device_buf.ToDevice(wei0_converted.data());
+    wei1_device_buf.ToDevice(wei1_converted.data());
 #else
-    DeviceMem in0_device_buf(sizeof(In0DataType) * in0.mDesc.GetElementSpaceSize());
-    DeviceMem wei0_device_buf(sizeof(Wei0DataType) * wei0.mDesc.GetElementSpaceSize());
-    DeviceMem wei1_device_buf(sizeof(Wei1DataType) * wei1.mDesc.GetElementSpaceSize());
-    DeviceMem out1_device_buf(sizeof(Out1DataType) * out1_device.mDesc.GetElementSpaceSize());
+    DeviceMem in0_device_buf(in0.GetMemorySize());
+    DeviceMem wei0_device_buf(wei0.GetMemorySize());
+    DeviceMem wei1_device_buf(wei1.GetMemorySize());
+    DeviceMem out1_device_buf(out1_device.GetMemorySize());
 
-    in0_device_buf.ToDevice(in0.mData.data());
-    wei0_device_buf.ToDevice(wei0.mData.data());
-    wei1_device_buf.ToDevice(wei1.mData.data());
+    in0_device_buf.ToDevice(in0.data());
+    wei0_device_buf.ToDevice(wei0.data());
+    wei1_device_buf.ToDevice(wei1.data());
 #endif
 
     std::array<ck::index_t, NDimSpatial + 3> a0_g_n_c_wis_lengths{};
@@ -97,7 +97,7 @@ bool run_grouped_conv_conv_fwd(bool do_verification,
     std::array<ck::index_t, NDimSpatial> input1_left_pads{};
     std::array<ck::index_t, NDimSpatial> input1_right_pads{};
 
-    auto copy = [](auto& x, auto& y) { std::copy(x.begin(), x.end(), y.begin()); };
+    auto copy = [](const auto& x, auto& y) { ck::ranges::copy(x, y.begin()); };
 
     copy(in0_g_n_c_wis_desc.GetLengths(), a0_g_n_c_wis_lengths);
     copy(in0_g_n_c_wis_desc.GetStrides(), a0_g_n_c_wis_strides);
@@ -120,18 +120,17 @@ bool run_grouped_conv_conv_fwd(bool do_verification,
     const ck::index_t gemm_batch = a0_g_n_c_wis_lengths[0];
 
     const ck::index_t gemm0_m_length =
-        e1_g_n_k_wos_lengths[1] * std::accumulate(e1_g_n_k_wos_lengths.begin() + 3,
-                                                  e1_g_n_k_wos_lengths.begin() + 3 + NDimSpatial,
-                                                  ck::index_t{1},
-                                                  std::multiplies<ck::index_t>{});
+        e1_g_n_k_wos_lengths[1] * ck::accumulate_n(e1_g_n_k_wos_lengths.begin() + 3,
+                                                   NDimSpatial,
+                                                   ck::index_t{1},
+                                                   std::multiplies<ck::index_t>{});
 
     const ck::index_t gemm0_n_length = b0_g_k_c_xs_lengths[1];
 
-    const ck::index_t gemm0_k_length =
-        std::accumulate(b0_g_k_c_xs_lengths.begin() + 2,
-                        b0_g_k_c_xs_lengths.begin() + 2 + NDimSpatial + 1,
-                        ck::index_t{1},
-                        std::multiplies<ck::index_t>{});
+    const ck::index_t gemm0_k_length = ck::accumulate_n(b0_g_k_c_xs_lengths.begin() + 2,
+                                                        NDimSpatial + 1,
+                                                        ck::index_t{1},
+                                                        std::multiplies<ck::index_t>{});
 
     const ck::index_t gemm1_n_length = b1_g_k_c_xs_lengths[1];
 
@@ -149,36 +148,28 @@ bool run_grouped_conv_conv_fwd(bool do_verification,
 
     auto device_op = DeviceOpInstance{};
     auto invoker   = device_op.MakeInvoker();
-    auto argument  = device_op.MakeArgument(
-#ifdef BUILD_INT4_EXAMPLE
-        static_cast<KernelIn0DataType*>(in0_device_buf.GetDeviceBuffer()),
-        static_cast<KernelWei0DataType*>(wei0_device_buf.GetDeviceBuffer()),
-        static_cast<KernelWei1DataType*>(wei1_device_buf.GetDeviceBuffer()),
-        static_cast<KernelOut1DataType*>(out1_device_buf.GetDeviceBuffer()),
-#else
-        static_cast<In0DataType*>(in0_device_buf.GetDeviceBuffer()),
-        static_cast<Wei0DataType*>(wei0_device_buf.GetDeviceBuffer()),
-        static_cast<Wei1DataType*>(wei1_device_buf.GetDeviceBuffer()),
-        static_cast<Out1DataType*>(out1_device_buf.GetDeviceBuffer()),
-#endif
-        gemm0_m_length,
-        gemm0_n_length,
-        gemm0_k_length,
-        gemm1_n_length,
-        gemm_batch,
-        a0_stride,
-        b0_stride,
-        b1_stride,
-        e1_stride,
-        a0_batch_stride,
-        b0_batch_stride,
-        b1_batch_stride,
-        e1_batch_stride,
-        in0_element_op,
-        wei0_element_op,
-        out0_element_op,
-        wei1_element_op,
-        out1_element_op);
+    auto argument  = device_op.MakeArgument(in0_device_buf.GetDeviceBuffer(),
+                                           wei0_device_buf.GetDeviceBuffer(),
+                                           wei1_device_buf.GetDeviceBuffer(),
+                                           out1_device_buf.GetDeviceBuffer(),
+                                           gemm0_m_length,
+                                           gemm0_n_length,
+                                           gemm0_k_length,
+                                           gemm1_n_length,
+                                           gemm_batch,
+                                           a0_stride,
+                                           b0_stride,
+                                           b1_stride,
+                                           e1_stride,
+                                           a0_batch_stride,
+                                           b0_batch_stride,
+                                           b1_batch_stride,
+                                           e1_batch_stride,
+                                           in0_element_op,
+                                           wei0_element_op,
+                                           out0_element_op,
+                                           wei1_element_op,
+                                           out1_element_op);
 
     if(!device_op.IsSupportedArgument(argument))
     {
@@ -251,17 +242,17 @@ bool run_grouped_conv_conv_fwd(bool do_verification,
         ref_conv1_invoker.Run(ref_conv1_argument);
 
 #ifdef BUILD_INT4_EXAMPLE
-        Tensor<KernelOut1DataType> out1_device_converted(out1_host.mDesc);
+        Tensor<KernelOut1DataType> out1_device_converted(out1_host.GetDesc());
 
-        out1_device_buf.FromDevice(out1_device_converted.mData.data());
+        out1_device_buf.FromDevice(out1_device_converted.data());
 
         out1_device = out1_device_converted.CopyAsType<Out1DataType>();
 #else
-        out1_device_buf.FromDevice(out1_device.mData.data());
+        out1_device_buf.FromDevice(out1_device.data());
 #endif
 
         return ck::utils::check_err(
-            out1_device.mData, out1_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
+            out1_device, out1_host, "Error: incorrect results!", 1e-5f, 1e-4f);
     }
 
     return true;

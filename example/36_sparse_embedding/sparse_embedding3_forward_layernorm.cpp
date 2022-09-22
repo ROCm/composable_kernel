@@ -1,22 +1,23 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
+#include <cstdlib>
+#include <ctime>
+#include <initializer_list>
 #include <iostream>
 #include <numeric>
-#include <initializer_list>
-#include <cstdlib>
+
 #include <getopt.h>
-#include <ctime>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/device_sparse_embedding3_forward_layernorm.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_sparse_embedding3_forward_layernorm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_common_util.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_sparse_embedding3_forward_layernorm.hpp"
 
 // using EmbType       = float;
 // using IndexType     = int64_t;
@@ -86,12 +87,10 @@ int main()
     constexpr auto index_length   = 2048;
     constexpr AccDataType epsilon = 1e-4;
 
-    auto f_host_tensor_desc_1d = [](std::size_t len_) {
-        return HostTensorDescriptor(std::vector<std::size_t>({len_}));
-    };
+    auto f_host_tensor_desc_1d = [](std::size_t len_) { return HostTensorDescriptor({len_}); };
 
     auto f_host_tensor_desc_2d = [](std::size_t rows_, std::size_t cols_) {
-        return HostTensorDescriptor(std::vector<std::size_t>({rows_, cols_}));
+        return HostTensorDescriptor({rows_, cols_});
     };
 
     using ReferenceInstance =
@@ -129,29 +128,29 @@ int main()
         gamma.GenerateTensorValue(GeneratorTensor_3<GammaDataType>{0.0, 1.0});
         beta.GenerateTensorValue(GeneratorTensor_3<BetaDataType>{0.0, 1.0});
 
-        DeviceMem emb_a_dev(sizeof(EmbType) * emb_a.mDesc.GetElementSpaceSize());
-        DeviceMem emb_b_dev(sizeof(EmbType) * emb_b.mDesc.GetElementSpaceSize());
-        DeviceMem emb_c_dev(sizeof(EmbType) * emb_c.mDesc.GetElementSpaceSize());
+        DeviceMem emb_a_dev(emb_a.GetMemorySize());
+        DeviceMem emb_b_dev(emb_b.GetMemorySize());
+        DeviceMem emb_c_dev(emb_c.GetMemorySize());
 
-        DeviceMem index_a_dev(sizeof(IndexType) * index_a.mDesc.GetElementSpaceSize());
-        DeviceMem index_b_dev(sizeof(IndexType) * index_b.mDesc.GetElementSpaceSize());
-        DeviceMem index_c_dev(sizeof(IndexType) * index_c.mDesc.GetElementSpaceSize());
+        DeviceMem index_a_dev(index_a.GetMemorySize());
+        DeviceMem index_b_dev(index_b.GetMemorySize());
+        DeviceMem index_c_dev(index_c.GetMemorySize());
 
-        DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpaceSize());
-        DeviceMem beta_dev(sizeof(BetaDataType) * beta.mDesc.GetElementSpaceSize());
+        DeviceMem gamma_dev(gamma.GetMemorySize());
+        DeviceMem beta_dev(beta.GetMemorySize());
 
-        DeviceMem out_dev(sizeof(OutType) * out.mDesc.GetElementSpaceSize());
+        DeviceMem out_dev(out.GetMemorySize());
 
-        emb_a_dev.ToDevice(emb_a.mData.data());
-        emb_b_dev.ToDevice(emb_b.mData.data());
-        emb_c_dev.ToDevice(emb_c.mData.data());
+        emb_a_dev.ToDevice(emb_a.data());
+        emb_b_dev.ToDevice(emb_b.data());
+        emb_c_dev.ToDevice(emb_c.data());
 
-        index_a_dev.ToDevice(index_a.mData.data());
-        index_b_dev.ToDevice(index_b.mData.data());
-        index_c_dev.ToDevice(index_c.mData.data());
+        index_a_dev.ToDevice(index_a.data());
+        index_b_dev.ToDevice(index_b.data());
+        index_c_dev.ToDevice(index_c.data());
 
-        gamma_dev.ToDevice(gamma.mData.data());
-        beta_dev.ToDevice(beta.mData.data());
+        gamma_dev.ToDevice(gamma.data());
+        beta_dev.ToDevice(beta.data());
 
         auto device_instance = typename emb_kernel<EmbType, current_dim>::kernel_type{};
         auto argument_ptr    = device_instance.MakeArgumentPointer(out_dev.GetDeviceBuffer(),
@@ -202,9 +201,8 @@ int main()
             auto ref_invoker  = ref.MakeInvoker();
             ref_invoker.Run(ref_argument);
 
-            out_dev.FromDevice(out_from_dev.mData.data());
-            pass &= ck::utils::check_err(
-                out_from_dev.mData, out.mData, "Error: Incorrect results", 1e-3, 1e-3);
+            out_dev.FromDevice(out_from_dev.data());
+            pass &= ck::utils::check_err(out_from_dev, out, "Error: Incorrect results", 1e-3, 1e-3);
         }
 
         double total_read = current_dim * index_length * 3 * sizeof(EmbType) +

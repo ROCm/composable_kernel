@@ -79,14 +79,14 @@ struct ReferenceConvFwd_Bias_Activation_Add : public device::BaseOperator
             auto f_nchw = [&](auto n, auto k, auto ho, auto wo) {
                 float v_acc = 0;
 
-                for(std::size_t c = 0; c < arg.wei_k_c_y_x_.mDesc.GetLengths()[1]; ++c)
+                for(std::size_t c = 0; c < arg.wei_k_c_y_x_.GetLengths()[1]; ++c)
                 {
-                    for(std::size_t y = 0; y < arg.wei_k_c_y_x_.mDesc.GetLengths()[2]; ++y)
+                    for(std::size_t y = 0; y < arg.wei_k_c_y_x_.GetLengths()[2]; ++y)
                     {
                         auto hi = ck::type_convert<ck::long_index_t>(ho * arg.conv_strides_[0]) +
                                   ck::type_convert<ck::long_index_t>(y * arg.conv_dilations_[0]) -
                                   ck::type_convert<ck::long_index_t>(arg.in_left_pads_[0]);
-                        for(std::size_t x = 0; x < arg.wei_k_c_y_x_.mDesc.GetLengths()[3]; ++x)
+                        for(std::size_t x = 0; x < arg.wei_k_c_y_x_.GetLengths()[3]; ++x)
                         {
                             auto wi =
                                 ck::type_convert<ck::long_index_t>(wo * arg.conv_strides_[1]) +
@@ -94,10 +94,10 @@ struct ReferenceConvFwd_Bias_Activation_Add : public device::BaseOperator
                                 ck::type_convert<ck::long_index_t>(arg.in_left_pads_[1]);
                             if(hi >= 0 &&
                                ck::type_convert<std::size_t>(hi) <
-                                   arg.in_n_c_hi_wi_.mDesc.GetLengths()[2] &&
+                                   arg.in_n_c_hi_wi_.GetLengths()[2] &&
                                wi >= 0 &&
                                ck::type_convert<std::size_t>(wi) <
-                                   arg.in_n_c_hi_wi_.mDesc.GetLengths()[3])
+                                   arg.in_n_c_hi_wi_.GetLengths()[3])
                             {
                                 float v_in;
                                 float v_wei;
@@ -125,10 +125,10 @@ struct ReferenceConvFwd_Bias_Activation_Add : public device::BaseOperator
             };
 
             make_ParallelTensorFunctor(f_nchw,
-                                       arg.out_n_k_ho_wo_.mDesc.GetLengths()[0],
-                                       arg.out_n_k_ho_wo_.mDesc.GetLengths()[1],
-                                       arg.out_n_k_ho_wo_.mDesc.GetLengths()[2],
-                                       arg.out_n_k_ho_wo_.mDesc.GetLengths()[3])(
+                                       arg.out_n_k_ho_wo_.GetLengths()[0],
+                                       arg.out_n_k_ho_wo_.GetLengths()[1],
+                                       arg.out_n_k_ho_wo_.GetLengths()[2],
+                                       arg.out_n_k_ho_wo_.GetLengths()[3])(
                 std::thread::hardware_concurrency());
             return 0;
         }

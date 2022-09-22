@@ -134,21 +134,19 @@ auto run_gemm_reduce_max_xdl(ck::index_t M,
     {
     case 0: break;
     case 1:
-        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k.begin(),
-                                                                             a_m_k.end());
-        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n.begin(),
-                                                                             b_k_n.end());
+        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k);
+        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n);
         break;
     default:
-        ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k.begin(), a_m_k.end());
-        ck::utils::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n.begin(), b_k_n.end());
+        ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
+        ck::utils::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
         break;
     }
 
-    DeviceMem a_device_buf(sizeof(ADataKernelType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataKernelType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem e_device_buf(sizeof(EDataKernelType) * e_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem r0_device_buf(sizeof(R0DataType) * r0_m.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_m_k.GetMemorySize());
+    DeviceMem b_device_buf(b_k_n.GetMemorySize());
+    DeviceMem e_device_buf(e_m_n.GetMemorySize());
+    DeviceMem r0_device_buf(r0_m.GetMemorySize());
 
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     if constexpr(std::is_same_v<ADataType, ck::int4_t>)
@@ -156,14 +154,14 @@ auto run_gemm_reduce_max_xdl(ck::index_t M,
         Tensor<ADataKernelType> a_m_k_converted = a_m_k.template CopyAsType<ADataKernelType>();
         Tensor<BDataKernelType> b_k_n_converted = b_k_n.template CopyAsType<BDataKernelType>();
 
-        a_device_buf.ToDevice(a_m_k_converted.mData.data());
-        b_device_buf.ToDevice(b_k_n_converted.mData.data());
+        a_device_buf.ToDevice(a_m_k_converted.data());
+        b_device_buf.ToDevice(b_k_n_converted.data());
     }
     else
 #endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     {
-        a_device_buf.ToDevice(a_m_k.mData.data());
-        b_device_buf.ToDevice(b_k_n.mData.data());
+        a_device_buf.ToDevice(a_m_k.data());
+        b_device_buf.ToDevice(b_k_n.data());
     }
 
     auto a_element_op   = AElementOp{};
@@ -210,8 +208,8 @@ auto run_gemm_reduce_max_xdl(ck::index_t M,
     {
         auto I0 = ck::Number<0>{};
 
-        Tensor<ReduceAccDataType> e_m_n_host(e_m_n.mDesc);
-        Tensor<R0DataType> r0_m_host(r0_m.mDesc);
+        Tensor<ReduceAccDataType> e_m_n_host(e_m_n.GetDesc());
+        Tensor<R0DataType> r0_m_host(r0_m.GetDesc());
 
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
@@ -236,15 +234,15 @@ auto run_gemm_reduce_max_xdl(ck::index_t M,
             r0_m_host(m) = ck::type_convert<R0DataType>(reduce0_acc);
         }
 
-        e_device_buf.FromDevice(e_m_n.mData.data());
+        e_device_buf.FromDevice(e_m_n.data());
         Tensor<EDataType> e_m_n_host_converted(e_m_n_host);
 
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
         if constexpr(std::is_same_v<ADataType, ck::int4_t>)
         {
             Tensor<EDataType> e_m_n_device_converted(e_m_n);
-            pass = ck::utils::check_err(e_m_n_device_converted.mData,
-                                        e_m_n_host_converted.mData,
+            pass = ck::utils::check_err(e_m_n_device_converted,
+                                        e_m_n_host_converted,
                                         "Error: Incorrect results c",
                                         1e-2,
                                         1e-2);
@@ -253,12 +251,11 @@ auto run_gemm_reduce_max_xdl(ck::index_t M,
 #endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
         {
             pass = ck::utils::check_err(
-                e_m_n.mData, e_m_n_host_converted.mData, "Error: Incorrect results c", 1e-2, 1e-2);
+                e_m_n, e_m_n_host_converted, "Error: Incorrect results c", 1e-2, 1e-2);
         }
 
-        r0_device_buf.FromDevice(r0_m.mData.data());
-        pass &= ck::utils::check_err(
-            r0_m.mData, r0_m_host.mData, "Error: Incorrect results d0", 1e-2, 1e-2);
+        r0_device_buf.FromDevice(r0_m.data());
+        pass &= ck::utils::check_err(r0_m, r0_m_host, "Error: Incorrect results d0", 1e-2, 1e-2);
 
         if(pass)
         {
@@ -339,22 +336,20 @@ bool run_gemm_reduce_mean_meansquare_xdl(ck::index_t M,
     {
     case 0: break;
     case 1:
-        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k.begin(),
-                                                                             a_m_k.end());
-        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n.begin(),
-                                                                             b_k_n.end());
+        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k);
+        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n);
         break;
     default:
-        ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k.begin(), a_m_k.end());
-        ck::utils::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n.begin(), b_k_n.end());
+        ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
+        ck::utils::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
         break;
     }
 
-    DeviceMem a_device_buf(sizeof(ADataKernelType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataKernelType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem e_device_buf(sizeof(EDataKernelType) * e_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem r0_device_buf(sizeof(R0DataType) * r0_m.mDesc.GetElementSpaceSize());
-    DeviceMem r1_device_buf(sizeof(R1DataType) * r1_m.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_m_k.GetMemorySize());
+    DeviceMem b_device_buf(b_k_n.GetMemorySize());
+    DeviceMem e_device_buf(e_m_n.GetMemorySize());
+    DeviceMem r0_device_buf(r0_m.GetMemorySize());
+    DeviceMem r1_device_buf(r1_m.GetMemorySize());
 
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     if constexpr(std::is_same_v<ADataType, ck::int4_t>)
@@ -362,14 +357,14 @@ bool run_gemm_reduce_mean_meansquare_xdl(ck::index_t M,
         Tensor<ADataKernelType> a_m_k_converted = a_m_k.template CopyAsType<ADataKernelType>();
         Tensor<BDataKernelType> b_k_n_converted = b_k_n.template CopyAsType<BDataKernelType>();
 
-        a_device_buf.ToDevice(a_m_k_converted.mData.data());
-        b_device_buf.ToDevice(b_k_n_converted.mData.data());
+        a_device_buf.ToDevice(a_m_k_converted.data());
+        b_device_buf.ToDevice(b_k_n_converted.data());
     }
     else
 #endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     {
-        a_device_buf.ToDevice(a_m_k.mData.data());
-        b_device_buf.ToDevice(b_k_n.mData.data());
+        a_device_buf.ToDevice(a_m_k.data());
+        b_device_buf.ToDevice(b_k_n.data());
     }
 
     auto a_element_op   = AElementOp{};
@@ -418,9 +413,9 @@ bool run_gemm_reduce_mean_meansquare_xdl(ck::index_t M,
         auto I0 = ck::Number<0>{};
         auto I1 = ck::Number<1>{};
 
-        Tensor<ReduceAccDataType> e_m_n_host(e_m_n.mDesc);
-        Tensor<R0DataType> r0_m_host(r0_m.mDesc);
-        Tensor<R1DataType> r1_m_host(r1_m.mDesc);
+        Tensor<ReduceAccDataType> e_m_n_host(e_m_n.GetDesc());
+        Tensor<R0DataType> r0_m_host(r0_m.GetDesc());
+        Tensor<R1DataType> r1_m_host(r1_m.GetDesc());
 
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
@@ -453,15 +448,15 @@ bool run_gemm_reduce_mean_meansquare_xdl(ck::index_t M,
             r0_m_host(m) = ck::type_convert<R0DataType>(reduce0_acc);
             r1_m_host(m) = ck::type_convert<R1DataType>(reduce1_acc);
         }
-        e_device_buf.FromDevice(e_m_n.mData.data());
+        e_device_buf.FromDevice(e_m_n.data());
         Tensor<EDataType> e_m_n_host_converted(e_m_n_host);
 
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
         if constexpr(std::is_same_v<ADataType, ck::int4_t>)
         {
             Tensor<EDataType> e_m_n_device_converted(e_m_n);
-            pass = ck::utils::check_err(e_m_n_device_converted.mData,
-                                        e_m_n_host_converted.mData,
+            pass = ck::utils::check_err(e_m_n_device_converted,
+                                        e_m_n_host_converted,
                                         "Error: Incorrect results c",
                                         1e-2,
                                         1e-2);
@@ -470,16 +465,14 @@ bool run_gemm_reduce_mean_meansquare_xdl(ck::index_t M,
 #endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
         {
             pass = ck::utils::check_err(
-                e_m_n.mData, e_m_n_host_converted.mData, "Error: Incorrect results c", 1e-2, 1e-2);
+                e_m_n, e_m_n_host_converted, "Error: Incorrect results c", 1e-2, 1e-2);
         }
 
-        r0_device_buf.FromDevice(r0_m.mData.data());
-        r1_device_buf.FromDevice(r1_m.mData.data());
+        r0_device_buf.FromDevice(r0_m.data());
+        r1_device_buf.FromDevice(r1_m.data());
 
-        pass &= ck::utils::check_err(
-            r0_m.mData, r0_m_host.mData, "Error: Incorrect results d0", 1e-2, 1e-2);
-        pass &= ck::utils::check_err(
-            r1_m.mData, r1_m_host.mData, "Error: Incorrect results d1", 1e-2, 1e-2);
+        pass &= ck::utils::check_err(r0_m, r0_m_host, "Error: Incorrect results d0", 1e-2, 1e-2);
+        pass &= ck::utils::check_err(r1_m, r1_m_host, "Error: Incorrect results d1", 1e-2, 1e-2);
 
         if(pass)
         {

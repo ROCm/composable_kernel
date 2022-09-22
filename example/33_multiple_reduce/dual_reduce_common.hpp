@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include <iostream>
-#include <cstdlib>
-#include <vector>
-#include <array>
 #include <algorithm>
+#include <array>
+#include <cstdlib>
+#include <iostream>
+#include <vector>
+
 #include <getopt.h>
 
 #include "ck/ck.hpp"
-#include "ck/utility/reduction_enums.hpp"
 #include "ck/utility/data_type.hpp"
+#include "ck/utility/reduction_enums.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
+#include "ck/library/utility/array.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -210,8 +213,8 @@ int mean_meansquare_dual_reduce_test(size_t n,
     Tensor<OutDataType> meansquare_ref(outLengths);
     Tensor<OutDataType> meansquare(outLengths);
 
-    auto inStrides  = in.mDesc.GetStrides();
-    auto outStrides = mean.mDesc.GetStrides();
+    auto inStrides  = in.GetStrides();
+    auto outStrides = mean.GetStrides();
 
     size_t invariant_total_length = n;
     size_t reduce_total_length    = h * w * c;
@@ -233,11 +236,11 @@ int mean_meansquare_dual_reduce_test(size_t n,
     };
 
     // these buffers are usually provided by the user application
-    DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
-    DeviceMem mean_dev(sizeof(OutDataType) * mean.mDesc.GetElementSpaceSize());
-    DeviceMem meansquare_dev(sizeof(OutDataType) * meansquare.mDesc.GetElementSpaceSize());
+    DeviceMem in_dev(in.GetMemorySize());
+    DeviceMem mean_dev(mean.GetMemorySize());
+    DeviceMem meansquare_dev(meansquare.GetMemorySize());
 
-    in_dev.ToDevice(in.mData.data());
+    in_dev.ToDevice(in.data());
 
     if(do_verification)
     {
@@ -245,25 +248,19 @@ int mean_meansquare_dual_reduce_test(size_t n,
             in, mean_ref, meansquare_ref, n, h, w, c);
     };
 
-    constexpr ck::index_t NumInputDim  = Rank;
     constexpr ck::index_t NumOutputDim = (Rank - NumReduceDim > 1) ? Rank - NumReduceDim : 1;
 
-    std::array<ck::index_t, NumInputDim> i_inLengths;
-    std::array<ck::index_t, NumInputDim> i_inStrides;
-    std::array<ck::index_t, NumOutputDim> i_outLengths;
     std::array<ck::index_t, NumOutputDim> i_outStrides;
 
-    std::copy(inLengths.begin(), inLengths.end(), i_inLengths.begin());
-    std::copy(inStrides.begin(), inStrides.end(), i_inStrides.begin());
-    std::copy(outLengths.begin(), outLengths.end(), i_outLengths.begin());
-    std::copy(outStrides.begin(), outStrides.end(), i_outStrides.begin());
+    ck::ranges::copy(outStrides, i_outStrides.begin());
+
+    using ck::utils::to_array;
 
     auto dual_reduce_op = DeviceDualReduce{};
-
-    auto argument_ptr = dual_reduce_op.MakeArgumentPointer(
-        i_inLengths,
-        i_inStrides,
-        i_outLengths,
+    auto argument_ptr   = dual_reduce_op.MakeArgumentPointer(
+        to_array(inLengths),
+        to_array(inStrides),
+        to_array(outLengths),
         {i_outStrides, i_outStrides},
         reduceDims,
         {&alpha, &alpha},
@@ -303,10 +300,10 @@ int mean_meansquare_dual_reduce_test(size_t n,
 
     if(do_verification)
     {
-        mean_dev.FromDevice(mean.mData.data());
-        meansquare_dev.FromDevice(meansquare.mData.data());
-        pass = pass && ck::utils::check_err(mean.mData, mean_ref.mData);
-        pass = pass && ck::utils::check_err(meansquare.mData, meansquare_ref.mData);
+        mean_dev.FromDevice(mean.data());
+        meansquare_dev.FromDevice(meansquare.data());
+        pass = pass && ck::utils::check_err(mean, mean_ref);
+        pass = pass && ck::utils::check_err(meansquare, meansquare_ref);
     };
 
     return (pass ? 0 : 1);

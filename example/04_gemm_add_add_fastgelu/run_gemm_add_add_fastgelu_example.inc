@@ -35,11 +35,11 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
         >
         e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
 
-    std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
-    std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
-    std::cout << "d0_m_n: " << d0_m_n.mDesc << std::endl;
-    std::cout << "d1_m_n: " << d1_m_n.mDesc << std::endl;
-    std::cout << "e_m_n: " << e_m_n_host_result.mDesc << std::endl;
+    std::cout << "a_m_k: " << a_m_k.GetDesc() << std::endl;
+    std::cout << "b_k_n: " << b_k_n.GetDesc() << std::endl;
+    std::cout << "d0_m_n: " << d0_m_n.GetDesc() << std::endl;
+    std::cout << "d1_m_n: " << d1_m_n.GetDesc() << std::endl;
+    std::cout << "e_m_n: " << e_m_n_host_result.GetDesc() << std::endl;
 
     switch(config.init_method)
     {
@@ -57,11 +57,11 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
         d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem d0_device_buf(sizeof(D0DataType) * d0_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_m_k.GetMemorySize());
+    DeviceMem b_device_buf(b_k_n.GetMemorySize());
+    DeviceMem d0_device_buf(d0_m_n.GetMemorySize());
+    DeviceMem d1_device_buf(d1_m_n.GetMemorySize());
+    DeviceMem e_device_buf(e_m_n_device_result.GetMemorySize());
 
 #ifdef BUILD_INT4_EXAMPLE
     const Tensor<KernelADataType> a_m_k_converted(a_m_k);
@@ -69,15 +69,15 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
     const Tensor<KernelD0DataType> d0_m_n_converted(d0_m_n);
     const Tensor<KernelD1DataType> d1_m_n_converted(d1_m_n);
 
-    a_device_buf.ToDevice(a_m_k_converted.mData.data());
-    b_device_buf.ToDevice(b_k_n_converted.mData.data());
-    d0_device_buf.ToDevice(d0_m_n_converted.mData.data());
-    d1_device_buf.ToDevice(d1_m_n_converted.mData.data());
+    a_device_buf.ToDevice(a_m_k_converted.data());
+    b_device_buf.ToDevice(b_k_n_converted.data());
+    d0_device_buf.ToDevice(d0_m_n_converted.data());
+    d1_device_buf.ToDevice(d1_m_n_converted.data());
 #else
-    a_device_buf.ToDevice(a_m_k.mData.data());
-    b_device_buf.ToDevice(b_k_n.mData.data());
-    d0_device_buf.ToDevice(d0_m_n.mData.data());
-    d1_device_buf.ToDevice(d1_m_n.mData.data());
+    a_device_buf.ToDevice(a_m_k.data());
+    b_device_buf.ToDevice(b_k_n.data());
+    d0_device_buf.ToDevice(d0_m_n.data());
+    d1_device_buf.ToDevice(d1_m_n.data());
 #endif
 
     auto a_element_op   = AElementOp{};
@@ -142,14 +142,14 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
             }
         }
 
-        e_device_buf.FromDevice(e_m_n_device_result.mData.data());
+        e_device_buf.FromDevice(e_m_n_device_result.data());
 
 #ifdef BUILD_INT4_EXAMPLE
         const Tensor<EDataType> e_m_n_device_result_converted(e_m_n_device_result);
 
-        return ck::utils::check_err(e_m_n_device_result_converted.mData, e_m_n_host_result.mData);
+        return ck::utils::check_err(e_m_n_device_result_converted, e_m_n_host_result);
 #else
-        return ck::utils::check_err(e_m_n_device_result.mData, e_m_n_host_result.mData);
+        return ck::utils::check_err(e_m_n_device_result, e_m_n_host_result);
 #endif
     }
 

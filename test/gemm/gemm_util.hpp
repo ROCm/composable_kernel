@@ -5,11 +5,13 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+#include "ck/library/utility/literals.hpp"
 
 namespace ck {
 namespace gemm_util {
@@ -71,9 +73,9 @@ bool RunDeviceGEMM(DeviceGemmPtr_& gemmPtr,
                    BElementwiseOperation b_element_op,
                    CElementwiseOperation c_element_op)
 {
-    DeviceMem a_m_k_device_buf(sizeof(ADataType) * A.mDesc.GetElementSpaceSize());
-    DeviceMem b_k_n_device_buf(sizeof(BDataType) * B.mDesc.GetElementSpaceSize());
-    DeviceMem c_m_n_device_buf(sizeof(CDataType) * C.mDesc.GetElementSpaceSize());
+    DeviceMem a_m_k_device_buf(A.GetMemorySize());
+    DeviceMem b_k_n_device_buf(B.GetMemorySize());
+    DeviceMem c_m_n_device_buf(C.GetMemorySize());
 
     auto invoker_ptr = gemmPtr->MakeInvokerPointer();
     auto argument_ptr =
@@ -92,10 +94,10 @@ bool RunDeviceGEMM(DeviceGemmPtr_& gemmPtr,
 
     if(gemmPtr->IsSupportedArgument(argument_ptr.get()))
     {
-        a_m_k_device_buf.ToDevice(A.mData.data());
-        b_k_n_device_buf.ToDevice(B.mData.data());
+        a_m_k_device_buf.ToDevice(A.data());
+        b_k_n_device_buf.ToDevice(B.data());
         invoker_ptr->Run(argument_ptr.get());
-        c_m_n_device_buf.FromDevice(C.mData.data());
+        c_m_n_device_buf.FromDevice(C.data());
 
         return true;
     }
@@ -124,17 +126,17 @@ struct TestGemm
 {
     auto PrepareGemmTensor(const ck::gemm_util::GemmParams& params)
     {
+        using namespace ck::literals;
+
         auto f_host_tensor_descriptor =
             [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-                if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
+                if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
                 {
-                    return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                                std::vector<std::size_t>({stride, 1}));
+                    return HostTensorDescriptor({row, col}, {stride, 1_uz});
                 }
                 else
                 {
-                    return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                                std::vector<std::size_t>({1, stride}));
+                    return HostTensorDescriptor({row, col}, {1_uz, stride});
                 }
             };
 
@@ -204,29 +206,29 @@ struct TestGemm
         {
             // Assert
             bool res = false;
-            if(std::is_same<CDataType, float>::value)
+            if constexpr(std::is_same_v<CDataType, float>)
             {
-                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                res = ck::utils::check_err(c_device, c_host);
                 std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
             }
-            else if(std::is_same<CDataType, ck::half_t>::value)
+            else if constexpr(std::is_same_v<CDataType, ck::half_t>)
             {
-                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                res = ck::utils::check_err(c_device, c_host);
                 std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
             }
-            else if(std::is_same<CDataType, ck::bhalf_t>::value)
+            else if constexpr(std::is_same_v<CDataType, ck::bhalf_t>)
             {
-                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                res = ck::utils::check_err(c_device, c_host);
                 std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
             }
-            else if(std::is_same<CDataType, int8_t>::value)
+            else if constexpr(std::is_same_v<CDataType, int8_t>)
             {
-                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                res = ck::utils::check_err(c_device, c_host);
                 std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
             }
-            else if(std::is_same<CDataType, double>::value)
+            else if constexpr(std::is_same_v<CDataType, double>)
             {
-                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                res = ck::utils::check_err(c_device, c_host);
                 std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
             }
 

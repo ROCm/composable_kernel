@@ -3,13 +3,15 @@
 
 #pragma once
 
-#include <iostream>
-#include <vector>
-#include <array>
 #include <algorithm>
+#include <array>
+#include <iostream>
 #include <thread>
+#include <vector>
 
+#include "ck/library/utility/host_tensor.hpp"
 #include "ck/tensor_operation/gpu/device/device_batchnorm_forward.hpp"
+#include "ck/utility/data_type.hpp"
 
 namespace ck {
 namespace tensor_operation {

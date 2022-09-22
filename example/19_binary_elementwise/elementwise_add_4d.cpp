@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include <iostream>
 #include <cstdlib>
+#include <iostream>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
+#include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
+#include "ck/library/utility/array.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -66,30 +68,30 @@ int main()
     a.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
     b.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
 
-    DeviceMem a_device_buf(sizeof(ABDataType) * a.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(ABDataType) * b.mDesc.GetElementSpaceSize());
-    DeviceMem c_device_buf(sizeof(CDataType) * c.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a.GetMemorySize());
+    DeviceMem b_device_buf(b.GetMemorySize());
+    DeviceMem c_device_buf(c.GetMemorySize());
 
-    a_device_buf.ToDevice(a.mData.data());
-    b_device_buf.ToDevice(b.mData.data());
+    a_device_buf.ToDevice(a.data());
+    b_device_buf.ToDevice(b.data());
 
     std::array<const void*, 2> input = {a_device_buf.GetDeviceBuffer(),
                                         b_device_buf.GetDeviceBuffer()};
     std::array<void*, 1> output      = {c_device_buf.GetDeviceBuffer()};
 
-    std::array<ck::index_t, 4> abc_lengths;
     std::array<ck::index_t, 4> a_strides;
     std::array<ck::index_t, 4> b_strides;
     std::array<ck::index_t, 4> c_strides;
 
-    std::copy(nchw.begin(), nchw.end(), abc_lengths.begin());
-    std::copy(a.mDesc.GetStrides().begin(), a.mDesc.GetStrides().end(), a_strides.begin());
-    std::copy(b.mDesc.GetStrides().begin(), b.mDesc.GetStrides().end(), b_strides.begin());
-    std::copy(c.mDesc.GetStrides().begin(), c.mDesc.GetStrides().end(), c_strides.begin());
+    using ck::ranges::copy;
+
+    copy(a.GetStrides(), a_strides.begin());
+    copy(b.GetStrides(), b_strides.begin());
+    copy(c.GetStrides(), c_strides.begin());
 
     auto broadcastAdd = DeviceElementwiseAddInstance{};
     auto argument     = broadcastAdd.MakeArgumentPointer(
-        abc_lengths, {a_strides, b_strides}, {c_strides}, input, output, Add{});
+        ck::utils::to_array(nchw), {a_strides, b_strides}, {c_strides}, input, output, Add{});
 
     if(!broadcastAdd.IsSupportedArgument(argument.get()))
     {
@@ -106,14 +108,13 @@ int main()
     bool pass = true;
     if(do_verification)
     {
-        c_device_buf.FromDevice(c.mData.data());
+        c_device_buf.FromDevice(c.data());
         Tensor<CDataType> host_c(nchw);
 
         host_elementwise4D<Tensor<ABDataType>, Tensor<ABDataType>, Tensor<CDataType>, Add>(
             host_c, a, b, nchw, Add{});
 
-        pass &=
-            ck::utils::check_err(c.mData, host_c.mData, "Error: Incorrect results c", 1e-3, 1e-3);
+        pass &= ck::utils::check_err(c, host_c, "Error: Incorrect results c", 1e-3, 1e-3);
     }
 
     return pass ? 0 : 1;

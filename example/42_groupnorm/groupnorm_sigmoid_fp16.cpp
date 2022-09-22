@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
+#include <cstdlib>
+#include <initializer_list>
 #include <iostream>
 #include <numeric>
-#include <initializer_list>
-#include <cstdlib>
+
 #include <getopt.h>
 
 #include "ck/ck.hpp"
@@ -12,13 +13,14 @@
 #include "ck/tensor_operation/gpu/device/device_layernorm_impl.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 
-#include "ck/library/utility/fill.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_groupnorm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/fill.hpp"
 #include "ck/library/utility/host_common_util.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_groupnorm.hpp"
+#include "ck/library/utility/ranges.hpp"
 
 constexpr int Rank         = 5;
 constexpr int NumReduceDim = 3;
@@ -100,35 +102,37 @@ int main(int argc, char* argv[])
     Tensor<GammaDataType> gamma({G, C});
     Tensor<BetaDataType> beta({G, C});
 
-    ck::utils::FillUniformDistribution<XDataType>{0.f, 1.f}(x.begin(), x.end());
-    ck::utils::FillUniformDistribution<GammaDataType>{0.f, 1.f}(gamma.begin(), gamma.end());
-    ck::utils::FillUniformDistribution<BetaDataType>{0.f, 1.f}(beta.begin(), beta.end());
+    ck::utils::FillUniformDistribution<XDataType>{0.f, 1.f}(x);
+    ck::utils::FillUniformDistribution<GammaDataType>{0.f, 1.f}(gamma);
+    ck::utils::FillUniformDistribution<BetaDataType>{0.f, 1.f}(beta);
 
-    DeviceMem x_dev(sizeof(XDataType) * x.mDesc.GetElementSpaceSize());
-    DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpaceSize());
-    DeviceMem beta_dev(sizeof(BetaDataType) * beta.mDesc.GetElementSpaceSize());
-    DeviceMem y_dev(sizeof(YDataType) * y.mDesc.GetElementSpaceSize());
+    DeviceMem x_dev(x.GetMemorySize());
+    DeviceMem gamma_dev(gamma.GetMemorySize());
+    DeviceMem beta_dev(beta.GetMemorySize());
+    DeviceMem y_dev(y.GetMemorySize());
 
-    x_dev.ToDevice(x.mData.data());
-    gamma_dev.ToDevice(gamma.mData.data());
-    beta_dev.ToDevice(beta.mData.data());
+    x_dev.ToDevice(x.data());
+    gamma_dev.ToDevice(gamma.data());
+    beta_dev.ToDevice(beta.data());
 
     const auto y_element_op = YElementOp{};
 
+    using Indices = std::vector<ck::index_t>;
+
     auto device_instance = DeviceInstance{};
-    auto argument_ptr    = device_instance.MakeArgumentPointer(
-        {N, H, W, G, C},
-        std::vector<ck::index_t>{x.mDesc.GetStrides().begin(), x.mDesc.GetStrides().end()},
-        {0, 0, 0, C, 1},
-        {0, 0, 0, C, 1},
-        std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
-        {1, 2, 4}, // reduction dimension: [H, W, C]
-        1e-6,
-        x_dev.GetDeviceBuffer(),
-        gamma_dev.GetDeviceBuffer(),
-        beta_dev.GetDeviceBuffer(),
-        y_dev.GetDeviceBuffer(),
-        y_element_op);
+    auto argument_ptr =
+        device_instance.MakeArgumentPointer({N, H, W, G, C},
+                                            ck::ranges::to<Indices>(x.GetStrides()),
+                                            {0, 0, 0, C, 1},
+                                            {0, 0, 0, C, 1},
+                                            ck::ranges::to<Indices>(y.GetStrides()),
+                                            {1, 2, 4}, // reduction dimension: [H, W, C]
+                                            1e-6,
+                                            x_dev.GetDeviceBuffer(),
+                                            gamma_dev.GetDeviceBuffer(),
+                                            beta_dev.GetDeviceBuffer(),
+                                            y_dev.GetDeviceBuffer(),
+                                            y_element_op);
 
     if(!device_instance.IsSupportedArgument(argument_ptr.get()))
     {
@@ -164,8 +168,8 @@ int main(int argc, char* argv[])
         auto ref_invoker = ref.MakeInvoker();
         ref_invoker.Run(ref_argument);
 
-        y_dev.FromDevice(y.mData.data());
-        pass &= ck::utils::check_err(y.mData, host_y.mData, "Error: Incorrect results", 1e-3, 1e-3);
+        y_dev.FromDevice(y.data());
+        pass &= ck::utils::check_err(y, host_y, "Error: Incorrect results", 1e-3, 1e-3);
     }
 
     return (pass ? 0 : 1);

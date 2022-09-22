@@ -14,6 +14,10 @@
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/span.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
+#include "ck/library/utility/literals.hpp"
+#include "ck/library/utility/ranges.hpp"
+
 template <typename Range>
 std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
 {
@@ -84,10 +88,10 @@ struct HostTensorDescriptor
         this->CalculateStrides();
     }
 
-    template <typename Range,
+    template <typename Lengths,
               typename = std::enable_if_t<
-                  std::is_convertible_v<decltype(*std::begin(std::declval<Range>())), std::size_t>>>
-    HostTensorDescriptor(const Range& lens) : mLens(lens.begin(), lens.end())
+                  std::is_convertible_v<ck::ranges::range_value_t<Lengths>, std::size_t>>>
+    HostTensorDescriptor(const Lengths& lens) : mLens(lens.begin(), lens.end())
     {
         this->CalculateStrides();
     }
@@ -102,13 +106,12 @@ struct HostTensorDescriptor
     {
     }
 
-    template <
-        typename Range1,
-        typename Range2,
-        typename = std::enable_if_t<
-            std::is_convertible_v<decltype(*std::begin(std::declval<Range1>())), std::size_t> &&
-            std::is_convertible_v<decltype(*std::begin(std::declval<Range2>())), std::size_t>>>
-    HostTensorDescriptor(const Range1& lens, const Range2& strides)
+    template <typename Lengths,
+              typename Strides,
+              typename = std::enable_if_t<
+                  std::is_convertible_v<ck::ranges::range_value_t<Lengths>, std::size_t> &&
+                  std::is_convertible_v<ck::ranges::range_value_t<Strides>, std::size_t>>>
+    HostTensorDescriptor(const Lengths& lens, const Strides& strides)
         : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
     {
     }
@@ -117,8 +120,8 @@ struct HostTensorDescriptor
     std::size_t GetElementSize() const;
     std::size_t GetElementSpaceSize() const;
 
-    const std::vector<std::size_t>& GetLengths() const;
-    const std::vector<std::size_t>& GetStrides() const;
+    ck::span<const std::size_t> GetLengths() const;
+    ck::span<const std::size_t> GetStrides() const;
 
     template <typename... Is>
     std::size_t GetOffsetFromMultiIndex(Is... is) const
@@ -234,37 +237,41 @@ auto make_ParallelTensorFunctor(F f, Xs... xs)
 }
 
 template <typename T>
-struct Tensor
+struct Tensor : private HostTensorDescriptor, private std::vector<T>
 {
     using Descriptor = HostTensorDescriptor;
     using Data       = std::vector<T>;
 
     template <typename X>
-    Tensor(std::initializer_list<X> lens) : mDesc(lens), mData(mDesc.GetElementSpaceSize())
-    {
-    }
-
-    template <typename X>
-    Tensor(std::vector<X> lens) : mDesc(lens), mData(mDesc.GetElementSpaceSize())
+    Tensor(std::initializer_list<X> lens) : Descriptor(lens), Data(GetElementSpaceSize())
     {
     }
 
     template <typename X, typename Y>
-    Tensor(std::vector<X> lens, std::vector<Y> strides)
-        : mDesc(lens, strides), mData(mDesc.GetElementSpaceSize())
+    Tensor(std::initializer_list<X> lens, std::initializer_list<Y> strides)
+        : Descriptor(lens, strides), Data(GetElementSpaceSize())
     {
     }
 
-    Tensor(const Descriptor& desc) : mDesc(desc), mData(mDesc.GetElementSpaceSize()) {}
+    template <typename Lengths>
+    Tensor(const Lengths& lens) : Descriptor(lens), Data(GetElementSpaceSize())
+    {
+    }
+
+    template <typename Lengths, typename Strides>
+    Tensor(const Lengths& lens, const Strides& strides)
+        : Descriptor(lens, strides), Data(GetElementSpaceSize())
+    {
+    }
+
+    Tensor(const Descriptor& desc) : Descriptor(desc), Data(GetElementSpaceSize()) {}
 
     template <typename OutT>
     Tensor<OutT> CopyAsType() const
     {
-        Tensor<OutT> ret(mDesc);
-        for(size_t i = 0; i < mData.size(); i++)
-        {
-            ret.mData[i] = ck::type_convert<OutT>(mData[i]);
-        }
+        Tensor<OutT> ret(GetDesc());
+        ck::ranges::transform(
+            *this, ret.begin(), [](auto value) { return ck::type_convert<OutT>(value); });
         return ret;
     }
 
@@ -282,36 +289,28 @@ struct Tensor
     {
     }
 
-    decltype(auto) GetLengths() const { return mDesc.GetLengths(); }
+    const Descriptor& GetDesc() const noexcept { return *this; }
 
-    decltype(auto) GetStrides() const { return mDesc.GetStrides(); }
+    using Descriptor::GetElementSize;
+    using Descriptor::GetElementSpaceSize;
+    using Descriptor::GetLengths;
+    using Descriptor::GetNumOfDimension;
+    using Descriptor::GetStrides;
 
-    std::size_t GetNumOfDimension() const { return mDesc.GetNumOfDimension(); }
+    std::size_t GetMemorySize() const { return sizeof(T) * GetElementSpaceSize(); }
 
-    std::size_t GetElementSize() const { return mDesc.GetElementSize(); }
-
-    std::size_t GetElementSpaceSize() const { return mDesc.GetElementSpaceSize(); }
-
-    std::size_t GetElementSpaceSizeInBytes() const { return sizeof(T) * GetElementSpaceSize(); }
-
-    void SetZero()
-    {
-        for(auto& v : mData)
-        {
-            v = T{0};
-        }
-    }
+    void SetZero() { ck::ranges::fill<T>(*this, 0); }
 
     template <typename F>
     void ForEach_impl(F&& f, std::vector<size_t>& idx, size_t rank)
     {
-        if(rank == mDesc.GetNumOfDimension())
+        if(rank == GetNumOfDimension())
         {
             f(*this, idx);
             return;
         }
         // else
-        for(size_t i = 0; i < mDesc.GetLengths()[rank]; i++)
+        for(size_t i = 0; i < GetLengths()[rank]; i++)
         {
             idx[rank] = i;
             ForEach_impl(std::forward<F>(f), idx, rank + 1);
@@ -321,20 +320,20 @@ struct Tensor
     template <typename F>
     void ForEach(F&& f)
     {
-        std::vector<size_t> idx(mDesc.GetNumOfDimension(), 0);
+        std::vector<size_t> idx(GetNumOfDimension(), 0);
         ForEach_impl(std::forward<F>(f), idx, size_t(0));
     }
 
     template <typename F>
     void ForEach_impl(const F&& f, std::vector<size_t>& idx, size_t rank) const
     {
-        if(rank == mDesc.GetNumOfDimension())
+        if(rank == GetNumOfDimension())
         {
             f(*this, idx);
             return;
         }
         // else
-        for(size_t i = 0; i < mDesc.GetLengths()[rank]; i++)
+        for(size_t i = 0; i < GetLengths()[rank]; i++)
         {
             idx[rank] = i;
             ForEach_impl(std::forward<const F>(f), idx, rank + 1);
@@ -344,40 +343,37 @@ struct Tensor
     template <typename F>
     void ForEach(const F&& f) const
     {
-        std::vector<size_t> idx(mDesc.GetNumOfDimension(), 0);
+        std::vector<size_t> idx(GetNumOfDimension(), 0);
         ForEach_impl(std::forward<const F>(f), idx, size_t(0));
     }
 
     template <typename G>
     void GenerateTensorValue(G g, std::size_t num_thread = 1)
     {
-        switch(mDesc.GetNumOfDimension())
+        switch(GetNumOfDimension())
         {
         case 1: {
             auto f = [&](auto i) { (*this)(i) = g(i); };
-            make_ParallelTensorFunctor(f, mDesc.GetLengths()[0])(num_thread);
+            make_ParallelTensorFunctor(f, GetLengths()[0])(num_thread);
             break;
         }
         case 2: {
             auto f = [&](auto i0, auto i1) { (*this)(i0, i1) = g(i0, i1); };
-            make_ParallelTensorFunctor(f, mDesc.GetLengths()[0], mDesc.GetLengths()[1])(num_thread);
+            make_ParallelTensorFunctor(f, GetLengths()[0], GetLengths()[1])(num_thread);
             break;
         }
         case 3: {
             auto f = [&](auto i0, auto i1, auto i2) { (*this)(i0, i1, i2) = g(i0, i1, i2); };
-            make_ParallelTensorFunctor(
-                f, mDesc.GetLengths()[0], mDesc.GetLengths()[1], mDesc.GetLengths()[2])(num_thread);
+            make_ParallelTensorFunctor(f, GetLengths()[0], GetLengths()[1], GetLengths()[2])(
+                num_thread);
             break;
         }
         case 4: {
             auto f = [&](auto i0, auto i1, auto i2, auto i3) {
                 (*this)(i0, i1, i2, i3) = g(i0, i1, i2, i3);
             };
-            make_ParallelTensorFunctor(f,
-                                       mDesc.GetLengths()[0],
-                                       mDesc.GetLengths()[1],
-                                       mDesc.GetLengths()[2],
-                                       mDesc.GetLengths()[3])(num_thread);
+            make_ParallelTensorFunctor(
+                f, GetLengths()[0], GetLengths()[1], GetLengths()[2], GetLengths()[3])(num_thread);
             break;
         }
         case 5: {
@@ -385,11 +381,11 @@ struct Tensor
                 (*this)(i0, i1, i2, i3, i4) = g(i0, i1, i2, i3, i4);
             };
             make_ParallelTensorFunctor(f,
-                                       mDesc.GetLengths()[0],
-                                       mDesc.GetLengths()[1],
-                                       mDesc.GetLengths()[2],
-                                       mDesc.GetLengths()[3],
-                                       mDesc.GetLengths()[4])(num_thread);
+                                       GetLengths()[0],
+                                       GetLengths()[1],
+                                       GetLengths()[2],
+                                       GetLengths()[3],
+                                       GetLengths()[4])(num_thread);
             break;
         }
         case 6: {
@@ -397,12 +393,12 @@ struct Tensor
                 (*this)(i0, i1, i2, i3, i4) = g(i0, i1, i2, i3, i4, i5);
             };
             make_ParallelTensorFunctor(f,
-                                       mDesc.GetLengths()[0],
-                                       mDesc.GetLengths()[1],
-                                       mDesc.GetLengths()[2],
-                                       mDesc.GetLengths()[3],
-                                       mDesc.GetLengths()[4],
-                                       mDesc.GetLengths()[5])(num_thread);
+                                       GetLengths()[0],
+                                       GetLengths()[1],
+                                       GetLengths()[2],
+                                       GetLengths()[3],
+                                       GetLengths()[4],
+                                       GetLengths()[5])(num_thread);
             break;
         }
         default: throw std::runtime_error("unspported dimension");
@@ -412,59 +408,58 @@ struct Tensor
     template <typename... Is>
     T& operator()(Is... is)
     {
-        return mData[mDesc.GetOffsetFromMultiIndex(is...)];
+        return (*this)[GetOffsetFromMultiIndex(is...)];
     }
 
     template <typename... Is>
     const T& operator()(Is... is) const
     {
-        return mData[mDesc.GetOffsetFromMultiIndex(is...)];
+        return (*this)[GetOffsetFromMultiIndex(is...)];
     }
 
-    T& operator()(std::vector<std::size_t> idx)
-    {
-        return mData[mDesc.GetOffsetFromMultiIndex(idx)];
-    }
+    T& operator()(std::vector<std::size_t> idx) { return (*this)[GetOffsetFromMultiIndex(idx)]; }
 
     const T& operator()(std::vector<std::size_t> idx) const
     {
-        return mData[mDesc.GetOffsetFromMultiIndex(idx)];
+        return (*this)[GetOffsetFromMultiIndex(idx)];
     }
 
-    typename Data::iterator begin() { return mData.begin(); }
-
-    typename Data::iterator end() { return mData.end(); }
-
-    typename Data::pointer data() { return mData.data(); }
-
-    typename Data::const_iterator begin() const { return mData.begin(); }
-
-    typename Data::const_iterator end() const { return mData.end(); }
-
-    typename Data::const_pointer data() const { return mData.data(); }
-
-    typename Data::size_type size() const { return mData.size(); }
+    using Data::begin;
+    using Data::data;
+    using Data::end;
+    using Data::size;
 
     template <typename U = T>
     auto AsSpan() const
     {
-        constexpr std::size_t FromSize = sizeof(T);
-        constexpr std::size_t ToSize   = sizeof(U);
+        using namespace ck::literals;
+
+        constexpr std::size_t ToSize = sizeof(U);
 
         using Element = std::add_const_t<std::remove_reference_t<U>>;
-        return ck::span<Element>{reinterpret_cast<Element*>(data()), size() * FromSize / ToSize};
+
+        if(GetMemorySize() % ToSize != 0)
+        {
+            return ck::span<Element>(nullptr, 0_uz);
+        }
+
+        return ck::span<Element>{reinterpret_cast<Element*>(data()), GetMemorySize() / ToSize};
     }
 
     template <typename U = T>
     auto AsSpan()
     {
-        constexpr std::size_t FromSize = sizeof(T);
-        constexpr std::size_t ToSize   = sizeof(U);
+        using namespace ck::literals;
+
+        constexpr std::size_t ToSize = sizeof(U);
 
         using Element = std::remove_reference_t<U>;
-        return ck::span<Element>{reinterpret_cast<Element*>(data()), size() * FromSize / ToSize};
-    }
 
-    Descriptor mDesc;
-    Data mData;
+        if(GetMemorySize() % ToSize != 0)
+        {
+            return ck::span<Element>(nullptr, 0_uz);
+        }
+
+        return ck::span<Element>{reinterpret_cast<Element*>(data()), GetMemorySize() / ToSize};
+    }
 };

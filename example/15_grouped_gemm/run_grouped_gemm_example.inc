@@ -50,17 +50,17 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         gemm_descs.push_back({M, N, K, stride_A, stride_B, stride_C, {}});
     }
 
+    using namespace ck::literals;
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
+            if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
+                return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
             else
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
+                return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
 
@@ -90,27 +90,27 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
     for(std::size_t i = 0; i < gemm_descs.size(); i++)
     {
-        a_tensors.push_back(Tensor<ADataType>(f_host_tensor_descriptor(
-            gemm_descs[i].M_, gemm_descs[i].K_, gemm_descs[i].stride_A_, ALayout{})));
-        b_tensors.push_back(Tensor<BDataType>(f_host_tensor_descriptor(
-            gemm_descs[i].K_, gemm_descs[i].N_, gemm_descs[i].stride_B_, BLayout{})));
-        c_host_tensors.push_back(Tensor<EDataType>(f_host_tensor_descriptor(
-            gemm_descs[i].M_, gemm_descs[i].N_, gemm_descs[i].stride_C_, ELayout{})));
+        a_tensors.emplace_back(f_host_tensor_descriptor(
+            gemm_descs[i].M_, gemm_descs[i].K_, gemm_descs[i].stride_A_, ALayout{}));
+        b_tensors.emplace_back(f_host_tensor_descriptor(
+            gemm_descs[i].K_, gemm_descs[i].N_, gemm_descs[i].stride_B_, BLayout{}));
+        c_host_tensors.emplace_back(f_host_tensor_descriptor(
+            gemm_descs[i].M_, gemm_descs[i].N_, gemm_descs[i].stride_C_, ELayout{}));
 #ifdef BUILD_INT4_EXAMPLE
-        c_device_tensors.push_back(Tensor<KernelEDataType>(f_host_tensor_descriptor(
-            gemm_descs[i].M_, gemm_descs[i].N_, gemm_descs[i].stride_C_, ELayout{})));
+        c_device_tensors.emplace_back(f_host_tensor_descriptor(
+            gemm_descs[i].M_, gemm_descs[i].N_, gemm_descs[i].stride_C_, ELayout{}));
 #else
-        c_device_tensors.push_back(Tensor<EDataType>(f_host_tensor_descriptor(
-            gemm_descs[i].M_, gemm_descs[i].N_, gemm_descs[i].stride_C_, ELayout{})));
+        c_device_tensors.emplace_back(f_host_tensor_descriptor(
+            gemm_descs[i].M_, gemm_descs[i].N_, gemm_descs[i].stride_C_, ELayout{}));
 #endif
-        std::cout << "gemm[" << i << "] a_m_k: " << a_tensors[i].mDesc
-                  << " b_k_n: " << b_tensors[i].mDesc << " c_m_n: " << c_device_tensors[i].mDesc
-                  << std::endl;
+        std::cout << "gemm[" << i << "] a_m_k: " << a_tensors[i].GetDesc()
+                  << " b_k_n: " << b_tensors[i].GetDesc()
+                  << " c_m_n: " << c_device_tensors[i].GetDesc() << std::endl;
 
         flop += std::size_t(2) * gemm_descs[i].M_ * gemm_descs[i].K_ * gemm_descs[i].N_;
-        num_btype += sizeof(ADataType) * a_tensors[i].mDesc.GetElementSize() +
-                     sizeof(BDataType) * b_tensors[i].mDesc.GetElementSize() +
-                     sizeof(EDataType) * c_device_tensors[i].mDesc.GetElementSize();
+        num_btype += sizeof(ADataType) * a_tensors[i].GetElementSize() +
+                     sizeof(BDataType) * b_tensors[i].GetElementSize() +
+                     sizeof(EDataType) * c_device_tensors[i].GetElementSize();
 
         switch(config.init_method)
         {
@@ -131,22 +131,20 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
     for(std::size_t i = 0; i < gemm_descs.size(); i++)
     {
-        a_tensors_device.emplace_back(std::make_unique<DeviceMem>(
-            sizeof(ADataType) * a_tensors[i].mDesc.GetElementSpaceSize()));
-        b_tensors_device.emplace_back(std::make_unique<DeviceMem>(
-            sizeof(BDataType) * b_tensors[i].mDesc.GetElementSpaceSize()));
-        c_tensors_device.emplace_back(std::make_unique<DeviceMem>(
-            sizeof(EDataType) * c_device_tensors[i].mDesc.GetElementSpaceSize()));
+        a_tensors_device.emplace_back(std::make_unique<DeviceMem>(a_tensors[i].GetMemorySize()));
+        b_tensors_device.emplace_back(std::make_unique<DeviceMem>(b_tensors[i].GetMemorySize()));
+        c_tensors_device.emplace_back(
+            std::make_unique<DeviceMem>(c_device_tensors[i].GetMemorySize()));
 
 #ifdef BUILD_INT4_EXAMPLE
         const Tensor<KernelADataType> a_converted(a_tensors[i]);
         const Tensor<KernelBDataType> b_converted(b_tensors[i]);
 
-        a_tensors_device[i]->ToDevice(a_converted.mData.data());
-        b_tensors_device[i]->ToDevice(b_converted.mData.data());
+        a_tensors_device[i]->ToDevice(a_converted.data());
+        b_tensors_device[i]->ToDevice(b_converted.data());
 #else
-        a_tensors_device[i]->ToDevice(a_tensors[i].mData.data());
-        b_tensors_device[i]->ToDevice(b_tensors[i].mData.data());
+        a_tensors_device[i]->ToDevice(a_tensors[i].data());
+        b_tensors_device[i]->ToDevice(b_tensors[i].data());
 #endif
 
         p_a.push_back(a_tensors_device[i]->GetDeviceBuffer());
@@ -193,7 +191,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
         for(std::size_t i = 0; i < gemm_descs.size(); i++)
         {
-            c_tensors_device[i]->FromDevice(c_device_tensors[i].mData.data());
+            c_tensors_device[i]->FromDevice(c_device_tensors[i].data());
             auto ref_gemm    = ReferenceGemmInstance{};
             auto ref_invoker = ref_gemm.MakeInvoker();
 
@@ -208,10 +206,10 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
 #ifdef BUILD_INT4_EXAMPLE
             const Tensor<EDataType> c_device_result_converted(c_device_tensors[i]);
-            pass &= ck::utils::check_err(c_device_result_converted.mData, c_host_tensors[i].mData);
+            pass &= ck::utils::check_err(c_device_result_converted, c_host_tensors[i]);
 
 #else
-            pass &= ck::utils::check_err(c_device_tensors[i].mData, c_host_tensors[i].mData);
+            pass &= ck::utils::check_err(c_device_tensors[i], c_host_tensors[i]);
 #endif
         }
     }

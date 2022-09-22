@@ -1,16 +1,17 @@
 #pragma once
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_conv_backward_weight.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/conv_util.hpp"
 #include "ck/library/host_tensor/device_memory.hpp"
 #include "ck/library/host_tensor/host_tensor.hpp"
 #include "ck/library/host_tensor/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_backward_weight.hpp"
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/conv_util.hpp"
+#include "ck/library/utility/ranges.hpp"
 
 using F16  = ck::half_t;
 using F32  = float;
@@ -205,16 +206,16 @@ template <typename DataType>
 void show_data_nhwc_layout(Tensor<DataType>& nhwc)
 {
     std::cout << "[";
-    for(int n = 0; n < ck::type_convert<int>(nhwc.mDesc.GetLengths()[0]); n++)
+    for(int n = 0; n < ck::type_convert<int>(nhwc.GetLengths()[0]); n++)
     {
         std::cout << "[";
-        for(int hi = 0; hi < ck::type_convert<int>(nhwc.mDesc.GetLengths()[2]); hi++)
+        for(int hi = 0; hi < ck::type_convert<int>(nhwc.GetLengths()[2]); hi++)
         {
             std::cout << "[";
-            for(int wi = 0; wi < ck::type_convert<int>(nhwc.mDesc.GetLengths()[3]); wi++)
+            for(int wi = 0; wi < ck::type_convert<int>(nhwc.GetLengths()[3]); wi++)
             {
                 std::cout << "[";
-                for(int c = 0; c < ck::type_convert<int>(nhwc.mDesc.GetLengths()[1]); c++)
+                for(int c = 0; c < ck::type_convert<int>(nhwc.GetLengths()[1]); c++)
                 {
                     std::cout << static_cast<float>(nhwc(n, c, hi, wi)) << "  ";
                 }
@@ -258,16 +259,16 @@ bool profile_convnd_bwd_weight_impl(int do_verification,
     const auto wei_element_op = WeiElementOp{};
     const auto out_element_op = OutElementOp{};
 
-    std::vector<std::size_t> input_dims{static_cast<std::size_t>(N), static_cast<std::size_t>(C)};
+    auto input_dims = ck::ranges::to<std::vector<std::size_t>>({N, C});
     input_dims.insert(
         std::end(input_dims), std::begin(input_spatial_lengths), std::end(input_spatial_lengths));
 
-    std::vector<std::size_t> filter_dims{static_cast<std::size_t>(K), static_cast<std::size_t>(C)};
+    auto filter_dims = ck::ranges::to<std::vector<std::size_t>>({K, C});
     filter_dims.insert(std::end(filter_dims),
                        std::begin(filter_spatial_lengths),
                        std::end(filter_spatial_lengths));
 
-    std::vector<std::size_t> output_dims{static_cast<std::size_t>(N), static_cast<std::size_t>(K)};
+    auto output_dims = ck::ranges::to<std::vector<std::size_t>>({N, K});
     output_dims.insert(std::end(output_dims),
                        std::begin(output_spatial_lengths),
                        std::end(output_spatial_lengths));
@@ -280,9 +281,9 @@ bool profile_convnd_bwd_weight_impl(int do_verification,
     Tensor<OutDataType> output(
         get_output_host_ensor_descriptor<OutLayout>(output_dims, NDimSpatial));
 
-    std::cout << "input: " << input.mDesc << std::endl;
-    std::cout << "weights: " << weights_host_result.mDesc << std::endl;
-    std::cout << "output: " << output.mDesc << std::endl;
+    std::cout << "input: " << input.GetDesc() << std::endl;
+    std::cout << "weights: " << weights_host_result.GetDesc() << std::endl;
+    std::cout << "output: " << output.GetDesc() << std::endl;
 
     switch(init_method)
     {
@@ -296,12 +297,12 @@ bool profile_convnd_bwd_weight_impl(int do_verification,
         output.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
     }
 
-    DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpace());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * weights_device_result.mDesc.GetElementSpace());
-    DeviceMem out_device_buf(sizeof(OutDataType) * output.mDesc.GetElementSpace());
+    DeviceMem in_device_buf(input.GetMemorySize());
+    DeviceMem wei_device_buf(weights_device_result.GetMemorySize());
+    DeviceMem out_device_buf(output.GetMemorySize());
 
-    in_device_buf.ToDevice(input.mData.data());
-    out_device_buf.ToDevice(output.mData.data());
+    in_device_buf.ToDevice(input.data());
+    out_device_buf.ToDevice(output.data());
 
     // reset input to zero
     wei_device_buf.SetZero();
@@ -359,24 +360,23 @@ bool profile_convnd_bwd_weight_impl(int do_verification,
         //    wei_device_buf.SetZero();
         //}
 
-        auto argument_ptr = conv_ptr->MakeArgumentPointer(
-            static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-            static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
-            static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-            N,
-            K,
-            C,
-            input_spatial_lengths,
-            filter_spatial_lengths,
-            output_spatial_lengths,
-            conv_filter_strides,
-            conv_filter_dilations,
-            input_left_pads,
-            input_right_pads,
-            in_element_op,
-            wei_element_op,
-            out_element_op,
-            split_k);
+        auto argument_ptr = conv_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
+                                                          wei_device_buf.GetDeviceBuffer(),
+                                                          out_device_buf.GetDeviceBuffer(),
+                                                          N,
+                                                          K,
+                                                          C,
+                                                          input_spatial_lengths,
+                                                          filter_spatial_lengths,
+                                                          output_spatial_lengths,
+                                                          conv_filter_strides,
+                                                          conv_filter_dilations,
+                                                          input_left_pads,
+                                                          input_right_pads,
+                                                          in_element_op,
+                                                          wei_element_op,
+                                                          out_element_op,
+                                                          split_k);
 
         if(!conv_ptr->IsSupportedArgument(argument_ptr.get()))
         {
@@ -390,7 +390,7 @@ bool profile_convnd_bwd_weight_impl(int do_verification,
         std::string conv_name = conv_ptr->GetTypeString();
         float ave_time        = 0;
 
-        if(std::is_same<InDataType, ck::bhalf_t>::value && split_k > 1)
+        if constexpr(std::is_same_v<InDataType, ck::bhalf_t> && split_k > 1)
         {
             // alloc work space
             size_t bwd_weight_workspace_size = conv_ptr->GetWorkSpaceSize(argument_ptr.get());
@@ -431,9 +431,9 @@ bool profile_convnd_bwd_weight_impl(int do_verification,
 
         if(do_verification)
         {
-            wei_device_buf.FromDevice(weights_device_result.mData.data());
+            wei_device_buf.FromDevice(weights_device_result.data());
 
-            success = ck::utils::check_err(weights_host_result.mData, weights_device_result.mData);
+            success = ck::utils::check_err(weights_host_result, weights_device_result);
 
             if(success == false)
             {

@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include <iostream>
 #include <cstdlib>
+#include <iostream>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
+#include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
+#include "ck/library/utility/array.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -66,31 +68,27 @@ int main()
     a_m.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
     b_m_n_k.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
 
-    DeviceMem a_m_device_buf(sizeof(ABDataType) * a_m.mDesc.GetElementSpaceSize());
-    DeviceMem b_m_n_k_device_buf(sizeof(ABDataType) * b_m_n_k.mDesc.GetElementSpaceSize());
-    DeviceMem c_m_n_k_device_buf(sizeof(CDataType) * c_m_n_k.mDesc.GetElementSpaceSize());
+    DeviceMem a_m_device_buf(a_m.GetMemorySize());
+    DeviceMem b_m_n_k_device_buf(b_m_n_k.GetMemorySize());
+    DeviceMem c_m_n_k_device_buf(c_m_n_k.GetMemorySize());
 
-    a_m_device_buf.ToDevice(a_m.mData.data());
-    b_m_n_k_device_buf.ToDevice(b_m_n_k.mData.data());
+    a_m_device_buf.ToDevice(a_m.data());
+    b_m_n_k_device_buf.ToDevice(b_m_n_k.data());
 
     std::array<const void*, 2> input = {a_m_device_buf.GetDeviceBuffer(),
                                         b_m_n_k_device_buf.GetDeviceBuffer()};
     std::array<void*, 1> output      = {c_m_n_k_device_buf.GetDeviceBuffer()};
 
-    std::array<ck::index_t, 3> abc_lengths;
     std::array<ck::index_t, 3> a_strides = {1, 0, 0};
     std::array<ck::index_t, 3> b_strides;
     std::array<ck::index_t, 3> c_strides;
 
-    std::copy(mnk.begin(), mnk.end(), abc_lengths.begin());
-    std::copy(
-        b_m_n_k.mDesc.GetStrides().begin(), b_m_n_k.mDesc.GetStrides().end(), b_strides.begin());
-    std::copy(
-        c_m_n_k.mDesc.GetStrides().begin(), c_m_n_k.mDesc.GetStrides().end(), c_strides.begin());
+    ck::ranges::copy(b_m_n_k.GetStrides(), b_strides.begin());
+    ck::ranges::copy(c_m_n_k.GetStrides(), c_strides.begin());
 
     auto broadcastAdd = DeviceElementwiseAddInstance{};
     auto argument     = broadcastAdd.MakeArgumentPointer(
-        abc_lengths, {a_strides, b_strides}, {c_strides}, input, output, Add{});
+        ck::utils::to_array(mnk), {a_strides, b_strides}, {c_strides}, input, output, Add{});
 
     if(!broadcastAdd.IsSupportedArgument(argument.get()))
     {
@@ -107,14 +105,14 @@ int main()
     bool pass = true;
     if(do_verification)
     {
-        c_m_n_k_device_buf.FromDevice(c_m_n_k.mData.data());
+        c_m_n_k_device_buf.FromDevice(c_m_n_k.data());
         Tensor<CDataType> host_c_m_n_k(mnk);
 
         host_broadcast3D_am_bmnk<Tensor<ABDataType>, Tensor<ABDataType>, Tensor<CDataType>, Add>(
             host_c_m_n_k, a_m, b_m_n_k, mnk, Add{});
 
-        pass &= ck::utils::check_err(
-            c_m_n_k.mData, host_c_m_n_k.mData, "Error: Incorrect results c", 1e-3, 1e-3);
+        pass &=
+            ck::utils::check_err(c_m_n_k, host_c_m_n_k, "Error: Incorrect results c", 1e-3, 1e-3);
     }
 
     return pass ? 0 : 1;

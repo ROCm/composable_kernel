@@ -16,13 +16,15 @@ bool run_permute_bundle(const Problem& problem)
     // initialize tensor by assigning DataType values
     ck::utils::FillUniformDistribution<DataType>{-1.f, 1.f}(input_bundle_tensor.AsSpan<DataType>());
 
-    DeviceMem input_device_buf(input_bundle_tensor.GetElementSpaceSizeInBytes());
-    DeviceMem output_device_buf(output_bundle_tensor.GetElementSpaceSizeInBytes());
+    DeviceMem input_device_buf(input_bundle_tensor.GetMemorySize());
+    DeviceMem output_device_buf(output_bundle_tensor.GetMemorySize());
 
     using std::data;
     input_device_buf.ToDevice(data(input_bundle_tensor));
 
     static_assert(std::is_default_constructible_v<DevicePermuteInstance>);
+
+    using ck::utils::to_array;
 
     auto permute  = DevicePermuteInstance{};
     auto argument = permute.MakeArgument(to_array(input_bundle_shape),
@@ -57,7 +59,7 @@ bool run_permute_bundle(const Problem& problem)
     using std::begin;
 
     Tensor<DataType> input_tensor(input_shape);
-    ranges::copy(input_bundle_tensor.AsSpan<const DataType>(), begin(input_tensor));
+    ck::ranges::copy(input_bundle_tensor.AsSpan<const DataType>(), begin(input_tensor));
 
     Tensor<DataType> output_tensor(transpose(input_shape, input_axes));
     if(!host_permute(input_tensor, input_axes, PassThrough{}, output_tensor))

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
+#include <cstdlib>
+#include <initializer_list>
 #include <iostream>
 #include <numeric>
-#include <initializer_list>
-#include <cstdlib>
+
 #include <getopt.h>
 
 #include "ck/ck.hpp"
@@ -13,10 +14,12 @@
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_common_util.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
+#include "ck/library/utility/ranges.hpp"
 
 using namespace ck::tensor_operation::device;
 
@@ -148,14 +151,13 @@ int main(int argc, char* argv[])
     Tensor<OutDataType> out_ref(args.inLengths);
     Tensor<OutDataType> out(args.inLengths);
 
-    auto inStrides  = in.mDesc.GetStrides();
-    auto outStrides = out.mDesc.GetStrides();
+    auto inStrides = in.GetStrides();
 
     AccDataType alpha = args.scales[0];
     AccDataType beta  = args.scales[1];
 
-    std::cout << "in: " << in.mDesc << std::endl;
-    std::cout << "out: " << out.mDesc << std::endl;
+    std::cout << "in: " << in.GetDesc() << std::endl;
+    std::cout << "out: " << out.GetDesc() << std::endl;
 
     std::size_t num_thread = 1;
 
@@ -181,21 +183,22 @@ int main(int argc, char* argv[])
         }
 
         if(beta != 0.0f)
-            for(size_t i = 0; i < out_ref.mDesc.GetElementSpaceSize(); i++)
-                out.mData[i] = out_ref.mData[i];
+        {
+            ck::ranges::copy(out_ref, out.begin());
+        }
     };
     // std::cout << "beta = " << beta << std::endl;
-    // LogRangeAsType<float>(std::cout << "tensor in: " , in.mData, ",") << std::endl;
-    // LogRangeAsType<float>(std::cout << "tensor prior out: " , out.mData, ",") << std::endl;
+    // LogRangeAsType<float>(std::cout << "tensor in: " , in, ",") << std::endl;
+    // LogRangeAsType<float>(std::cout << "tensor prior out: " , out, ",") << std::endl;
 
     // these buffers are usually provided by the user application
-    DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
-    DeviceMem out_dev(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
+    DeviceMem in_dev(in.GetMemorySize());
+    DeviceMem out_dev(out.GetMemorySize());
 
-    in_dev.ToDevice(in.mData.data());
+    in_dev.ToDevice(in.data());
 
     if(beta != 0.0f)
-        out_dev.ToDevice(out.mData.data());
+        out_dev.ToDevice(out.data());
 
     if(args.do_verification)
     {
@@ -205,21 +208,17 @@ int main(int argc, char* argv[])
         auto ref_arg = ref.MakeArgument(in, out_ref, alpha, beta, reduceDims);
         auto invoker = ref.MakeInvoker();
         invoker.Run(ref_arg);
-        // LogRangeAsType<float>(std::cout << "tensor out_ref: ", out_ref.mData, ",") << std::endl;
+        // LogRangeAsType<float>(std::cout << "tensor out_ref: ", out_ref, ",") << std::endl;
     };
 
-    std::vector<ck::index_t> i_inLengths;
-    std::vector<ck::index_t> i_inStrides;
-
-    i_inLengths.assign(args.inLengths.begin(), args.inLengths.end());
-    i_inStrides.assign(inStrides.begin(), inStrides.end());
+    using Indices = std::vector<ck::index_t>;
 
     auto device_instance = DeviceInstance{};
 
-    std::cout << i_inLengths.size() << ", " << i_inStrides.size() << std::endl;
+    std::cout << args.inLengths.size() << ", " << inStrides.size() << std::endl;
 
-    auto argument_ptr = device_instance.MakeArgumentPointer(i_inLengths,
-                                                            i_inStrides,
+    auto argument_ptr = device_instance.MakeArgumentPointer(ck::ranges::to<Indices>(args.inLengths),
+                                                            ck::ranges::to<Indices>(inStrides),
                                                             reduceDims,
                                                             &alpha,
                                                             &beta,
@@ -244,16 +243,15 @@ int main(int argc, char* argv[])
     if(args.do_verification)
     {
         invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
-        out_dev.FromDevice(out.mData.data());
-        // LogRangeAsType<float>(std::cout << "tensor out: " , out.mData, ",") << std::endl;
-        pass = pass && ck::utils::check_err(out.mData, out_ref.mData);
+        out_dev.FromDevice(out.data());
+        // LogRangeAsType<float>(std::cout << "tensor out: " , out, ",") << std::endl;
+        pass = pass && ck::utils::check_err(out, out_ref);
     };
 
     float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, args.time_kernel});
 
-    std::size_t num_bytes =
-        in.mDesc.GetElementSize() * sizeof(InDataType) +
-        (beta == 0.0f ? 1 : 2) * out.mDesc.GetElementSize() * sizeof(OutDataType);
+    std::size_t num_bytes = in.GetElementSize() * sizeof(InDataType) +
+                            (beta == 0.0f ? 1 : 2) * out.GetElementSize() * sizeof(OutDataType);
 
     float gb_per_sec = num_bytes / 1.E6 / avg_time;
 

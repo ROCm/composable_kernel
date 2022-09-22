@@ -3,11 +3,13 @@
 
 #pragma once
 
-#include "ck/utility/reduction_enums.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce.hpp"
+#include "ck/utility/reduction_enums.hpp"
 
-#include "ck/library/utility/check_err.hpp"
 #include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance.hpp"
+
+#include "ck/library/utility/algorithm.hpp"
+#include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_reduction.hpp"
 #include "ck/library/utility/host_common_util.hpp"
@@ -214,11 +216,11 @@ bool profile_reduce_impl_impl(bool do_verification,
         Tensor<int32_t> out_indices_ref(outLengths);
         Tensor<int32_t> out_indices(outLengths);
 
-        auto inStrides  = in.mDesc.GetStrides();
-        auto outStrides = out.mDesc.GetStrides();
+        auto inStrides  = in.GetStrides();
+        auto outStrides = out.GetStrides();
 
-        size_t invariant_total_length = out.mDesc.GetElementSize();
-        size_t reduce_total_length    = in.mDesc.GetElementSize() / invariant_total_length;
+        size_t invariant_total_length = out.GetElementSize();
+        size_t reduce_total_length    = in.GetElementSize() / invariant_total_length;
 
         std::size_t num_thread = 1;
 
@@ -245,20 +247,21 @@ bool profile_reduce_impl_impl(bool do_verification,
             }
 
             if(beta != 0.0f)
-                for(size_t i = 0; i < out_ref.mDesc.GetElementSpaceSize(); i++)
-                    out.mData[i] = out_ref.mData[i];
+            {
+                ck::ranges::copy(out_ref, out.begin());
+            }
         };
 
         // these buffers are usually provided by the user application
-        DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
-        DeviceMem out_dev(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
+        DeviceMem in_dev(in.GetMemorySize());
+        DeviceMem out_dev(out.GetMemorySize());
 
-        in_dev.ToDevice(in.mData.data());
+        in_dev.ToDevice(in.data());
 
         if(beta != 0.0f)
-            out_dev.ToDevice(out.mData.data());
+            out_dev.ToDevice(out.data());
 
-        size_t indicesSizeInBytes = OutputIndex ? out.mDesc.GetElementSize() * sizeof(int) : 0;
+        size_t indicesSizeInBytes = OutputIndex ? out.GetElementSize() * sizeof(int) : 0;
 
         DeviceMem out_indices_dev(indicesSizeInBytes);
 
@@ -331,13 +334,13 @@ bool profile_reduce_impl_impl(bool do_verification,
                           NumReduceDim,
                           PropagateNan,
                           OutputIndex>
-                hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
+                hostReduce(in.GetDesc(), out_ref.GetDesc(), invariantDims, reduceDims);
 
             hostReduce.Run(alpha,
-                           in.mData.data(),
+                           in.data(),
                            beta,
-                           out_ref.mData.data(),
-                           out_indices_ref.mData.data(),
+                           out_ref.data(),
+                           out_indices_ref.data(),
                            in_elementwise_op,
                            acc_elementwise_op);
         };
@@ -398,14 +401,13 @@ bool profile_reduce_impl_impl(bool do_verification,
             {
                 bool single_pass;
 
-                out_dev.FromDevice(out.mData.data());
-                single_pass = ck::utils::check_err(out.mData, out_ref.mData);
+                out_dev.FromDevice(out.data());
+                single_pass = ck::utils::check_err(out, out_ref);
 
                 if(OutputIndex)
                 {
-                    out_indices_dev.FromDevice(out_indices.mData.data());
-                    single_pass = single_pass &&
-                                  ck::utils::check_err(out_indices.mData, out_indices_ref.mData);
+                    out_indices_dev.FromDevice(out_indices.data());
+                    single_pass = single_pass && ck::utils::check_err(out_indices, out_indices_ref);
                 };
 
                 if(!single_pass)
@@ -418,18 +420,16 @@ bool profile_reduce_impl_impl(bool do_verification,
 
             if(do_dumpout)
             {
-                dumpBufferToFile("dump_in.bin", in.mData.data(), in.mDesc.GetElementSize());
-                dumpBufferToFile("dump_out.bin", out.mData.data(), out.mDesc.GetElementSize());
-                dumpBufferToFile(
-                    "dump_out_host.bin", out_ref.mData.data(), out_ref.mDesc.GetElementSize());
+                dumpBufferToFile("dump_in.bin", in.data(), in.GetElementSize());
+                dumpBufferToFile("dump_out.bin", out.data(), out.GetElementSize());
+                dumpBufferToFile("dump_out_host.bin", out_ref.data(), out_ref.GetElementSize());
                 if(OutputIndex)
                 {
-                    dumpBufferToFile("dump_indices.bin",
-                                     out_indices.mData.data(),
-                                     out_indices.mDesc.GetElementSize());
+                    dumpBufferToFile(
+                        "dump_indices.bin", out_indices.data(), out_indices.GetElementSize());
                     dumpBufferToFile("dump_indices_host.bin",
-                                     out_indices_ref.mData.data(),
-                                     out_indices_ref.mDesc.GetElementSize());
+                                     out_indices_ref.data(),
+                                     out_indices_ref.GetElementSize());
                 };
             };
         };

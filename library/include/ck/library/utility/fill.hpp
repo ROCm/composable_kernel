@@ -72,6 +72,16 @@ struct FillUniformDistributionIntegerValue
         std::generate(
             first, last, [&dis, &gen]() { return ck::type_convert<T>(std::round(dis(gen))); });
     }
+
+    template <typename ForwardRange>
+    auto operator()(ForwardRange&& range)
+        -> std::void_t<decltype(std::declval<FillUniformDistributionIntegerValue>()(
+            std::begin(std::forward<ForwardRange>(range)),
+            std::end(std::forward<ForwardRange>(range))))>
+    {
+        (*this)(std::begin(std::forward<ForwardRange>(range)),
+                std::end(std::forward<ForwardRange>(range)));
+    }
 };
 
 template <typename T>

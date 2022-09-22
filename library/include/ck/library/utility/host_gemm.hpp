@@ -19,7 +19,7 @@ void host_gemm_mk_kn_mn(const Tensor<AType>& a_m_k,
                         const CElementwiseOperation& c_element_op)
 {
     auto f_mk_kn_mn = [&](auto m, auto n) {
-        const int K = a_m_k.mDesc.GetLengths()[1];
+        const int K = a_m_k.GetLengths()[1];
 
         float v_acc = 0;
 
@@ -41,7 +41,6 @@ void host_gemm_mk_kn_mn(const Tensor<AType>& a_m_k,
         c_m_n(m, n) = v_c;
     };
 
-    make_ParallelTensorFunctor(f_mk_kn_mn,
-                               c_m_n.mDesc.GetLengths()[0],
-                               c_m_n.mDesc.GetLengths()[1])(std::thread::hardware_concurrency());
+    make_ParallelTensorFunctor(f_mk_kn_mn, c_m_n.GetLengths()[0], c_m_n.GetLengths()[1])(
+        std::thread::hardware_concurrency());
 }

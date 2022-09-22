@@ -98,8 +98,8 @@ TEST(Int4, CopyAsI8PositiveValue)
 
     d_src_i4.ToDevice(h_src_i4.data());
 
-    copy<<<1, 64>>>(reinterpret_cast<const int4_t*>(d_src_i4.GetDeviceBuffer()),
-                    reinterpret_cast<std::int8_t*>(d_dst_i8.GetDeviceBuffer()),
+    copy<<<1, 64>>>(static_cast<const int4_t*>(d_src_i4.GetDeviceBuffer()),
+                    static_cast<std::int8_t*>(d_dst_i8.GetDeviceBuffer()),
                     SIZE);
     hip_check_error(hipDeviceSynchronize());
     d_dst_i8.FromDevice(h_dst_i8.data());
@@ -125,8 +125,8 @@ TEST(Int4, DISABLED_CopyAsI8NegativeValue)
 
     d_src_i4.ToDevice(h_src_i4.data());
 
-    copy<<<1, 64>>>(reinterpret_cast<const int4_t*>(d_src_i4.GetDeviceBuffer()),
-                    reinterpret_cast<std::int8_t*>(d_dst_i8.GetDeviceBuffer()),
+    copy<<<1, 64>>>(static_cast<const int4_t*>(d_src_i4.GetDeviceBuffer()),
+                    static_cast<std::int8_t*>(d_dst_i8.GetDeviceBuffer()),
                     SIZE);
     hip_check_error(hipDeviceSynchronize());
     d_dst_i8.FromDevice(h_dst_i8.data());
@@ -152,8 +152,8 @@ TEST(Int4, CopyAsI8NegativeValueStaticCast)
 
     d_src_i4.ToDevice(h_src_i4.data());
 
-    copy_with_static_cast<<<1, 64>>>(reinterpret_cast<const int4_t*>(d_src_i4.GetDeviceBuffer()),
-                                     reinterpret_cast<std::int8_t*>(d_dst_i8.GetDeviceBuffer()),
+    copy_with_static_cast<<<1, 64>>>(static_cast<const int4_t*>(d_src_i4.GetDeviceBuffer()),
+                                     static_cast<std::int8_t*>(d_dst_i8.GetDeviceBuffer()),
                                      SIZE);
     hip_check_error(hipDeviceSynchronize());
     d_dst_i8.FromDevice(h_dst_i8.data());

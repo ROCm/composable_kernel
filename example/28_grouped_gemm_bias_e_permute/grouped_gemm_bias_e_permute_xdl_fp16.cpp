@@ -1,21 +1,23 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
+#include <cstdlib>
+#include <initializer_list>
 #include <iostream>
 #include <numeric>
-#include <initializer_list>
-#include <cstdlib>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_contraction_multiple_d_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/numeric.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -104,7 +106,7 @@ struct ReferenceContraction_M3_N2_K1 : public ck::tensor_operation::device::Base
         float Run(const Argument& arg)
         {
             auto f_ms_ns = [&](auto m0, auto m1, auto m2, auto n0, auto n1) {
-                const int K0 = arg.a_ms_ks_.mDesc.GetLengths()[3];
+                const int K0 = arg.a_ms_ks_.GetLengths()[3];
 
                 AccDataType v_acc = 0;
 
@@ -129,11 +131,11 @@ struct ReferenceContraction_M3_N2_K1 : public ck::tensor_operation::device::Base
             };
 
             make_ParallelTensorFunctor(f_ms_ns,
-                                       arg.e_ms_ns_.mDesc.GetLengths()[0],
-                                       arg.e_ms_ns_.mDesc.GetLengths()[1],
-                                       arg.e_ms_ns_.mDesc.GetLengths()[2],
-                                       arg.e_ms_ns_.mDesc.GetLengths()[3],
-                                       arg.e_ms_ns_.mDesc.GetLengths()[4])(
+                                       arg.e_ms_ns_.GetLengths()[0],
+                                       arg.e_ms_ns_.GetLengths()[1],
+                                       arg.e_ms_ns_.GetLengths()[2],
+                                       arg.e_ms_ns_.GetLengths()[3],
+                                       arg.e_ms_ns_.GetLengths()[4])(
                 std::thread::hardware_concurrency());
 
             return 0;
@@ -297,33 +299,23 @@ int main(int argc, char* argv[])
         const auto e_ms_ns_lengths = contraction_descs[i].e_ms_ns_lengths;
         const auto e_ms_ns_strides = contraction_descs[i].e_ms_ns_strides;
 
-        Tensor<ADataType> a_ms_ks(
-            std::vector<std::size_t>(a_ms_ks_lengths.begin(), a_ms_ks_lengths.end()),
-            std::vector<std::size_t>(a_ms_ks_strides.begin(), a_ms_ks_strides.end()));
-        Tensor<BDataType> b_ns_ks(
-            std::vector<std::size_t>(b_ns_ks_lengths.begin(), b_ns_ks_lengths.end()),
-            std::vector<std::size_t>(b_ns_ks_strides.begin(), b_ns_ks_strides.end()));
-        Tensor<DDataType> d_ms_ns(
-            std::vector<std::size_t>(d_ms_ns_lengths.begin(), d_ms_ns_lengths.end()),
-            std::vector<std::size_t>(d_ms_ns_strides.begin(), d_ms_ns_strides.end()));
-        Tensor<EDataType> e_ms_ns_device_result(
-            std::vector<std::size_t>(e_ms_ns_lengths.begin(), e_ms_ns_lengths.end()),
-            std::vector<std::size_t>(e_ms_ns_strides.begin(), e_ms_ns_strides.end()));
+        Tensor<ADataType> a_ms_ks(a_ms_ks_lengths, a_ms_ks_strides);
+        Tensor<BDataType> b_ns_ks(b_ns_ks_lengths, b_ns_ks_strides);
+        Tensor<DDataType> d_ms_ns(d_ms_ns_lengths, d_ms_ns_strides);
+        Tensor<EDataType> e_ms_ns_device_result(e_ms_ns_lengths, e_ms_ns_strides);
 
-        ck::index_t M_ = std::accumulate(e_ms_ns_lengths.begin(),
-                                         e_ms_ns_lengths.begin() + NumDimM,
-                                         ck::index_t{1},
-                                         std::multiplies<ck::index_t>{});
+        ck::index_t M_ = ck::accumulate_n(
+            e_ms_ns_lengths.begin(), NumDimM, ck::index_t{1}, std::multiplies<ck::index_t>{});
 
-        ck::index_t N_ = std::accumulate(e_ms_ns_lengths.begin() + NumDimM,
-                                         e_ms_ns_lengths.begin() + NumDimM + NumDimN,
-                                         ck::index_t{1},
-                                         std::multiplies<ck::index_t>{});
+        ck::index_t N_ = ck::accumulate_n(e_ms_ns_lengths.begin() + NumDimM,
+                                          NumDimN,
+                                          ck::index_t{1},
+                                          std::multiplies<ck::index_t>{});
 
-        ck::index_t K_ = std::accumulate(a_ms_ks_lengths.begin() + NumDimM,
-                                         a_ms_ks_lengths.begin() + NumDimM + NumDimK,
-                                         ck::index_t{1},
-                                         std::multiplies<ck::index_t>{});
+        ck::index_t K_ = ck::accumulate_n(a_ms_ks_lengths.begin() + NumDimM,
+                                          NumDimK,
+                                          ck::index_t{1},
+                                          std::multiplies<ck::index_t>{});
 
         a_tensors.push_back(a_ms_ks);
         b_tensors.push_back(b_ns_ks);
@@ -334,13 +326,13 @@ int main(int argc, char* argv[])
 
         flop += std::size_t(2) * M_ * K_ * N_;
 
-        num_btype += sizeof(ADataType) * a_tensors[i].mDesc.GetElementSize() +
-                     sizeof(BDataType) * b_tensors[i].mDesc.GetElementSize() +
-                     sizeof(EDataType) * e_device_tensors[i].mDesc.GetElementSize();
+        num_btype += sizeof(ADataType) * a_tensors[i].GetElementSize() +
+                     sizeof(BDataType) * b_tensors[i].GetElementSize() +
+                     sizeof(EDataType) * e_device_tensors[i].GetElementSize();
 
-        std::cout << "gemm[" << i << "] a_m_k: " << a_tensors[i].mDesc
-                  << " b_n_k: " << b_tensors[i].mDesc << " c_m_n: " << e_device_tensors[i].mDesc
-                  << std::endl;
+        std::cout << "gemm[" << i << "] a_m_k: " << a_tensors[i].GetDesc()
+                  << " b_n_k: " << b_tensors[i].GetDesc()
+                  << " c_m_n: " << e_device_tensors[i].GetDesc() << std::endl;
 
         switch(init_method)
         {
@@ -364,18 +356,15 @@ int main(int argc, char* argv[])
 
     for(std::size_t i = 0; i < contraction_descs.size(); i++)
     {
-        a_tensors_device.emplace_back(std::make_unique<DeviceMem>(
-            sizeof(ADataType) * a_tensors[i].mDesc.GetElementSpaceSize()));
-        b_tensors_device.emplace_back(std::make_unique<DeviceMem>(
-            sizeof(BDataType) * b_tensors[i].mDesc.GetElementSpaceSize()));
-        d_tensors_device.emplace_back(std::make_unique<DeviceMem>(
-            sizeof(DDataType) * d_tensors[i].mDesc.GetElementSpaceSize()));
-        e_tensors_device.emplace_back(std::make_unique<DeviceMem>(
-            sizeof(EDataType) * e_device_tensors[i].mDesc.GetElementSpaceSize()));
+        a_tensors_device.emplace_back(std::make_unique<DeviceMem>(a_tensors[i].GetMemorySize()));
+        b_tensors_device.emplace_back(std::make_unique<DeviceMem>(b_tensors[i].GetMemorySize()));
+        d_tensors_device.emplace_back(std::make_unique<DeviceMem>(d_tensors[i].GetMemorySize()));
+        e_tensors_device.emplace_back(
+            std::make_unique<DeviceMem>(e_device_tensors[i].GetMemorySize()));
 
-        a_tensors_device[i]->ToDevice(a_tensors[i].mData.data());
-        b_tensors_device[i]->ToDevice(b_tensors[i].mData.data());
-        d_tensors_device[i]->ToDevice(d_tensors[i].mData.data());
+        a_tensors_device[i]->ToDevice(a_tensors[i].data());
+        b_tensors_device[i]->ToDevice(b_tensors[i].data());
+        d_tensors_device[i]->ToDevice(d_tensors[i].data());
 
         p_a.push_back(a_tensors_device[i]->GetDeviceBuffer());
         p_b.push_back(b_tensors_device[i]->GetDeviceBuffer());
@@ -423,15 +412,11 @@ int main(int argc, char* argv[])
             const auto e_ms_ns_lengths = contraction_descs[i].e_ms_ns_lengths;
             const auto e_ms_ns_strides = contraction_descs[i].e_ms_ns_strides;
 
-            Tensor<EDataType> c_ms_ns_host_result(
-                std::vector<std::size_t>(e_ms_ns_lengths.begin(), e_ms_ns_lengths.end()),
-                std::vector<std::size_t>(e_ms_ns_strides.begin(), e_ms_ns_strides.end()));
+            Tensor<EDataType> c_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides);
 
-            Tensor<EDataType> e_ms_ns_host_result(
-                std::vector<std::size_t>(e_ms_ns_lengths.begin(), e_ms_ns_lengths.end()),
-                std::vector<std::size_t>(e_ms_ns_strides.begin(), e_ms_ns_strides.end()));
+            Tensor<EDataType> e_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides);
 
-            e_tensors_device[i]->FromDevice(e_device_tensors[i].mData.data());
+            e_tensors_device[i]->FromDevice(e_device_tensors[i].data());
 
             using ReferenceOpInstance = ReferenceContraction_M3_N2_K1<NumDimM,
                                                                       NumDimN,
@@ -456,15 +441,15 @@ int main(int argc, char* argv[])
 
             ref_invoker.Run(ref_argument);
 
-            for(size_t m0 = 0; m0 < e_ms_ns_host_result.mDesc.GetLengths()[0]; ++m0)
+            for(size_t m0 = 0; m0 < e_ms_ns_host_result.GetLengths()[0]; ++m0)
             {
-                for(size_t m1 = 0; m1 < e_ms_ns_host_result.mDesc.GetLengths()[1]; ++m1)
+                for(size_t m1 = 0; m1 < e_ms_ns_host_result.GetLengths()[1]; ++m1)
                 {
-                    for(size_t m2 = 0; m2 < e_ms_ns_host_result.mDesc.GetLengths()[2]; ++m2)
+                    for(size_t m2 = 0; m2 < e_ms_ns_host_result.GetLengths()[2]; ++m2)
                     {
-                        for(size_t n0 = 0; n0 < e_ms_ns_host_result.mDesc.GetLengths()[3]; ++n0)
+                        for(size_t n0 = 0; n0 < e_ms_ns_host_result.GetLengths()[3]; ++n0)
                         {
-                            for(size_t n1 = 0; n1 < e_ms_ns_host_result.mDesc.GetLengths()[4]; ++n1)
+                            for(size_t n1 = 0; n1 < e_ms_ns_host_result.GetLengths()[4]; ++n1)
                             {
                                 cde_element_op(e_ms_ns_host_result(m0, m1, m2, n0, n1),
                                                c_ms_ns_host_result(m0, m1, m2, n0, n1),
@@ -475,7 +460,7 @@ int main(int argc, char* argv[])
                 }
             }
 
-            pass &= ck::utils::check_err(e_device_tensors[i].mData, e_ms_ns_host_result.mData);
+            pass &= ck::utils::check_err(e_device_tensors[i], e_ms_ns_host_result);
         }
     }
 

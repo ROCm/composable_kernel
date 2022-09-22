@@ -1,4 +1,5 @@
-#include <random>
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -28,8 +29,6 @@ struct ExecutionConfig final
 
 bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
 {
-    using namespace ck::literals;
-
 #if defined(BUILD_INT4_EXAMPLE) && defined(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
     static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
     static_assert(sizeof(ADataType) == sizeof(KernelADataType));
@@ -48,6 +47,8 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
            batch_stride_C,
            batch_count] = problem_size;
 
+    using namespace ck::literals;
+
     // GEMM shape
     auto f_host_tensor_descriptor = [](std::size_t batch_count_,
                                        std::size_t row,
@@ -55,15 +56,13 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                                        std::size_t stride,
                                        std::size_t batch_stride,
                                        auto layout) {
-        if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
+        if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count_, row, col}),
-                                        std::vector<std::size_t>({batch_stride, stride, 1}));
+            return HostTensorDescriptor({batch_count_, row, col}, {batch_stride, stride, 1_uz});
         }
         else
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count_, row, col}),
-                                        std::vector<std::size_t>({batch_stride, 1, stride}));
+            return HostTensorDescriptor({batch_count_, row, col}, {batch_stride, 1_uz, stride});
         }
     };
 
@@ -79,9 +78,9 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         f_host_tensor_descriptor(batch_count, M, N, stride_C, batch_stride_C, ELayout{}));
 #endif
 
-    std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
-    std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;
-    std::cout << "e_g_m_n: " << e_g_m_n_device_result.mDesc << std::endl;
+    std::cout << "a_g_m_k: " << a_g_m_k.GetDesc() << std::endl;
+    std::cout << "b_g_k_n: " << b_g_k_n.GetDesc() << std::endl;
+    std::cout << "e_g_m_n: " << e_g_m_n_device_result.GetDesc() << std::endl;
 
     switch(config.init_method)
     {
@@ -96,19 +95,19 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         break;
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_g_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem c_device_buf(sizeof(EDataType) * e_g_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_g_m_k.GetMemorySize());
+    DeviceMem b_device_buf(b_g_k_n.GetMemorySize());
+    DeviceMem c_device_buf(e_g_m_n_device_result.GetMemorySize());
 
 #ifdef BUILD_INT4_EXAMPLE
     const Tensor<KernelADataType> a_g_m_k_converted(a_g_m_k);
     const Tensor<KernelBDataType> b_g_k_n_converted(b_g_k_n);
 
-    a_device_buf.ToDevice(a_g_m_k_converted.mData.data());
-    b_device_buf.ToDevice(b_g_k_n_converted.mData.data());
+    a_device_buf.ToDevice(a_g_m_k_converted.data());
+    b_device_buf.ToDevice(b_g_k_n_converted.data());
 #else
-    a_device_buf.ToDevice(a_g_m_k.mData.data());
-    b_device_buf.ToDevice(b_g_k_n.mData.data());
+    a_device_buf.ToDevice(a_g_m_k.data());
+    b_device_buf.ToDevice(b_g_k_n.data());
 #endif
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
@@ -150,7 +149,7 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
     if(config.do_verification)
     {
-        c_device_buf.FromDevice(e_g_m_n_device_result.mData.data());
+        c_device_buf.FromDevice(e_g_m_n_device_result.data());
 
         using ReferenceBatchedGemmInstance =
             ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
@@ -174,11 +173,11 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
 #ifdef BUILD_INT4_EXAMPLE
         const Tensor<EDataType> e_device_result_converted(e_g_m_n_device_result);
-        pass &= ck::utils::check_err(e_device_result_converted.mData, e_g_m_n_host_result.mData);
+        pass &= ck::utils::check_err(e_device_result_converted, e_g_m_n_host_result);
 
 #else
         pass = ck::utils::check_err(
-            e_g_m_n_device_result.mData, e_g_m_n_host_result.mData, "Error: Incorrect results c");
+            e_g_m_n_device_result, e_g_m_n_host_result, "Error: Incorrect results c");
 #endif
     }
 

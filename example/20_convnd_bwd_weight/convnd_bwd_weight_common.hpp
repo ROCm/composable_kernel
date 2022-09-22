@@ -51,9 +51,9 @@ int run_conv_bwd_weight(bool do_verification,
     Tensor<WeiDataType> wei_device_result(wei_g_k_c_xs_desc);
     Tensor<OutDataType> out(out_g_n_k_wos_desc);
 
-    std::cout << "in: " << in.mDesc << std::endl;
-    std::cout << "wei: " << wei_host_result.mDesc << std::endl;
-    std::cout << "out: " << out.mDesc << std::endl;
+    std::cout << "in: " << in.GetDesc() << std::endl;
+    std::cout << "wei: " << wei_host_result.GetDesc() << std::endl;
+    std::cout << "out: " << out.GetDesc() << std::endl;
 
     switch(init_method)
     {
@@ -67,12 +67,12 @@ int run_conv_bwd_weight(bool do_verification,
         out.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-0.5, 0.5});
     }
 
-    DeviceMem in_device_buf(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_device_result.mDesc.GetElementSpaceSize());
-    DeviceMem out_device_buf(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
+    DeviceMem in_device_buf(in.GetMemorySize());
+    DeviceMem wei_device_buf(wei_device_result.GetMemorySize());
+    DeviceMem out_device_buf(out.GetMemorySize());
 
-    in_device_buf.ToDevice(in.mData.data());
-    out_device_buf.ToDevice(out.mData.data());
+    in_device_buf.ToDevice(in.data());
+    out_device_buf.ToDevice(out.data());
 
     // init to 0
     wei_device_buf.SetZero();
@@ -80,9 +80,9 @@ int run_conv_bwd_weight(bool do_verification,
     // do GEMM
     auto conv     = DeviceConvBwdWeightInstance{};
     auto invoker  = conv.MakeInvoker();
-    auto argument = conv.MakeArgument(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-                                      static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
-                                      static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
+    auto argument = conv.MakeArgument(in_device_buf.GetDeviceBuffer(),
+                                      wei_device_buf.GetDeviceBuffer(),
+                                      out_device_buf.GetDeviceBuffer(),
                                       conv_param.N_,
                                       conv_param.K_,
                                       conv_param.C_,
@@ -143,9 +143,9 @@ int run_conv_bwd_weight(bool do_verification,
 
         ref_invoker.Run(ref_argument);
 
-        wei_device_buf.FromDevice(wei_device_result.mData.data());
+        wei_device_buf.FromDevice(wei_device_result.data());
 
-        return ck::utils::check_err(wei_device_result.mData, wei_host_result.mData) ? 0 : 1;
+        return ck::utils::check_err(wei_device_result, wei_host_result) ? 0 : 1;
     }
 
     return 0;

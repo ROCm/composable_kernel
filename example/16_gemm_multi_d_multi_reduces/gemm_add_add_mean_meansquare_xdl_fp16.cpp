@@ -7,16 +7,17 @@
 #include <cstdlib>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_multiple_r_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+#include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
-#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/literals.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -108,22 +109,21 @@ void DumpPerf(float ave_time, int M, int N, int K)
               << " GB/s, " << std::endl;
 }
 
+using namespace ck::literals;
+
 auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
-    return HostTensorDescriptor(std::vector<std::size_t>({len}),
-                                std::vector<std::size_t>({stride}));
+    return HostTensorDescriptor({len}, {stride});
 };
 
 auto f_host_tensor_descriptor2d =
     [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-        if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
+        if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                        std::vector<std::size_t>({stride, 1}));
+            return HostTensorDescriptor({row, col}, {stride, 1_uz});
         }
         else
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                        std::vector<std::size_t>({1, stride}));
+            return HostTensorDescriptor({row, col}, {1_uz, stride});
         }
     };
 
@@ -152,18 +152,18 @@ int main()
     d0_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{-1, 1});
     d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{-1, 1});
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem d0_device_buf(sizeof(D0DataType) * d0_n.mDesc.GetElementSpaceSize());
-    DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem e_device_buf(sizeof(EDataType) * e_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem r0_device_buf(sizeof(R0DataType) * r0_m.mDesc.GetElementSpaceSize());
-    DeviceMem r1_device_buf(sizeof(R1DataType) * r1_m.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_m_k.GetMemorySize());
+    DeviceMem b_device_buf(b_k_n.GetMemorySize());
+    DeviceMem d0_device_buf(d0_n.GetMemorySize());
+    DeviceMem d1_device_buf(d1_m_n.GetMemorySize());
+    DeviceMem e_device_buf(e_m_n.GetMemorySize());
+    DeviceMem r0_device_buf(r0_m.GetMemorySize());
+    DeviceMem r1_device_buf(r1_m.GetMemorySize());
 
-    a_device_buf.ToDevice(a_m_k.mData.data());
-    b_device_buf.ToDevice(b_k_n.mData.data());
-    d0_device_buf.ToDevice(d0_n.mData.data());
-    d1_device_buf.ToDevice(d1_m_n.mData.data());
+    a_device_buf.ToDevice(a_m_k.data());
+    b_device_buf.ToDevice(b_k_n.data());
+    d0_device_buf.ToDevice(d0_n.data());
+    d1_device_buf.ToDevice(d1_m_n.data());
 
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
@@ -212,9 +212,9 @@ int main()
         auto I0 = ck::Number<0>{};
         auto I1 = ck::Number<1>{};
 
-        Tensor<EDataType> e_m_n_host(e_m_n.mDesc);
-        Tensor<R0DataType> r0_m_host(r0_m.mDesc);
-        Tensor<R1DataType> r1_m_host(r1_m.mDesc);
+        Tensor<EDataType> e_m_n_host(e_m_n.GetDesc());
+        Tensor<R0DataType> r0_m_host(r0_m.GetDesc());
+        Tensor<R1DataType> r1_m_host(r1_m.GetDesc());
 
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
@@ -255,16 +255,13 @@ int main()
             r1_m_host(m) = ck::type_convert<R1DataType>(reduce1_acc);
         }
 
-        e_device_buf.FromDevice(e_m_n.mData.data());
-        r0_device_buf.FromDevice(r0_m.mData.data());
-        r1_device_buf.FromDevice(r1_m.mData.data());
+        e_device_buf.FromDevice(e_m_n.data());
+        r0_device_buf.FromDevice(r0_m.data());
+        r1_device_buf.FromDevice(r1_m.data());
 
-        pass = ck::utils::check_err(
-            e_m_n.mData, e_m_n_host.mData, "Error: Incorrect results c", 1e-2, 1e-2);
-        pass &= ck::utils::check_err(
-            r0_m.mData, r0_m_host.mData, "Error: Incorrect results d0", 1e-2, 1e-2);
-        pass &= ck::utils::check_err(
-            r1_m.mData, r1_m_host.mData, "Error: Incorrect results d1", 1e-2, 1e-2);
+        pass = ck::utils::check_err(e_m_n, e_m_n_host, "Error: Incorrect results c", 1e-2, 1e-2);
+        pass &= ck::utils::check_err(r0_m, r0_m_host, "Error: Incorrect results d0", 1e-2, 1e-2);
+        pass &= ck::utils::check_err(r1_m, r1_m_host, "Error: Incorrect results d1", 1e-2, 1e-2);
     }
 
     bool time_kernel = true;

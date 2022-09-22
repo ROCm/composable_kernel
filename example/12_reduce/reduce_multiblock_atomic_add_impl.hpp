@@ -7,15 +7,17 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/reduction_enums.hpp"
-#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce_multiblock.hpp"
+#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/host_common_util.hpp"
 #include "ck/library/utility/host_reduction.hpp"
+#include "ck/library/utility/ranges.hpp"
 
 #include "reduce_example_common.hpp"
 
@@ -95,11 +97,11 @@ int reduce_multiblock_atomic_add_impl(bool do_verification,
     Tensor<InOutDataType> out_ref(outLengths);
     Tensor<InOutDataType> out(outLengths);
 
-    auto inStrides  = in.mDesc.GetStrides();
-    auto outStrides = out.mDesc.GetStrides();
+    auto inStrides  = in.GetStrides();
+    auto outStrides = out.GetStrides();
 
-    size_t invariant_total_length = out.mDesc.GetElementSize();
-    size_t reduce_total_length    = in.mDesc.GetElementSize() / invariant_total_length;
+    size_t invariant_total_length = out.GetElementSize();
+    size_t reduce_total_length    = in.GetElementSize() / invariant_total_length;
 
     std::size_t num_thread = 1;
 
@@ -126,18 +128,19 @@ int reduce_multiblock_atomic_add_impl(bool do_verification,
         }
 
         if(beta != 0.0f)
-            for(size_t i = 0; i < out_ref.mDesc.GetElementSpaceSize(); i++)
-                out.mData[i] = out_ref.mData[i];
+        {
+            ck::ranges::copy(out_ref, out.begin());
+        }
     };
 
     // these buffers are usually provided by the user application
-    DeviceMem in_dev(sizeof(InOutDataType) * in.mDesc.GetElementSpaceSize());
-    DeviceMem out_dev(sizeof(InOutDataType) * out.mDesc.GetElementSpaceSize());
+    DeviceMem in_dev(in.GetMemorySize());
+    DeviceMem out_dev(out.GetMemorySize());
 
-    in_dev.ToDevice(in.mData.data());
+    in_dev.ToDevice(in.data());
 
     if(beta != 0.0f)
-        out_dev.ToDevice(out.mData.data());
+        out_dev.ToDevice(out.data());
 
     InElementwiseOperation in_elementwise_op;
     AccElementwiseOperation acc_elementwise_op;
@@ -158,33 +161,20 @@ int reduce_multiblock_atomic_add_impl(bool do_verification,
                       NumReduceDim,
                       PropagateNan,
                       false>
-            hostReduce(in.mDesc, out_ref.mDesc, invariantDims, reduceDims);
+            hostReduce(in.GetDesc(), out_ref.GetDesc(), invariantDims, reduceDims);
 
-        hostReduce.Run(alpha,
-                       in.mData.data(),
-                       beta,
-                       out_ref.mData.data(),
-                       nullptr,
-                       in_elementwise_op,
-                       acc_elementwise_op);
+        hostReduce.Run(
+            alpha, in.data(), beta, out_ref.data(), nullptr, in_elementwise_op, acc_elementwise_op);
     };
 
-    std::vector<ck::index_t> i_inLengths;
-    std::vector<ck::index_t> i_inStrides;
-    std::vector<ck::index_t> i_outLengths;
-    std::vector<ck::index_t> i_outStrides;
-
-    i_inLengths.assign(inLengths.begin(), inLengths.end());
-    i_inStrides.assign(inStrides.begin(), inStrides.end());
-    i_outLengths.assign(outLengths.begin(), outLengths.end());
-    i_outStrides.assign(outStrides.begin(), outStrides.end());
+    using Indices = std::vector<ck::index_t>;
 
     auto reduce = DeviceReduceInstance{};
 
-    auto argument_ptr = reduce.MakeArgumentPointer(i_inLengths,
-                                                   i_inStrides,
-                                                   i_outLengths,
-                                                   i_outStrides,
+    auto argument_ptr = reduce.MakeArgumentPointer(ck::ranges::to<Indices>(inLengths),
+                                                   ck::ranges::to<Indices>(inStrides),
+                                                   ck::ranges::to<Indices>(outLengths),
+                                                   ck::ranges::to<Indices>(outStrides),
                                                    reduceDims,
                                                    alpha,
                                                    beta,
@@ -222,8 +212,8 @@ int reduce_multiblock_atomic_add_impl(bool do_verification,
 
     if(do_verification)
     {
-        out_dev.FromDevice(out.mData.data());
-        pass = pass && ck::utils::check_err(out.mData, out_ref.mData);
+        out_dev.FromDevice(out.data());
+        pass = pass && ck::utils::check_err(out, out_ref);
     };
 
     return (pass ? 0 : 1);

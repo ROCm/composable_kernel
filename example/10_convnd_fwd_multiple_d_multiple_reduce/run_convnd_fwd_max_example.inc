@@ -77,32 +77,28 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
     {
     case 0: break;
     case 1:
-        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-8, 7}(conv_input.begin(),
-                                                                         conv_input.end());
-        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-8, 7}(conv_weight.begin(),
-                                                                         conv_weight.end());
+        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-8, 7}(conv_input);
+        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-8, 7}(conv_weight);
         break;
     default:
-        ck::utils::FillUniformDistribution<ADataType>{-5, 5}(conv_input.begin(), conv_input.end());
-        ck::utils::FillUniformDistribution<BDataType>{-5, 5}(conv_weight.begin(),
-                                                             conv_weight.end());
+        ck::utils::FillUniformDistribution<ADataType>{-5, 5}(conv_input);
+        ck::utils::FillUniformDistribution<BDataType>{-5, 5}(conv_weight);
     }
 
-    DeviceMem conv_input_device_buf(sizeof(ADataType) * conv_input.mDesc.GetElementSpaceSize());
-    DeviceMem conv_weight_device_buf(sizeof(BDataType) * conv_weight.mDesc.GetElementSpaceSize());
-    DeviceMem conv_output_device_buf(sizeof(EDataType) *
-                                     conv_output_device.mDesc.GetElementSpaceSize());
-    DeviceMem r0_device_buf(sizeof(R0DataType) * r0_device.mDesc.GetElementSpaceSize());
+    DeviceMem conv_input_device_buf(conv_input.GetMemorySize());
+    DeviceMem conv_weight_device_buf(conv_weight.GetMemorySize());
+    DeviceMem conv_output_device_buf(conv_output_device.GetMemorySize());
+    DeviceMem r0_device_buf(r0_device.GetMemorySize());
 
 #ifdef BUILD_INT4_EXAMPLE
     const Tensor<KernelADataType> conv_input_converted(conv_input);
     const Tensor<KernelBDataType> conv_weight_converted(conv_weight);
 
-    conv_input_device_buf.ToDevice(conv_input_converted.mData.data());
-    conv_weight_device_buf.ToDevice(conv_weight_converted.mData.data());
+    conv_input_device_buf.ToDevice(conv_input_converted.data());
+    conv_weight_device_buf.ToDevice(conv_weight_converted.data());
 #else
-    conv_input_device_buf.ToDevice(conv_input.mData.data());
-    conv_weight_device_buf.ToDevice(conv_weight.mData.data());
+    conv_input_device_buf.ToDevice(conv_input.data());
+    conv_weight_device_buf.ToDevice(conv_weight.data());
 #endif
 
     std::array<ck::index_t, NDimSpatial + 3> conv_input_g_n_c_wis_lengths{},
@@ -112,8 +108,6 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
     std::array<ck::index_t, NDimSpatial + 3> conv_output_g_n_k_wos_lengths{},
         conv_output_g_n_k_wos_strides{};
     std::array<ck::index_t, NDimSpatial + 2> r0_lengths{}, r0_strides{};
-    std::array<ck::index_t, NDimSpatial> conv_filter_strides{}, conv_filter_dilations{};
-    std::array<ck::index_t, NDimSpatial> input_left_pads{}, input_right_pads{};
 
     unpack_host_tensor_descriptor(
         conv_input_g_n_c_wis_desc, conv_input_g_n_c_wis_lengths, conv_input_g_n_c_wis_strides);
@@ -123,33 +117,30 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
         conv_output_g_n_k_wos_desc, conv_output_g_n_k_wos_lengths, conv_output_g_n_k_wos_strides);
     unpack_host_tensor_descriptor(r0_desc, r0_lengths, r0_strides);
 
-    copy(problem_size.conv_filter_strides_, begin(conv_filter_strides));
-    copy(problem_size.conv_filter_dilations_, begin(conv_filter_dilations));
-    copy(problem_size.input_left_pads_, begin(input_left_pads));
-    copy(problem_size.input_right_pads_, begin(input_right_pads));
+    using ck::utils::empty_array, ck::utils::to_array;
 
     // run Conv + Reduction on device
     auto conv     = DeviceInstance<NDimSpatial>{};
     auto invoker  = conv.MakeInvoker();
     auto argument = conv.MakeArgument(conv_input_device_buf.GetDeviceBuffer(),
                                       conv_weight_device_buf.GetDeviceBuffer(),
-                                      std::array<const void*, 0>{},
+                                      empty_array(),
                                       conv_output_device_buf.GetDeviceBuffer(),
                                       {r0_device_buf.GetDeviceBuffer()},
                                       conv_input_g_n_c_wis_lengths,
                                       conv_input_g_n_c_wis_strides,
                                       conv_weight_g_k_c_xs_lengths,
                                       conv_weight_g_k_c_xs_strides,
-                                      std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{{}},
-                                      std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{{}},
+                                      empty_array(),
+                                      empty_array(),
                                       conv_output_g_n_k_wos_lengths,
                                       conv_output_g_n_k_wos_strides,
                                       r0_lengths,
                                       r0_strides,
-                                      conv_filter_strides,
-                                      conv_filter_dilations,
-                                      input_left_pads,
-                                      input_right_pads,
+                                      to_array(problem_size.conv_filter_strides_),
+                                      to_array(problem_size.conv_filter_dilations_),
+                                      to_array(problem_size.input_left_pads_),
+                                      to_array(problem_size.input_right_pads_),
                                       AElementOp{},
                                       BElementOp{},
                                       CDEElementOp{},
@@ -194,11 +185,11 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
 
         ref_invoker.Run(ref_argument);
 
-        Tensor<R0DataType> r0_host(r0_device.mDesc);
+        Tensor<R0DataType> r0_host(r0_device.GetDesc());
 
         auto reduce0_op = RsThreadReduceOp{}[ck::Number<0>{}];
 
-        auto& output_dims = conv_output_g_n_k_wos_desc.GetLengths();
+        auto output_dims = conv_output_g_n_k_wos_desc.GetLengths();
 
         if constexpr(NDimSpatial == 1)
         {
@@ -273,19 +264,16 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
             }
         }
 
-        conv_output_device_buf.FromDevice(conv_output_device.mData.data());
-        r0_device_buf.FromDevice(r0_device.mData.data());
+        conv_output_device_buf.FromDevice(conv_output_device.data());
+        r0_device_buf.FromDevice(r0_device.data());
 
-        return ck::utils::check_err(conv_output_device.mData,
-                                    conv_output_host.mData,
+        return ck::utils::check_err(conv_output_device,
+                                    conv_output_host,
                                     "Error: incorrect results! (Matrix E)",
                                     1e-5f,
                                     1e-4f) &&
-               ck::utils::check_err(r0_device.mData,
-                                    r0_host.mData,
-                                    "Error: incorrect results! (Matrix R0)",
-                                    1e-5f,
-                                    1e-4f);
+               ck::utils::check_err(
+                   r0_device, r0_host, "Error: incorrect results! (Matrix R0)", 1e-5f, 1e-4f);
     }
 
     return true;

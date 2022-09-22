@@ -1,24 +1,27 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
+#include <cstdlib>
+#include <initializer_list>
 #include <iostream>
 #include <numeric>
 #include <sstream>
-#include <initializer_list>
-#include <cstdlib>
+
 #include <getopt.h>
 
 #include "ck/ck.hpp"
 #include "ck/utility/reduction_enums.hpp"
-#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce_multiblock.hpp"
+#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/host_common_util.hpp"
 #include "ck/library/utility/host_reduction.hpp"
+#include "ck/library/utility/ranges.hpp"
 
 using namespace ck;
 using namespace ck::tensor_operation::device;
@@ -139,12 +142,12 @@ int main(int argc, char* argv[])
     Tensor<InOutDataType> in_2(inLengths_2); // also the output tensor of the first reduction
     Tensor<InOutDataType> out(outLengths);
 
-    auto inStrides_1 = in_1.mDesc.GetStrides();
-    auto inStrides_2 = in_2.mDesc.GetStrides();
-    auto outStrides  = out.mDesc.GetStrides();
+    auto inStrides_1 = in_1.GetStrides();
+    auto inStrides_2 = in_2.GetStrides();
+    auto outStrides  = out.GetStrides();
 
-    size_t invariant_total_length = out.mDesc.GetElementSize();
-    size_t reduce_total_length    = in_1.mDesc.GetElementSize() / invariant_total_length;
+    size_t invariant_total_length = out.GetElementSize();
+    size_t reduce_total_length    = in_1.GetElementSize() / invariant_total_length;
 
     std::size_t num_thread = 1;
 
@@ -171,18 +174,19 @@ int main(int argc, char* argv[])
         }
 
         if(beta != 0.0f)
-            for(size_t i = 0; i < out_ref.mDesc.GetElementSpaceSize(); i++)
-                out.mData[i] = out_ref.mData[i];
+        {
+            ck::ranges::copy(out_ref, out.begin());
+        }
     };
 
-    DeviceMem in_1_dev(sizeof(InOutDataType) * in_1.mDesc.GetElementSpaceSize());
-    DeviceMem in_2_dev(sizeof(InOutDataType) * in_2.mDesc.GetElementSpaceSize());
-    DeviceMem out_dev(sizeof(InOutDataType) * out.mDesc.GetElementSpaceSize());
+    DeviceMem in_1_dev(in_1.GetMemorySize());
+    DeviceMem in_2_dev(in_2.GetMemorySize());
+    DeviceMem out_dev(out.GetMemorySize());
 
-    in_1_dev.ToDevice(in_1.mData.data());
+    in_1_dev.ToDevice(in_1.data());
 
     if(beta != 0.0f)
-        out_dev.ToDevice(out.mData.data());
+        out_dev.ToDevice(out.data());
 
     InElementwiseOperation in_elementwise_op;
     AccElementwiseOperation acc_elementwise_op;
@@ -203,37 +207,25 @@ int main(int argc, char* argv[])
                       2, // NumReduceDim
                       PropagateNan,
                       OutputIndex>
-            hostReduce(in_1.mDesc, out_ref.mDesc, invariantDims, reduceDims);
+            hostReduce(in_1.GetDesc(), out_ref.GetDesc(), invariantDims, reduceDims);
 
         hostReduce.Run(alpha,
-                       in_1.mData.data(),
+                       in_1.data(),
                        beta,
-                       out_ref.mData.data(),
+                       out_ref.data(),
                        nullptr,
                        in_elementwise_op,
                        acc_elementwise_op);
     };
 
-    std::vector<ck::index_t> i_inLengths_1;
-    std::vector<ck::index_t> i_inStrides_1;
-    std::vector<ck::index_t> i_inLengths_2;
-    std::vector<ck::index_t> i_inStrides_2;
-    std::vector<ck::index_t> i_outLengths;
-    std::vector<ck::index_t> i_outStrides;
-
-    i_inLengths_1.assign(inLengths_1.begin(), inLengths_1.end());
-    i_inStrides_1.assign(inStrides_1.begin(), inStrides_1.end());
-    i_inLengths_2.assign(inLengths_2.begin(), inLengths_2.end());
-    i_inStrides_2.assign(inStrides_2.begin(), inStrides_2.end());
-    i_outLengths.assign(outLengths.begin(), outLengths.end());
-    i_outStrides.assign(outStrides.begin(), outStrides.end());
+    using Indices = std::vector<ck::index_t>;
 
     auto reduce_1 = DeviceReduceInstance_1{};
 
-    auto argument_ptr_1 = reduce_1.MakeArgumentPointer(i_inLengths_1,
-                                                       i_inStrides_1,
-                                                       i_inLengths_2,
-                                                       i_inStrides_2,
+    auto argument_ptr_1 = reduce_1.MakeArgumentPointer(ck::ranges::to<Indices>(inLengths_1),
+                                                       ck::ranges::to<Indices>(inStrides_1),
+                                                       ck::ranges::to<Indices>(inLengths_2),
+                                                       ck::ranges::to<Indices>(inStrides_2),
                                                        reduceDims_1,
                                                        1.0f,
                                                        0.0f,
@@ -255,10 +247,10 @@ int main(int argc, char* argv[])
 
     auto reduce_2 = DeviceReduceInstance_2{};
 
-    auto argument_ptr_2 = reduce_2.MakeArgumentPointer(i_inLengths_2,
-                                                       i_inStrides_2,
-                                                       i_outLengths,
-                                                       i_outStrides,
+    auto argument_ptr_2 = reduce_2.MakeArgumentPointer(ck::ranges::to<Indices>(inLengths_2),
+                                                       ck::ranges::to<Indices>(inStrides_2),
+                                                       ck::ranges::to<Indices>(outLengths),
+                                                       ck::ranges::to<Indices>(outStrides),
                                                        reduceDims_2,
                                                        alpha,
                                                        beta,
@@ -293,8 +285,8 @@ int main(int argc, char* argv[])
 
     if(do_verify)
     {
-        out_dev.FromDevice(out.mData.data());
-        pass = pass && ck::utils::check_err(out.mData, out_ref.mData);
+        out_dev.FromDevice(out.data());
+        pass = pass && ck::utils::check_err(out, out_ref);
     };
 
     return (pass ? 0 : 1);

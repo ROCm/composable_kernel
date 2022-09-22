@@ -72,9 +72,9 @@ struct ReferenceCGemm : public device::BaseOperator
 
         float Run(const Argument& arg)
         {
-            const std::size_t K = arg.a_m_k_real_.mDesc.GetLengths()[1];
+            const std::size_t K = arg.a_m_k_real_.GetLengths()[1];
 
-            if(K != arg.a_m_k_imag_.mDesc.GetLengths()[1])
+            if(K != arg.a_m_k_imag_.GetLengths()[1])
             {
                 throw std::runtime_error("wrong! Incompatible real and imag sizes in CGEMM");
             }
@@ -111,13 +111,11 @@ struct ReferenceCGemm : public device::BaseOperator
                 arg.c_m_n_imag_(m, n) = ck::type_convert<CDataType>(v_c_imag);
             };
 
-            make_ParallelTensorFunctor(f_mk_kn_mn_real,
-                                       arg.c_m_n_real_.mDesc.GetLengths()[0],
-                                       arg.c_m_n_real_.mDesc.GetLengths()[1])(
+            make_ParallelTensorFunctor(
+                f_mk_kn_mn_real, arg.c_m_n_real_.GetLengths()[0], arg.c_m_n_real_.GetLengths()[1])(
                 std::thread::hardware_concurrency());
-            make_ParallelTensorFunctor(f_mk_kn_mn_imag,
-                                       arg.c_m_n_imag_.mDesc.GetLengths()[0],
-                                       arg.c_m_n_imag_.mDesc.GetLengths()[1])(
+            make_ParallelTensorFunctor(
+                f_mk_kn_mn_imag, arg.c_m_n_imag_.GetLengths()[0], arg.c_m_n_imag_.GetLengths()[1])(
                 std::thread::hardware_concurrency());
 
             return 0;

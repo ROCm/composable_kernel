@@ -6,15 +6,16 @@
 #include <iomanip>
 
 #include "ck/ck.hpp"
+#include "ck/utility/data_type.hpp"
+#include "ck/tensor_operation/gpu/device/device_softmax.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+#include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
-#include "ck/tensor_operation/gpu/device/device_softmax.hpp"
-#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/utility/data_type.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -87,7 +88,7 @@ void profile_normalization_impl(int do_verification,
 
     Tensor<InDataType> in = in_strides.empty() ? Tensor<InDataType>(in_length)
                                                : Tensor<InDataType>(in_length, in_strides);
-    Tensor<OutDataType> out(in.mDesc);
+    Tensor<OutDataType> out(in.GetDesc());
 
     switch(init_method)
     {
@@ -107,13 +108,13 @@ void profile_normalization_impl(int do_verification,
 
     Tensor<OutDataType> out_ref(out);
 
-    DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
-    DeviceMem out_dev(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
-    in_dev.ToDevice(in.mData.data());
-    out_dev.ToDevice(out.mData.data());
+    DeviceMem in_dev(in.GetMemorySize());
+    DeviceMem out_dev(out.GetMemorySize());
+    in_dev.ToDevice(in.data());
+    out_dev.ToDevice(out.data());
 
-    std::vector<index_t> i_in_lengths(in.mDesc.GetLengths().begin(), in.mDesc.GetLengths().end());
-    std::vector<index_t> i_in_strides(in.mDesc.GetStrides().begin(), in.mDesc.GetStrides().end());
+    std::vector<index_t> i_in_lengths(in.GetLengths().begin(), in.GetLengths().end());
+    std::vector<index_t> i_in_strides(in.GetStrides().begin(), in.GetStrides().end());
 
     // add device softmax instances
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
@@ -189,9 +190,8 @@ void profile_normalization_impl(int do_verification,
 
         float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
-        std::size_t num_bytes =
-            in.mDesc.GetElementSize() * sizeof(InDataType) +
-            (beta == 0.0f ? 1 : 2) * out.mDesc.GetElementSize() * sizeof(OutDataType);
+        std::size_t num_bytes = in.GetElementSize() * sizeof(InDataType) +
+                                (beta == 0.0f ? 1 : 2) * out.GetElementSize() * sizeof(OutDataType);
 
         float gb_per_sec = num_bytes / 1.E6 / avg_time;
 
@@ -213,30 +213,27 @@ void profile_normalization_impl(int do_verification,
 
             ReferenceFactory{}.MakeInvoker().Run({in, out_ref, alpha, beta, reduce_dims});
 
-            out_dev.FromDevice(out.mData.data());
+            out_dev.FromDevice(out.data());
 
             bool pass;
-            if(std::is_same<InDataType, int8_t>::value)
+            if constexpr(std::is_same_v<InDataType, int8_t>)
             {
-                pass = ck::utils::check_err(
-                    out.mData, out_ref.mData, "Error: Incorrect results!", 0, 1);
+                pass = ck::utils::check_err(out, out_ref, "Error: Incorrect results!", 0, 1);
                 if(do_log)
                 {
-                    LogRangeAsType<int>(std::cout << "in  : ", in.mData, ",") << std::endl;
-                    LogRangeAsType<int>(std::cout << "out_ref  : ", out_ref.mData, ",")
-                        << std::endl;
-                    LogRangeAsType<int>(std::cout << "out  : ", out.mData, ",") << std::endl;
+                    LogRangeAsType<int>(std::cout << "in  : ", in, ",") << std::endl;
+                    LogRangeAsType<int>(std::cout << "out_ref  : ", out_ref, ",") << std::endl;
+                    LogRangeAsType<int>(std::cout << "out  : ", out, ",") << std::endl;
                 }
             }
             else
             {
-                pass = ck::utils::check_err(out.mData, out_ref.mData);
+                pass = ck::utils::check_err(out, out_ref);
                 if(do_log)
                 {
-                    LogRangeAsType<float>(std::cout << "in  : ", in.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "out_ref  : ", out_ref.mData, ",")
-                        << std::endl;
-                    LogRangeAsType<float>(std::cout << "out  : ", out.mData, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "in  : ", in, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "out_ref  : ", out_ref, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "out  : ", out, ",") << std::endl;
                 }
             }
 

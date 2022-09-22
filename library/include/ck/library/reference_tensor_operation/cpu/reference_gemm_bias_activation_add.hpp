@@ -63,7 +63,7 @@ struct ReferenceGemmBiasActivationAdd : public device::BaseOperator
         float Run(const Argument& arg)
         {
             auto f_mk_kn_mn = [&](auto m, auto n) {
-                const int K = arg.a_m_k_.mDesc.GetLengths()[1];
+                const int K = arg.a_m_k_.GetLengths()[1];
 
                 float v_acc = 0;
 
@@ -89,7 +89,7 @@ struct ReferenceGemmBiasActivationAdd : public device::BaseOperator
             };
 
             make_ParallelTensorFunctor(
-                f_mk_kn_mn, arg.c_m_n_.mDesc.GetLengths()[0], arg.c_m_n_.mDesc.GetLengths()[1])(
+                f_mk_kn_mn, arg.c_m_n_.GetLengths()[0], arg.c_m_n_.GetLengths()[1])(
                 std::thread::hardware_concurrency());
 
             return 0;

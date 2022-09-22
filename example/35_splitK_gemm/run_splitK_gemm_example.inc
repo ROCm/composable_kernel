@@ -32,17 +32,17 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
 
     auto& [M, N, K, StrideA, StrideB, StrideC, KBatch] = problem_size;
 
+    using namespace ck::literals;
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
+                return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
             else
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
+                return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
 
@@ -50,9 +50,9 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
-    std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
-    std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
-    std::cout << "c_m_n: " << c_m_n_device_result.mDesc << std::endl;
+    std::cout << "a_m_k: " << a_m_k.GetDesc() << std::endl;
+    std::cout << "b_k_n: " << b_k_n.GetDesc() << std::endl;
+    std::cout << "c_m_n: " << c_m_n_device_result.GetDesc() << std::endl;
 
     switch(config.init_method)
     {
@@ -70,19 +70,19 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
         b_k_n.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
     }
 
-    DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_m_k_device_buf(a_m_k.GetMemorySize());
+    DeviceMem b_k_n_device_buf(b_k_n.GetMemorySize());
+    DeviceMem c_m_n_device_buf(c_m_n_device_result.GetMemorySize());
 
 #ifdef BUILD_INT4_EXAMPLE
     const Tensor<KernelADataType> a_m_k_converted(a_m_k);
     const Tensor<KernelBDataType> b_k_n_converted(b_k_n);
 
-    a_m_k_device_buf.ToDevice(a_m_k_converted.mData.data());
-    b_k_n_device_buf.ToDevice(b_k_n_converted.mData.data());
+    a_m_k_device_buf.ToDevice(a_m_k_converted.data());
+    b_k_n_device_buf.ToDevice(b_k_n_converted.data());
 #else
-    a_m_k_device_buf.ToDevice(a_m_k.mData.data());
-    b_k_n_device_buf.ToDevice(b_k_n.mData.data());
+    a_m_k_device_buf.ToDevice(a_m_k.data());
+    b_k_n_device_buf.ToDevice(b_k_n.data());
 #endif
     c_m_n_device_buf.SetZero();
 
@@ -93,25 +93,19 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
     // do GEMM
     auto gemm     = DeviceGemmInstance{};
     auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(
-#ifdef BUILD_INT4_EXAMPLE
-        static_cast<KernelADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-        static_cast<KernelBDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-#else
-        static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-        static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-#endif
-        static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-        M,
-        N,
-        K,
-        StrideA,
-        StrideB,
-        StrideC,
-        a_element_op,
-        b_element_op,
-        c_element_op,
-        KBatch);
+    auto argument = gemm.MakeArgument(a_m_k_device_buf.GetDeviceBuffer(),
+                                      b_k_n_device_buf.GetDeviceBuffer(),
+                                      c_m_n_device_buf.GetDeviceBuffer(),
+                                      M,
+                                      N,
+                                      K,
+                                      StrideA,
+                                      StrideB,
+                                      StrideC,
+                                      a_element_op,
+                                      b_element_op,
+                                      c_element_op,
+                                      KBatch);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -125,7 +119,7 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
 
     if(config.do_verification)
     {
-        c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
+        c_m_n_device_buf.FromDevice(c_m_n_device_result.data());
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                                 BDataType,
                                                                                 CDataType,
@@ -146,15 +140,12 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
 
         if(std::is_same<CDataType, ck::half_t>::value)
         {
-            pass &= ck::utils::check_err(c_m_n_device_result.mData,
-                                         c_m_n_host_result.mData,
-                                         "fp16 incorrect result",
-                                         3e-3,
-                                         1e-3);
+            pass &= ck::utils::check_err(
+                c_m_n_device_result, c_m_n_host_result, "fp16 incorrect result", 3e-3, 1e-3);
         }
         else
         {
-            pass &= ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
+            pass &= ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
         }
     }
 

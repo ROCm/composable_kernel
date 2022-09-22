@@ -1,20 +1,22 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
+#include <cstdlib>
+#include <initializer_list>
 #include <iostream>
 #include <numeric>
-#include <initializer_list>
-#include <cstdlib>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_contraction_multiple_d_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/utility/array.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/numeric.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -109,7 +111,7 @@ struct ReferenceContraction_G2_M2_N2_K1 : public ck::tensor_operation::device::B
         float Run(const Argument& arg)
         {
             auto f_ms_ns = [&](auto g0, auto g1, auto m0, auto m1, auto n0, auto n1) {
-                const int K0 = arg.a_gs_ms_ks_.mDesc.GetLengths()[4];
+                const int K0 = arg.a_gs_ms_ks_.GetLengths()[4];
 
                 AccDataType v_acc = 0;
 
@@ -136,12 +138,12 @@ struct ReferenceContraction_G2_M2_N2_K1 : public ck::tensor_operation::device::B
             };
 
             make_ParallelTensorFunctor(f_ms_ns,
-                                       arg.e_gs_ms_ns_.mDesc.GetLengths()[0],
-                                       arg.e_gs_ms_ns_.mDesc.GetLengths()[1],
-                                       arg.e_gs_ms_ns_.mDesc.GetLengths()[2],
-                                       arg.e_gs_ms_ns_.mDesc.GetLengths()[3],
-                                       arg.e_gs_ms_ns_.mDesc.GetLengths()[4],
-                                       arg.e_gs_ms_ns_.mDesc.GetLengths()[5])(
+                                       arg.e_gs_ms_ns_.GetLengths()[0],
+                                       arg.e_gs_ms_ns_.GetLengths()[1],
+                                       arg.e_gs_ms_ns_.GetLengths()[2],
+                                       arg.e_gs_ms_ns_.GetLengths()[3],
+                                       arg.e_gs_ms_ns_.GetLengths()[4],
+                                       arg.e_gs_ms_ns_.GetLengths()[5])(
                 std::thread::hardware_concurrency());
 
             return 0;
@@ -246,26 +248,16 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
-    Tensor<ADataType> a_gs_ms_ks(
-        std::vector<std::size_t>(a_gs_ms_ks_lengths.begin(), a_gs_ms_ks_lengths.end()),
-        std::vector<std::size_t>(a_gs_ms_ks_strides.begin(), a_gs_ms_ks_strides.end()));
-    Tensor<BDataType> b_gs_ns_ks(
-        std::vector<std::size_t>(b_gs_ns_ks_lengths.begin(), b_gs_ns_ks_lengths.end()),
-        std::vector<std::size_t>(b_gs_ns_ks_strides.begin(), b_gs_ns_ks_strides.end()));
-    Tensor<DDataType> d_gs_ms_ns(
-        std::vector<std::size_t>(d_gs_ms_ns_lengths.begin(), d_gs_ms_ns_lengths.end()),
-        std::vector<std::size_t>(d_gs_ms_ns_strides.begin(), d_gs_ms_ns_strides.end()));
-    Tensor<EDataType> e_gs_ms_ns_host_result(
-        std::vector<std::size_t>(e_gs_ms_ns_lengths.begin(), e_gs_ms_ns_lengths.end()),
-        std::vector<std::size_t>(e_gs_ms_ns_strides.begin(), e_gs_ms_ns_strides.end()));
-    Tensor<EDataType> e_gs_ms_ns_device_result(
-        std::vector<std::size_t>(e_gs_ms_ns_lengths.begin(), e_gs_ms_ns_lengths.end()),
-        std::vector<std::size_t>(e_gs_ms_ns_strides.begin(), e_gs_ms_ns_strides.end()));
+    Tensor<ADataType> a_gs_ms_ks(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
+    Tensor<BDataType> b_gs_ns_ks(b_gs_ns_ks_lengths, b_gs_ns_ks_strides);
+    Tensor<DDataType> d_gs_ms_ns(d_gs_ms_ns_lengths, d_gs_ms_ns_strides);
+    Tensor<EDataType> e_gs_ms_ns_host_result(e_gs_ms_ns_lengths, e_gs_ms_ns_strides);
+    Tensor<EDataType> e_gs_ms_ns_device_result(e_gs_ms_ns_lengths, e_gs_ms_ns_strides);
 
-    std::cout << "a_gs_ms_ks: " << a_gs_ms_ks.mDesc << std::endl;
-    std::cout << "b_gs_ns_ks: " << b_gs_ns_ks.mDesc << std::endl;
-    std::cout << "d_gs_ms_ns: " << d_gs_ms_ns.mDesc << std::endl;
-    std::cout << "e_gs_ms_ns: " << e_gs_ms_ns_host_result.mDesc << std::endl;
+    std::cout << "a_gs_ms_ks: " << a_gs_ms_ks.GetDesc() << std::endl;
+    std::cout << "b_gs_ns_ks: " << b_gs_ns_ks.GetDesc() << std::endl;
+    std::cout << "d_gs_ms_ns: " << d_gs_ms_ns.GetDesc() << std::endl;
+    std::cout << "e_gs_ms_ns: " << e_gs_ms_ns_host_result.GetDesc() << std::endl;
 
     switch(init_method)
     {
@@ -282,15 +274,14 @@ int main(int argc, char* argv[])
         break;
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_gs_ms_ks.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_gs_ns_ks.mDesc.GetElementSpaceSize());
-    DeviceMem d_device_buf(sizeof(DDataType) * d_gs_ms_ns.mDesc.GetElementSpaceSize());
-    DeviceMem e_device_buf(sizeof(EDataType) *
-                           e_gs_ms_ns_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_gs_ms_ks.GetMemorySize());
+    DeviceMem b_device_buf(b_gs_ns_ks.GetMemorySize());
+    DeviceMem d_device_buf(d_gs_ms_ns.GetMemorySize());
+    DeviceMem e_device_buf(e_gs_ms_ns_device_result.GetMemorySize());
 
-    a_device_buf.ToDevice(a_gs_ms_ks.mData.data());
-    b_device_buf.ToDevice(b_gs_ns_ks.mData.data());
-    d_device_buf.ToDevice(d_gs_ms_ns.mData.data());
+    a_device_buf.ToDevice(a_gs_ms_ks.data());
+    b_device_buf.ToDevice(b_gs_ns_ks.data());
+    d_device_buf.ToDevice(d_gs_ms_ns.data());
 
     // set zero
     e_device_buf.SetZero();
@@ -299,19 +290,21 @@ int main(int argc, char* argv[])
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{};
 
+    using ck::utils::to_array;
+
     // device operation
     auto op       = DeviceOpInstance{};
     auto invoker  = op.MakeInvoker();
     auto argument = op.MakeArgument(a_device_buf.GetDeviceBuffer(),
                                     b_device_buf.GetDeviceBuffer(),
-                                    std::array<const void*, 1>{d_device_buf.GetDeviceBuffer()},
+                                    to_array({d_device_buf.GetDeviceBuffer()}),
                                     e_device_buf.GetDeviceBuffer(),
                                     a_gs_ms_ks_lengths,
                                     a_gs_ms_ks_strides,
                                     b_gs_ns_ks_lengths,
                                     b_gs_ns_ks_strides,
-                                    std::array<std::vector<ck::index_t>, 1>{d_gs_ms_ns_lengths},
-                                    std::array<std::vector<ck::index_t>, 1>{d_gs_ms_ns_strides},
+                                    to_array({d_gs_ms_ns_lengths}),
+                                    to_array({d_gs_ms_ns_strides}),
                                     e_gs_ms_ns_lengths,
                                     e_gs_ms_ns_strides,
                                     a_element_op,
@@ -327,25 +320,23 @@ int main(int argc, char* argv[])
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-    ck::index_t G = std::accumulate(e_gs_ms_ns_lengths.begin(),
-                                    e_gs_ms_ns_lengths.begin() + NumDimG,
-                                    ck::index_t{1},
-                                    std::multiplies<ck::index_t>{});
+    ck::index_t G = ck::accumulate_n(
+        e_gs_ms_ns_lengths.begin(), NumDimG, ck::index_t{1}, std::multiplies<ck::index_t>{});
 
-    ck::index_t M = std::accumulate(e_gs_ms_ns_lengths.begin() + NumDimG,
-                                    e_gs_ms_ns_lengths.begin() + NumDimG + NumDimM,
-                                    ck::index_t{1},
-                                    std::multiplies<ck::index_t>{});
+    ck::index_t M = ck::accumulate_n(e_gs_ms_ns_lengths.begin() + NumDimG,
+                                     NumDimM,
+                                     ck::index_t{1},
+                                     std::multiplies<ck::index_t>{});
 
-    ck::index_t N = std::accumulate(e_gs_ms_ns_lengths.begin() + NumDimG + NumDimM,
-                                    e_gs_ms_ns_lengths.begin() + NumDimG + NumDimM + NumDimN,
-                                    ck::index_t{1},
-                                    std::multiplies<ck::index_t>{});
+    ck::index_t N = ck::accumulate_n(e_gs_ms_ns_lengths.begin() + NumDimG + NumDimM,
+                                     NumDimN,
+                                     ck::index_t{1},
+                                     std::multiplies<ck::index_t>{});
 
-    ck::index_t K = std::accumulate(a_gs_ms_ks_lengths.begin() + NumDimG + NumDimM,
-                                    a_gs_ms_ks_lengths.begin() + NumDimG + NumDimM + NumDimK,
-                                    ck::index_t{1},
-                                    std::multiplies<ck::index_t>{});
+    ck::index_t K = ck::accumulate_n(a_gs_ms_ks_lengths.begin() + NumDimG + NumDimM,
+                                     NumDimK,
+                                     ck::index_t{1},
+                                     std::multiplies<ck::index_t>{});
 
     std::size_t flop      = std::size_t(2) * G * M * N * K;
     std::size_t num_btype = sizeof(ADataType) * G * M * K + sizeof(BDataType) * G * K * N +
@@ -358,13 +349,11 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << op.GetTypeString() << std::endl;
 
-    e_device_buf.FromDevice(e_gs_ms_ns_device_result.mData.data());
+    e_device_buf.FromDevice(e_gs_ms_ns_device_result.data());
 
     if(do_verification)
     {
-        Tensor<CShuffleDataType> c_ms_ns_host_result(
-            std::vector<std::size_t>(e_gs_ms_ns_lengths.begin(), e_gs_ms_ns_lengths.end()),
-            std::vector<std::size_t>(e_gs_ms_ns_strides.begin(), e_gs_ms_ns_strides.end()));
+        Tensor<CShuffleDataType> c_ms_ns_host_result(e_gs_ms_ns_lengths, e_gs_ms_ns_strides);
 
         using ReferenceOpInstance = ReferenceContraction_G2_M2_N2_K1<NumDimG,
                                                                      NumDimM,
@@ -386,18 +375,17 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
 
-        for(size_t g0 = 0; g0 < e_gs_ms_ns_host_result.mDesc.GetLengths()[0]; ++g0)
+        for(size_t g0 = 0; g0 < e_gs_ms_ns_host_result.GetLengths()[0]; ++g0)
         {
-            for(size_t g1 = 0; g1 < e_gs_ms_ns_host_result.mDesc.GetLengths()[1]; ++g1)
+            for(size_t g1 = 0; g1 < e_gs_ms_ns_host_result.GetLengths()[1]; ++g1)
             {
-                for(size_t m0 = 0; m0 < e_gs_ms_ns_host_result.mDesc.GetLengths()[2]; ++m0)
+                for(size_t m0 = 0; m0 < e_gs_ms_ns_host_result.GetLengths()[2]; ++m0)
                 {
-                    for(size_t m1 = 0; m1 < e_gs_ms_ns_host_result.mDesc.GetLengths()[3]; ++m1)
+                    for(size_t m1 = 0; m1 < e_gs_ms_ns_host_result.GetLengths()[3]; ++m1)
                     {
-                        for(size_t n0 = 0; n0 < e_gs_ms_ns_host_result.mDesc.GetLengths()[4]; ++n0)
+                        for(size_t n0 = 0; n0 < e_gs_ms_ns_host_result.GetLengths()[4]; ++n0)
                         {
-                            for(size_t n1 = 0; n1 < e_gs_ms_ns_host_result.mDesc.GetLengths()[5];
-                                ++n1)
+                            for(size_t n1 = 0; n1 < e_gs_ms_ns_host_result.GetLengths()[5]; ++n1)
                             {
                                 cde_element_op(e_gs_ms_ns_host_result(g0, g1, m0, m1, n0, n1),
                                                c_ms_ns_host_result(g0, g1, m0, m1, n0, n1),
@@ -409,9 +397,7 @@ int main(int argc, char* argv[])
             }
         }
 
-        return ck::utils::check_err(e_gs_ms_ns_device_result.mData, e_gs_ms_ns_host_result.mData)
-                   ? 0
-                   : 1;
+        return ck::utils::check_err(e_gs_ms_ns_device_result, e_gs_ms_ns_host_result) ? 0 : 1;
     }
 
     return 0;

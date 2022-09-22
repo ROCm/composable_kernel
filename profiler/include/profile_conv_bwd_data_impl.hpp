@@ -4,19 +4,19 @@
 #pragma once
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_conv_bwd_data.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/convolution_backward_data.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_data.hpp"
 #include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
+#include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/utility/convolution_parameter.hpp"
-#include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_data.hpp"
 
 namespace ck {
 namespace profiler {
@@ -25,16 +25,16 @@ template <typename DataType>
 void show_data_nhwc_layout(Tensor<DataType>& nhwc)
 {
     std::cout << "[";
-    for(int n = 0; n < ck::type_convert<int>(nhwc.mDesc.GetLengths()[0]); n++)
+    for(int n = 0; n < ck::type_convert<int>(nhwc.GetLengths()[0]); n++)
     {
         std::cout << "[";
-        for(int hi = 0; hi < ck::type_convert<int>(nhwc.mDesc.GetLengths()[2]); hi++)
+        for(int hi = 0; hi < ck::type_convert<int>(nhwc.GetLengths()[2]); hi++)
         {
             std::cout << "[";
-            for(int wi = 0; wi < ck::type_convert<int>(nhwc.mDesc.GetLengths()[3]); wi++)
+            for(int wi = 0; wi < ck::type_convert<int>(nhwc.GetLengths()[3]); wi++)
             {
                 std::cout << "[";
-                for(int c = 0; c < ck::type_convert<int>(nhwc.mDesc.GetLengths()[1]); c++)
+                for(int c = 0; c < ck::type_convert<int>(nhwc.GetLengths()[1]); c++)
                 {
                     std::cout << static_cast<float>(nhwc(n, c, hi, wi)) << "  ";
                 }
@@ -82,9 +82,9 @@ bool profile_conv_bwd_data_impl(int do_verification,
     Tensor<WeiDataType> weight(wei_g_k_c_xs_desc);
     Tensor<OutDataType> output(out_g_n_k_wos_desc);
 
-    std::cout << "input: " << input_host_result.mDesc << std::endl;
-    std::cout << "weight: " << weight.mDesc << std::endl;
-    std::cout << "output: " << output.mDesc << std::endl;
+    std::cout << "input: " << input_host_result.GetDesc() << std::endl;
+    std::cout << "weight: " << weight.GetDesc() << std::endl;
+    std::cout << "output: " << output.GetDesc() << std::endl;
 
     switch(init_method)
     {
@@ -98,12 +98,12 @@ bool profile_conv_bwd_data_impl(int do_verification,
         weight.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
     }
 
-    DeviceMem in_device_buf(sizeof(InDataType) * input_device_result.mDesc.GetElementSpaceSize());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * weight.mDesc.GetElementSpaceSize());
-    DeviceMem out_device_buf(sizeof(OutDataType) * output.mDesc.GetElementSpaceSize());
+    DeviceMem in_device_buf(input_device_result.GetMemorySize());
+    DeviceMem wei_device_buf(weight.GetMemorySize());
+    DeviceMem out_device_buf(output.GetMemorySize());
 
-    out_device_buf.ToDevice(output.mData.data());
-    wei_device_buf.ToDevice(weight.mData.data());
+    out_device_buf.ToDevice(output.data());
+    wei_device_buf.ToDevice(weight.data());
 
     if(do_verification)
     {
@@ -157,23 +157,22 @@ bool profile_conv_bwd_data_impl(int do_verification,
 
     for(auto& op_ptr : op_ptrs)
     {
-        auto argument_ptr =
-            op_ptr->MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-                                        static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
-                                        static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-                                        conv_param.N_,
-                                        conv_param.K_,
-                                        conv_param.C_,
-                                        conv_param.input_spatial_lengths_,
-                                        conv_param.filter_spatial_lengths_,
-                                        conv_param.output_spatial_lengths_,
-                                        conv_param.conv_filter_strides_,
-                                        conv_param.conv_filter_dilations_,
-                                        conv_param.input_left_pads_,
-                                        conv_param.input_right_pads_,
-                                        in_element_op,
-                                        wei_element_op,
-                                        out_element_op);
+        auto argument_ptr = op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
+                                                        wei_device_buf.GetDeviceBuffer(),
+                                                        out_device_buf.GetDeviceBuffer(),
+                                                        conv_param.N_,
+                                                        conv_param.K_,
+                                                        conv_param.C_,
+                                                        conv_param.input_spatial_lengths_,
+                                                        conv_param.filter_spatial_lengths_,
+                                                        conv_param.output_spatial_lengths_,
+                                                        conv_param.conv_filter_strides_,
+                                                        conv_param.conv_filter_dilations_,
+                                                        conv_param.input_left_pads_,
+                                                        conv_param.input_right_pads_,
+                                                        in_element_op,
+                                                        wei_element_op,
+                                                        out_element_op);
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
@@ -207,10 +206,9 @@ bool profile_conv_bwd_data_impl(int do_verification,
 
             if(do_verification)
             {
-                in_device_buf.FromDevice(input_device_result.mData.data());
+                in_device_buf.FromDevice(input_device_result.data());
 
-                pass =
-                    pass & ck::utils::check_err(input_device_result.mData, input_host_result.mData);
+                pass = pass & ck::utils::check_err(input_device_result, input_host_result);
 
                 if(do_log)
                 {

@@ -57,7 +57,7 @@ struct ReferenceBatchedGemm : public device::BaseOperator
         float Run(const Argument& arg)
         {
             auto f_gmk_gkn_gmn = [&](auto g, auto m, auto n) {
-                const int K = arg.a_g_m_k_.mDesc.GetLengths()[2];
+                const int K = arg.a_g_m_k_.GetLengths()[2];
 
                 AccDataType v_acc = 0;
 
@@ -81,9 +81,9 @@ struct ReferenceBatchedGemm : public device::BaseOperator
             };
 
             make_ParallelTensorFunctor(f_gmk_gkn_gmn,
-                                       arg.c_g_m_n_.mDesc.GetLengths()[0],
-                                       arg.c_g_m_n_.mDesc.GetLengths()[1],
-                                       arg.c_g_m_n_.mDesc.GetLengths()[2])(
+                                       arg.c_g_m_n_.GetLengths()[0],
+                                       arg.c_g_m_n_.GetLengths()[1],
+                                       arg.c_g_m_n_.GetLengths()[2])(
                 std::thread::hardware_concurrency());
             return 0;
         }

@@ -6,18 +6,19 @@
 #include <memory>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/batched_gemm_softmax_gemm.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
+#include "ck/library/utility/literals.hpp"
 
 namespace ck {
 namespace profiler {
@@ -104,21 +105,21 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
     BatchStrideB1 = BatchStrideB1 < 0 ? DefaultBatchStrideB1 : BatchStrideB1;
     BatchStrideC  = BatchStrideC < 0 ? DefaultBatchStrideC : BatchStrideC;
 
+    using namespace ck::literals;
+
     auto f_host_tensor_descriptor = [](std::size_t batch_count,
                                        std::size_t row,
                                        std::size_t col,
                                        std::size_t stride,
                                        std::size_t batch_stride,
                                        auto layout) {
-        if(std::is_same<decltype(layout), Row>::value)
+        if constexpr(std::is_same_v<decltype(layout), Row>)
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({batch_stride, stride, 1}));
+            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, stride, 1_uz});
         }
         else
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({batch_stride, 1, stride}));
+            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, 1_uz, stride});
         }
     };
 
@@ -137,10 +138,10 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
     Tensor<AccDataType> acc0_g_m_n(f_host_tensor_descriptor(BatchCount, M, N, N, M * N, Row{}));
     Tensor<ADataType> a1_g_m_n(f_host_tensor_descriptor(BatchCount, M, N, N, M * N, Row{}));
 
-    std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
-    std::cout << "b0_g_k_n: " << b0_g_k_n.mDesc << std::endl;
-    std::cout << "b1_g_n_o: " << b1_g_n_o.mDesc << std::endl;
-    std::cout << "c_g_m_o: " << c_g_m_o_host_result.mDesc << std::endl;
+    std::cout << "a_g_m_k: " << a_g_m_k.GetDesc() << std::endl;
+    std::cout << "b0_g_k_n: " << b0_g_k_n.GetDesc() << std::endl;
+    std::cout << "b1_g_n_o: " << b1_g_n_o.GetDesc() << std::endl;
+    std::cout << "c_g_m_o: " << c_g_m_o_host_result.GetDesc() << std::endl;
 
     std::srand(1); // work around test flakiness
     switch(init_method)
@@ -174,14 +175,14 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
     }
 
-    DeviceMem a_g_m_k_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSize());
-    DeviceMem b0_g_k_n_device_buf(sizeof(B0DataType) * b0_g_k_n.mDesc.GetElementSize());
-    DeviceMem b1_g_n_o_device_buf(sizeof(B1DataType) * b1_g_n_o.mDesc.GetElementSize());
-    DeviceMem c_g_m_o_device_buf(sizeof(CDataType) * c_g_m_o_device_result.mDesc.GetElementSize());
+    DeviceMem a_g_m_k_device_buf(a_g_m_k.GetMemorySize());
+    DeviceMem b0_g_k_n_device_buf(b0_g_k_n.GetMemorySize());
+    DeviceMem b1_g_n_o_device_buf(b1_g_n_o.GetMemorySize());
+    DeviceMem c_g_m_o_device_buf(c_g_m_o_device_result.GetMemorySize());
 
-    a_g_m_k_device_buf.ToDevice(a_g_m_k.mData.data());
-    b0_g_k_n_device_buf.ToDevice(b0_g_k_n.mData.data());
-    b1_g_n_o_device_buf.ToDevice(b1_g_n_o.mData.data());
+    a_g_m_k_device_buf.ToDevice(a_g_m_k.data());
+    b0_g_k_n_device_buf.ToDevice(b0_g_k_n.data());
+    b1_g_n_o_device_buf.ToDevice(b1_g_n_o.data());
 
     auto a_element_op    = AElementOp{};
     auto b0_element_op   = B0ElementOp{};
@@ -240,29 +241,28 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
     // profile device op instances
     for(auto& op_ptr : op_ptrs)
     {
-        auto argument_ptr = op_ptr->MakeArgumentPointer(
-            static_cast<ADataType*>(a_g_m_k_device_buf.GetDeviceBuffer()),
-            static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
-            static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
-            static_cast<CDataType*>(c_g_m_o_device_buf.GetDeviceBuffer()),
-            M,
-            N,
-            K,
-            O,
-            BatchCount,
-            StrideA,
-            StrideB0,
-            StrideB1,
-            StrideC,
-            BatchStrideA,
-            BatchStrideB0,
-            BatchStrideB1,
-            BatchStrideC,
-            a_element_op,
-            b0_element_op,
-            acc0_element_op,
-            b1_element_op,
-            c_element_op);
+        auto argument_ptr = op_ptr->MakeArgumentPointer(a_g_m_k_device_buf.GetDeviceBuffer(),
+                                                        b0_g_k_n_device_buf.GetDeviceBuffer(),
+                                                        b1_g_n_o_device_buf.GetDeviceBuffer(),
+                                                        c_g_m_o_device_buf.GetDeviceBuffer(),
+                                                        M,
+                                                        N,
+                                                        K,
+                                                        O,
+                                                        BatchCount,
+                                                        StrideA,
+                                                        StrideB0,
+                                                        StrideB1,
+                                                        StrideC,
+                                                        BatchStrideA,
+                                                        BatchStrideB0,
+                                                        BatchStrideB1,
+                                                        BatchStrideC,
+                                                        a_element_op,
+                                                        b0_element_op,
+                                                        acc0_element_op,
+                                                        b1_element_op,
+                                                        c_element_op);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
@@ -295,24 +295,20 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
 
             if(do_verification)
             {
-                c_g_m_o_device_buf.FromDevice(c_g_m_o_device_result.mData.data());
+                c_g_m_o_device_buf.FromDevice(c_g_m_o_device_result.data());
 
-                pass = pass &
-                       ck::utils::check_err(c_g_m_o_device_result.mData, c_g_m_o_host_result.mData);
+                pass = pass & ck::utils::check_err(c_g_m_o_device_result, c_g_m_o_host_result);
 
                 if(do_log)
                 {
-                    LogRangeAsType<float>(std::cout << "a_g_m_k: ", a_g_m_k.mData, ",")
-                        << std::endl;
-                    LogRangeAsType<float>(std::cout << "b0_g_k_n : ", b0_g_k_n.mData, ",")
-                        << std::endl;
-                    LogRangeAsType<float>(std::cout << "b1_g_n_o : ", b1_g_n_o.mData, ",")
+                    LogRangeAsType<float>(std::cout << "a_g_m_k: ", a_g_m_k, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "b0_g_k_n : ", b0_g_k_n, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "b1_g_n_o : ", b1_g_n_o, ",") << std::endl;
+                    LogRangeAsType<float>(
+                        std::cout << "c_g_m_o_host_result : ", c_g_m_o_host_result, ",")
                         << std::endl;
                     LogRangeAsType<float>(
-                        std::cout << "c_g_m_o_host_result : ", c_g_m_o_host_result.mData, ",")
-                        << std::endl;
-                    LogRangeAsType<float>(
-                        std::cout << "c_g_m_o_device_result : ", c_g_m_o_device_result.mData, ",")
+                        std::cout << "c_g_m_o_device_result : ", c_g_m_o_device_result, ",")
                         << std::endl;
                 }
             }

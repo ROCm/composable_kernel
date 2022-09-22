@@ -3,19 +3,20 @@
 
 #pragma once
 
-#include <vector>
 #include <iostream>
+#include <vector>
+
 #include <gtest/gtest.h>
 
 #include "ck/ck.hpp"
-#include "ck/utility/number.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_softmax_impl.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/utility/number.hpp"
 
-#include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/host_tensor.hpp"
-#include "ck/library/utility/device_memory.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
 
 namespace ck {
 
@@ -85,15 +86,13 @@ class TestSoftmax : public ::testing::Test
 
         Tensor<OutDataType> out_ref(out);
 
-        DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
-        DeviceMem out_dev(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
-        in_dev.ToDevice(in.mData.data());
-        out_dev.ToDevice(out.mData.data());
+        DeviceMem in_dev(in.GetMemorySize());
+        DeviceMem out_dev(out.GetMemorySize());
+        in_dev.ToDevice(in.data());
+        out_dev.ToDevice(out.data());
 
-        std::vector<index_t> i_in_lengths(in.mDesc.GetLengths().begin(),
-                                          in.mDesc.GetLengths().end());
-        std::vector<index_t> i_in_strides(in.mDesc.GetStrides().begin(),
-                                          in.mDesc.GetStrides().end());
+        std::vector<index_t> i_in_lengths(in.GetLengths().begin(), in.GetLengths().end());
+        std::vector<index_t> i_in_strides(in.GetStrides().begin(), in.GetStrides().end());
 
         auto device_instance = DeviceInstance{};
         auto argument_ptr    = device_instance.MakeArgumentPointer(i_in_lengths,
@@ -119,18 +118,18 @@ class TestSoftmax : public ::testing::Test
 
         ref_instance_invoker_.Run({in, out_ref, alpha, beta, reduce_dims});
 
-        out_dev.FromDevice(out.mData.data());
+        out_dev.FromDevice(out.data());
 
         bool pass;
 
-        if(std::is_same<InDataType, int8_t>::value)
+        if constexpr(std::is_same_v<InDataType, int8_t>)
         {
-            EXPECT_TRUE(pass = ck::utils::check_err(
-                            out.mData, out_ref.mData, "Error: Incorrect results!", 0, 1));
+            EXPECT_TRUE(pass =
+                            ck::utils::check_err(out, out_ref, "Error: Incorrect results!", 0, 1));
         }
         else
         {
-            EXPECT_TRUE(pass = ck::utils::check_err(out.mData, out_ref.mData));
+            EXPECT_TRUE(pass = ck::utils::check_err(out, out_ref));
         }
 
         if(!pass)

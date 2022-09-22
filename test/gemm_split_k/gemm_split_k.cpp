@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include <iostream>
-#include <initializer_list>
 #include <cstdlib>
+#include <initializer_list>
+#include <iostream>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/gemm_splitk.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_gemm.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
-
-#include "ck/library/utility/host_gemm.hpp"
+#include "ck/library/utility/literals.hpp"
 
 enum struct GemmMatrixLayout
 {
@@ -29,13 +29,19 @@ enum struct GemmMatrixLayout
 };
 
 template <typename T>
-static bool check_out(const Tensor<T>& ref, const Tensor<T>& result)
+static std::enable_if_t<std::is_convertible_v<T, double>, bool> check_out(const Tensor<T>& ref,
+                                                                          const Tensor<T>& out)
 {
-    float max_diff = 1e-6;
-
-    for(std::size_t i = 0; i < ref.mData.size(); ++i)
+    if(out.size() != ref.size())
     {
-        float diff = std::abs(double(ref.mData[i]) - double(result.mData[i]));
+        return false;
+    }
+    constexpr float max_diff = 1e-6;
+
+    auto o = out.begin();
+    for(auto r = ref.begin(); r != ref.end(); ++r, ++o)
+    {
+        const float diff = std::abs(double(*r) - double(*o));
         if(max_diff < diff)
         {
             return false;
@@ -91,17 +97,17 @@ int test_gemm(const gemmArgs& args)
     default: printf("not supported layout"); return 1;
     }
 
+    using namespace ck::literals;
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, bool row_major) {
             if(row_major)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
+                return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
             else
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
+                return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
 
@@ -126,13 +132,13 @@ int test_gemm(const gemmArgs& args)
                        ck::tensor_operation::element_wise::PassThrough{},
                        ck::tensor_operation::element_wise::PassThrough{});
 
-    DeviceMem a_device_buf(sizeof(float) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(float) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem c_device_buf(sizeof(float) * c_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_m_k.GetMemorySize());
+    DeviceMem b_device_buf(b_k_n.GetMemorySize());
+    DeviceMem c_device_buf(c_m_n_device_result.GetMemorySize());
 
-    a_device_buf.ToDevice(a_m_k.mData.data());
-    b_device_buf.ToDevice(b_k_n.mData.data());
-    c_device_buf.ToDevice(c_m_n_device_result.mData.data());
+    a_device_buf.ToDevice(a_m_k.data());
+    b_device_buf.ToDevice(b_k_n.data());
+    c_device_buf.ToDevice(c_m_n_device_result.data());
 
     auto test = [&](auto a_layout, auto b_layout, auto c_layout) {
         bool success = false;
@@ -174,7 +180,7 @@ int test_gemm(const gemmArgs& args)
             {
                 invoker_ptr->Run(argument_ptr.get());
 
-                c_device_buf.FromDevice(c_m_n_device_result.mData.data());
+                c_device_buf.FromDevice(c_m_n_device_result.data());
 
                 if(!check_out(c_m_n_host_result, c_m_n_device_result))
                 {

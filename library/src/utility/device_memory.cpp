@@ -10,7 +10,10 @@ DeviceMem::DeviceMem(std::size_t mem_size) : mMemSize(mem_size)
     hip_check_error(hipMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize));
 }
 
-void* DeviceMem::GetDeviceBuffer() const { return mpDeviceBuf; }
+ck::utils::mutable_buffer DeviceMem::GetDeviceBuffer() const
+{
+    return ck::utils::mutable_buffer(mpDeviceBuf, mMemSize);
+}
 
 std::size_t DeviceMem::GetBufferSize() const { return mMemSize; }
 

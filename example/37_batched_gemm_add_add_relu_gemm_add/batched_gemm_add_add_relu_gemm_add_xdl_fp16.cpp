@@ -5,21 +5,23 @@
 Computes C_m_o = Relu(A0[m, k] * B0[n, k] + D00[m, n] + D01[mn]) * B1[n, o] + D1[m, o]
 */
 
+#include <cstdlib>
+#include <initializer_list>
 #include <iostream>
 #include <numeric>
-#include <initializer_list>
-#include <cstdlib>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_multiple_d_gemm_multiple_d_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
+#include "ck/library/utility/array.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
+#include "ck/library/utility/literals.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -308,21 +310,21 @@ int main(int argc, char* argv[])
     BatchStrideD1  = BatchStrideD1 < 0 ? DefaultBatchStrideD1 : BatchStrideD1;
     BatchStrideE1  = BatchStrideE1 < 0 ? DefaultBatchStrideE1 : BatchStrideE1;
 
+    using namespace ck::literals;
+
     auto f_host_tensor_descriptor = [](std::size_t batch_count,
                                        std::size_t row,
                                        std::size_t col,
                                        std::size_t stride,
                                        std::size_t batch_stride,
                                        auto layout) {
-        if(std::is_same<decltype(layout), Row>::value)
+        if constexpr(std::is_same_v<decltype(layout), Row>)
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({batch_stride, stride, 1}));
+            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, stride, 1_uz});
         }
         else
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({batch_stride, 1, stride}));
+            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, 1_uz, stride});
         }
     };
 
@@ -344,14 +346,14 @@ int main(int argc, char* argv[])
     Tensor<E1DataType> e1_g_m_o_device_result(
         f_host_tensor_descriptor(BatchCount, M, O, StrideE1, BatchStrideE1, E1Layout{}));
 
-    std::cout << "a0_g_m_k: " << a0_g_m_k.mDesc << std::endl;
-    std::cout << "b0_g_k_n: " << b0_g_k_n.mDesc << std::endl;
-    std::cout << "d00_g_m_n: " << d00_g_m_n.mDesc
-              << " size: " << d00_g_m_n.mDesc.GetElementSpaceSize() << std::endl;
-    std::cout << "d01_g_m_n: " << d01_g_m_n.mDesc
-              << " size: " << d01_g_m_n.mDesc.GetElementSpaceSize() << std::endl;
-    std::cout << "b1_g_n_o: " << b1_g_n_o.mDesc << std::endl;
-    std::cout << "e1_g_m_o: " << e1_g_m_o_host_result.mDesc << std::endl;
+    std::cout << "a0_g_m_k: " << a0_g_m_k.GetDesc() << std::endl;
+    std::cout << "b0_g_k_n: " << b0_g_k_n.GetDesc() << std::endl;
+    std::cout << "d00_g_m_n: " << d00_g_m_n.GetDesc()
+              << " size: " << d00_g_m_n.GetElementSpaceSize() << std::endl;
+    std::cout << "d01_g_m_n: " << d01_g_m_n.GetDesc()
+              << " size: " << d01_g_m_n.GetElementSpaceSize() << std::endl;
+    std::cout << "b1_g_n_o: " << b1_g_n_o.GetDesc() << std::endl;
+    std::cout << "e1_g_m_o: " << e1_g_m_o_host_result.GetDesc() << std::endl;
 
     switch(init_method)
     {
@@ -381,21 +383,20 @@ int main(int argc, char* argv[])
         d1_g_m_o.GenerateTensorValue(GeneratorTensor_1<D1DataType>{1});
     }
 
-    DeviceMem a0_g_m_k_device_buf(sizeof(A0DataType) * a0_g_m_k.mDesc.GetElementSize());
-    DeviceMem b0_g_k_n_device_buf(sizeof(B0DataType) * b0_g_k_n.mDesc.GetElementSize());
-    DeviceMem d00_g_m_n_device_buf(sizeof(D00DataType) * d00_g_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem d01_g_m_n_device_buf(sizeof(D01DataType) * d01_g_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem b1_g_n_o_device_buf(sizeof(B1DataType) * b1_g_n_o.mDesc.GetElementSize());
-    DeviceMem e1_g_m_o_device_buf(sizeof(E1DataType) *
-                                  e1_g_m_o_device_result.mDesc.GetElementSize());
-    DeviceMem d1_g_m_o_device_buf(sizeof(D1DataType) * d1_g_m_o.mDesc.GetElementSpaceSize());
+    DeviceMem a0_g_m_k_device_buf(a0_g_m_k.GetMemorySize());
+    DeviceMem b0_g_k_n_device_buf(b0_g_k_n.GetMemorySize());
+    DeviceMem d00_g_m_n_device_buf(d00_g_m_n.GetMemorySize());
+    DeviceMem d01_g_m_n_device_buf(d01_g_m_n.GetMemorySize());
+    DeviceMem b1_g_n_o_device_buf(b1_g_n_o.GetMemorySize());
+    DeviceMem e1_g_m_o_device_buf(e1_g_m_o_device_result.GetMemorySize());
+    DeviceMem d1_g_m_o_device_buf(d1_g_m_o.GetMemorySize());
 
-    a0_g_m_k_device_buf.ToDevice(a0_g_m_k.mData.data());
-    b0_g_k_n_device_buf.ToDevice(b0_g_k_n.mData.data());
-    d00_g_m_n_device_buf.ToDevice(d00_g_m_n.mData.data());
-    d01_g_m_n_device_buf.ToDevice(d01_g_m_n.mData.data());
-    b1_g_n_o_device_buf.ToDevice(b1_g_n_o.mData.data());
-    d1_g_m_o_device_buf.ToDevice(d1_g_m_o.mData.data());
+    a0_g_m_k_device_buf.ToDevice(a0_g_m_k.data());
+    b0_g_k_n_device_buf.ToDevice(b0_g_k_n.data());
+    d00_g_m_n_device_buf.ToDevice(d00_g_m_n.data());
+    d01_g_m_n_device_buf.ToDevice(d01_g_m_n.data());
+    b1_g_n_o_device_buf.ToDevice(b1_g_n_o.data());
+    d1_g_m_o_device_buf.ToDevice(d1_g_m_o.data());
 
     auto a0_element_op   = A0ElementOp{};
     auto b0_element_op   = B0ElementOp{};
@@ -403,39 +404,40 @@ int main(int argc, char* argv[])
     auto b1_element_op   = B1ElementOp{};
     auto cde1_element_op = CDE1ElementOp{};
 
+    using ck::utils::to_array;
+
     // do GEMM
-    auto gemm    = DeviceGemmInstance{};
-    auto invoker = gemm.MakeInvoker();
-    auto argument =
-        gemm.MakeArgument(static_cast<A0DataType*>(a0_g_m_k_device_buf.GetDeviceBuffer()),
-                          static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
-                          std::array<const void*, 2>{d00_g_m_n_device_buf.GetDeviceBuffer(),
-                                                     d01_g_m_n_device_buf.GetDeviceBuffer()},
-                          static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
-                          std::array<const void*, 1>{d1_g_m_o_device_buf.GetDeviceBuffer()},
-                          static_cast<E1DataType*>(e1_g_m_o_device_buf.GetDeviceBuffer()),
-                          M,
-                          N,
-                          K,
-                          O,
-                          BatchCount,
-                          StrideA0,
-                          StrideB0,
-                          std::array<ck::index_t, 2>{StrideD00, StrideD01},
-                          StrideB1,
-                          std::array<ck::index_t, 1>{StrideD1},
-                          StrideE1,
-                          BatchStrideA0,
-                          BatchStrideB0,
-                          std::array<ck::index_t, 2>{BatchStrideD00, BatchStrideD01},
-                          BatchStrideB1,
-                          std::array<ck::index_t, 1>{BatchStrideD1},
-                          BatchStrideE1,
-                          a0_element_op,
-                          b0_element_op,
-                          cde0_element_op,
-                          b1_element_op,
-                          cde1_element_op);
+    auto gemm     = DeviceGemmInstance{};
+    auto invoker  = gemm.MakeInvoker();
+    auto argument = gemm.MakeArgument(
+        a0_g_m_k_device_buf.GetDeviceBuffer(),
+        b0_g_k_n_device_buf.GetDeviceBuffer(),
+        to_array({d00_g_m_n_device_buf.GetDeviceBuffer(), d01_g_m_n_device_buf.GetDeviceBuffer()}),
+        b1_g_n_o_device_buf.GetDeviceBuffer(),
+        to_array({d1_g_m_o_device_buf.GetDeviceBuffer()}),
+        e1_g_m_o_device_buf.GetDeviceBuffer(),
+        M,
+        N,
+        K,
+        O,
+        BatchCount,
+        StrideA0,
+        StrideB0,
+        to_array({StrideD00, StrideD01}),
+        StrideB1,
+        to_array({StrideD1}),
+        StrideE1,
+        BatchStrideA0,
+        BatchStrideB0,
+        to_array({BatchStrideD00, BatchStrideD01}),
+        BatchStrideB1,
+        to_array({BatchStrideD1}),
+        BatchStrideE1,
+        a0_element_op,
+        b0_element_op,
+        cde0_element_op,
+        b1_element_op,
+        cde1_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -460,7 +462,7 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
-    e1_g_m_o_device_buf.FromDevice(e1_g_m_o_device_result.mData.data());
+    e1_g_m_o_device_buf.FromDevice(e1_g_m_o_device_result.data());
 
     if(do_verification)
     {
@@ -511,8 +513,7 @@ int main(int argc, char* argv[])
             cde1_element_op(e1_g_m_o_host_result(idx), c1_g_m_o(idx), d1_g_m_o(idx));
         });
 
-        return ck::utils::check_err(e1_g_m_o_device_result.mData, e1_g_m_o_host_result.mData) ? 0
-                                                                                              : 1;
+        return ck::utils::check_err(e1_g_m_o_device_result, e1_g_m_o_host_result) ? 0 : 1;
     }
 
     return 0;

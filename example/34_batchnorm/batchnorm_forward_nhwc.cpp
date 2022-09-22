@@ -9,12 +9,14 @@
 #include <getopt.h>
 
 #include "ck/ck.hpp"
+
+#include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_forward_nhwc_c.hpp"
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/host_common_util.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_forward_nhwc_c.hpp"
 
 #include "batchnorm_forward_impl.hpp"
 
@@ -159,8 +161,8 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
     Tensor<AccDataType> resultRunningMean_ref(scaleBiasMeanVarLengths);
     Tensor<AccDataType> resultRunningVariance_ref(scaleBiasMeanVarLengths);
 
-    auto inOutStrides            = x.mDesc.GetStrides();
-    auto scaleBiasMeanVarStrides = bnScale.mDesc.GetStrides();
+    auto inOutStrides            = x.GetStrides();
+    auto scaleBiasMeanVarStrides = bnScale.GetStrides();
 
     std::size_t num_thread = std::thread::hardware_concurrency();
 
@@ -231,32 +233,28 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
     };
 
     // these buffers are usually provided by the user application
-    DeviceMem x_dev(sizeof(InOutDataType) * x.mDesc.GetElementSpaceSize());
-    DeviceMem y_dev(sizeof(InOutDataType) * y.mDesc.GetElementSpaceSize());
-    DeviceMem bnScale_dev(sizeof(AccDataType) * bnScale.mDesc.GetElementSpaceSize());
-    DeviceMem bnBias_dev(sizeof(AccDataType) * bnBias.mDesc.GetElementSpaceSize());
+    DeviceMem x_dev(x.GetMemorySize());
+    DeviceMem y_dev(y.GetMemorySize());
+    DeviceMem bnScale_dev(bnScale.GetMemorySize());
+    DeviceMem bnBias_dev(bnBias.GetMemorySize());
 
     // mean_dev or resultSaveMean_dev
-    DeviceMem resultSaveMean_dev(sizeof(AccDataType) *
-                                 resultSaveMean_ref.mDesc.GetElementSpaceSize());
+    DeviceMem resultSaveMean_dev(resultSaveMean_ref.GetMemorySize());
     // meansquare_dev or resultSaveInvVariance_dev
-    DeviceMem resultSaveInvVariance_dev(sizeof(AccDataType) *
-                                        resultSaveInvVariance_ref.mDesc.GetElementSpaceSize());
+    DeviceMem resultSaveInvVariance_dev(resultSaveInvVariance_ref.GetMemorySize());
     // resultRunningMean_dev
-    DeviceMem resultRunningMean_dev(sizeof(AccDataType) *
-                                    resultRunningMean_ref.mDesc.GetElementSpaceSize());
+    DeviceMem resultRunningMean_dev(resultRunningMean_ref.GetMemorySize());
     // resultRunningVariance_dev
-    DeviceMem resultRunningVariance_dev(sizeof(AccDataType) *
-                                        resultRunningVariance_ref.mDesc.GetElementSpaceSize());
+    DeviceMem resultRunningVariance_dev(resultRunningVariance_ref.GetMemorySize());
 
-    x_dev.ToDevice(x.mData.data());
-    bnScale_dev.ToDevice(bnScale.mData.data());
-    bnBias_dev.ToDevice(bnBias.mData.data());
+    x_dev.ToDevice(x.data());
+    bnScale_dev.ToDevice(bnScale.data());
+    bnBias_dev.ToDevice(bnBias.data());
 
     if(updateMovingAverage)
     {
-        resultRunningMean_dev.ToDevice(resultRunningMean_ref.mData.data());
-        resultRunningVariance_dev.ToDevice(resultRunningVariance_ref.mData.data());
+        resultRunningMean_dev.ToDevice(resultRunningMean_ref.data());
+        resultRunningVariance_dev.ToDevice(resultRunningVariance_ref.data());
     };
 
     std::array<index_t, Rank> i_inOutLengths;
@@ -264,25 +262,21 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
     std::array<index_t, Rank - NumReduceDim> i_scaleBiasMeanVarLengths;
     std::array<index_t, Rank - NumReduceDim> i_scaleBiasMeanVarStrides;
 
-    std::copy(inOutLengths.begin(), inOutLengths.end(), i_inOutLengths.begin());
-    std::copy(inOutStrides.begin(), inOutStrides.end(), i_inOutStrides.begin());
-    std::copy(scaleBiasMeanVarLengths.begin(),
-              scaleBiasMeanVarLengths.end(),
-              i_scaleBiasMeanVarLengths.begin());
-    std::copy(scaleBiasMeanVarStrides.begin(),
-              scaleBiasMeanVarStrides.end(),
-              i_scaleBiasMeanVarStrides.begin());
+    using ck::ranges::copy;
+
+    copy(inOutLengths, i_inOutLengths.begin());
+    copy(inOutStrides, i_inOutStrides.begin());
+    copy(scaleBiasMeanVarLengths, i_scaleBiasMeanVarLengths.begin());
+    copy(scaleBiasMeanVarStrides, i_scaleBiasMeanVarStrides.begin());
 
     int result = 0;
 
     // used for saving meansquare
-    DeviceMem workspace(sizeof(AccDataType) * 2 * resultSaveMean_ref.mDesc.GetElementSpaceSize() +
-                        128);
+    DeviceMem workspace(resultSaveMean_ref.GetMemorySize() * 2 + 128);
 
     void* p_tmp_mean = workspace.GetDeviceBuffer();
     void* p_tmp_meansquare =
-        static_cast<char*>(p_tmp_mean) +
-        (sizeof(AccDataType) * resultSaveMean_ref.mDesc.GetElementSpaceSize() + 63) / 64 * 64;
+        static_cast<char*>(p_tmp_mean) + (resultSaveMean_ref.GetMemorySize() + 63) / 64 * 64;
 
     result = bnorm_fwd<InOutDataType, AccDataType, Rank, NumReduceDim, false>(
         time_kernel,
@@ -322,17 +316,17 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
             i_inOutStrides,
             i_scaleBiasMeanVarLengths,
             i_scaleBiasMeanVarStrides,
-            x.mData.data(),
-            bnScale.mData.data(),
-            bnBias.mData.data(),
-            y_ref.mData.data(),
+            x.data(),
+            bnScale.data(),
+            bnBias.data(),
+            y_ref.data(),
             0.1, // exponentialAverageFactor
-            updateMovingAverage ? resultRunningMean_ref.mData.data() : nullptr, // resultRunningMean
-            updateMovingAverage ? resultRunningVariance_ref.mData.data()
+            updateMovingAverage ? resultRunningMean_ref.data() : nullptr, // resultRunningMean
+            updateMovingAverage ? resultRunningVariance_ref.data()
                                 : nullptr, // resultRunningVariance
             epsilon,
-            saveMeanAndInvVariance ? resultSaveMean_ref.mData.data() : nullptr,
-            saveMeanAndInvVariance ? resultSaveInvVariance_ref.mData.data() : nullptr);
+            saveMeanAndInvVariance ? resultSaveMean_ref.data() : nullptr,
+            saveMeanAndInvVariance ? resultSaveInvVariance_ref.data() : nullptr);
 
         if(!batchNormFwd_ref.IsSupportedArgument(argument_ptr_ref.get()))
         {
@@ -346,21 +340,19 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
 
         (void)invoker_ptr_ref->Run(argument_ptr_ref.get());
 
-        y_dev.FromDevice(y.mData.data());
-        pass = pass && ck::utils::check_err(y.mData, y_ref.mData);
+        y_dev.FromDevice(y.data());
+        pass = pass && ck::utils::check_err(y, y_ref);
 
         if(updateMovingAverage)
         {
             Tensor<AccDataType> resultRunningMean(scaleBiasMeanVarLengths);
             Tensor<AccDataType> resultRunningVariance(scaleBiasMeanVarLengths);
 
-            resultRunningMean_dev.FromDevice(resultRunningMean.mData.data());
-            resultRunningVariance_dev.FromDevice(resultRunningVariance.mData.data());
+            resultRunningMean_dev.FromDevice(resultRunningMean.data());
+            resultRunningVariance_dev.FromDevice(resultRunningVariance.data());
 
-            pass =
-                pass && ck::utils::check_err(resultRunningMean.mData, resultRunningMean_ref.mData);
-            pass = pass && ck::utils::check_err(resultRunningVariance.mData,
-                                                resultRunningVariance_ref.mData);
+            pass = pass && ck::utils::check_err(resultRunningMean, resultRunningMean_ref);
+            pass = pass && ck::utils::check_err(resultRunningVariance, resultRunningVariance_ref);
         };
 
         if(saveMeanAndInvVariance)
@@ -368,12 +360,11 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
             Tensor<AccDataType> resultSaveMean(scaleBiasMeanVarLengths);
             Tensor<AccDataType> resultSaveInvVariance(scaleBiasMeanVarLengths);
 
-            resultSaveMean_dev.FromDevice(resultSaveMean.mData.data());
-            resultSaveInvVariance_dev.FromDevice(resultSaveInvVariance.mData.data());
+            resultSaveMean_dev.FromDevice(resultSaveMean.data());
+            resultSaveInvVariance_dev.FromDevice(resultSaveInvVariance.data());
 
-            pass = pass && ck::utils::check_err(resultSaveMean.mData, resultSaveMean_ref.mData);
-            pass = pass && ck::utils::check_err(resultSaveInvVariance.mData,
-                                                resultSaveInvVariance_ref.mData);
+            pass = pass && ck::utils::check_err(resultSaveMean, resultSaveMean_ref);
+            pass = pass && ck::utils::check_err(resultSaveInvVariance, resultSaveInvVariance_ref);
         };
     };
 

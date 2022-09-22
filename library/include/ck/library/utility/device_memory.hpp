@@ -5,6 +5,8 @@
 
 #include <hip/hip_runtime.h>
 
+#include "ck/library/utility/buffer.hpp"
+
 template <typename T>
 __global__ void set_buffer_value(T* p, T x, uint64_t buffer_element_size)
 {
@@ -18,7 +20,7 @@ struct DeviceMem
 {
     DeviceMem() = delete;
     DeviceMem(std::size_t mem_size);
-    void* GetDeviceBuffer() const;
+    ck::utils::mutable_buffer GetDeviceBuffer() const;
     std::size_t GetBufferSize() const;
     void ToDevice(const void* p) const;
     void FromDevice(void* p) const;

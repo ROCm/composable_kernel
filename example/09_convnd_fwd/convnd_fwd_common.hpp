@@ -10,13 +10,14 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
+#include "ck/library/utility/array.hpp"
 #include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
+#include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/utility/convolution_parameter.hpp"
-#include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 
 void print_helper_msg()
 {
@@ -50,9 +51,9 @@ bool run_grouped_conv_fwd(bool do_verification,
     Tensor<OutDataType> out_host(out_g_n_k_wos_desc);
     Tensor<OutDataType> out_device(out_g_n_k_wos_desc);
 
-    std::cout << "in: " << in.mDesc << std::endl;
-    std::cout << "wei: " << wei.mDesc << std::endl;
-    std::cout << "out: " << out_host.mDesc << std::endl;
+    std::cout << "in: " << in.GetDesc() << std::endl;
+    std::cout << "wei: " << wei.GetDesc() << std::endl;
+    std::cout << "out: " << out_host.GetDesc() << std::endl;
 
     switch(init_method)
     {
@@ -66,56 +67,34 @@ bool run_grouped_conv_fwd(bool do_verification,
         wei.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
     }
 
-    DeviceMem in_device_buf(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
-    DeviceMem out_device_buf(sizeof(OutDataType) * out_device.mDesc.GetElementSpaceSize());
+    DeviceMem in_device_buf(in.GetMemorySize());
+    DeviceMem wei_device_buf(wei.GetMemorySize());
+    DeviceMem out_device_buf(out_device.GetMemorySize());
 
-    in_device_buf.ToDevice(in.mData.data());
-    wei_device_buf.ToDevice(wei.mData.data());
+    in_device_buf.ToDevice(in.data());
+    wei_device_buf.ToDevice(wei.data());
 
-    std::array<ck::index_t, NDimSpatial + 3> a_g_n_c_wis_lengths{};
-    std::array<ck::index_t, NDimSpatial + 3> a_g_n_c_wis_strides{};
-    std::array<ck::index_t, NDimSpatial + 3> b_g_k_c_xs_lengths{};
-    std::array<ck::index_t, NDimSpatial + 3> b_g_k_c_xs_strides{};
-    std::array<ck::index_t, NDimSpatial + 3> e_g_n_k_wos_lengths{};
-    std::array<ck::index_t, NDimSpatial + 3> e_g_n_k_wos_strides{};
-    std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
-    std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
-    std::array<ck::index_t, NDimSpatial> input_left_pads{};
-    std::array<ck::index_t, NDimSpatial> input_right_pads{};
-
-    auto copy = [](auto& x, auto& y) { std::copy(x.begin(), x.end(), y.begin()); };
-
-    copy(in_g_n_c_wis_desc.GetLengths(), a_g_n_c_wis_lengths);
-    copy(in_g_n_c_wis_desc.GetStrides(), a_g_n_c_wis_strides);
-    copy(wei_g_k_c_xs_desc.GetLengths(), b_g_k_c_xs_lengths);
-    copy(wei_g_k_c_xs_desc.GetStrides(), b_g_k_c_xs_strides);
-    copy(out_g_n_k_wos_desc.GetLengths(), e_g_n_k_wos_lengths);
-    copy(out_g_n_k_wos_desc.GetStrides(), e_g_n_k_wos_strides);
-    copy(conv_param.conv_filter_strides_, conv_filter_strides);
-    copy(conv_param.conv_filter_dilations_, conv_filter_dilations);
-    copy(conv_param.input_left_pads_, input_left_pads);
-    copy(conv_param.input_right_pads_, input_right_pads);
+    using ck::utils::empty_array, ck::utils::to_array;
 
     // do Conv
     auto conv     = DeviceConvNDFwdInstance{};
     auto invoker  = conv.MakeInvoker();
     auto argument = conv.MakeArgument(in_device_buf.GetDeviceBuffer(),
                                       wei_device_buf.GetDeviceBuffer(),
-                                      std::array<const void*, 0>{},
+                                      empty_array(),
                                       out_device_buf.GetDeviceBuffer(),
-                                      a_g_n_c_wis_lengths,
-                                      a_g_n_c_wis_strides,
-                                      b_g_k_c_xs_lengths,
-                                      b_g_k_c_xs_strides,
-                                      std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{{}},
-                                      std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{{}},
-                                      e_g_n_k_wos_lengths,
-                                      e_g_n_k_wos_strides,
-                                      conv_filter_strides,
-                                      conv_filter_dilations,
-                                      input_left_pads,
-                                      input_right_pads,
+                                      to_array(in_g_n_c_wis_desc.GetLengths()),
+                                      to_array(in_g_n_c_wis_desc.GetStrides()),
+                                      to_array(wei_g_k_c_xs_desc.GetLengths()),
+                                      to_array(wei_g_k_c_xs_desc.GetStrides()),
+                                      empty_array(),
+                                      empty_array(),
+                                      to_array(out_g_n_k_wos_desc.GetLengths()),
+                                      to_array(out_g_n_k_wos_desc.GetStrides()),
+                                      to_array(conv_param.conv_filter_strides_),
+                                      to_array(conv_param.conv_filter_dilations_),
+                                      to_array(conv_param.input_left_pads_),
+                                      to_array(conv_param.input_right_pads_),
                                       in_element_op,
                                       wei_element_op,
                                       out_element_op);
@@ -161,10 +140,10 @@ bool run_grouped_conv_fwd(bool do_verification,
 
         ref_invoker.Run(ref_argument);
 
-        out_device_buf.FromDevice(out_device.mData.data());
+        out_device_buf.FromDevice(out_device.data());
 
         return ck::utils::check_err(
-            out_device.mData, out_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
+            out_device, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
     }
 
     return true;

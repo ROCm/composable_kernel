@@ -4,17 +4,18 @@
 #pragma once
 
 #include "ck/ck.hpp"
-#include "ck/utility/reduction_operator.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_reduce.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/utility/reduction_operator.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+#include "ck/library/utility/literals.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -74,22 +75,21 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
                                        int StrideC,
                                        int StrideD0)
 {
+    using namespace ck::literals;
+
     auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
-        return HostTensorDescriptor(std::vector<std::size_t>({len}),
-                                    std::vector<std::size_t>({stride}));
+        return HostTensorDescriptor({len}, {stride});
     };
 
     auto f_host_tensor_descriptor2d =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
+            if constexpr(is_same_v<decltype(layout), tensor_layout::gemm::RowMajor>)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1}));
+                return HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
             else
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1, stride}));
+                return HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
 
@@ -99,22 +99,18 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor2d(M, N, StrideC, CLayout{}));
     Tensor<BiasDataType> bias_n(f_host_tensor_descriptor1d(N, 1));
     Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor2d(M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> reduce0_m_host_result(
-        HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(M)})));
-    Tensor<ReduceDataType> reduce1_m_host_result(
-        HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(M)})));
+    Tensor<ReduceDataType> reduce0_m_host_result(HostTensorDescriptor({M}));
+    Tensor<ReduceDataType> reduce1_m_host_result(HostTensorDescriptor({M}));
 
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor2d(M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> reduce0_m_device_result(
-        HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(M)})));
-    Tensor<ReduceDataType> reduce1_m_device_result(
-        HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(M)})));
+    Tensor<ReduceDataType> reduce0_m_device_result(HostTensorDescriptor({M}));
+    Tensor<ReduceDataType> reduce1_m_device_result(HostTensorDescriptor({M}));
 
-    std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
-    std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
-    std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
-    std::cout << "reduce0_m: " << reduce0_m_host_result.mDesc << std::endl;
-    std::cout << "reduce1_m: " << reduce1_m_host_result.mDesc << std::endl;
+    std::cout << "a_m_k: " << a_m_k.GetDesc() << std::endl;
+    std::cout << "b_k_n: " << b_k_n.GetDesc() << std::endl;
+    std::cout << "c_m_n: " << c_m_n_host_result.GetDesc() << std::endl;
+    std::cout << "reduce0_m: " << reduce0_m_host_result.GetDesc() << std::endl;
+    std::cout << "reduce1_m: " << reduce1_m_host_result.GetDesc() << std::endl;
 
     std::size_t num_thread = 1;
     switch(init_method)
@@ -217,23 +213,21 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
         }
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
-    DeviceMem bias_device_buf(sizeof(BiasDataType) * bias_n.mDesc.GetElementSpaceSize());
-    DeviceMem d0_device_buf(sizeof(D0DataType) * d0_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem reduce0_device_buf(sizeof(ReduceDataType) *
-                                 reduce0_m_device_result.mDesc.GetElementSpaceSize());
-    DeviceMem reduce1_device_buf(sizeof(ReduceDataType) *
-                                 reduce1_m_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_m_k.GetMemorySize());
+    DeviceMem b_device_buf(b_k_n.GetMemorySize());
+    DeviceMem c_device_buf(c_m_n_device_result.GetMemorySize());
+    DeviceMem bias_device_buf(bias_n.GetMemorySize());
+    DeviceMem d0_device_buf(d0_m_n.GetMemorySize());
+    DeviceMem reduce0_device_buf(reduce0_m_device_result.GetMemorySize());
+    DeviceMem reduce1_device_buf(reduce1_m_device_result.GetMemorySize());
 
     std::array<void*, 2> p_reduces = {reduce0_device_buf.GetDeviceBuffer(),
                                       reduce1_device_buf.GetDeviceBuffer()};
 
-    a_device_buf.ToDevice(a_m_k.mData.data());
-    b_device_buf.ToDevice(b_k_n.mData.data());
-    bias_device_buf.ToDevice(bias_n.mData.data());
-    d0_device_buf.ToDevice(d0_m_n.mData.data());
+    a_device_buf.ToDevice(a_m_k.data());
+    b_device_buf.ToDevice(b_k_n.data());
+    bias_device_buf.ToDevice(bias_n.data());
+    d0_device_buf.ToDevice(d0_m_n.data());
 
     // add device GEMM instances
     std::vector<ck::tensor_operation::device::instance::DeviceGemmBiasAddReduceNoOpPtr> gemm_ptrs;
@@ -319,7 +313,7 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
 
             std::string gemm_name = gemm_ptr->GetTypeString();
 
-            std::size_t flop = std::size_t(2) * M * N * K + std::size_t(2) * M * N;
+            std::size_t flop = 2_uz * M * N * K + 2_uz * M * N;
 
             std::size_t num_byte = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
                                    sizeof(CDataType) * M * N + sizeof(BiasDataType) * M * N +
@@ -343,33 +337,29 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
 
             if(do_verification)
             {
-                c_device_buf.FromDevice(c_m_n_device_result.mData.data());
-                reduce0_device_buf.FromDevice(reduce0_m_device_result.mData.data());
-                reduce1_device_buf.FromDevice(reduce1_m_device_result.mData.data());
+                c_device_buf.FromDevice(c_m_n_device_result.data());
+                reduce0_device_buf.FromDevice(reduce0_m_device_result.data());
+                reduce1_device_buf.FromDevice(reduce1_m_device_result.data());
 
-                ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
-                ck::utils::check_err(reduce0_m_device_result.mData, reduce0_m_host_result.mData);
-                ck::utils::check_err(reduce1_m_device_result.mData, reduce1_m_host_result.mData);
+                ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+                ck::utils::check_err(reduce0_m_device_result, reduce0_m_host_result);
+                ck::utils::check_err(reduce1_m_device_result, reduce1_m_host_result);
 
                 if(do_log)
                 {
-                    LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "c_host: ", c_m_n_host_result.mData, ",")
+                    LogRangeAsType<float>(std::cout << "a : ", a_m_k, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "b: ", b_k_n, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "c_host: ", c_m_n_host_result, ",")
                         << std::endl;
-                    LogRangeAsType<float>(std::cout << "c_device: ", c_m_n_device_result.mData, ",")
+                    LogRangeAsType<float>(std::cout << "c_device: ", c_m_n_device_result, ",")
                         << std::endl;
-                    LogRangeAsType<float>(
-                        std::cout << "d0_host: ", reduce0_m_host_result.mData, ",")
+                    LogRangeAsType<float>(std::cout << "d0_host: ", reduce0_m_host_result, ",")
                         << std::endl;
-                    LogRangeAsType<float>(
-                        std::cout << "d0_device: ", reduce0_m_device_result.mData, ",")
+                    LogRangeAsType<float>(std::cout << "d0_device: ", reduce0_m_device_result, ",")
                         << std::endl;
-                    LogRangeAsType<float>(
-                        std::cout << "d1_host: ", reduce1_m_host_result.mData, ",")
+                    LogRangeAsType<float>(std::cout << "d1_host: ", reduce1_m_host_result, ",")
                         << std::endl;
-                    LogRangeAsType<float>(
-                        std::cout << "d1_device: ", reduce1_m_device_result.mData, ",")
+                    LogRangeAsType<float>(std::cout << "d1_device: ", reduce1_m_device_result, ",")
                         << std::endl;
                 }
             }

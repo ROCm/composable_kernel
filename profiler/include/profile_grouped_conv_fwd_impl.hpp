@@ -8,19 +8,21 @@
 #include <typeinfo>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_d.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
+#include "ck/library/utility/algorithm.hpp"
+#include "ck/library/utility/array.hpp"
 #include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
+#include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/utility/convolution_parameter.hpp"
-#include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 
 namespace ck {
 namespace profiler {
@@ -66,7 +68,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     std::array<ck::index_t, NDimSpatial> input_left_pads{};
     std::array<ck::index_t, NDimSpatial> input_right_pads{};
 
-    auto copy = [](auto& x, auto& y) { std::copy(x.begin(), x.end(), y.begin()); };
+    auto copy = [](const auto& x, auto& y) { ck::ranges::copy(x, y.begin()); };
 
     copy(in_g_n_c_wis_desc.GetLengths(), a_g_n_c_wis_lengths);
     copy(in_g_n_c_wis_desc.GetStrides(), a_g_n_c_wis_strides);
@@ -84,9 +86,9 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     Tensor<OutDataType> host_output(out_g_n_k_wos_desc);
     Tensor<OutDataType> device_output(out_g_n_k_wos_desc);
 
-    std::cout << "input: " << input.mDesc << std::endl;
-    std::cout << "weight: " << weight.mDesc << std::endl;
-    std::cout << "output: " << host_output.mDesc << std::endl;
+    std::cout << "input: " << input.GetDesc() << std::endl;
+    std::cout << "weight: " << weight.GetDesc() << std::endl;
+    std::cout << "output: " << host_output.GetDesc() << std::endl;
 
     switch(init_method)
     {
@@ -100,12 +102,12 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         weight.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
     }
 
-    DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpaceSize());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * weight.mDesc.GetElementSpaceSize());
-    DeviceMem out_device_buf(sizeof(OutDataType) * device_output.mDesc.GetElementSpaceSize());
+    DeviceMem in_device_buf(input.GetMemorySize());
+    DeviceMem wei_device_buf(weight.GetMemorySize());
+    DeviceMem out_device_buf(device_output.GetMemorySize());
 
-    in_device_buf.ToDevice(input.mData.data());
-    wei_device_buf.ToDevice(weight.mData.data());
+    in_device_buf.ToDevice(input.data());
+    wei_device_buf.ToDevice(weight.data());
 
     // run reference op
     if(do_verification)
@@ -163,28 +165,29 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     // profile device op instances
     bool pass = true;
 
+    using ck::utils::empty_array;
+
     for(auto& op_ptr : op_ptrs)
     {
-        auto argument_ptr =
-            op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
-                                        wei_device_buf.GetDeviceBuffer(),
-                                        std::array<const void*, 0>{},
-                                        out_device_buf.GetDeviceBuffer(),
-                                        a_g_n_c_wis_lengths,
-                                        a_g_n_c_wis_strides,
-                                        b_g_k_c_xs_lengths,
-                                        b_g_k_c_xs_strides,
-                                        std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{{}},
-                                        std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{{}},
-                                        e_g_n_k_wos_lengths,
-                                        e_g_n_k_wos_strides,
-                                        conv_filter_strides,
-                                        conv_filter_dilations,
-                                        input_left_pads,
-                                        input_right_pads,
-                                        in_element_op,
-                                        wei_element_op,
-                                        out_element_op);
+        auto argument_ptr = op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
+                                                        wei_device_buf.GetDeviceBuffer(),
+                                                        empty_array(),
+                                                        out_device_buf.GetDeviceBuffer(),
+                                                        a_g_n_c_wis_lengths,
+                                                        a_g_n_c_wis_strides,
+                                                        b_g_k_c_xs_lengths,
+                                                        b_g_k_c_xs_strides,
+                                                        empty_array(),
+                                                        empty_array(),
+                                                        e_g_n_k_wos_lengths,
+                                                        e_g_n_k_wos_strides,
+                                                        conv_filter_strides,
+                                                        conv_filter_dilations,
+                                                        input_left_pads,
+                                                        input_right_pads,
+                                                        in_element_op,
+                                                        wei_element_op,
+                                                        out_element_op);
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
@@ -218,17 +221,17 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 
             if(do_verification)
             {
-                out_device_buf.FromDevice(device_output.mData.data());
+                out_device_buf.FromDevice(device_output.data());
 
-                pass = pass & ck::utils::check_err(device_output.mData, host_output.mData);
+                pass = pass & ck::utils::check_err(device_output, host_output);
 
                 if(do_log)
                 {
-                    LogRangeAsType<float>(std::cout << "input : ", input.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "weight: ", weight.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "host_output  : ", host_output.mData, ",")
+                    LogRangeAsType<float>(std::cout << "input : ", input, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "weight: ", weight, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "host_output  : ", host_output, ",")
                         << std::endl;
-                    LogRangeAsType<float>(std::cout << "device_output: ", device_output.mData, ",")
+                    LogRangeAsType<float>(std::cout << "device_output: ", device_output, ",")
                         << std::endl;
                 }
             }

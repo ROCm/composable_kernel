@@ -4,15 +4,16 @@
 #pragma once
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_conv_fwd_bias_activation_add.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd_bias_activation_add.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd_bias_activation_add.hpp"
+#include "ck/library/utility/literals.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -66,21 +67,21 @@ void profile_conv_fwd_bias_relu_add_impl(int do_verification,
     const ck::index_t Ho = output_spatial_lengths[0];
     const ck::index_t Wo = output_spatial_lengths[1];
 
+    using namespace ck::literals;
+
     auto f_host_tensor_descriptor =
         [](std::size_t N_, std::size_t C_, std::size_t H, std::size_t W, auto layout) {
-            if constexpr(is_same<decltype(layout), ck::tensor_layout::convolution::NCHW>::value ||
-                         is_same<decltype(layout), ck::tensor_layout::convolution::KCYX>::value ||
-                         is_same<decltype(layout), ck::tensor_layout::convolution::NKHW>::value)
+            if constexpr(is_same_v<decltype(layout), ck::tensor_layout::convolution::NCHW> ||
+                         is_same_v<decltype(layout), ck::tensor_layout::convolution::KCYX> ||
+                         is_same_v<decltype(layout), ck::tensor_layout::convolution::NKHW>)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({N_, C_, H, W}),
-                                            std::vector<std::size_t>({C_ * H * W, H * W, W, 1}));
+                return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, H * W, W, 1_uz});
             }
-            else if constexpr(is_same<decltype(layout), tensor_layout::convolution::NHWC>::value ||
-                              is_same<decltype(layout), tensor_layout::convolution::KYXC>::value ||
-                              is_same<decltype(layout), tensor_layout::convolution::NHWK>::value)
+            else if constexpr(is_same_v<decltype(layout), tensor_layout::convolution::NHWC> ||
+                              is_same_v<decltype(layout), tensor_layout::convolution::KYXC> ||
+                              is_same_v<decltype(layout), tensor_layout::convolution::NHWK>)
             {
-                return HostTensorDescriptor(std::vector<std::size_t>({N_, C_, H, W}),
-                                            std::vector<std::size_t>({C_ * H * W, 1, W * C_, C_}));
+                return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, 1_uz, W * C_, C_});
             }
         };
 
@@ -92,17 +93,16 @@ void profile_conv_fwd_bias_relu_add_impl(int do_verification,
         f_host_tensor_descriptor(N, K, Ho, Wo, OutLayout{}));
 
     // bias: assume contiguous 1d vector
-    Tensor<OutDataType> bias_k(
-        HostTensorDescriptor(std::vector<std::size_t>({static_cast<std::size_t>(K)})));
+    Tensor<OutDataType> bias_k(HostTensorDescriptor({K}));
 
     // residual: assume same layout as output tensor
     Tensor<OutDataType> resi_n_k_ho_wo(f_host_tensor_descriptor(N, K, Ho, Wo, OutLayout{}));
 
-    std::cout << "in_n_c_hi_wi: " << in_n_c_hi_wi.mDesc << std::endl;
-    std::cout << "wei_k_c_y_x: " << wei_k_c_y_x.mDesc << std::endl;
-    std::cout << "out_n_k_ho_wo: " << out_n_k_ho_wo_host_result.mDesc << std::endl;
-    std::cout << "bias_k: " << bias_k.mDesc << std::endl;
-    std::cout << "resi_n_k_ho_wo: " << resi_n_k_ho_wo.mDesc << std::endl;
+    std::cout << "in_n_c_hi_wi: " << in_n_c_hi_wi.GetDesc() << std::endl;
+    std::cout << "wei_k_c_y_x: " << wei_k_c_y_x.GetDesc() << std::endl;
+    std::cout << "out_n_k_ho_wo: " << out_n_k_ho_wo_host_result.GetDesc() << std::endl;
+    std::cout << "bias_k: " << bias_k.GetDesc() << std::endl;
+    std::cout << "resi_n_k_ho_wo: " << resi_n_k_ho_wo.GetDesc() << std::endl;
 
     switch(init_method)
     {
@@ -157,17 +157,16 @@ void profile_conv_fwd_bias_relu_add_impl(int do_verification,
         ref_invoker.Run(ref_argument);
     }
 
-    DeviceMem in_device_buf(sizeof(InDataType) * in_n_c_hi_wi.mDesc.GetElementSpaceSize());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_k_c_y_x.mDesc.GetElementSpaceSize());
-    DeviceMem out_device_buf(sizeof(OutDataType) *
-                             out_n_k_ho_wo_device_result.mDesc.GetElementSpaceSize());
-    DeviceMem bias_device_buf(sizeof(OutDataType) * bias_k.mDesc.GetElementSpaceSize());
-    DeviceMem resi_device_buf(sizeof(OutDataType) * resi_n_k_ho_wo.mDesc.GetElementSpaceSize());
+    DeviceMem in_device_buf(in_n_c_hi_wi.GetMemorySize());
+    DeviceMem wei_device_buf(wei_k_c_y_x.GetMemorySize());
+    DeviceMem out_device_buf(out_n_k_ho_wo_device_result.GetMemorySize());
+    DeviceMem bias_device_buf(bias_k.GetMemorySize());
+    DeviceMem resi_device_buf(resi_n_k_ho_wo.GetMemorySize());
 
-    in_device_buf.ToDevice(in_n_c_hi_wi.mData.data());
-    wei_device_buf.ToDevice(wei_k_c_y_x.mData.data());
-    bias_device_buf.ToDevice(bias_k.mData.data());
-    resi_device_buf.ToDevice(resi_n_k_ho_wo.mData.data());
+    in_device_buf.ToDevice(in_n_c_hi_wi.data());
+    wei_device_buf.ToDevice(wei_k_c_y_x.data());
+    bias_device_buf.ToDevice(bias_k.data());
+    resi_device_buf.ToDevice(resi_n_k_ho_wo.data());
 
     using DeviceConvFwdBiasReluAddPtr = ck::tensor_operation::device::
         DeviceConvFwdBiasActivationAddPtr<InElementOp, WeiElementOp, OutElementOp>;
@@ -196,25 +195,24 @@ void profile_conv_fwd_bias_relu_add_impl(int do_verification,
     // profile device Conv instances
     for(auto& op_ptr : op_ptrs)
     {
-        auto argument_ptr = op_ptr->MakeArgumentPointer(
-            static_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
-            static_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
-            static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-            static_cast<const OutDataType*>(bias_device_buf.GetDeviceBuffer()),
-            static_cast<const OutDataType*>(resi_device_buf.GetDeviceBuffer()),
-            N,
-            K,
-            C,
-            input_spatial_lengths,
-            filter_spatial_lengths,
-            output_spatial_lengths,
-            conv_filter_strides,
-            conv_filter_dilations,
-            input_left_pads,
-            input_right_pads,
-            in_element_op,
-            wei_element_op,
-            out_element_op);
+        auto argument_ptr = op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
+                                                        wei_device_buf.GetDeviceBuffer(),
+                                                        out_device_buf.GetDeviceBuffer(),
+                                                        bias_device_buf.GetDeviceBuffer(),
+                                                        resi_device_buf.GetDeviceBuffer(),
+                                                        N,
+                                                        K,
+                                                        C,
+                                                        input_spatial_lengths,
+                                                        filter_spatial_lengths,
+                                                        output_spatial_lengths,
+                                                        conv_filter_strides,
+                                                        conv_filter_dilations,
+                                                        input_left_pads,
+                                                        input_right_pads,
+                                                        in_element_op,
+                                                        wei_element_op,
+                                                        out_element_op);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
@@ -225,7 +223,7 @@ void profile_conv_fwd_bias_relu_add_impl(int do_verification,
             float ave_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
-            std::size_t flop = std::size_t(2) * N * K * Ho * Wo * C * Y * X;
+            std::size_t flop = 2_uz * N * K * Ho * Wo * C * Y * X;
 
             std::size_t num_btype =
                 sizeof(InDataType) * (N * C * Hi * Wi) + sizeof(WeiDataType) * (K * C * Y * X) +
@@ -249,22 +247,19 @@ void profile_conv_fwd_bias_relu_add_impl(int do_verification,
 
             if(do_verification)
             {
-                out_device_buf.FromDevice(out_n_k_ho_wo_device_result.mData.data());
+                out_device_buf.FromDevice(out_n_k_ho_wo_device_result.data());
 
-                ck::utils::check_err(out_n_k_ho_wo_device_result.mData,
-                                     out_n_k_ho_wo_host_result.mData);
+                ck::utils::check_err(out_n_k_ho_wo_device_result, out_n_k_ho_wo_host_result);
 
                 if(do_log)
                 {
-                    LogRangeAsType<float>(std::cout << "in : ", in_n_c_hi_wi.mData, ",")
-                        << std::endl;
-                    LogRangeAsType<float>(std::cout << "wei: ", wei_k_c_y_x.mData, ",")
+                    LogRangeAsType<float>(std::cout << "in : ", in_n_c_hi_wi, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "wei: ", wei_k_c_y_x, ",") << std::endl;
+                    LogRangeAsType<float>(
+                        std::cout << "out_host  : ", out_n_k_ho_wo_host_result, ",")
                         << std::endl;
                     LogRangeAsType<float>(
-                        std::cout << "out_host  : ", out_n_k_ho_wo_host_result.mData, ",")
-                        << std::endl;
-                    LogRangeAsType<float>(
-                        std::cout << "out_device: ", out_n_k_ho_wo_device_result.mData, ",")
+                        std::cout << "out_device: ", out_n_k_ho_wo_device_result, ",")
                         << std::endl;
                 }
             }

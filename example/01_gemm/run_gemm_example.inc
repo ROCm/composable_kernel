@@ -9,9 +9,9 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
 #endif
 
-    using namespace ck::literals;
-
     auto& [M, N, K, StrideA, StrideB, StrideC] = problem_size;
+
+    using namespace ck::literals;
 
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
@@ -32,41 +32,38 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     {
     case 0: break;
     case 1:
-        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k.begin(),
-                                                                             a_m_k.end());
-        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n.begin(),
-                                                                             b_k_n.end());
+        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k);
+        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n);
         break;
     default:
-        ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k.begin(), a_m_k.end());
-        ck::utils::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n.begin(), b_k_n.end());
+        ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
+        ck::utils::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
     }
 
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
-    std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
-    std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
-    std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
+    std::cout << "a_m_k: " << a_m_k.GetDesc() << std::endl;
+    std::cout << "b_k_n: " << b_k_n.GetDesc() << std::endl;
+    std::cout << "c_m_n: " << c_m_n_host_result.GetDesc() << std::endl;
 
 #ifdef BUILD_INT4_EXAMPLE
-    DeviceMem a_m_k_device_buf(sizeof(KernelADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_k_n_device_buf(sizeof(KernelBDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem c_m_n_device_buf(sizeof(KernelCDataType) *
-                               c_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_m_k_device_buf(a_m_k.GetMemorySize());
+    DeviceMem b_k_n_device_buf(b_k_n.GetMemorySize());
+    DeviceMem c_m_n_device_buf(c_m_n_device_result.GetMemorySize());
 
     const Tensor<KernelADataType> a_m_k_converted(a_m_k);
     const Tensor<KernelBDataType> b_k_n_converted(b_k_n);
 
-    a_m_k_device_buf.ToDevice(a_m_k_converted.mData.data());
-    b_k_n_device_buf.ToDevice(b_k_n_converted.mData.data());
+    a_m_k_device_buf.ToDevice(a_m_k_converted.data());
+    b_k_n_device_buf.ToDevice(b_k_n_converted.data());
 #else
-    DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_m_k_device_buf(a_m_k.GetMemorySize());
+    DeviceMem b_k_n_device_buf(b_k_n.GetMemorySize());
+    DeviceMem c_m_n_device_buf(c_m_n_device_result.GetMemorySize());
 
-    a_m_k_device_buf.ToDevice(a_m_k.mData.data());
-    b_k_n_device_buf.ToDevice(b_k_n.mData.data());
+    a_m_k_device_buf.ToDevice(a_m_k.data());
+    b_k_n_device_buf.ToDevice(b_k_n.data());
 #endif
 
     auto a_element_op = AElementOp{};
@@ -76,25 +73,18 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     // do GEMM
     auto gemm     = DeviceGemmInstance{};
     auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(
-#ifdef BUILD_INT4_EXAMPLE
-        static_cast<KernelADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-        static_cast<KernelBDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-        static_cast<KernelCDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-#else
-        static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-        static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-        static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-#endif
-        M,
-        N,
-        K,
-        StrideA,
-        StrideB,
-        StrideC,
-        a_element_op,
-        b_element_op,
-        c_element_op);
+    auto argument = gemm.MakeArgument(a_m_k_device_buf.GetDeviceBuffer(),
+                                      b_k_n_device_buf.GetDeviceBuffer(),
+                                      c_m_n_device_buf.GetDeviceBuffer(),
+                                      M,
+                                      N,
+                                      K,
+                                      StrideA,
+                                      StrideB,
+                                      StrideC,
+                                      a_element_op,
+                                      b_element_op,
+                                      c_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -127,17 +117,17 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
         ref_invoker.Run(ref_argument);
 
 #ifdef BUILD_INT4_EXAMPLE
-        Tensor<CDataType> c_m_n_device_result_converted(c_m_n_host_result.mDesc);
+        Tensor<CDataType> c_m_n_device_result_converted(c_m_n_host_result.GetDesc());
 
-        c_m_n_device_buf.FromDevice(c_m_n_device_result_converted.mData.data());
+        c_m_n_device_buf.FromDevice(c_m_n_device_result_converted.data());
 
         c_m_n_device_result = c_m_n_device_result_converted.CopyAsType<CDataType>();
 
-        return ck::utils::check_err(c_m_n_device_result_converted.mData, c_m_n_host_result.mData);
+        return ck::utils::check_err(c_m_n_device_result_converted, c_m_n_host_result);
 #else
-        c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
+        c_m_n_device_buf.FromDevice(c_m_n_device_result.data());
 
-        return ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
+        return ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
 #endif
     }
 

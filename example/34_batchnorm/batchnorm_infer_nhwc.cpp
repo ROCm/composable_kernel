@@ -1,20 +1,23 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include <limits>
-#include <iostream>
-#include <vector>
-#include <array>
 #include <algorithm>
+#include <array>
+#include <iostream>
+#include <limits>
+#include <vector>
+
 #include <getopt.h>
 
 #include "ck/ck.hpp"
+
+#include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_infer_nhwc_c.hpp"
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/host_common_util.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_infer_nhwc_c.hpp"
 
 #include "batchnorm_infer_impl.hpp"
 
@@ -142,8 +145,8 @@ bool bnorm_infer_nhwc_test(bool do_verification,
     Tensor<AccDataType> estimatedMean(scaleBiasMeanVarLengths);
     Tensor<AccDataType> estimatedVariance(scaleBiasMeanVarLengths);
 
-    auto inOutStrides            = x.mDesc.GetStrides();
-    auto scaleBiasMeanVarStrides = bnScale.mDesc.GetStrides();
+    auto inOutStrides            = x.GetStrides();
+    auto scaleBiasMeanVarStrides = bnScale.GetStrides();
 
     std::size_t num_thread = std::thread::hardware_concurrency();
 
@@ -201,22 +204,21 @@ bool bnorm_infer_nhwc_test(bool do_verification,
     };
 
     // these buffers are usually provided by the user application
-    DeviceMem x_dev(sizeof(InOutDataType) * x.mDesc.GetElementSpaceSize());
-    DeviceMem y_dev(sizeof(InOutDataType) * y.mDesc.GetElementSpaceSize());
-    DeviceMem bnScale_dev(sizeof(AccDataType) * bnScale.mDesc.GetElementSpaceSize());
-    DeviceMem bnBias_dev(sizeof(AccDataType) * bnBias.mDesc.GetElementSpaceSize());
+    DeviceMem x_dev(x.GetMemorySize());
+    DeviceMem y_dev(y.GetMemorySize());
+    DeviceMem bnScale_dev(bnScale.GetMemorySize());
+    DeviceMem bnBias_dev(bnBias.GetMemorySize());
 
     // mean_dev or resultSaveMean_dev
-    DeviceMem estimatedMean_dev(sizeof(AccDataType) * estimatedMean.mDesc.GetElementSpaceSize());
+    DeviceMem estimatedMean_dev(estimatedMean.GetMemorySize());
     // meansquare_dev or resultSaveInvVariance_dev
-    DeviceMem estimatedVariance_dev(sizeof(AccDataType) *
-                                    estimatedVariance.mDesc.GetElementSpaceSize());
+    DeviceMem estimatedVariance_dev(estimatedVariance.GetMemorySize());
 
-    x_dev.ToDevice(x.mData.data());
-    bnScale_dev.ToDevice(bnScale.mData.data());
-    bnBias_dev.ToDevice(bnBias.mData.data());
-    estimatedMean_dev.ToDevice(estimatedMean.mData.data());
-    estimatedVariance_dev.ToDevice(estimatedVariance.mData.data());
+    x_dev.ToDevice(x.data());
+    bnScale_dev.ToDevice(bnScale.data());
+    bnBias_dev.ToDevice(bnBias.data());
+    estimatedMean_dev.ToDevice(estimatedMean.data());
+    estimatedVariance_dev.ToDevice(estimatedVariance.data());
 
     using ck::index_t;
 
@@ -225,14 +227,12 @@ bool bnorm_infer_nhwc_test(bool do_verification,
     std::array<index_t, Rank - NumReduceDim> i_scaleBiasMeanVarLengths;
     std::array<index_t, Rank - NumReduceDim> i_scaleBiasMeanVarStrides;
 
-    std::copy(inOutLengths.begin(), inOutLengths.end(), i_inOutLengths.begin());
-    std::copy(inOutStrides.begin(), inOutStrides.end(), i_inOutStrides.begin());
-    std::copy(scaleBiasMeanVarLengths.begin(),
-              scaleBiasMeanVarLengths.end(),
-              i_scaleBiasMeanVarLengths.begin());
-    std::copy(scaleBiasMeanVarStrides.begin(),
-              scaleBiasMeanVarStrides.end(),
-              i_scaleBiasMeanVarStrides.begin());
+    using ck::ranges::copy;
+
+    copy(inOutLengths, i_inOutLengths.begin());
+    copy(inOutStrides, i_inOutStrides.begin());
+    copy(scaleBiasMeanVarLengths, i_scaleBiasMeanVarLengths.begin());
+    copy(scaleBiasMeanVarStrides, i_scaleBiasMeanVarStrides.begin());
 
     int result = 0;
 
@@ -261,19 +261,18 @@ bool bnorm_infer_nhwc_test(bool do_verification,
     {
         auto batchNormInfer_ref = ReferenceBatchNormInferInstance<InOutDataType, AccDataType>{};
 
-        auto argument_ptr_ref =
-            batchNormInfer_ref.MakeArgumentPointer(i_inOutLengths,
-                                                   i_inOutStrides,
-                                                   i_inOutStrides,
-                                                   i_scaleBiasMeanVarLengths,
-                                                   i_scaleBiasMeanVarStrides,
-                                                   x.mData.data(),
-                                                   bnScale.mData.data(),
-                                                   bnBias.mData.data(),
-                                                   epsilon,
-                                                   estimatedMean.mData.data(),
-                                                   estimatedVariance.mData.data(),
-                                                   y_ref.mData.data());
+        auto argument_ptr_ref = batchNormInfer_ref.MakeArgumentPointer(i_inOutLengths,
+                                                                       i_inOutStrides,
+                                                                       i_inOutStrides,
+                                                                       i_scaleBiasMeanVarLengths,
+                                                                       i_scaleBiasMeanVarStrides,
+                                                                       x.data(),
+                                                                       bnScale.data(),
+                                                                       bnBias.data(),
+                                                                       epsilon,
+                                                                       estimatedMean.data(),
+                                                                       estimatedVariance.data(),
+                                                                       y_ref.data());
 
         if(!batchNormInfer_ref.IsSupportedArgument(argument_ptr_ref.get()))
         {
@@ -287,8 +286,8 @@ bool bnorm_infer_nhwc_test(bool do_verification,
 
         (void)invoker_ptr_ref->Run(argument_ptr_ref.get());
 
-        y_dev.FromDevice(y.mData.data());
-        pass = pass && ck::utils::check_err(y.mData, y_ref.mData);
+        y_dev.FromDevice(y.data());
+        pass = pass && ck::utils::check_err(y, y_ref);
     };
 
     return (pass);

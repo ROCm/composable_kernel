@@ -108,13 +108,13 @@ struct ReductionHost
     std::vector<std::array<size_t, NumReduceDim>> reduce_dim_indexes;
     std::vector<std::array<size_t, NumInvariantDim>> invariant_dim_indexes;
 
-    ReductionHost(HostTensorDescriptor& inDesc,
-                  HostTensorDescriptor& outDesc,
+    ReductionHost(const HostTensorDescriptor& inDesc,
+                  const HostTensorDescriptor& outDesc,
                   const std::vector<int>& invariantDims_,
                   const std::vector<int>& reduceDims_)
     {
         // this->outLengths = to_int_vector(outDesc.GetLengths());
-        this->outStrides = outDesc.GetStrides();
+        this->outStrides.assign(outDesc.GetStrides().begin(), outDesc.GetStrides().end());
 
         this->invariantDims = invariantDims_;
         this->reduceDims    = reduceDims_;

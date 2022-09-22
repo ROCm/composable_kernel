@@ -9,11 +9,11 @@
 
 #include "ck/library/tensor_operation_instance/gpu/layernorm.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
 
 namespace ck {
 namespace profiler {
@@ -72,14 +72,14 @@ void profile_layernorm_impl(int do_verification,
         y.GenerateTensorValue(GeneratorTensor_3<YDataType>{-0.5, 0.5});
     }
 
-    DeviceMem x_dev(sizeof(XDataType) * x.mDesc.GetElementSpaceSize());
-    DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpaceSize());
-    DeviceMem beta_dev(sizeof(BetaDataType) * beta.mDesc.GetElementSpaceSize());
-    DeviceMem y_dev(sizeof(YDataType) * y.mDesc.GetElementSpaceSize());
+    DeviceMem x_dev(x.GetMemorySize());
+    DeviceMem gamma_dev(gamma.GetMemorySize());
+    DeviceMem beta_dev(beta.GetMemorySize());
+    DeviceMem y_dev(y.GetMemorySize());
 
-    x_dev.ToDevice(x.mData.data());
-    gamma_dev.ToDevice(gamma.mData.data());
-    beta_dev.ToDevice(beta.mData.data());
+    x_dev.ToDevice(x.data());
+    gamma_dev.ToDevice(gamma.data());
+    beta_dev.ToDevice(beta.data());
 
     constexpr int NumReduceDim = Rank - 1;
 
@@ -149,10 +149,10 @@ void profile_layernorm_impl(int do_verification,
 
         float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
-        std::size_t num_bytes = x.mDesc.GetElementSize() * sizeof(XDataType) +
-                                gamma.mDesc.GetElementSize() * sizeof(GammaDataType) +
-                                beta.mDesc.GetElementSize() * sizeof(BetaDataType) +
-                                y.mDesc.GetElementSize() * sizeof(YDataType);
+        std::size_t num_bytes = x.GetElementSize() * sizeof(XDataType) +
+                                gamma.GetElementSize() * sizeof(GammaDataType) +
+                                beta.GetElementSize() * sizeof(BetaDataType) +
+                                y.GetElementSize() * sizeof(YDataType);
 
         float gb_per_sec = num_bytes / 1.E6 / avg_time;
 
@@ -168,16 +168,15 @@ void profile_layernorm_impl(int do_verification,
 
         if(do_verification)
         {
-            y_dev.FromDevice(y.mData.data());
+            y_dev.FromDevice(y.data());
 
-            bool pass = ck::utils::check_err(
-                y.mData, host_y.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
+            bool pass = ck::utils::check_err(y, host_y, "Error: Incorrect results d1", 1e-3, 1e-3);
 
             if(do_log)
             {
-                LogRangeAsType<float>(std::cout << "x  : ", x.mData, ",") << std::endl;
-                LogRangeAsType<float>(std::cout << "host_y  : ", host_y.mData, ",") << std::endl;
-                LogRangeAsType<float>(std::cout << "y  : ", y.mData, ",") << std::endl;
+                LogRangeAsType<float>(std::cout << "x  : ", x, ",") << std::endl;
+                LogRangeAsType<float>(std::cout << "host_y  : ", host_y, ",") << std::endl;
+                LogRangeAsType<float>(std::cout << "y  : ", y, ",") << std::endl;
             }
 
             if(!pass)

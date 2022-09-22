@@ -1,22 +1,23 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
+#include <cstdlib>
+#include <initializer_list>
 #include <iostream>
 #include <numeric>
-#include <initializer_list>
-#include <cstdlib>
 
 #include "ck/ck.hpp"
 #include "ck/utility/reduction_operator.hpp"
-#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_reduce_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
+#include "ck/library/utility/literals.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -127,20 +128,20 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
+    using namespace ck::literals;
+
     auto f_host_tensor_descriptor = [](std::size_t batch_count,
                                        std::size_t row,
                                        std::size_t col,
                                        std::size_t stride,
                                        auto layout) {
-        if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
+        if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({row * stride, stride, 1}));
+            return HostTensorDescriptor({batch_count, row, col}, {row * stride, stride, 1_uz});
         }
         else
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({col * stride, 1, stride}));
+            return HostTensorDescriptor({batch_count, row, col}, {col * stride, 1_uz, stride});
         }
     };
 
@@ -149,23 +150,19 @@ int main(int argc, char* argv[])
 
     Tensor<CDataType> c_g_m_n_host_result(
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> d0_g_m_host_result(HostTensorDescriptor(std::vector<std::size_t>(
-        {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
-    Tensor<ReduceDataType> d1_g_m_host_result(HostTensorDescriptor(std::vector<std::size_t>(
-        {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
+    Tensor<ReduceDataType> d0_g_m_host_result(HostTensorDescriptor({BatchCount, M}));
+    Tensor<ReduceDataType> d1_g_m_host_result(HostTensorDescriptor({BatchCount, M}));
 
     Tensor<CDataType> c_g_m_n_device_result(
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> d0_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
-        {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
-    Tensor<ReduceDataType> d1_g_m_device_result(HostTensorDescriptor(std::vector<std::size_t>(
-        {static_cast<std::size_t>(BatchCount), static_cast<std::size_t>(M)})));
+    Tensor<ReduceDataType> d0_g_m_device_result(HostTensorDescriptor({BatchCount, M}));
+    Tensor<ReduceDataType> d1_g_m_device_result(HostTensorDescriptor({BatchCount, M}));
 
-    std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
-    std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;
-    std::cout << "c_g_m_n: " << c_g_m_n_host_result.mDesc << std::endl;
-    std::cout << "d0_g_m: " << d0_g_m_host_result.mDesc << std::endl;
-    std::cout << "d1_g_m: " << d1_g_m_host_result.mDesc << std::endl;
+    std::cout << "a_g_m_k: " << a_g_m_k.GetDesc() << std::endl;
+    std::cout << "b_g_k_n: " << b_g_k_n.GetDesc() << std::endl;
+    std::cout << "c_g_m_n: " << c_g_m_n_host_result.GetDesc() << std::endl;
+    std::cout << "d0_g_m: " << d0_g_m_host_result.GetDesc() << std::endl;
+    std::cout << "d1_g_m: " << d1_g_m_host_result.GetDesc() << std::endl;
 
     switch(init_method)
     {
@@ -180,16 +177,14 @@ int main(int argc, char* argv[])
         break;
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_g_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem c_device_buf(sizeof(CDataType) * c_g_m_n_device_result.mDesc.GetElementSpaceSize());
-    DeviceMem reduce0_device_buf(sizeof(ReduceDataType) *
-                                 d0_g_m_device_result.mDesc.GetElementSpaceSize());
-    DeviceMem reduce1_device_buf(sizeof(ReduceDataType) *
-                                 d1_g_m_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_g_m_k.GetMemorySize());
+    DeviceMem b_device_buf(b_g_k_n.GetMemorySize());
+    DeviceMem c_device_buf(c_g_m_n_device_result.GetMemorySize());
+    DeviceMem reduce0_device_buf(d0_g_m_device_result.GetMemorySize());
+    DeviceMem reduce1_device_buf(d1_g_m_device_result.GetMemorySize());
 
-    a_device_buf.ToDevice(a_g_m_k.mData.data());
-    b_device_buf.ToDevice(b_g_k_n.mData.data());
+    a_device_buf.ToDevice(a_g_m_k.data());
+    b_device_buf.ToDevice(b_g_k_n.data());
 
     auto a_element_op                     = AElementOp{};
     auto b_element_op                     = BElementOp{};
@@ -256,9 +251,9 @@ int main(int argc, char* argv[])
     bool pass = true;
     if(do_verification)
     {
-        c_device_buf.FromDevice(c_g_m_n_device_result.mData.data());
-        reduce0_device_buf.FromDevice(d0_g_m_device_result.mData.data());
-        reduce1_device_buf.FromDevice(d1_g_m_device_result.mData.data());
+        c_device_buf.FromDevice(c_g_m_n_device_result.data());
+        reduce0_device_buf.FromDevice(d0_g_m_device_result.data());
+        reduce1_device_buf.FromDevice(d1_g_m_device_result.data());
 
         auto ref_batched_gemm = ReferenceBatchedGemmInstance{};
         auto ref_invoker      = ref_batched_gemm.MakeInvoker();
@@ -296,16 +291,15 @@ int main(int argc, char* argv[])
             }
         }
 
-        pass = ck::utils::check_err(c_g_m_n_host_result.mData,
-                                    c_g_m_n_device_result.mData,
-                                    "Error: Incorrect results c") &&
-               ck::utils::check_err(d0_g_m_device_result.mData,
-                                    d0_g_m_host_result.mData,
+        pass = ck::utils::check_err(
+                   c_g_m_n_host_result, c_g_m_n_device_result, "Error: Incorrect results c") &&
+               ck::utils::check_err(d0_g_m_device_result,
+                                    d0_g_m_host_result,
                                     "Error: Incorrect results! D0",
                                     1e-4,
                                     1e-5) &&
-               ck::utils::check_err(d1_g_m_device_result.mData,
-                                    d1_g_m_host_result.mData,
+               ck::utils::check_err(d1_g_m_device_result,
+                                    d1_g_m_host_result,
                                     "Error: Incorrect results! D1",
                                     1e-3,
                                     1e-5);
