@@ -70,9 +70,9 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
         b_k_n.GenerateTensorValue(GeneratorTensor_Sequential<1>{});
     }
 
-    DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_m_k_device_buf(a_m_k.GetMemorySize());
+    DeviceMem b_k_n_device_buf(b_k_n.GetMemorySize());
+    DeviceMem c_m_n_device_buf(c_m_n_device_result.GetMemorySize());
 
 #ifdef BUILD_INT4_EXAMPLE
     const Tensor<KernelADataType> a_m_k_converted(a_m_k);

@@ -282,11 +282,10 @@ int main(int argc, char* argv[])
         break;
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_gs_ms_ks.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_gs_ns_ks.mDesc.GetElementSpaceSize());
-    DeviceMem d_device_buf(sizeof(DDataType) * d_gs_ms_ns.mDesc.GetElementSpaceSize());
-    DeviceMem e_device_buf(sizeof(EDataType) *
-                           e_gs_ms_ns_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_gs_ms_ks.GetMemorySize());
+    DeviceMem b_device_buf(b_gs_ns_ks.GetMemorySize());
+    DeviceMem d_device_buf(d_gs_ms_ns.GetMemorySize());
+    DeviceMem e_device_buf(e_gs_ms_ns_device_result.GetMemorySize());
 
     a_device_buf.ToDevice(a_gs_ms_ks.mData.data());
     b_device_buf.ToDevice(b_gs_ns_ks.mData.data());

@@ -171,11 +171,11 @@ bool run_gemm_reduce_add_addsquare_xdl(ck::index_t M,
         break;
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem e_device_buf(sizeof(EDataType) * e_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem r0_device_buf(sizeof(R0DataType) * r0_m.mDesc.GetElementSpaceSize());
-    DeviceMem r1_device_buf(sizeof(R1DataType) * r1_m.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_m_k.GetMemorySize());
+    DeviceMem b_device_buf(b_k_n.GetMemorySize());
+    DeviceMem e_device_buf(e_m_n.GetMemorySize());
+    DeviceMem r0_device_buf(r0_m.GetMemorySize());
+    DeviceMem r1_device_buf(r1_m.GetMemorySize());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());

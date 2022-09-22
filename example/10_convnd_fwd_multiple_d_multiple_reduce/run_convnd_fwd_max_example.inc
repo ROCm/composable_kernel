@@ -88,11 +88,10 @@ bool run_convnd_fwd_max(const ck::utils::conv::ConvParam& problem_size,
                                                              conv_weight.end());
     }
 
-    DeviceMem conv_input_device_buf(sizeof(ADataType) * conv_input.mDesc.GetElementSpaceSize());
-    DeviceMem conv_weight_device_buf(sizeof(BDataType) * conv_weight.mDesc.GetElementSpaceSize());
-    DeviceMem conv_output_device_buf(sizeof(EDataType) *
-                                     conv_output_device.mDesc.GetElementSpaceSize());
-    DeviceMem r0_device_buf(sizeof(R0DataType) * r0_device.mDesc.GetElementSpaceSize());
+    DeviceMem conv_input_device_buf(conv_input.GetMemorySize());
+    DeviceMem conv_weight_device_buf(conv_weight.GetMemorySize());
+    DeviceMem conv_output_device_buf(conv_output_device.GetMemorySize());
+    DeviceMem r0_device_buf(r0_device.GetMemorySize());
 
 #ifdef BUILD_INT4_EXAMPLE
     const Tensor<KernelADataType> conv_input_converted(conv_input);

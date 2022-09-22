@@ -233,9 +233,9 @@ int mean_meansquare_dual_reduce_test(size_t n,
     };
 
     // these buffers are usually provided by the user application
-    DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
-    DeviceMem mean_dev(sizeof(OutDataType) * mean.mDesc.GetElementSpaceSize());
-    DeviceMem meansquare_dev(sizeof(OutDataType) * meansquare.mDesc.GetElementSpaceSize());
+    DeviceMem in_dev(in.GetMemorySize());
+    DeviceMem mean_dev(mean.GetMemorySize());
+    DeviceMem meansquare_dev(meansquare.GetMemorySize());
 
     in_dev.ToDevice(in.mData.data());
 

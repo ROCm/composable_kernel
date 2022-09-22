@@ -154,13 +154,12 @@ bool run_batched_gemm_gemm_example(int argc, char* argv[])
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
     }
 
-#ifdef BUILD_INT4_EXAMPLE
-    DeviceMem a_g_m_k_device_buf(sizeof(KernelADataType) * a_g_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b0_g_k_n_device_buf(sizeof(KernelB0DataType) * b0_g_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem b1_g_n_o_device_buf(sizeof(KernelB1DataType) * b1_g_n_o.mDesc.GetElementSpaceSize());
-    DeviceMem c_g_m_o_device_buf(sizeof(KernelCDataType) *
-                                 c_g_m_o_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_g_m_k_device_buf(a_g_m_k.GetMemorySize());
+    DeviceMem b0_g_k_n_device_buf(b0_g_k_n.GetMemorySize());
+    DeviceMem b1_g_n_o_device_buf(b1_g_n_o.GetMemorySize());
+    DeviceMem c_g_m_o_device_buf(c_g_m_o_device_result.GetMemorySize());
 
+#ifdef BUILD_INT4_EXAMPLE
     const Tensor<KernelADataType> a_g_m_k_converted(a_g_m_k);
     const Tensor<KernelB0DataType> b0_g_k_n_converted(b0_g_k_n);
     const Tensor<KernelB1DataType> b1_g_n_o_converted(b1_g_n_o);
@@ -169,12 +168,6 @@ bool run_batched_gemm_gemm_example(int argc, char* argv[])
     b0_g_k_n_device_buf.ToDevice(b0_g_k_n_converted.mData.data());
     b1_g_n_o_device_buf.ToDevice(b1_g_n_o_converted.mData.data());
 #else
-    DeviceMem a_g_m_k_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b0_g_k_n_device_buf(sizeof(B0DataType) * b0_g_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem b1_g_n_o_device_buf(sizeof(B1DataType) * b1_g_n_o.mDesc.GetElementSpaceSize());
-    DeviceMem c_g_m_o_device_buf(sizeof(CDataType) *
-                                 c_g_m_o_device_result.mDesc.GetElementSpaceSize());
-
     a_g_m_k_device_buf.ToDevice(a_g_m_k.mData.data());
     b0_g_k_n_device_buf.ToDevice(b0_g_k_n.mData.data());
     b1_g_n_o_device_buf.ToDevice(b1_g_n_o.mData.data());

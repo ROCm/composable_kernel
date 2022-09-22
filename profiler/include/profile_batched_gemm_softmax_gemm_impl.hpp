@@ -174,10 +174,10 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
         b1_g_n_o.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
     }
 
-    DeviceMem a_g_m_k_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSize());
-    DeviceMem b0_g_k_n_device_buf(sizeof(B0DataType) * b0_g_k_n.mDesc.GetElementSize());
-    DeviceMem b1_g_n_o_device_buf(sizeof(B1DataType) * b1_g_n_o.mDesc.GetElementSize());
-    DeviceMem c_g_m_o_device_buf(sizeof(CDataType) * c_g_m_o_device_result.mDesc.GetElementSize());
+    DeviceMem a_g_m_k_device_buf(a_g_m_k.GetMemorySize());
+    DeviceMem b0_g_k_n_device_buf(b0_g_k_n.GetMemorySize());
+    DeviceMem b1_g_n_o_device_buf(b1_g_n_o.GetMemorySize());
+    DeviceMem c_g_m_o_device_buf(c_g_m_o_device_result.GetMemorySize());
 
     a_g_m_k_device_buf.ToDevice(a_g_m_k.mData.data());
     b0_g_k_n_device_buf.ToDevice(b0_g_k_n.mData.data());

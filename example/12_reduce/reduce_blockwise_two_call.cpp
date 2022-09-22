@@ -175,9 +175,9 @@ int main(int argc, char* argv[])
                 out.mData[i] = out_ref.mData[i];
     };
 
-    DeviceMem in_1_dev(sizeof(InOutDataType) * in_1.mDesc.GetElementSpaceSize());
-    DeviceMem in_2_dev(sizeof(InOutDataType) * in_2.mDesc.GetElementSpaceSize());
-    DeviceMem out_dev(sizeof(InOutDataType) * out.mDesc.GetElementSpaceSize());
+    DeviceMem in_1_dev(in_1.GetMemorySize());
+    DeviceMem in_2_dev(in_2.GetMemorySize());
+    DeviceMem out_dev(out.GetMemorySize());
 
     in_1_dev.ToDevice(in_1.mData.data());
 

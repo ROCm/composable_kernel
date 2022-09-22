@@ -214,10 +214,10 @@ int main(int argc, char* argv[])
         d_m_n.GenerateTensorValue(GeneratorTensor_3<DDataType>{-0.5, 0.5});
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem d_device_buf(sizeof(DDataType) * d_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_m_k.GetMemorySize());
+    DeviceMem b_device_buf(b_k_n.GetMemorySize());
+    DeviceMem d_device_buf(d_m_n.GetMemorySize());
+    DeviceMem e_device_buf(e_m_n_device_result.GetMemorySize());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());

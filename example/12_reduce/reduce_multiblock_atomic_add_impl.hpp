@@ -131,8 +131,8 @@ int reduce_multiblock_atomic_add_impl(bool do_verification,
     };
 
     // these buffers are usually provided by the user application
-    DeviceMem in_dev(sizeof(InOutDataType) * in.mDesc.GetElementSpaceSize());
-    DeviceMem out_dev(sizeof(InOutDataType) * out.mDesc.GetElementSpaceSize());
+    DeviceMem in_dev(in.GetMemorySize());
+    DeviceMem out_dev(out.GetMemorySize());
 
     in_dev.ToDevice(in.mData.data());
 

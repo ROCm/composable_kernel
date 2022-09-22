@@ -250,8 +250,8 @@ bool profile_reduce_impl_impl(bool do_verification,
         };
 
         // these buffers are usually provided by the user application
-        DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
-        DeviceMem out_dev(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
+        DeviceMem in_dev(in.GetMemorySize());
+        DeviceMem out_dev(out.GetMemorySize());
 
         in_dev.ToDevice(in.mData.data());
 

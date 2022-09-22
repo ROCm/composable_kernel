@@ -192,8 +192,8 @@ int reduce_blockwise_impl(bool do_verification,
     };
 
     // these buffers are usually provided by the user application
-    DeviceMem in_dev(sizeof(InOutDataTypeInDevice) * in.mDesc.GetElementSpaceSize());
-    DeviceMem out_dev(sizeof(InOutDataTypeInDevice) * out.mDesc.GetElementSpaceSize());
+    DeviceMem in_dev(in.GetMemorySize());
+    DeviceMem out_dev(out.GetMemorySize());
 
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     if(std::is_same<InOutDataType, int4_t>::value)

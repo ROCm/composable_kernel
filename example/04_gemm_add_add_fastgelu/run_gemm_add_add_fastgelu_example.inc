@@ -57,11 +57,11 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
         d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem d0_device_buf(sizeof(D0DataType) * d0_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_m_k.GetMemorySize());
+    DeviceMem b_device_buf(b_k_n.GetMemorySize());
+    DeviceMem d0_device_buf(d0_m_n.GetMemorySize());
+    DeviceMem d1_device_buf(d1_m_n.GetMemorySize());
+    DeviceMem e_device_buf(e_m_n_device_result.GetMemorySize());
 
 #ifdef BUILD_INT4_EXAMPLE
     const Tensor<KernelADataType> a_m_k_converted(a_m_k);

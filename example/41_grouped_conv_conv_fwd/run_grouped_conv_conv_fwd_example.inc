@@ -56,12 +56,12 @@ bool run_grouped_conv_conv_fwd(bool do_verification,
         wei1.GenerateTensorValue(GeneratorTensor_3<Wei1DataType>{-0.5, 0.5});
     }
 
-#ifdef BUILD_INT4_EXAMPLE
-    DeviceMem in0_device_buf(sizeof(KernelIn0DataType) * in0.mDesc.GetElementSpaceSize());
-    DeviceMem wei0_device_buf(sizeof(KernelWei0DataType) * wei0.mDesc.GetElementSpaceSize());
-    DeviceMem wei1_device_buf(sizeof(KernelWei1DataType) * wei1.mDesc.GetElementSpaceSize());
-    DeviceMem out1_device_buf(sizeof(KernelOut1DataType) * out1_device.mDesc.GetElementSpaceSize());
+    DeviceMem in0_device_buf(in0.GetMemorySize());
+    DeviceMem wei0_device_buf(wei0.GetMemorySize());
+    DeviceMem wei1_device_buf(wei1.GetMemorySize());
+    DeviceMem out1_device_buf(out1_device.GetMemorySize());
 
+#ifdef BUILD_INT4_EXAMPLE
     const Tensor<KernelIn0DataType> in0_converted(in0);
     const Tensor<KernelWei0DataType> wei0_converted(wei0);
     const Tensor<KernelWei1DataType> wei1_converted(wei1);
@@ -70,11 +70,6 @@ bool run_grouped_conv_conv_fwd(bool do_verification,
     wei0_device_buf.ToDevice(wei0_converted.mData.data());
     wei1_device_buf.ToDevice(wei1_converted.mData.data());
 #else
-    DeviceMem in0_device_buf(sizeof(In0DataType) * in0.mDesc.GetElementSpaceSize());
-    DeviceMem wei0_device_buf(sizeof(Wei0DataType) * wei0.mDesc.GetElementSpaceSize());
-    DeviceMem wei1_device_buf(sizeof(Wei1DataType) * wei1.mDesc.GetElementSpaceSize());
-    DeviceMem out1_device_buf(sizeof(Out1DataType) * out1_device.mDesc.GetElementSpaceSize());
-
     in0_device_buf.ToDevice(in0.mData.data());
     wei0_device_buf.ToDevice(wei0.mData.data());
     wei1_device_buf.ToDevice(wei1.mData.data());

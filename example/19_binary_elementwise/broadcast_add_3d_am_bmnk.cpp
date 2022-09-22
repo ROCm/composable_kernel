@@ -66,9 +66,9 @@ int main()
     a_m.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
     b_m_n_k.GenerateTensorValue(GeneratorTensor_3<ABDataType>{0.0, 1.0});
 
-    DeviceMem a_m_device_buf(sizeof(ABDataType) * a_m.mDesc.GetElementSpaceSize());
-    DeviceMem b_m_n_k_device_buf(sizeof(ABDataType) * b_m_n_k.mDesc.GetElementSpaceSize());
-    DeviceMem c_m_n_k_device_buf(sizeof(CDataType) * c_m_n_k.mDesc.GetElementSpaceSize());
+    DeviceMem a_m_device_buf(a_m.GetMemorySize());
+    DeviceMem b_m_n_k_device_buf(b_m_n_k.GetMemorySize());
+    DeviceMem c_m_n_k_device_buf(c_m_n_k.GetMemorySize());
 
     a_m_device_buf.ToDevice(a_m.mData.data());
     b_m_n_k_device_buf.ToDevice(b_m_n_k.mData.data());

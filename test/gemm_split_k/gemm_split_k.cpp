@@ -126,9 +126,9 @@ int test_gemm(const gemmArgs& args)
                        ck::tensor_operation::element_wise::PassThrough{},
                        ck::tensor_operation::element_wise::PassThrough{});
 
-    DeviceMem a_device_buf(sizeof(float) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(float) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem c_device_buf(sizeof(float) * c_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_m_k.GetMemorySize());
+    DeviceMem b_device_buf(b_k_n.GetMemorySize());
+    DeviceMem c_device_buf(c_m_n_device_result.GetMemorySize());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());

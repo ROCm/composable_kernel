@@ -66,9 +66,9 @@ bool run_grouped_conv_fwd(bool do_verification,
         wei.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
     }
 
-    DeviceMem in_device_buf(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
-    DeviceMem out_device_buf(sizeof(OutDataType) * out_device.mDesc.GetElementSpaceSize());
+    DeviceMem in_device_buf(in.GetMemorySize());
+    DeviceMem wei_device_buf(wei.GetMemorySize());
+    DeviceMem out_device_buf(out_device.GetMemorySize());
 
     in_device_buf.ToDevice(in.mData.data());
     wei_device_buf.ToDevice(wei.mData.data());

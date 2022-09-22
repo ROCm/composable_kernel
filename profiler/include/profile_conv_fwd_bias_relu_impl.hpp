@@ -149,11 +149,10 @@ void profile_conv_fwd_bias_relu_impl(int do_verification,
         ref_invoker.Run(ref_argument);
     }
 
-    DeviceMem in_device_buf(sizeof(InDataType) * in_n_c_hi_wi.mDesc.GetElementSpaceSize());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_k_c_y_x.mDesc.GetElementSpaceSize());
-    DeviceMem out_device_buf(sizeof(OutDataType) *
-                             out_n_k_ho_wo_device_result.mDesc.GetElementSpaceSize());
-    DeviceMem bias_device_buf(sizeof(OutDataType) * bias_k.mDesc.GetElementSpaceSize());
+    DeviceMem in_device_buf(in_n_c_hi_wi.GetMemorySize());
+    DeviceMem wei_device_buf(wei_k_c_y_x.GetMemorySize());
+    DeviceMem out_device_buf(out_n_k_ho_wo_device_result.GetMemorySize());
+    DeviceMem bias_device_buf(bias_k.GetMemorySize());
 
     in_device_buf.ToDevice(in_n_c_hi_wi.mData.data());
     wei_device_buf.ToDevice(wei_k_c_y_x.mData.data());

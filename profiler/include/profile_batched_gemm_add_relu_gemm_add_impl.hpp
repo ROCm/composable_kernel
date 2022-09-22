@@ -169,13 +169,12 @@ bool profile_batched_gemm_add_relu_gemm_add_impl(bool do_verification,
         d1_g_m_o.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
     }
 
-    DeviceMem a0_g_m_k_device_buf(sizeof(A0DataType) * a0_g_m_k.mDesc.GetElementSize());
-    DeviceMem b0_g_k_n_device_buf(sizeof(B0DataType) * b0_g_k_n.mDesc.GetElementSize());
-    DeviceMem d0_g_m_n_device_buf(sizeof(D0DataType) * d0_g_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem b1_g_n_o_device_buf(sizeof(B1DataType) * b1_g_n_o.mDesc.GetElementSize());
-    DeviceMem d1_g_m_o_device_buf(sizeof(D1DataType) * d1_g_m_o.mDesc.GetElementSpaceSize());
-    DeviceMem e1_g_m_o_device_buf(sizeof(E1DataType) *
-                                  e1_g_m_o_device_result.mDesc.GetElementSize());
+    DeviceMem a0_g_m_k_device_buf(a0_g_m_k.GetMemorySize());
+    DeviceMem b0_g_k_n_device_buf(b0_g_k_n.GetMemorySize());
+    DeviceMem d0_g_m_n_device_buf(d0_g_m_n.GetMemorySize());
+    DeviceMem b1_g_n_o_device_buf(b1_g_n_o.GetMemorySize());
+    DeviceMem d1_g_m_o_device_buf(d1_g_m_o.GetMemorySize());
+    DeviceMem e1_g_m_o_device_buf(e1_g_m_o_device_result.GetMemorySize());
 
     a0_g_m_k_device_buf.ToDevice(a0_g_m_k.mData.data());
     b0_g_k_n_device_buf.ToDevice(b0_g_k_n.mData.data());

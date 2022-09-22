@@ -296,9 +296,9 @@ bool profile_convnd_bwd_weight_impl(int do_verification,
         output.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
     }
 
-    DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpace());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * weights_device_result.mDesc.GetElementSpace());
-    DeviceMem out_device_buf(sizeof(OutDataType) * output.mDesc.GetElementSpace());
+    DeviceMem in_device_buf(input.GetMemorySize());
+    DeviceMem wei_device_buf(weights_device_result.GetMemorySize());
+    DeviceMem out_device_buf(output.GetMemorySize());
 
     in_device_buf.ToDevice(input.mData.data());
     out_device_buf.ToDevice(output.mData.data());

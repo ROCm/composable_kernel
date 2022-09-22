@@ -104,10 +104,10 @@ int main(int argc, char* argv[])
     ck::utils::FillUniformDistribution<GammaDataType>{0.f, 1.f}(gamma.begin(), gamma.end());
     ck::utils::FillUniformDistribution<BetaDataType>{0.f, 1.f}(beta.begin(), beta.end());
 
-    DeviceMem x_dev(sizeof(XDataType) * x.mDesc.GetElementSpaceSize());
-    DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpaceSize());
-    DeviceMem beta_dev(sizeof(BetaDataType) * beta.mDesc.GetElementSpaceSize());
-    DeviceMem y_dev(sizeof(YDataType) * y.mDesc.GetElementSpaceSize());
+    DeviceMem x_dev(x.GetMemorySize());
+    DeviceMem gamma_dev(gamma.GetMemorySize());
+    DeviceMem beta_dev(beta.GetMemorySize());
+    DeviceMem y_dev(y.GetMemorySize());
 
     x_dev.ToDevice(x.mData.data());
     gamma_dev.ToDevice(gamma.mData.data());

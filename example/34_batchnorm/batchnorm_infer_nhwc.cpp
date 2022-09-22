@@ -201,16 +201,15 @@ bool bnorm_infer_nhwc_test(bool do_verification,
     };
 
     // these buffers are usually provided by the user application
-    DeviceMem x_dev(sizeof(InOutDataType) * x.mDesc.GetElementSpaceSize());
-    DeviceMem y_dev(sizeof(InOutDataType) * y.mDesc.GetElementSpaceSize());
-    DeviceMem bnScale_dev(sizeof(AccDataType) * bnScale.mDesc.GetElementSpaceSize());
-    DeviceMem bnBias_dev(sizeof(AccDataType) * bnBias.mDesc.GetElementSpaceSize());
+    DeviceMem x_dev(x.GetMemorySize());
+    DeviceMem y_dev(y.GetMemorySize());
+    DeviceMem bnScale_dev(bnScale.GetMemorySize());
+    DeviceMem bnBias_dev(bnBias.GetMemorySize());
 
     // mean_dev or resultSaveMean_dev
-    DeviceMem estimatedMean_dev(sizeof(AccDataType) * estimatedMean.mDesc.GetElementSpaceSize());
+    DeviceMem estimatedMean_dev(estimatedMean.GetMemorySize());
     // meansquare_dev or resultSaveInvVariance_dev
-    DeviceMem estimatedVariance_dev(sizeof(AccDataType) *
-                                    estimatedVariance.mDesc.GetElementSpaceSize());
+    DeviceMem estimatedVariance_dev(estimatedVariance.GetMemorySize());
 
     x_dev.ToDevice(x.mData.data());
     bnScale_dev.ToDevice(bnScale.mData.data());

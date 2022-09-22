@@ -72,10 +72,10 @@ int run_conv_bwd_data_bias_relu(bool do_verification,
         bias.GenerateTensorValue(GeneratorTensor_3<BiasDataType>{0.0, 1.0});
     }
 
-    DeviceMem out_device_buf(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
-    DeviceMem bias_device_buf(sizeof(BiasDataType) * bias.mDesc.GetElementSpaceSize());
-    DeviceMem in_device_buf(sizeof(InDataType) * in_device.mDesc.GetElementSpaceSize());
+    DeviceMem out_device_buf(out.GetMemorySize());
+    DeviceMem wei_device_buf(wei.GetMemorySize());
+    DeviceMem bias_device_buf(bias.GetMemorySize());
+    DeviceMem in_device_buf(in_device.GetMemorySize());
 
     out_device_buf.ToDevice(out.mData.data());
     wei_device_buf.ToDevice(wei.mData.data());

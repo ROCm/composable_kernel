@@ -189,13 +189,11 @@ bool profile_gemm_reduce_impl(int do_verification,
         }
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
-    DeviceMem reduce0_device_buf(sizeof(ReduceDataType) *
-                                 reduce0_m_device_result.mDesc.GetElementSpaceSize());
-    DeviceMem reduce1_device_buf(sizeof(ReduceDataType) *
-                                 reduce1_m_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_m_k.GetMemorySize());
+    DeviceMem b_device_buf(b_k_n.GetMemorySize());
+    DeviceMem c_device_buf(c_m_n_device_result.GetMemorySize());
+    DeviceMem reduce0_device_buf(reduce0_m_device_result.GetMemorySize());
+    DeviceMem reduce1_device_buf(reduce1_m_device_result.GetMemorySize());
 
     std::array<void*, 2> p_reduces = {reduce0_device_buf.GetDeviceBuffer(),
                                       reduce1_device_buf.GetDeviceBuffer()};

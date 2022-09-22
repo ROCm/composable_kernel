@@ -65,10 +65,10 @@ bool profile_groupnorm_impl(int do_verification,
         beta.GenerateTensorValue(GeneratorTensor_3<BetaDataType>{-0.5, 0.5});
     }
 
-    DeviceMem x_dev(sizeof(XDataType) * x.mDesc.GetElementSpaceSize());
-    DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpaceSize());
-    DeviceMem beta_dev(sizeof(BetaDataType) * beta.mDesc.GetElementSpaceSize());
-    DeviceMem y_dev(sizeof(YDataType) * y.mDesc.GetElementSpaceSize());
+    DeviceMem x_dev(x.GetMemorySize());
+    DeviceMem gamma_dev(gamma.GetMemorySize());
+    DeviceMem beta_dev(beta.GetMemorySize());
+    DeviceMem y_dev(y.GetMemorySize());
 
     x_dev.ToDevice(x.mData.data());
     gamma_dev.ToDevice(gamma.mData.data());

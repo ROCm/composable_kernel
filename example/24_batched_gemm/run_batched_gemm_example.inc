@@ -96,9 +96,9 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         break;
     }
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_g_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem c_device_buf(sizeof(EDataType) * e_g_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_g_m_k.GetMemorySize());
+    DeviceMem b_device_buf(b_g_k_n.GetMemorySize());
+    DeviceMem c_device_buf(e_g_m_n_device_result.GetMemorySize());
 
 #ifdef BUILD_INT4_EXAMPLE
     const Tensor<KernelADataType> a_g_m_k_converted(a_g_m_k);

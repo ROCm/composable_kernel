@@ -77,11 +77,11 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
         bias.GenerateTensorValue(GeneratorTensor_3<OutUserDataType>{-0.5, 0.5});
     }
 
-    DeviceMem in_device_buf(sizeof(InKernelDataType) * in.mDesc.GetElementSpaceSize());
-    DeviceMem wei_device_buf(sizeof(WeiKernelDataType) * wei.mDesc.GetElementSpaceSize());
-    DeviceMem bias_device_buf(sizeof(OutKernelDataType) * bias.mDesc.GetElementSpaceSize());
-    DeviceMem residual_device_buf(sizeof(OutKernelDataType) * residual.mDesc.GetElementSpaceSize());
-    DeviceMem out_device_buf(sizeof(OutKernelDataType) * out_device.mDesc.GetElementSpaceSize());
+    DeviceMem in_device_buf(in.GetMemorySize());
+    DeviceMem wei_device_buf(wei.GetMemorySize());
+    DeviceMem bias_device_buf(bias.GetMemorySize());
+    DeviceMem residual_device_buf(residual.GetMemorySize());
+    DeviceMem out_device_buf(out_device.GetMemorySize());
 
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     const Tensor<InKernelDataType> in_converted(in);

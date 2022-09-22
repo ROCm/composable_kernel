@@ -381,14 +381,13 @@ int main(int argc, char* argv[])
         d1_g_m_o.GenerateTensorValue(GeneratorTensor_1<D1DataType>{1});
     }
 
-    DeviceMem a0_g_m_k_device_buf(sizeof(A0DataType) * a0_g_m_k.mDesc.GetElementSize());
-    DeviceMem b0_g_k_n_device_buf(sizeof(B0DataType) * b0_g_k_n.mDesc.GetElementSize());
-    DeviceMem d00_g_m_n_device_buf(sizeof(D00DataType) * d00_g_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem d01_g_m_n_device_buf(sizeof(D01DataType) * d01_g_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem b1_g_n_o_device_buf(sizeof(B1DataType) * b1_g_n_o.mDesc.GetElementSize());
-    DeviceMem e1_g_m_o_device_buf(sizeof(E1DataType) *
-                                  e1_g_m_o_device_result.mDesc.GetElementSize());
-    DeviceMem d1_g_m_o_device_buf(sizeof(D1DataType) * d1_g_m_o.mDesc.GetElementSpaceSize());
+    DeviceMem a0_g_m_k_device_buf(a0_g_m_k.GetMemorySize());
+    DeviceMem b0_g_k_n_device_buf(b0_g_k_n.GetMemorySize());
+    DeviceMem d00_g_m_n_device_buf(d00_g_m_n.GetMemorySize());
+    DeviceMem d01_g_m_n_device_buf(d01_g_m_n.GetMemorySize());
+    DeviceMem b1_g_n_o_device_buf(b1_g_n_o.GetMemorySize());
+    DeviceMem e1_g_m_o_device_buf(e1_g_m_o_device_result.GetMemorySize());
+    DeviceMem d1_g_m_o_device_buf(d1_g_m_o.GetMemorySize());
 
     a0_g_m_k_device_buf.ToDevice(a0_g_m_k.mData.data());
     b0_g_k_n_device_buf.ToDevice(b0_g_k_n.mData.data());

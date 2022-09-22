@@ -145,10 +145,10 @@ auto run_gemm_reduce_max_xdl(ck::index_t M,
         break;
     }
 
-    DeviceMem a_device_buf(sizeof(ADataKernelType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataKernelType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem e_device_buf(sizeof(EDataKernelType) * e_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem r0_device_buf(sizeof(R0DataType) * r0_m.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_m_k.GetMemorySize());
+    DeviceMem b_device_buf(b_k_n.GetMemorySize());
+    DeviceMem e_device_buf(e_m_n.GetMemorySize());
+    DeviceMem r0_device_buf(r0_m.GetMemorySize());
 
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     if constexpr(std::is_same_v<ADataType, ck::int4_t>)
@@ -350,11 +350,11 @@ bool run_gemm_reduce_mean_meansquare_xdl(ck::index_t M,
         break;
     }
 
-    DeviceMem a_device_buf(sizeof(ADataKernelType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataKernelType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem e_device_buf(sizeof(EDataKernelType) * e_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem r0_device_buf(sizeof(R0DataType) * r0_m.mDesc.GetElementSpaceSize());
-    DeviceMem r1_device_buf(sizeof(R1DataType) * r1_m.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_m_k.GetMemorySize());
+    DeviceMem b_device_buf(b_k_n.GetMemorySize());
+    DeviceMem e_device_buf(e_m_n.GetMemorySize());
+    DeviceMem r0_device_buf(r0_m.GetMemorySize());
+    DeviceMem r1_device_buf(r1_m.GetMemorySize());
 
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     if constexpr(std::is_same_v<ADataType, ck::int4_t>)

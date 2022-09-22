@@ -129,18 +129,18 @@ int main()
         gamma.GenerateTensorValue(GeneratorTensor_3<GammaDataType>{0.0, 1.0});
         beta.GenerateTensorValue(GeneratorTensor_3<BetaDataType>{0.0, 1.0});
 
-        DeviceMem emb_a_dev(sizeof(EmbType) * emb_a.mDesc.GetElementSpaceSize());
-        DeviceMem emb_b_dev(sizeof(EmbType) * emb_b.mDesc.GetElementSpaceSize());
-        DeviceMem emb_c_dev(sizeof(EmbType) * emb_c.mDesc.GetElementSpaceSize());
+        DeviceMem emb_a_dev(emb_a.GetMemorySize());
+        DeviceMem emb_b_dev(emb_b.GetMemorySize());
+        DeviceMem emb_c_dev(emb_c.GetMemorySize());
 
-        DeviceMem index_a_dev(sizeof(IndexType) * index_a.mDesc.GetElementSpaceSize());
-        DeviceMem index_b_dev(sizeof(IndexType) * index_b.mDesc.GetElementSpaceSize());
-        DeviceMem index_c_dev(sizeof(IndexType) * index_c.mDesc.GetElementSpaceSize());
+        DeviceMem index_a_dev(index_a.GetMemorySize());
+        DeviceMem index_b_dev(index_b.GetMemorySize());
+        DeviceMem index_c_dev(index_c.GetMemorySize());
 
-        DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpaceSize());
-        DeviceMem beta_dev(sizeof(BetaDataType) * beta.mDesc.GetElementSpaceSize());
+        DeviceMem gamma_dev(gamma.GetMemorySize());
+        DeviceMem beta_dev(beta.GetMemorySize());
 
-        DeviceMem out_dev(sizeof(OutType) * out.mDesc.GetElementSpaceSize());
+        DeviceMem out_dev(out.GetMemorySize());
 
         emb_a_dev.ToDevice(emb_a.mData.data());
         emb_b_dev.ToDevice(emb_b.mData.data());

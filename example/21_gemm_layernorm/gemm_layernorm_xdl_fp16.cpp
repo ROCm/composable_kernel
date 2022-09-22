@@ -243,16 +243,14 @@ int main()
     gamma_n.GenerateTensorValue(GeneratorTensor_3<GammaDataType>{-1, 1});
     beta_n.GenerateTensorValue(GeneratorTensor_3<BetaDataType>{-1, 1});
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem e_device_buf(sizeof(EDataType) * e_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem r0_Mean_device_buf(sizeof(R0DataType) * r0_Mean_m.mDesc.GetElementSpaceSize());
-    DeviceMem r1_MeanSquare_device_buf(sizeof(R1DataType) *
-                                       r1_MeanSquare_m.mDesc.GetElementSpaceSize());
-    DeviceMem gamma_device_buf(sizeof(GammaDataType) * gamma_n.mDesc.GetElementSpaceSize());
-    DeviceMem beta_device_buf(sizeof(BetaDataType) * beta_n.mDesc.GetElementSpaceSize());
-    DeviceMem layerNorm_device_buf(sizeof(LayerNormOutDataType) *
-                                   layerNorm_m_n.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_m_k.GetMemorySize());
+    DeviceMem b_device_buf(b_k_n.GetMemorySize());
+    DeviceMem e_device_buf(e_m_n.GetMemorySize());
+    DeviceMem r0_Mean_device_buf(r0_Mean_m.GetMemorySize());
+    DeviceMem r1_MeanSquare_device_buf(r1_MeanSquare_m.GetMemorySize());
+    DeviceMem gamma_device_buf(gamma_n.GetMemorySize());
+    DeviceMem beta_device_buf(beta_n.GetMemorySize());
+    DeviceMem layerNorm_device_buf(layerNorm_m_n.GetMemorySize());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
