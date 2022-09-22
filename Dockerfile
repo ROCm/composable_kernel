@@ -79,17 +79,26 @@ RUN git clone -b master https://github.com/RadeonOpenCompute/rocm-cmake.git  && 
 WORKDIR /
 
 ENV compiler_version=$compiler_version
+ENV compiler_commit=$compiler_commit
 RUN sh -c "echo compiler version = '$compiler_version'"
+RUN sh -c "echo compiler commit = '$compiler_commit'"
 
-RUN --mount=type=ssh if [ "$compiler_version" != "release" ]; then \
+RUN --mount=type=ssh if [ "$compiler_version" != "release" && "$compiler_commit" == "" ]; then \
         git clone -b "$compiler_version" https://github.com/RadeonOpenCompute/llvm-project.git && \
-        cd llvm-project && \
-        if [ "$compiler_commit" != "" ]; then git checkout "$compiler_commit" && echo "checking out commit $compiler_commit"; \
-        mkdir build && cd build && \
+        cd llvm-project && mkdir build && cd build && \
         cmake -DCMAKE_INSTALL_PREFIX=/opt/rocm/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=1 -DLLVM_TARGETS_TO_BUILD="AMDGPU;X86" -DLLVM_ENABLE_PROJECTS="clang;lld;compiler-rt" ../llvm && \
         make -j 8 ; \
     else echo "using the release compiler"; \
     fi
+
+RUN --mount=type=ssh if [ "$compiler_version" != "release" && "$compiler_commit" != "" ]; then \
+        git clone -b "$compiler_version" https://github.com/RadeonOpenCompute/llvm-project.git && \
+        cd llvm-project && git checkout "$compiler_commit" && echo "checking out commit $compiler_commit" && mkdir build && cd build && \
+        cmake -DCMAKE_INSTALL_PREFIX=/opt/rocm/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=1 -DLLVM_TARGETS_TO_BUILD="AMDGPU;X86" -DLLVM_ENABLE_PROJECTS="clang;lld;compiler-rt" ../llvm && \
+        make -j 8 ; \
+    else echo "using the release compiler"; \
+    fi
+
 
 #ENV HIP_CLANG_PATH='/llvm-project/build/bin'
 #RUN sh -c "echo HIP_CLANG_PATH = '$HIP_CLANG_PATH'"
