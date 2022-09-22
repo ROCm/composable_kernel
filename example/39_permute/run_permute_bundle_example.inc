@@ -16,8 +16,8 @@ bool run_permute_bundle(const Problem& problem)
     // initialize tensor by assigning DataType values
     ck::utils::FillUniformDistribution<DataType>{-1.f, 1.f}(input_bundle_tensor.AsSpan<DataType>());
 
-    DeviceMem input_device_buf(input_bundle_tensor.GetElementSpaceSizeInBytes());
-    DeviceMem output_device_buf(output_bundle_tensor.GetElementSpaceSizeInBytes());
+    DeviceMem input_device_buf(input_bundle_tensor.GetMemorySize());
+    DeviceMem output_device_buf(output_bundle_tensor.GetMemorySize());
 
     using std::data;
     input_device_buf.ToDevice(data(input_bundle_tensor));

@@ -292,7 +292,7 @@ struct Tensor
 
     std::size_t GetElementSpaceSize() const { return mDesc.GetElementSpaceSize(); }
 
-    std::size_t GetElementSpaceSizeInBytes() const { return sizeof(T) * GetElementSpaceSize(); }
+    std::size_t GetMemorySize() const { return sizeof(T) * GetElementSpaceSize(); }
 
     void SetZero()
     {
