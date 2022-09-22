@@ -317,7 +317,7 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
         std::cout << "The runtime parameters seems not supported by the BatchNorm device instance, "
                      "exiting!"
                   << std::endl;
-        return (-2);
+        return (false);
     };
 
     size_t workspace_sz = batchnorm_fwd.GetWorkSpaceSize(argument_ptr.get());
@@ -368,7 +368,7 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
             std::cout << "The runtime parameters seems not supported by the BatchNorm reference "
                          "instance, exiting!"
                       << std::endl;
-            return (-2);
+            return (false);
         };
 
         auto invoker_ptr_ref = batchNormFwd_ref.MakeInvokerPointer();
