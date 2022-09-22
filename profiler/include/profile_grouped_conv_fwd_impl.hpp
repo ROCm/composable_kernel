@@ -14,6 +14,7 @@
 
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward.hpp"
 
+#include "ck/library/utility/array.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -165,26 +166,25 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 
     for(auto& op_ptr : op_ptrs)
     {
-        auto argument_ptr =
-            op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
-                                        wei_device_buf.GetDeviceBuffer(),
-                                        std::array<const void*, 0>{},
-                                        out_device_buf.GetDeviceBuffer(),
-                                        a_g_n_c_wis_lengths,
-                                        a_g_n_c_wis_strides,
-                                        b_g_k_c_xs_lengths,
-                                        b_g_k_c_xs_strides,
-                                        std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{{}},
-                                        std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{{}},
-                                        e_g_n_k_wos_lengths,
-                                        e_g_n_k_wos_strides,
-                                        conv_filter_strides,
-                                        conv_filter_dilations,
-                                        input_left_pads,
-                                        input_right_pads,
-                                        in_element_op,
-                                        wei_element_op,
-                                        out_element_op);
+        auto argument_ptr = op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
+                                                        wei_device_buf.GetDeviceBuffer(),
+                                                        ck::utils::empty_array(),
+                                                        out_device_buf.GetDeviceBuffer(),
+                                                        a_g_n_c_wis_lengths,
+                                                        a_g_n_c_wis_strides,
+                                                        b_g_k_c_xs_lengths,
+                                                        b_g_k_c_xs_strides,
+                                                        ck::utils::empty_array(),
+                                                        ck::utils::empty_array(),
+                                                        e_g_n_k_wos_lengths,
+                                                        e_g_n_k_wos_strides,
+                                                        conv_filter_strides,
+                                                        conv_filter_dilations,
+                                                        input_left_pads,
+                                                        input_right_pads,
+                                                        in_element_op,
+                                                        wei_element_op,
+                                                        out_element_op);
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {

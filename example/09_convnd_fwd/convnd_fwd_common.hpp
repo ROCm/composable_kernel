@@ -10,6 +10,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/utility/array.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -102,14 +103,14 @@ bool run_grouped_conv_fwd(bool do_verification,
     auto invoker  = conv.MakeInvoker();
     auto argument = conv.MakeArgument(in_device_buf.GetDeviceBuffer(),
                                       wei_device_buf.GetDeviceBuffer(),
-                                      std::array<const void*, 0>{},
+                                      ck::utils::empty_array(),
                                       out_device_buf.GetDeviceBuffer(),
                                       a_g_n_c_wis_lengths,
                                       a_g_n_c_wis_strides,
                                       b_g_k_c_xs_lengths,
                                       b_g_k_c_xs_strides,
-                                      std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{{}},
-                                      std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{{}},
+                                      ck::utils::empty_array(),
+                                      ck::utils::empty_array(),
                                       e_g_n_k_wos_lengths,
                                       e_g_n_k_wos_strides,
                                       conv_filter_strides,

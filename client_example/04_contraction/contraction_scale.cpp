@@ -12,6 +12,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/contraction_scale.hpp"
+#include "ck/library/utility/array.hpp"
 
 using F32 = float;
 
@@ -156,14 +157,14 @@ int main(int argc, char* argv[])
 
         auto argument_ptr = op_ptr->MakeArgumentPointer(a_device_buf.GetDeviceBuffer(),
                                                         b_device_buf.GetDeviceBuffer(),
-                                                        std::array<const void*, 0>{},
+                                                        ck::utils::empty_array(),
                                                         e_device_buf.GetDeviceBuffer(),
                                                         a_ms_ks_lengths,
                                                         a_ms_ks_strides,
                                                         b_ns_ks_lengths,
                                                         b_ns_ks_strides,
-                                                        std::array<std::vector<ck::index_t>, 0>{},
-                                                        std::array<std::vector<ck::index_t>, 0>{},
+                                                        ck::utils::empty_array(),
+                                                        ck::utils::empty_array(),
                                                         e_ms_ns_lengths,
                                                         e_ms_ns_strides,
                                                         a_element_op,
