@@ -14,6 +14,8 @@
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/span.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
+
 template <typename Range>
 std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
 {
@@ -261,10 +263,10 @@ struct Tensor
     Tensor<OutT> CopyAsType() const
     {
         Tensor<OutT> ret(mDesc);
-        for(size_t i = 0; i < mData.size(); i++)
-        {
-            ret.mData[i] = ck::type_convert<OutT>(mData[i]);
-        }
+
+        ck::ranges::transform(
+            mData, ret.mData.begin(), [](auto value) { return ck::type_convert<OutT>(value); });
+
         return ret;
     }
 
@@ -294,13 +296,7 @@ struct Tensor
 
     std::size_t GetElementSpaceSizeInBytes() const { return sizeof(T) * GetElementSpaceSize(); }
 
-    void SetZero()
-    {
-        for(auto& v : mData)
-        {
-            v = T{0};
-        }
-    }
+    void SetZero() { ck::ranges::fill<T>(mData, 0); }
 
     template <typename F>
     void ForEach_impl(F&& f, std::vector<size_t>& idx, size_t rank)

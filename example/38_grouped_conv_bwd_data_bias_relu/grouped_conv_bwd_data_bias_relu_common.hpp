@@ -10,6 +10,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -97,7 +98,7 @@ int run_conv_bwd_data_bias_relu(bool do_verification,
     std::array<ck::index_t, NDimSpatial> input_left_pads{};
     std::array<ck::index_t, NDimSpatial> input_right_pads{};
 
-    auto copy = [](auto& x, auto& y) { std::copy(x.begin(), x.end(), y.begin()); };
+    auto copy = [](const auto& x, auto& y) { ck::ranges::copy(x, y.begin()); };
 
     copy(out_g_n_k_wos_desc.GetLengths(), a_g_n_k_wos_lengths);
     copy(out_g_n_k_wos_desc.GetStrides(), a_g_n_k_wos_strides);

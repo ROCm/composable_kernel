@@ -12,6 +12,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/fill.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -54,7 +55,7 @@ run_reference_convolution_forward(const ck::utils::conv::ConvParam& conv_param,
 
     fill_input_op(input.begin(), input.end());
     fill_weights_op(weights.begin(), weights.end());
-    std::fill(host_output.begin(), host_output.end(), OutDataType(0.f));
+    ck::ranges::fill<OutDataType>(host_output, 0.f);
 
     auto ref_conv     = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
                                                                  InDataType,

@@ -57,7 +57,7 @@ bool run_permute_bundle(const Problem& problem)
     using std::begin;
 
     Tensor<DataType> input_tensor(input_shape);
-    ranges::copy(input_bundle_tensor.AsSpan<const DataType>(), begin(input_tensor));
+    ck::ranges::copy(input_bundle_tensor.AsSpan<const DataType>(), begin(input_tensor));
 
     Tensor<DataType> output_tensor(transpose(input_shape, input_axes));
     if(!host_permute(input_tensor, input_axes, PassThrough{}, output_tensor))
