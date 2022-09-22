@@ -230,7 +230,7 @@ void profile_normalization_impl(int do_verification,
             }
             else
             {
-                pass = ck::utils::check_err(out.mData, out_ref.mData);
+                pass = ck::utils::check_err(out, out_ref);
                 if(do_log)
                 {
                     LogRangeAsType<float>(std::cout << "in  : ", in.mData, ",") << std::endl;

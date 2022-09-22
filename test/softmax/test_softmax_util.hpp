@@ -125,12 +125,12 @@ class TestSoftmax : public ::testing::Test
 
         if(std::is_same<InDataType, int8_t>::value)
         {
-            EXPECT_TRUE(pass = ck::utils::check_err(
-                            out.mData, out_ref.mData, "Error: Incorrect results!", 0, 1));
+            EXPECT_TRUE(pass =
+                            ck::utils::check_err(out, out_ref, "Error: Incorrect results!", 0, 1));
         }
         else
         {
-            EXPECT_TRUE(pass = ck::utils::check_err(out.mData, out_ref.mData));
+            EXPECT_TRUE(pass = ck::utils::check_err(out, out_ref));
         }
 
         if(!pass)

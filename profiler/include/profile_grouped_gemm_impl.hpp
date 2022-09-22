@@ -257,8 +257,7 @@ bool profile_grouped_gemm_impl(int do_verification,
                                                               c_element_op);
 
                     ref_invoker.Run(ref_argument);
-                    pass = pass && ck::utils::check_err(c_m_n_device_results[i].mData,
-                                                        c_m_n_host_result.mData);
+                    pass = pass && ck::utils::check_err(c_m_n_device_results[i], c_m_n_host_result);
 
                     if(do_log)
                     {

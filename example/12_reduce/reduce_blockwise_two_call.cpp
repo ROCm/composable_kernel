@@ -294,7 +294,7 @@ int main(int argc, char* argv[])
     if(do_verify)
     {
         out_dev.FromDevice(out.mData.data());
-        pass = pass && ck::utils::check_err(out.mData, out_ref.mData);
+        pass = pass && ck::utils::check_err(out, out_ref);
     };
 
     return (pass ? 0 : 1);

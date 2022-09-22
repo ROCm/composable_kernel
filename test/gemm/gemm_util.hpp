@@ -206,27 +206,27 @@ struct TestGemm
             bool res = false;
             if(std::is_same<CDataType, float>::value)
             {
-                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                res = ck::utils::check_err(c_device, c_host);
                 std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
             }
             else if(std::is_same<CDataType, ck::half_t>::value)
             {
-                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                res = ck::utils::check_err(c_device, c_host);
                 std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
             }
             else if(std::is_same<CDataType, ck::bhalf_t>::value)
             {
-                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                res = ck::utils::check_err(c_device, c_host);
                 std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
             }
             else if(std::is_same<CDataType, int8_t>::value)
             {
-                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                res = ck::utils::check_err(c_device, c_host);
                 std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
             }
             else if(std::is_same<CDataType, double>::value)
             {
-                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                res = ck::utils::check_err(c_device, c_host);
                 std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
             }
 

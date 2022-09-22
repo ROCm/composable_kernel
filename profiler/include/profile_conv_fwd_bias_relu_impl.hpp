@@ -239,8 +239,7 @@ void profile_conv_fwd_bias_relu_impl(int do_verification,
             {
                 out_device_buf.FromDevice(out_n_k_ho_wo_device_result.mData.data());
 
-                ck::utils::check_err(out_n_k_ho_wo_device_result.mData,
-                                     out_n_k_ho_wo_host_result.mData);
+                ck::utils::check_err(out_n_k_ho_wo_device_result, out_n_k_ho_wo_host_result);
 
                 if(do_log)
                 {

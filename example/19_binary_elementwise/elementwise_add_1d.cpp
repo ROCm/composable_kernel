@@ -105,8 +105,7 @@ int main()
         host_elementwise1D<Tensor<ABDataType>, Tensor<ABDataType>, Tensor<CDataType>, Add>(
             host_c_m, a_m, b_m, M, Add{});
 
-        pass &= ck::utils::check_err(
-            c_m.mData, host_c_m.mData, "Error: Incorrect results c", 1e-3, 1e-3);
+        pass &= ck::utils::check_err(c_m, host_c_m, "Error: Incorrect results c", 1e-3, 1e-3);
     }
 
     return pass ? 0 : 1;

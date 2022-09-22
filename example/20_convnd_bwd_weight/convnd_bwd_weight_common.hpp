@@ -145,7 +145,7 @@ int run_conv_bwd_weight(bool do_verification,
 
         wei_device_buf.FromDevice(wei_device_result.mData.data());
 
-        return ck::utils::check_err(wei_device_result.mData, wei_host_result.mData) ? 0 : 1;
+        return ck::utils::check_err(wei_device_result, wei_host_result) ? 0 : 1;
     }
 
     return 0;

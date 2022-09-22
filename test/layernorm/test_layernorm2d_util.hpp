@@ -146,13 +146,12 @@ class TestLayernorm2d : public ::testing::Test
 
         if(std::is_same<XDataType, int8_t>::value)
         {
-            EXPECT_TRUE(pass = ck::utils::check_err(
-                            y.mData, y_ref.mData, "Error: Incorrect results!", 0, 1));
+            EXPECT_TRUE(pass = ck::utils::check_err(y, y_ref, "Error: Incorrect results!", 0, 1));
         }
         else
         {
-            EXPECT_TRUE(pass = ck::utils::check_err(
-                            y.mData, y_ref.mData, "Error: Incorrect results d1", 1e-3, 1e-3));
+            EXPECT_TRUE(
+                pass = ck::utils::check_err(y, y_ref, "Error: Incorrect results d1", 1e-3, 1e-3));
         }
 
         if(!pass)

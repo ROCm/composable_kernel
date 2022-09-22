@@ -283,8 +283,7 @@ bool profile_batched_gemm_gemm_impl(bool do_verification,
             {
                 c_g_m_o_device_buf.FromDevice(c_g_m_o_device_result.mData.data());
 
-                pass = pass &
-                       ck::utils::check_err(c_g_m_o_device_result.mData, c_g_m_o_host_result.mData);
+                pass = pass & ck::utils::check_err(c_g_m_o_device_result, c_g_m_o_host_result);
 
                 if(do_log)
                 {

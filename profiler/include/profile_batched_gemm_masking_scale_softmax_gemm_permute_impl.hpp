@@ -321,8 +321,8 @@ bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verifi
             {
                 c_gs_ms_os_device_buf.FromDevice(c_gs_ms_os_device_result.mData.data());
 
-                pass = pass & ck::utils::check_err(c_gs_ms_os_device_result.mData,
-                                                   c_gs_ms_os_host_result.mData);
+                pass =
+                    pass & ck::utils::check_err(c_gs_ms_os_device_result, c_gs_ms_os_host_result);
 
                 if(do_log)
                 {

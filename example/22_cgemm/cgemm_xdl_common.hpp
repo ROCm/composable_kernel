@@ -219,14 +219,14 @@ bool run_cgemm_xdl(ck::index_t M,
             const Tensor<CDataType> c_m_n_real_device_result_converted(c_m_n_real_device_result);
             const Tensor<CDataType> c_m_n_imag_device_result_converted(c_m_n_imag_device_result);
 
-            result = ck::utils::check_err(c_m_n_real_device_result_converted.mData,
-                                          c_m_n_real_host_result.mData,
+            result = ck::utils::check_err(c_m_n_real_device_result_converted,
+                                          c_m_n_real_host_result,
                                           "Verification error: incorrect results in real part!",
                                           1e-2f,
                                           1e-1f);
             result = result && ck::utils::check_err(
-                                   c_m_n_imag_device_result_converted.mData,
-                                   c_m_n_imag_host_result.mData,
+                                   c_m_n_imag_device_result_converted,
+                                   c_m_n_imag_host_result,
                                    "Verification error: incorrect results in imaginary part!",
                                    1e-2f,
                                    1e-1f);
@@ -234,14 +234,14 @@ bool run_cgemm_xdl(ck::index_t M,
         else
 #endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
         {
-            result = ck::utils::check_err(c_m_n_real_device_result.mData,
-                                          c_m_n_real_host_result.mData,
+            result = ck::utils::check_err(c_m_n_real_device_result,
+                                          c_m_n_real_host_result,
                                           "Verification error: incorrect results in real part!",
                                           1e-2f,
                                           1e-1f);
             result = result && ck::utils::check_err(
-                                   c_m_n_imag_device_result.mData,
-                                   c_m_n_imag_host_result.mData,
+                                   c_m_n_imag_device_result,
+                                   c_m_n_imag_host_result,
                                    "Verification error: incorrect results in imaginary part!",
                                    1e-2f,
                                    1e-1f);

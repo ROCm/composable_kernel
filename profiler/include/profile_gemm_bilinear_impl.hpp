@@ -215,8 +215,7 @@ bool profile_gemm_bilinear_impl(int do_verification,
             {
                 e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
-                pass = pass &&
-                       ck::utils::check_err(e_m_n_device_result.mData, e_m_n_host_result.mData);
+                pass = pass && ck::utils::check_err(e_m_n_device_result, e_m_n_host_result);
             }
         }
         else

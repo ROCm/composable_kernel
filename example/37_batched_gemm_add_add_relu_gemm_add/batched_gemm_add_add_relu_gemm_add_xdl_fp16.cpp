@@ -511,8 +511,7 @@ int main(int argc, char* argv[])
             cde1_element_op(e1_g_m_o_host_result(idx), c1_g_m_o(idx), d1_g_m_o(idx));
         });
 
-        return ck::utils::check_err(e1_g_m_o_device_result.mData, e1_g_m_o_host_result.mData) ? 0
-                                                                                              : 1;
+        return ck::utils::check_err(e1_g_m_o_device_result, e1_g_m_o_host_result) ? 0 : 1;
     }
 
     return 0;

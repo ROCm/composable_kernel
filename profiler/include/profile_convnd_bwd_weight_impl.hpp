@@ -433,7 +433,7 @@ bool profile_convnd_bwd_weight_impl(int do_verification,
         {
             wei_device_buf.FromDevice(weights_device_result.mData.data());
 
-            success = ck::utils::check_err(weights_host_result.mData, weights_device_result.mData);
+            success = ck::utils::check_err(weights_host_result, weights_device_result);
 
             if(success == false)
             {

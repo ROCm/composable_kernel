@@ -191,7 +191,7 @@ bool profile_conv_fwd_impl(int do_verification,
             {
                 out_device_buf.FromDevice(device_output.mData.data());
 
-                pass = pass & ck::utils::check_err(device_output.mData, host_output.mData);
+                pass = pass & ck::utils::check_err(device_output, host_output);
 
                 if(do_log)
                 {
