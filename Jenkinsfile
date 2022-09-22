@@ -42,7 +42,6 @@ def build_compiler(){
 def getDockerImage(Map conf=[:]){
     env.DOCKER_BUILDKIT=1
     def prefixpath = conf.get("prefixpath", "/opt/rocm") // prefix:/opt/rocm
-    def gpu_arch = conf.get("gpu_arch", "gfx908") // prebuilt dockers should have all the architectures enabled so one image can be used for all stages
     def no_cache = conf.get("no_cache", false)
     def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' "
     if(env.CCACHE_HOST)
@@ -154,6 +153,10 @@ def cmake_build(Map conf=[:]){
     }else{
         setup_args = " -DCMAKE_BUILD_TYPE=release" + setup_args
     }
+    if(env.CCACHE_HOST)
+    {
+        setup_args = " -DCMAKE_CXX_COMPILER_LAUNCHER='ccache' -DCMAKE_C_COMPILER_LAUNCHER='ccache' " + setup_args
+    }
 
     def pre_setup_cmd = """
             echo \$HSA_ENABLE_SDMA
@@ -191,15 +194,13 @@ def buildHipClangJob(Map conf=[:]){
         env.HSA_ENABLE_SDMA=0
         checkout scm
 
-        def image = "composable_kernels_${params.COMPILER_VERSION}"
+        def image = getDockerImageName() 
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
-        def gpu_arch = conf.get("gpu_arch", "gfx908")
 
         // Jenkins is complaining about the render group 
-        // def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
-        def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
         if (conf.get("enforce_xnack_on", false)) {
-            dockerOpts = dockerOpts + " --env HSA_XNACK=1 --env GPU_ARCH='${gpu_arch}' "
+            dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' "
         if (params.COMPILER_VERSION != "release"){
@@ -281,16 +282,13 @@ def runCKProfiler(Map conf=[:]){
         env.HSA_ENABLE_SDMA=0
         checkout scm
 
-
-        def image = "composable_kernels_${params.COMPILER_VERSION}"
+        def image = getDockerImageName()
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
-        def gpu_arch = conf.get("gpu_arch", "gfx908")
 
         // Jenkins is complaining about the render group 
-        // def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
-        def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
         if (conf.get("enforce_xnack_on", false)) {
-            dockerOpts = dockerOpts + " --env HSA_XNACK=1 --env GPU_ARCH='${gpu_arch}' "
+            dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' "
         if (params.COMPILER_VERSION != "release"){
@@ -302,7 +300,6 @@ def runCKProfiler(Map conf=[:]){
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
             try {
-                //retimage = docker.build("${image}", dockerArgs + '.')
                 (retimage, image) = getDockerImage(conf)
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
@@ -338,48 +335,57 @@ def runCKProfiler(Map conf=[:]){
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 24, unit: 'HOURS')
                 {
-                    cmake_build(conf)
+                    //cmake_build(conf)
+                    //instead of building, just unstash the ckProfiler and install it
+                    sh """
+                        rm -rf build
+                        mkdir build
+                    """
+                    dir("build"){
+                        unstash 'ckProfiler.tar.gz'
+                        sh 'tar -xvf ckProfiler.tar.gz'
+                    }
+
 					dir("script"){
                         if (params.RUN_FULL_QA){
-                            def qa_log = "qa_${gpu_arch}.log"
-                            sh "./run_full_performance_tests.sh 1 QA_${params.COMPILER_VERSION} ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
-                            archiveArtifacts "perf_gemm_${gpu_arch}.log"
-                            archiveArtifacts "perf_resnet50_N256_${gpu_arch}.log"
-                            archiveArtifacts "perf_resnet50_N4_${gpu_arch}.log"
-                            archiveArtifacts "perf_batched_gemm_${gpu_arch}.log"
-                            archiveArtifacts "perf_grouped_gemm_${gpu_arch}.log"
-                            archiveArtifacts "perf_conv_fwd_${gpu_arch}.log"
-                            archiveArtifacts "perf_conv_bwd_data_${gpu_arch}.log"
-                            archiveArtifacts "perf_gemm_bilinear_${gpu_arch}.log"
-                            archiveArtifacts "perf_reduction_${gpu_arch}.log"
-                            archiveArtifacts "perf_splitK_gemm_${gpu_arch}.log"
-                            archiveArtifacts "perf_onnx_gemm_${gpu_arch}.log"
+                            sh "./run_full_performance_tests.sh 1 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
+                            archiveArtifacts "perf_gemm.log"
+                            archiveArtifacts "perf_resnet50_N256.log"
+                            archiveArtifacts "perf_resnet50_N4.log"
+                            archiveArtifacts "perf_batched_gemm.log"
+                            archiveArtifacts "perf_grouped_gemm.log"
+                            archiveArtifacts "perf_conv_fwd.log"
+                            archiveArtifacts "perf_conv_bwd_data.log"
+                            archiveArtifacts "perf_gemm_bilinear.log"
+                            archiveArtifacts "perf_reduction.log"
+                            archiveArtifacts "perf_splitK_gemm_verify.log"
+                            archiveArtifacts "perf_splitK_gemm.log"
+                            archiveArtifacts "perf_onnx_gemm.log"
                            // stash perf files to master
-                            stash name: "perf_gemm_${gpu_arch}.log"
-                            stash name: "perf_resnet50_N256_${gpu_arch}.log"
-                            stash name: "perf_resnet50_N4_${gpu_arch}.log"
-                            stash name: "perf_batched_gemm_${gpu_arch}.log"
-                            stash name: "perf_grouped_gemm_${gpu_arch}.log"
-                            stash name: "perf_conv_fwd_${gpu_arch}.log"
-                            stash name: "perf_conv_bwd_data_${gpu_arch}.log"
-                            stash name: "perf_gemm_bilinear_${gpu_arch}.log"
-                            stash name: "perf_reduction_${gpu_arch}.log"
-                            stash name: "perf_splitK_gemm_${gpu_arch}.log"
-                            stash name: "perf_onnx_gemm_${gpu_arch}.log"
+                            stash name: "perf_gemm.log"
+                            stash name: "perf_resnet50_N256.log"
+                            stash name: "perf_resnet50_N4.log"
+                            stash name: "perf_batched_gemm.log"
+                            stash name: "perf_grouped_gemm.log"
+                            stash name: "perf_conv_fwd.log"
+                            stash name: "perf_conv_bwd_data.log"
+                            stash name: "perf_gemm_bilinear.log"
+                            stash name: "perf_reduction.log"
+                            stash name: "perf_splitK_gemm.log"
+                            stash name: "perf_onnx_gemm.log"
                             //we will process results on the master node
                         }
                         else{
-                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${gpu_arch} ${env.BRANCH_NAME} ${NODE_NAME}"
-                            archiveArtifacts "perf_gemm_${gpu_arch}.log"
-                            archiveArtifacts "perf_resnet50_N256_${gpu_arch}.log"
-                            archiveArtifacts "perf_resnet50_N4_${gpu_arch}.log"
+                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
+                            archiveArtifacts "perf_gemm.log"
+                            archiveArtifacts "perf_resnet50_N256.log"
+                            archiveArtifacts "perf_resnet50_N4.log"
                             // stash perf files to master
-                            stash name: "perf_gemm_${gpu_arch}.log"
-                            stash name: "perf_resnet50_N256_${gpu_arch}.log"
-                            stash name: "perf_resnet50_N4_${gpu_arch}.log"
+                            stash name: "perf_gemm.log"
+                            stash name: "perf_resnet50_N256.log"
+                            stash name: "perf_resnet50_N4.log"
                             //we will process the results on the master node
                         }
-
 					}
                 }
             }
@@ -403,17 +409,104 @@ def runPerfTest(Map conf=[:]){
     }
 }
 
+def Build_CK(Map conf=[:]){
+        show_node_info()
+
+        env.HSA_ENABLE_SDMA=0
+        checkout scm
+
+        def image = getDockerImageName() 
+        def prefixpath = conf.get("prefixpath", "/opt/rocm")
+
+        // Jenkins is complaining about the render group 
+        def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        if (conf.get("enforce_xnack_on", false)) {
+            dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
+        }
+        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' "
+        if (params.COMPILER_VERSION != "release"){
+            dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
+        }
+
+        def variant = env.STAGE_NAME
+        def retimage
+
+        gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
+            try {
+                (retimage, image) = getDockerImage(conf)
+                withDockerContainer(image: image, args: dockerOpts) {
+                    timeout(time: 5, unit: 'MINUTES'){
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                            throw new Exception ("GPU not found")
+                        }
+                        else{
+                            echo "GPU is OK"
+                        }
+                    }
+                }
+            }
+            catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                echo "The job was cancelled or aborted"
+                throw e
+            }
+            catch(Exception ex) {
+                retimage = docker.build("${image}", dockerArgs + " --no-cache .")
+                withDockerContainer(image: image, args: dockerOpts) {
+                    timeout(time: 5, unit: 'MINUTES'){
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo |tee clinfo.log'
+                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                            throw new Exception ("GPU not found")
+                        }
+                        else{
+                            echo "GPU is OK"
+                        }
+                    }
+                }
+            }
+            withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
+                timeout(time: 24, unit: 'HOURS')
+                {
+                    cmake_build(conf)
+                    dir("build"){
+                        //run tests and examples
+                        sh 'make -j check'
+                        //we only need the ckProfiler to run the performance tests, so we pack and stash it
+                        sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
+                        stash "ckProfiler.tar.gz"
+                    }
+                }
+            }
+        }
+        return retimage
+}
+
+def Build_CK_and_Reboot(Map conf=[:]){
+    try{
+        Build_CK(conf)
+    }
+    catch(e){
+        echo "throwing error exception while building CK"
+        echo 'Exception occurred: ' + e.toString()
+        throw e
+    }
+    finally{
+        if (!conf.get("no_reboot", false)) {
+            reboot()
+        }
+    }
+}
+
 def process_results(Map conf=[:]){
     env.HSA_ENABLE_SDMA=0
     checkout scm
-    def image = "composable_kernels_${params.COMPILER_VERSION}"
+    def image = getDockerImageName() 
     def prefixpath = "/opt/rocm"
-    def gpu_arch = conf.get("gpu_arch", "gfx908")
 
     // Jenkins is complaining about the render group 
     def dockerOpts="--cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
     if (conf.get("enforce_xnack_on", false)) {
-        dockerOpts = dockerOpts + " --env HSA_XNACK=1 --env GPU_ARCH='${gpu_arch}' "
+        dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
     }
     def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='release' "
 
@@ -422,7 +515,6 @@ def process_results(Map conf=[:]){
 
     gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
         try {
-            //retimage = docker.build("${image}", dockerArgs + '.')
             (retimage, image) = getDockerImage(conf)
         }
         catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
@@ -437,25 +529,25 @@ def process_results(Map conf=[:]){
                 dir("script"){
                     if (params.RUN_FULL_QA){
                         // unstash perf files to master
-                        unstash "perf_gemm_${gpu_arch}.log"
-                        unstash "perf_resnet50_N256_${gpu_arch}.log"
-                        unstash "perf_resnet50_N4_${gpu_arch}.log"
-                        unstash "perf_batched_gemm_${gpu_arch}.log"
-                        unstash "perf_grouped_gemm_${gpu_arch}.log"
-                        unstash "perf_conv_fwd_${gpu_arch}.log"
-                        unstash "perf_conv_bwd_data_${gpu_arch}.log"
-                        unstash "perf_gemm_bilinear_${gpu_arch}.log"
-                        unstash "perf_reduction_${gpu_arch}.log"
-                        unstash "perf_splitK_gemm_${gpu_arch}.log"
-                        unstash "perf_onnx_gemm_${gpu_arch}.log"
-                        sh "./process_qa_data.sh ${gpu_arch}"
+                        unstash "perf_gemm.log"
+                        unstash "perf_resnet50_N256.log"
+                        unstash "perf_resnet50_N4.log"
+                        unstash "perf_batched_gemm.log"
+                        unstash "perf_grouped_gemm.log"
+                        unstash "perf_conv_fwd.log"
+                        unstash "perf_conv_bwd_data.log"
+                        unstash "perf_gemm_bilinear.log"
+                        unstash "perf_reduction.log"
+                        unstash "perf_splitK_gemm.log"
+                        unstash "perf_onnx_gemm.log"
+                        sh "./process_qa_data.sh"
                     }
                     else{
                         // unstash perf files to master
-                        unstash "perf_gemm_${gpu_arch}.log"
-                        unstash "perf_resnet50_N256_${gpu_arch}.log"
-                        unstash "perf_resnet50_N4_${gpu_arch}.log"
-                        sh "./process_perf_data.sh ${gpu_arch}"
+                        unstash "perf_gemm.log"
+                        unstash "perf_resnet50_N256.log"
+                        unstash "perf_resnet50_N4.log"
+                        sh "./process_perf_data.sh"
                     }
                 }
             }
@@ -562,41 +654,29 @@ pipeline {
                 }
             }
         }
-		stage("Tests")
+    
+		stage("Build CK and run Tests")
         {
-            when {
-                beforeAgent true
-                expression { !params.TEST_NODE_PERFORMANCE.toBoolean() }
-            }
             parallel
             {
-                stage("Run Tests: gfx908")
+                stage("Build CK and run Tests")
                 {
-                    agent{ label rocmnode("gfx908")}
+                    agent{ label rocmnode("gfx908 || gfx90a") }
                     environment{
-                        setup_args = "${params.COMPILER_VERSION == "ck-9110" ? """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -DBUILD_DEV=On """ : """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3 " -DBUILD_DEV=On """}"
+                        setup_args = "${params.COMPILER_VERSION == "ck-9110" ? """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS="-O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" """ : """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS="-O3 " """ }"
+                        execute_args = "${params.COMPILER_VERSION == "ck-9110" ? """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS="-O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ : """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx908,gfx90a" -DCMAKE_CXX_FLAGS="-O3" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ }"
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
-                    }
-                }
-                stage("Run Tests: gfx90a")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_FULL_QA.toBoolean() }
-                    }
-                    options { retry(2) }
-                    agent{ label rocmnode("gfx90a")}
-                    environment{
-                        setup_args = "${params.COMPILER_VERSION == "ck-9110" ? """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx90a -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -DBUILD_DEV=On """ : """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx90a -O3 " -DBUILD_DEV=On """}"
-                    }
-                    steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                     }
                 }
             }
         }
+
+ 		/*
+        //at present this stage only builds binaries. 
+        //we will now build all binaries in a separate stage.
+        //once we have some tests to run in this stage, we can enable it again.
         stage("Client App")
         {
             when {
@@ -609,9 +689,8 @@ pipeline {
                 {
                     agent{ label rocmnode("gfx908")}
                     environment{
-                        setup_args = "${params.COMPILER_VERSION == "ck-9110" ? """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" """ : """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -D CMAKE_CXX_FLAGS="--offload-arch=gfx908 -O3 " """ }"
-                        execute_args = "${params.COMPILER_VERSION == "ck-9110" ? """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ : """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ }"
-
+                        setup_args = "${params.COMPILER_VERSION == "ck-9110" ? """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS="-O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" """ : """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS="-O3 " """ }"
+                        execute_args = "${params.COMPILER_VERSION == "ck-9110" ? """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS="-O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ : """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS="-O3" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ }"
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
@@ -619,23 +698,24 @@ pipeline {
                 }
             }
         }
+        */
         stage("Performance Tests")
         {
             parallel
             {
-                stage("Run ckProfiler: gfx908")
+                stage("Run ckProfiler: gfx908 or gfx90a")
                 {
                     when {
                         beforeAgent true
                         expression { !params.RUN_FULL_QA.toBoolean() && !params.TEST_NODE_PERFORMANCE.toBoolean() }
                     }
                     options { retry(2) }
-                    agent{ label rocmnode("gfx908")}
+                    agent{ label rocmnode("gfx908 || gfx90a")}
                     environment{
-                        setup_args = "${params.COMPILER_VERSION == "ck-9110" ? """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -DBUILD_DEV=On """ : """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 -O3 " -DBUILD_DEV=On """}"
+                        setup_args = "${params.COMPILER_VERSION == "ck-9110" ? """ -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS=" -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -DBUILD_DEV=On """ : """ -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS=" -O3 " -DBUILD_DEV=On """}"
                    }
                     steps{
-                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx908")
+                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
                     }
                 }
                 stage("Run ckProfiler: gfx90a")
@@ -647,10 +727,10 @@ pipeline {
                     options { retry(2) }
                     agent{ label rocmnode("gfx90a")}
                     environment{
-                        setup_args = "${params.COMPILER_VERSION == "ck-9110" ? """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx90a -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -DBUILD_DEV=On """ : """ -D CMAKE_CXX_FLAGS=" --offload-arch=gfx90a -O3 " -DBUILD_DEV=On """}"
+                        setup_args = "${params.COMPILER_VERSION == "ck-9110" ? """ -DGPU_TARGETS="gfx90a" -DCMAKE_CXX_FLAGS=" -O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -DBUILD_DEV=On """ : """ -DGPU_TARGETS="gfx90a" -DCMAKE_CXX_FLAGS=" -O3 " -DBUILD_DEV=On """}"
                     }
                     steps{
-                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release', gpu_arch: "gfx90a")
+                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
                     }
                 }
             }
@@ -659,24 +739,10 @@ pipeline {
         {
             parallel
             {
-                stage("Process results for gfx908"){
-                    when {
-                        beforeAgent true
-                        expression { !params.RUN_FULL_QA.toBoolean() && !params.TEST_NODE_PERFORMANCE.toBoolean() }
-                    }
+                stage("Process results"){
                     agent { label 'mici' }
                     steps{
-                        process_results(gpu_arch: "gfx908")
-                    }
-                }
-                stage("Process results for gfx90a"){
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_FULL_QA.toBoolean() || params.TEST_NODE_PERFORMANCE.toBoolean() }
-                    }
-                    agent { label 'mici' }
-                    steps{
-                        process_results(gpu_arch: "gfx90a")
+                        process_results()
                     }
                 }
             }
