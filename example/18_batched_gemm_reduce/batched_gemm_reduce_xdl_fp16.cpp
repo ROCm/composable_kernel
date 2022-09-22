@@ -150,13 +150,13 @@ int main(int argc, char* argv[])
 
     Tensor<CDataType> c_g_m_n_host_result(
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> d0_g_m_host_result(HostTensorDescriptor({BatchCount, M}));
-    Tensor<ReduceDataType> d1_g_m_host_result(HostTensorDescriptor({BatchCount, M}));
+    Tensor<ReduceDataType> d0_g_m_host_result({BatchCount, M});
+    Tensor<ReduceDataType> d1_g_m_host_result({BatchCount, M});
 
     Tensor<CDataType> c_g_m_n_device_result(
         f_host_tensor_descriptor(BatchCount, M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> d0_g_m_device_result(HostTensorDescriptor({BatchCount, M}));
-    Tensor<ReduceDataType> d1_g_m_device_result(HostTensorDescriptor({BatchCount, M}));
+    Tensor<ReduceDataType> d0_g_m_device_result({BatchCount, M});
+    Tensor<ReduceDataType> d1_g_m_device_result({BatchCount, M});
 
     std::cout << "a_g_m_k: " << a_g_m_k.GetDesc() << std::endl;
     std::cout << "b_g_k_n: " << b_g_k_n.GetDesc() << std::endl;

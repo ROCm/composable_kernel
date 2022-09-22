@@ -151,10 +151,10 @@ int main(int argc, char* argv[])
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<AccDataType> acc_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-    Tensor<C0DataType> c0_n_bias(HostTensorDescriptor(std::vector<size_t>({size_t(N)})));
+    Tensor<C0DataType> c0_n_bias({N});
     Tensor<C0DataType> c0_m_n_add(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-    Tensor<C0DataType> c0_n_gamma(HostTensorDescriptor(std::vector<size_t>({size_t(N)})));
-    Tensor<C0DataType> c0_n_beta(HostTensorDescriptor(std::vector<size_t>({size_t(N)})));
+    Tensor<C0DataType> c0_n_gamma({N});
+    Tensor<C0DataType> c0_n_beta({N});
 
     std::cout << "a_m_k: " << a_m_k.GetDesc() << std::endl;
     std::cout << "b_k_n: " << b_k_n.GetDesc() << std::endl;

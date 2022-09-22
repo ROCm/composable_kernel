@@ -93,7 +93,7 @@ void profile_conv_fwd_bias_relu_impl(int do_verification,
         f_host_tensor_descriptor(N, K, Ho, Wo, OutLayout{}));
 
     // bias: assume contiguous 1d vector
-    Tensor<OutDataType> bias_k(HostTensorDescriptor({K}));
+    Tensor<OutDataType> bias_k({K});
 
     std::cout << "in_n_c_hi_wi: " << in_n_c_hi_wi.GetDesc() << std::endl;
     std::cout << "wei_k_c_y_x: " << wei_k_c_y_x.GetDesc() << std::endl;

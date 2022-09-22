@@ -99,12 +99,12 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor2d(M, N, StrideC, CLayout{}));
     Tensor<BiasDataType> bias_n(f_host_tensor_descriptor1d(N, 1));
     Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor2d(M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> reduce0_m_host_result(HostTensorDescriptor({M}));
-    Tensor<ReduceDataType> reduce1_m_host_result(HostTensorDescriptor({M}));
+    Tensor<ReduceDataType> reduce0_m_host_result({M});
+    Tensor<ReduceDataType> reduce1_m_host_result({M});
 
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor2d(M, N, StrideC, CLayout{}));
-    Tensor<ReduceDataType> reduce0_m_device_result(HostTensorDescriptor({M}));
-    Tensor<ReduceDataType> reduce1_m_device_result(HostTensorDescriptor({M}));
+    Tensor<ReduceDataType> reduce0_m_device_result({M});
+    Tensor<ReduceDataType> reduce1_m_device_result({M});
 
     std::cout << "a_m_k: " << a_m_k.GetDesc() << std::endl;
     std::cout << "b_k_n: " << b_k_n.GetDesc() << std::endl;

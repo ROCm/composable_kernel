@@ -93,7 +93,7 @@ void profile_conv_fwd_bias_relu_add_impl(int do_verification,
         f_host_tensor_descriptor(N, K, Ho, Wo, OutLayout{}));
 
     // bias: assume contiguous 1d vector
-    Tensor<OutDataType> bias_k(HostTensorDescriptor({K}));
+    Tensor<OutDataType> bias_k({K});
 
     // residual: assume same layout as output tensor
     Tensor<OutDataType> resi_n_k_ho_wo(f_host_tensor_descriptor(N, K, Ho, Wo, OutLayout{}));
