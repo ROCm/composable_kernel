@@ -105,9 +105,17 @@ def buildDocker(install_prefix){
 
     echo "Build Args: ${dockerArgs}"
     try{
-        echo "Checking for image: ${image_name}"
-        sh "docker manifest inspect --insecure ${image_name}"
-        echo "Image: ${image_name} found!! Skipping building image"
+        if(params.BUILD_DOCKER){
+            //force building the new docker if that parameter is true
+            echo "Building image: ${image_name}"
+            retimage = docker.build("${image_name}", dockerArgs + ' .')
+            retimage.push()
+        }
+        else{
+            echo "Checking for image: ${image_name}"
+            sh "docker manifest inspect --insecure ${image_name}"
+            echo "Image: ${image_name} found!! Skipping building image"
+        }
     }
     catch(Exception ex){
         echo "Unable to locate image: ${image_name}. Building image now"
@@ -572,8 +580,8 @@ pipeline {
     parameters {
         booleanParam(
             name: "BUILD_DOCKER",
-            defaultValue: true,
-            description: "Force building docker image (default: true)")
+            defaultValue: false,
+            description: "Force building docker image (default: false)")
         string(
             name: 'COMPILER_VERSION', 
             defaultValue: 'release', 
@@ -608,9 +616,10 @@ pipeline {
     }
     stages{
         stage("Build Docker"){
-            when {
-                expression { params.BUILD_DOCKER.toBoolean() }
-            }
+            //when {
+            //    beforeAgent true
+            //    expression { params.BUILD_DOCKER.toBoolean() }
+            //}
             parallel{
                 stage('Docker /opt/rocm'){
                     agent{ label rocmnode("nogpu") }
