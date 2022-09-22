@@ -2,6 +2,7 @@ FROM ubuntu:20.04
 
 ARG ROCMVERSION=5.2.3
 ARG compiler_version
+ARG compiler_commit
 
 RUN set -xe
 
@@ -12,7 +13,6 @@ RUN apt-get install -y wget gnupg
 RUN wget -qO - http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
 RUN sh -c "echo deb [arch=amd64] $DEB_ROCM_REPO ubuntu main > /etc/apt/sources.list.d/rocm.list"
 RUN wget --no-check-certificate -qO - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | apt-key add -
-#RUN sh -c "echo deb https://apt.kitware.com/ubuntu/ bionic main | tee -a /etc/apt/sources.list"
 RUN sh -c "echo deb http://mirrors.kernel.org/ubuntu focal main universe | tee -a /etc/apt/sources.list"
 
 # Install dependencies
@@ -83,7 +83,9 @@ RUN sh -c "echo compiler version = '$compiler_version'"
 
 RUN --mount=type=ssh if [ "$compiler_version" != "release" ]; then \
         git clone -b "$compiler_version" https://github.com/RadeonOpenCompute/llvm-project.git && \
-        cd llvm-project && mkdir build && cd build && \
+        cd llvm-project && \
+        if [ "$compiler_commit" != "" ]; then git checkout "$compiler_commit" && echo "checking out commit $compiler_commit"; \
+        mkdir build && cd build && \
         cmake -DCMAKE_INSTALL_PREFIX=/opt/rocm/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=1 -DLLVM_TARGETS_TO_BUILD="AMDGPU;X86" -DLLVM_ENABLE_PROJECTS="clang;lld;compiler-rt" ../llvm && \
         make -j 8 ; \
     else echo "using the release compiler"; \
