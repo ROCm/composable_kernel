@@ -9,7 +9,7 @@ message(STATUS "Build with HIP ${hip_VERSION}")
 # add all example subdir
 file(GLOB dir_list LIST_DIRECTORIES true *)
 FOREACH(subdir ${dir_list})
-    IF(IS_DIRECTORY "${subdir}")
+    IF(IS_DIRECTORY "${subdir}" AND (NOT "${subdir}" MATCHES "build"))
         add_subdirectory(${subdir})
     ENDIF()
 ENDFOREACH()
