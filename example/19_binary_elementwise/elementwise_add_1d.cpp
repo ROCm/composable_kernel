@@ -53,8 +53,7 @@ int main()
     ck::index_t M = 1024;
 
     auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
-        return HostTensorDescriptor(std::vector<std::size_t>({len}),
-                                    std::vector<std::size_t>({stride}));
+        return HostTensorDescriptor({len}, {stride});
     };
 
     Tensor<ABDataType> a_m(f_host_tensor_descriptor1d(M, 1));

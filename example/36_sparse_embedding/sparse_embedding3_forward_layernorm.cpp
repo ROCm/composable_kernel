@@ -86,12 +86,10 @@ int main()
     constexpr auto index_length   = 2048;
     constexpr AccDataType epsilon = 1e-4;
 
-    auto f_host_tensor_desc_1d = [](std::size_t len_) {
-        return HostTensorDescriptor(std::vector<std::size_t>({len_}));
-    };
+    auto f_host_tensor_desc_1d = [](std::size_t len_) { return HostTensorDescriptor({len_}); };
 
     auto f_host_tensor_desc_2d = [](std::size_t rows_, std::size_t cols_) {
-        return HostTensorDescriptor(std::vector<std::size_t>({rows_, cols_}));
+        return HostTensorDescriptor({rows_, cols_});
     };
 
     using ReferenceInstance =

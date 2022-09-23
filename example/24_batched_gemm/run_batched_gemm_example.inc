@@ -55,15 +55,15 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                                        std::size_t stride,
                                        std::size_t batch_stride,
                                        auto layout) {
+        using namespace ck::literals;
+
         if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count_, row, col}),
-                                        std::vector<std::size_t>({batch_stride, stride, 1}));
+            return HostTensorDescriptor({batch_count_, row, col}, {batch_stride, stride, 1_uz});
         }
         else
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count_, row, col}),
-                                        std::vector<std::size_t>({batch_stride, 1, stride}));
+            return HostTensorDescriptor({batch_count_, row, col}, {batch_stride, 1_uz, stride});
         }
     };
 

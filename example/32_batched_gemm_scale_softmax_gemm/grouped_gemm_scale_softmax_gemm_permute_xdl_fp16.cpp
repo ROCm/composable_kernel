@@ -24,6 +24,7 @@ Gemm + Softmax + Gemm fused operation. Computes C_g_m_o = Softmax(A_g_m_k * B0_g
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
 
@@ -217,15 +218,15 @@ int main(int argc, char* argv[])
                                        std::size_t stride,
                                        std::size_t batch_stride,
                                        auto layout) {
+        using namespace ck::literals;
+
         if(std::is_same<decltype(layout), Row>::value)
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({batch_stride, stride, 1}));
+            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, stride, 1_uz});
         }
         else
         {
-            return HostTensorDescriptor(std::vector<std::size_t>({batch_count, row, col}),
-                                        std::vector<std::size_t>({batch_stride, 1, stride}));
+            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, 1_uz, stride});
         }
     };
 
@@ -267,9 +268,7 @@ int main(int argc, char* argv[])
             f_host_tensor_descriptor(Batch, K, N, StrideB0, BatchStrideB0, B0Layout{}));
         Tensor<B1DataType> b1_g_n_o(
             f_host_tensor_descriptor(Batch, N, O, StrideB1, BatchStrideB1, B1Layout{}));
-        Tensor<CDataType> c_gs_ms_os_device_result(
-            std::vector<std::size_t>(c_gs_ms_os_lengths.begin(), c_gs_ms_os_lengths.end()),
-            std::vector<std::size_t>(c_gs_ms_os_strides.begin(), c_gs_ms_os_strides.end()));
+        Tensor<CDataType> c_gs_ms_os_device_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
 
         flop += (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * Batch;
         num_byte += (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
@@ -391,9 +390,7 @@ int main(int argc, char* argv[])
             auto& c_gs_ms_os_device_result = c_tensors[i];
             auto& c_gs_ms_os_device_buf    = *c_tensors_device[i];
 
-            Tensor<CDataType> c_gs_ms_os_host_result(
-                std::vector<std::size_t>(c_gs_ms_os_lengths.begin(), c_gs_ms_os_lengths.end()),
-                std::vector<std::size_t>(c_gs_ms_os_strides.begin(), c_gs_ms_os_strides.end()));
+            Tensor<CDataType> c_gs_ms_os_host_result(c_gs_ms_os_lengths, c_gs_ms_os_strides);
 
             c_gs_ms_os_device_buf.FromDevice(c_gs_ms_os_device_result.mData.data());
 

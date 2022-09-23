@@ -17,6 +17,7 @@
 #include "ck/library/utility/host_common_util.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
 
 using XDataType     = ck::half_t;
@@ -60,13 +61,13 @@ int main()
     ck::index_t Stride = N;
 
     auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
-        return HostTensorDescriptor(std::vector<std::size_t>({len}),
-                                    std::vector<std::size_t>({stride}));
+        return HostTensorDescriptor({len}, {stride});
     };
 
     auto f_host_tensor_descriptor2d = [](std::size_t row, std::size_t col, std::size_t stride) {
-        return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                    std::vector<std::size_t>({stride, 1}));
+        using namespace ck::literals;
+
+        return HostTensorDescriptor({row, col}, {stride, 1_uz});
     };
 
     Tensor<XDataType> x(f_host_tensor_descriptor2d(M, N, Stride));
