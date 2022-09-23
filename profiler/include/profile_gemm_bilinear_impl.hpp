@@ -117,8 +117,7 @@ bool profile_gemm_bilinear_impl(int do_verification,
     // run reference
     if(do_verification)
     {
-        Tensor<AccDataType> c_m_n(HostTensorDescriptor(
-            std::vector<std::size_t>{static_cast<std::size_t>(M), static_cast<std::size_t>(N)}));
+        Tensor<AccDataType> c_m_n({M, N});
 
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                                 BDataType,

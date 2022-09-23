@@ -399,8 +399,7 @@ int main(int argc, char* argv[])
 
             Tensor<ADataType> a1_g_m_n(f_host_tensor_descriptor(Batch, M, N, N, M * N, Row{}));
 
-            Tensor<CDataType> c_g_m_o_host_result(std::vector<int>{Batch, M, O},
-                                                  std::vector<int>{M * O, O, 1});
+            Tensor<CDataType> c_g_m_o_host_result({Batch, M, O}, {M * O, O, 1});
 
             auto ref_gemm0          = ReferenceGemm0Instance{};
             auto ref_gemm0_invoker  = ref_gemm0.MakeInvoker();

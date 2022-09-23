@@ -272,8 +272,7 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        Tensor<CShuffleDataType> c_m_n(HostTensorDescriptor(
-            std::vector<std::size_t>{static_cast<std::size_t>(M), static_cast<std::size_t>(N)}));
+        Tensor<CShuffleDataType> c_m_n({M, N});
 
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                                 BDataType,

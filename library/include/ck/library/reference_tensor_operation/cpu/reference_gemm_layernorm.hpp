@@ -44,8 +44,8 @@ struct ReferenceGemmLayernorm : public device::BaseOperator
         size_t M = acc.mDesc.GetLengths()[0];
         size_t N = acc.mDesc.GetLengths()[1];
 
-        Tensor<ComputeDataType> avg_acc_sq(HostTensorDescriptor(std::vector<size_t>({M})));
-        Tensor<ComputeDataType> avg_acc(HostTensorDescriptor(std::vector<size_t>({M})));
+        Tensor<ComputeDataType> avg_acc_sq({M});
+        Tensor<ComputeDataType> avg_acc({M});
         Tensor<ComputeDataType> acc_layernorm(acc);
 
         // reduce N dim
