@@ -434,8 +434,7 @@ int main(int argc, char* argv[])
             c_gs_ms_os_host_result.ForEach(
                 [&](auto& self, auto idx) { self(idx) = c_g_m_o_host_result(idx); });
 
-            bool pass_ =
-                ck::utils::check_err(c_gs_ms_os_device_result.mData, c_gs_ms_os_host_result.mData);
+            bool pass_ = ck::utils::check_err(c_gs_ms_os_device_result, c_gs_ms_os_host_result);
             pass &= pass_;
         }
     }

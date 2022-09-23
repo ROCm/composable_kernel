@@ -203,8 +203,7 @@ int main()
             ref_invoker.Run(ref_argument);
 
             out_dev.FromDevice(out_from_dev.mData.data());
-            pass &= ck::utils::check_err(
-                out_from_dev.mData, out.mData, "Error: Incorrect results", 1e-3, 1e-3);
+            pass &= ck::utils::check_err(out_from_dev, out, "Error: Incorrect results", 1e-3, 1e-3);
         }
 
         double total_read = current_dim * index_length * 3 * sizeof(EmbType) +

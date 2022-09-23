@@ -347,9 +347,9 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
                 reduce0_device_buf.FromDevice(reduce0_m_device_result.mData.data());
                 reduce1_device_buf.FromDevice(reduce1_m_device_result.mData.data());
 
-                ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
-                ck::utils::check_err(reduce0_m_device_result.mData, reduce0_m_host_result.mData);
-                ck::utils::check_err(reduce1_m_device_result.mData, reduce1_m_host_result.mData);
+                ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+                ck::utils::check_err(reduce0_m_device_result, reduce0_m_host_result);
+                ck::utils::check_err(reduce1_m_device_result, reduce1_m_host_result);
 
                 if(do_log)
                 {

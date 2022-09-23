@@ -346,11 +346,8 @@ int main()
                             N);
 
         layerNorm_device_buf.FromDevice(layerNorm_m_n.mData.data());
-        pass &= ck::utils::check_err(layerNorm_m_n.mData,
-                                     host_layerNorm_m_n.mData,
-                                     "Error: Incorrect results d1",
-                                     1e-3,
-                                     1e-3);
+        pass &= ck::utils::check_err(
+            layerNorm_m_n, host_layerNorm_m_n, "Error: Incorrect results d1", 1e-3, 1e-3);
     }
 
     {

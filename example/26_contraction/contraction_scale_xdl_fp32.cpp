@@ -418,7 +418,7 @@ int main(int argc, char* argv[])
             }
         }
 
-        return ck::utils::check_err(e_ms_ns_device_result.mData, e_ms_ns_host_result.mData) ? 0 : 1;
+        return ck::utils::check_err(e_ms_ns_device_result, e_ms_ns_host_result) ? 0 : 1;
     }
 
     return 0;
