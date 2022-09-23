@@ -41,7 +41,7 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
     std::cout << "d1_m_n: " << d1_m_n.mDesc << std::endl;
     std::cout << "e_m_n: " << e_m_n_host_result.mDesc << std::endl;
 
-    switch(2)
+    switch(config.init_method)
     {
     case 0: break;
     case 1:
@@ -124,7 +124,7 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
 
     if(config.do_verification)
     {
-        Tensor<AccDataType> c_m_n(HostTensorDescriptor{M, N});
+        Tensor<CDataType> c_m_n(HostTensorDescriptor{M, N});
 
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();

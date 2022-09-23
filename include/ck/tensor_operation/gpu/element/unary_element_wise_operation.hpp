@@ -210,9 +210,9 @@ struct FastGelu
     template <>
     __host__ void operator()<float, float>(float& y, const float& x) const
     {
-        const float u   = float(2) * x * (float(0.035677) * x * x + float(0.797885));
+        const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
         const float emu = exp(-u);
-        const float cdf = float(0.5) + float(0.5) * (float(2) / (float(1) + emu) - float(1));
+        const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
 
         y = x * cdf;
     }
@@ -231,11 +231,19 @@ struct FastGelu
     template <>
     __device__ void operator()<float, float>(float& y, const float& x) const
     {
-        const float u   = float(2) * x * (float(0.035677) * x * x + float(0.797885));
-        const float emu = __expf(-u);
-        const float cdf = float(0.5) + float(0.5) * (float(2) * __ocml_native_recip_f32(float(1) + emu) - float(1));
+#if 0
+        const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
+        const float emu = exp(-u);
+        const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
 
         y = x * cdf;
+#else
+        const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
+        const float emu = __expf(-u);
+        const float cdf = 0.5f + 0.5f * (2.f * __ocml_native_recip_f32(1.f + emu) - 1.f);
+
+        y = x * cdf;
+#endif
     }
 
     // device code, use lower precision "__expf" and "rcp"

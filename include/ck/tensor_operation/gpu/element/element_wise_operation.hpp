@@ -15,7 +15,7 @@ namespace element_wise {
 // Need to ensure compiler will fail if there is no matching candidate, instead of compiler
 // siliently do implicit type conversion
 //
-// Method 1:
+// Example:
 //
 // struct ExampleElementwiseOp
 // {
@@ -26,19 +26,6 @@ namespace element_wise {
 //     template<>
 //     __host__ __device__ constexpr void
 //     operator()<half_t, half_t>(half_t& y, const half_t& x) const
-//     {
-//     }
-// };
-//
-// Method 2:
-//
-// template <typename Y, typename X>
-// struct ExampleElementwiseOp;
-//
-// template <>
-// struct ExampleElementwiseOp<float, ck::bhalf_t>
-// {
-//     __host__ __device__ void operator()(float& y, ck::bhalf_t& x) const
 //     {
 //     }
 // };
@@ -142,7 +129,6 @@ struct AddHardswishAdd
     }
 };
 
-// C = A * B
 // E = C + D0 + D1
 struct AddAdd
 {
@@ -171,41 +157,33 @@ struct AddAdd
     }
 };
 
-// C = A * B
 // E = FastGelu(C + D0 + D1)
 struct AddAddFastGelu
 {
-    // Fast GeLU
-    // https://paperswithcode.com/method/gelu
-    // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
-    __host__ __device__ static constexpr float GetFastGeLU(float x)
-    {
-        const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
-        const float emu = exp(-u);
-        const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
-        return x * cdf;
-    }
-
-    template <typename T>
-    static inline constexpr bool is_valid_param_type_v =
-        std::is_same_v<T, float> || std::is_same_v<T, half_t> || std::is_same_v<T, bhalf_t> ||
-        std::is_same_v<T, int32_t> || std::is_same_v<T, int8_t>
-#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-        || std::is_same_v<T, ck::int4_t>
-#endif
-        ;
-
     template <typename E, typename C, typename D0, typename D1>
     __host__ __device__ constexpr void
-    operator()(E& e, const C& c, const D0& d0, const D1& d1) const
+    operator()(E& e, const C& c, const D0& d0, const D1& d1) const;
+
+    template <>
+    __host__ __device__ constexpr void operator()<float, float, float>(float& e,
+                                                                       const float& c,
+                                                                       const float& d0,
+                                                                       const float& d1) const
     {
-        static_assert(is_valid_param_type_v<E> && is_valid_param_type_v<C> &&
-                      is_valid_param_type_v<D0> && is_valid_param_type_v<D1>);
+        const float x = c + d0 + d1;
 
-        const float y =
-            GetFastGeLU(type_convert<float>(c) + type_convert<float>(d0) + type_convert<float>(d1));
+        FastGelu{}.template operator()<float, float>(e, x);
+    }
 
-        e = type_convert<E>(y);
+    template <>
+    __host__ __device__ constexpr void operator()<half_t, half_t, half_t>(half_t& e,
+                                                                          const half_t& c,
+                                                                          const half_t& d0,
+                                                                          const half_t& d1) const
+    {
+        const half_t x = c + d0 + d1;
+
+        ck::tensor_operation::element_wise::FastGelu{}.template operator()<half_t, half_t>(e, x);
     }
 };
 

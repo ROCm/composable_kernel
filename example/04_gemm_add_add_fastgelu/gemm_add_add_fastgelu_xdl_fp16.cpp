@@ -3,12 +3,11 @@
 
 #include "common.hpp"
 
-extern "C" __device__ float __ocml_native_recip_f32(float);
-
 using ADataType        = F16;
 using BDataType        = F16;
 using AccDataType      = F32;
-using CShuffleDataType = F32;
+using CShuffleDataType = F16;
+using CDataType        = F16; // C matrix doesn't exsitm  this is used for verification
 using D0DataType       = F16;
 using D1DataType       = F16;
 using DsDataType       = ck::Tuple<D0DataType, D1DataType>;
@@ -21,67 +20,9 @@ using D1Layout = Row;
 using DsLayout = ck::Tuple<D0Layout, D1Layout>;
 using ELayout  = Row;
 
-// C = A * B
-// E = FastGelu(C + D0 + D1)
-struct EleFastGeLU
-{
-    // Fast GeLU
-    // https://paperswithcode.com/method/gelu
-    // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
-    __host__ static constexpr float GetFastGeLU(float x)
-    {
-        const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
-        const float emu = exp(-u);
-        const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
-        return x * cdf;
-    }
-
-#if 0
-     __device__ static constexpr float GetFastGeLU(float x)
-    {
-        const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
-        const float emu = __expf(-u);
-        const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
-        return x * cdf;
-    }
-#elif 0
-    __device__ static constexpr float GetFastGeLU(float x)
-    {
-        const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
-        const float emu = __expf(-u);
-        const float cdf = 0.5f + 0.5f * (2.f * __frcp_rn(1.f + emu) - 1.f);
-        return x * cdf;
-    }
-#else
-    __device__ static constexpr float GetFastGeLU(float x)
-    {
-        const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
-        const float emu = __expf(-u);
-        const float cdf = 0.5f + 0.5f * (2.f * __ocml_native_recip_f32(1.f + emu) - 1.f);
-        return x * cdf;
-    }
-#endif
-
-    template <typename E, typename C, typename D0, typename D1>
-    __host__ __device__ constexpr void
-    operator()(E& e, const C& c, const D0& d0, const D1& d1) const
-    {
-#if 0
-        const float y =
-            GetFastGeLU(ck::type_convert<float>(c) + ck::type_convert<float>(d0) + ck::type_convert<float>(d1));
-#else
-        const float a =
-            ck::type_convert<float>(c) + ck::type_convert<float>(d0) + ck::type_convert<float>(d1);
-        const float y = a > 0 ? a : 0;
-#endif
-
-        e = ck::type_convert<E>(y);
-    }
-};
-
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
-using CDEElementOp = EleFastGeLU;
+using CDEElementOp = AddAddFastGelu;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
@@ -96,7 +37,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleD_Xdl_C
 
 using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
                                                                         BDataType,
-                                                                        AccDataType,
+                                                                        CDataType,
                                                                         AccDataType,
                                                                         AElementOp,
                                                                         BElementOp,

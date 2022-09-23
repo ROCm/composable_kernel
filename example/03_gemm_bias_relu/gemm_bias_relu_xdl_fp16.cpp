@@ -33,53 +33,12 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 // E = Relu(C + D);
 struct AddRelu
 {
-    template <typename E, typename C, typename D>
-    __host__ __device__ void operator()(E& e, const C& c, const D& d) const;
-
-#if 0
-    template <>
     __host__ __device__ void
-    operator()<ck::half_t, ck::half_t, ck::half_t>(ck::half_t& e, const ck::half_t& c, const ck::half_t& d) const
+    operator()(ck::half_t& e, const ck::half_t& c, const ck::half_t& d) const
     {
         const ck::half_t x = c + d;
 
         e = x > 0 ? x : 0;
-    }
-#else
-    // AddFastGeLU
-    template <>
-    __host__ __device__ void operator()<ck::half_t, ck::half_t, ck::half_t>(
-        ck::half_t& e, const ck::half_t& c, const ck::half_t& d) const
-    {
-        const ck::half_t x = c + d;
-
-        e = x > 0 ? x : 0;
-    }
-#endif
-};
-
-struct FastGelu
-{
-    template <typename Y, typename X>
-    __host__ __device__ void operator()(Y& y, const X& x) const;
-
-    template <>
-    __host__ __device__ void operator()<float, float>(float& y, const float& x) const
-    {
-        const float u   = float(2) * x * (float(0.035677) * x * x + float(0.797885));
-        const float emu = exp(-u);
-        const float cdf = float(0.5) + float(0.5) * (float(2) / (float(1) + emu) - float(1));
-
-        y = x * cdf;
-    }
-
-    __host__ __device__ void operator()<float, float>(float& y, const float& x) const
-    {
-        const float u   = float(2) * x * (float(0.035677) * x * x + float(0.797885));
-        const float emu = exp(-u);
-        const float cdf = float(0.5) + float(0.5) * (float(2) / (float(1) + emu) - float(1));
-
-        y = x * cdf;
     }
 };
 
