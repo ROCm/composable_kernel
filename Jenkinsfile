@@ -474,11 +474,6 @@ def Build_CK(Map conf=[:]){
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 24, unit: 'HOURS')
                 {
-                    sh """
-                        if [ "${params.COMPILER_VERSION}" == "amd-stg-open" ]; then \
-                        sed -i '/$HIP_CLANG_TARGET = chomp($HIP_CLANG_TARGET);/c\\chomp($HIP_CLANG_TARGET);' /opt/rocm/hip/bin/hipcc.pl; \
-                        fi
-                    """
                     cmake_build(conf)
                     dir("build"){
                         //run tests and examples
