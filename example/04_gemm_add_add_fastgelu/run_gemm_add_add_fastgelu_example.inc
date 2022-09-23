@@ -41,7 +41,7 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
     std::cout << "d1_m_n: " << d1_m_n.mDesc << std::endl;
     std::cout << "e_m_n: " << e_m_n_host_result.mDesc << std::endl;
 
-    switch(config.init_method)
+    switch(2)
     {
     case 0: break;
     case 1:
@@ -108,7 +108,7 @@ bool run_gemm_add_add_fastgelu(const ProblemSize& problem_size, const ExecutionC
         throw std::runtime_error("wrong! this device_op instance does not support this problem");
     }
 
-    float ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+    float ave_time = invoker.Run(argument, StreamConfig{nullptr, true});
 
     std::size_t flop      = 2_uz * M * N * K;
     std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +

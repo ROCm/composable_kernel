@@ -105,7 +105,7 @@ struct AddAddFastGelu
 
 using A0ElementOp   = PassThrough;
 using B0ElementOp   = PassThrough;
-using CDE0ElementOp = AddAddRelu;
+using CDE0ElementOp = AddAddFastGelu;
 using A1ElementOp   = PassThrough;
 using B1ElementOp   = PassThrough;
 using CDE1ElementOp = ck::tensor_operation::element_wise::Add;

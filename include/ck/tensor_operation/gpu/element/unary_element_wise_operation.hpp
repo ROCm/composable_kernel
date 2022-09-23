@@ -10,6 +10,8 @@ namespace ck {
 namespace tensor_operation {
 namespace element_wise {
 
+extern "C" __device__ float __ocml_native_recip_f32(float);
+
 struct PassThrough
 {
     template <typename Y, typename X>
@@ -198,16 +200,39 @@ struct Relu
 struct FastGelu
 {
     template <typename Y, typename X>
-    __host__ __device__ void operator()(Y& y, const X& x) const;
+    __host__ void operator()(Y& y, const X& x) const;
 
+    template <typename Y, typename X>
+    __device__ void operator()(Y& y, const X& x) const;
+
+    // host code, use higher precision "exp" and "div"
     template <>
-    __host__ __device__ void operator()<float, float>(float& y, const float& x) const
+    __host__ void operator()<float, float>(float& y, const float& x) const
     {
         const float u   = float(2) * x * (float(0.035677) * x * x + float(0.797885));
         const float emu = exp(-u);
         const float cdf = float(0.5) + float(0.5) * (float(2) / (float(1) + emu) - float(1));
 
         y = x * cdf;
+    }
+
+    // device code, use lower precision "__expf" and "rcp"
+    template <>
+    __device__ void operator()<float, float>(float& y, const float& x) const
+    {
+#if 0
+        const float u   = float(2) * x * (float(0.035677) * x * x + float(0.797885));
+        const float emu = __expf(-u);
+        const float cdf = float(0.5) + float(0.5) * (float(2) * __ocml_native_recip_f32(float(1) + emu) - float(1));
+
+        y = x * cdf;
+#else
+        const float u   = float(2) * x * (float(0.035677) * x * x + float(0.797885));
+        const float emu = exp(-u);
+        const float cdf = float(0.5) + float(0.5) * (float(2) / (float(1) + emu) - float(1));
+
+        y = x * cdf;
+#endif
     }
 };
 
