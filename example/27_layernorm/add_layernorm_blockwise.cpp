@@ -122,6 +122,7 @@ int main()
         {M, N},
         std::vector<ck::index_t>{a.mDesc.GetStrides().begin(), a.mDesc.GetStrides().end()},
         std::vector<ck::index_t>{b.mDesc.GetStrides().begin(), b.mDesc.GetStrides().end()},
+        std::vector<ck::index_t>{c.mDesc.GetStrides().begin(), c.mDesc.GetStrides().end()},
         std::vector<ck::index_t>{gamma.mDesc.GetStrides().begin(), gamma.mDesc.GetStrides().end()},
         std::vector<ck::index_t>{beta.mDesc.GetStrides().begin(), beta.mDesc.GetStrides().end()},
         std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
@@ -170,7 +171,7 @@ int main()
                                                                                  AccDataType,
                                                                                  PassThrough,
                                                                                  Rank,
-                                                                                  NumReduceDim>;
+                                                                                 NumReduceDim>;
     
         ReferenceInstance ref;
         auto ref_argument =

@@ -30,6 +30,7 @@ template <typename GridwiseaddReduction,
           typename GridDesc_K>                // Descriptor of Gamma, Beta
 __global__ void kernel_add_layernorm(const GridDesc_M_K a_grid_desc_m_k,                     //Descriptor of A
                                      const GridDesc_M_K b_grid_desc_m_k,                     //Descriptor of B
+                                     const GridDesc_M_K c_grid_desc_m_k,                     //Descriptor of C
                                      const GridDesc_K gamma_grid_desc_k,                     //Descriptor of gamma
                                      const GridDesc_K beta_grid_desc_k,                      //Descriptor of beta
                                      const GridDesc_M_K y_grid_desc_m_k,                     //Descriptor of Y
@@ -46,6 +47,7 @@ __global__ void kernel_add_layernorm(const GridDesc_M_K a_grid_desc_m_k,        
 {
     GridwiseaddReduction::Run(a_grid_desc_m_k,   //Descriptor of A 
                               b_grid_desc_m_k,   //Descriptor of B 
+                              c_grid_desc_m_k,   //Descriptor of C
                               gamma_grid_desc_k, //Descriptor of Gamma 
                               beta_grid_desc_k,  //Descriptor of Beta 
                               y_grid_desc_m_k,   //Descriptor of Y
@@ -268,6 +270,7 @@ struct DeviceAddLayernormImpl : public DeviceAddLayernorm<ADataType,
         Argument(const std::vector<index_t> lengths,     
                  const std::vector<index_t> aStrides,    
                  const std::vector<index_t> bStrides,    
+                 const std::vector<index_t> cStrides,
                  const std::vector<index_t> gammaStrides,
                  const std::vector<index_t> betaStrides, 
                  const std::vector<index_t> yStrides,    
@@ -296,6 +299,7 @@ struct DeviceAddLayernormImpl : public DeviceAddLayernorm<ADataType,
             Lengths_  = shuffle_tensor_dimensions<Rank, NumReduceDim>(lengths, reduceDims);
             aStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(aStrides, reduceDims);
             bStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(bStrides, reduceDims);
+            cStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(cStrides, reduceDims);
             yStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(yStrides, reduceDims);
 
             long_index_t invariant_total_length;
@@ -330,6 +334,7 @@ struct DeviceAddLayernormImpl : public DeviceAddLayernorm<ADataType,
         std::vector<index_t> Lengths_;
         std::vector<index_t> aStrides_;
         std::vector<index_t> bStrides_;
+        std::vector<index_t> cStrides_;
         std::vector<index_t> reduceLengths_;
         std::vector<index_t> gammaStrides_;
         std::vector<index_t> betaStrides_;
@@ -352,6 +357,9 @@ struct DeviceAddLayernormImpl : public DeviceAddLayernorm<ADataType,
 
             const auto b_grid_desc_m_k = MakeSrc2dDescriptor(
                 arg.Lengths_, arg.bStrides_, arg.blkGroupSize_, arg.numBlockTileIteration_);
+
+            const auto c_grid_desc_m_k = MakeSrc2dDescriptor(
+                arg.Lengths_, arg.cStrides_, arg.blkGroupSize_, arg.numBlockTileIteration_);
 
             const auto gamma_grid_desc_k = MakeAffine1dDescriptor(arg.reduceLengths_,
                                                                   arg.gammaStrides_,
@@ -400,6 +408,7 @@ struct DeviceAddLayernormImpl : public DeviceAddLayernorm<ADataType,
                                                0,
                                                a_grid_desc_m_k,
                                                b_grid_desc_m_k,
+                                               c_grid_desc_m_k,
                                                gamma_grid_desc_k,
                                                beta_grid_desc_k,
                                                y_grid_desc_m_k,
@@ -487,6 +496,7 @@ struct DeviceAddLayernormImpl : public DeviceAddLayernorm<ADataType,
     MakeArgumentPointer(const std::vector<index_t> lengths,
                         const std::vector<index_t> aStrides,
                         const std::vector<index_t> bStrides,
+                        const std::vector<index_t> cStrides,
                         const std::vector<index_t> gammaStrides,
                         const std::vector<index_t> betaStrides,
                         const std::vector<index_t> yStrides,
@@ -504,6 +514,7 @@ struct DeviceAddLayernormImpl : public DeviceAddLayernorm<ADataType,
         return std::make_unique<Argument>(lengths,
                                           aStrides,
                                           bStrides,
+                                          cStrides,
                                           gammaStrides,
                                           betaStrides,
                                           yStrides,

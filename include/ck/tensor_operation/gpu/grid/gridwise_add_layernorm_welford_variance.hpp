@@ -99,6 +99,7 @@ struct GridwiseAddLayernormWelfordVariance_mk_to_mk
 
     __device__ static void Run(const GridDesc_M_K& a_grid_desc_m_k,
                                const GridDesc_M_K& b_grid_desc_m_k,
+                               const GridDesc_M_K& c_grid_desc_m_k,
                                const GridDesc_K& gamma_grid_desc_k,
                                const GridDesc_K& beta_grid_desc_k,
                                const GridDesc_M_K& y_grid_desc_m_k,
@@ -200,7 +201,7 @@ struct GridwiseAddLayernormWelfordVariance_mk_to_mk
                                                                   XSrcVectorSize,
                                                                   1,
                                                                   true>(
-            a_grid_desc_m_k,
+            c_grid_desc_m_k,
             make_multi_index(block_global_id * M_BlockTileSize +
                                  thread_m_cluster_id * MThreadSliceSize,
                              thread_k_cluster_id * KThreadSliceSize));
@@ -243,7 +244,7 @@ struct GridwiseAddLayernormWelfordVariance_mk_to_mk
                                                InMemoryDataOperationEnum::Set,
                                                1,
                                                true>(
-                a_grid_desc_m_k,
+                c_grid_desc_m_k,
                 make_multi_index(block_global_id * M_BlockTileSize +
                                      thread_m_cluster_id * MThreadSliceSize,
                                  thread_k_cluster_id * KThreadSliceSize),
@@ -291,7 +292,7 @@ struct GridwiseAddLayernormWelfordVariance_mk_to_mk
             p_beta_global, beta_grid_desc_k.GetElementSpaceSize());
 
         auto threadwise_welford       = ThreadwiseWelford();
-        threadwise_welford.max_count_ = GetKPerThread(a_grid_desc_m_k, thread_k_cluster_id);
+        threadwise_welford.max_count_ = GetKPerThread(c_grid_desc_m_k, thread_k_cluster_id);
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
             mean_thread_buf(I) = type_convert<AccDataType>(0.0f);
@@ -326,11 +327,11 @@ struct GridwiseAddLayernormWelfordVariance_mk_to_mk
             threadwise_c_store.Run(thread_buffer_desc_m_k,
                                    make_tuple(I0, I0),
                                    c_thread_buf,
-                                   a_grid_desc_m_k,
+                                   c_grid_desc_m_k,
                                    c_global_val_buf);
             threadwise_a_load.MoveSrcSliceWindow(a_grid_desc_m_k, thread_copy_fwd_step_m_k);
             threadwise_b_load.MoveSrcSliceWindow(b_grid_desc_m_k, thread_copy_fwd_step_m_k);
-            threadwise_c_store.MoveDstSliceWindow(a_grid_desc_m_k, thread_copy_fwd_step_m_k);
+            threadwise_c_store.MoveDstSliceWindow(c_grid_desc_m_k, thread_copy_fwd_step_m_k);
 
 
         }
@@ -346,7 +347,7 @@ struct GridwiseAddLayernormWelfordVariance_mk_to_mk
         auto thread_copy_tail_m_k = (num_k_block_tile_iteration - 1) * thread_copy_fwd_step_m_k;
         auto thread_copy_tail_k   = (num_k_block_tile_iteration - 1) * thread_copy_fwd_step_k;
 
-        threadwise_c_load.MoveSrcSliceWindow(a_grid_desc_m_k, thread_copy_tail_m_k);
+        threadwise_c_load.MoveSrcSliceWindow(c_grid_desc_m_k, thread_copy_tail_m_k);
         threadwise_gamma_load.MoveSrcSliceWindow(gamma_grid_desc_k, thread_copy_tail_k);
         threadwise_beta_load.MoveSrcSliceWindow(beta_grid_desc_k, thread_copy_tail_k);
         threadwise_y_store.MoveDstSliceWindow(y_grid_desc_m_k, thread_copy_tail_m_k);
@@ -355,7 +356,7 @@ struct GridwiseAddLayernormWelfordVariance_mk_to_mk
         {
             if constexpr(!SweepOnce)
             {
-                threadwise_c_load.Run(a_grid_desc_m_k,
+                threadwise_c_load.Run(c_grid_desc_m_k,
                                       c_global_val_buf,
                                       thread_buffer_desc_m_k,
                                       make_tuple(I0, I0),
@@ -412,7 +413,7 @@ struct GridwiseAddLayernormWelfordVariance_mk_to_mk
                                    y_grid_desc_m_k,
                                    y_global_val_buf);
 
-            threadwise_c_load.MoveSrcSliceWindow(a_grid_desc_m_k, thread_copy_bwd_step_m_k);
+            threadwise_c_load.MoveSrcSliceWindow(c_grid_desc_m_k, thread_copy_bwd_step_m_k);
             threadwise_gamma_load.MoveSrcSliceWindow(gamma_grid_desc_k, thread_copy_bwd_step_k);
             threadwise_beta_load.MoveSrcSliceWindow(beta_grid_desc_k, thread_copy_bwd_step_k);
             threadwise_y_store.MoveDstSliceWindow(y_grid_desc_m_k, thread_copy_bwd_step_m_k);

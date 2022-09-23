@@ -29,6 +29,7 @@ struct DeviceAddLayernorm : public BaseOperator
     MakeArgumentPointer(const std::vector<index_t> lengths,
                         const std::vector<index_t> aStrides,
                         const std::vector<index_t> bStrides,
+                        const std::vector<index_t> cStrides,
                         const std::vector<index_t> gammaStrides,
                         const std::vector<index_t> betaStrides,
                         const std::vector<index_t> yStrides,
