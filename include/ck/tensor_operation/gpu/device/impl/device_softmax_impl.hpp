@@ -192,10 +192,8 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
         };
     };
 
-    bool IsSupportedArgument(const BaseArgument* p_arg) override
+    static bool IsSupportedArgument(const Argument& arg)
     {
-        const Argument* p_arg_ = dynamic_cast<const Argument*>(p_arg);
-
         if constexpr(InSrcVectorDim == 0)
         {
             if constexpr(kNumInvariantDim == 0)
@@ -204,33 +202,59 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
             }
             else
             {
-                if(p_arg_->inStrides_[kNumInvariantDim - 1] != 1)
+                if(arg.inStrides_[kNumInvariantDim - 1] != 1)
                     return false;
 
-                if(p_arg_->invariant_lowest_length % InSrcVectorSize != 0)
+                if(arg.invariant_lowest_length % InSrcVectorSize != 0)
                     return false;
             };
         }
         else
         {
-            if(p_arg_->reduce_lowest_length % InSrcVectorSize != 0)
+            if(arg.reduce_lowest_length % InSrcVectorSize != 0)
             {
                 return false;
             }
         };
 
         // To improve
-        if(kNumInvariantDim > 0 && p_arg_->invariant_lowest_length % OutDstVectorSize != 0)
+        if(kNumInvariantDim > 0 && arg.invariant_lowest_length % OutDstVectorSize != 0)
         {
             return false;
         }
 
-        if(p_arg_->inLengths_[Rank - 1] % OutDstVectorSize != 0)
+        if(arg.inLengths_[Rank - 1] % OutDstVectorSize != 0)
         {
             return false;
         }
 
         return true;
+    };
+
+    bool IsSupportedArgument(const BaseArgument* p_arg) override
+    {
+        return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
+    }
+
+    static auto MakeArgument(const std::vector<index_t> inLengths,
+                             const std::vector<index_t> inStrides,
+                             const std::vector<int> reduceDims,
+                             const AccDataType alpha,
+                             const AccDataType beta,
+                             const InDataType* in_dev,
+                             OutDataType* out_dev,
+                             InElementwiseOp in_elementwise_op,
+                             AccElementwiseOp acc_elementwise_op)
+    {
+        return Argument{inLengths,
+                        inStrides,
+                        reduceDims,
+                        alpha,
+                        beta,
+                        in_dev,
+                        out_dev,
+                        in_elementwise_op,
+                        acc_elementwise_op};
     };
 
     //
@@ -272,6 +296,8 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
                                           acc_elementwise_op);
     };
 
+    static auto MakeInvoker() { return Invoker{}; }
+
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
     {
         return std::make_unique<Invoker>();
@@ -282,10 +308,13 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceReduceSoftmax<" << BlockSize << ",";
-        str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
-        str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
-        str << "InSrcVectorDim_" << InSrcVectorDim << "_InSrcVectorSize_" << InSrcVectorSize << "_OutDstVectorSize_" << OutDstVectorSize << ">";
+        str << "DeviceReduceSoftmax<" 
+            << Rank << "," << NumReduceDim << "," << BlockSize << ","
+            << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ","
+            << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ","
+            << "InSrcVectorDim_" << InSrcVectorDim 
+            << "_InSrcVectorSize_" << InSrcVectorSize 
+            << "_OutDstVectorSize_" << OutDstVectorSize << ">";
         // clang-format on
 
         return str.str();
