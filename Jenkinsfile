@@ -476,7 +476,7 @@ def Build_CK(Map conf=[:]){
                 {
                     sh """
                         if [ "${params.COMPILER_VERSION}" == "amd-stg-open" ]; then \
-                        sed -i '/$HIP_CLANG_TARGET = chomp($HIP_CLANG_TARGET);/c\chomp($HIP_CLANG_TARGET);' /opt/rocm/hip/bin/hipcc.pl; \
+                        sed -i '/$HIP_CLANG_TARGET = chomp($HIP_CLANG_TARGET);/c\\chomp($HIP_CLANG_TARGET);' /opt/rocm/hip/bin/hipcc.pl; \
                         fi
                     """
                     cmake_build(conf)
