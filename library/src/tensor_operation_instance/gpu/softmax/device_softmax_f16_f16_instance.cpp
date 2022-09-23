@@ -25,7 +25,8 @@ template <index_t Rank, index_t Reduce>
 using device_softmax_f16_f16_instances = std::tuple<
     // clang-format off
     //                InDataType, AccDataType, OutDataType, InElementwiseOp, AccElementwiseOp, Rank, NumReduceDim, BlockSize, MThreadClusterSize, KThreadClusterSize, MThreadSliceSize, KThreadSliceSize, InSrcVectorDim, InSrcVectorSize, OutDstVectorSize>
-    DeviceSoftmaxImpl<       F16,         F32,         F16,            Pass,             Pass, Rank,       Reduce,       256,                  8,                 32,                1,                8,              1,               1,              1>, // fallback kernel
+    // fallback kernel
+    DeviceSoftmaxImpl<       F16,         F32,         F16,            Pass,             Pass, Rank,       Reduce,       256,                  8,                 32,                1,                8,              1,               1,              1>,
     DeviceSoftmaxImpl<       F16,         F32,         F16,            Pass,             Pass, Rank,       Reduce,       256,                  8,                 32,                1,                8,              1,               8,              8>,
     DeviceSoftmaxImpl<       F16,         F32,         F16,            Pass,             Pass, Rank,       Reduce,       256,                  4,                 64,                1,                8,              1,               8,              8>,
     DeviceSoftmaxImpl<       F16,         F32,         F16,            Pass,             Pass, Rank,       Reduce,       256,                  2,                128,                1,                8,              1,               8,              8>,
@@ -33,7 +34,11 @@ using device_softmax_f16_f16_instances = std::tuple<
     DeviceSoftmaxImpl<       F16,         F32,         F16,            Pass,             Pass, Rank,       Reduce,       256,                  2,                128,                1,               32,              1,               8,              8>,
     DeviceSoftmaxImpl<       F16,         F32,         F16,            Pass,             Pass, Rank,       Reduce,       256,                  1,                256,                1,                8,              1,               8,              8>,
     DeviceSoftmaxImpl<       F16,         F32,         F16,            Pass,             Pass, Rank,       Reduce,       256,                  1,                256,                1,               16,              1,               8,              8>,
-    DeviceSoftmaxImpl<       F16,         F32,         F16,            Pass,             Pass, Rank,       Reduce,       256,                  1,                256,                1,               32,              1,               8,              8>
+    DeviceSoftmaxImpl<       F16,         F32,         F16,            Pass,             Pass, Rank,       Reduce,       256,                  1,                256,                1,               32,              1,               8,              8>,
+    // Reduction on middle dimensions
+    // InSrcVectorDim is 0 since we want to coalesce reads on M dimension
+    DeviceSoftmaxImpl<       F16,         F32,         F16,            Pass,             Pass, Rank,       Reduce,       256,                  8,                 32,                8,                4,              0,               1,              1>,
+    DeviceSoftmaxImpl<       F16,         F32,         F16,            Pass,             Pass, Rank,       Reduce,       256,                  8,                 32,                8,                4,              0,               8,              4>
     // clang-format on
     >;
 
@@ -42,6 +47,7 @@ void add_device_softmax_f16_f16_rank3_instances(
 {
     add_device_operation_instances(instances, device_softmax_f16_f16_instances<3, 1>{});
     add_device_operation_instances(instances, device_softmax_f16_f16_instances<3, 2>{});
+    add_device_operation_instances(instances, device_softmax_f16_f16_instances<3, 3>{});
 }
 
 void add_device_softmax_f16_f16_rank4_instances(
@@ -50,6 +56,7 @@ void add_device_softmax_f16_f16_rank4_instances(
     add_device_operation_instances(instances, device_softmax_f16_f16_instances<4, 1>{});
     add_device_operation_instances(instances, device_softmax_f16_f16_instances<4, 2>{});
     add_device_operation_instances(instances, device_softmax_f16_f16_instances<4, 3>{});
+    add_device_operation_instances(instances, device_softmax_f16_f16_instances<4, 4>{});
 }
 
 } // namespace instance

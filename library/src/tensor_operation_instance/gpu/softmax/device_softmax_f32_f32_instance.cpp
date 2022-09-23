@@ -31,7 +31,11 @@ using device_softmax_f32_f32_instances = std::tuple<
     DeviceSoftmaxImpl<       F32,         F32,         F32,            Pass,             Pass, Rank,       Reduce,       256,                  2,                128,                1,               32,              1,               4,               4>,
     DeviceSoftmaxImpl<       F32,         F32,         F32,            Pass,             Pass, Rank,       Reduce,       256,                  1,                256,                1,                8,              1,               4,               4>,
     DeviceSoftmaxImpl<       F32,         F32,         F32,            Pass,             Pass, Rank,       Reduce,       256,                  1,                256,                1,               16,              1,               4,               4>,
-    DeviceSoftmaxImpl<       F32,         F32,         F32,            Pass,             Pass, Rank,       Reduce,       256,                  1,                256,                1,               32,              1,               4,               4>
+    DeviceSoftmaxImpl<       F32,         F32,         F32,            Pass,             Pass, Rank,       Reduce,       256,                  1,                256,                1,               32,              1,               4,               4>,
+    // Reduction on middle dimensions
+    // InSrcVectorDim is 0 since we want to coalesce reads on M dimension
+    DeviceSoftmaxImpl<       F32,         F32,         F32,            Pass,             Pass, Rank,       Reduce,       256,                  8,                 32,                8,                4,              0,               1,               1>,
+    DeviceSoftmaxImpl<       F32,         F32,         F32,            Pass,             Pass, Rank,       Reduce,       256,                  8,                 32,                8,                4,              0,               4,               4>
     // clang-format on
     >;
 
@@ -40,6 +44,7 @@ void add_device_softmax_f32_f32_rank3_instances(
 {
     add_device_operation_instances(instances, device_softmax_f32_f32_instances<3, 1>{});
     add_device_operation_instances(instances, device_softmax_f32_f32_instances<3, 2>{});
+    add_device_operation_instances(instances, device_softmax_f32_f32_instances<3, 3>{});
 }
 
 void add_device_softmax_f32_f32_rank4_instances(
@@ -48,6 +53,7 @@ void add_device_softmax_f32_f32_rank4_instances(
     add_device_operation_instances(instances, device_softmax_f32_f32_instances<4, 1>{});
     add_device_operation_instances(instances, device_softmax_f32_f32_instances<4, 2>{});
     add_device_operation_instances(instances, device_softmax_f32_f32_instances<4, 3>{});
+    add_device_operation_instances(instances, device_softmax_f32_f32_instances<4, 4>{});
 }
 
 } // namespace instance
