@@ -83,6 +83,10 @@ ENV compiler_commit=$compiler_commit
 RUN sh -c "echo compiler version = '$compiler_version'"
 RUN sh -c "echo compiler commit = '$compiler_commit'"
 
+RUN --mount=type=ssh if [ "$compiler_version" = "amd-stg-open" ]; then \
+        sed -i '/$HIP_CLANG_TARGET = chomp($HIP_CLANG_TARGET);/c\chomp($HIP_CLANG_TARGET);' /opt/rocm/hip/bin/hipcc.pl; \
+    fi
+
 RUN --mount=type=ssh if [ "$compiler_version" != "release" ] && [ "$compiler_commit" == "" ]; then \
         git clone -b "$compiler_version" https://github.com/RadeonOpenCompute/llvm-project.git && \
         cd llvm-project && mkdir build && cd build && \
