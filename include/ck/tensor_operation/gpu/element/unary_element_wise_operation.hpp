@@ -197,6 +197,8 @@ struct Relu
 
 // https://paperswithcode.com/method/gelu
 // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
+// host code use higher accuracy "exp" and "div"
+// device code use lower accuracy "__expf" and "rcp" function
 struct FastGelu
 {
     template <typename Y, typename X>
@@ -205,7 +207,6 @@ struct FastGelu
     template <typename Y, typename X>
     __device__ void operator()(Y& y, const X& x) const;
 
-    // host code, use higher precision "exp" and "div"
     template <>
     __host__ void operator()<float, float>(float& y, const float& x) const
     {
@@ -216,23 +217,36 @@ struct FastGelu
         y = x * cdf;
     }
 
+    template <>
+    __host__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
+    {
+        float y_f;
+
+        this->operator()<float, float>(y_f, type_convert<float>(x));
+
+        y = type_convert<half_t>(y_f);
+    }
+
     // device code, use lower precision "__expf" and "rcp"
     template <>
     __device__ void operator()<float, float>(float& y, const float& x) const
     {
-#if 0
         const float u   = float(2) * x * (float(0.035677) * x * x + float(0.797885));
         const float emu = __expf(-u);
         const float cdf = float(0.5) + float(0.5) * (float(2) * __ocml_native_recip_f32(float(1) + emu) - float(1));
 
         y = x * cdf;
-#else
-        const float u   = float(2) * x * (float(0.035677) * x * x + float(0.797885));
-        const float emu = exp(-u);
-        const float cdf = float(0.5) + float(0.5) * (float(2) / (float(1) + emu) - float(1));
+    }
 
-        y = x * cdf;
-#endif
+    // device code, use lower precision "__expf" and "rcp"
+    template <>
+    __device__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
+    {
+        float y_f;
+
+        this->operator()<float, float>(y_f, type_convert<float>(x));
+
+        y = type_convert<half_t>(y_f);
     }
 };
 
