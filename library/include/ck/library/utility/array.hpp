@@ -37,7 +37,7 @@ class to_array_result<FromT (&)[Size], Size> final
     template <typename T, std::size_t... Indices>
     static std::array<T, Size> copy_as_array(FromT (&array)[Size], std::index_sequence<Indices...>)
     {
-        return std::array<T, Size>{array[Indices]...};
+        return std::array<T, Size>{static_cast<T>(array[Indices])...};
     }
 
     private:
@@ -64,7 +64,7 @@ class to_array_result<FromT(&&)[Size], Size> final
     template <typename T, std::size_t... Indices>
     static std::array<T, Size> move_as_array(FromT(&&array)[Size], std::index_sequence<Indices...>)
     {
-        return std::array<T, Size>{std::move(array[Indices])...};
+        return std::array<T, Size>{static_cast<T>(std::move(array[Indices]))...};
     }
 
     private:
