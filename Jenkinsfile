@@ -474,6 +474,11 @@ def Build_CK(Map conf=[:]){
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 24, unit: 'HOURS')
                 {
+                    sh """
+                        if [ "${params.COMPILER_VERSION}" == "amd-stg-open" ]; then \
+                        sed -i '/$HIP_CLANG_TARGET = chomp($HIP_CLANG_TARGET);/c\chomp($HIP_CLANG_TARGET);' /opt/rocm/hip/bin/hipcc.pl; \
+                        fi
+                    """
                     cmake_build(conf)
                     dir("build"){
                         //run tests and examples
@@ -584,12 +589,12 @@ pipeline {
             description: "Force building docker image (default: false)")
         string(
             name: 'COMPILER_VERSION', 
-            defaultValue: 'release', 
-            description: 'Specify which version of compiler to use: ck-9110, release (default), or amd-stg-open.')
+            defaultValue: 'amd-stg-open', 
+            description: 'Specify which version of compiler to use: ck-9110, release, or amd-stg-open (default).')
         string(
             name: 'COMPILER_COMMIT', 
-            defaultValue: '', 
-            description: 'Specify which commit of compiler branch to use: leave empty to use the latest commit (default).')
+            defaultValue: 'b0f4678b9058a4ae00200dfb1de0da5f2ea84dcb', 
+            description: 'Specify which commit of compiler branch to use: leave empty to use the latest commit, or use 10738 commit (default).')
         string(
             name: 'BUILD_COMPILER', 
             defaultValue: 'hipcc', 
@@ -598,10 +603,6 @@ pipeline {
             name: "RUN_FULL_QA",
             defaultValue: false,
             description: "Select whether to run small set of performance tests (default) or full QA")
-        booleanParam(
-            name: "TEST_NODE_PERFORMANCE",
-            defaultValue: false,
-            description: "Test the node GPU performance (default: false)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -630,10 +631,6 @@ pipeline {
             }
         }
         stage("Static checks") {
-            when {
-                beforeAgent true
-                expression { !params.TEST_NODE_PERFORMANCE.toBoolean() }
-            }
             parallel{
                 // enable after we move from hipcc to hip-clang
                 // stage('Tidy') {
@@ -690,10 +687,6 @@ pipeline {
         //once we have some tests to run in this stage, we can enable it again.
         stage("Client App")
         {
-            when {
-                beforeAgent true
-                expression { !params.TEST_NODE_PERFORMANCE.toBoolean() }
-            }
             parallel
             {
                 stage("Run Client App")
@@ -718,7 +711,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { !params.RUN_FULL_QA.toBoolean() && !params.TEST_NODE_PERFORMANCE.toBoolean() }
+                        expression { !params.RUN_FULL_QA.toBoolean() }
                     }
                     options { retry(2) }
                     agent{ label rocmnode("gfx908 || gfx90a")}
@@ -733,7 +726,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_FULL_QA.toBoolean() || params.TEST_NODE_PERFORMANCE.toBoolean() }
+                        expression { params.RUN_FULL_QA.toBoolean() }
                     }
                     options { retry(2) }
                     agent{ label rocmnode("gfx90a")}
