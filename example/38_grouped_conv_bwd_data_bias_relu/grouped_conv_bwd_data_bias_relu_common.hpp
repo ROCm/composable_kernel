@@ -10,6 +10,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/utility/array.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -115,26 +116,25 @@ int run_conv_bwd_data_bias_relu(bool do_verification,
     // do conv
     auto conv     = DeviceInstance{};
     auto invoker  = conv.MakeInvoker();
-    auto argument = conv.MakeArgument(
-        out_device_buf.GetDeviceBuffer(),
-        wei_device_buf.GetDeviceBuffer(),
-        std::array<const void*, 1>{bias_device_buf.GetDeviceBuffer()},
-        in_device_buf.GetDeviceBuffer(),
-        a_g_n_k_wos_lengths,
-        a_g_n_k_wos_strides,
-        b_g_k_c_xs_lengths,
-        b_g_k_c_xs_strides,
-        std::array<std::array<ck::index_t, NDimSpatial + 3>, 1>{d0_g_n_c_wis_lengths},
-        std::array<std::array<ck::index_t, NDimSpatial + 3>, 1>{d0_g_n_c_wis_strides},
-        e_g_n_c_wis_lengths,
-        e_g_n_c_wis_strides,
-        conv_filter_strides,
-        conv_filter_dilations,
-        input_left_pads,
-        input_right_pads,
-        out_element_op,
-        wei_element_op,
-        in_element_op);
+    auto argument = conv.MakeArgument(out_device_buf.GetDeviceBuffer(),
+                                      wei_device_buf.GetDeviceBuffer(),
+                                      ck::utils::to_array({bias_device_buf.GetDeviceBuffer()}),
+                                      in_device_buf.GetDeviceBuffer(),
+                                      a_g_n_k_wos_lengths,
+                                      a_g_n_k_wos_strides,
+                                      b_g_k_c_xs_lengths,
+                                      b_g_k_c_xs_strides,
+                                      ck::utils::to_array({d0_g_n_c_wis_lengths}),
+                                      ck::utils::to_array({d0_g_n_c_wis_strides}),
+                                      e_g_n_c_wis_lengths,
+                                      e_g_n_c_wis_strides,
+                                      conv_filter_strides,
+                                      conv_filter_dilations,
+                                      input_left_pads,
+                                      input_right_pads,
+                                      out_element_op,
+                                      wei_element_op,
+                                      in_element_op);
 
     if(!conv.IsSupportedArgument(argument))
     {

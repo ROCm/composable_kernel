@@ -12,6 +12,7 @@
 #include "ck/tensor_operation/gpu/device/device_pool2d_fwd_nhwc_nhwc.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/utility/array.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -220,9 +221,9 @@ bool pool_test(bool do_verification,
         static_cast<IndexDataType*>(out_indices_device_buf.GetDeviceBuffer()),
         N,
         C,
-        std::array<ck::index_t, 2>{{Hi, Wi}},
-        std::array<ck::index_t, 2>{{Y, X}},
-        std::array<ck::index_t, 2>{{Ho, Wo}},
+        ck::utils::to_array({Hi, Wi}),
+        ck::utils::to_array({Y, X}),
+        ck::utils::to_array({Ho, Wo}),
         window_strides,
         input_left_pads,
         input_right_pads);

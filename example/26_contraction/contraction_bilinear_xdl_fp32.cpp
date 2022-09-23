@@ -11,6 +11,7 @@
 #include "ck/tensor_operation/gpu/device/device_contraction_multiple_d_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/utility/array.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -345,14 +346,14 @@ int main(int argc, char* argv[])
     auto invoker  = op.MakeInvoker();
     auto argument = op.MakeArgument(a_device_buf.GetDeviceBuffer(),
                                     b_device_buf.GetDeviceBuffer(),
-                                    std::array<const void*, 1>{d_device_buf.GetDeviceBuffer()},
+                                    ck::utils::to_array({d_device_buf.GetDeviceBuffer()}),
                                     e_device_buf.GetDeviceBuffer(),
                                     a_ms_ks_lengths,
                                     a_ms_ks_strides,
                                     b_ns_ks_lengths,
                                     b_ns_ks_strides,
-                                    std::array<std::vector<ck::index_t>, 1>{d_ms_ns_lengths},
-                                    std::array<std::vector<ck::index_t>, 1>{d_ms_ns_strides},
+                                    ck::utils::to_array({d_ms_ns_lengths}),
+                                    ck::utils::to_array({d_ms_ns_strides}),
                                     e_ms_ns_lengths,
                                     e_ms_ns_strides,
                                     a_element_op,

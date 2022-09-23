@@ -12,6 +12,7 @@
 
 #include "ck/library/tensor_operation_instance/gpu/gemm_add_add_fastgelu.hpp"
 
+#include "ck/library/utility/array.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -170,22 +171,22 @@ bool profile_gemm_add_add_fastgelu_impl(int do_verification,
     // profile device operation instances
     for(auto& op_ptr : op_ptrs)
     {
-        auto argument_ptr = op_ptr->MakeArgumentPointer(
-            a_device_buf.GetDeviceBuffer(),
-            b_device_buf.GetDeviceBuffer(),
-            std::array<const void*, 2>{d0_m_n_device_buf.GetDeviceBuffer(),
-                                       d1_m_n_device_buf.GetDeviceBuffer()},
-            e_device_buf.GetDeviceBuffer(),
-            M,
-            N,
-            K,
-            StrideA,
-            StrideB,
-            std::array<ck::index_t, 2>{StrideD0, StrideD1},
-            StrideE,
-            a_element_op,
-            b_element_op,
-            cde_element_op);
+        auto argument_ptr =
+            op_ptr->MakeArgumentPointer(a_device_buf.GetDeviceBuffer(),
+                                        b_device_buf.GetDeviceBuffer(),
+                                        ck::utils::to_array({d0_m_n_device_buf.GetDeviceBuffer(),
+                                                             d1_m_n_device_buf.GetDeviceBuffer()}),
+                                        e_device_buf.GetDeviceBuffer(),
+                                        M,
+                                        N,
+                                        K,
+                                        StrideA,
+                                        StrideB,
+                                        ck::utils::to_array({StrideD0, StrideD1}),
+                                        StrideE,
+                                        a_element_op,
+                                        b_element_op,
+                                        cde_element_op);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 

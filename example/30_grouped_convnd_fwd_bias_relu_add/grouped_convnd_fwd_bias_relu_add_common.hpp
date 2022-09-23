@@ -10,6 +10,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/utility/array.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -133,31 +134,30 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
     copy(conv_param.input_right_pads_, input_right_pads);
 
     // do Conv
-    auto conv    = DeviceConvNDFwdInstance{};
-    auto invoker = conv.MakeInvoker();
-    auto argument =
-        conv.MakeArgument(in_device_buf.GetDeviceBuffer(),
-                          wei_device_buf.GetDeviceBuffer(),
-                          std::array<const void*, 2>{bias_device_buf.GetDeviceBuffer(),
-                                                     residual_device_buf.GetDeviceBuffer()},
-                          out_device_buf.GetDeviceBuffer(),
-                          a_g_n_c_wis_lengths,
-                          a_g_n_c_wis_strides,
-                          b_g_k_c_xs_lengths,
-                          b_g_k_c_xs_strides,
-                          std::array<std::array<ck::index_t, NDimSpatial + 3>, 2>{
-                              {d0_g_n_k_wos_lengths, d1_g_n_k_wos_lengths}},
-                          std::array<std::array<ck::index_t, NDimSpatial + 3>, 2>{
-                              {d0_g_n_k_wos_strides, d1_g_n_k_wos_strides}},
-                          e_g_n_k_wos_lengths,
-                          e_g_n_k_wos_strides,
-                          conv_filter_strides,
-                          conv_filter_dilations,
-                          input_left_pads,
-                          input_right_pads,
-                          in_element_op,
-                          wei_element_op,
-                          out_element_op);
+    auto conv     = DeviceConvNDFwdInstance{};
+    auto invoker  = conv.MakeInvoker();
+    auto argument = conv.MakeArgument(in_device_buf.GetDeviceBuffer(),
+                                      wei_device_buf.GetDeviceBuffer(),
+                                      ck::utils::to_array({bias_device_buf.GetDeviceBuffer(),
+                                                           residual_device_buf.GetDeviceBuffer()}),
+                                      out_device_buf.GetDeviceBuffer(),
+                                      a_g_n_c_wis_lengths,
+                                      a_g_n_c_wis_strides,
+                                      b_g_k_c_xs_lengths,
+                                      b_g_k_c_xs_strides,
+                                      std::array<std::array<ck::index_t, NDimSpatial + 3>, 2>{
+                                          {d0_g_n_k_wos_lengths, d1_g_n_k_wos_lengths}},
+                                      std::array<std::array<ck::index_t, NDimSpatial + 3>, 2>{
+                                          {d0_g_n_k_wos_strides, d1_g_n_k_wos_strides}},
+                                      e_g_n_k_wos_lengths,
+                                      e_g_n_k_wos_strides,
+                                      conv_filter_strides,
+                                      conv_filter_dilations,
+                                      input_left_pads,
+                                      input_right_pads,
+                                      in_element_op,
+                                      wei_element_op,
+                                      out_element_op);
 
     if(!conv.IsSupportedArgument(argument))
     {

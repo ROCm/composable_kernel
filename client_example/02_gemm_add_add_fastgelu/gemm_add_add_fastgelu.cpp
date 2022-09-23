@@ -11,6 +11,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/gemm_add_add_fastgelu.hpp"
+#include "ck/library/utility/array.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -147,22 +148,22 @@ int main(int argc, char* argv[])
     {
         auto& op_ptr = op_ptrs[i];
 
-        auto argument_ptr = op_ptr->MakeArgumentPointer(
-            a_device_buf.GetDeviceBuffer(),
-            b_device_buf.GetDeviceBuffer(),
-            std::array<const void*, 2>{d0_m_n_device_buf.GetDeviceBuffer(),
-                                       d1_m_n_device_buf.GetDeviceBuffer()},
-            e_device_buf.GetDeviceBuffer(),
-            M,
-            N,
-            K,
-            StrideA,
-            StrideB,
-            std::array<ck::index_t, 2>{StrideD0, StrideD1},
-            StrideE,
-            a_element_op,
-            b_element_op,
-            cde_element_op);
+        auto argument_ptr =
+            op_ptr->MakeArgumentPointer(a_device_buf.GetDeviceBuffer(),
+                                        b_device_buf.GetDeviceBuffer(),
+                                        ck::utils::to_array({d0_m_n_device_buf.GetDeviceBuffer(),
+                                                             d1_m_n_device_buf.GetDeviceBuffer()}),
+                                        e_device_buf.GetDeviceBuffer(),
+                                        M,
+                                        N,
+                                        K,
+                                        StrideA,
+                                        StrideB,
+                                        ck::utils::to_array({StrideD0, StrideD1}),
+                                        StrideE,
+                                        a_element_op,
+                                        b_element_op,
+                                        cde_element_op);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
@@ -210,22 +211,22 @@ int main(int argc, char* argv[])
         std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
                   << std::endl;
 
-        auto argument_ptr = op_ptr->MakeArgumentPointer(
-            a_device_buf.GetDeviceBuffer(),
-            b_device_buf.GetDeviceBuffer(),
-            std::array<const void*, 2>{d0_m_n_device_buf.GetDeviceBuffer(),
-                                       d1_m_n_device_buf.GetDeviceBuffer()},
-            e_device_buf.GetDeviceBuffer(),
-            M,
-            N,
-            K,
-            StrideA,
-            StrideB,
-            std::array<ck::index_t, 2>{StrideD0, StrideD1},
-            StrideE,
-            a_element_op,
-            b_element_op,
-            cde_element_op);
+        auto argument_ptr =
+            op_ptr->MakeArgumentPointer(a_device_buf.GetDeviceBuffer(),
+                                        b_device_buf.GetDeviceBuffer(),
+                                        ck::utils::to_array({d0_m_n_device_buf.GetDeviceBuffer(),
+                                                             d1_m_n_device_buf.GetDeviceBuffer()}),
+                                        e_device_buf.GetDeviceBuffer(),
+                                        M,
+                                        N,
+                                        K,
+                                        StrideA,
+                                        StrideB,
+                                        ck::utils::to_array({StrideD0, StrideD1}),
+                                        StrideE,
+                                        a_element_op,
+                                        b_element_op,
+                                        cde_element_op);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 

@@ -10,6 +10,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/library/tensor_operation_instance/gpu/batched_gemm_add_relu_gemm_add.hpp"
 
+#include "ck/library/utility/array.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -269,9 +270,9 @@ bool profile_batched_gemm_add_relu_gemm_add_impl(bool do_verification,
         auto argument_ptr = op_ptr->MakeArgumentPointer(
             static_cast<A0DataType*>(a0_g_m_k_device_buf.GetDeviceBuffer()),
             static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
-            std::array<const void*, 1>{d0_g_m_n_device_buf.GetDeviceBuffer()},
+            ck::utils::to_array({d0_g_m_n_device_buf.GetDeviceBuffer()}),
             static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
-            std::array<const void*, 1>{d1_g_m_o_device_buf.GetDeviceBuffer()},
+            ck::utils::to_array({d1_g_m_o_device_buf.GetDeviceBuffer()}),
             static_cast<E1DataType*>(e1_g_m_o_device_buf.GetDeviceBuffer()),
             M,
             N,
@@ -280,15 +281,15 @@ bool profile_batched_gemm_add_relu_gemm_add_impl(bool do_verification,
             BatchCount,
             StrideA0,
             StrideB0,
-            std::array<ck::index_t, 1>{StrideD0},
+            ck::utils::to_array({StrideD0}),
             StrideB1,
-            std::array<ck::index_t, 1>{StrideD1},
+            ck::utils::to_array({StrideD1}),
             StrideE1,
             BatchStrideA0,
             BatchStrideB0,
-            std::array<ck::index_t, 1>{BatchStrideD0},
+            ck::utils::to_array({BatchStrideD0}),
             BatchStrideB1,
-            std::array<ck::index_t, 1>{BatchStrideD1},
+            ck::utils::to_array({BatchStrideD1}),
             BatchStrideE1,
             a0_element_op,
             b0_element_op,

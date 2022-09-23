@@ -15,6 +15,7 @@ Computes C_m_o = Relu(A0[m, k] * B0[n, k] + D00[m, n] + D01[mn]) * B1[n, o] + D1
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_multiple_d_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 
+#include "ck/library/utility/array.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -409,10 +410,10 @@ int main(int argc, char* argv[])
     auto argument =
         gemm.MakeArgument(static_cast<A0DataType*>(a0_g_m_k_device_buf.GetDeviceBuffer()),
                           static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
-                          std::array<const void*, 2>{d00_g_m_n_device_buf.GetDeviceBuffer(),
-                                                     d01_g_m_n_device_buf.GetDeviceBuffer()},
+                          ck::utils::to_array({d00_g_m_n_device_buf.GetDeviceBuffer(),
+                                               d01_g_m_n_device_buf.GetDeviceBuffer()}),
                           static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
-                          std::array<const void*, 1>{d1_g_m_o_device_buf.GetDeviceBuffer()},
+                          ck::utils::to_array({d1_g_m_o_device_buf.GetDeviceBuffer()}),
                           static_cast<E1DataType*>(e1_g_m_o_device_buf.GetDeviceBuffer()),
                           M,
                           N,
@@ -421,15 +422,15 @@ int main(int argc, char* argv[])
                           BatchCount,
                           StrideA0,
                           StrideB0,
-                          std::array<ck::index_t, 2>{StrideD00, StrideD01},
+                          ck::utils::to_array({StrideD00, StrideD01}),
                           StrideB1,
-                          std::array<ck::index_t, 1>{StrideD1},
+                          ck::utils::to_array({StrideD1}),
                           StrideE1,
                           BatchStrideA0,
                           BatchStrideB0,
-                          std::array<ck::index_t, 2>{BatchStrideD00, BatchStrideD01},
+                          ck::utils::to_array({BatchStrideD00, BatchStrideD01}),
                           BatchStrideB1,
-                          std::array<ck::index_t, 1>{BatchStrideD1},
+                          ck::utils::to_array({BatchStrideD1}),
                           BatchStrideE1,
                           a0_element_op,
                           b0_element_op,

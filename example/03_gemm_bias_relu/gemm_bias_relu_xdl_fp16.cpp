@@ -12,6 +12,7 @@
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/utility/array.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
@@ -210,21 +211,20 @@ int main(int argc, char* argv[])
 
     auto invoker = device_op.MakeInvoker();
 
-    auto argument =
-        device_op.MakeArgument(a_device_buf.GetDeviceBuffer(),
-                               b_device_buf.GetDeviceBuffer(),
-                               std::array<const void*, 1>{d_device_buf.GetDeviceBuffer()},
-                               e_device_buf.GetDeviceBuffer(),
-                               M,
-                               N,
-                               K,
-                               StrideA,
-                               StrideB,
-                               std::array<ck::index_t, 1>{0},
-                               StrideE,
-                               a_element_op,
-                               b_element_op,
-                               cde_element_op);
+    auto argument = device_op.MakeArgument(a_device_buf.GetDeviceBuffer(),
+                                           b_device_buf.GetDeviceBuffer(),
+                                           ck::utils::to_array({d_device_buf.GetDeviceBuffer()}),
+                                           e_device_buf.GetDeviceBuffer(),
+                                           M,
+                                           N,
+                                           K,
+                                           StrideA,
+                                           StrideB,
+                                           ck::utils::to_array({0}),
+                                           StrideE,
+                                           a_element_op,
+                                           b_element_op,
+                                           cde_element_op);
 
     if(!device_op.IsSupportedArgument(argument))
     {
