@@ -98,7 +98,8 @@ __global__ void
         arg_ptr[group_id].b_grid_desc_bk0_n_bk1_,
         arg_ptr[group_id].b1_grid_desc_bk0_n_bk1_,
         arg_ptr[group_id].c_grid_desc_mblock_mperblock_nblock_nperblock_,
-        arg_ptr[group_id].block_2_ctile_map_);
+        arg_ptr[group_id].block_2_ctile_map_,
+        arg_ptr[group_id].c0_matrix_mask_);
 #else
     ignore = group_kernel_args;
     ignore = group_count;
@@ -169,6 +170,7 @@ template <typename ALayout,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
+          bool MaskOutUpperTriangle,
           LoopScheduler LoopSched = LoopScheduler::Default>
 struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
     : public DeviceGroupedGemmSoftmaxGemmPermute<ALayout,
@@ -208,9 +210,6 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
     static constexpr auto matrix_padder =
         GemmGemmPadder<GemmSpec, index_t, index_t, index_t, index_t>{
             MPerBlock, NPerBlock, KPerBlock, Gemm1NPerBlock};
-
-    // FIXME: pad K
-    static_assert(!matrix_padder.PadK, "KPadding is currently not supported");
 
     static auto MakeAGridDescriptor_AK0_M_AK1(index_t MRaw, index_t KRaw, index_t StrideA)
     {
@@ -413,6 +412,29 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
     using CGridDesc_M_N        = decltype(MakeCGridDescriptor_M_N({}, {}));
     using CGridDesc_G_M_N      = decltype(MakeCGridDescriptor_G_M_N({}, {}));
 
+    // to track the points which need to be set to -inf on C0
+    // Note: no need to reset M padding value, because they will not be stored out.
+    struct C0MatrixMask
+    {
+        C0MatrixMask(index_t NRaw) : NRaw_(NRaw) {}
+
+        __host__ __device__ bool IsUpperTriangle(index_t m, index_t n) const { return n > m; }
+
+        __host__ __device__ bool IsNOutOfBound(/*index_t m, */ index_t n) const
+        {
+            return n >= NRaw_;
+        }
+
+        __host__ __device__ bool IsMaskedElement(index_t m, index_t n) const
+        {
+            return IsUpperTriangle(m, n) || IsNOutOfBound(n);
+        }
+
+        private:
+        // index_t MRaw_;
+        index_t NRaw_;
+    };
+
     struct ComputeBasePtrOfStridedBatch
     {
         ComputeBasePtrOfStridedBatch(index_t BatchStrideA,
@@ -513,7 +535,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched,
-        matrix_padder.PadN>;
+        matrix_padder.PadN,
+        MaskOutUpperTriangle>;
 
     using Block2CTileMap = OffsettedBlockToCTileMap<typename GridwiseGemm::DefaultBlock2CTileMap>;
 
@@ -535,6 +558,9 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
         // batch & stride
         index_t num_blocks_per_batch_;
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
+
+        // check C0 masking and padding
+        C0MatrixMask c0_matrix_mask_;
 
         // block-to-c-tile map
         Block2CTileMap block_2_ctile_map_;
@@ -623,6 +649,9 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                                  problem_desc_vec[i].BatchStrideB1,
                                                  c_grid_desc_g_m_n);
 
+                // C0 mask
+                const auto c0_matrix_mask = C0MatrixMask(problem_desc_vec[i].N);
+
                 grid_size_ += grid_size_grp;
 
                 group_kernel_args_.push_back({p_a_grid,
@@ -635,6 +664,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                               c_grid_desc_mblock_mperblock_nblock_nperblock,
                                               block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n),
                                               compute_base_ptr_of_batch,
+                                              c0_matrix_mask,
                                               block_2_ctile_map,
                                               BlockStart,
                                               BlockEnd});

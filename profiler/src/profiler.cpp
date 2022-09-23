@@ -22,6 +22,7 @@ int profile_conv_bwd_weight(int, char*[]);
 int profile_grouped_conv_fwd(int, char*[]);
 int profile_normalization(int, char*[]);
 int profile_layernorm(int, char*[]);
+int profile_groupnorm(int, char*[]);
 int profile_reduce(int, char*[]);
 
 static void print_helper_message()
@@ -135,6 +136,10 @@ int main(int argc, char* argv[])
     else if(strcmp(argv[1], "layernorm") == 0)
     {
         return profile_layernorm(argc, argv);
+    }
+    else if(strcmp(argv[1], "groupnorm") == 0)
+    {
+        return profile_groupnorm(argc, argv);
     }
     else
     {

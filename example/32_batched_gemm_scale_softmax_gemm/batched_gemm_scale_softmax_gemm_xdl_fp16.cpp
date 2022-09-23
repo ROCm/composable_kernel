@@ -55,7 +55,7 @@ using Acc0ElementOp = ck::tensor_operation::element_wise::Scale;
 using B1ElementOp   = PassThrough;
 using CElementOp    = PassThrough;
 
-static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNPadding;
+static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
 
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle<
     ALayout,
@@ -113,7 +113,8 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmSoftma
     1,              // CShuffleMXdlPerWavePerShuffle
     2,              // CShuffleNXdlPerWavePerShuffle
     S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-    8>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
+    8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+    false>;
 
 // Ref Gemm0: fp16 in, fp32 out
 using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
