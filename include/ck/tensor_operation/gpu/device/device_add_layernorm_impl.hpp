@@ -17,8 +17,8 @@
 // Y = layernorm( A + B, Beta, Gamma )
 namespace ck {
 template <typename GridwiseaddReduction,
-          typename ADataType,                 // Datatype of input A & B
-          typename BDataType,                 // Datatype of input A & B
+          typename ADataType,                 // Datatype of input A 
+          typename BDataType,                 // Datatype of input B
           typename CDataType,                 // Datatype of A + B
           typename GammaDataType,             // Datatype of Gamma
           typename BetaDataType,              // Datatype of Beta
@@ -35,29 +35,29 @@ __global__ void kernel_add_layernorm(const GridDesc_M_K a_grid_desc_m_k,        
                                      const GridDesc_M_K y_grid_desc_m_k,                     //Descriptor of Y
                                      index_t num_k_block_tile_iteration,                     //arg.numBlockTileIteration_
                                      AccDataType epsilon,                                    //Datatype of epsilon
-                                     const ADataType* const __restrict__ p_a_global,         //Ptr of A m*k
-                                     const BDataType* const __restrict__ p_b_global,         //Ptr of B m*k
-                                     CDataType* const __restrict__ p_c_global,         //Ptr of C m*k
-                                     const GammaDataType* const __restrict__ p_gamma_global, // Ptr of gamma k
-                                     const BetaDataType* const __restrict__ p_beta_global,   // Ptr of beta  k
-                                     YDataType* const __restrict__ p_y_global,               // Ptr of y  m*k
+                                     const ADataType* const __restrict__ p_a_global,         //Ptr of A 
+                                     const BDataType* const __restrict__ p_b_global,         //Ptr of B 
+                                     CDataType* const __restrict__ p_c_global,               //Ptr of C 
+                                     const GammaDataType* const __restrict__ p_gamma_global, // Ptr of gamma 
+                                     const BetaDataType* const __restrict__ p_beta_global,   // Ptr of beta  
+                                     YDataType* const __restrict__ p_y_global,               // Ptr of y  
                                      const ElementwiseOperation elementwise_op,              // Operation Add
                                      const AccElementwiseOperation acc_elementwise_op)       // Operation Passthrough 
 {
-    GridwiseaddReduction::Run(a_grid_desc_m_k,   //Descriptor of A m * k
-                              b_grid_desc_m_k,   //Descriptor of B m * k
-                              gamma_grid_desc_k, //Descriptor of Gamma k
-                              beta_grid_desc_k,  //Descriptor of Beta  k
-                              y_grid_desc_m_k,   //Descriptor of Y m * k
+    GridwiseaddReduction::Run(a_grid_desc_m_k,   //Descriptor of A 
+                              b_grid_desc_m_k,   //Descriptor of B 
+                              gamma_grid_desc_k, //Descriptor of Gamma 
+                              beta_grid_desc_k,  //Descriptor of Beta 
+                              y_grid_desc_m_k,   //Descriptor of Y
                               num_k_block_tile_iteration, //arg.numBlockTileIteration_
-                              epsilon,           //
-                              p_a_global,        //Ptr of A m * k
-                              p_b_global,        //Ptr of B m * k
-                              p_c_global,        //Ptr of C m * k
-                              p_gamma_global,    //Ptr of gamma k
-                              p_beta_global,     //Ptr of beta  k
-                              p_y_global,        //Ptr of Y m * k
-                              elementwise_op,     //
+                              epsilon,             //
+                              p_a_global,          //Ptr of A 
+                              p_b_global,          //Ptr of B 
+                              p_c_global,          //Ptr of C 
+                              p_gamma_global,      //Ptr of gamma
+                              p_beta_global,       //Ptr of beta 
+                              p_y_global,          //Ptr of Y 
+                              elementwise_op,      //
                               acc_elementwise_op); //
 };
 } // namespace ck
@@ -214,28 +214,28 @@ struct DeviceAddLayernormImpl : public DeviceAddLayernorm<ADataType,
     using GridDesc_K   = decltype(MakeAffine1dDescriptor({1}, {1}, 1, 1));
 
     using GridwiseReduceLayernormGeneric =
-        GridwiseAddLayernormWelfordVariance_mk_to_mk<ADataType,               //FP16  Datatype of input A
-                                                     BDataType,               //FP16  Datatype of input B
-                                                     CDataType,               //FP16  Datatype of A + B = C
-                                                     GammaDataType,           //FP16
-                                                     BetaDataType,            //FP16
-                                                     YDataType,               //FP16
-                                                     AccDataType,             //FP32
-                                                     ElementwiseOperation,    //Add
-                                                     AccElementwiseOperation, //Passthrough
-                                                     GridDesc_M_K,            // 
-                                                     GridDesc_K,              //
-                                                     BlockSize,               //256
-                                                     MThreadClusterSize,      //8 
-                                                     KThreadClusterSize,      //64 64 * 8 = 256
-                                                     MThreadSliceSize,        //1
-                                                     KThreadSliceSize,        //8
-                                                     XYSrcVectorDim,          //1
-                                                     XSrcVectorSize,          //8
-                                                     GammaSrcVectorSize,      //8
-                                                     BetaSrcVectorSize,       //8
-                                                     XYSrcVectorDim,          //1
-                                                     YDstVectorSize,          //8
+        GridwiseAddLayernormWelfordVariance_mk_to_mk<ADataType,               
+                                                     BDataType,                   
+                                                     CDataType,                
+                                                     GammaDataType,           
+                                                     BetaDataType,            
+                                                     YDataType,               
+                                                     AccDataType,             
+                                                     ElementwiseOperation,    
+                                                     AccElementwiseOperation, 
+                                                     GridDesc_M_K,             
+                                                     GridDesc_K,              
+                                                     BlockSize,               
+                                                     MThreadClusterSize,       
+                                                     KThreadClusterSize,      
+                                                     MThreadSliceSize,        
+                                                     KThreadSliceSize,        
+                                                     XYSrcVectorDim,          
+                                                     XSrcVectorSize,          
+                                                     GammaSrcVectorSize,      
+                                                     BetaSrcVectorSize,       
+                                                     XYSrcVectorDim,          
+                                                     YDstVectorSize,          
                                                      false>;
 
     using GridwiseReduceLayernormSweepOnce =
@@ -265,13 +265,13 @@ struct DeviceAddLayernormImpl : public DeviceAddLayernorm<ADataType,
 
     struct Argument : public BaseArgument
     {
-        Argument(const std::vector<index_t> lengths,     // { M , N }
-                 const std::vector<index_t> aStrides,    // { N , 1 }
-                 const std::vector<index_t> bStrides,    // { N , 1 }
-                 const std::vector<index_t> gammaStrides,// { 1 }
-                 const std::vector<index_t> betaStrides, // { 1 }
-                 const std::vector<index_t> yStrides,    // { N , 1 }
-                 const std::vector<index_t> reduceDims,  // { 1 }
+        Argument(const std::vector<index_t> lengths,     
+                 const std::vector<index_t> aStrides,    
+                 const std::vector<index_t> bStrides,    
+                 const std::vector<index_t> gammaStrides,
+                 const std::vector<index_t> betaStrides, 
+                 const std::vector<index_t> yStrides,    
+                 const std::vector<index_t> reduceDims,  
                  ElementwiseOperation    elementwise_op,
                  AccElementwiseOperation acc_elementwise_op,
                  AccDataType epsilon,
