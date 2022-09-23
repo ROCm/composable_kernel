@@ -306,8 +306,8 @@ int mean_meansquare_dual_reduce_test(size_t n,
     {
         mean_dev.FromDevice(mean.mData.data());
         meansquare_dev.FromDevice(meansquare.mData.data());
-        pass = pass && ck::utils::check_err(mean.mData, mean_ref.mData);
-        pass = pass && ck::utils::check_err(meansquare.mData, meansquare_ref.mData);
+        pass = pass && ck::utils::check_err(mean, mean_ref);
+        pass = pass && ck::utils::check_err(meansquare, meansquare_ref);
     };
 
     return (pass ? 0 : 1);

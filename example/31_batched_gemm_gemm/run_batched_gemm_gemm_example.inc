@@ -270,7 +270,7 @@ bool run_batched_gemm_gemm_example(int argc, char* argv[])
         c_g_m_o_device_buf.FromDevice(c_g_m_o_device_result.mData.data());
 #endif
 
-        return ck::utils::check_err(c_g_m_o_device_result.mData, c_g_m_o_host_result.mData);
+        return ck::utils::check_err(c_g_m_o_device_result, c_g_m_o_host_result);
     }
 
     return true;

@@ -187,8 +187,7 @@ int profile_gemm_impl(int do_verification,
             {
                 c_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-                pass =
-                    pass & ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
+                pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
 
                 if(do_log)
                 {

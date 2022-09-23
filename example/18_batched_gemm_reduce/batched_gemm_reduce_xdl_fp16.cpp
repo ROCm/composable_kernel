@@ -296,16 +296,15 @@ int main(int argc, char* argv[])
             }
         }
 
-        pass = ck::utils::check_err(c_g_m_n_host_result.mData,
-                                    c_g_m_n_device_result.mData,
-                                    "Error: Incorrect results c") &&
-               ck::utils::check_err(d0_g_m_device_result.mData,
-                                    d0_g_m_host_result.mData,
+        pass = ck::utils::check_err(
+                   c_g_m_n_host_result, c_g_m_n_device_result, "Error: Incorrect results c") &&
+               ck::utils::check_err(d0_g_m_device_result,
+                                    d0_g_m_host_result,
                                     "Error: Incorrect results! D0",
                                     1e-4,
                                     1e-5) &&
-               ck::utils::check_err(d1_g_m_device_result.mData,
-                                    d1_g_m_host_result.mData,
+               ck::utils::check_err(d1_g_m_device_result,
+                                    d1_g_m_host_result,
                                     "Error: Incorrect results! D1",
                                     1e-3,
                                     1e-5);

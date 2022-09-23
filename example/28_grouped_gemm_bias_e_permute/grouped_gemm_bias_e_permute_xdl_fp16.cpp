@@ -475,7 +475,7 @@ int main(int argc, char* argv[])
                 }
             }
 
-            pass &= ck::utils::check_err(e_device_tensors[i].mData, e_ms_ns_host_result.mData);
+            pass &= ck::utils::check_err(e_device_tensors[i], e_ms_ns_host_result);
         }
     }
 

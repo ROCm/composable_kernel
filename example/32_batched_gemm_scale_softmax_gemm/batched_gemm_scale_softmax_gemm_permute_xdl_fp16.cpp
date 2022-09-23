@@ -390,9 +390,7 @@ int main(int argc, char* argv[])
             self(idx) = c_g_m_o_host_result(g, idx[2], idx[3]);
         });
 
-        return ck::utils::check_err(c_gs_ms_os_device_result.mData, c_gs_ms_os_host_result.mData)
-                   ? 0
-                   : 1;
+        return ck::utils::check_err(c_gs_ms_os_device_result, c_gs_ms_os_host_result) ? 0 : 1;
     }
 
     return 0;

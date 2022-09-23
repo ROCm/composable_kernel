@@ -330,8 +330,7 @@ bool profile_batched_gemm_add_relu_gemm_add_impl(bool do_verification,
             {
                 e1_g_m_o_device_buf.FromDevice(e1_g_m_o_device_result.mData.data());
 
-                pass = pass & ck::utils::check_err(e1_g_m_o_device_result.mData,
-                                                   e1_g_m_o_host_result.mData);
+                pass = pass & ck::utils::check_err(e1_g_m_o_device_result, e1_g_m_o_host_result);
 
                 if(do_log)
                 {

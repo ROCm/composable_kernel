@@ -174,11 +174,11 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
 #ifdef BUILD_INT4_EXAMPLE
         const Tensor<EDataType> e_device_result_converted(e_g_m_n_device_result);
-        pass &= ck::utils::check_err(e_device_result_converted.mData, e_g_m_n_host_result.mData);
+        pass &= ck::utils::check_err(e_device_result_converted, e_g_m_n_host_result);
 
 #else
         pass = ck::utils::check_err(
-            e_g_m_n_device_result.mData, e_g_m_n_host_result.mData, "Error: Incorrect results c");
+            e_g_m_n_device_result, e_g_m_n_host_result, "Error: Incorrect results c");
 #endif
     }
 

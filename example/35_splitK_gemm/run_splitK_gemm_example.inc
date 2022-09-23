@@ -146,15 +146,12 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
 
         if(std::is_same<CDataType, ck::half_t>::value)
         {
-            pass &= ck::utils::check_err(c_m_n_device_result.mData,
-                                         c_m_n_host_result.mData,
-                                         "fp16 incorrect result",
-                                         3e-3,
-                                         1e-3);
+            pass &= ck::utils::check_err(
+                c_m_n_device_result, c_m_n_host_result, "fp16 incorrect result", 3e-3, 1e-3);
         }
         else
         {
-            pass &= ck::utils::check_err(c_m_n_device_result.mData, c_m_n_host_result.mData);
+            pass &= ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
         }
     }
 

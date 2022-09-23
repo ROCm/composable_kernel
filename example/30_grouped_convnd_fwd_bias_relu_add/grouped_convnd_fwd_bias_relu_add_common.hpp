@@ -215,16 +215,12 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
         const Tensor<OutUserDataType> out_device_converted(out_device);
 
-        return ck::utils::check_err(out_device_converted.mData,
-                                    out_host.mData,
-                                    "Error: incorrect results!",
-                                    1e-5f,
-                                    1e-4f)
+        return ck::utils::check_err(
+                   out_device_converted, out_host, "Error: incorrect results!", 1e-5f, 1e-4f)
                    ? 0
                    : 1;
 #else  // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-        return ck::utils::check_err(
-                   out_device.mData, out_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f)
+        return ck::utils::check_err(out_device, out_host, "Error: incorrect results!", 1e-5f, 1e-4f)
                    ? 0
                    : 1;
 #endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
