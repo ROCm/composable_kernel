@@ -213,6 +213,8 @@ bool pool_test(bool do_verification,
 
     in_device_buf.ToDevice(in_n_c_hi_wi.mData.data());
 
+    using ck::utils::to_array;
+
     auto pool         = DevicePoolFwdInstance{};
     auto invoker_ptr  = pool.MakeInvokerPointer();
     auto argument_ptr = pool.MakeArgumentPointer(
@@ -221,9 +223,9 @@ bool pool_test(bool do_verification,
         static_cast<IndexDataType*>(out_indices_device_buf.GetDeviceBuffer()),
         N,
         C,
-        ck::utils::to_array({Hi, Wi}),
-        ck::utils::to_array({Y, X}),
-        ck::utils::to_array({Ho, Wo}),
+        to_array({Hi, Wi}),
+        to_array({Y, X}),
+        to_array({Ho, Wo}),
         window_strides,
         input_left_pads,
         input_right_pads);

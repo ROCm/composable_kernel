@@ -23,6 +23,8 @@ bool run_permute_element(const Problem& problem)
 
     static_assert(std::is_default_constructible_v<DevicePermuteInstance>);
 
+    using ck::utils::to_array;
+
     auto permute  = DevicePermuteInstance{};
     auto argument = permute.MakeArgument(to_array(input_shape),
                                          to_array(input_tensor.GetStrides()),

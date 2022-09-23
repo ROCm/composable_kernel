@@ -404,39 +404,40 @@ int main(int argc, char* argv[])
     auto b1_element_op   = B1ElementOp{};
     auto cde1_element_op = CDE1ElementOp{};
 
+    using ck::utils::to_array;
+
     // do GEMM
-    auto gemm    = DeviceGemmInstance{};
-    auto invoker = gemm.MakeInvoker();
-    auto argument =
-        gemm.MakeArgument(static_cast<A0DataType*>(a0_g_m_k_device_buf.GetDeviceBuffer()),
-                          static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
-                          ck::utils::to_array({d00_g_m_n_device_buf.GetDeviceBuffer(),
-                                               d01_g_m_n_device_buf.GetDeviceBuffer()}),
-                          static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
-                          ck::utils::to_array({d1_g_m_o_device_buf.GetDeviceBuffer()}),
-                          static_cast<E1DataType*>(e1_g_m_o_device_buf.GetDeviceBuffer()),
-                          M,
-                          N,
-                          K,
-                          O,
-                          BatchCount,
-                          StrideA0,
-                          StrideB0,
-                          ck::utils::to_array({StrideD00, StrideD01}),
-                          StrideB1,
-                          ck::utils::to_array({StrideD1}),
-                          StrideE1,
-                          BatchStrideA0,
-                          BatchStrideB0,
-                          ck::utils::to_array({BatchStrideD00, BatchStrideD01}),
-                          BatchStrideB1,
-                          ck::utils::to_array({BatchStrideD1}),
-                          BatchStrideE1,
-                          a0_element_op,
-                          b0_element_op,
-                          cde0_element_op,
-                          b1_element_op,
-                          cde1_element_op);
+    auto gemm     = DeviceGemmInstance{};
+    auto invoker  = gemm.MakeInvoker();
+    auto argument = gemm.MakeArgument(
+        static_cast<A0DataType*>(a0_g_m_k_device_buf.GetDeviceBuffer()),
+        static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
+        to_array({d00_g_m_n_device_buf.GetDeviceBuffer(), d01_g_m_n_device_buf.GetDeviceBuffer()}),
+        static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
+        to_array({d1_g_m_o_device_buf.GetDeviceBuffer()}),
+        static_cast<E1DataType*>(e1_g_m_o_device_buf.GetDeviceBuffer()),
+        M,
+        N,
+        K,
+        O,
+        BatchCount,
+        StrideA0,
+        StrideB0,
+        to_array({StrideD00, StrideD01}),
+        StrideB1,
+        to_array({StrideD1}),
+        StrideE1,
+        BatchStrideA0,
+        BatchStrideB0,
+        to_array({BatchStrideD00, BatchStrideD01}),
+        BatchStrideB1,
+        to_array({BatchStrideD1}),
+        BatchStrideE1,
+        a0_element_op,
+        b0_element_op,
+        cde0_element_op,
+        b1_element_op,
+        cde1_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {

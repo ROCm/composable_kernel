@@ -113,19 +113,21 @@ int run_conv_bwd_data_bias_relu(bool do_verification,
     copy(conv_param.input_left_pads_, input_left_pads);
     copy(conv_param.input_right_pads_, input_right_pads);
 
+    using ck::utils::to_array;
+
     // do conv
     auto conv     = DeviceInstance{};
     auto invoker  = conv.MakeInvoker();
     auto argument = conv.MakeArgument(out_device_buf.GetDeviceBuffer(),
                                       wei_device_buf.GetDeviceBuffer(),
-                                      ck::utils::to_array({bias_device_buf.GetDeviceBuffer()}),
+                                      to_array({bias_device_buf.GetDeviceBuffer()}),
                                       in_device_buf.GetDeviceBuffer(),
                                       a_g_n_k_wos_lengths,
                                       a_g_n_k_wos_strides,
                                       b_g_k_c_xs_lengths,
                                       b_g_k_c_xs_strides,
-                                      ck::utils::to_array({d0_g_n_c_wis_lengths}),
-                                      ck::utils::to_array({d0_g_n_c_wis_strides}),
+                                      to_array({d0_g_n_c_wis_lengths}),
+                                      to_array({d0_g_n_c_wis_strides}),
                                       e_g_n_c_wis_lengths,
                                       e_g_n_c_wis_strides,
                                       conv_filter_strides,

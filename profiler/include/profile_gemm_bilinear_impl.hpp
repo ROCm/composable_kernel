@@ -164,17 +164,19 @@ bool profile_gemm_bilinear_impl(int do_verification,
     // profile device operation instances
     for(auto& op_ptr : op_ptrs)
     {
+        using ck::utils::to_array;
+
         auto argument_ptr =
             op_ptr->MakeArgumentPointer(a_device_buf.GetDeviceBuffer(),
                                         b_device_buf.GetDeviceBuffer(),
-                                        ck::utils::to_array({d_m_n_device_buf.GetDeviceBuffer()}),
+                                        to_array({d_m_n_device_buf.GetDeviceBuffer()}),
                                         e_device_buf.GetDeviceBuffer(),
                                         M,
                                         N,
                                         K,
                                         StrideA,
                                         StrideB,
-                                        ck::utils::to_array({StrideD}),
+                                        to_array({StrideD}),
                                         StrideE,
                                         a_element_op,
                                         b_element_op,

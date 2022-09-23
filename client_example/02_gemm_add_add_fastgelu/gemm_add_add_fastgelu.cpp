@@ -148,22 +148,23 @@ int main(int argc, char* argv[])
     {
         auto& op_ptr = op_ptrs[i];
 
-        auto argument_ptr =
-            op_ptr->MakeArgumentPointer(a_device_buf.GetDeviceBuffer(),
-                                        b_device_buf.GetDeviceBuffer(),
-                                        ck::utils::to_array({d0_m_n_device_buf.GetDeviceBuffer(),
-                                                             d1_m_n_device_buf.GetDeviceBuffer()}),
-                                        e_device_buf.GetDeviceBuffer(),
-                                        M,
-                                        N,
-                                        K,
-                                        StrideA,
-                                        StrideB,
-                                        ck::utils::to_array({StrideD0, StrideD1}),
-                                        StrideE,
-                                        a_element_op,
-                                        b_element_op,
-                                        cde_element_op);
+        using ck::utils::to_array;
+
+        auto argument_ptr = op_ptr->MakeArgumentPointer(
+            a_device_buf.GetDeviceBuffer(),
+            b_device_buf.GetDeviceBuffer(),
+            to_array({d0_m_n_device_buf.GetDeviceBuffer(), d1_m_n_device_buf.GetDeviceBuffer()}),
+            e_device_buf.GetDeviceBuffer(),
+            M,
+            N,
+            K,
+            StrideA,
+            StrideB,
+            to_array({StrideD0, StrideD1}),
+            StrideE,
+            a_element_op,
+            b_element_op,
+            cde_element_op);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
@@ -211,22 +212,23 @@ int main(int argc, char* argv[])
         std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
                   << std::endl;
 
-        auto argument_ptr =
-            op_ptr->MakeArgumentPointer(a_device_buf.GetDeviceBuffer(),
-                                        b_device_buf.GetDeviceBuffer(),
-                                        ck::utils::to_array({d0_m_n_device_buf.GetDeviceBuffer(),
-                                                             d1_m_n_device_buf.GetDeviceBuffer()}),
-                                        e_device_buf.GetDeviceBuffer(),
-                                        M,
-                                        N,
-                                        K,
-                                        StrideA,
-                                        StrideB,
-                                        ck::utils::to_array({StrideD0, StrideD1}),
-                                        StrideE,
-                                        a_element_op,
-                                        b_element_op,
-                                        cde_element_op);
+        using ck::utils::to_array;
+
+        auto argument_ptr = op_ptr->MakeArgumentPointer(
+            a_device_buf.GetDeviceBuffer(),
+            b_device_buf.GetDeviceBuffer(),
+            to_array({d0_m_n_device_buf.GetDeviceBuffer(), d1_m_n_device_buf.GetDeviceBuffer()}),
+            e_device_buf.GetDeviceBuffer(),
+            M,
+            N,
+            K,
+            StrideA,
+            StrideB,
+            to_array({StrideD0, StrideD1}),
+            StrideE,
+            a_element_op,
+            b_element_op,
+            cde_element_op);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 

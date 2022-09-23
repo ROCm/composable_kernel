@@ -206,21 +206,21 @@ int main(int argc, char* argv[])
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{};
 
+    using ck::utils::to_array;
+
     // do GEMM
     auto device_op = DeviceOpInstance{};
-
-    auto invoker = device_op.MakeInvoker();
-
-    auto argument = device_op.MakeArgument(a_device_buf.GetDeviceBuffer(),
+    auto invoker   = device_op.MakeInvoker();
+    auto argument  = device_op.MakeArgument(a_device_buf.GetDeviceBuffer(),
                                            b_device_buf.GetDeviceBuffer(),
-                                           ck::utils::to_array({d_device_buf.GetDeviceBuffer()}),
+                                           to_array({d_device_buf.GetDeviceBuffer()}),
                                            e_device_buf.GetDeviceBuffer(),
                                            M,
                                            N,
                                            K,
                                            StrideA,
                                            StrideB,
-                                           ck::utils::to_array({0}),
+                                           to_array({0}),
                                            StrideE,
                                            a_element_op,
                                            b_element_op,

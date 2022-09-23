@@ -168,22 +168,23 @@ int main(int argc, char* argv[])
     {
         auto& op_ptr = op_ptrs[i];
 
-        auto argument_ptr =
-            op_ptr->MakeArgumentPointer(a_device_buf.GetDeviceBuffer(),
-                                        b_device_buf.GetDeviceBuffer(),
-                                        ck::utils::to_array({d_device_buf.GetDeviceBuffer()}),
-                                        e_device_buf.GetDeviceBuffer(),
-                                        a_ms_ks_lengths,
-                                        a_ms_ks_strides,
-                                        b_ns_ks_lengths,
-                                        b_ns_ks_strides,
-                                        ck::utils::to_array({d_ms_ns_lengths}),
-                                        ck::utils::to_array({d_ms_ns_strides}),
-                                        e_ms_ns_lengths,
-                                        e_ms_ns_strides,
-                                        a_element_op,
-                                        b_element_op,
-                                        cde_element_op);
+        using ck::utils::to_array;
+
+        auto argument_ptr = op_ptr->MakeArgumentPointer(a_device_buf.GetDeviceBuffer(),
+                                                        b_device_buf.GetDeviceBuffer(),
+                                                        to_array({d_device_buf.GetDeviceBuffer()}),
+                                                        e_device_buf.GetDeviceBuffer(),
+                                                        a_ms_ks_lengths,
+                                                        a_ms_ks_strides,
+                                                        b_ns_ks_lengths,
+                                                        b_ns_ks_strides,
+                                                        to_array({d_ms_ns_lengths}),
+                                                        to_array({d_ms_ns_strides}),
+                                                        e_ms_ns_lengths,
+                                                        e_ms_ns_strides,
+                                                        a_element_op,
+                                                        b_element_op,
+                                                        cde_element_op);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 

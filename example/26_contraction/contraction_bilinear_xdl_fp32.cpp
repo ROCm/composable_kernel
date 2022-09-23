@@ -341,19 +341,21 @@ int main(int argc, char* argv[])
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{alpha, beta};
 
+    using ck::utils::to_array;
+
     // device operation
     auto op       = DeviceOpInstance{};
     auto invoker  = op.MakeInvoker();
     auto argument = op.MakeArgument(a_device_buf.GetDeviceBuffer(),
                                     b_device_buf.GetDeviceBuffer(),
-                                    ck::utils::to_array({d_device_buf.GetDeviceBuffer()}),
+                                    to_array({d_device_buf.GetDeviceBuffer()}),
                                     e_device_buf.GetDeviceBuffer(),
                                     a_ms_ks_lengths,
                                     a_ms_ks_strides,
                                     b_ns_ks_lengths,
                                     b_ns_ks_strides,
-                                    ck::utils::to_array({d_ms_ns_lengths}),
-                                    ck::utils::to_array({d_ms_ns_strides}),
+                                    to_array({d_ms_ns_lengths}),
+                                    to_array({d_ms_ns_strides}),
                                     e_ms_ns_lengths,
                                     e_ms_ns_strides,
                                     a_element_op,

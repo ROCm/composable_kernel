@@ -19,6 +19,7 @@
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 #include "ck/utility/type.hpp"
 
+#include "ck/library/utility/array.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/fill.hpp"
@@ -213,39 +214,7 @@ struct is_random_access_range<Range, std::void_t<>>
 template <typename Range>
 inline constexpr bool is_random_access_range_v = is_random_access_range<Range>::value;
 
-template <typename Range>
-class to_array_proxy
-{
-    static_assert(is_range_v<Range>);
-
-    public:
-    explicit to_array_proxy(const Range& source) noexcept : source_(source) {}
-
-    template <typename T, std::size_t Size>
-    operator std::array<T, Size>() const
-    {
-        std::array<T, Size> destination;
-
-        std::copy_n(std::begin(source_),
-                    std::min<std::size_t>(Size, std::size(source_)),
-                    std::begin(destination));
-
-        return destination;
-    }
-
-    private:
-    const Range& source_;
-};
-
 } // namespace detail
-
-template <typename Range>
-inline auto to_array(Range& range) noexcept
-    -> std::enable_if_t<detail::is_range_v<Range>,
-                        detail::to_array_proxy<ck::remove_cvref_t<Range>>>
-{
-    return detail::to_array_proxy<ck::remove_cvref_t<Range>>{range};
-}
 
 namespace ranges {
 template <typename InputRange, typename OutputIterator>
