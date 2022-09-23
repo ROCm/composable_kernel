@@ -84,9 +84,10 @@ class to_array_result<Range, std::numeric_limits<std::size_t>::max()> final
 
         std::array<T, Size> destination;
 
-        std::copy_n(std::begin(source_),
-                    std::min<std::size_t>(Size, std::size(source_)),
-                    std::begin(destination));
+        std::copy_n(
+            std::begin(source_),
+            std::min<std::size_t>(Size, std::distance(std::begin(source_), std::end(source_))),
+            std::begin(destination));
 
         return destination;
     }
