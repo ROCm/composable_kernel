@@ -415,12 +415,10 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
         {
             Run1<HasMainKBlockLoop>(p_a_grid,
                                     p_b_grid,
-                                    p_ds_grid,
                                     p_e_grid,
                                     p_shared,
                                     a_element_op,
                                     b_element_op,
-                                    cde_element_op,
                                     a_grid_desc_akb_ak0_m_ak1,
                                     b_grid_desc_bkb_bk0_n_bk1,
                                     ds_grid_desc_mblock_mperblock_nblock_nperblock,
@@ -441,7 +439,7 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
                                 const BElementwiseOperation& b_element_op,
                                 const CDEElementwiseOperation& cde_element_op,
                                 const AGridDesc_AKB_AK0_M_AK1& a_grid_desc_akb_ak0_m_ak1,
-                                const BGridDesc_BKB_BK0_N_BK1& b_grid_desc_kb_bk0_n_bk1,
+                                const BGridDesc_BKB_BK0_N_BK1& b_grid_desc_bkb_bk0_n_bk1,
                                 const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
                                     ds_grid_desc_mblock_mperblock_nblock_nperblock,
                                 const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
@@ -452,7 +450,7 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
             p_a_grid, a_grid_desc_akb_ak0_m_ak1.GetElementSpaceSize());
 
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_grid, b_grid_desc_kb_bk0_n_bk1.GetElementSpaceSize());
+            p_b_grid, b_grid_desc_bkb_bk0_n_bk1.GetElementSpaceSize());
 
         const auto ds_grid_buf = generate_tuple(
             [&](auto i) {
@@ -541,7 +539,7 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
                                                 BBlockTransferThreadClusterArrangeOrder,
                                                 ABDataType,
                                                 ABDataType,
-                                                decltype(b_grid_desc_kb_bk0_n_bk1),
+                                                decltype(b_grid_desc_bkb_bk0_n_bk1),
                                                 decltype(b_block_desc_bkb_bk0_n_bk1),
                                                 BBlockTransferSrcAccessOrder,
                                                 Sequence<0, 2, 1, 3>,
@@ -554,7 +552,7 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
                                                 BThreadTransferSrcResetCoordinateAfterRun,
                                                 true,
                                                 NumGemmKPrefetchStage>(
-                b_grid_desc_kb_bk0_n_bk1,
+                b_grid_desc_bkb_bk0_n_bk1,
                 make_multi_index(k_batch_id, 0, n_block_data_idx_on_grid, 0),
                 b_element_op,
                 b_block_desc_bkb_bk0_n_bk1,
@@ -615,7 +613,7 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
                                                                a_grid_buf,
                                                                a_block_buf,
                                                                a_block_slice_copy_step,
-                                                               b_grid_desc_kb_bk0_n_bk1,
+                                                               b_grid_desc_bkb_bk0_n_bk1,
                                                                b_block_desc_bkb_bk0_n_bk1,
                                                                b_blockwise_copy,
                                                                b_grid_buf,
@@ -869,14 +867,12 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
               typename Block2ETileMap>
     __device__ static void Run1(const ABDataType* __restrict__ p_a_grid,
                                 const ABDataType* __restrict__ p_b_grid,
-                                DsGridPointer,
                                 EDataType* __restrict__ p_e_grid,
                                 void* __restrict__ p_shared,
                                 const AElementwiseOperation& a_element_op,
                                 const BElementwiseOperation& b_element_op,
-                                const CDEElementwiseOperation&,
                                 const AGridDesc_AKB_AK0_M_AK1& a_grid_desc_akb_ak0_m_ak1,
-                                const BGridDesc_BKB_BK0_N_BK1& b_grid_desc_kb_bk0_n_bk1,
+                                const BGridDesc_BKB_BK0_N_BK1& b_grid_desc_bkb_bk0_n_bk1,
                                 const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&,
                                 const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
                                     e_grid_desc_mblock_mperblock_nblock_nperblock,
@@ -886,7 +882,7 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
             p_a_grid, a_grid_desc_akb_ak0_m_ak1.GetElementSpaceSize());
 
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_grid, b_grid_desc_kb_bk0_n_bk1.GetElementSpaceSize());
+            p_b_grid, b_grid_desc_bkb_bk0_n_bk1.GetElementSpaceSize());
 
         auto e_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_e_grid, e_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
@@ -967,7 +963,7 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
                                                 BBlockTransferThreadClusterArrangeOrder,
                                                 ABDataType,
                                                 ABDataType,
-                                                decltype(b_grid_desc_kb_bk0_n_bk1),
+                                                decltype(b_grid_desc_bkb_bk0_n_bk1),
                                                 decltype(b_block_desc_bkb_bk0_n_bk1),
                                                 BBlockTransferSrcAccessOrder,
                                                 Sequence<0, 2, 1, 3>,
@@ -980,7 +976,7 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
                                                 BThreadTransferSrcResetCoordinateAfterRun,
                                                 true,
                                                 NumGemmKPrefetchStage>(
-                b_grid_desc_kb_bk0_n_bk1,
+                b_grid_desc_bkb_bk0_n_bk1,
                 make_multi_index(k_batch_id, 0, n_block_data_idx_on_grid, 0),
                 b_element_op,
                 b_block_desc_bkb_bk0_n_bk1,
@@ -1041,7 +1037,7 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
                                                                a_grid_buf,
                                                                a_block_buf,
                                                                a_block_slice_copy_step,
-                                                               b_grid_desc_kb_bk0_n_bk1,
+                                                               b_grid_desc_bkb_bk0_n_bk1,
                                                                b_block_desc_bkb_bk0_n_bk1,
                                                                b_blockwise_copy,
                                                                b_grid_buf,
