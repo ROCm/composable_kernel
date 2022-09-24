@@ -14,6 +14,7 @@
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/ranges.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
 
 namespace ck {
@@ -114,20 +115,22 @@ class TestLayernorm2d : public ::testing::Test
         gamma_dev.ToDevice(gamma.mData.data());
         beta_dev.ToDevice(beta.mData.data());
 
+        using ck::ranges::to;
+
         auto device_instance = DeviceInstance{};
-        auto argument_ptr    = device_instance.MakeArgumentPointer(
-            lengths,
-            std::vector<ck::index_t>{x.mDesc.GetStrides().begin(), x.mDesc.GetStrides().end()},
-            GammaStride,
-            BetaStride,
-            std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
-            reduceDims,
-            1e-4,
-            x_dev.GetDeviceBuffer(),
-            gamma_dev.GetDeviceBuffer(),
-            beta_dev.GetDeviceBuffer(),
-            y_dev.GetDeviceBuffer(),
-            PassThrough{});
+        auto argument_ptr =
+            device_instance.MakeArgumentPointer(lengths,
+                                                to<std::vector<ck::index_t>>(x.GetStrides()),
+                                                GammaStride,
+                                                BetaStride,
+                                                to<std::vector<ck::index_t>>(y.GetStrides()),
+                                                reduceDims,
+                                                1e-4,
+                                                x_dev.GetDeviceBuffer(),
+                                                gamma_dev.GetDeviceBuffer(),
+                                                beta_dev.GetDeviceBuffer(),
+                                                y_dev.GetDeviceBuffer(),
+                                                PassThrough{});
 
         if(!device_instance.IsSupportedArgument(argument_ptr.get()))
         {

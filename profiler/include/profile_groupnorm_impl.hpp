@@ -13,6 +13,7 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/ranges.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_groupnorm.hpp"
 
 namespace ck {
@@ -114,19 +115,21 @@ bool profile_groupnorm_impl(int do_verification,
 
     for(auto& inst_ptr : instance_ptrs)
     {
-        auto argument_ptr = inst_ptr->MakeArgumentPointer(
-            length,
-            std::vector<ck::index_t>{x.mDesc.GetStrides().begin(), x.mDesc.GetStrides().end()},
-            gammaBetaStride,
-            gammaBetaStride,
-            std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
-            reduce_dim,
-            1e-6,
-            x_dev.GetDeviceBuffer(),
-            gamma_dev.GetDeviceBuffer(),
-            beta_dev.GetDeviceBuffer(),
-            y_dev.GetDeviceBuffer(),
-            PassThrough{});
+        using ck::ranges::to;
+
+        auto argument_ptr =
+            inst_ptr->MakeArgumentPointer(length,
+                                          to<std::vector<ck::index_t>>(x.GetStrides()),
+                                          gammaBetaStride,
+                                          gammaBetaStride,
+                                          to<std::vector<ck::index_t>>(y.GetStrides()),
+                                          reduce_dim,
+                                          1e-6,
+                                          x_dev.GetDeviceBuffer(),
+                                          gamma_dev.GetDeviceBuffer(),
+                                          beta_dev.GetDeviceBuffer(),
+                                          y_dev.GetDeviceBuffer(),
+                                          PassThrough{});
 
         if(inst_ptr->IsSupportedArgument(argument_ptr.get()))
         {

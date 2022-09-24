@@ -17,6 +17,7 @@
 #include "ck/library/utility/host_common_util.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/ranges.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
 
 using XDataType     = ck::half_t;
@@ -87,20 +88,22 @@ int main()
     gamma_dev.ToDevice(gamma.mData.data());
     beta_dev.ToDevice(beta.mData.data());
 
+    using ck::ranges::to;
+
     auto device_instance = DeviceInstance{};
-    auto argument_ptr    = device_instance.MakeArgumentPointer(
-        {M, N},
-        std::vector<ck::index_t>{x.mDesc.GetStrides().begin(), x.mDesc.GetStrides().end()},
-        {0, 1},
-        {0, 1},
-        std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
-        {1},
-        1e-4,
-        x_dev.GetDeviceBuffer(),
-        gamma_dev.GetDeviceBuffer(),
-        beta_dev.GetDeviceBuffer(),
-        y_dev.GetDeviceBuffer(),
-        PassThrough{});
+    auto argument_ptr =
+        device_instance.MakeArgumentPointer({M, N},
+                                            to<std::vector<ck::index_t>>(x.GetStrides()),
+                                            {0, 1},
+                                            {0, 1},
+                                            to<std::vector<ck::index_t>>(y.GetStrides()),
+                                            {1},
+                                            1e-4,
+                                            x_dev.GetDeviceBuffer(),
+                                            gamma_dev.GetDeviceBuffer(),
+                                            beta_dev.GetDeviceBuffer(),
+                                            y_dev.GetDeviceBuffer(),
+                                            PassThrough{});
 
     if(!device_instance.IsSupportedArgument(argument_ptr.get()))
     {

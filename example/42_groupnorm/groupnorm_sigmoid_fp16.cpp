@@ -18,6 +18,7 @@
 #include "ck/library/utility/host_common_util.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/ranges.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_groupnorm.hpp"
 
 constexpr int Rank         = 5;
@@ -115,20 +116,22 @@ int main(int argc, char* argv[])
 
     const auto y_element_op = YElementOp{};
 
+    using ck::ranges::to;
+
     auto device_instance = DeviceInstance{};
-    auto argument_ptr    = device_instance.MakeArgumentPointer(
-        {N, H, W, G, C},
-        std::vector<ck::index_t>{x.mDesc.GetStrides().begin(), x.mDesc.GetStrides().end()},
-        {0, 0, 0, C, 1},
-        {0, 0, 0, C, 1},
-        std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
-        {1, 2, 4}, // reduction dimension: [H, W, C]
-        1e-6,
-        x_dev.GetDeviceBuffer(),
-        gamma_dev.GetDeviceBuffer(),
-        beta_dev.GetDeviceBuffer(),
-        y_dev.GetDeviceBuffer(),
-        y_element_op);
+    auto argument_ptr =
+        device_instance.MakeArgumentPointer({N, H, W, G, C},
+                                            to<std::vector<ck::index_t>>(x.GetStrides()),
+                                            {0, 0, 0, C, 1},
+                                            {0, 0, 0, C, 1},
+                                            to<std::vector<ck::index_t>>(y.GetStrides()),
+                                            {1, 2, 4}, // reduction dimension: [H, W, C]
+                                            1e-6,
+                                            x_dev.GetDeviceBuffer(),
+                                            gamma_dev.GetDeviceBuffer(),
+                                            beta_dev.GetDeviceBuffer(),
+                                            y_dev.GetDeviceBuffer(),
+                                            y_element_op);
 
     if(!device_instance.IsSupportedArgument(argument_ptr.get()))
     {
