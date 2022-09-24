@@ -24,6 +24,7 @@
 #include "ck/library/utility/fill.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
+#include "ck/library/utility/ranges.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -150,37 +151,6 @@ struct is_random_access_iterator<Iterator,
 template <typename Iterator>
 inline constexpr bool is_random_access_iterator_v = is_random_access_iterator<Iterator>::value;
 
-template <typename T, typename = void>
-struct is_range : std::false_type
-{
-};
-
-template <typename T>
-struct is_range<T,
-                std::void_t<decltype(begin(std::declval<T>())),
-                            decltype(end(std::declval<T>())),
-                            decltype(begin(std::declval<T>()) != end(std::declval<T>()))>>
-    : std::bool_constant<is_iterator_v<ck::remove_cvref_t<decltype(begin(std::declval<T>()))>>>
-{
-};
-
-template <typename T>
-inline constexpr bool is_range_v = is_range<T>::value;
-
-template <typename Range, typename = void>
-struct is_sized_range : std::false_type
-{
-};
-
-template <typename Range>
-struct is_sized_range<Range, std::void_t<decltype(size(std::declval<Range>()))>>
-    : std::bool_constant<is_range_v<Range>>
-{
-};
-
-template <typename Range>
-inline constexpr bool is_sized_range_v = is_sized_range<Range>::value;
-
 template <typename Range, typename = void>
 struct is_bidirectional_range : std::false_type
 {
@@ -188,9 +158,9 @@ struct is_bidirectional_range : std::false_type
 
 template <typename Range>
 struct is_bidirectional_range<Range, std::void_t<>>
-    : std::bool_constant<
-          is_range_v<Range> &&
-          is_bidirectional_iterator_v<ck::remove_cvref_t<decltype(begin(std::declval<Range>()))>>>
+    : std::bool_constant<ck::ranges::is_range_v<Range> &&
+                         is_bidirectional_iterator_v<
+                             ck::remove_cvref_t<decltype(std::begin(std::declval<Range>()))>>>
 {
 };
 
@@ -204,9 +174,9 @@ struct is_random_access_range : std::false_type
 
 template <typename Range>
 struct is_random_access_range<Range, std::void_t<>>
-    : std::bool_constant<
-          is_range_v<Range> &&
-          is_random_access_iterator_v<ck::remove_cvref_t<decltype(begin(std::declval<Range>()))>>>
+    : std::bool_constant<ck::ranges::is_range_v<Range> &&
+                         is_random_access_iterator_v<
+                             ck::remove_cvref_t<decltype(std::begin(std::declval<Range>()))>>>
 {
 };
 
@@ -216,7 +186,7 @@ inline constexpr bool is_random_access_range_v = is_random_access_range<Range>::
 template <typename Range>
 class to_array_proxy
 {
-    static_assert(is_range_v<Range>);
+    static_assert(ck::ranges::is_range_v<Range>);
 
     public:
     explicit to_array_proxy(const Range& source) noexcept : source_(source) {}
@@ -241,7 +211,7 @@ class to_array_proxy
 
 template <typename Range>
 inline auto to_array(Range& range) noexcept
-    -> std::enable_if_t<detail::is_range_v<Range>,
+    -> std::enable_if_t<ck::ranges::is_range_v<Range>,
                         detail::to_array_proxy<ck::remove_cvref_t<Range>>>
 {
     return detail::to_array_proxy<ck::remove_cvref_t<Range>>{range};
@@ -281,7 +251,8 @@ inline auto is_valid_axes(const Axes& axes)
 }
 
 template <typename Shape>
-inline auto is_valid_shape(const Shape& shape) -> std::enable_if_t<detail::is_range_v<Shape>, bool>
+inline auto is_valid_shape(const Shape& shape)
+    -> std::enable_if_t<ck::ranges::is_range_v<Shape>, bool>
 {
     static_assert(std::is_unsigned_v<ck::remove_cvref_t<decltype(*std::begin(shape))>>);
 
@@ -291,8 +262,8 @@ inline auto is_valid_shape(const Shape& shape) -> std::enable_if_t<detail::is_ra
 }
 
 template <typename Shape, typename Indices>
-inline auto is_valid_indices(const Shape& shape, const Indices& indices)
-    -> std::enable_if_t<detail::is_sized_range_v<Shape> && detail::is_sized_range_v<Indices>, bool>
+inline auto is_valid_indices(const Shape& shape, const Indices& indices) -> std::
+    enable_if_t<ck::ranges::is_sized_range_v<Shape> && ck::ranges::is_sized_range_v<Indices>, bool>
 {
     static_assert(std::is_unsigned_v<ck::remove_cvref_t<decltype(*std::begin(indices))>>);
 
@@ -370,8 +341,8 @@ auto extend_axes(const Problem::Axes& axes)
 
 template <typename Shape, typename Indices>
 auto advance_indices(const Shape& shape, Indices& indices) -> std::enable_if_t<
-    detail::is_bidirectional_range_v<Shape> && detail::is_sized_range_v<Shape> &&
-        detail::is_bidirectional_range_v<Indices> && detail::is_sized_range_v<Indices>,
+    detail::is_bidirectional_range_v<Shape> && ck::ranges::is_sized_range_v<Shape> &&
+        detail::is_bidirectional_range_v<Indices> && ck::ranges::is_sized_range_v<Indices>,
     bool>
 {
     using std::size;
@@ -396,7 +367,8 @@ auto advance_indices(const Shape& shape, Indices& indices) -> std::enable_if_t<
 
 template <typename Src, typename Axes, typename Functor, typename Dest>
 auto host_permute(const Tensor<Src>& src, const Axes& axes, Functor functor, Tensor<Dest>& dest)
-    -> std::enable_if_t<detail::is_random_access_range_v<Axes> && detail::is_sized_range_v<Axes> &&
+    -> std::enable_if_t<detail::is_random_access_range_v<Axes> &&
+                            ck::ranges::is_sized_range_v<Axes> &&
                             std::is_invocable_v<Functor,
                                                 std::add_lvalue_reference_t<Dest>,
                                                 std::add_lvalue_reference_t<Src>>,
@@ -415,8 +387,8 @@ auto host_permute(const Tensor<Src>& src, const Axes& axes, Functor functor, Ten
         return false;
     }
 
-    static_assert(detail::is_sized_range_v<ck::remove_cvref_t<decltype(shape)>> &&
-                  detail::is_sized_range_v<ck::remove_cvref_t<decltype(transposed_shape)>>);
+    static_assert(ck::ranges::is_sized_range_v<ck::remove_cvref_t<decltype(shape)>> &&
+                  ck::ranges::is_sized_range_v<ck::remove_cvref_t<decltype(transposed_shape)>>);
 
     if(size(shape) != size(transposed_shape))
     {
