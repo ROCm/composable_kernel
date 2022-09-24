@@ -56,5 +56,17 @@ struct is_sized_range<T, std::void_t<decltype(std::size(std::declval<T&>()))>>
     : std::bool_constant<is_range_v<T>>
 {
 };
+
+template <typename T>
+inline constexpr bool is_sized_range_v = is_sized_range<T>::value;
+
+template <typename Cont, typename Range, typename... Args>
+auto to(Range&& range, Args&&... args) -> std::
+    enable_if_t<std::is_constructible_v<Cont, iterator_t<Range>, sentinel_t<Range>, Args...>, Cont>
+{
+    return Cont{std::begin(std::forward<Range>(range)),
+                std::end(std::forward<Range>(range)),
+                std::forward<Args>(args)...};
+}
 } // namespace ranges
 } // namespace ck
