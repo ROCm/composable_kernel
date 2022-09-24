@@ -35,6 +35,7 @@ add_subdirectory(conv2d_fwd_bias_relu)
 add_subdirectory(conv2d_fwd_bias_relu_add)
 add_subdirectory(reduce)
 add_subdirectory(normalization)
+add_subdirectory(softmax)
 add_subdirectory(elementwise)
 
 add_library(device_operations STATIC
@@ -62,6 +63,7 @@ add_library(device_operations STATIC
     $<TARGET_OBJECTS:device_conv2d_fwd_bias_relu_add_instance>
     $<TARGET_OBJECTS:device_reduce_instance>
     $<TARGET_OBJECTS:device_normalization_instance>
+    $<TARGET_OBJECTS:device_softmax_instance>
     $<TARGET_OBJECTS:device_elementwise_instance>
 )
 add_library(composablekernels::device_operations ALIAS device_operations)

@@ -7,7 +7,7 @@
 
 #include "ck/ck.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/layernorm.hpp"
+#include "ck/library/tensor_operation_instance/gpu/normalization.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -86,14 +86,14 @@ void profile_layernorm_impl(int do_verification,
     constexpr int NumReduceDim = Rank - 1;
 
     // add device normalization instances
-    using DeviceOp = ck::tensor_operation::device::DeviceLayernorm<XDataType,
-                                                                   GammaDataType,
-                                                                   BetaDataType,
-                                                                   AccDataType,
-                                                                   YDataType,
-                                                                   PassThrough,
-                                                                   Rank,
-                                                                   NumReduceDim>;
+    using DeviceOp = ck::tensor_operation::device::DeviceNormalization<XDataType,
+                                                                       GammaDataType,
+                                                                       BetaDataType,
+                                                                       AccDataType,
+                                                                       YDataType,
+                                                                       PassThrough,
+                                                                       Rank,
+                                                                       NumReduceDim>;
 
     // get device op instances
     const auto instance_ptrs =

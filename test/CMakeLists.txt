@@ -6,11 +6,10 @@ include(googletest)
 
 add_custom_target(tests)
 
-
 function(add_test_executable TEST_NAME)
     message("adding test ${TEST_NAME}")
     add_executable(${TEST_NAME} ${ARGN})
-    add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> )
+    add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}>)
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
     rocm_install(TARGETS ${TEST_NAME} COMPONENT tests)
@@ -23,13 +22,13 @@ function(add_gtest_executable TEST_NAME)
     add_executable(${TEST_NAME} ${ARGN})
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
+
     # suppress gtest warnings
     target_compile_options(${TEST_NAME} PRIVATE -Wno-global-constructors -Wno-undef)
     target_link_libraries(${TEST_NAME} PRIVATE gtest_main)
     gtest_discover_tests(${TEST_NAME})
     rocm_install(TARGETS ${TEST_NAME} COMPONENT tests)
 endfunction(add_gtest_executable TEST_NAME)
-
 
 add_subdirectory(magic_number_division)
 add_subdirectory(space_filling_curve)
@@ -51,5 +50,5 @@ add_subdirectory(convnd_bwd_data)
 add_subdirectory(grouped_convnd_fwd)
 add_subdirectory(block_to_ctile_map)
 add_subdirectory(softmax)
-add_subdirectory(layernorm)
+add_subdirectory(normalization)
 add_subdirectory(data_type)

@@ -5,7 +5,7 @@
 #include <vector>
 #include <unordered_map>
 
-#include "profiler/include/profile_normalization_impl.hpp"
+#include "profiler/include/profile_softmax_impl.hpp"
 
 using ck::index_t;
 using ck::profiler::NormDataType;
@@ -95,30 +95,29 @@ int profile_normalization(int argc, char* argv[])
     {
         if(data_type == NormDataType::F16_F16)
         {
-            ck::profiler::profile_normalization_impl<ck::half_t, float, ck::half_t, 3>(
-                do_verification,
-                init_method,
-                do_log,
-                time_kernel,
-                length,
-                stride,
-                reduce,
-                float(alpha),
-                float(beta),
-                norm_type);
+            ck::profiler::profile_softmax_impl<ck::half_t, float, ck::half_t, 3>(do_verification,
+                                                                                 init_method,
+                                                                                 do_log,
+                                                                                 time_kernel,
+                                                                                 length,
+                                                                                 stride,
+                                                                                 reduce,
+                                                                                 float(alpha),
+                                                                                 float(beta),
+                                                                                 norm_type);
         }
         else if(data_type == NormDataType::F32_F32)
         {
-            ck::profiler::profile_normalization_impl<float, float, float, 3>(do_verification,
-                                                                             init_method,
-                                                                             do_log,
-                                                                             time_kernel,
-                                                                             length,
-                                                                             stride,
-                                                                             reduce,
-                                                                             float(alpha),
-                                                                             float(beta),
-                                                                             norm_type);
+            ck::profiler::profile_softmax_impl<float, float, float, 3>(do_verification,
+                                                                       init_method,
+                                                                       do_log,
+                                                                       time_kernel,
+                                                                       length,
+                                                                       stride,
+                                                                       reduce,
+                                                                       float(alpha),
+                                                                       float(beta),
+                                                                       norm_type);
         }
         else
         {
@@ -129,30 +128,29 @@ int profile_normalization(int argc, char* argv[])
     {
         if(data_type == NormDataType::F16_F16)
         {
-            ck::profiler::profile_normalization_impl<ck::half_t, float, ck::half_t, 4>(
-                do_verification,
-                init_method,
-                do_log,
-                time_kernel,
-                length,
-                stride,
-                reduce,
-                float(alpha),
-                float(beta),
-                norm_type);
+            ck::profiler::profile_softmax_impl<ck::half_t, float, ck::half_t, 4>(do_verification,
+                                                                                 init_method,
+                                                                                 do_log,
+                                                                                 time_kernel,
+                                                                                 length,
+                                                                                 stride,
+                                                                                 reduce,
+                                                                                 float(alpha),
+                                                                                 float(beta),
+                                                                                 norm_type);
         }
         else if(data_type == NormDataType::F32_F32)
         {
-            ck::profiler::profile_normalization_impl<float, float, float, 4>(do_verification,
-                                                                             init_method,
-                                                                             do_log,
-                                                                             time_kernel,
-                                                                             length,
-                                                                             stride,
-                                                                             reduce,
-                                                                             float(alpha),
-                                                                             float(beta),
-                                                                             norm_type);
+            ck::profiler::profile_softmax_impl<float, float, float, 4>(do_verification,
+                                                                       init_method,
+                                                                       do_log,
+                                                                       time_kernel,
+                                                                       length,
+                                                                       stride,
+                                                                       reduce,
+                                                                       float(alpha),
+                                                                       float(beta),
+                                                                       norm_type);
         }
         else
         {

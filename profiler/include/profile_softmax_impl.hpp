@@ -69,16 +69,16 @@ template <> std::string type_to_string<int32_t>() { return "int32"; }
 // clang-format on
 
 template <typename InDataType, typename AccDataType, typename OutDataType, index_t Rank>
-void profile_normalization_impl(int do_verification,
-                                int init_method,
-                                bool do_log,
-                                bool time_kernel,
-                                std::vector<index_t> in_length,
-                                std::vector<index_t> in_strides,
-                                std::vector<index_t> reduce_dims,
-                                AccDataType alpha,
-                                AccDataType beta,
-                                NormType norm_type)
+void profile_softmax_impl(int do_verification,
+                          int init_method,
+                          bool do_log,
+                          bool time_kernel,
+                          std::vector<index_t> in_length,
+                          std::vector<index_t> in_strides,
+                          std::vector<index_t> reduce_dims,
+                          AccDataType alpha,
+                          AccDataType beta,
+                          NormType norm_type)
 {
     if(Rank != in_length.size())
     {
