@@ -7,9 +7,18 @@
 #include <type_traits>
 #include <utility>
 
+#include "ck/library/utility/concepts.hpp"
 #include "ck/library/utility/iterator.hpp"
 
 namespace ck {
+
+struct from_range_t
+{
+    explicit from_range_t() = default;
+};
+
+inline constexpr from_range_t from_range{};
+
 namespace ranges {
 
 template <typename R>
@@ -60,13 +69,46 @@ struct is_sized_range<T, std::void_t<decltype(std::size(std::declval<T&>()))>>
 template <typename T>
 inline constexpr bool is_sized_range_v = is_sized_range<T>::value;
 
-template <typename Cont, typename Range, typename... Args>
-auto to(Range&& range, Args&&... args) -> std::
-    enable_if_t<std::is_constructible_v<Cont, iterator_t<Range>, sentinel_t<Range>, Args...>, Cont>
+template <typename T>
+struct is_common_range
+    : std::bool_constant<is_range_v<T> && std::is_same_v<iterator_t<T>, sentinel_t<T>>>
 {
-    return Cont{std::begin(std::forward<Range>(range)),
+};
+
+template <typename T>
+inline constexpr bool is_common_range_v = is_common_range<T>::value;
+
+template <typename Cont, typename Range, typename... Args>
+auto to(Range&& range, Args&&... args)
+    -> std::enable_if_t<is_convertible_to_v<range_reference_t<Range>, range_value_t<Range>> &&
+                            is_constructible_from_v<Cont, Range, Args...>,
+                        Cont>
+{
+    return Cont(std::forward<Range>(range), std::forward<Args>(args)...);
+}
+
+template <typename Cont, typename Range, typename... Args>
+auto to(Range&& range, Args&&... args)
+    -> std::enable_if_t<is_convertible_to_v<range_reference_t<Range>, range_value_t<Range>> &&
+                            !is_constructible_from_v<Cont, Range, Args...> &&
+                            is_constructible_from_v<Cont, from_range_t, Range, Args...>,
+                        Cont>
+{
+    return Cont(from_range, std::forward<Range>(range), std::forward<Args>(args)...);
+}
+
+template <typename Cont, typename Range, typename... Args>
+auto to(Range&& range, Args&&... args) -> std::enable_if_t<
+    is_convertible_to_v<range_reference_t<Range>, range_value_t<Range>> &&
+        !is_constructible_from_v<Cont, Range, Args...> &&
+        !is_constructible_from_v<Cont, from_range_t, Range, Args...> &&
+        (is_common_range_v<Range> &&
+         is_constructible_from_v<Cont, iterator_t<Range>, sentinel_t<Range>, Args...>),
+    Cont>
+{
+    return Cont(std::begin(std::forward<Range>(range)),
                 std::end(std::forward<Range>(range)),
-                std::forward<Args>(args)...};
+                std::forward<Args>(args)...);
 }
 } // namespace ranges
 } // namespace ck
