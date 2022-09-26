@@ -91,11 +91,10 @@ int main(int, char*[])
     for(std::size_t i = 0; i < num_divisor; ++i)
     {
         // run naive division on GPU
-        gpu_naive_division<<<1024, 256>>>(
-            divisors_host[i],
-            static_cast<const int32_t*>(dividends_dev_buf.GetDeviceBuffer()),
-            static_cast<int32_t*>(naive_result_dev_buf.GetDeviceBuffer()),
-            num_dividend);
+        gpu_naive_division<<<1024, 256>>>(divisors_host[i],
+                                          ck::auto_cast(dividends_dev_buf.GetDeviceBuffer()),
+                                          ck::auto_cast(naive_result_dev_buf.GetDeviceBuffer()),
+                                          num_dividend);
 
         // calculate magic number
         uint32_t magic_multiplier, magic_shift;
@@ -107,8 +106,8 @@ int main(int, char*[])
         gpu_magic_number_division<<<1024, 256>>>(
             magic_multiplier,
             magic_shift,
-            static_cast<const int32_t*>(dividends_dev_buf.GetDeviceBuffer()),
-            static_cast<int32_t*>(magic_result_dev_buf.GetDeviceBuffer()),
+            ck::auto_cast(dividends_dev_buf.GetDeviceBuffer()),
+            ck::auto_cast(magic_result_dev_buf.GetDeviceBuffer()),
             num_dividend);
 
         naive_result_dev_buf.FromDevice(naive_result_host.data());

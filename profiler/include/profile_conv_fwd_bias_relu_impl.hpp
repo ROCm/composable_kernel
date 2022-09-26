@@ -8,6 +8,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_conv_fwd_bias_activation.hpp"
 
+#include "ck/library/utility/auto_cast.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -186,24 +187,24 @@ void profile_conv_fwd_bias_relu_impl(int do_verification,
     // profile device Conv instances
     for(auto& op_ptr : op_ptrs)
     {
-        auto argument_ptr = op_ptr->MakeArgumentPointer(
-            static_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
-            static_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
-            static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-            static_cast<const OutDataType*>(bias_device_buf.GetDeviceBuffer()),
-            N,
-            K,
-            C,
-            input_spatial_lengths,
-            filter_spatial_lengths,
-            output_spatial_lengths,
-            conv_filter_strides,
-            conv_filter_dilations,
-            input_left_pads,
-            input_right_pads,
-            in_element_op,
-            wei_element_op,
-            out_element_op);
+        auto argument_ptr =
+            op_ptr->MakeArgumentPointer(ck::auto_cast(in_device_buf.GetDeviceBuffer()),
+                                        ck::auto_cast(wei_device_buf.GetDeviceBuffer()),
+                                        ck::auto_cast(out_device_buf.GetDeviceBuffer()),
+                                        ck::auto_cast(bias_device_buf.GetDeviceBuffer()),
+                                        N,
+                                        K,
+                                        C,
+                                        input_spatial_lengths,
+                                        filter_spatial_lengths,
+                                        output_spatial_lengths,
+                                        conv_filter_strides,
+                                        conv_filter_dilations,
+                                        input_left_pads,
+                                        input_right_pads,
+                                        in_element_op,
+                                        wei_element_op,
+                                        out_element_op);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 

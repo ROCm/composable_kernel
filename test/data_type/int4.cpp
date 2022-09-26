@@ -12,6 +12,7 @@
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/math_v2.hpp"
 #include "ck/utility/get_id.hpp"
+#include "ck/library/utility/auto_cast.hpp"
 #include "ck/library/utility/device_memory.hpp"
 
 using ck::int4_t;
@@ -152,9 +153,8 @@ TEST(Int4, CopyAsI8NegativeValueStaticCast)
 
     d_src_i4.ToDevice(h_src_i4.data());
 
-    copy_with_static_cast<<<1, 64>>>(reinterpret_cast<const int4_t*>(d_src_i4.GetDeviceBuffer()),
-                                     reinterpret_cast<std::int8_t*>(d_dst_i8.GetDeviceBuffer()),
-                                     SIZE);
+    copy_with_static_cast<<<1, 64>>>(
+        ck::auto_cast(d_src_i4.GetDeviceBuffer()), ck::auto_cast(d_dst_i8.GetDeviceBuffer()), SIZE);
     hip_check_error(hipDeviceSynchronize());
     d_dst_i8.FromDevice(h_dst_i8.data());
 

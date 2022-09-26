@@ -12,6 +12,7 @@
 #include "ck/tensor_operation/gpu/device/device_pool2d_fwd_nhwc_nhwc.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/utility/auto_cast.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -212,20 +213,20 @@ bool pool_test(bool do_verification,
 
     in_device_buf.ToDevice(in_n_c_hi_wi.mData.data());
 
-    auto pool         = DevicePoolFwdInstance{};
-    auto invoker_ptr  = pool.MakeInvokerPointer();
-    auto argument_ptr = pool.MakeArgumentPointer(
-        static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-        static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-        static_cast<IndexDataType*>(out_indices_device_buf.GetDeviceBuffer()),
-        N,
-        C,
-        std::array<ck::index_t, 2>{{Hi, Wi}},
-        std::array<ck::index_t, 2>{{Y, X}},
-        std::array<ck::index_t, 2>{{Ho, Wo}},
-        window_strides,
-        input_left_pads,
-        input_right_pads);
+    auto pool        = DevicePoolFwdInstance{};
+    auto invoker_ptr = pool.MakeInvokerPointer();
+    auto argument_ptr =
+        pool.MakeArgumentPointer(ck::auto_cast(in_device_buf.GetDeviceBuffer()),
+                                 ck::auto_cast(out_device_buf.GetDeviceBuffer()),
+                                 ck::auto_cast(out_indices_device_buf.GetDeviceBuffer()),
+                                 N,
+                                 C,
+                                 std::array<ck::index_t, 2>{{Hi, Wi}},
+                                 std::array<ck::index_t, 2>{{Y, X}},
+                                 std::array<ck::index_t, 2>{{Ho, Wo}},
+                                 window_strides,
+                                 input_left_pads,
+                                 input_right_pads);
 
     if(!pool.IsSupportedArgument(argument_ptr.get()))
     {

@@ -14,6 +14,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/utility/data_type.hpp"
 
+#include "ck/library/utility/auto_cast.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/fill.hpp"

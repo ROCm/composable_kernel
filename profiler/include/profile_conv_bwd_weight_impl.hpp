@@ -15,6 +15,7 @@
 
 #include "ck/library/tensor_operation_instance/gpu/convolution_backward_weight.hpp"
 
+#include "ck/library/utility/auto_cast.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -166,9 +167,9 @@ bool profile_conv_bwd_weight_impl(int do_verification,
     for(auto& op_ptr : op_ptrs)
     {
         auto argument_ptr =
-            op_ptr->MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-                                        static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
-                                        static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
+            op_ptr->MakeArgumentPointer(ck::auto_cast(in_device_buf.GetDeviceBuffer()),
+                                        ck::auto_cast(wei_device_buf.GetDeviceBuffer()),
+                                        ck::auto_cast(out_device_buf.GetDeviceBuffer()),
                                         conv_param.N_,
                                         conv_param.K_,
                                         conv_param.C_,

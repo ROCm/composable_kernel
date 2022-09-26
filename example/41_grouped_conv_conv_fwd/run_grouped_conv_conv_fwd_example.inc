@@ -149,36 +149,28 @@ bool run_grouped_conv_conv_fwd(bool do_verification,
 
     auto device_op = DeviceOpInstance{};
     auto invoker   = device_op.MakeInvoker();
-    auto argument  = device_op.MakeArgument(
-#ifdef BUILD_INT4_EXAMPLE
-        static_cast<KernelIn0DataType*>(in0_device_buf.GetDeviceBuffer()),
-        static_cast<KernelWei0DataType*>(wei0_device_buf.GetDeviceBuffer()),
-        static_cast<KernelWei1DataType*>(wei1_device_buf.GetDeviceBuffer()),
-        static_cast<KernelOut1DataType*>(out1_device_buf.GetDeviceBuffer()),
-#else
-        static_cast<In0DataType*>(in0_device_buf.GetDeviceBuffer()),
-        static_cast<Wei0DataType*>(wei0_device_buf.GetDeviceBuffer()),
-        static_cast<Wei1DataType*>(wei1_device_buf.GetDeviceBuffer()),
-        static_cast<Out1DataType*>(out1_device_buf.GetDeviceBuffer()),
-#endif
-        gemm0_m_length,
-        gemm0_n_length,
-        gemm0_k_length,
-        gemm1_n_length,
-        gemm_batch,
-        a0_stride,
-        b0_stride,
-        b1_stride,
-        e1_stride,
-        a0_batch_stride,
-        b0_batch_stride,
-        b1_batch_stride,
-        e1_batch_stride,
-        in0_element_op,
-        wei0_element_op,
-        out0_element_op,
-        wei1_element_op,
-        out1_element_op);
+    auto argument  = device_op.MakeArgument(ck::auto_cast(in0_device_buf.GetDeviceBuffer()),
+                                           ck::auto_cast(wei0_device_buf.GetDeviceBuffer()),
+                                           ck::auto_cast(wei1_device_buf.GetDeviceBuffer()),
+                                           ck::auto_cast(out1_device_buf.GetDeviceBuffer()),
+                                           gemm0_m_length,
+                                           gemm0_n_length,
+                                           gemm0_k_length,
+                                           gemm1_n_length,
+                                           gemm_batch,
+                                           a0_stride,
+                                           b0_stride,
+                                           b1_stride,
+                                           e1_stride,
+                                           a0_batch_stride,
+                                           b0_batch_stride,
+                                           b1_batch_stride,
+                                           e1_batch_stride,
+                                           in0_element_op,
+                                           wei0_element_op,
+                                           out0_element_op,
+                                           wei1_element_op,
+                                           out1_element_op);
 
     if(!device_op.IsSupportedArgument(argument))
     {

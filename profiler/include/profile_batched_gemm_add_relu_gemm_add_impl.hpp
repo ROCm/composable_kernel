@@ -10,6 +10,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/library/tensor_operation_instance/gpu/batched_gemm_add_relu_gemm_add.hpp"
 
+#include "ck/library/utility/auto_cast.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -267,12 +268,12 @@ bool profile_batched_gemm_add_relu_gemm_add_impl(bool do_verification,
     for(auto& op_ptr : op_ptrs)
     {
         auto argument_ptr = op_ptr->MakeArgumentPointer(
-            static_cast<A0DataType*>(a0_g_m_k_device_buf.GetDeviceBuffer()),
-            static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
+            ck::auto_cast(a0_g_m_k_device_buf.GetDeviceBuffer()),
+            ck::auto_cast(b0_g_k_n_device_buf.GetDeviceBuffer()),
             std::array<const void*, 1>{d0_g_m_n_device_buf.GetDeviceBuffer()},
-            static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
+            ck::auto_cast(b1_g_n_o_device_buf.GetDeviceBuffer()),
             std::array<const void*, 1>{d1_g_m_o_device_buf.GetDeviceBuffer()},
-            static_cast<E1DataType*>(e1_g_m_o_device_buf.GetDeviceBuffer()),
+            ck::auto_cast(e1_g_m_o_device_buf.GetDeviceBuffer()),
             M,
             N,
             K,

@@ -12,6 +12,7 @@
 
 #include "ck/library/tensor_operation_instance/gpu/gemm_splitk.hpp"
 
+#include "ck/library/utility/auto_cast.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -154,9 +155,9 @@ int test_gemm(const gemmArgs& args)
         for(auto& gemm_ptr : gemm_ptrs)
         {
             auto argument_ptr =
-                gemm_ptr->MakeArgumentPointer(static_cast<float*>(a_device_buf.GetDeviceBuffer()),
-                                              static_cast<float*>(b_device_buf.GetDeviceBuffer()),
-                                              static_cast<float*>(c_device_buf.GetDeviceBuffer()),
+                gemm_ptr->MakeArgumentPointer(ck::auto_cast(a_device_buf.GetDeviceBuffer()),
+                                              ck::auto_cast(b_device_buf.GetDeviceBuffer()),
+                                              ck::auto_cast(c_device_buf.GetDeviceBuffer()),
                                               args.M,
                                               args.N,
                                               args.K,

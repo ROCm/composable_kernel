@@ -76,25 +76,18 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     // do GEMM
     auto gemm     = DeviceGemmInstance{};
     auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(
-#ifdef BUILD_INT4_EXAMPLE
-        static_cast<KernelADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-        static_cast<KernelBDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-        static_cast<KernelCDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-#else
-        static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-        static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-        static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-#endif
-        M,
-        N,
-        K,
-        StrideA,
-        StrideB,
-        StrideC,
-        a_element_op,
-        b_element_op,
-        c_element_op);
+    auto argument = gemm.MakeArgument(ck::auto_cast(a_m_k_device_buf.GetDeviceBuffer()),
+                                      ck::auto_cast(b_k_n_device_buf.GetDeviceBuffer()),
+                                      ck::auto_cast(c_m_n_device_buf.GetDeviceBuffer()),
+                                      M,
+                                      N,
+                                      K,
+                                      StrideA,
+                                      StrideB,
+                                      StrideC,
+                                      a_element_op,
+                                      b_element_op,
+                                      c_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {

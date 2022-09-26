@@ -15,6 +15,7 @@ Computes C_m_o = Relu(A0[m, k] * B0[n, k] + D00[m, n] + D01[mn]) * B1[n, o] + D1
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_multiple_d_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 
+#include "ck/library/utility/auto_cast.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -407,13 +408,13 @@ int main(int argc, char* argv[])
     auto gemm    = DeviceGemmInstance{};
     auto invoker = gemm.MakeInvoker();
     auto argument =
-        gemm.MakeArgument(static_cast<A0DataType*>(a0_g_m_k_device_buf.GetDeviceBuffer()),
-                          static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
+        gemm.MakeArgument(ck::auto_cast(a0_g_m_k_device_buf.GetDeviceBuffer()),
+                          ck::auto_cast(b0_g_k_n_device_buf.GetDeviceBuffer()),
                           std::array<const void*, 2>{d00_g_m_n_device_buf.GetDeviceBuffer(),
                                                      d01_g_m_n_device_buf.GetDeviceBuffer()},
-                          static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
+                          ck::auto_cast(b1_g_n_o_device_buf.GetDeviceBuffer()),
                           std::array<const void*, 1>{d1_g_m_o_device_buf.GetDeviceBuffer()},
-                          static_cast<E1DataType*>(e1_g_m_o_device_buf.GetDeviceBuffer()),
+                          ck::auto_cast(e1_g_m_o_device_buf.GetDeviceBuffer()),
                           M,
                           N,
                           K,

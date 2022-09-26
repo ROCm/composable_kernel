@@ -6,6 +6,7 @@
 #include <initializer_list>
 
 #include "ck/ck.hpp"
+#include "ck/library/utility/auto_cast.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -208,13 +209,13 @@ int main(int argc, char* argv[])
     // do GEMM
     auto gemm     = DeviceGemmInstance{};
     auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                                      static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-                                      static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                      static_cast<C0DataType*>(c0_add_buf.GetDeviceBuffer()),
-                                      static_cast<C0DataType*>(c0_bias_buf.GetDeviceBuffer()),
-                                      static_cast<C0DataType*>(c0_gamma_buf.GetDeviceBuffer()),
-                                      static_cast<C0DataType*>(c0_beta_buf.GetDeviceBuffer()),
+    auto argument = gemm.MakeArgument(ck::auto_cast(a_device_buf.GetDeviceBuffer()),
+                                      ck::auto_cast(b_device_buf.GetDeviceBuffer()),
+                                      ck::auto_cast(c_device_buf.GetDeviceBuffer()),
+                                      ck::auto_cast(c0_add_buf.GetDeviceBuffer()),
+                                      ck::auto_cast(c0_bias_buf.GetDeviceBuffer()),
+                                      ck::auto_cast(c0_gamma_buf.GetDeviceBuffer()),
+                                      ck::auto_cast(c0_beta_buf.GetDeviceBuffer()),
                                       M,
                                       N,
                                       K,

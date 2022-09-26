@@ -12,6 +12,7 @@
 
 #include "ck/library/tensor_operation_instance/gpu/batched_gemm.hpp"
 
+#include "ck/library/utility/auto_cast.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -148,9 +149,9 @@ bool profile_batched_gemm_impl(int do_verification,
     for(auto& op_ptr : op_ptrs)
     {
         auto argument_ptr =
-            op_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                                        static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-                                        static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+            op_ptr->MakeArgumentPointer(ck::auto_cast(a_device_buf.GetDeviceBuffer()),
+                                        ck::auto_cast(b_device_buf.GetDeviceBuffer()),
+                                        ck::auto_cast(c_device_buf.GetDeviceBuffer()),
                                         M,
                                         N,
                                         K,

@@ -20,6 +20,7 @@ Gemm + Softmax + Gemm fused operation. Computes C_g_m_o = Softmax(A_g_m_k * B0_g
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_permute_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/utility/auto_cast.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -302,31 +303,30 @@ int main(int argc, char* argv[])
     auto c_element_op    = CElementOp{};
 
     // do GEMM
-    auto gemm    = DeviceGemmInstance{};
-    auto invoker = gemm.MakeInvoker();
-    auto argument =
-        gemm.MakeArgument(static_cast<ADataType*>(a_g_m_k_device_buf.GetDeviceBuffer()),
-                          static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
-                          static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
-                          static_cast<CDataType*>(c_gs_ms_os_device_buf.GetDeviceBuffer()),
-                          M,
-                          N,
-                          K,
-                          O,
-                          BatchCount,
-                          c_gs_ms_os_lengths,
-                          c_gs_ms_os_strides,
-                          StrideA,
-                          StrideB0,
-                          StrideB1,
-                          BatchStrideA,
-                          BatchStrideB0,
-                          BatchStrideB1,
-                          a_element_op,
-                          b0_element_op,
-                          acc0_element_op,
-                          b1_element_op,
-                          c_element_op);
+    auto gemm     = DeviceGemmInstance{};
+    auto invoker  = gemm.MakeInvoker();
+    auto argument = gemm.MakeArgument(ck::auto_cast(a_g_m_k_device_buf.GetDeviceBuffer()),
+                                      ck::auto_cast(b0_g_k_n_device_buf.GetDeviceBuffer()),
+                                      ck::auto_cast(b1_g_n_o_device_buf.GetDeviceBuffer()),
+                                      ck::auto_cast(c_gs_ms_os_device_buf.GetDeviceBuffer()),
+                                      M,
+                                      N,
+                                      K,
+                                      O,
+                                      BatchCount,
+                                      c_gs_ms_os_lengths,
+                                      c_gs_ms_os_strides,
+                                      StrideA,
+                                      StrideB0,
+                                      StrideB1,
+                                      BatchStrideA,
+                                      BatchStrideB0,
+                                      BatchStrideB1,
+                                      a_element_op,
+                                      b0_element_op,
+                                      acc0_element_op,
+                                      b1_element_op,
+                                      c_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {

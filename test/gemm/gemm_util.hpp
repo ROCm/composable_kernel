@@ -5,6 +5,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/library/utility/auto_cast.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -77,9 +78,9 @@ bool RunDeviceGEMM(DeviceGemmPtr_& gemmPtr,
 
     auto invoker_ptr = gemmPtr->MakeInvokerPointer();
     auto argument_ptr =
-        gemmPtr->MakeArgumentPointer(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-                                     static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-                                     static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+        gemmPtr->MakeArgumentPointer(ck::auto_cast(a_m_k_device_buf.GetDeviceBuffer()),
+                                     ck::auto_cast(b_k_n_device_buf.GetDeviceBuffer()),
+                                     ck::auto_cast(c_m_n_device_buf.GetDeviceBuffer()),
                                      params.M,
                                      params.N,
                                      params.K,

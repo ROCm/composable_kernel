@@ -189,36 +189,28 @@ bool run_batched_gemm_gemm_example(int argc, char* argv[])
     // do GEMM
     auto gemm     = DeviceGemmInstance{};
     auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(
-#ifdef BUILD_INT4_EXAMPLE
-        static_cast<KernelADataType*>(a_g_m_k_device_buf.GetDeviceBuffer()),
-        static_cast<KernelB0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
-        static_cast<KernelB1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
-        static_cast<KernelCDataType*>(c_g_m_o_device_buf.GetDeviceBuffer()),
-#else
-        static_cast<ADataType*>(a_g_m_k_device_buf.GetDeviceBuffer()),
-        static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
-        static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
-        static_cast<CDataType*>(c_g_m_o_device_buf.GetDeviceBuffer()),
-#endif
-        M,
-        N,
-        K,
-        O,
-        BatchCount,
-        StrideA,
-        StrideB0,
-        StrideB1,
-        StrideC,
-        BatchStrideA,
-        BatchStrideB0,
-        BatchStrideB1,
-        BatchStrideC,
-        a_element_op,
-        b0_element_op,
-        acc0_element_op,
-        b1_element_op,
-        c_element_op);
+    auto argument = gemm.MakeArgument(ck::auto_cast(a_g_m_k_device_buf.GetDeviceBuffer()),
+                                      ck::auto_cast(b0_g_k_n_device_buf.GetDeviceBuffer()),
+                                      ck::auto_cast(b1_g_n_o_device_buf.GetDeviceBuffer()),
+                                      ck::auto_cast(c_g_m_o_device_buf.GetDeviceBuffer()),
+                                      M,
+                                      N,
+                                      K,
+                                      O,
+                                      BatchCount,
+                                      StrideA,
+                                      StrideB0,
+                                      StrideB1,
+                                      StrideC,
+                                      BatchStrideA,
+                                      BatchStrideB0,
+                                      BatchStrideB1,
+                                      BatchStrideC,
+                                      a_element_op,
+                                      b0_element_op,
+                                      acc0_element_op,
+                                      b1_element_op,
+                                      c_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {

@@ -12,6 +12,7 @@
 
 #include "ck/library/tensor_operation_instance/gpu/batched_gemm_gemm.hpp"
 
+#include "ck/library/utility/auto_cast.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -226,29 +227,29 @@ bool profile_batched_gemm_gemm_impl(bool do_verification,
     // profile device op instances
     for(auto& op_ptr : op_ptrs)
     {
-        auto argument_ptr = op_ptr->MakeArgumentPointer(
-            static_cast<ADataType*>(a_g_m_k_device_buf.GetDeviceBuffer()),
-            static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
-            static_cast<B1DataType*>(b1_g_n_o_device_buf.GetDeviceBuffer()),
-            static_cast<CDataType*>(c_g_m_o_device_buf.GetDeviceBuffer()),
-            M,
-            N,
-            K,
-            O,
-            BatchCount,
-            StrideA,
-            StrideB0,
-            StrideB1,
-            StrideC,
-            BatchStrideA,
-            BatchStrideB0,
-            BatchStrideB1,
-            BatchStrideC,
-            a_element_op,
-            b0_element_op,
-            acc0_element_op,
-            b1_element_op,
-            c_element_op);
+        auto argument_ptr =
+            op_ptr->MakeArgumentPointer(ck::auto_cast(a_g_m_k_device_buf.GetDeviceBuffer()),
+                                        ck::auto_cast(b0_g_k_n_device_buf.GetDeviceBuffer()),
+                                        ck::auto_cast(b1_g_n_o_device_buf.GetDeviceBuffer()),
+                                        ck::auto_cast(c_g_m_o_device_buf.GetDeviceBuffer()),
+                                        M,
+                                        N,
+                                        K,
+                                        O,
+                                        BatchCount,
+                                        StrideA,
+                                        StrideB0,
+                                        StrideB1,
+                                        StrideC,
+                                        BatchStrideA,
+                                        BatchStrideB0,
+                                        BatchStrideB1,
+                                        BatchStrideC,
+                                        a_element_op,
+                                        b0_element_op,
+                                        acc0_element_op,
+                                        b1_element_op,
+                                        c_element_op);
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 

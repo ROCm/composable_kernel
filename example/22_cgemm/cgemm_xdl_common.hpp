@@ -7,6 +7,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/stream_config.hpp"
+#include "ck/library/utility/auto_cast.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -149,24 +150,23 @@ bool run_cgemm_xdl(ck::index_t M,
     auto c_element_op = CElementwiseOperation{};
 
     // do GEMM
-    auto invoker = cgemm.MakeInvoker();
-    auto argument =
-        cgemm.MakeArgument(static_cast<KernelADataType*>(a_m_k_real_device_buf.GetDeviceBuffer()),
-                           static_cast<KernelADataType*>(a_m_k_imag_device_buf.GetDeviceBuffer()),
-                           static_cast<KernelBDataType*>(b_k_n_real_device_buf.GetDeviceBuffer()),
-                           static_cast<KernelBDataType*>(b_k_n_imag_device_buf.GetDeviceBuffer()),
-                           static_cast<KernelCDataType*>(c_m_n_real_device_buf.GetDeviceBuffer()),
-                           static_cast<KernelCDataType*>(c_m_n_imag_device_buf.GetDeviceBuffer()),
-                           static_cast<KernelCDataType*>(workspace_device_buf.GetDeviceBuffer()),
-                           M,
-                           N,
-                           K,
-                           StrideA,
-                           StrideB,
-                           StrideC,
-                           a_element_op,
-                           b_element_op,
-                           c_element_op);
+    auto invoker  = cgemm.MakeInvoker();
+    auto argument = cgemm.MakeArgument(ck::auto_cast(a_m_k_real_device_buf.GetDeviceBuffer()),
+                                       ck::auto_cast(a_m_k_imag_device_buf.GetDeviceBuffer()),
+                                       ck::auto_cast(b_k_n_real_device_buf.GetDeviceBuffer()),
+                                       ck::auto_cast(b_k_n_imag_device_buf.GetDeviceBuffer()),
+                                       ck::auto_cast(c_m_n_real_device_buf.GetDeviceBuffer()),
+                                       ck::auto_cast(c_m_n_imag_device_buf.GetDeviceBuffer()),
+                                       ck::auto_cast(workspace_device_buf.GetDeviceBuffer()),
+                                       M,
+                                       N,
+                                       K,
+                                       StrideA,
+                                       StrideB,
+                                       StrideC,
+                                       a_element_op,
+                                       b_element_op,
+                                       c_element_op);
 
     if(!cgemm.IsSupportedArgument(argument))
     {

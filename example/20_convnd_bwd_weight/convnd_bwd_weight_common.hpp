@@ -10,6 +10,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/library/utility/auto_cast.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -80,9 +81,9 @@ int run_conv_bwd_weight(bool do_verification,
     // do GEMM
     auto conv     = DeviceConvBwdWeightInstance{};
     auto invoker  = conv.MakeInvoker();
-    auto argument = conv.MakeArgument(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-                                      static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
-                                      static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
+    auto argument = conv.MakeArgument(ck::auto_cast(in_device_buf.GetDeviceBuffer()),
+                                      ck::auto_cast(wei_device_buf.GetDeviceBuffer()),
+                                      ck::auto_cast(out_device_buf.GetDeviceBuffer()),
                                       conv_param.N_,
                                       conv_param.K_,
                                       conv_param.C_,
