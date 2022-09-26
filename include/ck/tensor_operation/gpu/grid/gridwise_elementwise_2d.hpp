@@ -110,7 +110,7 @@ struct GridwiseElementwise_2D
         const index_t loop_step_n    = blockPerGrid_n * blockSize * NPerThread;
         const auto loop_step_index   = make_multi_index(loop_step_m, loop_step_n);
 
-        const index_t thread_global_id_2d =
+        const auto index_t thread_global_id_2d =
             thread_buffer_desc_mn.CalculateBottomIndex(make_multi_index(get_block_1d_id));
         const auto blockId_m = thread_global_id_2d[I0];
         const auto blockId_n = thread_global_id_2d[I1];
@@ -185,7 +185,7 @@ struct GridwiseElementwise_2D
                             Number<NumInput>{});
 
                         // get referenec to dst data
-                        auto in_data_refs = generate_tie(
+                        auto out_data_refs = generate_tie(
                             // return type should be lvalue
                             [&](auto I) -> auto& { return out_thread_buf_tuple(offset); },
                             Number<NumOutput>{});
@@ -203,8 +203,7 @@ struct GridwiseElementwise_2D
                     out_global_store_tuple(I).MoveDstSliceWindow(out_grid_2d_desc_tuple[I],
                                                                  loop_step_index);
                 });
-            }
-            (while --num_iter_n);
+            } while(--num_iter_n);
         } while(--num_iter_m);
     }
 };
