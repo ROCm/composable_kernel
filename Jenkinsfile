@@ -434,10 +434,6 @@ def Build_CK(Map conf=[:]){
         if (params.COMPILER_VERSION != "release"){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
-        if (params.COMPILER_VERSION == "amd-stg-open"){
-            dockerOpts = dockerOpts + " --env CLANGRT_BUILTINS='/llvm-project/build/lib/clang/16.0.0/lib/x86_64-unknown-linux-gnu/libclang_rt.builtins.a' "
-        }
-
 
         def variant = env.STAGE_NAME
         def retimage
@@ -592,7 +588,7 @@ pipeline {
             description: 'Specify which version of compiler to use: ck-9110, release, or amd-stg-open (default).')
         string(
             name: 'COMPILER_COMMIT', 
-            defaultValue: 'b0f4678b9058a4ae00200dfb1de0da5f2ea84dcb', 
+            defaultValue: '8a82e4eb7ba28521ba9a9424a0315a8a16590424', 
             description: 'Specify which commit of compiler branch to use: leave empty to use the latest commit, or use 10738 commit (default).')
         string(
             name: 'BUILD_COMPILER', 
