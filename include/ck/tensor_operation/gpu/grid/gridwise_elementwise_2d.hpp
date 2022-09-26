@@ -104,14 +104,15 @@ struct GridwiseElementwise_2D
         const index_t blockSize      = get_block_size();
         const index_t blockPerGrid_m = get_grid_size();
         const index_t blockPerGrid_n = gridDim.y;
+        const index_t block_1d       = get_block_1d_id();
         const auto M                 = in_grid_2d_desc_tuple[I0].GetLength(I0);
         const auto N                 = in_grid_2d_desc_tuple[I1].GetLength(I1);
         const index_t loop_step_m    = blockPerGrid_m * blockSize * MPerThread;
         const index_t loop_step_n    = blockPerGrid_n * blockSize * NPerThread;
         const auto loop_step_index   = make_multi_index(loop_step_m, loop_step_n);
 
-        const auto index_t thread_global_id_2d =
-            thread_buffer_desc_mn.CalculateBottomIndex(make_multi_index(get_block_1d_id));
+        const auto thread_global_id_2d =
+            thread_buffer_desc_mn.CalculateBottomIndex(make_multi_index(block_1d));
         const auto blockId_m = thread_global_id_2d[I0];
         const auto blockId_n = thread_global_id_2d[I1];
         const auto thread_global_offset =
