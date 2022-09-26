@@ -12,8 +12,7 @@ using ck::index_t;
 
 struct LayernormArgParser
 {
-    std::unordered_map<std::string, std::vector<int>> long_opts = {
-        {"length", {}}};
+    std::unordered_map<std::string, std::vector<int>> long_opts = {{"length", {}}};
 
     bool parse_opt(int argc, char* argv[], const std::string& key, int i)
     {
@@ -74,7 +73,7 @@ int profile_layernorm(int argc, char* argv[])
 
     // parse the long options
     arg_parser(argc, argv);
-    const std::vector<index_t> length      = arg_parser.long_opts["length"];
+    const std::vector<index_t> length = arg_parser.long_opts["length"];
 
     using F16          = ck::half_t;
     using F32          = float;
@@ -82,19 +81,13 @@ int profile_layernorm(int argc, char* argv[])
 
     if(data_type == ck::DataTypeEnum::Half)
     {
-        ck::profiler::profile_layernorm_impl<F16, F16, F16, F32, F16, rank>(do_verification,
-                                                                            init_method,
-                                                                            do_log,
-                                                                            time_kernel,
-                                                                            length);
+        ck::profiler::profile_layernorm_impl<F16, F16, F16, F32, F16, rank>(
+            do_verification, init_method, do_log, time_kernel, length);
     }
     else if(data_type == ck::DataTypeEnum::Float)
     {
-        ck::profiler::profile_layernorm_impl<F32, F32, F32, F32, F32, rank>(do_verification,
-                                                                            init_method,
-                                                                            do_log,
-                                                                            time_kernel,
-                                                                            length);
+        ck::profiler::profile_layernorm_impl<F32, F32, F32, F32, F32, rank>(
+            do_verification, init_method, do_log, time_kernel, length);
     }
     else
     {
