@@ -434,6 +434,10 @@ def Build_CK(Map conf=[:]){
         if (params.COMPILER_VERSION != "release"){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
+        if (params.COMPILER_VERSION = "amd-stg-open"){
+            dockerOpts = dockerOpts + " --env CLANGRT_BUILTINS='/llvm-project/build/lib/clang/16.0.0/lib/x86_64-unknown-linux-gnu/libclang_rt.builtins.a' "
+        }
+
 
         def variant = env.STAGE_NAME
         def retimage
