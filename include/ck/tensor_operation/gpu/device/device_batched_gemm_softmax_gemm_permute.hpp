@@ -12,10 +12,11 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename ALayout,
-          typename B0Layout,
-          typename B1Layout,
-          typename CPermuteNumDims_G_M_Gemm1N, // Sequence<>
+template <index_t NumDimG,
+          index_t NumDimM,
+          index_t NumDimN,
+          index_t NumDimK,
+          index_t NumDimO,
           typename ADataType,
           typename B0DataType,
           typename B1DataType,
@@ -28,29 +29,24 @@ template <typename ALayout,
           bool MaskOutUpperTriangle> // TODO: enum for mask type
 struct DeviceBatchedGemmSoftmaxGemmPermute : public BaseOperator
 {
-    virtual std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const void* p_a,
-                        const void* p_b0,
-                        const void* p_b1,
-                        void* p_c,
-                        ck::index_t M,
-                        ck::index_t N,
-                        ck::index_t K,
-                        ck::index_t O,
-                        ck::index_t Batch,
-                        std::vector<index_t> c_gs_ms_os_lengths,
-                        std::vector<index_t> c_gs_ms_os_strides,
-                        ck::index_t StrideA,
-                        ck::index_t StrideB0,
-                        ck::index_t StrideB1,
-                        ck::index_t BatchStrideA,
-                        ck::index_t BatchStrideB0,
-                        ck::index_t BatchStrideB1,
-                        AElementwiseOperation a_element_op,
-                        B0ElementwiseOperation b0_element_op,
-                        Acc0ElementwiseOperation acc0_element_op,
-                        B1ElementwiseOperation b1_element_op,
-                        CElementwiseOperation c_element_op) = 0;
+    virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(
+        const void* p_a,
+        const void* p_b0,
+        const void* p_b1,
+        void* p_c,
+        const std::vector<index_t>& a_gs_ms_ks_lengths,
+        const std::vector<index_t>& a_gs_ms_ks_strides,
+        const std::vector<index_t>& b_gs_ns_ks_lengths,
+        const std::vector<index_t>& b_gs_ns_ks_strides,
+        const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
+        const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
+        const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
+        const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+        AElementwiseOperation a_element_op,
+        B0ElementwiseOperation b0_element_op,
+        Acc0ElementwiseOperation acc0_element_op,
+        B1ElementwiseOperation b1_element_op,
+        CElementwiseOperation c_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };

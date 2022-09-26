@@ -53,6 +53,23 @@ inline std::string getGemmSpecializationString(const GemmSpecialization& s)
     }
 }
 
+// TODO ANT: move to its own file
+enum struct MaskingSpecialization
+{
+    Default,
+    MaskOutUpperTriangle
+};
+
+inline std::string getMaskingSpecializationString(const MaskingSpecialization& s)
+{
+    switch(s)
+    {
+    case MaskingSpecialization::Default: return "Default";
+    case MaskingSpecialization::MaskOutUpperTriangle: return "MaskOutUpperTriangle";
+    default: return "Unrecognized specialization!";
+    }
+}
+
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
