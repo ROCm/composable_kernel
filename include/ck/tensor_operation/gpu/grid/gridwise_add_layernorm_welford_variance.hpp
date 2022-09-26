@@ -354,14 +354,14 @@ struct GridwiseAddLayernormWelfordVariance_mk_to_mk
 
         for(index_t reducedTiles = 0; reducedTiles < num_k_block_tile_iteration; ++reducedTiles)
         {
-            if constexpr(!SweepOnce)
-            {
+            //if constexpr(!SweepOnce)
+            //{
                 threadwise_c_load.Run(c_grid_desc_m_k,
                                       c_global_val_buf,
                                       thread_buffer_desc_m_k,
                                       make_tuple(I0, I0),
                                       c_thread_buf);
-            }
+            //}
 
             threadwise_gamma_load.Run(gamma_grid_desc_k,
                                       gamma_global_val_buf,
