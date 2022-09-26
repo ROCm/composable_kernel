@@ -21,6 +21,8 @@ template <index_t NumDimG,
           typename B0DataType,
           typename B1DataType,
           typename CDataType,
+          typename Acc0BiasDataType,
+          typename Acc1BiasDataType,
           typename AElementwiseOperation,
           typename B0ElementwiseOperation,
           typename Acc0ElementwiseOperation,
@@ -29,11 +31,16 @@ template <index_t NumDimG,
           bool MaskOutUpperTriangle> // TODO: enum for mask type
 struct DeviceBatchedGemmSoftmaxGemmPermute : public BaseOperator
 {
+    static constexpr index_t NumAcc0Bias = Acc0BiasDataType::Size();
+    static constexpr index_t NumAcc1Bias = Acc1BiasDataType::Size();
+
     virtual std::unique_ptr<BaseArgument> MakeArgumentPointer(
         const void* p_a,
         const void* p_b0,
         const void* p_b1,
         void* p_c,
+        const std::array<void*, NumAcc0Bias> p_acc0_biases,
+        const std::array<void*, NumAcc1Bias> p_acc1_biases,
         const std::vector<index_t>& a_gs_ms_ks_lengths,
         const std::vector<index_t>& a_gs_ms_ks_strides,
         const std::vector<index_t>& b_gs_ns_ks_lengths,
@@ -42,6 +49,12 @@ struct DeviceBatchedGemmSoftmaxGemmPermute : public BaseOperator
         const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
         const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
         const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+        const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_lengths,
+        const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_strides,
+        const std::array<std::vector<ck::index_t>, NumAcc1Bias>
+            acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
+        const std::array<std::vector<ck::index_t>, NumAcc1Bias>
+            acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
         AElementwiseOperation a_element_op,
         B0ElementwiseOperation b0_element_op,
         Acc0ElementwiseOperation acc0_element_op,

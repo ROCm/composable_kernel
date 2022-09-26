@@ -44,6 +44,8 @@ using B1DataType       = F16;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
 using CDataType        = F16;
+using Acc0BiasDataType = ck::Tuple<>;
+using Acc1BiasDataType = ck::Tuple<>;
 
 static constexpr ck::index_t NumDimG = 2;
 static constexpr ck::index_t NumDimM = 1;
@@ -70,6 +72,8 @@ using DeviceGemmInstance =
         B0DataType,
         B1DataType,
         CDataType,
+        Acc0BiasDataType,
+        Acc1BiasDataType,
         AccDataType,
         CShuffleDataType,
         AElementOp,
@@ -283,31 +287,32 @@ int main(int argc, char* argv[])
     auto c_element_op    = CElementOp{};
 
     // do GEMM
-    auto gemm    = DeviceGemmInstance{};
-    auto invoker = gemm.MakeInvoker();
-    auto argument =
-        gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                          static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),
-                          static_cast<B1DataType*>(b1_device_buf.GetDeviceBuffer()),
-                          static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                          a_gs_ms_ks_lengths,
-                          a_gs_ms_ks_strides,
-                          b0_gs_ns_ks_lengths,
-                          b0_gs_ns_ks_strides,
-                          b1_gs_os_ns_lengths,
-                          b1_gs_os_ns_strides,
-                          c_gs_ms_os_lengths,
-                          c_gs_ms_os_strides,
-                          // TODO ANT: add bias
-                          // std::array<std::vector<ck::index_t>, 1>{acc0_bias_gs_ms_ns_lengths},
-                          // std::array<std::vector<ck::index_t>, 1>{acc0_bias_gs_ms_ns_strides},
-                          // std::array<std::vector<ck::index_t>, 1>{acc1_bias_gs_ms_os_lengths},
-                          // std::array<std::vector<ck::index_t>, 1>{acc1_bias_gs_ms_os_strides},
-                          a_element_op,
-                          b0_element_op,
-                          acc0_element_op,
-                          b1_element_op,
-                          c_element_op);
+    auto gemm     = DeviceGemmInstance{};
+    auto invoker  = gemm.MakeInvoker();
+    auto argument = gemm.MakeArgument(
+        static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+        static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),
+        static_cast<B1DataType*>(b1_device_buf.GetDeviceBuffer()),
+        static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+        {}, // std::array<void*, 1> p_acc0_biases;
+        {}, // std::array<void*, 1> p_acc1_biases;
+        a_gs_ms_ks_lengths,
+        a_gs_ms_ks_strides,
+        b0_gs_ns_ks_lengths,
+        b0_gs_ns_ks_strides,
+        b1_gs_os_ns_lengths,
+        b1_gs_os_ns_strides,
+        c_gs_ms_os_lengths,
+        c_gs_ms_os_strides,
+        {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_lengths},
+        {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_strides},
+        {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
+        {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
+        a_element_op,
+        b0_element_op,
+        acc0_element_op,
+        b1_element_op,
+        c_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {

@@ -128,6 +128,8 @@ template <index_t NumDimG,
           typename BDataType,
           typename B1DataType,
           typename CDataType,
+          typename Acc0BiasDataType,
+          typename Acc1BiasDataType,
           typename GemmAccDataType,
           typename CShuffleDataType,
           typename AElementwiseOperation,
@@ -188,6 +190,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                                  BDataType,
                                                  B1DataType,
                                                  CDataType,
+                                                 Acc0BiasDataType,
+                                                 Acc1BiasDataType,
                                                  AElementwiseOperation,
                                                  BElementwiseOperation,
                                                  AccElementwiseOperation,
@@ -197,6 +201,12 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
 {
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
                   "Number of dimension must be greater than 0");
+
+    static constexpr index_t NumAcc0Bias = Acc0BiasDataType::Size();
+    static constexpr index_t NumAcc1Bias = Acc1BiasDataType::Size();
+
+    // TODO
+    static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "unimplemented");
 
 #if 0
     static constexpr index_t NumDimGemm0M = NumDimM;
@@ -383,23 +393,32 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     // FIXME: constness
     struct Argument : public BaseArgument
     {
-        Argument(const ADataType* p_a_grid,
-                 const BDataType* p_b_grid,
-                 const B1DataType* p_b1_grid,
-                 CDataType* p_c_grid,
-                 const std::vector<index_t>& a_gs_ms_ks_lengths,
-                 const std::vector<index_t>& a_gs_ms_ks_strides,
-                 const std::vector<index_t>& b_gs_ns_ks_lengths,
-                 const std::vector<index_t>& b_gs_ns_ks_strides,
-                 const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
-                 const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
-                 const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
-                 const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
-                 AElementwiseOperation a_element_op,
-                 BElementwiseOperation b_element_op,
-                 AccElementwiseOperation acc_element_op,
-                 B1ElementwiseOperation b1_element_op,
-                 CElementwiseOperation c_element_op)
+        Argument(
+            const ADataType* p_a_grid,
+            const BDataType* p_b_grid,
+            const B1DataType* p_b1_grid,
+            CDataType* p_c_grid,
+            const std::array<void*, NumAcc0Bias> p_acc0_biases,
+            const std::array<void*, NumAcc1Bias> p_acc1_biases,
+            const std::vector<index_t>& a_gs_ms_ks_lengths,
+            const std::vector<index_t>& a_gs_ms_ks_strides,
+            const std::vector<index_t>& b_gs_ns_ks_lengths,
+            const std::vector<index_t>& b_gs_ns_ks_strides,
+            const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
+            const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
+            const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
+            const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+            const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_lengths,
+            const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_strides,
+            const std::array<std::vector<ck::index_t>, NumAcc1Bias>
+                acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
+            const std::array<std::vector<ck::index_t>, NumAcc1Bias>
+                acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
+            AElementwiseOperation a_element_op,
+            BElementwiseOperation b_element_op,
+            AccElementwiseOperation acc_element_op,
+            B1ElementwiseOperation b1_element_op,
+            CElementwiseOperation c_element_op)
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_b1_grid_{p_b1_grid},
@@ -444,6 +463,14 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
               compute_base_ptr_of_batch_{
                   a_grid_desc_g_m_k_, b_grid_desc_g_n_k_, b1_grid_desc_g_n_k_, c_grid_desc_g_m_n_}
         {
+            // TODO ANT:
+            ignore = p_acc0_biases;
+            ignore = p_acc1_biases;
+            ignore = acc0_biases_gs_ms_ns_lengths;
+            ignore = acc0_biases_gs_ms_ns_strides;
+            ignore = acc1_biases_gs_ms_gemm1ns_lengths;
+            ignore = acc1_biases_gs_ms_gemm1ns_strides;
+
             if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
                                            b_grid_desc_bk0_n_bk1_,
                                            b1_grid_desc_bk0_n_bk1_,
@@ -700,29 +727,39 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-    static auto
-    MakeArgument(const ADataType* p_a,
-                 const BDataType* p_b,
-                 const B1DataType* p_b1,
-                 CDataType* p_c,
-                 const std::vector<index_t>& a_gs_ms_ks_lengths,
-                 const std::vector<index_t>& a_gs_ms_ks_strides,
-                 const std::vector<index_t>& b_gs_ns_ks_lengths,
-                 const std::vector<index_t>& b_gs_ns_ks_strides,
-                 const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
-                 const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
-                 const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
-                 const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
-                 AElementwiseOperation a_element_op,
-                 BElementwiseOperation b_element_op,
-                 AccElementwiseOperation acc_element_op,
-                 B1ElementwiseOperation b1_element_op,
-                 CElementwiseOperation c_element_op)
+    static auto MakeArgument(
+        const ADataType* p_a,
+        const BDataType* p_b,
+        const B1DataType* p_b1,
+        CDataType* p_c,
+        const std::array<void*, NumAcc0Bias> p_acc0_biases,
+        const std::array<void*, NumAcc1Bias> p_acc1_biases,
+        const std::vector<index_t>& a_gs_ms_ks_lengths,
+        const std::vector<index_t>& a_gs_ms_ks_strides,
+        const std::vector<index_t>& b_gs_ns_ks_lengths,
+        const std::vector<index_t>& b_gs_ns_ks_strides,
+        const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
+        const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
+        const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
+        const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+        const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_lengths,
+        const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_strides,
+        const std::array<std::vector<ck::index_t>, NumAcc1Bias>
+            acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
+        const std::array<std::vector<ck::index_t>, NumAcc1Bias>
+            acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
+        AElementwiseOperation a_element_op,
+        BElementwiseOperation b_element_op,
+        AccElementwiseOperation acc_element_op,
+        B1ElementwiseOperation b1_element_op,
+        CElementwiseOperation c_element_op)
     {
         return Argument{p_a,
                         p_b,
                         p_b1,
                         p_c,
+                        p_acc0_biases,
+                        p_acc1_biases,
                         a_gs_ms_ks_lengths,
                         a_gs_ms_ks_strides,
                         b_gs_ns_ks_lengths,
@@ -731,6 +768,10 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                         b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
                         c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
                         c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+                        acc0_biases_gs_ms_ns_lengths,
+                        acc0_biases_gs_ms_ns_strides,
+                        acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
+                        acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
                         a_element_op,
                         b_element_op,
                         acc_element_op,
@@ -747,6 +788,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         const void* p_b,
         const void* p_b1,
         void* p_c,
+        const std::array<void*, NumAcc0Bias> p_acc0_biases,
+        const std::array<void*, NumAcc1Bias> p_acc1_biases,
         const std::vector<index_t>& a_gs_ms_ks_lengths,
         const std::vector<index_t>& a_gs_ms_ks_strides,
         const std::vector<index_t>& b_gs_ns_ks_lengths,
@@ -755,29 +798,42 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
         const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
         const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+        const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_lengths,
+        const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_strides,
+        const std::array<std::vector<ck::index_t>, NumAcc1Bias>
+            acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
+        const std::array<std::vector<ck::index_t>, NumAcc1Bias>
+            acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
         AElementwiseOperation a_element_op,
         BElementwiseOperation b_element_op,
         AccElementwiseOperation acc_element_op,
         B1ElementwiseOperation b1_element_op,
         CElementwiseOperation c_element_op) override
     {
-        return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
-                                          static_cast<const BDataType*>(p_b),
-                                          static_cast<const B1DataType*>(p_b1),
-                                          static_cast<CDataType*>(p_c),
-                                          a_gs_ms_ks_lengths,
-                                          a_gs_ms_ks_strides,
-                                          b_gs_ns_ks_lengths,
-                                          b_gs_ns_ks_strides,
-                                          b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
-                                          b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
-                                          c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
-                                          c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
-                                          a_element_op,
-                                          b_element_op,
-                                          acc_element_op,
-                                          b1_element_op,
-                                          c_element_op);
+        return std::make_unique<Argument>(
+            static_cast<const ADataType*>(p_a),
+            static_cast<const BDataType*>(p_b),
+            static_cast<const B1DataType*>(p_b1),
+            static_cast<CDataType*>(p_c),
+            p_acc0_biases, // cast in struct Argument
+            p_acc1_biases, // cast in struct Argument
+            a_gs_ms_ks_lengths,
+            a_gs_ms_ks_strides,
+            b_gs_ns_ks_lengths,
+            b_gs_ns_ks_strides,
+            b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
+            b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
+            c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
+            c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+            acc0_biases_gs_ms_ns_lengths,
+            acc0_biases_gs_ms_ns_strides,
+            acc1_biases_gs_ms_gemm1ns_lengths,
+            acc1_biases_gs_ms_gemm1ns_strides,
+            a_element_op,
+            b_element_op,
+            acc_element_op,
+            b1_element_op,
+            c_element_op);
     }
 
     // polymorphic
