@@ -26,11 +26,16 @@ template <typename InDataTypeTuple,
           index_t NPerThread,
           typename InScalarPerVectorSeq,
           typename OutScalarPerVectorSeq>
-struct DeviceElementwise
-    : public DeviceElementwiseBase<InDataTypeTuple, OutDataTypeTuple, ElementwiseOperation, NumDim>
+struct DeviceElementwise : public DeviceElementwiseBase<InDataTypeTuple,
+                                                        OutDataTypeTuple,
+                                                        ElementwiseOperation,
+                                                        NumDim_m,
+                                                        NumDim_n>
 {
     static constexpr int NumInput  = InDataTypeTuple::Size();
     static constexpr int NumOutput = OutDataTypeTuple::Size();
+
+    const index_t NumDim = NumDim_m + NumDim_n;
 
     static_assert(NumInput == InScalarPerVectorSeq::Size() &&
                       NumOutput == OutScalarPerVectorSeq::Size(),
@@ -115,7 +120,7 @@ struct DeviceElementwise
     }
 
     template <index_t TupleSize>
-    static auto GenerateInOutGridse_2d.hpp2dDescTuple(Number<TupleSize>)
+    static auto GenerateInOutGrid1dDescTuple(Number<TupleSize>)
     {
         return generate_tuple(
             [&](auto) {
