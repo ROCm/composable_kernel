@@ -8,6 +8,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/magic_division.hpp"
+#include "ck/library/utility/auto_cast.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
