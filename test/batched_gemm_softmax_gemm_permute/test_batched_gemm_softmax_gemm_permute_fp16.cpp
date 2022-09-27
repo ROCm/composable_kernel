@@ -178,6 +178,5 @@ TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16, AdhocTest)
         {1020, 1020, 64, 128, 4, 6},
         {576, 576, 64, 64, 4, 6},
     };
-    this->bench_ = true;
     this->Run();
 }

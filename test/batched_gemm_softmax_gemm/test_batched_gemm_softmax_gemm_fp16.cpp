@@ -168,6 +168,5 @@ TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, AdhocTest)
         {1020, 1020, 64, 128, 24},
         {576, 576, 64, 64, 24},
     };
-    this->bench_ = true;
     this->Run();
 }
