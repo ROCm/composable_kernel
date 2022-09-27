@@ -205,8 +205,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     static constexpr index_t NumAcc0Bias = Acc0BiasDataType::Size();
     static constexpr index_t NumAcc1Bias = Acc1BiasDataType::Size();
 
-    // TODO
-    static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "unimplemented");
+    // TODO ANT: implement bias combination
+    static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "Bias addition is unimplemented");
 
 #if 0
     static constexpr index_t NumDimGemm0M = NumDimM;
@@ -810,30 +810,29 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         B1ElementwiseOperation b1_element_op,
         CElementwiseOperation c_element_op) override
     {
-        return std::make_unique<Argument>(
-            static_cast<const ADataType*>(p_a),
-            static_cast<const BDataType*>(p_b),
-            static_cast<const B1DataType*>(p_b1),
-            static_cast<CDataType*>(p_c),
-            p_acc0_biases, // cast in struct Argument
-            p_acc1_biases, // cast in struct Argument
-            a_gs_ms_ks_lengths,
-            a_gs_ms_ks_strides,
-            b_gs_ns_ks_lengths,
-            b_gs_ns_ks_strides,
-            b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
-            b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
-            c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
-            c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
-            acc0_biases_gs_ms_ns_lengths,
-            acc0_biases_gs_ms_ns_strides,
-            acc1_biases_gs_ms_gemm1ns_lengths,
-            acc1_biases_gs_ms_gemm1ns_strides,
-            a_element_op,
-            b_element_op,
-            acc_element_op,
-            b1_element_op,
-            c_element_op);
+        return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
+                                          static_cast<const BDataType*>(p_b),
+                                          static_cast<const B1DataType*>(p_b1),
+                                          static_cast<CDataType*>(p_c),
+                                          p_acc0_biases, // cast in struct Argument
+                                          p_acc1_biases, // cast in struct Argument
+                                          a_gs_ms_ks_lengths,
+                                          a_gs_ms_ks_strides,
+                                          b_gs_ns_ks_lengths,
+                                          b_gs_ns_ks_strides,
+                                          b1_gs_gemm1ns_gemm1ks_lengths, // b1_gs_os_ns_lengths
+                                          b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
+                                          c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
+                                          c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
+                                          acc0_biases_gs_ms_ns_lengths,
+                                          acc0_biases_gs_ms_ns_strides,
+                                          acc1_biases_gs_ms_gemm1ns_lengths,
+                                          acc1_biases_gs_ms_gemm1ns_strides,
+                                          a_element_op,
+                                          b_element_op,
+                                          acc_element_op,
+                                          b1_element_op,
+                                          c_element_op);
     }
 
     // polymorphic

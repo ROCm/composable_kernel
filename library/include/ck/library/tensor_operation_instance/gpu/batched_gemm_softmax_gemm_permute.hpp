@@ -17,21 +17,18 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-template <ck::index_t... Is>
-using S = ck::Sequence<Is...>;
-
-using CPermuteNumDims_G_M_O =
-    S<2, 1, 1>; // "using CLayout = Row" has been replaced by CPermuteNumDims_G_M_O
-
 void add_device_batched_gemm_masking_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
-    std::vector<std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<Row,
-                                                                    Col,
-                                                                    Row,
-                                                                    CPermuteNumDims_G_M_O,
+    std::vector<std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<2,
+                                                                    1,
+                                                                    1,
+                                                                    1,
+                                                                    1,
                                                                     F16,
                                                                     F16,
                                                                     F16,
                                                                     F16,
+                                                                    ck::Tuple<>,
+                                                                    ck::Tuple<>,
                                                                     PassThrough,
                                                                     PassThrough,
                                                                     Scale,
@@ -40,14 +37,17 @@ void add_device_batched_gemm_masking_softmax_gemm_permute_xdl_cshuffle_f16_f16_f
                                                                     true>>>& instances);
 
 void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
-    std::vector<std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<Row,
-                                                                    Col,
-                                                                    Row,
-                                                                    CPermuteNumDims_G_M_O,
+    std::vector<std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<2,
+                                                                    1,
+                                                                    1,
+                                                                    1,
+                                                                    1,
                                                                     F16,
                                                                     F16,
                                                                     F16,
                                                                     F16,
+                                                                    ck::Tuple<>,
+                                                                    ck::Tuple<>,
                                                                     PassThrough,
                                                                     PassThrough,
                                                                     Scale,
@@ -55,24 +55,23 @@ void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_g
                                                                     PassThrough,
                                                                     false>>>& instances);
 
-template <typename ALayout,
-          typename B0Layout,
-          typename B1Layout,
-          typename CPermuteNumDims_G_M_Gemm1N,
-          typename ADataType,
+template <typename ADataType,
           typename B0DataType,
           typename B1DataType,
           typename CDataType,
           bool MaskOutUpperTriangle>
 struct DeviceOperationInstanceFactory<
-    ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute<ALayout,
-                                                                      B0Layout,
-                                                                      B1Layout,
-                                                                      CPermuteNumDims_G_M_Gemm1N,
+    ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute<2,
+                                                                      1,
+                                                                      1,
+                                                                      1,
+                                                                      1,
                                                                       ADataType,
                                                                       B0DataType,
                                                                       B1DataType,
                                                                       CDataType,
+                                                                      ck::Tuple<>,
+                                                                      ck::Tuple<>,
                                                                       PassThrough,
                                                                       PassThrough,
                                                                       Scale,
@@ -80,14 +79,17 @@ struct DeviceOperationInstanceFactory<
                                                                       PassThrough,
                                                                       MaskOutUpperTriangle>>
 {
-    using DeviceOp = DeviceBatchedGemmSoftmaxGemmPermute<ALayout,
-                                                         B0Layout,
-                                                         B1Layout,
-                                                         CPermuteNumDims_G_M_Gemm1N,
+    using DeviceOp = DeviceBatchedGemmSoftmaxGemmPermute<2,
+                                                         1,
+                                                         1,
+                                                         1,
+                                                         1,
                                                          ADataType,
                                                          B0DataType,
                                                          B1DataType,
                                                          CDataType,
+                                                         ck::Tuple<>,
+                                                         ck::Tuple<>,
                                                          PassThrough,
                                                          PassThrough,
                                                          Scale,
@@ -102,20 +104,15 @@ struct DeviceOperationInstanceFactory<
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<B0DataType, half_t> &&
                      is_same_v<B1DataType, half_t> && is_same_v<CDataType, half_t>)
         {
-            if constexpr(is_same_v<ALayout, Row> && is_same_v<B0Layout, Col> &&
-                         is_same_v<B1Layout, Row> &&
-                         is_same_v<CPermuteNumDims_G_M_Gemm1N, CPermuteNumDims_G_M_O>)
+            if constexpr(MaskOutUpperTriangle)
             {
-                if constexpr(MaskOutUpperTriangle)
-                {
-                    add_device_batched_gemm_masking_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
-                        op_ptrs);
-                }
-                else
-                {
-                    add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
-                        op_ptrs);
-                }
+                add_device_batched_gemm_masking_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
+                    op_ptrs);
+            }
+            else
+            {
+                add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
+                    op_ptrs);
             }
         }
         return op_ptrs;

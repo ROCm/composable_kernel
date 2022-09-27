@@ -44,7 +44,7 @@ using B1DataType       = F16;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
 using CDataType        = F16;
-using Acc0BiasDataType = ck::Tuple<>;
+using Acc0BiasDataType = ck::Tuple<>; // TODO ANT: Acc0BiasesData
 using Acc1BiasDataType = ck::Tuple<>;
 
 static constexpr ck::index_t NumDimG = 2;
