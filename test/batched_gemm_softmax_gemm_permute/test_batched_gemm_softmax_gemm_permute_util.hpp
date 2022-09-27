@@ -43,16 +43,17 @@ struct TestBatchedGemmMaskingScaleSoftmaxGemmPermute : public ::testing::Test
 
     void RunSingle(int M, int N, int K, int O, int G0, int G1)
     {
-        bool pass = ck::profiler::profile_batched_gemm_softmax_gemm_permute_impl<
-            ADataType,
-            B0DataType,
-            B1DataType,
-            CDataType,
-            ALayout,
-            B0Layout,
-            B1Layout,
-            CPermuteNumDims_G_M_O,
-            MaskingType::value>(verify_, 1, false, bench_, M, N, K, O, G0, G1);
+        bool pass =
+            ck::profiler::profile_batched_gemm_softmax_gemm_permute_impl<ADataType,
+                                                                         B0DataType,
+                                                                         B1DataType,
+                                                                         CDataType,
+                                                                         ALayout,
+                                                                         B0Layout,
+                                                                         B1Layout,
+                                                                         CPermuteNumDims_G_M_O,
+                                                                         MaskingType::value>(
+                verify_, 1, false, bench_, M, N, K, O, G0, G1);
 
         EXPECT_TRUE(pass);
     }
