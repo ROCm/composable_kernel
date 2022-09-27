@@ -59,7 +59,7 @@ using device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_
         // clang-format on
         >;
 
-void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
+void add_device_batched_gemm_masking_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
     std::vector<std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<Row,
                                                                     Col,
                                                                     Row,
@@ -81,7 +81,7 @@ void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_g
             true>{});
 }
 
-void add_device_batched_gemm_scale_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
+void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
     std::vector<std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<Row,
                                                                     Col,
                                                                     Row,

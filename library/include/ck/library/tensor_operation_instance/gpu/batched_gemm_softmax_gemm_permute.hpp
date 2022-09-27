@@ -23,7 +23,7 @@ using S = ck::Sequence<Is...>;
 using CPermuteNumDims_G_M_O =
     S<2, 1, 1>; // "using CLayout = Row" has been replaced by CPermuteNumDims_G_M_O
 
-void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
+void add_device_batched_gemm_masking_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
     std::vector<std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<Row,
                                                                     Col,
                                                                     Row,
@@ -39,7 +39,7 @@ void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_g
                                                                     PassThrough,
                                                                     true>>>& instances);
 
-void add_device_batched_gemm_scale_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
+void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
     std::vector<std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<Row,
                                                                     Col,
                                                                     Row,
@@ -108,12 +108,12 @@ struct DeviceOperationInstanceFactory<
             {
                 if constexpr(MaskOutUpperTriangle)
                 {
-                    add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
+                    add_device_batched_gemm_masking_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
                         op_ptrs);
                 }
                 else
                 {
-                    add_device_batched_gemm_scale_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
+                    add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
                         op_ptrs);
                 }
             }
