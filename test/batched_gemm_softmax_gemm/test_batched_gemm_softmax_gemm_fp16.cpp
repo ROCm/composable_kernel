@@ -9,9 +9,13 @@ class TestBatchedGemmSoftmaxGemmFP16 : public TestBatchedGemmSoftmaxGemm<Tuple>
 {
 };
 
+using Masked = std::true_type;
+using NoMask = std::false_type;
+
 // clang-format off
 using KernelTypes = ::testing::Types<
-    std::tuple<F16, F16, F16, F16, Row, Col, Row, Row>
+    std::tuple<F16, F16, F16, F16, Row, Col, Row, Row, NoMask>,
+    std::tuple<F16, F16, F16, F16, Row, Col, Row, Row, Masked>
     >;
 // clang-format on
 
