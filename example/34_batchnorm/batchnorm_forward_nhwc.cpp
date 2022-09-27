@@ -364,7 +364,7 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
             y_ref.mData.data(),
             saveMeanAndInvVariance ? resultSaveMean_ref.mData.data() : nullptr,
             saveMeanAndInvVariance ? resultSaveInvVariance_ref.mData.data() : nullptr,
-            0.1, // exponentialAverageFactor
+            averageFactor,
             updateMovingAverage ? resultRunningMean_ref.mData.data() : nullptr,
             updateMovingAverage ? resultRunningVariance_ref.mData.data() : nullptr);
 
