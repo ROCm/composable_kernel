@@ -44,20 +44,20 @@ def getDockerImage(Map conf=[:]){
     def prefixpath = conf.get("prefixpath", "/opt/rocm") // prefix:/opt/rocm
     def no_cache = conf.get("no_cache", false)
     def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' "
-    if(env.CCACHE_HOST)
+    if(env.CK_CCACHE)
     {
-        def check_host = sh(script:"""(printf "PING\r\n";) | nc -N ${env.CCACHE_HOST} 6379 """, returnStdout: true).trim()
+        def check_host = sh(script:"""(printf "PING\r\n";) | nc -N ${env.CK_CCACHE} 6379 """, returnStdout: true).trim()
         if(check_host == "+PONG")
         {
-            echo "FOUND CCACHE SERVER: ${CCACHE_HOST}"
+            echo "FOUND CCACHE SERVER: ${CK_CCACHE}"
         }
         else 
         {
-            echo "CCACHE SERVER: ${CCACHE_HOST} NOT FOUND, got ${check_host} response"
+            echo "CCACHE SERVER: ${CK_CCACHE} NOT FOUND, got ${check_host} response"
         }
-        dockerArgs = dockerArgs + " --build-arg CCACHE_SECONDARY_STORAGE='redis://${env.CCACHE_HOST}' --build-arg COMPILER_LAUNCHER='ccache' "
+        dockerArgs = dockerArgs + " --build-arg CCACHE_SECONDARY_STORAGE='redis://${env.CK_CCACHE}' --build-arg COMPILER_LAUNCHER='ccache' "
         env.CCACHE_DIR = """/tmp/ccache_store"""
-        env.CCACHE_SECONDARY_STORAGE="""redis://${env.CCACHE_HOST}"""
+        env.CCACHE_SECONDARY_STORAGE="""redis://${env.CK_CCACHE}"""
     }
     if(no_cache)
     {
@@ -87,20 +87,20 @@ def buildDocker(install_prefix){
     def image_name = getDockerImageName()
     echo "Building Docker for ${image_name}"
     def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${install_prefix} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}'"
-    if(env.CCACHE_HOST)
+    if(env.CK_CCACHE)
     {
-        def check_host = sh(script:"""(printf "PING\\r\\n";) | nc  -N ${env.CCACHE_HOST} 6379 """, returnStdout: true).trim()
+        def check_host = sh(script:"""(printf "PING\\r\\n";) | nc  -N ${env.CK_CCACHE} 6379 """, returnStdout: true).trim()
         if(check_host == "+PONG")
         {
-            echo "FOUND CCACHE SERVER: ${CCACHE_HOST}"
+            echo "FOUND CCACHE SERVER: ${CK_CCACHE}"
         }
         else 
         {
-            echo "CCACHE SERVER: ${CCACHE_HOST} NOT FOUND, got ${check_host} response"
+            echo "CCACHE SERVER: ${CK_CCACHE} NOT FOUND, got ${check_host} response"
         }
-        dockerArgs = dockerArgs + " --build-arg CCACHE_SECONDARY_STORAGE='redis://${env.CCACHE_HOST}' --build-arg COMPILER_LAUNCHER='ccache' "
+        dockerArgs = dockerArgs + " --build-arg CCACHE_SECONDARY_STORAGE='redis://${env.CK_CCACHE}' --build-arg COMPILER_LAUNCHER='ccache' "
         env.CCACHE_DIR = """/tmp/ccache_store"""
-        env.CCACHE_SECONDARY_STORAGE="""redis://${env.CCACHE_HOST}"""
+        env.CCACHE_SECONDARY_STORAGE="""redis://${env.CK_CCACHE}"""
     }
 
     echo "Build Args: ${dockerArgs}"
@@ -161,7 +161,7 @@ def cmake_build(Map conf=[:]){
     }else{
         setup_args = " -DCMAKE_BUILD_TYPE=release" + setup_args
     }
-    if(env.CCACHE_HOST)
+    if(env.CK_CCACHE)
     {
         setup_args = " -DCMAKE_CXX_COMPILER_LAUNCHER='ccache' -DCMAKE_C_COMPILER_LAUNCHER='ccache' " + setup_args
     }
