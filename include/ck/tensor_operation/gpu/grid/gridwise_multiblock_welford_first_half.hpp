@@ -14,7 +14,6 @@ namespace ck {
 
 template <typename GridwiseMultiblockWelfordFirstHalf_,
           typename XDataType,
-          typename AccDataType,
           typename MeanVarDataType,
           typename XGridDesc_M_K,
           typename MeanVarCountGridDesc_M_G,

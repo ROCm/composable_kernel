@@ -24,7 +24,8 @@ namespace device {
 template <typename XDataType,
           typename YDataType,
           typename AccDataType,
-          typename ScaleBiasDataType,
+          typename ScaleDataType,
+          typename BiasDataType,
           typename MeanVarDataType,
           index_t Rank,
           index_t NumBatchNormReduceDim,
@@ -37,7 +38,8 @@ template <typename XDataType,
           index_t XSrcYDstVectorDim,
           index_t XSrcVectorSize,
           index_t YDstVectorSize,
-          index_t ScaleBiasSrcVectorSize,
+          index_t ScaleSrcVectorSize,
+          index_t BiasSrcVectorSize,
           index_t MeanVarSrcDstVectorSize>
 struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormReduceDim>
 {
@@ -180,11 +182,12 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                  const std::array<index_t, Rank> yStrides,
                  const std::array<int, NumBatchNormReduceDim> reduceDims,
                  const std::array<index_t, Rank - NumBatchNormReduceDim> bnScaleBiasMeanVarLengths,
-                 const std::array<index_t, Rank - NumBatchNormReduceDim> bnScaleBiasStrides,
+                 const std::array<index_t, Rank - NumBatchNormReduceDim> bnScaleStrides,
+                 const std::array<index_t, Rank - NumBatchNormReduceDim> bnBiasStrides,
                  const std::array<index_t, Rank - NumBatchNormReduceDim> bnMeanVarStrides,
                  const XDataType* p_x,
-                 const ScaleBiasDataType* p_scale,
-                 const ScaleBiasDataType* p_bias,
+                 const ScaleDataType* p_scale,
+                 const BiasDataType* p_bias,
                  double epsilon,
                  YDataType* p_y,
                  MeanVarDataType* resultSaveMean,
@@ -193,7 +196,8 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                  MeanVarDataType* resultRunningMean,
                  MeanVarDataType* resultRunningVariance)
             : bnScaleBiasMeanVarLengths_(bnScaleBiasMeanVarLengths),
-              bnScaleBiasStrides_(bnScaleBiasStrides),
+              bnScaleStrides_(bnScaleStrides),
+              bnBiasStrides_(bnBiasStrides),
               bnMeanVarStrides_(bnMeanVarStrides),
               p_x_(p_x),
               p_scale_(p_scale),
@@ -253,8 +257,10 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                 MakeXY2dDescriptor(xyLengths_, xStrides_, blkGroupSize, numBlockTileIteration);
             y_grid_desc_m_k =
                 MakeXY2dDescriptor(xyLengths_, yStrides_, blkGroupSize, numBlockTileIteration);
-            scale_bias_grid_desc_m =
-                MakeScaleBiasMeanVar1dDescriptor(bnScaleBiasMeanVarLengths, bnScaleBiasStrides);
+            scale_grid_desc_m =
+                MakeScaleBiasMeanVar1dDescriptor(bnScaleBiasMeanVarLengths, bnScaleStrides);
+            bias_grid_desc_m =
+                MakeScaleBiasMeanVar1dDescriptor(bnScaleBiasMeanVarLengths, bnBiasStrides);
             mean_var_grid_desc_m =
                 MakeScaleBiasMeanVar1dDescriptor(bnScaleBiasMeanVarLengths, bnMeanVarStrides);
         }
@@ -270,12 +276,13 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
         std::array<index_t, Rank> yStrides_;
 
         std::array<index_t, Rank - NumBatchNormReduceDim> bnScaleBiasMeanVarLengths_;
-        std::array<index_t, Rank - NumBatchNormReduceDim> bnScaleBiasStrides_;
+        std::array<index_t, Rank - NumBatchNormReduceDim> bnScaleStrides_;
+        std::array<index_t, Rank - NumBatchNormReduceDim> bnBiasStrides_;
         std::array<index_t, Rank - NumBatchNormReduceDim> bnMeanVarStrides_;
 
         const XDataType* p_x_;
-        const ScaleBiasDataType* p_scale_;
-        const ScaleBiasDataType* p_bias_;
+        const ScaleDataType* p_scale_;
+        const BiasDataType* p_bias_;
         YDataType* p_y_;
 
         MeanVarDataType* resultSaveMean_;
@@ -293,7 +300,8 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
 
         XYGridDesc_M_K x_grid_desc_m_k;
         XYGridDesc_M_K y_grid_desc_m_k;
-        ScaleBiasMeanVarGridDesc_M scale_bias_grid_desc_m;
+        ScaleBiasMeanVarGridDesc_M scale_grid_desc_m;
+        ScaleBiasMeanVarGridDesc_M bias_grid_desc_m;
         ScaleBiasMeanVarGridDesc_M mean_var_grid_desc_m;
 
         void* workspace_mean;
@@ -400,7 +408,8 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                     GridwiseWelfordSecondHalfBatchNormForwardFinal<XDataType,
                                                                    YDataType,
                                                                    AccDataType,
-                                                                   ScaleBiasDataType,
+                                                                   ScaleDataType,
+                                                                   BiasDataType,
                                                                    MeanVarDataType,
                                                                    XYGridDesc_M_K,
                                                                    MeanVarCountGridDesc_M_K,
@@ -414,7 +423,8 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                                                                    XSrcYDstVectorDim,
                                                                    XSrcVectorSize,
                                                                    YDstVectorSize,
-                                                                   ScaleBiasSrcVectorSize,
+                                                                   ScaleSrcVectorSize,
+                                                                   BiasSrcVectorSize,
                                                                    MeanVarSrcDstVectorSize>;
 
                 index_t numMeanVarCountBlockTileIteration =
@@ -423,7 +433,6 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                 const auto kern_multiblock_welford_first_half =
                     kernel_multiblock_welford_first_half<GridwiseMultiblockWelfordFirstHalf_,
                                                          XDataType,
-                                                         AccDataType,
                                                          MeanVarDataType,
                                                          XYGridDesc_M_K,
                                                          MeanVarCountGridDesc_M_G,
@@ -435,7 +444,8 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                         XDataType,
                         YDataType,
                         AccDataType,
-                        ScaleBiasDataType,
+                        ScaleDataType,
+                        BiasDataType,
                         MeanVarDataType,
                         XYGridDesc_M_K,
                         MeanVarCountGridDesc_M_K,
@@ -466,7 +476,8 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                                            arg.x_grid_desc_m_k,
                                            arg.y_grid_desc_m_k,
                                            mean_var_count_grid_desc_m_k,
-                                           arg.scale_bias_grid_desc_m,
+                                           arg.scale_grid_desc_m,
+                                           arg.bias_grid_desc_m,
                                            arg.mean_var_grid_desc_m,
                                            arg.blkGroupSize,
                                            arg.numBlockTileIteration,
@@ -499,7 +510,8 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                     GridwiseBatchNormForwardWithBlockwiseWelford<XDataType,
                                                                  YDataType,
                                                                  AccDataType,
-                                                                 ScaleBiasDataType,
+                                                                 ScaleDataType,
+                                                                 BiasDataType,
                                                                  MeanVarDataType,
                                                                  XYGridDesc_M_K,
                                                                  ScaleBiasMeanVarGridDesc_M,
@@ -513,7 +525,8 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                                                                  XSrcYDstVectorDim,
                                                                  XSrcVectorSize,
                                                                  YDstVectorSize,
-                                                                 ScaleBiasSrcVectorSize,
+                                                                 ScaleSrcVectorSize,
+                                                                 BiasSrcVectorSize,
                                                                  MeanVarSrcDstVectorSize>;
 
                 const auto kern_batchnorm_fwd = kernel_batchnorm_forward_with_blockwise_welford<
@@ -521,7 +534,8 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                     XDataType,
                     YDataType,
                     AccDataType,
-                    ScaleBiasDataType,
+                    ScaleDataType,
+                    BiasDataType,
                     MeanVarDataType,
                     XYGridDesc_M_K,
                     ScaleBiasMeanVarGridDesc_M,
@@ -535,7 +549,8 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                                                    0,
                                                    arg.x_grid_desc_m_k,
                                                    arg.y_grid_desc_m_k,
-                                                   arg.scale_bias_grid_desc_m,
+                                                   arg.scale_grid_desc_m,
+                                                   arg.bias_grid_desc_m,
                                                    arg.mean_var_grid_desc_m,
                                                    get_reduce_count_per_thread,
                                                    arg.numBlockTileIteration,
@@ -587,10 +602,14 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                 return false;
         };
 
-        if(pArg_->bnScaleBiasStrides_[NumInvariantDim - 1] != 1 && ScaleBiasSrcVectorSize != 1)
+        if(pArg_->bnScaleStrides_[NumInvariantDim - 1] != 1 && ScaleSrcVectorSize != 1)
+            return false;
+        if(pArg_->bnBiasStrides_[NumInvariantDim - 1] != 1 && BiasSrcVectorSize != 1)
             return false;
 
-        if(pArg_->bnScaleBiasMeanVarLengths_[NumInvariantDim - 1] % ScaleBiasSrcVectorSize != 0)
+        if(pArg_->bnScaleBiasMeanVarLengths_[NumInvariantDim - 1] % ScaleSrcVectorSize != 0)
+            return false;
+        if(pArg_->bnScaleBiasMeanVarLengths_[NumInvariantDim - 1] % BiasSrcVectorSize != 0)
             return false;
 
         if(pArg_->bnMeanVarStrides_[NumInvariantDim - 1] != 1 && MeanVarSrcDstVectorSize != 1)
@@ -618,7 +637,8 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
         const std::array<index_t, Rank> yStrides,
         const std::array<int, NumBatchNormReduceDim> reduceDims,
         const std::array<index_t, Rank - NumBatchNormReduceDim> bnScaleBiasMeanVarLengths,
-        const std::array<index_t, Rank - NumBatchNormReduceDim> bnScaleBiasStrides,
+        const std::array<index_t, Rank - NumBatchNormReduceDim> bnScaleStrides,
+        const std::array<index_t, Rank - NumBatchNormReduceDim> bnBiasStrides,
         const std::array<index_t, Rank - NumBatchNormReduceDim> bnMeanVarStrides,
         const void* p_x,
         const void* p_scale,
@@ -636,11 +656,12 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                                           yStrides,
                                           reduceDims,
                                           bnScaleBiasMeanVarLengths,
-                                          bnScaleBiasStrides,
+                                          bnScaleStrides,
+                                          bnBiasStrides,
                                           bnMeanVarStrides,
                                           static_cast<const XDataType*>(p_x),
-                                          static_cast<const ScaleBiasDataType*>(p_scale),
-                                          static_cast<const ScaleBiasDataType*>(p_bias),
+                                          static_cast<const ScaleDataType*>(p_scale),
+                                          static_cast<const BiasDataType*>(p_bias),
                                           epsilon,
                                           static_cast<YDataType*>(p_y),
                                           static_cast<MeanVarDataType*>(resultSaveMean),
@@ -664,7 +685,7 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
         str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
         str << "XSrcYDstVectorDim_" << XSrcYDstVectorDim  << ",";
-        str << "VectorSize_X" << XSrcVectorSize << "_scale_bias_" << ScaleBiasSrcVectorSize << "_mean_var_" << MeanVarSrcDstVectorSize << "_Y" << YDstVectorSize << ">";
+        str << "VectorSize_X" << XSrcVectorSize << "_scale_" << ScaleSrcVectorSize << "_bias_" << BiasSrcVectorSize << "_mean_var_" << MeanVarSrcDstVectorSize << "_Y" << YDstVectorSize << ">";
         // clang-format on
 
         return str.str();

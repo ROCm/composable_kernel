@@ -275,7 +275,8 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
         ck::tensor_operation::device::DeviceBatchNormFwdImpl<InOutDataType,
                                                              InOutDataType,
                                                              AccDataType,
-                                                             AccDataType, // ScaleBiasDataType
+                                                             AccDataType, // ScaleDataType
+                                                             AccDataType, // BiasDataType
                                                              AccDataType, // MeanVarDataType
                                                              Rank,
                                                              NumReduceDim,
@@ -289,6 +290,7 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
                                                              1,
                                                              1,
                                                              1,
+                                                             1,
                                                              1>;
 
     auto batchnorm_fwd = DeviceBatchNormFwdInstance{};
@@ -299,6 +301,7 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
         i_inOutStrides,
         {0, 1, 2},
         i_scaleBiasMeanVarLengths,
+        i_scaleBiasMeanVarStrides,
         i_scaleBiasMeanVarStrides,
         i_scaleBiasMeanVarStrides,
         x_dev.GetDeviceBuffer(),
@@ -340,6 +343,7 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
                                                                                      InOutDataType,
                                                                                      AccDataType,
                                                                                      AccDataType,
+                                                                                     AccDataType,
                                                                                      AccDataType>;
 
         auto batchNormFwd_ref = ReferenceBatchNormFwdInstance{};
@@ -350,6 +354,7 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
             i_inOutStrides,
             {0, 1, 2},
             i_scaleBiasMeanVarLengths,
+            i_scaleBiasMeanVarStrides,
             i_scaleBiasMeanVarStrides,
             i_scaleBiasMeanVarStrides,
             x.mData.data(),

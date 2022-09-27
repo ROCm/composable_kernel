@@ -20,7 +20,8 @@ namespace host {
 template <typename XDataType,
           typename YDataType,
           typename AccDataType,
-          typename ScaleBiasDataType,
+          typename ScaleDataType,
+          typename BiasDataType,
           typename MeanVarDataType>
 struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatchNormFwd<4, 3>
 {
@@ -31,11 +32,12 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                  const std::array<index_t, 4> yStrides,
                  const std::array<int, 3> reduceDims,
                  const std::array<index_t, 1> bnScaleBiasMeanVarLengths,
-                 const std::array<index_t, 1> bnScaleBiasStrides,
+                 const std::array<index_t, 1> bnScaleStrides,
+                 const std::array<index_t, 1> bnBiasStrides,
                  const std::array<index_t, 1> bnMeanVarStrides,
                  const XDataType* p_x,
-                 const ScaleBiasDataType* bnScale,
-                 const ScaleBiasDataType* bnBias,
+                 const ScaleDataType* bnScale,
+                 const BiasDataType* bnBias,
                  double epsilon,
                  YDataType* p_y,
                  MeanVarDataType* resultSaveMean,
@@ -54,7 +56,8 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
         {
             ignore = xStrides;
             ignore = yStrides;
-            ignore = bnScaleBiasStrides;
+            ignore = bnScaleStrides;
+            ignore = bnBiasStrides;
             ignore = bnMeanVarStrides;
             ignore = reduceDims;
 
@@ -75,8 +78,8 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
         }
 
         const XDataType* p_x_;
-        const ScaleBiasDataType* bnScale_;
-        const ScaleBiasDataType* bnBias_;
+        const ScaleDataType* bnScale_;
+        const BiasDataType* bnBias_;
         YDataType* p_y_;
 
         MeanVarDataType* resultSaveMean_;
@@ -223,7 +226,8 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                         const std::array<index_t, 4> yStrides,
                         const std::array<int, 3> reduceDims,
                         const std::array<index_t, 1> bnScaleBiasMeanVarLengths,
-                        const std::array<index_t, 1> bnScaleBiasStrides,
+                        const std::array<index_t, 1> bnScaleStrides,
+                        const std::array<index_t, 1> bnBiasStrides,
                         const std::array<index_t, 1> bnMeanVarStrides,
                         const void* p_x,
                         const void* bnScale,
@@ -241,11 +245,12 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                                           yStrides,
                                           reduceDims,
                                           bnScaleBiasMeanVarLengths,
-                                          bnScaleBiasStrides,
+                                          bnScaleStrides,
+                                          bnBiasStrides,
                                           bnMeanVarStrides,
                                           static_cast<const XDataType*>(p_x),
-                                          static_cast<const ScaleBiasDataType*>(bnScale),
-                                          static_cast<const ScaleBiasDataType*>(bnBias),
+                                          static_cast<const ScaleDataType*>(bnScale),
+                                          static_cast<const BiasDataType*>(bnBias),
                                           epsilon,
                                           static_cast<YDataType*>(p_y),
                                           static_cast<MeanVarDataType*>(resultSaveMean),

@@ -16,7 +16,8 @@ template <typename GridwiseBatchrNormForwardWithBlockwiseWelford_,
           typename XDataType,
           typename YDataType,
           typename AccDataType,
-          typename ScaleBiasDataType,
+          typename ScaleDataType,
+          typename BiasDataType,
           typename MeanVarDataType,
           typename XYGridDesc_M_K,
           typename ScaleBiasGridDesc_M,
@@ -25,14 +26,15 @@ template <typename GridwiseBatchrNormForwardWithBlockwiseWelford_,
 __global__ void kernel_batchnorm_forward_with_blockwise_welford(
     const XYGridDesc_M_K x_grid_desc_m_k,
     const XYGridDesc_M_K y_grid_desc_m_k,
-    const ScaleBiasGridDesc_M scale_bias_grid_desc_m,
+    const ScaleBiasGridDesc_M scale_grid_desc_m,
+    const ScaleBiasGridDesc_M bias_grid_desc_m,
     const MeanVarGridDesc_M mean_var_grid_desc_m,
     const GetReduceCountPerThreadFunctor get_reduce_count_per_thread,
     index_t num_k_block_tile_iteration,
     AccDataType epsilon,
     const XDataType* const __restrict__ p_x,
-    const ScaleBiasDataType* const __restrict__ p_scale,
-    const ScaleBiasDataType* const __restrict__ p_bias,
+    const ScaleDataType* const __restrict__ p_scale,
+    const BiasDataType* const __restrict__ p_bias,
     YDataType* const __restrict__ p_y,
     bool updateMovingAverage,
     AccDataType averageFactor,
@@ -44,7 +46,8 @@ __global__ void kernel_batchnorm_forward_with_blockwise_welford(
 {
     GridwiseBatchrNormForwardWithBlockwiseWelford_::Run(x_grid_desc_m_k,
                                                         y_grid_desc_m_k,
-                                                        scale_bias_grid_desc_m,
+                                                        scale_grid_desc_m,
+                                                        bias_grid_desc_m,
                                                         mean_var_grid_desc_m,
                                                         get_reduce_count_per_thread,
                                                         num_k_block_tile_iteration,
@@ -65,7 +68,8 @@ __global__ void kernel_batchnorm_forward_with_blockwise_welford(
 template <typename XDataType,
           typename YDataType,
           typename AccDataType,
-          typename ScaleBiasDataType,
+          typename ScaleDataType,
+          typename BiasDataType,
           typename MeanVarDataType,
           typename XYGridDesc_M_K,
           typename ScaleBiasGridDesc_M,
@@ -79,7 +83,8 @@ template <typename XDataType,
           index_t XSrcYDstVectorDim,
           index_t XSrcVectorSize,
           index_t YDstVectorSize,
-          index_t ScaleBiasSrcVectorSize,
+          index_t ScaleSrcVectorSize,
+          index_t BiasSrcVectorSize,
           index_t MeanVarSrcDstVectorSize>
 struct GridwiseBatchNormForwardWithBlockwiseWelford
 {
@@ -127,14 +132,15 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
 
     __device__ static void Run(const XYGridDesc_M_K& x_grid_desc_m_k,
                                const XYGridDesc_M_K& y_grid_desc_m_k,
-                               const ScaleBiasGridDesc_M& scale_bias_grid_desc_m,
+                               const ScaleBiasGridDesc_M& scale_grid_desc_m,
+                               const ScaleBiasGridDesc_M& bias_grid_desc_m,
                                const MeanVarGridDesc_M& mean_var_grid_desc_m,
                                const GetReduceCountPerThreadFunctor get_reduce_count_per_thread,
                                index_t num_k_block_tile_iteration,
                                AccDataType epsilon,
                                const XDataType* const __restrict__ p_x,
-                               const ScaleBiasDataType* const __restrict__ p_scale,
-                               const ScaleBiasDataType* const __restrict__ p_bias,
+                               const ScaleDataType* const __restrict__ p_scale,
+                               const BiasDataType* const __restrict__ p_bias,
                                YDataType* const __restrict__ p_y,
                                bool updateMovingAverage,
                                AccDataType averageFactor,
@@ -209,20 +215,34 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
                                  thread_k_cluster_id * KThreadSliceSize),
                 PassThroughOp{});
 
-        auto threadwise_scale_bias_load =
-            ThreadwiseTensorSliceTransfer_v2<ScaleBiasDataType,
+        auto threadwise_scale_load =
+            ThreadwiseTensorSliceTransfer_v2<ScaleDataType,
                                              AccDataType,
                                              ScaleBiasGridDesc_M,
                                              decltype(thread_buffer_desc_m),
                                              ThreadBufferLengths_M,
                                              Sequence<0>,
                                              0,
-                                             ScaleBiasSrcVectorSize,
+                                             ScaleSrcVectorSize,
                                              1,
                                              true>(
-                scale_bias_grid_desc_m,
+                scale_grid_desc_m,
                 make_multi_index(block_global_id * M_BlockTileSize +
                                  thread_m_cluster_id * MThreadSliceSize));
+
+        auto threadwise_bias_load = ThreadwiseTensorSliceTransfer_v2<BiasDataType,
+                                                                     AccDataType,
+                                                                     ScaleBiasGridDesc_M,
+                                                                     decltype(thread_buffer_desc_m),
+                                                                     ThreadBufferLengths_M,
+                                                                     Sequence<0>,
+                                                                     0,
+                                                                     BiasSrcVectorSize,
+                                                                     1,
+                                                                     true>(
+            bias_grid_desc_m,
+            make_multi_index(block_global_id * M_BlockTileSize +
+                             thread_m_cluster_id * MThreadSliceSize));
 
         constexpr auto thread_copy_fwd_step_m_k = make_multi_index(0, K_BlockTileSize);
         constexpr auto thread_copy_bwd_step_m_k = make_multi_index(0, -K_BlockTileSize);
@@ -231,10 +251,10 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
             p_x, x_grid_desc_m_k.GetElementSpaceSize());
 
         const auto scale_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_scale, scale_bias_grid_desc_m.GetElementSpaceSize());
+            p_scale, scale_grid_desc_m.GetElementSpaceSize());
 
         const auto bias_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_bias, scale_bias_grid_desc_m.GetElementSpaceSize());
+            p_bias, bias_grid_desc_m.GetElementSpaceSize());
 
         auto y_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_y, y_grid_desc_m_k.GetElementSpaceSize());
@@ -272,17 +292,17 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
 
         // Step 2: do normalization and output y
 
-        threadwise_scale_bias_load.Run(scale_bias_grid_desc_m,
-                                       scale_global_val_buf,
-                                       thread_buffer_desc_m,
-                                       make_tuple(I0),
-                                       scale_thread_buf);
+        threadwise_scale_load.Run(scale_grid_desc_m,
+                                  scale_global_val_buf,
+                                  thread_buffer_desc_m,
+                                  make_tuple(I0),
+                                  scale_thread_buf);
 
-        threadwise_scale_bias_load.Run(scale_bias_grid_desc_m,
-                                       bias_global_val_buf,
-                                       thread_buffer_desc_m,
-                                       make_tuple(I0),
-                                       bias_thread_buf);
+        threadwise_bias_load.Run(bias_grid_desc_m,
+                                 bias_global_val_buf,
+                                 thread_buffer_desc_m,
+                                 make_tuple(I0),
+                                 bias_thread_buf);
 
         auto thread_copy_tail_m_k = (num_k_block_tile_iteration - 1) * thread_copy_fwd_step_m_k;
 
