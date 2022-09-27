@@ -20,22 +20,20 @@ namespace device {
 template <typename InDataTypeTuple,
           typename OutDataTypeTuple,
           typename ElementwiseOperation,
+          index_t NumDim,
           index_t NumDim_m,
           index_t NumDim_n,
           index_t MPerThread,
           index_t NPerThread,
           typename InScalarPerVectorSeq,
           typename OutScalarPerVectorSeq>
-struct DeviceElementwise : public DeviceElementwiseBase<InDataTypeTuple,
-                                                        OutDataTypeTuple,
-                                                        ElementwiseOperation,
-                                                        NumDim_m,
-                                                        NumDim_n>
+struct DeviceElementwise
+    : public DeviceElementwiseBase<InDataTypeTuple, OutDataTypeTuple, ElementwiseOperation, NumDim>
 {
     static constexpr int NumInput  = InDataTypeTuple::Size();
     static constexpr int NumOutput = OutDataTypeTuple::Size();
 
-    const index_t NumDim = NumDim_m + NumDim_n;
+    // const index_t NumDim = NumDim_m + NumDim_n;
 
     static_assert(NumInput == InScalarPerVectorSeq::Size() &&
                       NumOutput == OutScalarPerVectorSeq::Size(),
