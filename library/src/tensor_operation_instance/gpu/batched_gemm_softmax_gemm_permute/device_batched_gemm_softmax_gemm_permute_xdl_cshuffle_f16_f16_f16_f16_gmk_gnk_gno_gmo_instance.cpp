@@ -34,7 +34,7 @@ static constexpr auto GemmPadded  = ck::tensor_operation::device::GemmSpecializa
 
 // c[g, m, n] = a[g, m, k] * b[g, n, k]
 template <bool Masking>
-using device_batched_gemm_masking_scale_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances =
+using device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances =
     std::tuple<
         // clang-format off
         //##############################################| ALayout| B0Layout| B1Layout| CPermuteNumDims_G_M_O| AData| B0Data| B1Data| CData| AccData| CShuffle|           A|          B0|        Acc0|          B1|           C|           GEMM| NumGemmK| Block| Gemm01| Gemm0| Gemm0| Gemm1| Gemm1| AK1| BK1| B1K1| MPer| NPer| Gemm0| Gemm0| Gemm1|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  B0BlockTransfer| B0BlockTransfer| B0BlockTransfer| B0BlockTransfer| B0BlockTransfer| B0BlockTransfer| B0BlockLds|  B1BlockTransfer| B1BlockTransfer| B1BlockTransfer| B1BlockTransfer| B1BlockTransfer| B1BlockTransfer| B1BlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|    MaskOut|
@@ -59,7 +59,7 @@ using device_batched_gemm_masking_scale_softmax_gemm_permute_xdl_cshuffle_f16_f1
         // clang-format on
         >;
 
-void add_device_batched_gemm_masking_scale_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
+void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
     std::vector<std::unique_ptr<DeviceBatchedGemmSoftmaxGemmPermute<Row,
                                                                     Col,
                                                                     Row,
@@ -77,7 +77,7 @@ void add_device_batched_gemm_masking_scale_softmax_gemm_permute_xdl_cshuffle_f16
 {
     add_device_operation_instances(
         instances,
-        device_batched_gemm_masking_scale_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances<
+        device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances<
             true>{});
 }
 
@@ -99,7 +99,7 @@ void add_device_batched_gemm_scale_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16
 {
     add_device_operation_instances(
         instances,
-        device_batched_gemm_masking_scale_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances<
+        device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances<
             false>{});
 }
 

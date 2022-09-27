@@ -2,7 +2,7 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
-#include "test_batched_gemm_masking_scale_softmax_gemm_permute_util.hpp"
+#include "test_batched_gemm_softmax_gemm_permute_util.hpp"
 
 template <typename Tuple>
 class TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16

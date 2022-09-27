@@ -6,7 +6,7 @@
 #include <vector>
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_permute_xdl_cshuffle.hpp"
-#include "profiler/include/profile_batched_gemm_masking_scale_softmax_gemm_permute_impl.hpp"
+#include "profiler/include/profile_batched_gemm_softmax_gemm_permute_impl.hpp"
 using ck::tensor_operation::device::GemmSpecialization;
 
 template <ck::index_t N>
@@ -43,7 +43,7 @@ struct TestBatchedGemmMaskingScaleSoftmaxGemmPermute : public ::testing::Test
 
     void RunSingle(int M, int N, int K, int O, int G0, int G1)
     {
-        bool pass = ck::profiler::profile_batched_gemm_masking_scale_softmax_gemm_permute_impl<
+        bool pass = ck::profiler::profile_batched_gemm_softmax_gemm_permute_impl<
             ADataType,
             B0DataType,
             B1DataType,

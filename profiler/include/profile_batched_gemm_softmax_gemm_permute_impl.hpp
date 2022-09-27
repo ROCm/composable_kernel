@@ -10,7 +10,7 @@
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_permute_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/batched_gemm_masking_scale_softmax_gemm_permute.hpp"
+#include "ck/library/tensor_operation_instance/gpu/batched_gemm_softmax_gemm_permute.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -31,7 +31,7 @@ template <typename ADataType,
           typename B1Layout,
           typename CPermuteNumDims_G_M_O,
           bool MaskOutUpperTriangle> // TODO: enum for various masks
-bool profile_batched_gemm_masking_scale_softmax_gemm_permute_impl(bool do_verification,
+bool profile_batched_gemm_softmax_gemm_permute_impl(bool do_verification,
                                                                   int init_method,
                                                                   bool do_log,
                                                                   bool time_kernel,
