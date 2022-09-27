@@ -17,50 +17,51 @@
 // Y = layernorm( A + B, Beta, Gamma )
 namespace ck {
 template <typename GridwiseaddReduction,
-          typename ADataType,                 // Datatype of input A 
-          typename BDataType,                 // Datatype of input B
-          typename CDataType,                 // Datatype of A + B
-          typename GammaDataType,             // Datatype of Gamma
-          typename BetaDataType,              // Datatype of Beta
-          typename YDataType,                 // Datatype of input Y
-          typename AccDataType,               // AccDatatype
-          typename ElementwiseOperation,      // Operation of A & B -> Add
-          typename AccElementwiseOperation,   // Operation Passthrough 
-          typename GridDesc_M_K,              // Descriptor of A B A+B
-          typename GridDesc_K>                // Descriptor of Gamma, Beta
-__global__ void kernel_add_layernorm(const GridDesc_M_K a_grid_desc_m_k,                     //Descriptor of A
-                                     const GridDesc_M_K b_grid_desc_m_k,                     //Descriptor of B
-                                     const GridDesc_M_K c_grid_desc_m_k,                     //Descriptor of C
-                                     const GridDesc_K gamma_grid_desc_k,                     //Descriptor of gamma
-                                     const GridDesc_K beta_grid_desc_k,                      //Descriptor of beta
-                                     const GridDesc_M_K y_grid_desc_m_k,                     //Descriptor of Y
-                                     index_t num_k_block_tile_iteration,                     //arg.numBlockTileIteration_
-                                     AccDataType epsilon,                                    //Datatype of epsilon
-                                     const ADataType* const __restrict__ p_a_global,         //Ptr of A 
-                                     const BDataType* const __restrict__ p_b_global,         //Ptr of B 
-                                     CDataType* const __restrict__ p_c_global,               //Ptr of C 
-                                     const GammaDataType* const __restrict__ p_gamma_global, // Ptr of gamma 
-                                     const BetaDataType* const __restrict__ p_beta_global,   // Ptr of beta  
-                                     YDataType* const __restrict__ p_y_global,               // Ptr of y  
-                                     const ElementwiseOperation elementwise_op,              // Operation Add
-                                     const AccElementwiseOperation acc_elementwise_op)       // Operation Passthrough 
+          typename ADataType,               // Datatype of input A
+          typename BDataType,               // Datatype of input B
+          typename CDataType,               // Datatype of A + B
+          typename GammaDataType,           // Datatype of Gamma
+          typename BetaDataType,            // Datatype of Beta
+          typename YDataType,               // Datatype of input Y
+          typename AccDataType,             // AccDatatype
+          typename ElementwiseOperation,    // Operation of A & B -> Add
+          typename AccElementwiseOperation, // Operation Passthrough
+          typename GridDesc_M_K,            // Descriptor of A B A+B
+          typename GridDesc_K>              // Descriptor of Gamma, Beta
+__global__ void
+kernel_add_layernorm(const GridDesc_M_K a_grid_desc_m_k,             // Descriptor of A
+                     const GridDesc_M_K b_grid_desc_m_k,             // Descriptor of B
+                     const GridDesc_M_K c_grid_desc_m_k,             // Descriptor of C
+                     const GridDesc_K gamma_grid_desc_k,             // Descriptor of gamma
+                     const GridDesc_K beta_grid_desc_k,              // Descriptor of beta
+                     const GridDesc_M_K y_grid_desc_m_k,             // Descriptor of Y
+                     index_t num_k_block_tile_iteration,             // arg.numBlockTileIteration_
+                     AccDataType epsilon,                            // Datatype of epsilon
+                     const ADataType* const __restrict__ p_a_global, // Ptr of A
+                     const BDataType* const __restrict__ p_b_global, // Ptr of B
+                     CDataType* const __restrict__ p_c_global,       // Ptr of C
+                     const GammaDataType* const __restrict__ p_gamma_global, // Ptr of gamma
+                     const BetaDataType* const __restrict__ p_beta_global,   // Ptr of beta
+                     YDataType* const __restrict__ p_y_global,               // Ptr of y
+                     const ElementwiseOperation elementwise_op,              // Operation Add
+                     const AccElementwiseOperation acc_elementwise_op) // Operation Passthrough
 {
-    GridwiseaddReduction::Run(a_grid_desc_m_k,   //Descriptor of A 
-                              b_grid_desc_m_k,   //Descriptor of B 
-                              c_grid_desc_m_k,   //Descriptor of C
-                              gamma_grid_desc_k, //Descriptor of Gamma 
-                              beta_grid_desc_k,  //Descriptor of Beta 
-                              y_grid_desc_m_k,   //Descriptor of Y
-                              num_k_block_tile_iteration, //arg.numBlockTileIteration_
-                              epsilon,             //
-                              p_a_global,          //Ptr of A 
-                              p_b_global,          //Ptr of B 
-                              p_c_global,          //Ptr of C 
-                              p_gamma_global,      //Ptr of gamma
-                              p_beta_global,       //Ptr of beta 
-                              p_y_global,          //Ptr of Y 
-                              elementwise_op,      //
-                              acc_elementwise_op); //
+    GridwiseaddReduction::Run(a_grid_desc_m_k,            // Descriptor of A
+                              b_grid_desc_m_k,            // Descriptor of B
+                              c_grid_desc_m_k,            // Descriptor of C
+                              gamma_grid_desc_k,          // Descriptor of Gamma
+                              beta_grid_desc_k,           // Descriptor of Beta
+                              y_grid_desc_m_k,            // Descriptor of Y
+                              num_k_block_tile_iteration, // arg.numBlockTileIteration_
+                              epsilon,                    //
+                              p_a_global,                 // Ptr of A
+                              p_b_global,                 // Ptr of B
+                              p_c_global,                 // Ptr of C
+                              p_gamma_global,             // Ptr of gamma
+                              p_beta_global,              // Ptr of beta
+                              p_y_global,                 // Ptr of Y
+                              elementwise_op,             //
+                              acc_elementwise_op);        //
 };
 } // namespace ck
 
@@ -69,28 +70,28 @@ namespace tensor_operation {
 namespace device {
 
 // Y = LayerNorm(A + B, Beta, Gamma)
-template <typename ADataType,       // Datatype of input A
-          typename BDataType,       // Datatype of input B
-          typename CDataType,       // Datatype of C = A + B
-          typename GammaDataType,   
+template <typename ADataType, // Datatype of input A
+          typename BDataType, // Datatype of input B
+          typename CDataType, // Datatype of C = A + B
+          typename GammaDataType,
           typename BetaDataType,
           typename AccDataType,
           typename YDataType,
           typename ElementwiseOperation,
           typename AccElementwiseOperation,
-          index_t Rank,                //
-          index_t NumReduceDim,        // 
-          index_t BlockSize,           // 
-          index_t MThreadClusterSize,  // Num of threads in a block on M direction
-          index_t KThreadClusterSize,  // Num of threads in a block on N direction
-          index_t MThreadSliceSize,    // Each thread calculate rows
-          index_t KThreadSliceSize,    // Each thread calculate columns
-          index_t XYSrcVectorDim,      // Dimension to do reduce
-          index_t XSrcVectorSize,      // Size to fetch source x
-          index_t GammaSrcVectorSize,  // Size to fetch source gamma
-          index_t BetaSrcVectorSize,   // Size to fetch source beta
-          index_t YDstVectorSize>      // Size to write destination Y
-struct DeviceAddLayernormImpl : public DeviceAddLayernorm<ADataType,   
+          index_t Rank,               //
+          index_t NumReduceDim,       //
+          index_t BlockSize,          //
+          index_t MThreadClusterSize, // Num of threads in a block on M direction
+          index_t KThreadClusterSize, // Num of threads in a block on N direction
+          index_t MThreadSliceSize,   // Each thread calculate rows
+          index_t KThreadSliceSize,   // Each thread calculate columns
+          index_t XYSrcVectorDim,     // Dimension to do reduce
+          index_t XSrcVectorSize,     // Size to fetch source x
+          index_t GammaSrcVectorSize, // Size to fetch source gamma
+          index_t BetaSrcVectorSize,  // Size to fetch source beta
+          index_t YDstVectorSize>     // Size to write destination Y
+struct DeviceAddLayernormImpl : public DeviceAddLayernorm<ADataType,
                                                           BDataType,
                                                           CDataType,
                                                           GammaDataType,
@@ -112,8 +113,10 @@ struct DeviceAddLayernormImpl : public DeviceAddLayernorm<ADataType,
 
     using PassThrough = tensor_operation::element_wise::PassThrough;
 
-    static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize; // num of rows calculated in a block
-    static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize; // num of columns calculated in a block
+    static constexpr index_t M_BlockTileSize =
+        MThreadClusterSize * MThreadSliceSize; // num of rows calculated in a block
+    static constexpr index_t K_BlockTileSize =
+        KThreadClusterSize * KThreadSliceSize; // num of columns calculated in a block
 
     static auto MakeSrc2dDescriptor(const std::vector<index_t>& inLengths,
                                     const std::vector<index_t>& inStrides,
@@ -216,28 +219,28 @@ struct DeviceAddLayernormImpl : public DeviceAddLayernorm<ADataType,
     using GridDesc_K   = decltype(MakeAffine1dDescriptor({1}, {1}, 1, 1));
 
     using GridwiseReduceLayernormGeneric =
-        GridwiseAddLayernormWelfordVariance_mk_to_mk<ADataType,               
-                                                     BDataType,                   
-                                                     CDataType,                
-                                                     GammaDataType,           
-                                                     BetaDataType,            
-                                                     YDataType,               
-                                                     AccDataType,             
-                                                     ElementwiseOperation,    
-                                                     AccElementwiseOperation, 
-                                                     GridDesc_M_K,             
-                                                     GridDesc_K,              
-                                                     BlockSize,               
-                                                     MThreadClusterSize,       
-                                                     KThreadClusterSize,      
-                                                     MThreadSliceSize,        
-                                                     KThreadSliceSize,        
-                                                     XYSrcVectorDim,          
-                                                     XSrcVectorSize,          
-                                                     GammaSrcVectorSize,      
-                                                     BetaSrcVectorSize,       
-                                                     XYSrcVectorDim,          
-                                                     YDstVectorSize,          
+        GridwiseAddLayernormWelfordVariance_mk_to_mk<ADataType,
+                                                     BDataType,
+                                                     CDataType,
+                                                     GammaDataType,
+                                                     BetaDataType,
+                                                     YDataType,
+                                                     AccDataType,
+                                                     ElementwiseOperation,
+                                                     AccElementwiseOperation,
+                                                     GridDesc_M_K,
+                                                     GridDesc_K,
+                                                     BlockSize,
+                                                     MThreadClusterSize,
+                                                     KThreadClusterSize,
+                                                     MThreadSliceSize,
+                                                     KThreadSliceSize,
+                                                     XYSrcVectorDim,
+                                                     XSrcVectorSize,
+                                                     GammaSrcVectorSize,
+                                                     BetaSrcVectorSize,
+                                                     XYSrcVectorDim,
+                                                     YDstVectorSize,
                                                      false>;
 
     using GridwiseReduceLayernormSweepOnce =
@@ -248,7 +251,7 @@ struct DeviceAddLayernormImpl : public DeviceAddLayernorm<ADataType,
                                                      BetaDataType,
                                                      YDataType,
                                                      AccDataType,
-                                                     ElementwiseOperation, 
+                                                     ElementwiseOperation,
                                                      AccElementwiseOperation,
                                                      GridDesc_M_K,
                                                      GridDesc_K,
@@ -267,15 +270,15 @@ struct DeviceAddLayernormImpl : public DeviceAddLayernorm<ADataType,
 
     struct Argument : public BaseArgument
     {
-        Argument(const std::vector<index_t> lengths,     
-                 const std::vector<index_t> aStrides,    
-                 const std::vector<index_t> bStrides,    
+        Argument(const std::vector<index_t> lengths,
+                 const std::vector<index_t> aStrides,
+                 const std::vector<index_t> bStrides,
                  const std::vector<index_t> cStrides,
                  const std::vector<index_t> gammaStrides,
-                 const std::vector<index_t> betaStrides, 
-                 const std::vector<index_t> yStrides,    
-                 const std::vector<index_t> reduceDims,  
-                 ElementwiseOperation    elementwise_op,
+                 const std::vector<index_t> betaStrides,
+                 const std::vector<index_t> yStrides,
+                 const std::vector<index_t> reduceDims,
+                 ElementwiseOperation elementwise_op,
                  AccElementwiseOperation acc_elementwise_op,
                  AccDataType epsilon,
                  const ADataType* p_a,
@@ -328,7 +331,7 @@ struct DeviceAddLayernormImpl : public DeviceAddLayernorm<ADataType,
         const BDataType* p_b_;
         CDataType* p_c_;
         const GammaDataType* p_gamma_;
-        const BetaDataType*  p_beta_;
+        const BetaDataType* p_beta_;
         YDataType* p_y_;
 
         std::vector<index_t> Lengths_;
@@ -375,30 +378,31 @@ struct DeviceAddLayernormImpl : public DeviceAddLayernorm<ADataType,
             bool sweep_once =
                 a_grid_desc_m_k.GetLength(Number<1>{}) <= KThreadClusterSize * KThreadSliceSize;
 
-            const auto kernel_main = sweep_once ? kernel_add_layernorm<GridwiseReduceLayernormSweepOnce,
-                                                                       ADataType,
-                                                                       BDataType,
-                                                                       CDataType,
-                                                                       GammaDataType,
-                                                                       BetaDataType,
-                                                                       YDataType,
-                                                                       AccDataType,
-                                                                       ElementwiseOperation,
-                                                                       AccElementwiseOperation,
-                                                                       GridDesc_M_K,
-                                                                       GridDesc_K>
-                                                : kernel_add_layernorm<GridwiseReduceLayernormGeneric,
-                                                                       ADataType,
-                                                                       BDataType,
-                                                                       CDataType,
-                                                                       GammaDataType,
-                                                                       BetaDataType,
-                                                                       YDataType,
-                                                                       AccDataType,
-                                                                       ElementwiseOperation,
-                                                                       AccElementwiseOperation,
-                                                                       GridDesc_M_K,
-                                                                       GridDesc_K>;
+            const auto kernel_main = sweep_once
+                                         ? kernel_add_layernorm<GridwiseReduceLayernormSweepOnce,
+                                                                ADataType,
+                                                                BDataType,
+                                                                CDataType,
+                                                                GammaDataType,
+                                                                BetaDataType,
+                                                                YDataType,
+                                                                AccDataType,
+                                                                ElementwiseOperation,
+                                                                AccElementwiseOperation,
+                                                                GridDesc_M_K,
+                                                                GridDesc_K>
+                                         : kernel_add_layernorm<GridwiseReduceLayernormGeneric,
+                                                                ADataType,
+                                                                BDataType,
+                                                                CDataType,
+                                                                GammaDataType,
+                                                                BetaDataType,
+                                                                YDataType,
+                                                                AccDataType,
+                                                                ElementwiseOperation,
+                                                                AccElementwiseOperation,
+                                                                GridDesc_M_K,
+                                                                GridDesc_K>;
 
             float avg_time = 0;
             avg_time += launch_and_time_kernel(stream_config,

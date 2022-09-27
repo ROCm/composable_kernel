@@ -33,27 +33,28 @@ using PassThrough   = ck::tensor_operation::element_wise::PassThrough;
 constexpr int Rank         = 2;
 constexpr int NumReduceDim = 1;
 
-using DeviceInstance = ck::tensor_operation::device::DeviceAddLayernormImpl<ADataType,
-                                                                            BDataType,
-                                                                            CDataType,
-                                                                            GammaDataType,
-                                                                            BetaDataType,
-                                                                            AccDataType,
-                                                                            YDataType,
-                                                                            Add,
-                                                                            PassThrough,
-                                                                            Rank,
-                                                                            NumReduceDim,
-                                                                            256, // BlockSize
-                                                                            8,   // ClusterM
-                                                                            32,  // ClusterK
-                                                                            1,   // SliceM
-                                                                            8,   // SliceK
-                                                                            1,  // SrcVecDim (0=M, 1=K)
-                                                                            8,  // SrcScalarPerVector
-                                                                            8,  // GammaScalarPerVector
-                                                                            8,  // BetaScalarPerVector
-                                                                            8>; // OutScalarPerVector
+using DeviceInstance =
+    ck::tensor_operation::device::DeviceAddLayernormImpl<ADataType,
+                                                         BDataType,
+                                                         CDataType,
+                                                         GammaDataType,
+                                                         BetaDataType,
+                                                         AccDataType,
+                                                         YDataType,
+                                                         Add,
+                                                         PassThrough,
+                                                         Rank,
+                                                         NumReduceDim,
+                                                         256, // BlockSize
+                                                         8,   // ClusterM
+                                                         32,  // ClusterK
+                                                         1,   // SliceM
+                                                         8,   // SliceK
+                                                         1,   // SrcVecDim (0=M, 1=K)
+                                                         8,   // SrcScalarPerVector
+                                                         8,   // GammaScalarPerVector
+                                                         8,   // BetaScalarPerVector
+                                                         8>;  // OutScalarPerVector
 
 template <typename HostTensorA, typename HostTensorB, typename HostTensorC, typename Functor>
 void host_elementwise2D(HostTensorC& C,
@@ -66,13 +67,13 @@ void host_elementwise2D(HostTensorC& C,
 
     for(std::size_t m = 0; m < shape[0]; ++m)
         for(std::size_t n = 0; n < shape[1]; ++n)
-            {
-                auto a_val  = A(m, n);
-                auto b_val  = B(m, n);
-                ctype c_val = 0;
-                functor(c_val, a_val, b_val);
-                C(m, n) = c_val;
-            }
+        {
+            auto a_val  = A(m, n);
+            auto b_val  = B(m, n);
+            ctype c_val = 0;
+            functor(c_val, a_val, b_val);
+            C(m, n) = c_val;
+        }
 }
 
 int main()
@@ -144,22 +145,23 @@ int main()
     };
 
     auto invoker_ptr = device_instance.MakeInvokerPointer();
-    float ela_time = 0;
-    ela_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
-    std::cout << "Time elapase is : " << ela_time << " s . " << std::endl; 
+    float ela_time   = 0;
+    ela_time         = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+    std::cout << "Time elapase is : " << ela_time << " s . " << std::endl;
 
     c_dev.FromDevice(c.mData.data());
 
     bool pass = true;
     {
-        std::vector<std::size_t> mn = {static_cast<unsigned long>(M), static_cast<unsigned long>(N)};
+        std::vector<std::size_t> mn = {static_cast<unsigned long>(M),
+                                       static_cast<unsigned long>(N)};
         Tensor<CDataType> x(f_host_tensor_descriptor2d(M, N, Stride));
         host_elementwise2D<Tensor<ADataType>, Tensor<BDataType>, Tensor<CDataType>, Add>(
             x, a, b, mn, Add{});
-        pass &=
-            ck::utils::check_err(c.mData, x.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
+        pass &= ck::utils::check_err(c.mData, x.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
 
-        if(!(pass)){
+        if(!(pass))
+        {
             std::cout << "add wrong" << std::endl;
         }
 
@@ -172,20 +174,20 @@ int main()
                                                                                  PassThrough,
                                                                                  Rank,
                                                                                  NumReduceDim>;
-    
+
         ReferenceInstance ref;
         auto ref_argument =
             ref.MakeArgument(x, gamma, beta, host_y, PassThrough{}, {M, N}, {1}, 1e-4);
         auto ref_invoker = ref.MakeInvoker();
         ref_invoker.Run(ref_argument);
-    
+
         y_dev.FromDevice(y.mData.data());
         pass &=
             ck::utils::check_err(y.mData, host_y.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
-        if(!(pass)){
+        if(!(pass))
+        {
             std::cout << "layernorm wrong" << std::endl;
         }
     }
     return (pass ? 0 : 1);
-
 }
