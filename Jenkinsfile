@@ -24,9 +24,9 @@ def getDockerImageName(){
 }
 
 def check_host() {
-    sh """
-        ping -c 1 -p 6379 ${env.CK_CCACHE%:*} | echo $? > tmp.txt
-    """
+    def CCACHE_SERVER="${env.CK_CCACHE}".split(":")[0]
+    echo "${CCACHE_SERVER}"
+    sh "ping -c 1 -p 6379 ${CCACHE_SERVER} | echo $? > tmp.txt"
     def output = readFile(file: "tmp.txt")
     echo "tmp.txt contents: $output"
     return (output != "0")
