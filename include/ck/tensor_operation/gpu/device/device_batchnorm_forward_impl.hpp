@@ -27,6 +27,7 @@ template <typename XDataType,
           typename ScaleDataType,
           typename BiasDataType,
           typename MeanVarDataType,
+          typename YElementwiseOp,
           index_t Rank,
           index_t NumBatchNormReduceDim,
           bool UseMultiblockInK,
@@ -41,7 +42,8 @@ template <typename XDataType,
           index_t ScaleSrcVectorSize,
           index_t BiasSrcVectorSize,
           index_t MeanVarSrcDstVectorSize>
-struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormReduceDim>
+struct DeviceBatchNormFwdImpl
+    : public DeviceBatchNormFwd<Rank, NumBatchNormReduceDim, YElementwiseOp>
 {
     static_assert(Rank <= 6, "Bigger Rank size is not supported!");
     static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,
@@ -188,6 +190,7 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                  const XDataType* p_x,
                  const ScaleDataType* p_scale,
                  const BiasDataType* p_bias,
+                 const YElementwiseOp y_elementwise_op,
                  double epsilon,
                  YDataType* p_y,
                  MeanVarDataType* resultSaveMean,
@@ -202,6 +205,7 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
               p_x_(p_x),
               p_scale_(p_scale),
               p_bias_(p_bias),
+              y_elementwise_op_(y_elementwise_op),
               p_y_(p_y),
               resultSaveMean_(resultSaveMean),
               resultSaveInvVariance_(resultSaveInvVariance),
@@ -283,6 +287,7 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
         const XDataType* p_x_;
         const ScaleDataType* p_scale_;
         const BiasDataType* p_bias_;
+        const YElementwiseOp y_elementwise_op_;
         YDataType* p_y_;
 
         MeanVarDataType* resultSaveMean_;
@@ -412,6 +417,7 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                                                                    ScaleDataType,
                                                                    BiasDataType,
                                                                    MeanVarDataType,
+                                                                   YElementwiseOp,
                                                                    XYGridDesc_M_K,
                                                                    MeanVarCountGridDesc_M_K,
                                                                    ScaleBiasMeanVarGridDesc_M,
@@ -448,6 +454,7 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                         ScaleDataType,
                         BiasDataType,
                         MeanVarDataType,
+                        YElementwiseOp,
                         XYGridDesc_M_K,
                         MeanVarCountGridDesc_M_K,
                         ScaleBiasMeanVarGridDesc_M,
@@ -490,6 +497,7 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                                            arg.p_x_,
                                            arg.p_scale_,
                                            arg.p_bias_,
+                                           arg.y_elementwise_op_,
                                            arg.p_y_,
                                            arg.updateMovingAverage_,
                                            arg.averageFactor_,
@@ -514,6 +522,7 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                                                                  ScaleDataType,
                                                                  BiasDataType,
                                                                  MeanVarDataType,
+                                                                 YElementwiseOp,
                                                                  XYGridDesc_M_K,
                                                                  ScaleBiasMeanVarGridDesc_M,
                                                                  ScaleBiasMeanVarGridDesc_M,
@@ -538,6 +547,7 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                     ScaleDataType,
                     BiasDataType,
                     MeanVarDataType,
+                    YElementwiseOp,
                     XYGridDesc_M_K,
                     ScaleBiasMeanVarGridDesc_M,
                     ScaleBiasMeanVarGridDesc_M,
@@ -559,6 +569,7 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                                                    arg.p_x_,
                                                    arg.p_scale_,
                                                    arg.p_bias_,
+                                                   arg.y_elementwise_op_,
                                                    arg.p_y_,
                                                    arg.updateMovingAverage_, // true or false
                                                    arg.averageFactor_,
@@ -645,6 +656,7 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
         const void* p_scale,
         const void* p_bias,
         double epsilon,
+        const YElementwiseOp y_elementwise_op,
         void* p_y,
         void* resultSaveMean,
         void* resultSaveInvVariance,
@@ -663,6 +675,7 @@ struct DeviceBatchNormFwdImpl : public DeviceBatchNormFwd<Rank, NumBatchNormRedu
                                           static_cast<const XDataType*>(p_x),
                                           static_cast<const ScaleDataType*>(p_scale),
                                           static_cast<const BiasDataType*>(p_bias),
+                                          y_elementwise_op,
                                           epsilon,
                                           static_cast<YDataType*>(p_y),
                                           static_cast<MeanVarDataType*>(resultSaveMean),

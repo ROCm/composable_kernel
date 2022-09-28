@@ -22,8 +22,10 @@ template <typename XDataType,
           typename AccDataType,
           typename ScaleDataType,
           typename BiasDataType,
-          typename MeanVarDataType>
-struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatchNormFwd<4, 3>
+          typename MeanVarDataType,
+          typename YElementwiseOp>
+struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C
+    : public device::DeviceBatchNormFwd<4, 3, YElementwiseOp>
 {
     struct Argument : public device::BaseArgument
     {
@@ -39,6 +41,7 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                  const ScaleDataType* bnScale,
                  const BiasDataType* bnBias,
                  double epsilon,
+                 const YElementwiseOp y_elementwise_op,
                  YDataType* p_y,
                  MeanVarDataType* resultSaveMean,
                  MeanVarDataType* resultSaveInvVariance,
@@ -48,6 +51,7 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
             : p_x_(p_x),
               bnScale_(bnScale),
               bnBias_(bnBias),
+              y_elementwise_op_(y_elementwise_op),
               p_y_(p_y),
               resultSaveMean_(resultSaveMean),
               resultSaveInvVariance_(resultSaveInvVariance),
@@ -80,6 +84,7 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
         const XDataType* p_x_;
         const ScaleDataType* bnScale_;
         const BiasDataType* bnBias_;
+        const YElementwiseOp y_elementwise_op_;
         YDataType* p_y_;
 
         MeanVarDataType* resultSaveMean_;
@@ -233,6 +238,7 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                         const void* bnScale,
                         const void* bnBias,
                         double epsilon,
+                        const YElementwiseOp y_elementwise_op,
                         void* p_y,
                         void* resultSaveMean,
                         void* resultSaveInvVariance,
@@ -252,6 +258,7 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                                           static_cast<const ScaleDataType*>(bnScale),
                                           static_cast<const BiasDataType*>(bnBias),
                                           epsilon,
+                                          y_elementwise_op,
                                           static_cast<YDataType*>(p_y),
                                           static_cast<MeanVarDataType*>(resultSaveMean),
                                           static_cast<MeanVarDataType*>(resultSaveInvVariance),

@@ -17,6 +17,7 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_forward_nhwc_c.hpp"
 #include "ck/tensor_operation/gpu/device/device_batchnorm_forward_impl.hpp"
 #include "ck/library/utility/host_common_util.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 static struct option long_options[] = {{"inOutLengths", required_argument, nullptr, 'D'},
                                        {"verify", required_argument, nullptr, 'v'},
@@ -271,13 +272,16 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
               scaleBiasMeanVarStrides.end(),
               i_scaleBiasMeanVarStrides.begin());
 
+    using PassThroughOp = ck::tensor_operation::element_wise::PassThrough;
+
     using DeviceBatchNormFwdInstance =
         ck::tensor_operation::device::DeviceBatchNormFwdImpl<InOutDataType,
                                                              InOutDataType,
                                                              AccDataType,
-                                                             AccDataType, // ScaleDataType
-                                                             AccDataType, // BiasDataType
-                                                             AccDataType, // MeanVarDataType
+                                                             AccDataType,   // ScaleDataType
+                                                             AccDataType,   // BiasDataType
+                                                             AccDataType,   // MeanVarDataType
+                                                             PassThroughOp, // YElementwiseOp
                                                              Rank,
                                                              NumReduceDim,
                                                              UseMultiblockInK,
@@ -308,6 +312,7 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
         bnScale_dev.GetDeviceBuffer(),
         bnBias_dev.GetDeviceBuffer(),
         epsilon,
+        PassThroughOp{},
         y_dev.GetDeviceBuffer(),
         saveMeanAndInvVariance ? resultSaveMean_dev.GetDeviceBuffer() : nullptr,
         saveMeanAndInvVariance ? resultSaveInvVariance_dev.GetDeviceBuffer() : nullptr,
@@ -369,7 +374,8 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
                                                                                      AccDataType,
                                                                                      AccDataType,
                                                                                      AccDataType,
-                                                                                     AccDataType>;
+                                                                                     AccDataType,
+                                                                                     PassThroughOp>;
 
         auto batchNormFwd_ref = ReferenceBatchNormFwdInstance{};
 
@@ -386,6 +392,7 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
             bnScale.mData.data(),
             bnBias.mData.data(),
             epsilon,
+            PassThroughOp{},
             y_ref.mData.data(),
             saveMeanAndInvVariance ? resultSaveMean_ref.mData.data() : nullptr,
             saveMeanAndInvVariance ? resultSaveInvVariance_ref.mData.data() : nullptr,
