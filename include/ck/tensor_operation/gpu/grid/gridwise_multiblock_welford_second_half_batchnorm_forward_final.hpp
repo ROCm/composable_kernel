@@ -144,12 +144,12 @@ struct GridwiseWelfordSecondHalfBatchNormForwardFinal
     static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
-    __device__ static void Run(const XYGridDesc_M_K x_grid_desc_m_k,
-                               const XYGridDesc_M_K y_grid_desc_m_k,
-                               const MeanVarCountGridDesc_M_K mean_var_count_grid_desc_m_k,
-                               const ScaleBiasGridDesc_M scale_grid_desc_m,
-                               const ScaleBiasGridDesc_M bias_grid_desc_m,
-                               const MeanVarGridDesc_M mean_var_grid_desc_m,
+    __device__ static void Run(const XYGridDesc_M_K& x_grid_desc_m_k,
+                               const XYGridDesc_M_K& y_grid_desc_m_k,
+                               const MeanVarCountGridDesc_M_K& mean_var_count_grid_desc_m_k,
+                               const ScaleBiasGridDesc_M& scale_grid_desc_m,
+                               const ScaleBiasGridDesc_M& bias_grid_desc_m,
+                               const MeanVarGridDesc_M& mean_var_grid_desc_m,
                                index_t blkgroup_size,
                                index_t num_xy_k_block_tile_iteration,
                                index_t num_mean_var_count_k_block_tile_iteration,

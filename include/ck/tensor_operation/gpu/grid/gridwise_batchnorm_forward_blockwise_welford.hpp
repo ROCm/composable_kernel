@@ -139,7 +139,7 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
                                const ScaleBiasGridDesc_M& scale_grid_desc_m,
                                const ScaleBiasGridDesc_M& bias_grid_desc_m,
                                const MeanVarGridDesc_M& mean_var_grid_desc_m,
-                               const GetReduceCountPerThreadFunctor get_reduce_count_per_thread,
+                               const GetReduceCountPerThreadFunctor& get_reduce_count_per_thread,
                                index_t num_k_block_tile_iteration,
                                AccDataType epsilon,
                                const XDataType* const __restrict__ p_x,

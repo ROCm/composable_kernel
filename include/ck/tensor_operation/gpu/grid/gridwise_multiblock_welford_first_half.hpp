@@ -93,9 +93,9 @@ struct GridwiseMultiblockWelfordFirstHalf
     static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
-    __device__ static void Run(const XGridDesc_M_K x_grid_desc_m_k,
-                               const MeanVarCountGridDesc_M_G mean_var_count_grid_desc_m_g,
-                               const GetReduceCountPerThreadFunctor get_reduce_count_per_thread,
+    __device__ static void Run(const XGridDesc_M_K& x_grid_desc_m_k,
+                               const MeanVarCountGridDesc_M_G& mean_var_count_grid_desc_m_g,
+                               const GetReduceCountPerThreadFunctor& get_reduce_count_per_thread,
                                index_t num_k_block_tile_iteration,
                                const XDataType* const __restrict__ p_x,
                                MeanVarDataType* const p_welford_mean,
