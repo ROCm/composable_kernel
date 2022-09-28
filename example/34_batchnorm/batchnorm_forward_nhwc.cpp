@@ -331,7 +331,32 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
 
     auto invoker_ptr = batchnorm_fwd.MakeInvokerPointer();
 
-    (void)invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+    if(time_kernel)
+    {
+        float avg_time   = 0.0f;
+        size_t num_bytes = 0;
+
+        size_t total_length = inOutLengths[0] * inOutLengths[1] * inOutLengths[2] * inOutLengths[3];
+        size_t invariant_length = inOutLengths[3];
+
+        avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+
+        // inputing of x, scale, bias, outputing of y
+        num_bytes +=
+            total_length * sizeof(InOutDataType) * 2 + invariant_length * sizeof(AccDataType) * 2;
+
+        // outputing of mean, inv-variance
+        num_bytes += saveMeanAndInvVariance ? invariant_length * sizeof(AccDataType) * 2 : 0;
+
+        // updating of moving mean, variance
+        num_bytes += updateMovingAverage ? invariant_length * sizeof(AccDataType) * 4 : 0;
+
+        float gb_per_sec = num_bytes / 1.E6 / avg_time;
+
+        std::cout << "Perf: " << avg_time << " ms, " << gb_per_sec << " GB/s" << std::endl;
+    }
+    else
+        (void)invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
     bool pass = true;
 
