@@ -44,16 +44,17 @@ def getDockerImage(Map conf=[:]){
     def prefixpath = conf.get("prefixpath", "/opt/rocm") // prefix:/opt/rocm
     def no_cache = conf.get("no_cache", false)
     def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' "
+    echo "ccache server: ${env.CK_CCACHE}"
     if(env.CK_CCACHE)
     {
-        def check_host = sh(script:"""(printf "PING\r\n";) | nc -N ${env.CK_CCACHE} 6379 """, returnStdout: true).trim()
-        if(check_host == "+PONG")
+        def check_host = sh(script:"""ping -c 1 -p 6379 ${env.CK_CCACHE%:*} | echo $? """, returnStdout: true).trim()
+        if(check_host == "0")
         {
-            echo "FOUND CCACHE SERVER: ${CK_CCACHE}"
+            echo "FOUND CCACHE SERVER: ${env.CK_CCACHE}"
         }
         else 
         {
-            echo "CCACHE SERVER: ${CK_CCACHE} NOT FOUND, got ${check_host} response"
+            echo "CCACHE SERVER: ${env.CK_CCACHE} NOT FOUND, got ${check_host} response"
         }
         dockerArgs = dockerArgs + " --build-arg CCACHE_SECONDARY_STORAGE='redis://${env.CK_CCACHE}' --build-arg COMPILER_LAUNCHER='ccache' "
         env.CCACHE_DIR = """/tmp/ccache_store"""
@@ -87,16 +88,17 @@ def buildDocker(install_prefix){
     def image_name = getDockerImageName()
     echo "Building Docker for ${image_name}"
     def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${install_prefix} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}'"
+    echo "ccache server: ${env.CK_CCACHE}"
     if(env.CK_CCACHE)
     {
-        def check_host = sh(script:"""(printf "PING\\r\\n";) | nc  -N ${env.CK_CCACHE} 6379 """, returnStdout: true).trim()
-        if(check_host == "+PONG")
+        def check_host = sh(script:"""ping -c 1 -p 6379 ${env.CK_CCACHE%:*} | echo $? """, returnStdout: true).trim()
+        if(check_host == "0")
         {
-            echo "FOUND CCACHE SERVER: ${CK_CCACHE}"
+            echo "FOUND CCACHE SERVER: ${env.CK_CCACHE}"
         }
         else 
         {
-            echo "CCACHE SERVER: ${CK_CCACHE} NOT FOUND, got ${check_host} response"
+            echo "CCACHE SERVER: ${env.CK_CCACHE} NOT FOUND, got ${check_host} response"
         }
         dockerArgs = dockerArgs + " --build-arg CCACHE_SECONDARY_STORAGE='redis://${env.CK_CCACHE}' --build-arg COMPILER_LAUNCHER='ccache' "
         env.CCACHE_DIR = """/tmp/ccache_store"""
@@ -165,6 +167,7 @@ def cmake_build(Map conf=[:]){
     {
         setup_args = " -DCMAKE_CXX_COMPILER_LAUNCHER='ccache' -DCMAKE_C_COMPILER_LAUNCHER='ccache' " + setup_args
     }
+    echo "ccache server: ${env.CK_CCACHE}"
 
     def pre_setup_cmd = """
             echo \$HSA_ENABLE_SDMA
