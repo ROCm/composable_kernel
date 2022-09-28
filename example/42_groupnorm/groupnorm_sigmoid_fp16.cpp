@@ -56,17 +56,17 @@ using DeviceInstance =
                                                       Rank,
                                                       NumReduceDim,
                                                       1024, // BlockSize
-                                                      1,   // ClusterM
-                                                      1024,  // ClusterK
-                                                      1,   // SliceM
+                                                      1,    // ClusterM
+                                                      1024, // ClusterK
+                                                      1,    // SliceM
                                                       32,   // SliceK
-                                                      1,   // SrcVecDim (0=M, 1=K)
-                                                      2,   // SrcScalarPerVector
-                                                      1,   // GammaVecDim (0=M, 1=K)
-                                                      2,   // GammaScalarPerVector
-                                                      1,   // BetaVecDim (0=M, 1=K)
-                                                      2,   // BetaScalarPerVector
-                                                      2>;  // OutScalarPerVector
+                                                      1,    // SrcVecDim (0=M, 1=K)
+                                                      2,    // SrcScalarPerVector
+                                                      1,    // GammaVecDim (0=M, 1=K)
+                                                      2,    // GammaScalarPerVector
+                                                      1,    // BetaVecDim (0=M, 1=K)
+                                                      2,    // BetaScalarPerVector
+                                                      2>;   // OutScalarPerVector
 
 int main(int argc, char* argv[])
 {
