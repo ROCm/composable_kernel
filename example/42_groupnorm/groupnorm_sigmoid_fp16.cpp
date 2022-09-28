@@ -59,7 +59,7 @@ using DeviceInstance =
                                                       1,   // ClusterM
                                                       1024,  // ClusterK
                                                       1,   // SliceM
-                                                      8,   // SliceK
+                                                      32,   // SliceK
                                                       1,   // SrcVecDim (0=M, 1=K)
                                                       2,   // SrcScalarPerVector
                                                       1,   // GammaVecDim (0=M, 1=K)
