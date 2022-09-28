@@ -49,7 +49,7 @@ def getDockerImage(Map conf=[:]){
     {
         def CCACHE_SERVER="${env.CK_CCACHE}".split(":")[0]
         echo "${CCACHE_SERVER}"
-        def check_host = sh(script:"""ping -c 1 -p 6379 ${CCACHE_SERVER} | echo $? """, returnStdout: true).trim()
+        def check_host = sh(script:"""ping -c 1 -p 6379 "${CCACHE_SERVER}" | echo $? """, returnStdout: true).trim()
         if(check_host == "0")
         {
             echo "FOUND CCACHE SERVER: ${env.CK_CCACHE}"
@@ -95,7 +95,7 @@ def buildDocker(install_prefix){
     {
         def CCACHE_SERVER="${env.CK_CCACHE}".split(":")[0]
         echo "${CCACHE_SERVER}"
-        def check_host = sh(script:"""ping -c 1 -p 6379 ${CCACHE_SERVER} | echo $? """, returnStdout: true).trim()
+        def check_host = sh(script:"""ping -c 1 -p 6379 "${CCACHE_SERVER}" | echo $? """, returnStdout: true).trim()
         if(check_host == "0")
         {
             echo "FOUND CCACHE SERVER: ${env.CK_CCACHE}"
