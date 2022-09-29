@@ -19,6 +19,7 @@ RUN sh -c "echo deb http://mirrors.kernel.org/ubuntu focal main universe | tee -
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     apt-utils \
     build-essential \
+    ccache \
     cmake-data \
     cmake \
     curl \
