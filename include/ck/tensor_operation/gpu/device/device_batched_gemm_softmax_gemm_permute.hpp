@@ -28,7 +28,7 @@ template <index_t NumDimG,
           typename Acc0ElementwiseOperation,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation,
-          bool MaskOutUpperTriangle> // TODO: enum for mask type
+          MaskingSpecialization MaskingSpec>
 struct DeviceBatchedGemmSoftmaxGemmPermute : public BaseOperator
 {
     static constexpr index_t NumAcc0Bias = Acc0BiasDataType::Size();

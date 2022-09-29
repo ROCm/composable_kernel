@@ -118,7 +118,6 @@ __global__ void
 //              ^^^^^^ (Acc0)
 //              ^^^^^^^^^^^ (Acc1)
 // TODO ANT: add bias after A * B0
-// TODO ANT: support enum struct for various masks, before masking to -inf
 template <index_t NumDimG,
           index_t NumDimM,
           index_t NumDimN,
@@ -178,7 +177,7 @@ template <index_t NumDimG,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
-          bool MaskOutUpperTriangle,
+          MaskingSpecialization MaskingSpec,
           LoopScheduler LoopSched = LoopScheduler::Default>
 struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     : public DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
@@ -197,7 +196,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                                  AccElementwiseOperation,
                                                  B1ElementwiseOperation,
                                                  CElementwiseOperation,
-                                                 MaskOutUpperTriangle>
+                                                 MaskingSpec>
 {
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
                   "Number of dimension must be greater than 0");
@@ -264,28 +263,75 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     using B1GridDesc_G_N_K     = decltype(Transform::MakeB1GridDescriptor_G_N_K({}, {}));
     using CGridDesc_G_M_N      = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
 
+    struct MaskDisabled
+    {
+        __host__ __device__ constexpr bool operator()(index_t /*m*/, index_t /*n*/) const
+        {
+            return false;
+        };
+
+        __host__ __device__ constexpr bool IsTileSkippable(index_t /*m*/,
+                                                           index_t /*n*/,
+                                                           index_t /*m_tile*/,
+                                                           index_t /*n_tile*/) const
+        {
+            return false;
+        }
+    };
+
+    struct MaskOutUpperTriangle
+    {
+        __host__ __device__ constexpr bool operator()(index_t m, index_t n) const { return n > m; }
+
+        __host__ __device__ constexpr bool
+        IsTileSkippable(index_t m, index_t n, index_t m_tile, index_t /*n_tile*/) const
+        {
+            return operator()(m + m_tile - 1, n);
+        }
+    };
+
+    constexpr static auto make_MaskOutPredicate()
+    {
+        if constexpr(MaskingSpec == MaskingSpecialization::MaskDisabled)
+        {
+            return MaskDisabled{};
+        }
+        else if constexpr(MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle)
+        {
+            return MaskOutUpperTriangle{};
+        }
+    }
+
     // to track the points which need to be set to -inf on C0
     // Note: no need to reset M padding value, because they will not be stored out.
-    struct C0MatrixMask
+    template <typename MaskOutPredicate>
+    struct C0MatrixMask_impl
     {
-        C0MatrixMask(index_t NRaw) : NRaw_(NRaw) {}
+        C0MatrixMask_impl(index_t NRaw) : NRaw_(NRaw), predicate_(MaskOutPredicate{}) {}
 
-        __host__ __device__ bool IsUpperTriangle(index_t m, index_t n) const { return n > m; }
-
-        __host__ __device__ bool IsNOutOfBound(/*index_t m, */ index_t n) const
+        __host__ __device__ constexpr bool IsNOutOfBound(/*index_t m, */ index_t n) const
         {
             return n >= NRaw_;
         }
 
-        __host__ __device__ bool IsMaskedElement(index_t m, index_t n) const
+        __host__ __device__ constexpr bool IsMaskedElement(index_t m, index_t n) const
         {
-            return IsUpperTriangle(m, n) || IsNOutOfBound(n);
+            return predicate_(m, n) || IsNOutOfBound(n);
+        }
+
+        __host__ __device__ constexpr bool
+        IsTileSkippable(index_t m, index_t n, index_t m_tile, index_t n_tile) const
+        {
+            return predicate_.IsTileSkippable(m, n, m_tile, n_tile);
         }
 
         private:
         // index_t MRaw_;
         index_t NRaw_;
+        MaskOutPredicate predicate_;
     };
+
+    using C0MatrixMask = C0MatrixMask_impl<decltype(make_MaskOutPredicate())>;
 
     struct ComputeBasePtrOfStridedBatch
     {
@@ -388,7 +434,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched,
         Transform::matrix_padder.PadN,
-        MaskOutUpperTriangle>;
+        MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle>;
 
     // Argument
     // FIXME: constness
@@ -860,7 +906,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             << Gemm1NPerBlock << ", "
             << Gemm1KPerBlock << ", "
             << B1K1 << ", "
-            << getGemmSpecializationString(GemmSpec) << ">";
+            << getGemmSpecializationString(GemmSpec) << ", "
+            << getMaskingSpecializationString(MaskingSpec) << ">";
         // clang-format on
 
         return str.str();

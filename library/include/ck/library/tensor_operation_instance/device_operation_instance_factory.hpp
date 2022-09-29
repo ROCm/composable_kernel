@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cstdlib>
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 
 namespace ck {
 namespace tensor_operation {

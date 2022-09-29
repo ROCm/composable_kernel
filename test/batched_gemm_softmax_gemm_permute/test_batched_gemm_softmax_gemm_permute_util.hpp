@@ -9,7 +9,9 @@
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_permute.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_permute_xdl_cshuffle.hpp"
 #include "profiler/include/profile_batched_gemm_softmax_gemm_permute_impl.hpp"
+
 using ck::tensor_operation::device::GemmSpecialization;
+using ck::tensor_operation::device::MaskingSpecialization;
 
 template <ck::index_t N>
 using I = ck::Number<N>;
@@ -48,19 +50,20 @@ struct TestBatchedGemmMaskingScaleSoftmaxGemmPermute : public ::testing::Test
 
     void RunSingle(int M, int N, int K, int O, int G0, int G1)
     {
-        bool pass = ck::profiler::profile_batched_gemm_softmax_gemm_permute_impl<
-            NumDimGType::value,
-            NumDimMType::value,
-            NumDimNType::value,
-            NumDimKType::value,
-            NumDimOType::value,
-            ADataType,
-            B0DataType,
-            B1DataType,
-            CDataType,
-            ck::Tuple<>,
-            ck::Tuple<>,
-            MaskingType::value>(verify_, 1, false, bench_, M, N, K, O, G0, G1);
+        bool pass =
+            ck::profiler::profile_batched_gemm_softmax_gemm_permute_impl<NumDimGType::value,
+                                                                         NumDimMType::value,
+                                                                         NumDimNType::value,
+                                                                         NumDimKType::value,
+                                                                         NumDimOType::value,
+                                                                         ADataType,
+                                                                         B0DataType,
+                                                                         B1DataType,
+                                                                         CDataType,
+                                                                         ck::Tuple<>,
+                                                                         ck::Tuple<>,
+                                                                         MaskingType::value>(
+                verify_, 1, false, bench_, M, N, K, O, G0, G1);
 
         EXPECT_TRUE(pass);
     }
@@ -166,7 +169,7 @@ struct DeviceInstanceWrapper_G2M1N1K1O1_TNTT_FP16_M128_N128_K32_O128
             2,              // CShuffleNXdlPerWavePerShuffle
             S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
             8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
-            true>;          // MaskOutUpperTriangle
+            MaskingSpecialization::MaskOutUpperTriangle>; // MaskOutUpperTriangle
 
     bool IsSupported(int M, int N, int K, int O)
     {

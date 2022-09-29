@@ -758,16 +758,12 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         index_t gemm1_k_block_outer_index = 0;
         do
         {
-            if constexpr(MaskOutUpperTriangle)
+            auto gemm0_n_block_idx =
+                __builtin_amdgcn_readfirstlane(gemm1_k_block_outer_index * NPerBlock);
+            if(c0_matrix_mask.IsTileSkippable(
+                   m_block_data_idx_on_grid, gemm0_n_block_idx, MPerBlock, NPerBlock))
             {
-                auto gemm0_n_block_idx =
-                    __builtin_amdgcn_readfirstlane(gemm1_k_block_outer_index * NPerBlock);
-                if(c0_matrix_mask.IsUpperTriangle(m_block_data_idx_on_grid, gemm0_n_block_idx) &&
-                   c0_matrix_mask.IsUpperTriangle(m_block_data_idx_on_grid + MPerBlock - 1,
-                                                  gemm0_n_block_idx))
-                {
-                    continue;
-                }
+                continue;
             }
             // gemm0
             gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(a_grid_desc_ak0_m_ak1,

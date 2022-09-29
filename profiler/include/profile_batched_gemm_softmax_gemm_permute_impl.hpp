@@ -33,18 +33,18 @@ template <index_t NumDimG,
           typename CDataType,
           typename Acc0BiasesDataType,
           typename Acc1BiasesDataType,
-          bool MaskOutUpperTriangle> // TODO: enum for various masks
+          tensor_operation::device::MaskingSpecialization MaskingSpec>
 bool profile_batched_gemm_softmax_gemm_permute_impl(bool do_verification,
-                                                                  int init_method,
-                                                                  bool do_log,
-                                                                  bool time_kernel,
-                                                                  int M,
-                                                                  int N,
-                                                                  int K,
-                                                                  int O,
-                                                                  int G0,
-                                                                  int G1,
-                                                                  float alpha = 1.f)
+                                                    int init_method,
+                                                    bool do_log,
+                                                    bool time_kernel,
+                                                    int M,
+                                                    int N,
+                                                    int K,
+                                                    int O,
+                                                    int G0,
+                                                    int G1,
+                                                    float alpha = 1.f)
 
 {
 
@@ -56,6 +56,7 @@ bool profile_batched_gemm_softmax_gemm_permute_impl(bool do_verification,
     using B1ElementOp   = PassThrough;
     using CElementOp    = PassThrough;
     using AccDataType   = float;
+    using tensor_operation::device::MaskingSpecialization;
 
     // Ref Gemm0: various type in, fp32 out
     using ReferenceGemm0Instance = tensor_operation::host::ReferenceBatchedGemm<ADataType,
@@ -158,24 +159,23 @@ bool profile_batched_gemm_softmax_gemm_permute_impl(bool do_verification,
     auto b1_element_op   = B1ElementOp{};
     auto c_element_op    = CElementOp{};
 
-    using DeviceOp =
-        tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute<2,
-                                                                      1,
-                                                                      1,
-                                                                      1,
-                                                                      1,
-                                                                      ADataType,
-                                                                      B0DataType,
-                                                                      B1DataType,
-                                                                      CDataType,
-                                                                      ck::Tuple<>,
-                                                                      ck::Tuple<>,
-                                                                      AElementOp,
-                                                                      B0ElementOp,
-                                                                      Acc0ElementOp,
-                                                                      B1ElementOp,
-                                                                      CElementOp,
-                                                                      MaskOutUpperTriangle>;
+    using DeviceOp = tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute<2,
+                                                                                   1,
+                                                                                   1,
+                                                                                   1,
+                                                                                   1,
+                                                                                   ADataType,
+                                                                                   B0DataType,
+                                                                                   B1DataType,
+                                                                                   CDataType,
+                                                                                   ck::Tuple<>,
+                                                                                   ck::Tuple<>,
+                                                                                   AElementOp,
+                                                                                   B0ElementOp,
+                                                                                   Acc0ElementOp,
+                                                                                   B1ElementOp,
+                                                                                   CElementOp,
+                                                                                   MaskingSpec>;
 
     // get device op instances
     const auto op_ptrs = tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -214,7 +214,7 @@ bool profile_batched_gemm_softmax_gemm_permute_impl(bool do_verification,
 
         // mask out upper triangle
         acc0_g_m_n.ForEach([&](auto& self, auto idx) {
-            if(MaskOutUpperTriangle && idx[1] < idx[2])
+            if(MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle && idx[1] < idx[2])
                 self(idx) = -ck::NumericLimits<float>::Infinity();
         });
 

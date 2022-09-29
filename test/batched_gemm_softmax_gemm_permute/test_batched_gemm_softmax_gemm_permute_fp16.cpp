@@ -10,16 +10,18 @@ class TestBatchedGemmMaskingScaleSoftmaxGemmPermuteFP16
 {
 };
 
-using Masked = std::true_type;
-using NoMask = std::false_type;
-
 using I1_t = ck::Number<1>;
 using I2_t = ck::Number<2>;
 
+using MaskDisabled_t =
+    ck::integral_constant<MaskingSpecialization, MaskingSpecialization::MaskDisabled>;
+using MaskOutUpperTriangle_t =
+    ck::integral_constant<MaskingSpecialization, MaskingSpecialization::MaskOutUpperTriangle>;
+
 // clang-format off
 using KernelTypes = ::testing::Types<
-    std::tuple<I2_t, I1_t, I1_t, I1_t, I1_t, F16, F16, F16, F16, ck::Tuple<>, ck::Tuple<>, NoMask>,
-    std::tuple<I2_t, I1_t, I1_t, I1_t, I1_t, F16, F16, F16, F16, ck::Tuple<>, ck::Tuple<>, Masked>
+    std::tuple<I2_t, I1_t, I1_t, I1_t, I1_t, F16, F16, F16, F16, ck::Tuple<>, ck::Tuple<>, MaskDisabled_t>,
+    std::tuple<I2_t, I1_t, I1_t, I1_t, I1_t, F16, F16, F16, F16, ck::Tuple<>, ck::Tuple<>, MaskOutUpperTriangle_t>
     >;
 // clang-format on
 

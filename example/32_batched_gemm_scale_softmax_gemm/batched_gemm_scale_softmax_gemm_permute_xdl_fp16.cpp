@@ -60,6 +60,8 @@ using B1ElementOp   = PassThrough;
 using CElementOp    = PassThrough;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
+static constexpr auto MaskingSpec =
+    ck::tensor_operation::device::MaskingSpecialization::MaskOutUpperTriangle;
 
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<
@@ -122,7 +124,7 @@ using DeviceGemmInstance =
         2,              // CShuffleNXdlPerWavePerShuffle
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
-        false>;         // MaskOutUpperTriangle
+        MaskingSpec>;   // MaskingSpecialization
 
 // Ref Gemm0: fp16 in, fp32 out
 using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
@@ -250,9 +252,9 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-5, 5});
-        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-5, 5});
+        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
         break;
     case 2:
         a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
@@ -359,6 +361,7 @@ int main(int argc, char* argv[])
             b1_g_n_o(idx[0] * G1 + idx[1], idx[3], idx[2]) = self(idx);
         });
 
+        // gemm 0
         auto ref_gemm0          = ReferenceGemm0Instance{};
         auto ref_gemm0_invoker  = ref_gemm0.MakeInvoker();
         auto ref_gemm0_argument = ref_gemm0.MakeArgument(
@@ -366,12 +369,21 @@ int main(int argc, char* argv[])
 
         ref_gemm0_invoker.Run(ref_gemm0_argument);
 
+        // masking
+        const auto mask = DeviceGemmInstance::C0MatrixMask(N);
+        acc0_g_m_n.ForEach([&](auto& self, auto idx) {
+            if(mask.IsMaskedElement(idx[1], idx[2]))
+                self(idx) = -ck::NumericLimits<float>::Infinity();
+        });
+
+        // softmax
         auto ref_softmax          = ReferenceSoftmaxInstance{};
         auto ref_softmax_invoker  = ref_softmax.MakeInvoker();
         auto ref_softmax_argument = ref_softmax.MakeArgument(acc0_g_m_n, a1_g_m_n, 1, 0, {2});
 
         ref_softmax_invoker.Run(ref_softmax_argument);
 
+        // gemm1
         auto ref_gemm1          = ReferenceGemm1Instance{};
         auto ref_gemm1_invoker  = ref_gemm1.MakeInvoker();
         auto ref_gemm1_argument = ref_gemm1.MakeArgument(
