@@ -11,7 +11,12 @@ namespace ck {
 namespace tensor_operation {
 
 // assume C[G0, G1, ..., M0, M1, M2, ..., N0, N1, N2...]
-template <index_t MPerBlock, index_t NPerBlock, index_t NumDimG, index_t NumDimM, index_t NumDimN>
+template <index_t MPerBlock,
+          index_t NPerBlock,
+          index_t NumDimG,
+          index_t NumDimM,
+          index_t NumDimN,
+          bool MergeDimensions = true>
 static auto MakeGridDescriptorPair(const std::vector<index_t>& gs_ms_ns_lengths_vec,
                                    const std::vector<index_t>& gs_ms_ns_strides_vec)
 {
@@ -50,39 +55,60 @@ static auto MakeGridDescriptorPair(const std::vector<index_t>& gs_ms_ns_lengths_
     // lengths for N0, N1, ...
     const auto nLengths = get_container_subset(gs_ms_ns_lengths, nDimIds);
 
-    // naive tensor C[G0, G1, ..., M0, M1, M2, ..., N0, N1, N2...]
-    const auto grid_desc_gs_ms_ns =
-        make_naive_tensor_descriptor(gs_ms_ns_lengths, gs_ms_ns_strides);
+    if constexpr(MergeDimensions)
+    {
+        auto G = container_reduce(gLengths, math::multiplies{}, Number<1>{});
+        auto M = container_reduce(mLengths, math::multiplies{}, Number<1>{});
+        auto N = container_reduce(nLengths, math::multiplies{}, Number<1>{});
+        const auto grid_desc_g_mraw_nraw = make_naive_tensor_descriptor(
+            make_tuple(G, M, N),
+            make_tuple(gs_ms_ns_strides[Number<NumDimG - 1>{}],
+                       gs_ms_ns_strides[Number<NumDimG + NumDimM - 1>{}],
+                       gs_ms_ns_strides[Number<NumDimG + NumDimM + NumDimN - 1>{}]));
 
-    // transformed tensor C[G = G0 * G1 * ..., MRaw = M0 * M1 * M2 * ... , NRaw = N0 * N1 *
-    // N2 * ...]
-    // Note: This does not require padding as it only provides G offset calculation. Technically
-    // descriptor for only G is needed. Here we opt for backward compatibility purpose to return
-    // G_M_N
-    const auto grid_desc_g_mraw_nraw =
-        transform_tensor_descriptor(grid_desc_gs_ms_ns,
-                                    make_tuple(make_merge_transform(gLengths),
-                                               make_merge_transform(mLengths),
-                                               make_merge_transform(nLengths)),
-                                    make_tuple(gDimIds, mDimIds, nDimIds),
-                                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+        const auto grid_desc_mraw_nraw = make_naive_tensor_descriptor(
+            make_tuple(M, N),
+            make_tuple(gs_ms_ns_strides[Number<NumDimG + NumDimM - 1>{}],
+                       gs_ms_ns_strides[Number<NumDimG + NumDimM + NumDimN - 1>{}]));
 
-    const auto c_ms_ns_lengths =
-        to_tuple(gs_ms_ns_lengths_vec, Number<NumDimG>{}, Number<NumDimG + NumDimM + NumDimN>{});
-    const auto c_ms_ns_strides =
-        to_tuple(gs_ms_ns_strides_vec, Number<NumDimG>{}, Number<NumDimG + NumDimM + NumDimN>{});
+        return std::make_pair(grid_desc_g_mraw_nraw, grid_desc_mraw_nraw);
+    }
+    else
+    {
+        // naive tensor C[G0, G1, ..., M0, M1, M2, ..., N0, N1, N2...]
+        const auto grid_desc_gs_ms_ns =
+            make_naive_tensor_descriptor(gs_ms_ns_lengths, gs_ms_ns_strides);
 
-    // transformed tensor C[MRaw = M0 * M1 * M2 * ... , NRaw = N0 * N1 *
-    // N2 * ...]
-    const auto grid_desc_ms_ns = make_naive_tensor_descriptor(c_ms_ns_lengths, c_ms_ns_strides);
+        // transformed tensor C[G = G0 * G1 * ..., MRaw = M0 * M1 * M2 * ... , NRaw = N0 * N1 *
+        // N2 * ...]
+        // Note: This does not require padding as it only provides G offset calculation. Technically
+        // descriptor for only G is needed. Here we opt for backward compatibility purpose to return
+        // G_M_N
+        const auto grid_desc_g_mraw_nraw =
+            transform_tensor_descriptor(grid_desc_gs_ms_ns,
+                                        make_tuple(make_merge_transform(gLengths),
+                                                   make_merge_transform(mLengths),
+                                                   make_merge_transform(nLengths)),
+                                        make_tuple(gDimIds, mDimIds, nDimIds),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
-    const auto grid_desc_mraw_nraw = transform_tensor_descriptor(
-        grid_desc_ms_ns,
-        make_tuple(make_merge_transform(mLengths), make_merge_transform(nLengths)),
-        make_tuple(mDimIds - Number<NumDimG>{}, nDimIds - Number<NumDimG>{}),
-        make_tuple(Sequence<0>{}, Sequence<1>{}));
+        const auto c_ms_ns_lengths = to_tuple(
+            gs_ms_ns_lengths_vec, Number<NumDimG>{}, Number<NumDimG + NumDimM + NumDimN>{});
+        const auto c_ms_ns_strides = to_tuple(
+            gs_ms_ns_strides_vec, Number<NumDimG>{}, Number<NumDimG + NumDimM + NumDimN>{});
 
-    return std::make_pair(grid_desc_g_mraw_nraw, grid_desc_mraw_nraw);
+        // transformed tensor C[MRaw = M0 * M1 * M2 * ... , NRaw = N0 * N1 *
+        // N2 * ...]
+        const auto grid_desc_ms_ns = make_naive_tensor_descriptor(c_ms_ns_lengths, c_ms_ns_strides);
+
+        const auto grid_desc_mraw_nraw = transform_tensor_descriptor(
+            grid_desc_ms_ns,
+            make_tuple(make_merge_transform(mLengths), make_merge_transform(nLengths)),
+            make_tuple(mDimIds - Number<NumDimG>{}, nDimIds - Number<NumDimG>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+        return std::make_pair(grid_desc_g_mraw_nraw, grid_desc_mraw_nraw);
+    }
 }
 
 template <typename NumDims_G_M_N_K_O, // Sequence<>
