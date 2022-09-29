@@ -241,39 +241,6 @@ def buildHipClangJob(Map conf=[:]){
         def retimage
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
-            try {
-                (retimage, image) = getDockerImage(conf)
-                withDockerContainer(image: image, args: dockerOpts) {
-                    timeout(time: 5, unit: 'MINUTES'){
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
-                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
-                            throw new Exception ("GPU not found")
-                        }
-                        else{
-                            echo "GPU is OK"
-                        }
-                    }
-                }
-            }
-            catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
-                echo "The job was cancelled or aborted"
-                throw e
-            }
-            catch(Exception ex) {
-                retimage = docker.build("${image}", dockerArgs + " --no-cache .")
-                withDockerContainer(image: image, args: dockerOpts) {
-                    timeout(time: 5, unit: 'MINUTES'){
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo |tee clinfo.log'
-                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
-                            throw new Exception ("GPU not found")
-                        }
-                        else{
-                            echo "GPU is OK"
-                        }
-                    }
-                }
-            }
-
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 5, unit: 'HOURS')
                 {
@@ -652,17 +619,6 @@ pipeline {
         }
         stage("Static checks") {
             parallel{
-                // enable after we move from hipcc to hip-clang
-                // stage('Tidy') {
-                //     agent{ label rocmnode("nogpu") }
-                //     environment{
-                //         // setup_cmd = "CXX='/opt/rocm/bin/hipcc' cmake -DBUILD_DEV=On .. "
-                //         build_cmd = "make -j\$(nproc) -k analyze"
-                //     }
-                //     steps{
-                //         buildHipClangJobAndReboot(build_cmd: build_cmd, no_reboot:true, prefixpath: '/opt/rocm', build_type: 'debug')
-                //     }
-                // }
                 stage('Clang Format') {
                     agent{ label rocmnode("nogpu") }
                     environment{
@@ -701,28 +657,6 @@ pipeline {
             }
         }
 
- 		/*
-        //at present this stage only builds binaries. 
-        //we will now build all binaries in a separate stage.
-        //once we have some tests to run in this stage, we can enable it again.
-        stage("Client App")
-        {
-            parallel
-            {
-                stage("Run Client App")
-                {
-                    agent{ label rocmnode("gfx908")}
-                    environment{
-                        setup_args = "${params.COMPILER_VERSION == "ck-9110" ? """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS="-O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" """ : """ -DBUILD_DEV=Off -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS="-O3 " """ }"
-                        execute_args = "${params.COMPILER_VERSION == "ck-9110" ? """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS="-O3 -Xclang -mlink-builtin-bitcode -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ : """ cd ../client_example && rm -rf build && mkdir build && cd build && cmake -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS="-O3" -D CMAKE_CXX_COMPILER="${build_compiler()}" .. && make -j """ }"
-                    }
-                    steps{
-                        buildHipClangJobAndReboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
-                    }
-                }
-            }
-        }
-        */
         stage("Performance Tests")
         {
             parallel
@@ -771,21 +705,5 @@ pipeline {
                 }
             }
         }
-
-        /* enable after the cmake file supports packaging
-        stage("Packages") {
-            when {
-                expression { params.BUILD_PACKAGES && params.TARGET_NOGPU && params.DATATYPE_NA }
-            }
-            parallel {
-                stage("Package /opt/rocm") {
-                    agent{ label rocmnode("nogpu") }
-                    steps{
-                        buildHipClangJobAndReboot( package_build: "true", prefixpath: '/opt/rocm', gpu_arch: "gfx906;gfx908;gfx90a")
-                    }
-                }
-            }
-        }
-        */
     }
 }
