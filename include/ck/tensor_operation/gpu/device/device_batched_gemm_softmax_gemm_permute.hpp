@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "device_base.hpp"
+#include "ck/tensor_operation/gpu/device/masking_specialization.hpp"
 
 namespace ck {
 namespace tensor_operation {
