@@ -209,6 +209,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "Bias addition is unimplemented");
 
 #if 0
+    // TODO ANT: use alias
     static constexpr index_t NumDimGemm0M = NumDimM;
     static constexpr index_t NumDimGemm0N = NumDimN;
     static constexpr index_t NumDimGemm0K = NumDimK;
@@ -463,7 +464,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
               compute_base_ptr_of_batch_{
                   a_grid_desc_g_m_k_, b_grid_desc_g_n_k_, b1_grid_desc_g_n_k_, c_grid_desc_g_m_n_}
         {
-            // TODO ANT:
+            // TODO ANT: implement bias addition
             ignore = p_acc0_biases;
             ignore = p_acc1_biases;
             ignore = acc0_biases_gs_ms_ns_lengths;
@@ -683,12 +684,12 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
              b1_extent_lowest % B1BlockTransferSrcScalarPerVector == 0 &&
              c_extent_lowest % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
         {
-            printf("a_extent_lowest = %d, b_extent_lowest = %d, b1_extent_lowest = %d, "
-                   "c_extent_lowest = %d\n",
-                   a_extent_lowest,
-                   b_extent_lowest,
-                   b1_extent_lowest,
-                   c_extent_lowest);
+            // printf("a_extent_lowest = %d, b_extent_lowest = %d, b1_extent_lowest = %d, "
+            //        "c_extent_lowest = %d\n",
+            //        a_extent_lowest,
+            //        b_extent_lowest,
+            //        b1_extent_lowest,
+            //        c_extent_lowest);
             return false;
         }
 
@@ -705,12 +706,12 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         if(!(a_stride_lowest == 1 || b_stride_lowest == 1 || b1_stride_lowest == 1 ||
              c_stride_lowest == 1))
         {
-            printf("a_stride_lowest = %d, b_stride_lowest = %d, b1_stride_lowest = %d, "
-                   "c_stride_lowest = %d\n",
-                   a_stride_lowest,
-                   b_stride_lowest,
-                   b1_stride_lowest,
-                   c_stride_lowest);
+            // printf("a_stride_lowest = %d, b_stride_lowest = %d, b1_stride_lowest = %d, "
+            //        "c_stride_lowest = %d\n",
+            //        a_stride_lowest,
+            //        b_stride_lowest,
+            //        b1_stride_lowest,
+            //        c_stride_lowest);
             return false;
         }
 
