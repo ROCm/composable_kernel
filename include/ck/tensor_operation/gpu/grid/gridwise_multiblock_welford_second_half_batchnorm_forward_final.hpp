@@ -412,13 +412,14 @@ struct GridwiseWelfordSecondHalfBatchNormForwardFinal
                                   x_thread_buf);
 
             static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
+                auto divisor = sqrt(welford_var_thread_buf(iM) + epsilon);
+
                 static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
                     constexpr auto offset =
                         thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK));
 
                     y_thread_buf(Number<offset>{}) =
-                        (x_thread_buf(Number<offset>{}) - welford_mean_thread_buf(iM)) /
-                        sqrt(welford_var_thread_buf(iM) + epsilon);
+                        (x_thread_buf(Number<offset>{}) - welford_mean_thread_buf(iM)) / divisor;
 
                     y_thread_buf(Number<offset>{}) =
                         y_thread_buf(Number<offset>{}) * scale_thread_buf(iM) + bias_thread_buf(iM);
