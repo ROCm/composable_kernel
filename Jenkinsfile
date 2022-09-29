@@ -19,7 +19,7 @@ def runShell(String command){
 }
 
 def getDockerImageName(){
-    def img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm5.2.3_${params.COMPILER_VERSION}"
+    def img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}"
     return img
 }
 
@@ -27,7 +27,7 @@ def check_host() {
     if ("${env.CK_CCACHE}" != "null"){
         def CCACHE_SERVER="${env.CK_CCACHE.split(':')[0]}"
         echo "ccache server: ${CCACHE_SERVER}"
-        sh "ping -c 1 -p 6379 \$CCACHE_SERVER | echo $? > tmp.txt"
+        sh """ping -c 1 -p 6379 "${CCACHE_SERVER}" | echo $? > tmp.txt"""
         def output = readFile(file: "tmp.txt")
         echo "tmp.txt contents: $output"
         return (output != "0")
@@ -229,7 +229,7 @@ def buildHipClangJob(Map conf=[:]){
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
-        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' "
+        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
         if (params.COMPILER_VERSION != "release"){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
@@ -316,7 +316,7 @@ def runCKProfiler(Map conf=[:]){
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
-        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' "
+        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
         if (params.COMPILER_VERSION != "release"){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
@@ -449,7 +449,7 @@ def Build_CK(Map conf=[:]){
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
-        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' "
+        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
         if (params.COMPILER_VERSION != "release"){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
@@ -601,6 +601,10 @@ pipeline {
             name: "BUILD_DOCKER",
             defaultValue: false,
             description: "Force building docker image (default: false)")
+        string(
+            name: 'ROCMVERSION', 
+            defaultValue: '5.2.3', 
+            description: 'Specify which ROCM version to use: 5.2.3(default), or 5.3, etc.')
         string(
             name: 'COMPILER_VERSION', 
             defaultValue: 'amd-stg-open', 
