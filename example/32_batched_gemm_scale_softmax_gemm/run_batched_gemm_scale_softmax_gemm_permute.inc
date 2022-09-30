@@ -52,7 +52,6 @@ int run(int argc, char* argv[])
 
         input_permute = std::stoi(argv[11]);
         output_permute = std::stoi(argv[12]);
-        std::cout << input_permute << ", " << output_permute << "\n";
     }
     else
     {

@@ -60,6 +60,11 @@ static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecializatio
 static constexpr auto MaskingSpec =
     ck::tensor_operation::device::MaskingSpecialization::MaskOutUpperTriangle;
 
+static constexpr auto TensorSpecA  = ck::tensor_operation::device::TensorSpecialization::Default;
+static constexpr auto TensorSpecB0 = ck::tensor_operation::device::TensorSpecialization::Default;
+static constexpr auto TensorSpecB1 = ck::tensor_operation::device::TensorSpecialization::Default;
+static constexpr auto TensorSpecC  = ck::tensor_operation::device::TensorSpecialization::Default;
+
 using DeviceGemmInstance =
     ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<
         NumDimG,
@@ -81,6 +86,10 @@ using DeviceGemmInstance =
         B1ElementOp,
         CElementOp,
         GemmSpec,
+        TensorSpecA,
+        TensorSpecB0,
+        TensorSpecB1,
+        TensorSpecC,
         1,
         256,
         128,         // MPerBlock

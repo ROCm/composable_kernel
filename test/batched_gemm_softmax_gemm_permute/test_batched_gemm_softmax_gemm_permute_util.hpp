@@ -12,6 +12,7 @@
 
 using ck::tensor_operation::device::GemmSpecialization;
 using ck::tensor_operation::device::MaskingSpecialization;
+using ck::tensor_operation::device::TensorSpecialization;
 
 template <ck::index_t N>
 using I = ck::Number<N>;
@@ -129,6 +130,10 @@ struct DeviceInstanceWrapper_G2M1N1K1O1_TNTT_FP16_M128_N128_K32_O128
             B1ElementOp,
             CElementOp,
             GemmSpec,
+            TensorSpecialization::Default, // ATensorSpec
+            TensorSpecialization::Default, // B0TensorSpec
+            TensorSpecialization::Default, // B1TensorSpec
+            TensorSpecialization::Default, // CTensorSpec
             1,
             256,
             128,         // MPerBlock

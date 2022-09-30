@@ -6,17 +6,16 @@
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
 
 namespace ck {
 namespace tensor_operation {
 
 // assume C[G0, G1, ..., M0, M1, M2, ..., N0, N1, N2...]
-template <index_t MPerBlock,
-          index_t NPerBlock,
-          index_t NumDimG,
+template <index_t NumDimG,
           index_t NumDimM,
           index_t NumDimN,
-          bool MergeDimensions = true>
+          device::TensorSpecialization TensorSpec>
 static auto MakeGridDescriptorPair(const std::vector<index_t>& gs_ms_ns_lengths_vec,
                                    const std::vector<index_t>& gs_ms_ns_strides_vec)
 {
@@ -55,7 +54,7 @@ static auto MakeGridDescriptorPair(const std::vector<index_t>& gs_ms_ns_lengths_
     // lengths for N0, N1, ...
     const auto nLengths = get_container_subset(gs_ms_ns_lengths, nDimIds);
 
-    if constexpr(MergeDimensions)
+    if constexpr(TensorSpec == device::TensorSpecialization::Packed)
     {
         auto G = container_reduce(gLengths, math::multiplies{}, Number<1>{});
         auto M = container_reduce(mLengths, math::multiplies{}, Number<1>{});
@@ -113,7 +112,11 @@ static auto MakeGridDescriptorPair(const std::vector<index_t>& gs_ms_ns_lengths_
 
 template <typename NumDims_G_M_N_K_O, // Sequence<>
           typename PerBlock_M_N_K_O,  // Sequence<>
-          device::GemmSpecialization GemmSpec>
+          device::GemmSpecialization GemmSpec,
+          device::TensorSpecialization ASpec,
+          device::TensorSpecialization B0Spec,
+          device::TensorSpecialization B1Spec,
+          device::TensorSpecialization CSpec>
 struct TransformBatchedContractionContractionToBatchedGemmGemm
 {
     static constexpr auto I0 = Number<0>{};
@@ -143,8 +146,8 @@ struct TransformBatchedContractionContractionToBatchedGemmGemm
     static auto MakeAGridDescriptorPair(const std::vector<index_t>& a_gs_ms_ks_lengths_vec,
                                         const std::vector<index_t>& a_gs_ms_ks_strides_vec)
     {
-        return MakeGridDescriptorPair<MPerBlock, KPerBlock, NumDimG, NumDimM, NumDimK>(
-            a_gs_ms_ks_lengths_vec, a_gs_ms_ks_strides_vec);
+        return MakeGridDescriptorPair<NumDimG, NumDimM, NumDimK, ASpec>(a_gs_ms_ks_lengths_vec,
+                                                                        a_gs_ms_ks_strides_vec);
     }
 
     // TODO: rename to G_MRaw_KRaw
@@ -182,8 +185,8 @@ struct TransformBatchedContractionContractionToBatchedGemmGemm
     static auto MakeB0GridDescriptorPair(const std::vector<index_t>& b0_gs_ns_ks_lengths_vec,
                                          const std::vector<index_t>& b0_gs_ns_ks_strides_vec)
     {
-        return MakeGridDescriptorPair<NPerBlock, KPerBlock, NumDimG, NumDimN, NumDimK>(
-            b0_gs_ns_ks_lengths_vec, b0_gs_ns_ks_strides_vec);
+        return MakeGridDescriptorPair<NumDimG, NumDimN, NumDimK, B0Spec>(b0_gs_ns_ks_lengths_vec,
+                                                                         b0_gs_ns_ks_strides_vec);
     }
 
     // TODO: rename to G_MRaw_NRaw
@@ -222,8 +225,8 @@ struct TransformBatchedContractionContractionToBatchedGemmGemm
     static auto MakeB1GridDescriptorPair(const std::vector<index_t>& b1_gs_os_ns_lengths_vec,
                                          const std::vector<index_t>& b1_gs_os_ns_strides_vec)
     {
-        return MakeGridDescriptorPair<OPerBlock, NPerBlock, NumDimG, NumDimO, NumDimN>(
-            b1_gs_os_ns_lengths_vec, b1_gs_os_ns_strides_vec);
+        return MakeGridDescriptorPair<NumDimG, NumDimO, NumDimN, B1Spec>(b1_gs_os_ns_lengths_vec,
+                                                                         b1_gs_os_ns_strides_vec);
     }
 
     // TODO: rename to G_NRaw_KRaw
@@ -263,8 +266,8 @@ struct TransformBatchedContractionContractionToBatchedGemmGemm
     static auto MakeCGridDescriptorPair(const std::vector<index_t>& c_gs_ms_os_lengths_vec,
                                         const std::vector<index_t>& c_gs_ms_os_strides_vec)
     {
-        return MakeGridDescriptorPair<MPerBlock, OPerBlock, NumDimG, NumDimM, NumDimO>(
-            c_gs_ms_os_lengths_vec, c_gs_ms_os_strides_vec);
+        return MakeGridDescriptorPair<NumDimG, NumDimM, NumDimO, CSpec>(c_gs_ms_os_lengths_vec,
+                                                                        c_gs_ms_os_strides_vec);
     }
 
     // TODO: rename to G_MRaw_NRaw

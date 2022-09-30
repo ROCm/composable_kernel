@@ -137,6 +137,10 @@ template <index_t NumDimG,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation,
           GemmSpecialization GemmSpec,
+          TensorSpecialization ASpec,
+          TensorSpecialization BSpec,
+          TensorSpecialization B1Spec,
+          TensorSpecialization CSpec,
           index_t NumGemmKPrefetchStage,
           index_t BlockSize,
           index_t MPerBlock,
@@ -226,7 +230,11 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     using Transform = TransformBatchedContractionContractionToBatchedGemmGemm<
         Sequence<NumDimG, NumDimM, NumDimN, NumDimK, NumDimO>,
         Sequence<MPerBlock, NPerBlock, KPerBlock, Gemm1NPerBlock>,
-        GemmSpec>;
+        GemmSpec,
+        ASpec,
+        BSpec,
+        B1Spec,
+        CSpec>;
 
     static auto MakeAGridDescriptor_AK0_M_AK1(const std::vector<index_t>& a_gs_ms_ks_lengths_vec,
                                               const std::vector<index_t>& a_gs_ms_ks_strides_vec)
@@ -850,6 +858,10 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             << Gemm1KPerBlock << ", "
             << B1K1 << ", "
             << getGemmSpecializationString(GemmSpec) << ", "
+            << "ASpec" << getTensorSpecializationString(ASpec) << ", "
+            << "B0Spec" << getTensorSpecializationString(BSpec) << ", "
+            << "B1Spec" << getTensorSpecializationString(B1Spec) << ", "
+            << "CSpec" << getTensorSpecializationString(CSpec) << ", "
             << getMaskingSpecializationString(MaskingSpec) << ">";
         // clang-format on
 
