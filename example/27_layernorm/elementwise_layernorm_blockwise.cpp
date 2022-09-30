@@ -9,7 +9,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/reduction_enums.hpp"
-#include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
+//#include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
 #include "ck/tensor_operation/gpu/device/device_elementwise_layernorm_impl.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 
@@ -34,8 +34,7 @@ constexpr int Rank         = 2;
 constexpr int NumReduceDim = 1;
 
 using DeviceInstance =
-    ck::tensor_operation::device::DeviceElementwiseLayernormImpl<ADataType,
-                                                                 BDataType,
+    ck::tensor_operation::device::DeviceElementwiseLayernormImpl<ck::Tuple<ADataType, BDataType>,
                                                                  CDataType,
                                                                  GammaDataType,
                                                                  BetaDataType,
@@ -118,19 +117,22 @@ int main()
     gamma_dev.ToDevice(gamma.mData.data());
     beta_dev.ToDevice(beta.mData.data());
 
+    std::array<const void*, 2> input = {a_dev.GetDeviceBuffer(), b_dev.GetDeviceBuffer()};
+
     auto device_instance = DeviceInstance{};
     auto argument_ptr    = device_instance.MakeArgumentPointer(
         {M, N},
-        std::vector<ck::index_t>{a.mDesc.GetStrides().begin(), a.mDesc.GetStrides().end()},
-        std::vector<ck::index_t>{b.mDesc.GetStrides().begin(), b.mDesc.GetStrides().end()},
+        {
+            std::vector<ck::index_t>{a.mDesc.GetStrides().begin(), a.mDesc.GetStrides().end()},
+            std::vector<ck::index_t>{b.mDesc.GetStrides().begin(), b.mDesc.GetStrides().end()},
+        },
         std::vector<ck::index_t>{c.mDesc.GetStrides().begin(), c.mDesc.GetStrides().end()},
         std::vector<ck::index_t>{gamma.mDesc.GetStrides().begin(), gamma.mDesc.GetStrides().end()},
         std::vector<ck::index_t>{beta.mDesc.GetStrides().begin(), beta.mDesc.GetStrides().end()},
         std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
         {1},
         1e-4,
-        a_dev.GetDeviceBuffer(),
-        b_dev.GetDeviceBuffer(),
+        input,
         c_dev.GetDeviceBuffer(),
         gamma_dev.GetDeviceBuffer(),
         beta_dev.GetDeviceBuffer(),

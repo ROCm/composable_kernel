@@ -12,8 +12,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename ADataType,
-          typename BDateType,
+template <typename InDataTypeTuple,
           typename CDataType,
           typename GammaDataType,
           typename BetaDataType,
@@ -25,18 +24,18 @@ template <typename ADataType,
           index_t NumReduceDim>
 struct DeviceElementwiseLayernorm : public BaseOperator
 {
+    static constexpr int NumInput = InDataTypeTuple::Size();
+
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const std::vector<index_t> lengths,
-                        const std::vector<index_t> aStrides,
-                        const std::vector<index_t> bStrides,
+                        const std::array<std::vector<index_t>, NumInput> inStridesArray,
                         const std::vector<index_t> cStrides,
                         const std::vector<index_t> gammaStrides,
                         const std::vector<index_t> betaStrides,
                         const std::vector<index_t> yStrides,
                         const std::vector<index_t> reduceDims,
                         AccDataType epsilon,
-                        const void* p_a,
-                        const void* p_b,
+                        const std::array<const void*, NumInput> in_dev_buffers,
                         void* p_c,
                         const void* p_gamma,
                         const void* p_beta,
@@ -47,8 +46,7 @@ struct DeviceElementwiseLayernorm : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-template <typename ADataType,
-          typename BDataType,
+template <typename InDataTypeTuple,
           typename CDataType,
           typename GammaDataType,
           typename BetaDataType,
@@ -58,17 +56,17 @@ template <typename ADataType,
           typename AccElementwiseOperation,
           index_t Rank,
           index_t NumReduceDim>
-using DeviceElementwiseLayernormPtr = std::unique_ptr<DeviceElementwiseLayernorm<ADataType,
-                                                                                 BDataType,
-                                                                                 CDataType,
-                                                                                 GammaDataType,
-                                                                                 BetaDataType,
-                                                                                 AccDataType,
-                                                                                 YDataType,
-                                                                                 ElementwiseOperation,
-                                                                                 AccElementwiseOperation,
-                                                                                 Rank,
-                                                                                 NumReduceDim>>;
+using DeviceElementwiseLayernormPtr =
+    std::unique_ptr<DeviceElementwiseLayernorm<InDataTypeTuple,
+                                               CDataType,
+                                               GammaDataType,
+                                               BetaDataType,
+                                               AccDataType,
+                                               YDataType,
+                                               ElementwiseOperation,
+                                               AccElementwiseOperation,
+                                               Rank,
+                                               NumReduceDim>>;
 
 } // namespace device
 } // namespace tensor_operation
