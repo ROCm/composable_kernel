@@ -1,6 +1,6 @@
 FROM ubuntu:20.04
 
-ARG ROCMVERSION=5.2.3
+ARG ROCMVERSION=5.3
 ARG compiler_version="release"
 ARG compiler_commit=""
 

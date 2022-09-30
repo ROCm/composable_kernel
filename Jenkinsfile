@@ -61,9 +61,6 @@ def getDockerImage(Map conf=[:]){
     echo "ccache server: ${env.CK_CCACHE}"
     if(env.CK_CCACHE)
     {
-        //def CCACHE_SERVER="${env.CK_CCACHE}".split(":")[0]
-        //echo "${CCACHE_SERVER}"
-        //def check_host = sh(script:"""ping -c 1 -p 6379 "${CCACHE_SERVER}" | echo $? """, returnStdout: true).trim()
         if(check_host())
         {
             echo "FOUND CCACHE SERVER: ${env.CK_CCACHE}"
@@ -107,9 +104,6 @@ def buildDocker(install_prefix){
     echo "ccache server: ${env.CK_CCACHE}"
     if(env.CK_CCACHE)
     {
-        //def CCACHE_SERVER="${env.CK_CCACHE}".split(":")[0]
-        //echo "${CCACHE_SERVER}"
-        //def check_host = sh(script:"""ping -c 1 -p 6379 "${CCACHE_SERVER}" | echo $? """, returnStdout: true).trim()
         if(check_host())
         {
             echo "FOUND CCACHE SERVER: ${env.CK_CCACHE}"
@@ -569,19 +563,19 @@ pipeline {
         booleanParam(
             name: "BUILD_DOCKER",
             defaultValue: false,
-            description: "Force building docker image (default: false)")
+            description: "Force building docker image (default: false), set to true if docker image needs to be updated.")
         string(
             name: 'ROCMVERSION', 
-            defaultValue: '5.2.3', 
-            description: 'Specify which ROCM version to use: 5.2.3(default), or 5.3, etc.')
+            defaultValue: '5.3', 
+            description: 'Specify which ROCM version to use: 5.2.3, or 5.3 (default), etc.')
         string(
             name: 'COMPILER_VERSION', 
-            defaultValue: 'amd-stg-open', 
-            description: 'Specify which version of compiler to use: ck-9110, release, or amd-stg-open (default).')
+            defaultValue: 'release', 
+            description: 'Specify which version of compiler to use: ck-9110, release (default), or amd-stg-open.')
         string(
             name: 'COMPILER_COMMIT', 
-            defaultValue: '8a82e4eb7ba28521ba9a9424a0315a8a16590424', 
-            description: 'Specify which commit of compiler branch to use: leave empty to use the latest commit, or use 10738 commit (default).')
+            defaultValue: '', 
+            description: 'Specify which commit of compiler branch to use: leave empty to use the latest commit (default), or use 8a82e4eb7ba28521ba9a9424a0315a8a16590424 commit of amd-stg-open branch.')
         string(
             name: 'BUILD_COMPILER', 
             defaultValue: 'hipcc', 
