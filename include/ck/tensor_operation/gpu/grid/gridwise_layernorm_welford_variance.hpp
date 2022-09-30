@@ -126,8 +126,7 @@ struct GridwiseLayernormWelfordVariance_mk_to_mk
             p_y_global, y_grid_desc_m_k.GetElementSpaceSize());
 
         auto x_thread_buf = generate_tuple(
-            [&](auto i) {
-                ignore = i;
+            [&](auto) {
                 return StaticBuffer<AddressSpaceEnum::Vgpr,
                                     AccDataType,
                                     MThreadSliceSize * XSrcVectorSize,
@@ -136,8 +135,7 @@ struct GridwiseLayernormWelfordVariance_mk_to_mk
             Number<XThreadBufferNumber>{});
 
         auto gamma_thread_buf = generate_tuple(
-            [&](auto i) {
-                ignore = i;
+            [&](auto) {
                 return StaticBuffer<AddressSpaceEnum::Vgpr,
                                     AccDataType,
                                     MThreadSliceSize * GammaSrcVectorSize,
@@ -146,8 +144,7 @@ struct GridwiseLayernormWelfordVariance_mk_to_mk
             Number<GammaThreadBufferNumber>{});
 
         auto beta_thread_buf = generate_tuple(
-            [&](auto i) {
-                ignore = i;
+            [&](auto) {
                 return StaticBuffer<AddressSpaceEnum::Vgpr,
                                     AccDataType,
                                     MThreadSliceSize * BetaSrcVectorSize,
@@ -156,8 +153,7 @@ struct GridwiseLayernormWelfordVariance_mk_to_mk
             Number<BetaThreadBufferNumber>{});
 
         auto y_thread_buf = generate_tuple(
-            [&](auto i) {
-                ignore = i;
+            [&](auto) {
                 return StaticBuffer<AddressSpaceEnum::Vgpr,
                                     AccDataType,
                                     MThreadSliceSize * YDstVectorSize,
