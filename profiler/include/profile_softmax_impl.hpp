@@ -70,9 +70,8 @@ bool profile_softmax_impl(int do_verification,
                                                                                prior_out.end());
         break;
     default:
-        ck::utils::FillUniformDistribution<InDataType>{0.0f, 1.0f}(in.begin(), in.end());
-        ck::utils::FillUniformDistribution<OutDataType>{-0.5f, 0.5f}(prior_out.begin(),
-                                                                     prior_out.end());
+        ck::utils::FillUniformDistribution<InDataType>{0.0f, 1.0f}(in);
+        ck::utils::FillUniformDistribution<OutDataType>{-0.5f, 0.5f}(prior_out);
     }
 
     Tensor<OutDataType> out_ref(prior_out);
@@ -135,7 +134,8 @@ bool profile_softmax_impl(int do_verification,
             std::cout << inst_ptr->GetTypeString() << " skipped due to unsupported argument: ";
             LogRange(std::cout << "input lengths = [", in_length, ", ")
                 << "], "
-                << "scaler = [" << alpha << ", " << beta << "]." << std::endl;
+                << "scaler = [" << alpha << ", " << beta << "]";
+            LogRange(std::cout << ", reduce dims = [", reduce_dims, ", ") << "]." << std::endl;
             instance_pass.push_back(true);
             continue;
         }

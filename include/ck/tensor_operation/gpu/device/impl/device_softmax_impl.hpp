@@ -202,15 +202,22 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
             }
             else
             {
-                if(arg.inStrides_[kNumInvariantDim - 1] != 1)
+                if(arg.inStrides_[kNumInvariantDim - 1] != 1 && InSrcVectorSize != 1)
+                {
                     return false;
-
+                }
                 if(arg.invariant_lowest_length % InSrcVectorSize != 0)
+                {
                     return false;
+                }
             };
         }
         else
         {
+            if(arg.inStrides_[Rank - 1] != 1 && InSrcVectorSize != 1)
+            {
+                return false;
+            }
             if(arg.reduce_lowest_length % InSrcVectorSize != 0)
             {
                 return false;
