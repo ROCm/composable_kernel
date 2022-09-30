@@ -11,11 +11,11 @@
 #include "ck/utility/number.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_softmax_impl.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
+#include "profiler/include/profile_softmax_impl.hpp"
 
 namespace ck {
 
@@ -35,119 +35,44 @@ template <typename Tuple>
 class TestSoftmax : public ::testing::Test
 {
     protected:
-    using InDataType                            = std::tuple_element_t<0, Tuple>;
-    using AccDataType                           = std::tuple_element_t<1, Tuple>;
-    using OutDataType                           = std::tuple_element_t<2, Tuple>;
-    static constexpr index_t Rank               = std::tuple_element_t<3, Tuple>{}.value;
-    static constexpr index_t NumReduceDim       = std::tuple_element_t<4, Tuple>{}.value;
-    static constexpr index_t BlockSize          = std::tuple_element_t<5, Tuple>{}.value;
-    static constexpr index_t MThreadClusterSize = std::tuple_element_t<6, Tuple>{}.value;
-    static constexpr index_t KThreadClusterSize = std::tuple_element_t<7, Tuple>{}.value;
-    static constexpr index_t MThreadSliceSize   = std::tuple_element_t<8, Tuple>{}.value;
-    static constexpr index_t KThreadSliceSize   = std::tuple_element_t<9, Tuple>{}.value;
-    static constexpr index_t InSrcVectorDim     = std::tuple_element_t<10, Tuple>{}.value;
-    static constexpr index_t InSrcVectorSize    = std::tuple_element_t<11, Tuple>{}.value;
-    static constexpr index_t OutDstVectorSize   = std::tuple_element_t<12, Tuple>{}.value;
+    using InDataType              = std::tuple_element_t<0, Tuple>;
+    using AccDataType             = std::tuple_element_t<1, Tuple>;
+    using OutDataType             = std::tuple_element_t<2, Tuple>;
+    static constexpr index_t Rank = std::tuple_element_t<3, Tuple>{}.value;
 
-    using ReferenceInstance =
-        tensor_operation::host::ReferenceSoftmax<InDataType, OutDataType, AccDataType>;
+    public:
+    std::vector<std::vector<index_t>> in_lengths_ = {{2, 128, 1024}, {8, 16, 8448}, {128, 128, 64}};
+    std::vector<std::vector<AccDataType>> scales_ = {{2, 0}, {0, 2}, {2, 2}};
+    bool bench_                                   = false; // measure kernel performance
+    bool verify_                                  = true;
 
-    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-
-    using DeviceInstance = tensor_operation::device::DeviceSoftmaxImpl<InDataType,
-                                                                       AccDataType,
-                                                                       OutDataType,
-                                                                       PassThrough,
-                                                                       PassThrough,
-                                                                       Rank,
-                                                                       NumReduceDim,
-                                                                       BlockSize,
-                                                                       MThreadClusterSize,
-                                                                       KThreadClusterSize,
-                                                                       MThreadSliceSize,
-                                                                       KThreadSliceSize,
-                                                                       InSrcVectorDim,
-                                                                       InSrcVectorSize,
-                                                                       OutDstVectorSize>;
-
-    TestSoftmax() : ref_instance_invoker_(ReferenceInstance{}.MakeInvoker()) {}
+    void SetUp() override
+    {
+        if constexpr(Rank == 4)
+        {
+            in_lengths_ = std::vector<std::vector<index_t>>{
+                {8, 2, 128, 1024}, {8, 8, 16, 8448}, {1, 128, 128, 64}};
+        }
+    }
 
     void RunSingle(std::vector<index_t> in_length,
                    std::vector<index_t> reduce_dims,
                    AccDataType alpha,
                    AccDataType beta)
     {
-        Tensor<InDataType> in(in_length);
-        Tensor<OutDataType> out(in_length);
-
-        DeviceMem in_dev(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
-        DeviceMem out_dev(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
-
-        std::vector<index_t> i_in_lengths(in.mDesc.GetLengths().begin(),
-                                          in.mDesc.GetLengths().end());
-        std::vector<index_t> i_in_strides(in.mDesc.GetStrides().begin(),
-                                          in.mDesc.GetStrides().end());
-
-        auto device_instance = DeviceInstance{};
-        auto argument_ptr    = device_instance.MakeArgumentPointer(i_in_lengths,
-                                                                i_in_strides,
-                                                                reduce_dims,
-                                                                &alpha,
-                                                                &beta,
-                                                                in_dev.GetDeviceBuffer(),
-                                                                out_dev.GetDeviceBuffer(),
-                                                                PassThrough{},
-                                                                PassThrough{});
-
-        if(!device_instance.IsSupportedArgument(argument_ptr.get()))
-        {
-            std::cout << "Skipped due to unsupported argument: "
-                      << "input lengths = [" << serialize_range(in_length) << "], "
-                      << "scaler = [" << alpha << ", " << beta << "], "
-                      << "reduce dims = [" << serialize_range(reduce_dims) << "], " << std::endl;
-            return;
-        }
-
-        // Do initialization and data copy when instance config params are actually supported.
-        in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
-        out.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
-        Tensor<OutDataType> out_ref(out);
-
-        in_dev.ToDevice(in.mData.data());
-        out_dev.ToDevice(out.mData.data());
-
-        auto invoker_ptr = device_instance.MakeInvokerPointer();
-        invoker_ptr->Run(argument_ptr.get());
-
-        ref_instance_invoker_.Run({in, out_ref, alpha, beta, reduce_dims});
-
-        out_dev.FromDevice(out.mData.data());
-
-        bool pass;
-
-        if(std::is_same<InDataType, int8_t>::value)
-        {
-            EXPECT_TRUE(pass = ck::utils::check_err(
-                            out.mData, out_ref.mData, "Error: Incorrect results!", 0, 1));
-        }
-        else
-        {
-            EXPECT_TRUE(pass = ck::utils::check_err(out.mData, out_ref.mData));
-        }
-
-        if(!pass)
-        {
-            FAIL() << "Failure in input lengths = [" << serialize_range(in_length) << "], "
-                   << "scaler = [" << alpha << ", " << beta << "].";
-        }
+        int init_method = 1; // integer value initialization
+        bool log        = false;
+        std::vector<ck::index_t> strides; // intenionally empty, to get packed layout.
+        bool pass = ck::profiler::profile_softmax_impl<InDataType, AccDataType, OutDataType, Rank>(
+            verify_, init_method, log, bench_, in_length, strides, reduce_dims, alpha, beta);
+        EXPECT_TRUE(pass);
     }
 
     void Run(std::vector<index_t> reduce_dims = {})
     {
         if(reduce_dims.empty())
         {
-            reduce_dims.resize(NumReduceDim);
-            std::iota(reduce_dims.begin(), reduce_dims.end(), Rank - NumReduceDim);
+            reduce_dims.push_back(Rank - 1);
         }
 
         for(auto in_length : this->in_lengths_)
@@ -158,11 +83,63 @@ class TestSoftmax : public ::testing::Test
             }
         }
     }
-
-    std::vector<std::vector<index_t>> in_lengths_ = {
-        {1, 8, 128}, {2, 128, 1024}, {3, 9, 1032}, {4, 4, 2048}, {8, 1, 8192}, {128, 128, 64}};
-    std::vector<std::vector<AccDataType>> scales_ = {{1, 0}, {1, 1}, {0, 1}, {2, 2}};
-
-    typename ReferenceInstance::Invoker ref_instance_invoker_;
 };
+
+template <ck::index_t Rank,
+          ck::index_t NumReduceDim,
+          ck::index_t BlockSize,
+          ck::index_t MThreadClusterSize,
+          ck::index_t KThreadClusterSize,
+          ck::index_t MThreadSliceSize,
+          ck::index_t KThreadSliceSize,
+          ck::index_t InSrcVectorDim,
+          ck::index_t InSrcVectorSize,
+          ck::index_t OutDstVectorSize>
+struct DeviceSoftmaxInstanceWrapper
+{
+    using F16  = ck::half_t;
+    using F32  = float;
+    using Pass = ck::tensor_operation::element_wise::PassThrough;
+
+    using InDataType   = F16;
+    using AccDataType  = F32;
+    using OutDataType  = F16;
+    using InElementOp  = Pass;
+    using AccElementOp = Pass;
+
+    using DeviceSoftmaxInstance =
+        ck::tensor_operation::device::DeviceSoftmaxImpl<InDataType,
+                                                        AccDataType,
+                                                        OutDataType,
+                                                        InElementOp,
+                                                        AccElementOp,
+                                                        Rank,
+                                                        NumReduceDim,
+                                                        BlockSize,
+                                                        MThreadClusterSize,
+                                                        KThreadClusterSize,
+                                                        MThreadSliceSize,
+                                                        KThreadSliceSize,
+                                                        InSrcVectorDim,
+                                                        InSrcVectorSize,
+                                                        OutDstVectorSize>;
+
+    bool IsSupported(const std::vector<index_t> in_lengths,
+                     const std::vector<index_t> in_strides,
+                     const std::vector<index_t> reduce_dims) const
+    {
+        auto softmax  = DeviceSoftmaxInstance{};
+        auto argument = softmax.MakeArgument(in_lengths,
+                                             in_strides,
+                                             reduce_dims,
+                                             1,       // alpha
+                                             1,       // beta
+                                             nullptr, // in_dev
+                                             nullptr, // in_out
+                                             Pass{},  // in elementwise op
+                                             Pass{}); // acc elementwise op
+        return softmax.IsSupportedArgument(argument);
+    }
+};
+
 } // namespace ck
