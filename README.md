@@ -1,4 +1,9 @@
-## Docker script
+## Build docker image
+```bash
+DOCKER_BUILDKIT=1 docker build -t ck:latest -f Dockerfile .
+```
+
+## Launch docker
 ```bash
 docker run                                     \
 -it                                            \
@@ -6,41 +11,32 @@ docker run                                     \
 --group-add sudo                               \
 -w /root/workspace                             \
 -v ${PATH_TO_LOCAL_WORKSPACE}:/root/workspace  \
-rocm/tensorflow:rocm5.1-tf2.6-dev              \
+ck:latest                                      \
 /bin/bash
 ```
 
-# Install newer version of rocm-cmake
-https://github.com/RadeonOpenCompute/rocm-cmake
-
-## Build
+## Build CK
 ```bash
 mkdir build && cd build
-```
 
-```bash
-# Need to specify target ID, example below is gfx908 and gfx90a
-cmake                                                                 \
--D BUILD_DEV=OFF                                                      \
--D CMAKE_BUILD_TYPE=Release                                           \
--D CMAKE_CXX_FLAGS=" --offload-arch=gfx908 --offload-arch=gfx90a -O3" \
--D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                             \
--D CMAKE_PREFIX_PATH=/opt/rocm                                        \
--D CMAKE_INSTALL_PREFIX=${PATH_TO_CK_INSTALL_DIRECTORY}               \
+# Need to specify target ID, example below is for gfx908 and gfx90a
+cmake                                                                                             \
+-D CMAKE_PREFIX_PATH=/opt/rocm                                                                    \
+-D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                         \
+-D CMAKE_CXX_FLAGS="-O3"                                                                          \
+-D CMAKE_BUILD_TYPE=Release                                                                       \
+-D GPU_TARGETS=gfx908;gfx90a                                                                      \
 ..
 ```
 
-### Build and Run Examples
-```bash
- make -j examples
-```
-Instructions for running each individual examples are under ```example/```
-
-## Tests
+### Build examples and tests
 ```bash
  make -j examples tests
  make test
 ```
+
+Instructions for running each individual examples are under ```example/```
+
 
 ## Build ckProfiler
 ```bash
