@@ -24,8 +24,8 @@ Xiaoyan Zhou, 2020
 
 
 ## Contributors
-[Dan Yao](https://github.com/danyao12), [Guangzhao Lu](https://github.com/guangzlu), [Raman Jana](https://github.com/ramjana), [Jehandad Khan](https://github.com/JehandadKhan)
+[Dan Yao](https://github.com/danyao12), [Guangzhao Lu](https://github.com/guangzlu), [Raman Jana](https://github.com/ramjana), [Jehandad Khan](https://github.com/JehandadKhan), [Wen-Heng (Jack) Chung](https://github.com/whchung)
 
 
 ## Acknowledgement
-CK team works closely with Meta [AITemplate](???to.be.added???) team ([Bing Xu](https://github.com/antinucleon), [Hao Lu](https://github.com/hlu1), [Ying Zhang](https://github.com/ipiszy), etc). Most of the lucrative graph optimization opportunities in ML models were identified by AITemplate team, and we also co-designed many high performance fused kernels for AMD GPUs. Without this collaboration, CK would not reach its current potential.
+CK team works closely with Meta [AITemplate](https://github.com/facebookincubator/AITemplate) team ([Bing Xu](https://github.com/antinucleon), [Hao Lu](https://github.com/hlu1), [Ying Zhang](https://github.com/ipiszy), etc). Most of the lucrative graph optimization opportunities in ML models were identified by AITemplate team, and we also co-designed many high performance fused kernels for AMD GPUs. Without this collaboration, CK would not reach its current potential.
