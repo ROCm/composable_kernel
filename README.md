@@ -1,7 +1,7 @@
 # Composable Kernel
 
 ## Methodology
-Composable Kernel (CK) library aims to provide a programming model for writing performance critical kernels for Machine Learning workloads across multiple architectures including GPUs, CPUs, etc, through general purpose kernel progarmming languages, like HIP C++.
+Composable Kernel (CK) library aims to provide a programming model for writing performance critical kernels for Machine Learning workloads across multiple architectures including GPUs, CPUs, etc, through general purpose kernel languages, like HIP C++.
 
 CK utilizes two concepts to achieve performance portabilatity and code maintainbility:
 * A tile-based programming model
