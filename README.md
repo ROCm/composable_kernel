@@ -9,8 +9,8 @@ CK utilizes two concepts to achieve performance portabilatity and code maintainb
 
 ![ALT](/doc/image/ck_component.png "CK Components")
 
-## CK Structure
-Current CK library are structure into 4 layers:
+## Code Structure
+Current CK library are structured into 4 layers:
 * "Templated Tile Operators"
 * "Templated Kernel and Invoker" layer
 * "Instantiated Kernel and Invoker" layer
@@ -22,7 +22,9 @@ Current CK library are structure into 4 layers:
 The list of developers and contributors is here: [Contributors](/CONTRIBUTORS.md)
 
 ## Citation
-CK paper will be freely available on arXiv soon: [Realizing Tensor Operators Using Coordinate Transformations and Tile Based Programming](???)
+If you use CK, please use following citations:
+* CK paper will be freely available on arXiv soon: [Realizing Tensor Operators Using Coordinate Transformations and Tile Based Programming](???)
+* [CITATION.cff](/CITATION.cff)
 
 ## License
 CK is released under the MIT license. [License File](/LICENSE)
