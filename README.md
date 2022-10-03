@@ -7,7 +7,7 @@ CK utilizes two concepts to achieve performance portabilatity and code maintainb
 * A tile-based programming model
 * Algorithm complexity reduction for complex ML operators, using innovative technique we call "Tensor Coordinate Transformation".
 
-![ck_components drawio](https://user-images.githubusercontent.com/22615726/193490227-da9835fd-f942-4211-8131-f9d303f27c00.png)
+![ALT](/doc/image/ck_component.png "CK Components")
 
 ## CK Structure
 Current CK library are structure into 4 layers:
@@ -16,17 +16,16 @@ Current CK library are structure into 4 layers:
 * "Instantiated Kernel and Invoker" layer
 * "Client API" layer
 
-![ck_layers](https://user-images.githubusercontent.com/22615726/193490216-12d561d5-42ff-4a09-b65d-8e6ddfa2ac89.png)
+![ALT](/doc/image/ck_layer.png "CK Layers")
 
 ## Contributors
-The list of developers and contributors is here: [Contributors.md](CONTRIBUTORS.md)
+The list of developers and contributors is here: [Contributors](/CONTRIBUTORS.md)
 
 ## Citation
-CK paper will be freely available on arXiv soon: 
-```Realizing Tensor Operators Using Coordinate Transformations and Tile Based Programming```
+CK paper will be freely available on arXiv soon: [Realizing Tensor Operators Using Coordinate Transformations and Tile Based Programming](???)
 
 ## License
-CK is released under the MIT license.
+CK is released under the MIT license. [License File](/LICENSE)
 
 
 # Build CK
@@ -68,14 +67,14 @@ cmake                                                                           
  make test
 ```
 
-Instructions for running each individual examples are under ```example/```
+Instructions for running each individual examples are under [example](/example)
 
 
 ## Build ckProfiler
 ```bash
  make -j ckProfiler
 ```
-Instructions for running ckProfiler are under ```profiler/```
+Instructions for running ckProfiler are under [profiler](/profiler)
 
 ## Install CK
 ```bash
@@ -83,7 +82,7 @@ make install
 ```
 
 ## Using CK as pre-built kernel library
-Instructions for using CK as a pre-built kernel library are under ```client_example/```
+Instructions for using CK as a pre-built kernel library are under [client_example](/client_example)
 
 ## Caveat
 ### Kernel Timing and Verification
