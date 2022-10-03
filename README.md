@@ -39,7 +39,7 @@ Jianfeng Yan (https://github.com/j4yan), 2021-2022
 Jun Liu (jun.liu@amd.com)
 
 ### Contributors
-Dan Yao, Guangzhao Lu, Raman Jana (https://github.com/ramjana), Jehandad Khan (https://github.com/JehandadKhan)
+Dan Yao (https://github.com/danyao12), Guangzhao Lu, Raman Jana (https://github.com/ramjana), Jehandad Khan (https://github.com/JehandadKhan)
 
 ### Acknowledgement
 CK team works closely with Meta [AITemplate] (link to be added) team (led by Bing Xu, Ying Zhang). Most of the lucrative graph optimization opportunities in ML models were identified by AITemplate team, and we also co-designed many high performance fused kernels for AMD GPUs. Without this collaboration, CK would not reach its current potential.
