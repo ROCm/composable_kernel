@@ -1,3 +1,59 @@
+# Composable Kernel
+
+## Methodology
+Composable Kernel (CK) library aims to provide a programming model for writing performance critical kernels for Machine Learning workloads across multiple architectures including GPUs, CPUs, etc, through general purpose kernel progarmming languages, like HIP C++.
+
+CK utilizes two concepts to achieve performance portabilatity and code maintainbility:
+* A tile-based programming model
+* Algorithm complexity reduction for complex ML operators, using innovative technique we call "Tensor Coordinate Transformation".
+
+![ck_components drawio](https://user-images.githubusercontent.com/22615726/193490227-da9835fd-f942-4211-8131-f9d303f27c00.png)
+
+## CK Structure
+Current CK library are structure into 4 layers:
+* "Templated Tile Operators"
+* "Templated Kernel and Invoker" layer
+* "Instantiated Kernel and Invoker" layer
+* "Client API" layer
+
+![ck_layers](https://user-images.githubusercontent.com/22615726/193490216-12d561d5-42ff-4a09-b65d-8e6ddfa2ac89.png)
+
+## Contributor
+### Developers
+Chao Liu (https://github.com/asroy), Jing Zhang (https://github.com/zjing14), 2018-2022
+
+Letao Qin (https://github.com/ltqin), Qianfeng Zhang (https://github.com/qianfengz), Liang Huang (https://github.com/carlushuang), Shaojie Wang (https://github.com/shaojiewang), 2019-2022
+
+Anthony Chang (https://github.com/rosenrodt), Chunyu Lai (https://github.com/rocking5566), Illia Silin (https://github.com/illsilin), Adam Osewski (https://github.com/aosewski), Poyen Chen (https://github.com/poyenc), Rosty Geyyer (https://github.com/geyyer), 2022
+
+Hanwen Chang, 2019-2021,
+
+Tejash Shah, 2019-2020
+
+Xiaoyan Zhou, 2020
+
+Jianfeng Yan (https://github.com/j4yan), 2021-2022
+
+
+### Product Manager
+Jun Liu (jun.liu@amd.com)
+
+### Contributors
+Dan Yao, Guangzhao Lu, Raman Jana (https://github.com/ramjana), Jehandad Khan (https://github.com/JehandadKhan)
+
+### Acknowledgement
+CK team works closely with Meta [AITemplate] (link to be added) team (led by Bing Xu, Ying Zhang). Most of the lucrative graph optimization opportunities in ML models were identified by AITemplate team, and we also co-designed many high performance fused kernels for AMD GPUs. Without this collaboration, CK would not reach its current potential.
+
+## Citation
+CK paper will be freely available on arXiv soon: 
+```Realizing Tensor Operators Using Coordinate Transformations and Tile Based Programming```
+
+## License
+CK is released under the MIT license.
+
+
+# Build CK
+
 ## Build docker image
 ```bash
 DOCKER_BUILDKIT=1 docker build -t ck:latest -f Dockerfile .
