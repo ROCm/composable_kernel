@@ -96,7 +96,8 @@ struct DeviceElementwise
         const auto desc = make_naive_tensor_descriptor(tupleOfShape, tupleOfStride);
 
         constexpr auto mDimIds = typename arithmetic_sequence_gen<0, NumDim_m, 1>::type();
-        constexpr auto nDimIds = typename arithmetic_sequence_gen< NumDim_m, NumDim_m + NumDim_n, 1>::type();
+        constexpr auto nDimIds =
+            typename arithmetic_sequence_gen<NumDim_m, NumDim_m + NumDim_n, 1>::type();
 
         const auto mLengths = get_container_subset(tupleOfShape, mDimIds);
         const auto nLengths = get_container_subset(tupleOfShape, nDimIds);
@@ -136,7 +137,7 @@ struct DeviceElementwise
 
     using OutGrid2dDescTuple = decltype(GenerateInOutGrid2dDescTuple(Number<NumOutput>{}));
     using InGrid2dDescTuple  = decltype(GenerateInOutGrid2dDescTuple(Number<NumInput>{}));
-    //using OutGrid2dDescTuple = decltype(GenerateInOutGrid2dDescTuple(Number<NumOutput>{}));
+    // using OutGrid2dDescTuple = decltype(GenerateInOutGrid2dDescTuple(Number<NumOutput>{}));
 
     using GridwiseElementwise = GridwiseElementwise_2D<InGrid2dDescTuple,
                                                        OutGrid2dDescTuple,

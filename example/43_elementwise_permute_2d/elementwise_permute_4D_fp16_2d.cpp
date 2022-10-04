@@ -21,7 +21,7 @@ using DeviceElementwisePermuteInstance =
     ck::tensor_operation::device::DeviceElementwise<ck::Tuple<ADataType>,
                                                     ck::Tuple<BDataType>,
                                                     PassThrough,
-						    4,
+                                                    4,
                                                     3,
                                                     1,
                                                     8,
