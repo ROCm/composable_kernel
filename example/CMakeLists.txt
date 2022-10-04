@@ -29,4 +29,3 @@ FOREACH(subdir ${dir_list})
         add_subdirectory(${subdir})
     ENDIF()
 ENDFOREACH()
-
