@@ -73,13 +73,7 @@ int main()
                                             static_cast<int>(nhwc[2] * nhwc[3]),
                                             static_cast<int>(nhwc[3])};
 
-    // std::cout << "Length: " << ab_lengths << std::endl;
-    // std::cout << "A stride: " << a_strides << std::endl;
-    // std::cout << "B stride: " << b_strides << std::endl;
-
     std::copy(nchw.begin(), nchw.end(), ab_lengths.begin());
-    // std::copy(a.mDesc.GetStrides().begin(), a.mDesc.GetStrides().end(), a_strides.begin());
-    // std::copy(b.mDesc.GetStrides().begin(), b.mDesc.GetStrides().end(), b_strides.begin());
 
     auto broadcastPermute = DeviceElementwisePermuteInstance{};
     auto argument         = broadcastPermute.MakeArgumentPointer(
@@ -103,8 +97,7 @@ int main()
         b_device_buf.FromDevice(b.mData.data());
         LogRangeAsType<float>(std::cout << "Tensor b  : ", b.mData, ",") << std::endl;
         Tensor<BDataType> host_b(nhwc);
-        host_elementwise4D<Tensor<ADataType>, Tensor<BDataType>, PassThrough>(
-            host_b, a, nchw, PassThrough{});
+        host_elementwise4D(host_b, a, nchw, PassThrough{});
 
         LogRangeAsType<float>(std::cout << "Host b  : ", host_b.mData, ",") << std::endl;
         pass &=
