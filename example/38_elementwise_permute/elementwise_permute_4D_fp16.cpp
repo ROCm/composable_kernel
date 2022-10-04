@@ -27,15 +27,12 @@ using DeviceElementwisePermuteInstance =
                                                     ck::Sequence<1>>;
 
 template <typename HostTensorA, typename HostTensorB, typename Functor>
-void host_elementwise4D(HostTensorB& B_nhwc,
-                        const HostTensorA& A_nchw,
-                        const std::vector<std::size_t>& shape_nchw,
-                        Functor functor)
+void host_elementwise4D(HostTensorB& B_nhwc, const HostTensorA& A_nchw, Functor functor)
 {
-    for(std::size_t n = 0; n < shape_nchw[0]; ++n)
-        for(std::size_t c = 0; c < shape_nchw[1]; ++c)
-            for(std::size_t h = 0; h < shape_nchw[2]; ++h)
-                for(std::size_t w = 0; w < shape_nchw[3]; ++w)
+    for(std::size_t n = 0; n < A_nchw.mDesc.GetLengths()[0]; ++n)
+        for(std::size_t c = 0; c < A_nchw.mDesc.GetLengths()[1]; ++c)
+            for(std::size_t h = 0; h < A_nchw.mDesc.GetLengths()[2]; ++h)
+                for(std::size_t w = 0; w < A_nchw.mDesc.GetLengths()[3]; ++w)
                 {
                     auto a_val = A_nchw(n, c, h, w);
                     functor(B_nhwc(n, h, w, c), a_val);
@@ -97,7 +94,7 @@ int main()
         b_device_buf.FromDevice(b.mData.data());
         LogRangeAsType<float>(std::cout << "Tensor b  : ", b.mData, ",") << std::endl;
         Tensor<BDataType> host_b(nhwc);
-        host_elementwise4D(host_b, a, nchw, PassThrough{});
+        host_elementwise4D(host_b, a, PassThrough{});
 
         LogRangeAsType<float>(std::cout << "Host b  : ", host_b.mData, ",") << std::endl;
         pass &=
