@@ -104,14 +104,14 @@ int profile_softmax(int argc, char* argv[])
         else if(data_type == SoftmaxDataType::F32_F32)
         {
             ck::profiler::profile_softmax_impl<float, float, float, 3>(do_verification,
-                                                                             init_method,
-                                                                             do_log,
-                                                                             time_kernel,
-                                                                             length,
-                                                                             stride,
-                                                                             reduce,
-                                                                             float(alpha),
-                                                                             float(beta));
+                                                                       init_method,
+                                                                       do_log,
+                                                                       time_kernel,
+                                                                       length,
+                                                                       stride,
+                                                                       reduce,
+                                                                       float(alpha),
+                                                                       float(beta));
         }
         else
         {
@@ -136,14 +136,14 @@ int profile_softmax(int argc, char* argv[])
         else if(data_type == SoftmaxDataType::F32_F32)
         {
             ck::profiler::profile_softmax_impl<float, float, float, 4>(do_verification,
-                                                                             init_method,
-                                                                             do_log,
-                                                                             time_kernel,
-                                                                             length,
-                                                                             stride,
-                                                                             reduce,
-                                                                             float(alpha),
-                                                                             float(beta));
+                                                                       init_method,
+                                                                       do_log,
+                                                                       time_kernel,
+                                                                       length,
+                                                                       stride,
+                                                                       reduce,
+                                                                       float(alpha),
+                                                                       float(beta));
         }
         else
         {
