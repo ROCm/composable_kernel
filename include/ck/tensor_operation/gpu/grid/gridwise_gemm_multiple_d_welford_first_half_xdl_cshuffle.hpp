@@ -851,7 +851,8 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
                 BlockwiseWelford<AccDataType,
                                  BlockSize,
                                  CDRThreadTransferClusterLengths_MPerBlock_NPerBlock,
-                                 Sequence<0, 1>>;
+                                 Sequence<0, 1>,
+                                 false>;
 
             constexpr int num_shuffleM =
                 MPerBlock / (CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl);
