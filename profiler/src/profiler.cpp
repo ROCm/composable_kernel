@@ -10,6 +10,8 @@ int profile_gemm_add_add_fastgelu(int, char*[]);
 int profile_gemm_reduce(int, char*[]);
 int profile_gemm_bias_add_reduce(int, char*[]);
 int profile_batched_gemm(int, char*[]);
+int profile_batched_gemm_gemm(int, char*[]);
+int profile_batched_gemm_add_relu_gemm_add(int, char*[]);
 int profile_batched_gemm_reduce(int, char*[]);
 int profile_grouped_gemm(int, char*[]);
 int profile_conv_fwd(int, char*[]);
@@ -20,6 +22,7 @@ int profile_conv_bwd_weight(int, char*[]);
 int profile_grouped_conv_fwd(int, char*[]);
 int profile_normalization(int, char*[]);
 int profile_layernorm(int, char*[]);
+int profile_groupnorm(int, char*[]);
 int profile_reduce(int, char*[]);
 
 static void print_helper_message()
@@ -32,6 +35,8 @@ static void print_helper_message()
            "                        gemm_reduce: GEMM+Reduce\n"
            "                        gemm_bias_add_reduce: GEMM+Bias+Add+Reduce\n"
            "                        batched_gemm: Batched GEMM\n"
+           "                        batched_gemm_gemm: Batched+GEMM+GEMM\n"
+           "                        batched_gemm_add_relu_gemm_add: Batched+GEMM+bias+gelu+GEMM+bias\n"
            "                        batched_gemm_reduce: Batched GEMM+Reduce\n"
            "                        grouped_gemm: Grouped GEMM\n"
            "                        conv_fwd: Convolution Forward\n"
@@ -80,6 +85,14 @@ int main(int argc, char* argv[])
     {
         return profile_batched_gemm(argc, argv);
     }
+    else if(strcmp(argv[1], "batched_gemm_gemm") == 0)
+    {
+        return profile_batched_gemm_gemm(argc, argv);
+    }
+    else if(strcmp(argv[1], "batched_gemm_add_relu_gemm_add") == 0)
+    {
+        return profile_batched_gemm_add_relu_gemm_add(argc, argv);
+    }
     else if(strcmp(argv[1], "batched_gemm_reduce") == 0)
     {
         return profile_batched_gemm_reduce(argc, argv);
@@ -123,6 +136,10 @@ int main(int argc, char* argv[])
     else if(strcmp(argv[1], "layernorm") == 0)
     {
         return profile_layernorm(argc, argv);
+    }
+    else if(strcmp(argv[1], "groupnorm") == 0)
+    {
+        return profile_groupnorm(argc, argv);
     }
     else
     {

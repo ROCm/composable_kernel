@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cmath>
 #include <string>
 
 #include "ck/stream_config.hpp"
