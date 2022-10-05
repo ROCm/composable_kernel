@@ -26,8 +26,8 @@ using DeviceElementwisePermuteInstance =
                                                     1,
                                                     8,
                                                     8,
-                                                    ck::Sequence<1>,
-                                                    ck::Sequence<1>>;
+                                                    ck::Sequence<8>,
+                                                    ck::Sequence<8>>;
 
 template <typename HostTensorA, typename HostTensorB, typename Functor>
 void host_elementwise4D(HostTensorB& B_nhwc,
