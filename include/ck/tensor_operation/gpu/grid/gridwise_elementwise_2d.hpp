@@ -116,16 +116,16 @@ struct GridwiseElementwise_2D
         // const auto thread_global_id_2d =
         //  thread_buffer_desc_mn.CalculateBottomIndex(make_multi_index(block_1d));
 
-        auto thread_1d_id = get_thread_local_1d_id();
-        index_t M01_      = 8;
+        // auto thread_1d_id = get_thread_local_1d_id();
+        // index_t M01_      = 8;
 
-        const auto M0 = math::integer_divide_ceil(M, MPerThread);
-        const auto N0 = math::integer_divide_ceil(N, NPerThread);
+        // const auto M0 = math::integer_divide_ceil(M, MPerThread);
+        // const auto N0 = math::integer_divide_ceil(N, NPerThread);
 
-        thread_1d_id = thread_1d_id % (M0 * N0); // swallow batch index
+        // thread_1d_id = thread_1d_id % (M0 * N0); // swallow batch index
 
-        index_t idx_N0 = thread_1d_id % N0;
-        index_t idx_M0 = thread_1d_id / N0;
+        // index_t idx_N0 = thread_1d_id % N0;
+        // index_t idx_M0 = thread_1d_id / N0;
 
         // const auto M01_adapt = (idx_M0 < M0 - M0 % M01_) ? M01_ : M0 % M01_;
 
@@ -135,7 +135,7 @@ struct GridwiseElementwise_2D
 
         // const auto thread_global_id_2d =make_tuple(idx_N0_M01_local % M01_adapt + idx_M00 * M01_,
         //					                          idx_N0_M01_local /
-        //M01_adapt);
+        // M01_adapt);
 
         index_t tid_m                   = get_thread_global_1d_id();
         index_t tid_n                   = blockDim.y * blockIdx.y + threadIdx.y;
