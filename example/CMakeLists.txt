@@ -21,7 +21,6 @@ function(add_example_executable_no_testing EXAMPLE_NAME FILE_NAME)
     add_dependencies(examples ${EXAMPLE_NAME})
 endfunction(add_example_executable_no_testing EXAMPLE_NAME)
 
-
 # add all example subdir
 file(GLOB dir_list LIST_DIRECTORIES true *)
 FOREACH(subdir ${dir_list})
