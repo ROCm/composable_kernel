@@ -27,7 +27,7 @@ using DeviceElementwisePermuteInstance =
                                                     8,
                                                     8,
                                                     ck::Sequence<8>,
-                                                    ck::Sequence<8>>;
+                                                    ck::Sequence<1>>;
 
 template <typename HostTensorA, typename HostTensorB, typename Functor>
 void host_elementwise4D(HostTensorB& B_nhwc,
@@ -61,7 +61,7 @@ int main()
     DeviceMem b_device_buf(sizeof(BDataType) * b.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a.mData.data());
-    LogRangeAsType<float>(std::cout << "Tensor a  : ", a.mData, ",") << std::endl;
+    //LogRangeAsType<float>(std::cout << "Tensor a  : ", a.mData, ",") << std::endl;
 
     std::array<const void*, 1> input = {a_device_buf.GetDeviceBuffer()};
     std::array<void*, 1> output      = {b_device_buf.GetDeviceBuffer()};
@@ -101,12 +101,12 @@ int main()
     if(do_verification)
     {
         b_device_buf.FromDevice(b.mData.data());
-        LogRangeAsType<float>(std::cout << "Tensor b  : ", b.mData, ",") << std::endl;
+        //LogRangeAsType<float>(std::cout << "Tensor b  : ", b.mData, ",") << std::endl;
         Tensor<BDataType> host_b(nhwc);
         host_elementwise4D<Tensor<ADataType>, Tensor<BDataType>, PassThrough>(
             host_b, a, nchw, PassThrough{});
 
-        LogRangeAsType<float>(std::cout << "Host b  : ", host_b.mData, ",") << std::endl;
+        //LogRangeAsType<float>(std::cout << "Host b  : ", host_b.mData, ",") << std::endl;
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
     }
