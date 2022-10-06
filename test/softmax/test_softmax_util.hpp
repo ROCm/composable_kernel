@@ -41,7 +41,7 @@ class TestSoftmax : public ::testing::Test
     static constexpr index_t Rank = std::tuple_element_t<3, Tuple>{}.value;
 
     public:
-    std::vector<std::vector<index_t>> in_lengths_ = {{2, 128, 1024}, {8, 16, 8448}, {128, 128, 64}};
+    std::vector<std::vector<index_t>> in_lengths_ = {{2, 128, 1024}, {4, 16, 8448}, {128, 128, 64}};
     std::vector<std::vector<AccDataType>> scales_ = {{2, 0}, {0, 2}, {2, 2}};
     bool bench_                                   = false; // measure kernel performance
     bool verify_                                  = true;
@@ -51,7 +51,7 @@ class TestSoftmax : public ::testing::Test
         if constexpr(Rank == 4)
         {
             in_lengths_ = std::vector<std::vector<index_t>>{
-                {8, 2, 128, 1024}, {8, 8, 16, 8448}, {1, 128, 128, 64}};
+                {1, 2, 128, 1024}, {2, 4, 16, 8448}, {1, 128, 128, 64}};
         }
     }
 
