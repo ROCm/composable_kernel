@@ -104,7 +104,7 @@ struct GridwiseElementwise_2D
         const index_t blockSize      = get_block_size();
         const index_t blockPerGrid_m = get_grid_size();
         const index_t blockPerGrid_n = gridDim.y;
-        const index_t block_1d       = get_block_1d_id();
+        // const index_t block_1d       = get_block_1d_id();
 
         const auto M = in_grid_2d_desc_tuple[I0].GetLength(I0);
         const auto N = in_grid_2d_desc_tuple[I0].GetLength(I1);
