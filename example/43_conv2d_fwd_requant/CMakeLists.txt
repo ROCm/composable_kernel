@@ -1,0 +1,1 @@
+add_example_executable(example_conv2d_fwd_xdl_requant_int8 conv2d_fwd_xdl_requant_int8.cpp)
