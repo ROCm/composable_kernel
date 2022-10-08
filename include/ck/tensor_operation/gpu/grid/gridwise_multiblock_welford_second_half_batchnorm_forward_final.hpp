@@ -412,17 +412,17 @@ struct GridwiseWelfordSecondHalfBatchNormForwardFinal
                                   x_thread_buf);
 
             static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
-                auto divisor = sqrt(welford_var_thread_buf(iM) + epsilon);
+                AccDataType multiplier =
+                    scale_thread_buf[iM] / sqrt(welford_var_thread_buf[iM] + epsilon);
 
                 static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
                     constexpr auto offset =
                         thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK));
 
                     y_thread_buf(Number<offset>{}) =
-                        (x_thread_buf(Number<offset>{}) - welford_mean_thread_buf(iM)) / divisor;
-
-                    y_thread_buf(Number<offset>{}) =
-                        y_thread_buf(Number<offset>{}) * scale_thread_buf(iM) + bias_thread_buf(iM);
+                        (x_thread_buf[Number<offset>{}] - welford_mean_thread_buf[iM]) *
+                            multiplier +
+                        bias_thread_buf[iM];
                 });
             });
 
@@ -478,13 +478,13 @@ struct GridwiseWelfordSecondHalfBatchNormForwardFinal
                                            make_tuple(I0),
                                            running_var_thread_buf);
 
+            AccDataType oneMinusAverageFactor = type_convert<AccDataType>(1.0) - averageFactor;
+
             static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-                running_mean_thread_buf(I) =
-                    running_mean_thread_buf[I] * (type_convert<AccDataType>(1.0) - averageFactor) +
-                    welford_mean_thread_buf[I] * averageFactor;
-                running_var_thread_buf(I) =
-                    running_var_thread_buf[I] * (type_convert<AccDataType>(1.0) - averageFactor) +
-                    welford_var_thread_buf[I] * averageFactor;
+                running_mean_thread_buf(I) = running_mean_thread_buf[I] * oneMinusAverageFactor +
+                                             welford_mean_thread_buf[I] * averageFactor;
+                running_var_thread_buf(I) = running_var_thread_buf[I] * oneMinusAverageFactor +
+                                            welford_var_thread_buf[I] * averageFactor;
             });
 
             auto threadwise_mean_var_store =

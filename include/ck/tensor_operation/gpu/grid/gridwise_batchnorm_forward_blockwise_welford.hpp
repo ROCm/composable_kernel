@@ -323,27 +323,17 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
                                   x_thread_buf);
 
             static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
+                AccDataType multiplier =
+                    scale_thread_buf[Number<iM>{}] / sqrt(var_thread_buf[iM] + epsilon);
+
                 static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
                     constexpr auto offset =
                         thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK));
 
                     // normalize
                     y_thread_buf(Number<offset>{}) =
-                        (x_thread_buf(Number<offset>{}) - mean_thread_buf(iM)) /
-                        sqrt(var_thread_buf(iM) + epsilon);
-
-                    y_thread_buf(Number<offset>{}) =
-                        y_thread_buf(Number<offset>{}) * scale_thread_buf(Number<iM>{});
-                });
-            });
-
-            static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
-                static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
-                    constexpr auto offset =
-                        thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK));
-
-                    y_thread_buf(Number<offset>{}) =
-                        y_thread_buf(Number<offset>{}) + bias_thread_buf(Number<iM>{});
+                        (x_thread_buf[Number<offset>{}] - mean_thread_buf[iM]) * multiplier +
+                        bias_thread_buf[Number<iM>{}];
                 });
             });
 
@@ -399,13 +389,13 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
                                          make_tuple(I0),
                                          running_var_thread_buf);
 
+            AccDataType oneMinusAverageFactor = type_convert<AccDataType>(1.0) - averageFactor;
+
             static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-                running_mean_thread_buf(I) =
-                    running_mean_thread_buf[I] * (type_convert<AccDataType>(1.0) - averageFactor) +
-                    mean_thread_buf[I] * averageFactor;
-                running_var_thread_buf(I) =
-                    running_var_thread_buf[I] * (type_convert<AccDataType>(1.0) - averageFactor) +
-                    var_thread_buf[I] * averageFactor;
+                running_mean_thread_buf(I) = running_mean_thread_buf[I] * oneMinusAverageFactor +
+                                             mean_thread_buf[I] * averageFactor;
+                running_var_thread_buf(I) = running_var_thread_buf[I] * oneMinusAverageFactor +
+                                            var_thread_buf[I] * averageFactor;
             });
 
             auto threadwise_mean_var_store =
