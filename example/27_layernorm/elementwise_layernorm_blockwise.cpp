@@ -95,7 +95,6 @@ int main()
 
     Tensor<ADataType> a(f_host_tensor_descriptor2d(M, N, Stride));
     Tensor<BDataType> b(f_host_tensor_descriptor2d(M, N, Stride));
-    Tensor<CDataType> c(f_host_tensor_descriptor2d(M, N, Stride));
     Tensor<GammaDataType> gamma(f_host_tensor_descriptor1d(N, 1));
     Tensor<BetaDataType> beta(f_host_tensor_descriptor1d(N, 1));
     Tensor<YDataType> y(f_host_tensor_descriptor2d(M, N, Stride));
@@ -107,7 +106,6 @@ int main()
 
     DeviceMem a_dev(sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
     DeviceMem b_dev(sizeof(BDataType) * b.mDesc.GetElementSpaceSize());
-    DeviceMem c_dev(sizeof(CDataType) * c.mDesc.GetElementSpaceSize());
     DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpaceSize());
     DeviceMem beta_dev(sizeof(BetaDataType) * beta.mDesc.GetElementSpaceSize());
     DeviceMem y_dev(sizeof(YDataType) * y.mDesc.GetElementSpaceSize());
@@ -126,14 +124,12 @@ int main()
             std::vector<ck::index_t>{a.mDesc.GetStrides().begin(), a.mDesc.GetStrides().end()},
             std::vector<ck::index_t>{b.mDesc.GetStrides().begin(), b.mDesc.GetStrides().end()},
         },
-        std::vector<ck::index_t>{c.mDesc.GetStrides().begin(), c.mDesc.GetStrides().end()},
         std::vector<ck::index_t>{gamma.mDesc.GetStrides().begin(), gamma.mDesc.GetStrides().end()},
         std::vector<ck::index_t>{beta.mDesc.GetStrides().begin(), beta.mDesc.GetStrides().end()},
         std::vector<ck::index_t>{y.mDesc.GetStrides().begin(), y.mDesc.GetStrides().end()},
         {1},
         1e-4,
         input,
-        c_dev.GetDeviceBuffer(),
         gamma_dev.GetDeviceBuffer(),
         beta_dev.GetDeviceBuffer(),
         y_dev.GetDeviceBuffer(),
@@ -150,8 +146,6 @@ int main()
     float ela_time   = 0;
     ela_time         = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
     std::cout << "Time elapase is : " << ela_time << " s . " << std::endl;
-
-    c_dev.FromDevice(c.mData.data());
 
     bool pass = true;
     {

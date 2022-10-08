@@ -123,7 +123,6 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
         return generate_tuple(
             [&](auto I) {
                 using DataType = remove_cvref_t<decltype(InDataTypeTuple{}[I])>;
-
                 return static_cast<const DataType*>(nullptr);
             },
             Number<NumInput>{});
@@ -294,7 +293,6 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
     {
         Argument(const std::vector<index_t> lengths,
                  const std::array<std::vector<index_t>, NumInput> inStridesArray,
-                 const std::vector<index_t> cStrides,
                  const std::vector<index_t> gammaStrides,
                  const std::vector<index_t> betaStrides,
                  const std::vector<index_t> yStrides,
@@ -303,12 +301,10 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
                  AccElementwiseOperation acc_elementwise_op,
                  AccDataType epsilon,
                  const std::array<const void*, NumInput> in_dev_buffers,
-                 CDataType* p_c,
                  const GammaDataType* p_gamma,
                  const BetaDataType* p_beta,
                  YDataType* p_y)
             : epsilon_(epsilon),
-              p_c_(p_c),
               p_gamma_(p_gamma),
               p_beta_(p_beta),
               p_y_(p_y),
@@ -317,13 +313,15 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
               elementwise_op_(elementwise_op),
               acc_elementwise_op_(acc_elementwise_op)
         {
+
             Lengths_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(lengths, reduceDims);
             for(int i = 0; i < NumInput; i++)
             {
                 inStridesArray_[i] =
                     shuffle_tensor_dimensions<Rank, NumReduceDim>(inStridesArray[i], reduceDims);
             }
-            cStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(cStrides, reduceDims);
+
+            cStrides_ = inStridesArray_[0];
             yStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(yStrides, reduceDims);
 
             in_dev_buffers_ = generate_tuple(
@@ -406,6 +404,16 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
 
             bool sweep_once =
                 c_grid_desc_m_k.GetLength(Number<1>{}) <= KThreadClusterSize * KThreadSliceSize;
+
+            if(!sweep_once)
+            {
+                int c_size = 1;
+                for(int i = 0; i < arg.Lengths_.size(); i++)
+                {
+                    c_size = c_size * (arg.Lengths_[i]);
+                }
+                hip_check_error(hipMalloc((void**)&arg.p_c_, (sizeof(CDataType) * c_size)));
+            }
 
             const auto kernel_main =
                 sweep_once ? kernel_elementwise_layernorm<GridwiseReduceLayernormSweepOnce,
@@ -536,14 +544,12 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const std::vector<index_t> lengths,
                         const std::array<std::vector<index_t>, NumInput> inStridesArray,
-                        const std::vector<index_t> cStrides,
                         const std::vector<index_t> gammaStrides,
                         const std::vector<index_t> betaStrides,
                         const std::vector<index_t> yStrides,
                         const std::vector<index_t> reduceDims,
                         AccDataType epsilon,
                         const std::array<const void*, NumInput> in_dev_buffers,
-                        void* p_c,
                         const void* p_gamma,
                         const void* p_beta,
                         void* p_y,
@@ -552,7 +558,6 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
     {
         return std::make_unique<Argument>(lengths,
                                           inStridesArray,
-                                          cStrides,
                                           gammaStrides,
                                           betaStrides,
                                           yStrides,
@@ -561,7 +566,6 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
                                           acc_elementwise_op,
                                           epsilon,
                                           in_dev_buffers,
-                                          static_cast<CDataType*>(p_c),
                                           static_cast<const GammaDataType*>(p_gamma),
                                           static_cast<const BetaDataType*>(p_beta),
                                           static_cast<YDataType*>(p_y));
