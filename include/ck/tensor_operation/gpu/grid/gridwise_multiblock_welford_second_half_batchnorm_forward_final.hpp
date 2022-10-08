@@ -129,7 +129,7 @@ struct GridwiseWelfordSecondHalfBatchNormForwardFinal
         decltype(make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{})));
 
     using ThreadwiseWelford =
-        ThreadwiseWelford_2<AccDataType, ThreadReduceSrcDesc_M_1, ThreadReduceDstDesc_M>;
+        ThreadwiseWelfordMerge<AccDataType, ThreadReduceSrcDesc_M_1, ThreadReduceDstDesc_M>;
 
     using BlockwiseWelford = BlockwiseWelford<AccDataType,
                                               BlockSize,

@@ -76,7 +76,7 @@ struct ThreadwiseWelford
 };
 
 template <typename T, typename SrcMeanVarCountThreadDesc_M_K, typename DstMeanVarThreadDesc_M>
-struct ThreadwiseWelford_2
+struct ThreadwiseWelfordMerge
 {
     static constexpr auto src_thread_desc_m_k = SrcMeanVarCountThreadDesc_M_K{};
     static constexpr auto dst_thread_desc_m   = DstMeanVarThreadDesc_M{};
