@@ -337,13 +337,16 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
                 });
             });
             threadwise_welford.Run(c_thread_buf, mean_thread_buf, var_thread_buf);
-
+            
+            if constexpr(!SweepOnce)
+            {
             threadwise_c_store.Run(thread_buffer_desc_m_k,
                                    make_tuple(I0, I0),
                                    c_thread_buf,
                                    c_grid_desc_m_k,
                                    c_global_val_buf);
             threadwise_c_store.MoveDstSliceWindow(c_grid_desc_m_k, thread_copy_fwd_step_m_k);
+            }
         }
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
@@ -357,21 +360,22 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
         auto thread_copy_tail_m_k = (num_k_block_tile_iteration - 1) * thread_copy_fwd_step_m_k;
         auto thread_copy_tail_k   = (num_k_block_tile_iteration - 1) * thread_copy_fwd_step_k;
 
-        threadwise_c_load.MoveSrcSliceWindow(c_grid_desc_m_k, thread_copy_tail_m_k);
+        if constexpr(!SweepOnce) threadwise_c_load.MoveSrcSliceWindow(c_grid_desc_m_k, thread_copy_tail_m_k);
+
         threadwise_gamma_load.MoveSrcSliceWindow(gamma_grid_desc_k, thread_copy_tail_k);
         threadwise_beta_load.MoveSrcSliceWindow(beta_grid_desc_k, thread_copy_tail_k);
         threadwise_y_store.MoveDstSliceWindow(y_grid_desc_m_k, thread_copy_tail_m_k);
 
         for(index_t reducedTiles = 0; reducedTiles < num_k_block_tile_iteration; ++reducedTiles)
         {
-            // if constexpr(!SweepOnce)
-            //{
+            if constexpr(!SweepOnce)
+            {
             threadwise_c_load.Run(c_grid_desc_m_k,
                                   c_global_val_buf,
                                   thread_buffer_desc_m_k,
                                   make_tuple(I0, I0),
                                   c_thread_buf);
-            //}
+            }
 
             threadwise_gamma_load.Run(gamma_grid_desc_k,
                                       gamma_global_val_buf,
@@ -422,7 +426,7 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
                                    y_grid_desc_m_k,
                                    y_global_val_buf);
 
-            threadwise_c_load.MoveSrcSliceWindow(c_grid_desc_m_k, thread_copy_bwd_step_m_k);
+            if constexpr(!SweepOnce) threadwise_c_load.MoveSrcSliceWindow(c_grid_desc_m_k, thread_copy_bwd_step_m_k);
             threadwise_gamma_load.MoveSrcSliceWindow(gamma_grid_desc_k, thread_copy_bwd_step_k);
             threadwise_beta_load.MoveSrcSliceWindow(beta_grid_desc_k, thread_copy_bwd_step_k);
             threadwise_y_store.MoveDstSliceWindow(y_grid_desc_m_k, thread_copy_bwd_step_m_k);

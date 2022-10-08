@@ -48,7 +48,7 @@ using DeviceInstance =
                                                                  8,   // ClusterM
                                                                  32,  // ClusterK
                                                                  1,   // SliceM
-                                                                 8,   // SliceK
+                                                                 32,  // SliceK
                                                                  1,   // SrcVecDim (0=M, 1=K)
                                                                  8,   // SrcScalarPerVector
                                                                  8,   // GammaScalarPerVector
@@ -79,7 +79,7 @@ int main()
 {
     bool time_kernel = true;
 
-    ck::index_t M      = 512;
+    ck::index_t M      = 48 * 256;
     ck::index_t N      = 1024;
     ck::index_t Stride = N;
 
@@ -100,10 +100,10 @@ int main()
     Tensor<BetaDataType> beta(f_host_tensor_descriptor1d(N, 1));
     Tensor<YDataType> y(f_host_tensor_descriptor2d(M, N, Stride));
 
-    a.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-    b.GenerateTensorValue(GeneratorTensor_3<BDataType>{0.0, 1.0});
-    gamma.GenerateTensorValue(GeneratorTensor_3<GammaDataType>{0.0, 1.0});
-    beta.GenerateTensorValue(GeneratorTensor_3<BetaDataType>{0.0, 1.0});
+    a.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
+    b.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+    gamma.GenerateTensorValue(GeneratorTensor_2<GammaDataType>{-5, 5});
+    beta.GenerateTensorValue(GeneratorTensor_2<BetaDataType>{-5, 5});
 
     DeviceMem a_dev(sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
     DeviceMem b_dev(sizeof(BDataType) * b.mDesc.GetElementSpaceSize());
@@ -160,12 +160,6 @@ int main()
         Tensor<CDataType> x(f_host_tensor_descriptor2d(M, N, Stride));
         host_elementwise2D<Tensor<ADataType>, Tensor<BDataType>, Tensor<CDataType>, Add>(
             x, a, b, mn, Add{});
-        pass &= ck::utils::check_err(c.mData, x.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
-
-        if(!(pass))
-        {
-            std::cout << "add wrong" << std::endl;
-        }
 
         Tensor<YDataType> host_y(f_host_tensor_descriptor2d(M, N, Stride));
         using ReferenceInstance = ck::tensor_operation::host::ReferenceLayernorm<CDataType,
