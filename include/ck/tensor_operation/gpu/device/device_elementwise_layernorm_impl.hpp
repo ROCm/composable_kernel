@@ -406,14 +406,8 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
                 c_grid_desc_m_k.GetLength(Number<1>{}) <= KThreadClusterSize * KThreadSliceSize;
 
             if(!sweep_once)
-            {
-                int c_size = 1;
-                for(int i = 0; i < arg.Lengths_.size(); i++)
-                {
-                    c_size = c_size * (arg.Lengths_[i]);
-                }
-                hip_check_error(hipMalloc((void**)&arg.p_c_, (sizeof(CDataType) * c_size)));
-            }
+                hip_check_error(hipMalloc(
+                    (void**)&arg.p_c_, sizeof(CDataType) * c_grid_desc_m_k.GetElementSpaceSize()));
 
             const auto kernel_main =
                 sweep_once ? kernel_elementwise_layernorm<GridwiseReduceLayernormSweepOnce,
