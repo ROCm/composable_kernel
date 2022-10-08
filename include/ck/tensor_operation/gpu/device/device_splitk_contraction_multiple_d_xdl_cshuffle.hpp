@@ -500,8 +500,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
             std::array<long_index_t, NumDTensor> ds_offset;
 
             static_for<0, NumDTensor, 1>{}([&](auto i) {
-                ds_offset[i] =
-                    ds_grid_desc_g_m_n_[i].CalculateOffset(make_multi_index(g_idx, 0, 0));
+                ds_offset[i] = static_cast<long_index_t>(g_idx) *
+                               ds_grid_desc_g_m_n_[i].CalculateOffset(make_multi_index(1, 0, 0));
             });
 
             return ds_offset;
@@ -509,7 +509,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
 
         __host__ __device__ constexpr long_index_t GetEPtrOffset(index_t g_idx) const
         {
-            return e_grid_desc_g_m_n_.CalculateOffset(make_multi_index(g_idx, 0, 0));
+            return static_cast<long_index_t>(g_idx) *
+                   e_grid_desc_g_m_n_.CalculateOffset(make_multi_index(1, 0, 0));
         }
 
         private:
