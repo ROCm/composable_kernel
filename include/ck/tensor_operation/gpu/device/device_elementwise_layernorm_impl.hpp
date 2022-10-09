@@ -21,22 +21,21 @@
 // Y = layernorm( A + B, Beta, Gamma )
 namespace ck {
 template <typename GridwiseElementwiseReduction,
-          typename InDataTypePointerTuple,  // Datatype tuple of A & B
-          typename CDataType,               // Datatype of A + B
-          typename GammaDataType,           // Datatype of Gamma
-          typename BetaDataType,            // Datatype of Beta
-          typename YDataType,               // Datatype of input Y
-          typename AccDataType,             // AccDatatype
-          typename ElementwiseOperation,    // Operation of A & B -> Add
-          typename AccElementwiseOperation, // Operation Passthrough
-          typename InGrid2dDescTuple,       // Descriptor tuple of A & B
-          typename GridDesc_M_K,            // Descriptor of A B A+B
-          typename GridDesc_K>              // Descriptor of Gamma, Beta
+          typename InDataTypePointerTuple,        // Datatype tuple of A & B
+          typename CDataType,                     // Datatype of A + B
+          typename GammaDataType,                 // Datatype of Gamma
+          typename BetaDataType,                  // Datatype of Beta
+          typename YDataType,                     // Datatype of input Y
+          typename AccDataType,                   // AccDatatype
+          typename ElementwiseOperation,          // Operation of A & B -> Add
+          typename AccElementwiseOperation,       // Operation Passthrough
+          typename InGrid2dDescTuple,             // Descriptor tuple of A & B
+          typename GridDesc_M_K>                    // Descriptor of A & B Gamma, Beta
 __global__ void kernel_elementwise_layernorm(
     const InGrid2dDescTuple in_grid_2d_desc_tuple,          // Descriptor tuple of A & B
     const GridDesc_M_K c_grid_desc_m_k,                     // Descriptor of C
-    const GridDesc_K gamma_grid_desc_k,                     // Descriptor of gamma
-    const GridDesc_K beta_grid_desc_k,                      // Descriptor of beta
+    const GridDesc_M_K gamma_grid_desc_m_k,                 // Descriptor of gamma
+    const GridDesc_M_K beta_grid_desc_m_k,                  // Descriptor of beta
     const GridDesc_M_K y_grid_desc_m_k,                     // Descriptor of Y
     index_t num_k_block_tile_iteration,                     // arg.numBlockTileIteration_
     AccDataType epsilon,                                    // Datatype of epsilon
@@ -50,8 +49,8 @@ __global__ void kernel_elementwise_layernorm(
 {
     GridwiseElementwiseReduction::Run(in_grid_2d_desc_tuple,      // Descriptor tuple of A & B
                                       c_grid_desc_m_k,            // Descriptor of C
-                                      gamma_grid_desc_k,          // Descriptor of Gamma
-                                      beta_grid_desc_k,           // Descriptor of Beta
+                                      gamma_grid_desc_m_k,        // Descriptor of Gamma
+                                      beta_grid_desc_m_k,         // Descriptor of Beta
                                       y_grid_desc_m_k,            // Descriptor of Y
                                       num_k_block_tile_iteration, // arg.numBlockTileIteration_
                                       epsilon,                    // epsilon
@@ -196,37 +195,6 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
         return (in_grid_desc_m_k_padded);
     };
 
-    static auto MakeAffine1dDescriptor(const std::vector<index_t>& Lengths,
-                                       const std::vector<index_t>& Strides,
-                                       int blkGroupSize,
-                                       int numBlockTileIteration)
-    {
-        const auto tupleLengths = make_tuple_from_array(Lengths, Number<NumReduceDim>{});
-        const auto tupleStrides = make_tuple_from_array(Strides, Number<NumReduceDim>{});
-
-        auto desc = make_naive_tensor_descriptor(tupleLengths, tupleStrides);
-
-        auto grid_desc_k = transform_tensor_descriptor(
-            desc,
-            make_tuple(make_merge_transform(tupleLengths)),
-            make_tuple(typename arithmetic_sequence_gen<0, NumReduceDim, 1>::type{}),
-            make_tuple(Sequence<0>{}));
-
-        const auto reduceTotalLength = grid_desc_k.GetLength(Number<0>{});
-
-        const int reduceSizePerBlock = K_BlockTileSize * numBlockTileIteration;
-
-        const auto Pad_K = reduceSizePerBlock * blkGroupSize - reduceTotalLength;
-
-        auto grid_desc_k_padded = transform_tensor_descriptor(
-            grid_desc_k,
-            make_tuple(make_right_pad_transform(reduceTotalLength, Pad_K)),
-            make_tuple(Sequence<0>{}),
-            make_tuple(Sequence<0>{}));
-
-        return (grid_desc_k_padded);
-    };
-
     template <index_t TupleSize>
     static auto GenerateSrcGrid2dDescTuple(Number<TupleSize>)
     {
@@ -237,7 +205,6 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
     using InGrid2dDescTuple = decltype(GenerateSrcGrid2dDescTuple(Number<NumInput>{}));
 
     using GridDesc_M_K = decltype(MakeSrc2dDescriptor({1}, {1}, 1, 1));
-    using GridDesc_K   = decltype(MakeAffine1dDescriptor({1}, {1}, 1, 1));
 
     using GridwiseReduceLayernormGeneric =
         GridwiseElementwiseLayernormWelfordVariance_mk_to_mk<InDataTypePointerTuple,
@@ -250,7 +217,6 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
                                                              AccElementwiseOperation,
                                                              InGrid2dDescTuple,
                                                              GridDesc_M_K,
-                                                             GridDesc_K,
                                                              BlockSize,
                                                              MThreadClusterSize,
                                                              KThreadClusterSize,
@@ -275,7 +241,6 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
                                                              AccElementwiseOperation,
                                                              InGrid2dDescTuple,
                                                              GridDesc_M_K,
-                                                             GridDesc_K,
                                                              BlockSize,
                                                              MThreadClusterSize,
                                                              KThreadClusterSize,
@@ -308,8 +273,6 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
               p_gamma_(p_gamma),
               p_beta_(p_beta),
               p_y_(p_y),
-              gammaStrides_(gammaStrides),
-              betaStrides_(betaStrides),
               elementwise_op_(elementwise_op),
               acc_elementwise_op_(acc_elementwise_op)
         {
@@ -321,8 +284,11 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
                     shuffle_tensor_dimensions<Rank, NumReduceDim>(inStridesArray[i], reduceDims);
             }
 
-            cStrides_ = inStridesArray_[0];
             yStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(yStrides, reduceDims);
+            cStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(yStrides, reduceDims);
+
+            gammaStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(gammaStrides, reduceDims);
+            betaStrides_  = shuffle_tensor_dimensions<Rank, NumReduceDim>(betaStrides, reduceDims);
 
             in_dev_buffers_ = generate_tuple(
                 [&](auto I) {
@@ -340,15 +306,41 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
             blkGroupSize_          = 1;
             numBlockTileIteration_ = (reduce_total_length + K_BlockTileSize - 1) / K_BlockTileSize;
 
+            printf("device numBlockTileIteration_ %d \n", numBlockTileIteration_ );
+
             gridSize_ = math::integer_least_multiple(invariant_total_length, M_BlockTileSize) /
                         M_BlockTileSize * blkGroupSize_;
+            
+            in_grid_2d_desc_tuple_ = generate_tuple(
+                [&](auto I) {
+                    return MakeSrc2dDescriptor(Lengths_,
+                                               inStridesArray_[I.value],
+                                               blkGroupSize_,
+                                               numBlockTileIteration_);
+                },
+                Number<NumInput>{});
 
-            reduceLengths_.resize(NumReduceDim);
+            c_grid_desc_m_k_ = MakeSrc2dDescriptor(
+                Lengths_, cStrides_, blkGroupSize_, numBlockTileIteration_);
 
-            for(int i = 0; i < NumReduceDim; ++i)
-            {
-                reduceLengths_[i] = lengths[reduceDims[i]];
-            }
+            gamma_grid_desc_m_k_ = MakeSrc2dDescriptor(Lengths_,
+                                                       gammaStrides_,
+                                                       blkGroupSize_,
+                                                       numBlockTileIteration_);
+
+            beta_grid_desc_m_k_  = MakeSrc2dDescriptor(Lengths_,
+                                                       betaStrides_,
+                                                       blkGroupSize_,
+                                                       numBlockTileIteration_);
+
+            y_grid_desc_m_k_   = MakeSrc2dDescriptor(
+                Lengths_, yStrides_, blkGroupSize_, numBlockTileIteration_);
+
+            sweep_once_ =
+                c_grid_desc_m_k_.GetLength(Number<1>{}) <= KThreadClusterSize * KThreadSliceSize;
+
+            if(!sweep_once_)  //if not sweep once, malloc memory for matrix c in global memory for store Intermediate results
+                hip_check_error(hipMalloc((void**)&p_c_, sizeof(CDataType) * c_grid_desc_m_k_.GetElementSpaceSize()));
         }
 
         AccDataType epsilon_;
@@ -362,7 +354,6 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
         std::vector<index_t> Lengths_;
         std::array<std::vector<index_t>, NumInput> inStridesArray_;
         std::vector<index_t> cStrides_;
-        std::vector<index_t> reduceLengths_;
         std::vector<index_t> gammaStrides_;
         std::vector<index_t> betaStrides_;
         std::vector<index_t> yStrides_;
@@ -373,67 +364,45 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
         int blkGroupSize_;
         int numBlockTileIteration_;
         size_t gridSize_;
+
+        InGrid2dDescTuple in_grid_2d_desc_tuple_;
+        GridDesc_M_K c_grid_desc_m_k_;
+        GridDesc_M_K gamma_grid_desc_m_k_;
+        GridDesc_M_K beta_grid_desc_m_k_;
+        GridDesc_M_K y_grid_desc_m_k_;
+        bool sweep_once_;
     };
 
     struct Invoker : public BaseInvoker
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            const InGrid2dDescTuple in_grid_2d_desc_tuple = generate_tuple(
-                [&](auto I) {
-                    return MakeSrc2dDescriptor(arg.Lengths_,
-                                               arg.inStridesArray_[I.value],
-                                               arg.blkGroupSize_,
-                                               arg.numBlockTileIteration_);
-                },
-                Number<NumInput>{});
-
-            const auto c_grid_desc_m_k = MakeSrc2dDescriptor(
-                arg.Lengths_, arg.cStrides_, arg.blkGroupSize_, arg.numBlockTileIteration_);
-
-            const auto gamma_grid_desc_k = MakeAffine1dDescriptor(arg.reduceLengths_,
-                                                                  arg.gammaStrides_,
-                                                                  arg.blkGroupSize_,
-                                                                  arg.numBlockTileIteration_);
-            const auto beta_grid_desc_k  = MakeAffine1dDescriptor(arg.reduceLengths_,
-                                                                 arg.betaStrides_,
-                                                                 arg.blkGroupSize_,
-                                                                 arg.numBlockTileIteration_);
-            const auto y_grid_desc_m_k   = MakeSrc2dDescriptor(
-                arg.Lengths_, arg.yStrides_, arg.blkGroupSize_, arg.numBlockTileIteration_);
-
-            bool sweep_once =
-                c_grid_desc_m_k.GetLength(Number<1>{}) <= KThreadClusterSize * KThreadSliceSize;
-
-            if(!sweep_once)
-                hip_check_error(hipMalloc(
-                    (void**)&arg.p_c_, sizeof(CDataType) * c_grid_desc_m_k.GetElementSpaceSize()));
+            printf("arg.sweep_once_ %d \n", arg.sweep_once_ );
+            printf("arg.numBlockTileIteration_ %d \n", arg.numBlockTileIteration_ );
 
             const auto kernel_main =
-                sweep_once ? kernel_elementwise_layernorm<GridwiseReduceLayernormSweepOnce,
-                                                          InDataTypePointerTuple,
-                                                          CDataType,
-                                                          GammaDataType,
-                                                          BetaDataType,
-                                                          YDataType,
-                                                          AccDataType,
-                                                          ElementwiseOperation,
-                                                          AccElementwiseOperation,
-                                                          InGrid2dDescTuple,
-                                                          GridDesc_M_K,
-                                                          GridDesc_K>
-                           : kernel_elementwise_layernorm<GridwiseReduceLayernormGeneric,
-                                                          InDataTypePointerTuple,
-                                                          CDataType,
-                                                          GammaDataType,
-                                                          BetaDataType,
-                                                          YDataType,
-                                                          AccDataType,
-                                                          ElementwiseOperation,
-                                                          AccElementwiseOperation,
-                                                          InGrid2dDescTuple,
-                                                          GridDesc_M_K,
-                                                          GridDesc_K>;
+                arg.sweep_once_ ? kernel_elementwise_layernorm<GridwiseReduceLayernormSweepOnce,
+                                                               InDataTypePointerTuple,
+                                                               CDataType,
+                                                               GammaDataType,
+                                                               BetaDataType,
+                                                               YDataType,
+                                                               AccDataType,
+                                                               ElementwiseOperation,
+                                                               AccElementwiseOperation,
+                                                               InGrid2dDescTuple,
+                                                               GridDesc_M_K>
+                                : kernel_elementwise_layernorm<GridwiseReduceLayernormGeneric,
+                                                               InDataTypePointerTuple,
+                                                               CDataType,
+                                                               GammaDataType,
+                                                               BetaDataType,
+                                                               YDataType,
+                                                               AccDataType,
+                                                               ElementwiseOperation,
+                                                               AccElementwiseOperation,
+                                                               InGrid2dDescTuple,
+                                                               GridDesc_M_K>;
 
             float avg_time = 0;
             avg_time += launch_and_time_kernel(stream_config,
@@ -441,11 +410,11 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
                                                dim3(arg.gridSize_),
                                                dim3(BlockSize),
                                                0,
-                                               in_grid_2d_desc_tuple,
-                                               c_grid_desc_m_k,
-                                               gamma_grid_desc_k,
-                                               beta_grid_desc_k,
-                                               y_grid_desc_m_k,
+                                               arg.in_grid_2d_desc_tuple_,
+                                               arg.c_grid_desc_m_k_,
+                                               arg.gamma_grid_desc_m_k_,
+                                               arg.beta_grid_desc_m_k_,
+                                               arg.y_grid_desc_m_k_,
                                                arg.numBlockTileIteration_,
                                                arg.epsilon_,
                                                arg.in_dev_buffers_,
@@ -511,10 +480,6 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
             return false;
         }
 
-        if(p_arg_->gammaStrides_.size() != NumReduceDim ||
-           p_arg_->betaStrides_.size() != NumReduceDim)
-            return false;
-
         auto IsScalarPerVectorValid = [](bool isLastDimensionCoalesced, int scalarPerVector) {
             bool ret = true;
 
@@ -531,6 +496,44 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
 
         if(!IsScalarPerVectorValid(p_arg_->betaStrides_.back() == 1, BetaSrcVectorSize))
             return false;
+
+        // if fastest dim is not reduced
+        if constexpr(XYSrcVectorDim == 0) //
+        {
+            if(p_arg_->gammaStrides_[NumInvariantDim - 1] != 1)
+                return (false);
+
+            if(p_arg_->Lengths_[Rank - 1] % GammaSrcVectorSize != 0)
+                return (false);
+        }
+        else // if fastest dim is reduced
+        {
+            if(p_arg_->gammaStrides_[Rank - 1] != 1)
+                return (false);
+
+            if(p_arg_->Lengths_[Rank - 1] % GammaSrcVectorSize != 0)
+                return (false);
+        }
+
+        // if fastest dim is not reduced
+        if constexpr(XYSrcVectorDim == 0)
+        {
+            if(p_arg_->betaStrides_[NumInvariantDim - 1] != 1)
+                return (false);
+
+            if(p_arg_->invariant_lowest_length % BetaSrcVectorSize != 0)
+                return (false);
+        }
+        else // if fastest dim is reduced
+        {
+            if(p_arg_->betaStrides_[Rank - 1] != 1)
+                return (false);
+
+            if(p_arg_->Lengths_[Rank - 1] % BetaSrcVectorSize != 0)
+                return (false);
+        }
+
+        return true;
 
         return true;
     };

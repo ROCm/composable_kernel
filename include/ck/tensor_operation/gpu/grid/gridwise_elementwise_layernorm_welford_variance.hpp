@@ -23,7 +23,6 @@ template <typename InDataTypePointerTuple,
           typename AccElementwiseOperation,
           typename InGrid2dDescTuple,
           typename GridDesc_M_K,
-          typename GridDesc_K,
           index_t BlockSize,
           index_t MThreadClusterSize,
           index_t KThreadClusterSize,
@@ -76,6 +75,7 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
+    static constexpr auto I2 = Number<2>{};
 
     static constexpr index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
@@ -101,8 +101,8 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
 
     __device__ static void Run(const InGrid2dDescTuple in_grid_2d_desc_tuple,
                                const GridDesc_M_K& c_grid_desc_m_k,
-                               const GridDesc_K& gamma_grid_desc_k,
-                               const GridDesc_K& beta_grid_desc_k,
+                               const GridDesc_M_K& gamma_grid_desc_m_k,
+                               const GridDesc_M_K& beta_grid_desc_m_k,
                                const GridDesc_M_K& y_grid_desc_m_k,
                                index_t num_k_block_tile_iteration,
                                AccDataType epsilon,
@@ -124,8 +124,7 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
 
         auto in_global_buf_tuple = generate_tuple(
             [&](auto I) {
-                static_assert(in_grid_2d_desc_tuple[I].GetNumOfDimension() == 2); // matrix
-                                                                                  // dimension
+                static_assert(in_grid_2d_desc_tuple[I].GetNumOfDimension() == 2); // matrix dimension
 
                 return make_dynamic_buffer<AddressSpaceEnum::Global>(
                     p_in_global_tuple[I], in_grid_2d_desc_tuple[I].GetElementSpaceSize());
@@ -153,9 +152,9 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
             c_thread_buf;
 
-        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, KThreadSliceSize, true> gamma_thread_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true> gamma_thread_buf;
 
-        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, KThreadSliceSize, true>& beta_thread_buf =
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>& beta_thread_buf =
             gamma_thread_buf;
 
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize * KThreadSliceSize, true>
@@ -171,11 +170,9 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
         const auto thread_k_cluster_id = thread_cluster_idx[I1];
 
         using ThreadBufferLengths_M_K         = Sequence<MThreadSliceSize, KThreadSliceSize>;
-        using ThreadBufferLengths_K           = Sequence<KThreadSliceSize>;
+
         constexpr auto thread_buffer_desc_m_k = make_naive_tensor_descriptor_packed(
             make_tuple(Number<MThreadSliceSize>{}, Number<KThreadSliceSize>{}));
-        constexpr auto thread_buffer_desc_k =
-            make_naive_tensor_descriptor_packed(make_tuple(Number<KThreadSliceSize>{}));
 
         auto in_global_load_tuple = generate_tuple(
             [&](auto I) {
@@ -183,19 +180,19 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
                 using DataType        = remove_cv_t<remove_pointer_t<DataTypePointer>>;
 
                 return ThreadwiseTensorSliceTransfer_v2<
-                    DataType,
-                    AccDataType,
-                    decltype(in_grid_2d_desc_tuple[I]),
-                    decltype(thread_buffer_desc_m_k),
-                    ThreadBufferLengths_M_K,    //
-                    ThreadBufferDimAccessOrder, // DimAccessOrder
-                    XSrcVectorDim,              // SrcVectorDim
-                    XSrcVectorSize,
-                    1,
-                    false>{in_grid_2d_desc_tuple[I],
-                           make_multi_index(block_global_id * M_BlockTileSize +
-                                                thread_m_cluster_id * MThreadSliceSize,
-                                            thread_k_cluster_id * KThreadSliceSize)};
+                       DataType,
+                       AccDataType,
+                       decltype(in_grid_2d_desc_tuple[I]),
+                       decltype(thread_buffer_desc_m_k),
+                       ThreadBufferLengths_M_K,    //
+                       ThreadBufferDimAccessOrder, // DimAccessOrder
+                       XSrcVectorDim,              // SrcVectorDim
+                       XSrcVectorSize,
+                       1,
+                       false>{in_grid_2d_desc_tuple[I],
+                              make_multi_index(block_global_id * M_BlockTileSize +
+                                                   thread_m_cluster_id * MThreadSliceSize,
+                                               thread_k_cluster_id * KThreadSliceSize)};
             },
             Number<NumInput>{});
 
@@ -217,27 +214,33 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
         auto threadwise_gamma_load =
             ThreadwiseTensorSliceTransfer_v2<GammaDataType,
                                              AccDataType,
-                                             GridDesc_K,
-                                             decltype(thread_buffer_desc_k),
-                                             ThreadBufferLengths_K,
-                                             Sequence<0>,
-                                             0,
+                                             GridDesc_M_K,
+                                             decltype(thread_buffer_desc_m_k),
+                                             ThreadBufferLengths_M_K,
+                                             ThreadBufferDimAccessOrder,
+                                             XSrcVectorDim,
                                              GammaSrcVectorSize,
                                              1,
                                              true>(
-                gamma_grid_desc_k, make_multi_index(thread_k_cluster_id * KThreadSliceSize));
+            gamma_grid_desc_m_k, 
+            make_multi_index(block_global_id * M_BlockTileSize +
+                                     thread_m_cluster_id * MThreadSliceSize,
+                            thread_k_cluster_id * KThreadSliceSize));
 
         auto threadwise_beta_load = ThreadwiseTensorSliceTransfer_v2<BetaDataType,
                                                                      AccDataType,
-                                                                     GridDesc_K,
-                                                                     decltype(thread_buffer_desc_k),
-                                                                     ThreadBufferLengths_K,
-                                                                     Sequence<0>,
-                                                                     0,
+                                                                     GridDesc_M_K,
+                                                                     decltype(thread_buffer_desc_m_k),
+                                                                     ThreadBufferLengths_M_K,
+                                                                     ThreadBufferDimAccessOrder,
+                                                                     XSrcVectorDim,
                                                                      BetaSrcVectorSize,
                                                                      1,
                                                                      true>(
-            beta_grid_desc_k, make_multi_index(thread_k_cluster_id * KThreadSliceSize));
+            beta_grid_desc_m_k, 
+            make_multi_index(block_global_id * M_BlockTileSize +
+                                     thread_m_cluster_id * MThreadSliceSize,
+                            thread_k_cluster_id * KThreadSliceSize));
 
         auto threadwise_c_store =
             ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
@@ -279,8 +282,8 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
 
         // Copy x from Cache
         // one pass: fwd, second pass: bwd
-        constexpr auto thread_copy_fwd_step_k = make_multi_index(SweepOnce ? 0 : K_BlockTileSize);
-        constexpr auto thread_copy_bwd_step_k = make_multi_index(SweepOnce ? 0 : -K_BlockTileSize);
+        //constexpr auto thread_copy_fwd_step_k = make_multi_index(SweepOnce ? 0 : K_BlockTileSize);
+        //constexpr auto thread_copy_bwd_step_k = make_multi_index(SweepOnce ? 0 : -K_BlockTileSize);
 
         constexpr auto thread_copy_fwd_step_m_k =
             make_multi_index(0, SweepOnce ? 0 : K_BlockTileSize);
@@ -288,10 +291,10 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
             make_multi_index(0, SweepOnce ? 0 : -K_BlockTileSize);
 
         const auto gamma_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_gamma_global, gamma_grid_desc_k.GetElementSpaceSize());
+            p_gamma_global, gamma_grid_desc_m_k.GetElementSpaceSize());
 
         const auto beta_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_beta_global, beta_grid_desc_k.GetElementSpaceSize());
+            p_beta_global, beta_grid_desc_m_k.GetElementSpaceSize());
 
         auto threadwise_welford       = ThreadwiseWelford();
         threadwise_welford.max_count_ = GetKPerThread(c_grid_desc_m_k, thread_k_cluster_id);
@@ -338,15 +341,15 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
             });
             threadwise_welford.Run(c_thread_buf, mean_thread_buf, var_thread_buf);
 
-            if constexpr(!SweepOnce)
-            {
+            //if constexpr(!SweepOnce)
+            //{
                 threadwise_c_store.Run(thread_buffer_desc_m_k,
                                        make_tuple(I0, I0),
                                        c_thread_buf,
                                        c_grid_desc_m_k,
                                        c_global_val_buf);
                 threadwise_c_store.MoveDstSliceWindow(c_grid_desc_m_k, thread_copy_fwd_step_m_k);
-            }
+            //}
         }
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
@@ -358,38 +361,35 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
         });
 
         auto thread_copy_tail_m_k = (num_k_block_tile_iteration - 1) * thread_copy_fwd_step_m_k;
-        auto thread_copy_tail_k   = (num_k_block_tile_iteration - 1) * thread_copy_fwd_step_k;
 
-        if constexpr(!SweepOnce)
+        //if constexpr(!SweepOnce)
             threadwise_c_load.MoveSrcSliceWindow(c_grid_desc_m_k, thread_copy_tail_m_k);
 
-        threadwise_gamma_load.MoveSrcSliceWindow(gamma_grid_desc_k, thread_copy_tail_k);
-        threadwise_beta_load.MoveSrcSliceWindow(beta_grid_desc_k, thread_copy_tail_k);
+        threadwise_gamma_load.MoveSrcSliceWindow(gamma_grid_desc_m_k, thread_copy_tail_m_k);
+        threadwise_beta_load.MoveSrcSliceWindow(beta_grid_desc_m_k, thread_copy_tail_m_k);
         threadwise_y_store.MoveDstSliceWindow(y_grid_desc_m_k, thread_copy_tail_m_k);
 
         for(index_t reducedTiles = 0; reducedTiles < num_k_block_tile_iteration; ++reducedTiles)
         {
-            if constexpr(!SweepOnce)
-            {
+            //if constexpr(!SweepOnce)
+            //{
                 threadwise_c_load.Run(c_grid_desc_m_k,
                                       c_global_val_buf,
                                       thread_buffer_desc_m_k,
                                       make_tuple(I0, I0),
                                       c_thread_buf);
-            }
+            //}
 
-            threadwise_gamma_load.Run(gamma_grid_desc_k,
+            threadwise_gamma_load.Run(gamma_grid_desc_m_k,
                                       gamma_global_val_buf,
-                                      thread_buffer_desc_k,
-                                      make_tuple(I0),
+                                      thread_buffer_desc_m_k,
+                                      make_tuple(I0,I0),
                                       gamma_thread_buf);
 
             static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
                 static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
                     constexpr auto offset_m_k =
                         thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK));
-
-                    constexpr auto offset_k = thread_buffer_desc_k.CalculateOffset(make_tuple(iK));
 
                     // normalize
                     y_thread_buf(Number<offset_m_k>{}) =
@@ -398,14 +398,14 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
 
                     // gamma
                     y_thread_buf(Number<offset_m_k>{}) =
-                        y_thread_buf(Number<offset_m_k>{}) * gamma_thread_buf(Number<offset_k>{});
+                        y_thread_buf(Number<offset_m_k>{}) * gamma_thread_buf(Number<offset_m_k>{});
                 });
             });
 
-            threadwise_beta_load.Run(beta_grid_desc_k,
+            threadwise_beta_load.Run(beta_grid_desc_m_k,
                                      beta_global_val_buf,
-                                     thread_buffer_desc_k,
-                                     make_tuple(I0),
+                                     thread_buffer_desc_m_k,
+                                     make_tuple(I0, I0),
                                      beta_thread_buf);
 
             static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
@@ -413,11 +413,9 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
                     constexpr auto offset_m_k =
                         thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK));
 
-                    constexpr auto offset_k = thread_buffer_desc_k.CalculateOffset(make_tuple(iK));
-
                     // beta
                     y_thread_buf(Number<offset_m_k>{}) =
-                        y_thread_buf(Number<offset_m_k>{}) + beta_thread_buf(Number<offset_k>{});
+                        y_thread_buf(Number<offset_m_k>{}) + beta_thread_buf(Number<offset_m_k>{});
                 });
             });
 
@@ -427,12 +425,13 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
                                    y_grid_desc_m_k,
                                    y_global_val_buf);
 
-            if constexpr(!SweepOnce)
+            //if constexpr(!SweepOnce)
                 threadwise_c_load.MoveSrcSliceWindow(c_grid_desc_m_k, thread_copy_bwd_step_m_k);
-            threadwise_gamma_load.MoveSrcSliceWindow(gamma_grid_desc_k, thread_copy_bwd_step_k);
-            threadwise_beta_load.MoveSrcSliceWindow(beta_grid_desc_k, thread_copy_bwd_step_k);
+            threadwise_gamma_load.MoveSrcSliceWindow(gamma_grid_desc_m_k, thread_copy_bwd_step_m_k);
+            threadwise_beta_load.MoveSrcSliceWindow(beta_grid_desc_m_k, thread_copy_bwd_step_m_k);
             threadwise_y_store.MoveDstSliceWindow(y_grid_desc_m_k, thread_copy_bwd_step_m_k);
         }
+
     }
 };
 
