@@ -26,6 +26,8 @@ class TestGroupnorm : public ::testing::Test
                                                          {256, 9, 9, 9, 9},
                                                          {1, 64, 64, 32, 10},
                                                          {1, 32, 32, 32, 20},
+                                                         {2, 32, 32, 32, 30},
+                                                         {2, 32, 32, 32, 40},
                                                          {1, 16, 16, 32, 40}};
 
         for(auto length : lengths)
