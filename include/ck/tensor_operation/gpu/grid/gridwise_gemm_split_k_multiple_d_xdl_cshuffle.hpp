@@ -284,20 +284,33 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
-    template <typename Block2ETileMap>
-    __host__ __device__ static constexpr bool CheckValidity(const AGridDesc_M_K& a_grid_desc_m_k,
-                                                            const BGridDesc_N_K& b_grid_desc_n_k,
-                                                            const DsGridDesc_M_N& ds_grid_desc_m_n,
-                                                            const EGridDesc_M_N& e_grid_desc_m_n,
-                                                            const Block2ETileMap& block_2_etile_map)
+    template <typename AGridDesc_AKB_AK0_M_AK1,
+              typename BGridDesc_BKB_BK0_N_BK1,
+              typename Block2ETileMap>
+    __host__ __device__ static constexpr bool
+    CheckValidity(const AGridDesc_AKB_AK0_M_AK1& a_grid_desc_akb_ak0_m_ak1,
+                  const BGridDesc_BKB_BK0_N_BK1& b_grid_desc_bkb_bk0_n_bk1,
+                  const DsGridDesc_M_N& ds_grid_desc_m_n,
+                  const EGridDesc_M_N& e_grid_desc_m_n,
+                  const Block2ETileMap& block_2_etile_map)
     {
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
 
-        const auto M = a_grid_desc_m_k.GetLength(I0);
-        const auto N = b_grid_desc_n_k.GetLength(I0);
-        const auto K = a_grid_desc_m_k.GetLength(I1);
+        const auto M = a_grid_desc_akb_ak0_m_ak1.GetLength(I2);
+        const auto N = b_grid_desc_bkb_bk0_n_bk1.GetLength(I2);
+        const auto K =
+            a_grid_desc_akb_ak0_m_ak1.GetLength(I1) * a_grid_desc_akb_ak0_m_ak1.GetLength(I3);
+
+        if(K != b_grid_desc_bkb_bk0_n_bk1.GetLength(I1) * b_grid_desc_bkb_bk0_n_bk1.GetLength(I3))
+        {
+            return false;
+        }
+        if(a_grid_desc_akb_ak0_m_ak1.GetLength(I0) != b_grid_desc_bkb_bk0_n_bk1.GetLength(I0))
+        {
+            return false;
+        }
 
         // check consistency of desc
         if(!(M == e_grid_desc_m_n.GetLength(I0) && N == e_grid_desc_m_n.GetLength(I1)))
@@ -341,8 +354,8 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
         // check tensor size: cannot be larger than 2GB each
         constexpr long_index_t TwoGB = (long_index_t{1} << 31);
 
-        if(!(a_grid_desc_m_k.GetElementSpaceSize() * sizeof(ABDataType) <= TwoGB &&
-             b_grid_desc_n_k.GetElementSpaceSize() * sizeof(ABDataType) <= TwoGB &&
+        if(!(a_grid_desc_akb_ak0_m_ak1.GetElementSpaceSize() * sizeof(ABDataType) <= TwoGB &&
+             b_grid_desc_bkb_bk0_n_bk1.GetElementSpaceSize() * sizeof(ABDataType) <= TwoGB &&
              e_grid_desc_m_n.GetElementSpaceSize() * sizeof(EDataType) <= TwoGB))
         {
             return false;

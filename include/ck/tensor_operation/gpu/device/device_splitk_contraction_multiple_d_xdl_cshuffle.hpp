@@ -695,8 +695,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
             });
 
             // populate desc for Ds/E
-            if(GridwiseGemm::CheckValidity(a_grid_desc_m_k_,
-                                           b_grid_desc_n_k_,
+            if(GridwiseGemm::CheckValidity(a_grid_desc_akb_ak0_m_ak1_,
+                                           b_grid_desc_bkb_bk0_n_bk1_,
                                            ds_grid_desc_m_n_,
                                            e_grid_desc_m_n_,
                                            block_2_etile_map_))
@@ -732,6 +732,15 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
                       << a_grid_desc_m_k_.GetLength(I1) << std::endl;
             std::cout << "B[N, K]: " << b_grid_desc_n_k_.GetLength(I0) << ", "
                       << b_grid_desc_n_k_.GetLength(I1) << std::endl;
+
+            std::cout << "A[akb, ak0, m, ak1]: " << a_grid_desc_akb_ak0_m_ak1_.GetLength(I0) << ", "
+                      << a_grid_desc_akb_ak0_m_ak1_.GetLength(I1) << ", "
+                      << a_grid_desc_akb_ak0_m_ak1_.GetLength(I2) << ", "
+                      << a_grid_desc_akb_ak0_m_ak1_.GetLength(I3) << std::endl;
+            std::cout << "B[bkb, bk0, n, bk1]: " << b_grid_desc_bkb_bk0_n_bk1_.GetLength(I0) << ", "
+                      << b_grid_desc_bkb_bk0_n_bk1_.GetLength(I1) << ", "
+                      << b_grid_desc_bkb_bk0_n_bk1_.GetLength(I2) << ", "
+                      << b_grid_desc_bkb_bk0_n_bk1_.GetLength(I3) << std::endl;
             static_for<0, NumDTensor, 1>{}([&](auto i) {
                 std::cout << "Ds[M, N]: " << ds_grid_desc_m_n_[i].GetLength(I0) << ", "
                           << ds_grid_desc_m_n_[i].GetLength(I1) << std::endl;
@@ -797,8 +806,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
-                                            arg.b_grid_desc_n_k_,
+            if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_akb_ak0_m_ak1_,
+                                            arg.b_grid_desc_bkb_bk0_n_bk1_,
                                             arg.ds_grid_desc_m_n_,
                                             arg.e_grid_desc_m_n_,
                                             arg.block_2_etile_map_))
@@ -934,8 +943,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
             return false;
         }
 
-        if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
-                                        arg.b_grid_desc_n_k_,
+        if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_akb_ak0_m_ak1_,
+                                        arg.b_grid_desc_bkb_bk0_n_bk1_,
                                         arg.ds_grid_desc_m_n_,
                                         arg.e_grid_desc_m_n_,
                                         arg.block_2_etile_map_))
