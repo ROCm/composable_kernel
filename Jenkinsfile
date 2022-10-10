@@ -233,6 +233,7 @@ def buildHipClangJob(Map conf=[:]){
         def variant = env.STAGE_NAME
 
         def retimage
+        (retimage, image) = getDockerImage(conf)
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
