@@ -13,7 +13,6 @@ namespace tensor_operation {
 namespace device {
 
 template <typename InDataTypeTuple,
-          typename CDataType,
           typename GammaDataType,
           typename BetaDataType,
           typename AccDataType,
@@ -45,7 +44,6 @@ struct DeviceElementwiseLayernorm : public BaseOperator
 };
 
 template <typename InDataTypeTuple,
-          typename CDataType,
           typename GammaDataType,
           typename BetaDataType,
           typename AccDataType,
@@ -56,7 +54,6 @@ template <typename InDataTypeTuple,
           index_t NumReduceDim>
 using DeviceElementwiseLayernormPtr =
     std::unique_ptr<DeviceElementwiseLayernorm<InDataTypeTuple,
-                                               CDataType,
                                                GammaDataType,
                                                BetaDataType,
                                                AccDataType,

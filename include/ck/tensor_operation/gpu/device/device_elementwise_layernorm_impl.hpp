@@ -70,7 +70,6 @@ namespace device {
 
 // Y = LayerNorm(A + B, Beta, Gamma)
 template <typename InDataTypeTuple, // Datatype of A & B
-          typename CDataType,       // Datatype of C = A + B
           typename GammaDataType,   //
           typename BetaDataType,
           typename AccDataType,
@@ -90,7 +89,6 @@ template <typename InDataTypeTuple, // Datatype of A & B
           index_t BetaSrcVectorSize,  // Size to fetch source beta
           index_t YDstVectorSize>     // Size to write destination Y
 struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InDataTypeTuple,
-                                                                          CDataType,
                                                                           GammaDataType,
                                                                           BetaDataType,
                                                                           AccDataType,
@@ -101,6 +99,8 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
                                                                           NumReduceDim>
 {
     static constexpr int NumInput = InDataTypeTuple::Size();
+
+    using CDataType = YDataType;
 
     static_assert(
         (KThreadSliceSize % GammaSrcVectorSize == 0),
@@ -306,8 +306,6 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
             blkGroupSize_          = 1;
             numBlockTileIteration_ = (reduce_total_length + K_BlockTileSize - 1) / K_BlockTileSize;
 
-            printf("device numBlockTileIteration_ %d \n", numBlockTileIteration_ );
-
             gridSize_ = math::integer_least_multiple(invariant_total_length, M_BlockTileSize) /
                         M_BlockTileSize * blkGroupSize_;
             
@@ -377,9 +375,6 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            printf("arg.sweep_once_ %d \n", arg.sweep_once_ );
-            printf("arg.numBlockTileIteration_ %d \n", arg.numBlockTileIteration_ );
-
             const auto kernel_main =
                 arg.sweep_once_ ? kernel_elementwise_layernorm<GridwiseReduceLayernormSweepOnce,
                                                                InDataTypePointerTuple,
@@ -532,8 +527,6 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
             if(p_arg_->Lengths_[Rank - 1] % BetaSrcVectorSize != 0)
                 return (false);
         }
-
-        return true;
 
         return true;
     };

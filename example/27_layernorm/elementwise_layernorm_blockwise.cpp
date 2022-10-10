@@ -34,7 +34,6 @@ constexpr int NumReduceDim = 1;
 
 using DeviceInstance =
     ck::tensor_operation::device::DeviceElementwiseLayernormImpl<ck::Tuple<ADataType, BDataType>,
-                                                                 CDataType,
                                                                  GammaDataType,
                                                                  BetaDataType,
                                                                  AccDataType,
@@ -47,7 +46,7 @@ using DeviceInstance =
                                                                  8,   // ClusterM
                                                                  32,  // ClusterK
                                                                  1,   // SliceM
-                                                                 8,   // SliceK
+                                                                 16,  // SliceK
                                                                  1,   // SrcVecDim (0=M, 1=K)
                                                                  8,   // SrcScalarPerVector
                                                                  8,   // GammaScalarPerVector
@@ -78,8 +77,8 @@ int main()
 {
     bool time_kernel = true;
 
-    ck::index_t M      = 256;
-    ck::index_t N      = 1024;
+    ck::index_t M      = 64;
+    ck::index_t N      = 512;
     ck::index_t Stride = N;
 
     auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
@@ -94,7 +93,6 @@ int main()
 
     Tensor<ADataType> a(f_host_tensor_descriptor2d(M, N, Stride));
     Tensor<BDataType> b(f_host_tensor_descriptor2d(M, N, Stride));
-    Tensor<CDataType> c(f_host_tensor_descriptor2d(M, N, Stride));
     Tensor<GammaDataType> gamma(f_host_tensor_descriptor1d(N, 1));
     Tensor<BetaDataType> beta(f_host_tensor_descriptor1d(N, 1));
     Tensor<YDataType> y(f_host_tensor_descriptor2d(M, N, Stride));
@@ -106,7 +104,6 @@ int main()
 
     DeviceMem a_dev(sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
     DeviceMem b_dev(sizeof(BDataType) * b.mDesc.GetElementSpaceSize());
-    DeviceMem c_dev(sizeof(BDataType) * c.mDesc.GetElementSpaceSize());
     DeviceMem gamma_dev(sizeof(GammaDataType) * gamma.mDesc.GetElementSpaceSize());
     DeviceMem beta_dev(sizeof(BetaDataType) * beta.mDesc.GetElementSpaceSize());
     DeviceMem y_dev(sizeof(YDataType) * y.mDesc.GetElementSpaceSize());
@@ -148,8 +145,6 @@ int main()
     ela_time         = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
     std::cout << "Time elapase is : " << ela_time << " s . " << std::endl;
 
-    //c_dev.FromDevice(c.mData.data());
-
     bool pass = true;
     {
         std::vector<std::size_t> mn = {static_cast<unsigned long>(M),
@@ -157,14 +152,7 @@ int main()
         Tensor<CDataType> x(f_host_tensor_descriptor2d(M, N, Stride));
         host_elementwise2D<Tensor<ADataType>, Tensor<BDataType>, Tensor<CDataType>, Add>(
             x, a, b, mn, Add{});
-        /*
-        pass &=
-            ck::utils::check_err(c.mData, x.mData, "Error: Incorrect results d1", 1e-3, 1e-3);
-        if(!(pass))
-        {
-            std::cout << "add wrong" << std::endl;
-        }
-        */
+
         Tensor<YDataType> host_y(f_host_tensor_descriptor2d(M, N, Stride));
         using ReferenceInstance = ck::tensor_operation::host::ReferenceLayernorm<CDataType,
                                                                                  GammaDataType,
