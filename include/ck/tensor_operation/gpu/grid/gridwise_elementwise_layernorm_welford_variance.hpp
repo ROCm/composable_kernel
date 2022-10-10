@@ -408,7 +408,6 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
             (num_k_block_tile_iteration - 1) * CThreadBufferNumber * thread_copy_fwd_step_m_k;
 
         if constexpr(!SweepOnce) // if not sweeponce, store c into global memory for reuse in the
-                                 // next loop
             threadwise_c_load.MoveSrcSliceWindow(c_grid_desc_m_k, thread_copy_tail_m_k);
         threadwise_gamma_load.MoveSrcSliceWindow(gamma_grid_desc_m_k, thread_copy_tail_m_k);
         threadwise_beta_load.MoveSrcSliceWindow(beta_grid_desc_m_k, thread_copy_tail_m_k);
