@@ -1,0 +1,1 @@
+add_example_executable(example_trinary_elementwise_add_4d trinary_elementwise_add_4d.cpp)
