@@ -49,7 +49,9 @@ using DeviceInstance =
                                                                  16,  // SliceK
                                                                  1,   // SrcVecDim (0=M, 1=K)
                                                                  8,   // SrcScalarPerVector
+                                                                 1,   // GammaVecDim (0=M, 1=K)
                                                                  8,   // GammaScalarPerVector
+                                                                 1,   // BetaVecDim (0=M, 1=K)
                                                                  8,   // BetaScalarPerVector
                                                                  8>;  // OutScalarPerVector
 

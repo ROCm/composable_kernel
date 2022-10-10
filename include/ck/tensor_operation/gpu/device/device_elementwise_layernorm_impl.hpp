@@ -85,7 +85,9 @@ template <typename InDataTypeTuple, // Datatype of A & B
           index_t KThreadSliceSize,   // Each thread calculate columns
           index_t XYSrcVectorDim,     // Dimension to do reduce
           index_t XSrcVectorSize,     // Size to fetch source x
+          index_t GammaSrcVectorDim,  // Dimension for gamma to do reduce
           index_t GammaSrcVectorSize, // Size to fetch source gamma
+          index_t BetaSrcVectorDim,   // Dimension for beta to do reduce
           index_t BetaSrcVectorSize,  // Size to fetch source beta
           index_t YDstVectorSize>     // Size to write destination Y
 struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InDataTypeTuple,
@@ -224,7 +226,9 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
                                                              KThreadSliceSize,
                                                              XYSrcVectorDim,
                                                              XSrcVectorSize,
+                                                             GammaSrcVectorDim,
                                                              GammaSrcVectorSize,
+                                                             BetaSrcVectorDim,
                                                              BetaSrcVectorSize,
                                                              XYSrcVectorDim,
                                                              YDstVectorSize,
@@ -248,7 +252,9 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
                                                              KThreadSliceSize,
                                                              XYSrcVectorDim,
                                                              XSrcVectorSize,
+                                                             GammaSrcVectorDim,
                                                              GammaSrcVectorSize,
+                                                             BetaSrcVectorDim,
                                                              BetaSrcVectorSize,
                                                              XYSrcVectorDim,
                                                              YDstVectorSize,
