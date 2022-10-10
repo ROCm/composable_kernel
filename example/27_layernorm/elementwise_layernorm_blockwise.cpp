@@ -46,7 +46,7 @@ using DeviceInstance =
                                                                  8,   // ClusterM
                                                                  32,  // ClusterK
                                                                  1,   // SliceM
-                                                                 16,  // SliceK
+                                                                 32,  // SliceK
                                                                  1,   // SrcVecDim (0=M, 1=K)
                                                                  8,   // SrcScalarPerVector
                                                                  1,   // GammaVecDim (0=M, 1=K)
@@ -79,8 +79,8 @@ int main()
 {
     bool time_kernel = true;
 
-    ck::index_t M      = 64;
-    ck::index_t N      = 512;
+    ck::index_t M      = 1024;
+    ck::index_t N      = 1024;
     ck::index_t Stride = N;
 
     auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
