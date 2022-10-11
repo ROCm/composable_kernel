@@ -113,33 +113,10 @@ struct GridwiseElementwise_2D
         const index_t loop_step_n  = blockPerGrid_n * blockSize * NPerThread;
         const auto loop_step_index = make_multi_index(loop_step_m, loop_step_n);
 
-        // const auto thread_global_id_2d =
-        //  thread_buffer_desc_mn.CalculateBottomIndex(make_multi_index(block_1d));
-
-        // auto thread_1d_id = get_thread_local_1d_id();
-        // index_t M01_      = 8;
-
-        // const auto M0 = math::integer_divide_ceil(M, MPerThread);
-        // const auto N0 = math::integer_divide_ceil(N, NPerThread);
-
-        // thread_1d_id = thread_1d_id % (M0 * N0); // swallow batch index
-
-        // index_t idx_N0 = thread_1d_id % N0;
-        // index_t idx_M0 = thread_1d_id / N0;
-
-        // const auto M01_adapt = (idx_M0 < M0 - M0 % M01_) ? M01_ : M0 % M01_;
-
-        // index_t idx_M00          = idx_M0 / M01_;
-        // index_t idx_M01          = idx_M0 % M01_;
-        // index_t idx_N0_M01_local = idx_N0 + idx_M01 * N0;
-
-        // const auto thread_global_id_2d =make_tuple(idx_N0_M01_local % M01_adapt + idx_M00 * M01_,
-        //					                          idx_N0_M01_local /
-        // M01_adapt);
-
-        index_t tid_m                   = get_thread_global_1d_id();
-        index_t tid_n                   = blockDim.y * blockIdx.y + threadIdx.y;
-        const auto thread_global_offset = make_multi_index(tid_m * MPerThread, tid_n * NPerThread);
+	const index_t thread_1d_id = get_thread_global_1d_id();
+        index_t tid_m                   = thread_1d_id/N;
+        index_t tid_n                   = thread_1d_id/M;
+        const auto thread_global_offset = make_multi_index(tid_m* MPerThread, tid_n* NPerThread);
         //  make_multi_index(thread_global_id_2d[I0] * MPerThread, thread_global_id_2d[I1] *
         //  NPerThread);
 
