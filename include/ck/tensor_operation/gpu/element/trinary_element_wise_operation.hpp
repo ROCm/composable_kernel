@@ -115,9 +115,9 @@ struct TriSubtract
     };
 };
 
-struct Bilinear
+struct TriBilinear
 {
-    Bilinear(float alpha, float beta, float gamma) : alpha_(alpha), beta_(beta), gamma_(gamma){};
+    TriBilinear(float alpha, float beta, float gamma) : alpha_(alpha), beta_(beta), gamma_(gamma){};
 
     template <typename Y, typename X0, typename X1, typename X2>
     __host__ __device__ constexpr void operator()(Y&, const X0&, const X1&, const X2&) const;
@@ -151,7 +151,7 @@ struct Bilinear
     float gamma_;
 };
 
-struct AddRelu
+struct TriAddRelu
 {
     template <typename Y, typename X0, typename X1, typename X2>
     __host__ __device__ constexpr void
@@ -200,7 +200,7 @@ struct AddRelu
     };
 };
 
-struct AddHardswish
+struct TriAddHardswish
 {
     template <typename T>
     __host__ __device__ constexpr void
@@ -240,7 +240,7 @@ struct AddHardswish
 // C = A * B
 // E = FastGelu(C + D)
 // TODO: Change for trinary elementwise
-struct AddFastGelu
+struct TriAddFastGelu
 {
     // Fast GeLU
     // https://paperswithcode.com/method/gelu
