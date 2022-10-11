@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/utility/data_type.hpp"
+#include "ck/utility/reduction_enums.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance_blockwise.hpp"
 
@@ -13,19 +14,19 @@ namespace device {
 namespace instance {
 
 // clang-format off
-// InDataType | AccDataType | OutDataType | ReduceOpId | NanPropaOpt | IndicesOpt | Rank | NumReduceDim 
-ADD_BLOCKWISE_INST_REF_BY_ID(float, double, float, 0, 0, 0, 4, 3); // for ADD
-ADD_BLOCKWISE_INST_REF_BY_ID(float, double, float, 0, 0, 0, 4, 4);
-ADD_BLOCKWISE_INST_REF_BY_ID(float, double, float, 0, 0, 0, 4, 1);
-ADD_BLOCKWISE_INST_REF_BY_ID(float, double, float, 0, 0, 0, 2, 1);
-ADD_BLOCKWISE_INST_REF_BY_ID(float, double, float, 5, 0, 0, 4, 3); // for AVG
-ADD_BLOCKWISE_INST_REF_BY_ID(float, double, float, 5, 0, 0, 4, 4);       
-ADD_BLOCKWISE_INST_REF_BY_ID(float, double, float, 5, 0, 0, 4, 1);       
-ADD_BLOCKWISE_INST_REF_BY_ID(float, double, float, 5, 0, 0, 2, 1);       
-ADD_BLOCKWISE_INST_REF_BY_ID(float, double, float, 7, 0, 0, 4, 3); // for NORM2
-ADD_BLOCKWISE_INST_REF_BY_ID(float, double, float, 7, 0, 0, 4, 4);       
-ADD_BLOCKWISE_INST_REF_BY_ID(float, double, float, 7, 0, 0, 4, 1);       
-ADD_BLOCKWISE_INST_REF_BY_ID(float, double, float, 7, 0, 0, 2, 1);
+// InDataType | AccDataType | OutDataType | ReduceOpId | PropagateNan | UseIndex | Rank | NumReduceDim 
+ADD_BLOCKWISE_INST_REF(float, double, float, ReduceTensorOp::ADD, false, false, 4, 3); // for ADD
+ADD_BLOCKWISE_INST_REF(float, double, float, ReduceTensorOp::ADD, false, false, 4, 4);
+ADD_BLOCKWISE_INST_REF(float, double, float, ReduceTensorOp::ADD, false, false, 4, 1);
+ADD_BLOCKWISE_INST_REF(float, double, float, ReduceTensorOp::ADD, false, false, 2, 1);
+ADD_BLOCKWISE_INST_REF(float, double, float, ReduceTensorOp::AVG, false, false, 4, 3); // for AVG
+ADD_BLOCKWISE_INST_REF(float, double, float, ReduceTensorOp::AVG, false, false, 4, 4);       
+ADD_BLOCKWISE_INST_REF(float, double, float, ReduceTensorOp::AVG, false, false, 4, 1);       
+ADD_BLOCKWISE_INST_REF(float, double, float, ReduceTensorOp::AVG, false, false, 2, 1);       
+ADD_BLOCKWISE_INST_REF(float, double, float, ReduceTensorOp::NORM2, false, false, 4, 3); // for NORM2
+ADD_BLOCKWISE_INST_REF(float, double, float, ReduceTensorOp::NORM2, false, false, 4, 4);       
+ADD_BLOCKWISE_INST_REF(float, double, float, ReduceTensorOp::NORM2, false, false, 4, 1);       
+ADD_BLOCKWISE_INST_REF(float, double, float, ReduceTensorOp::NORM2, false, false, 2, 1);
 // clang-format on
 
 } // namespace instance

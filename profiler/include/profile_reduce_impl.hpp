@@ -21,11 +21,11 @@ namespace instance {
 template <int Rank, int NumReduceDim, int ReduceOpId, bool PropagateNan, bool UseIndex>
 struct ReduceDescription
 {
-    static constexpr int Rank_         = Rank;
-    static constexpr int NumReduceDim_ = NumReduceDim;
-    static constexpr int ReduceOpId_   = ReduceOpId;
-    static constexpr int PropagateNan_ = PropagateNan;
-    static constexpr int UseIndex_     = UseIndex;
+    static constexpr int Rank_          = Rank;
+    static constexpr int NumReduceDim_  = NumReduceDim;
+    static constexpr int ReduceOpId_    = ReduceOpId;
+    static constexpr bool PropagateNan_ = PropagateNan;
+    static constexpr bool UseIndex_     = UseIndex;
 };
 
 using reduce_description_instances =
@@ -79,8 +79,7 @@ bool description_match(const DescriptionType& description,
                        bool UseIndex)
 {
     if(description.Rank_ != Rank || description.ReduceOpId_ != static_cast<int>(ReduceOpId) ||
-       description.PropagateNan_ != static_cast<int>(PropagateNan) ||
-       description.UseIndex_ != static_cast<int>(UseIndex))
+       description.PropagateNan_ != PropagateNan || description.UseIndex_ != UseIndex)
         return (false);
 
     if(DescriptionType::NumReduceDim_ != reduceDims.size())
@@ -478,22 +477,21 @@ bool profile_reduce_impl(bool do_verification,
                descType{}, inLengths.size(), reduceDims, ReduceOpId, PropagateNan, UseIndex))
             return;
 
-        pass = pass &&
-               profile_reduce_impl_impl<InDataType,
-                                        AccDataType,
-                                        OutDataType,
-                                        descType::Rank_,
-                                        descType::NumReduceDim_,
-                                        static_cast<ReduceTensorOp>(descType::ReduceOpId_),
-                                        static_cast<bool>(descType::PropagateNan_),
-                                        static_cast<bool>(descType::UseIndex_)>(do_verification,
-                                                                                init_method,
-                                                                                do_dumpout,
-                                                                                time_kernel,
-                                                                                inLengths,
-                                                                                reduceDims,
-                                                                                alpha,
-                                                                                beta);
+        pass = pass && profile_reduce_impl_impl<InDataType,
+                                                AccDataType,
+                                                OutDataType,
+                                                descType::Rank_,
+                                                descType::NumReduceDim_,
+                                                static_cast<ReduceTensorOp>(descType::ReduceOpId_),
+                                                descType::PropagateNan_,
+                                                descType::UseIndex_>(do_verification,
+                                                                     init_method,
+                                                                     do_dumpout,
+                                                                     time_kernel,
+                                                                     inLengths,
+                                                                     reduceDims,
+                                                                     alpha,
+                                                                     beta);
 
         matched = true;
     });

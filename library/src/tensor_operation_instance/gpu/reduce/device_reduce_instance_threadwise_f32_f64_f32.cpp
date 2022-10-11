@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
+#include "ck/utility/reduction_enums.hpp"
 #include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance_threadwise.hpp"
 
 namespace ck {
@@ -9,19 +10,19 @@ namespace device {
 namespace instance {
 
 // clang-format off
-// InDataType | AccDataType | OutDataType | ReduceOpId | NanPropaOpt | IndicesOpt | Rank | NumReduceDim
-ADD_THREADWISE_INST_BY_ID(float, double, float, 0, 0, 0, 4, 3); // for ADD
-ADD_THREADWISE_INST_BY_ID(float, double, float, 0, 0, 0, 4, 4);
-ADD_THREADWISE_INST_BY_ID(float, double, float, 0, 0, 0, 4, 1);
-ADD_THREADWISE_INST_BY_ID(float, double, float, 0, 0, 0, 2, 1);
-ADD_THREADWISE_INST_BY_ID(float, double, float, 5, 0, 0, 4, 3); // for AVG
-ADD_THREADWISE_INST_BY_ID(float, double, float, 5, 0, 0, 4, 4);       
-ADD_THREADWISE_INST_BY_ID(float, double, float, 5, 0, 0, 4, 1);       
-ADD_THREADWISE_INST_BY_ID(float, double, float, 5, 0, 0, 2, 1);       
-ADD_THREADWISE_INST_BY_ID(float, double, float, 7, 0, 0, 4, 3); // for NORM2
-ADD_THREADWISE_INST_BY_ID(float, double, float, 7, 0, 0, 4, 4);       
-ADD_THREADWISE_INST_BY_ID(float, double, float, 7, 0, 0, 4, 1);       
-ADD_THREADWISE_INST_BY_ID(float, double, float, 7, 0, 0, 2, 1);
+// InDataType | AccDataType | OutDataType | ReduceOpId | PropagateNan | UseIndex | Rank | NumReduceDim
+ADD_THREADWISE_INST(float, double, float, ReduceTensorOp::ADD, false, false, 4, 3); // for ADD
+ADD_THREADWISE_INST(float, double, float, ReduceTensorOp::ADD, false, false, 4, 4);
+ADD_THREADWISE_INST(float, double, float, ReduceTensorOp::ADD, false, false, 4, 1);
+ADD_THREADWISE_INST(float, double, float, ReduceTensorOp::ADD, false, false, 2, 1);
+ADD_THREADWISE_INST(float, double, float, ReduceTensorOp::AVG, false, false, 4, 3); // for AVG
+ADD_THREADWISE_INST(float, double, float, ReduceTensorOp::AVG, false, false, 4, 4);       
+ADD_THREADWISE_INST(float, double, float, ReduceTensorOp::AVG, false, false, 4, 1);       
+ADD_THREADWISE_INST(float, double, float, ReduceTensorOp::AVG, false, false, 2, 1);       
+ADD_THREADWISE_INST(float, double, float, ReduceTensorOp::NORM2, false, false, 4, 3); // for NORM2
+ADD_THREADWISE_INST(float, double, float, ReduceTensorOp::NORM2, false, false, 4, 4);       
+ADD_THREADWISE_INST(float, double, float, ReduceTensorOp::NORM2, false, false, 4, 1);       
+ADD_THREADWISE_INST(float, double, float, ReduceTensorOp::NORM2, false, false, 2, 1);
 // clang-format on
 
 } // namespace instance
