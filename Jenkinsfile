@@ -233,6 +233,7 @@ def buildHipClangJob(Map conf=[:]){
         def variant = env.STAGE_NAME
 
         def retimage
+        (retimage, image) = getDockerImage(conf)
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'composable_kernel') {
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
@@ -548,8 +549,9 @@ def process_results(Map conf=[:]){
     }
 }
 
-//launch develop branch daily at 23:00 in FULL_QA mode
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true''' : ""
+//launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;COMPILER_VERSION=release
+                                              0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-stg-open''' : ""
 
 pipeline {
     agent none
