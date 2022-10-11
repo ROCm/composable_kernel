@@ -25,7 +25,7 @@ using DeviceElementwiseAddInstance = ck::tensor_operation::device::DeviceElement
     TriAdd,
     4,
     8,
-    ck::Sequence<8, 8>,
+    ck::Sequence<8, 8, 8>,
     ck::Sequence<8>>;
 
 template <typename HostTensorA,
@@ -59,7 +59,7 @@ void host_elementwise4D(HostTensorD& D,
 int main()
 {
     bool do_verification = true;
-    bool time_kernel     = false;
+    bool time_kernel     = true;
 
     std::vector<std::size_t> nchw = {4, 16, 32, 32};
 
@@ -93,14 +93,14 @@ int main()
     std::array<ck::index_t, 4> d_strides;
 
     std::copy(nchw.begin(), nchw.end(), abcd_lengths.begin());
-    std::copy(a.mDesc.GetStrides().begin(), .mDesc.GetStrides().end(), a_strides.begin());
+    std::copy(a.mDesc.GetStrides().begin(), a.mDesc.GetStrides().end(), a_strides.begin());
     std::copy(b.mDesc.GetStrides().begin(), b.mDesc.GetStrides().end(), b_strides.begin());
     std::copy(c.mDesc.GetStrides().begin(), c.mDesc.GetStrides().end(), c_strides.begin());
     std::copy(d.mDesc.GetStrides().begin(), d.mDesc.GetStrides().end(), d_strides.begin());
 
     auto broadcastAdd = DeviceElementwiseAddInstance{};
     auto argument     = broadcastAdd.MakeArgumentPointer(
-        abc_lengths, {a_strides, b_strides, c_strides}, {d_strides}, input, output, TriAdd{});
+        abcd_lengths, {a_strides, b_strides, c_strides}, {d_strides}, input, output, TriAdd{});
 
     if(!broadcastAdd.IsSupportedArgument(argument.get()))
     {
@@ -120,8 +120,11 @@ int main()
         d_device_buf.FromDevice(d.mData.data());
         Tensor<DDataType> host_d(nchw);
 
-        host_elementwise4D<Tensor<ABCDataType>, Tensor<ABCDataType>, Tensor<DDataType>, Add>(
-            host_d, a, b, c, nchw, TriAdd{});
+        host_elementwise4D<Tensor<ABCDataType>,
+                           Tensor<ABCDataType>,
+                           Tensor<ABCDataType>,
+                           Tensor<DDataType>,
+                           TriAdd>(host_d, a, b, c, nchw, TriAdd{});
 
         pass &=
             ck::utils::check_err(d.mData, host_d.mData, "Error: Incorrect results d", 1e-3, 1e-3);
