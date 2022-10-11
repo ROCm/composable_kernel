@@ -50,11 +50,11 @@ struct DeviceBatchedGemmSoftmaxGemmPermute : public BaseOperator
         const std::vector<index_t>& b1_gs_gemm1ns_gemm1ks_strides, // b1_gs_os_ns_strides
         const std::vector<index_t>& c_gs_ms_gemm1ns_lengths,       // c_gs_ms_os_lengths
         const std::vector<index_t>& c_gs_ms_gemm1ns_strides,       // c_gs_ms_os_strides
-        const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_lengths,
-        const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_strides,
-        const std::array<std::vector<ck::index_t>, NumAcc1Bias>
+        const std::array<std::vector<index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_lengths,
+        const std::array<std::vector<index_t>, NumAcc0Bias> acc0_biases_gs_ms_ns_strides,
+        const std::array<std::vector<index_t>, NumAcc1Bias>
             acc1_biases_gs_ms_gemm1ns_lengths, // acc1_biases_gs_ms_os_lengths
-        const std::array<std::vector<ck::index_t>, NumAcc1Bias>
+        const std::array<std::vector<index_t>, NumAcc1Bias>
             acc1_biases_gs_ms_gemm1ns_strides, // acc1_biases_gs_ms_os_strides
         AElementwiseOperation a_element_op,
         B0ElementwiseOperation b0_element_op,

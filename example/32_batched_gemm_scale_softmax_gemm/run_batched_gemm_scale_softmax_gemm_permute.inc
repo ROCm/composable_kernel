@@ -140,6 +140,7 @@ int run(int argc, char* argv[])
     auto c_element_op    = CElementOp{};
 
     // do GEMM
+    // TODO ANT: replace array with vector?
     auto gemm     = DeviceGemmInstance{};
     auto invoker  = gemm.MakeInvoker();
     auto argument = gemm.MakeArgument(

@@ -550,13 +550,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
-                                            arg.b_grid_desc_bk0_n_bk1_,
-                                            arg.b1_grid_desc_bk0_n_bk1_,
-                                            arg.c_grid_desc_m_n_,
-                                            arg.block_2_ctile_map_))
+            if(!DeviceOp::IsSupportedArgument(arg))
             {
-                throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
+                throw std::runtime_error("wrong! unsupported argument");
             }
 
             const index_t grid_size =
@@ -649,6 +645,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         {
             return false;
         }
+
+        // TODO ANT: Check if tensor specialization & strides mismatch
 
         // Check if C permute dimension matches GEMM + GEMM shape
         const index_t c_g       = arg.c_grid_desc_g_m_n_.GetLength(I0); // unpadded
