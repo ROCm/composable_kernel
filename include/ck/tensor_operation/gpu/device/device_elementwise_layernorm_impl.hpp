@@ -21,16 +21,16 @@
 // Y = layernorm( A + B, Beta, Gamma )
 namespace ck {
 template <typename GridwiseElementwiseReduction,
-          typename InDataTypePointerTuple,        // Datatype tuple of A & B
-          typename CDataType,                     // Datatype of A + B
-          typename GammaDataType,                 // Datatype of Gamma
-          typename BetaDataType,                  // Datatype of Beta
-          typename YDataType,                     // Datatype of input Y
-          typename AccDataType,                   // AccDatatype
-          typename ElementwiseOperation,          // Operation of A & B -> Add
-          typename AccElementwiseOperation,       // Operation Passthrough
-          typename InGrid2dDescTuple,             // Descriptor tuple of A & B
-          typename GridDesc_M_K>                    // Descriptor of A & B Gamma, Beta
+          typename InDataTypePointerTuple,  // Datatype tuple of A & B
+          typename CDataType,               // Datatype of A + B
+          typename GammaDataType,           // Datatype of Gamma
+          typename BetaDataType,            // Datatype of Beta
+          typename YDataType,               // Datatype of input Y
+          typename AccDataType,             // AccDatatype
+          typename ElementwiseOperation,    // Operation of A & B -> Add
+          typename AccElementwiseOperation, // Operation Passthrough
+          typename InGrid2dDescTuple,       // Descriptor tuple of A & B
+          typename GridDesc_M_K>            // Descriptor of A & B Gamma, Beta
 __global__ void kernel_elementwise_layernorm(
     const InGrid2dDescTuple in_grid_2d_desc_tuple,          // Descriptor tuple of A & B
     const GridDesc_M_K c_grid_desc_m_k,                     // Descriptor of C
@@ -314,37 +314,34 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
 
             gridSize_ = math::integer_least_multiple(invariant_total_length, M_BlockTileSize) /
                         M_BlockTileSize * blkGroupSize_;
-            
+
             in_grid_2d_desc_tuple_ = generate_tuple(
                 [&](auto I) {
-                    return MakeSrc2dDescriptor(Lengths_,
-                                               inStridesArray_[I.value],
-                                               blkGroupSize_,
-                                               numBlockTileIteration_);
+                    return MakeSrc2dDescriptor(
+                        Lengths_, inStridesArray_[I.value], blkGroupSize_, numBlockTileIteration_);
                 },
                 Number<NumInput>{});
 
-            c_grid_desc_m_k_ = MakeSrc2dDescriptor(
-                Lengths_, cStrides_, blkGroupSize_, numBlockTileIteration_);
+            c_grid_desc_m_k_ =
+                MakeSrc2dDescriptor(Lengths_, cStrides_, blkGroupSize_, numBlockTileIteration_);
 
-            gamma_grid_desc_m_k_ = MakeSrc2dDescriptor(Lengths_,
-                                                       gammaStrides_,
-                                                       blkGroupSize_,
-                                                       numBlockTileIteration_);
+            gamma_grid_desc_m_k_ =
+                MakeSrc2dDescriptor(Lengths_, gammaStrides_, blkGroupSize_, numBlockTileIteration_);
 
-            beta_grid_desc_m_k_  = MakeSrc2dDescriptor(Lengths_,
-                                                       betaStrides_,
-                                                       blkGroupSize_,
-                                                       numBlockTileIteration_);
+            beta_grid_desc_m_k_ =
+                MakeSrc2dDescriptor(Lengths_, betaStrides_, blkGroupSize_, numBlockTileIteration_);
 
-            y_grid_desc_m_k_   = MakeSrc2dDescriptor(
-                Lengths_, yStrides_, blkGroupSize_, numBlockTileIteration_);
+            y_grid_desc_m_k_ =
+                MakeSrc2dDescriptor(Lengths_, yStrides_, blkGroupSize_, numBlockTileIteration_);
 
             sweep_once_ =
                 c_grid_desc_m_k_.GetLength(Number<1>{}) <= KThreadClusterSize * KThreadSliceSize;
 
-            if(!sweep_once_)  //if not sweep once, malloc memory for matrix c in global memory for store Intermediate results
-                hip_check_error(hipMalloc((void**)&p_c_, sizeof(CDataType) * c_grid_desc_m_k_.GetElementSpaceSize()));
+            if(!sweep_once_) // if not sweep once, malloc memory for matrix c in global memory for
+                             // store Intermediate results
+                hip_check_error(
+                    hipMalloc(reinterpret_cast<void**>(&p_c_),
+                              sizeof(CDataType) * c_grid_desc_m_k_.GetElementSpaceSize()));
         }
 
         AccDataType epsilon_;

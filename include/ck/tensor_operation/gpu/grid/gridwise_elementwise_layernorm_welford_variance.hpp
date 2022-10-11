@@ -152,10 +152,7 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
         auto in_thread_buf_tuple = generate_tuple(
             [&](auto) {
                 return generate_tuple(
-                    [&](auto I) {
-                        using DataTypePointer =
-                            remove_cvref_t<decltype(InDataTypePointerTuple{}[I])>;
-                        using DataType = remove_cv_t<remove_pointer_t<DataTypePointer>>;
+                    [&](auto) {
                         return StaticBuffer<AddressSpaceEnum::Vgpr,
                                             AccDataType,
                                             MThreadSliceSize * XSrcVectorSize,
@@ -372,9 +369,7 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
                         // get reference to dst data
                         auto out_data_refs = generate_tie(
                             // return type should be lvalue
-                            [&](auto I) -> auto& {
-                                return c_thread_buf(iK0)(Number<offset_m_k>{});
-                            },
+                            [&](auto) -> auto& { return c_thread_buf(iK0)(Number<offset_m_k>{}); },
                             I1);
 
                         unpack2(elementwise_op, out_data_refs, in_data_refs);
