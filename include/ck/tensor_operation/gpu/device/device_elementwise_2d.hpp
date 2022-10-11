@@ -250,26 +250,35 @@ struct DeviceElementwise
         if(pArg->lengths_.back() % MPerThread != 0)
             return false;
 
+	std::cout << "lengths back: " << pArg->lengths_.back() << std::endl;
+
         auto IsScalarPerVectorValid = [&](const std::array<index_t, NumDim>& lengths,
                                           const std::array<index_t, NumDim>& strides,
                                           index_t scalarPerVector) {
-            if(strides.back() == 1 && lengths.back() % scalarPerVector == 0)
-                return true;
+		std::cout << "scalarPerVector: " << scalarPerVector << std::endl;
+		std::cout << "stride back: " << strides.back() << std::endl;
+		std::cout << "ISPVV Check 1 starting" << std::endl;
+            if(strides.back() == 1 && lengths.back() % scalarPerVector == 0){
+                return true; }
+	    std::cout << "Check 1 failed " << std::endl;
 
-            if(strides.back() != 1 && scalarPerVector == 1)
-                return true;
+	    std::cout << "ISPVV Check 2 starting" << std::endl;
+            if(strides.back() != 1 && scalarPerVector == MPerThread){
+                return true; }
 
             return false;
         };
 
         bool valid = true;
         static_for<0, NumInput, 1>{}([&](auto I) {
+			std::cout<< "running: " << I << std::endl;
             if(!IsScalarPerVectorValid(
                    pArg->lengths_, pArg->inStridesArray_[I.value], InScalarPerVectorSeq::At(I)))
                 valid = false;
         });
 
         static_for<0, NumOutput, 1>{}([&](auto I) {
+			std::cout << "running 2: " << I << std::endl;
             if(!IsScalarPerVectorValid(
                    pArg->lengths_, pArg->outStridesArray_[I.value], OutScalarPerVectorSeq::At(I)))
                 valid = false;
