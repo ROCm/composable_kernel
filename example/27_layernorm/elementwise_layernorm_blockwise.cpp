@@ -79,7 +79,7 @@ int main()
 {
     bool time_kernel = true;
 
-    ck::index_t M      = 1024;
+    ck::index_t M      = 48 * 256;
     ck::index_t N      = 1024;
     ck::index_t Stride = N;
 
@@ -145,7 +145,14 @@ int main()
     auto invoker_ptr = device_instance.MakeInvokerPointer();
     float ela_time   = 0;
     ela_time         = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
-    std::cout << "Time elapase is : " << ela_time << " s . " << std::endl;
+
+    float data_mem_size = M * N * sizeof(ADataType) + M * N * sizeof(BDataType) +
+                          M * N * sizeof(YDataType) + N * sizeof(GammaDataType) +
+                          N * sizeof(BetaDataType);
+    float bandwidth = data_mem_size * 1000 / ela_time / 1024 / 1024 / 1024;
+
+    std::cout << "Bandwidth is : " << bandwidth << "GB/s . " << std::endl;
+    std::cout << "Time elapase is : " << ela_time << " ms . " << std::endl;
 
     bool pass = true;
     {
