@@ -63,8 +63,10 @@ using reduce_configuration_2_instances_blockwise = std::tuple<
     >;
 #endif
 
-template <ReduceTensorOp ReduceOpId>
+template <index_t Rank, index_t NumReduceDim, ReduceTensorOp ReduceOpId>
 using deviceReduceBlockWisePtrType = DeviceReducePtr<
+    Rank,
+    NumReduceDim,
     typename reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation,
     typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation>;
 
@@ -77,7 +79,7 @@ template <typename InDataType,
           bool PropagateNan,
           bool UseIndex>
 void add_device_reduce_instance_blockwise(
-    std::vector<deviceReduceBlockWisePtrType<ReduceOpId>>& device_op_instances)
+    std::vector<deviceReduceBlockWisePtrType<Rank, NumReduceDim, ReduceOpId>>& device_op_instances)
 {
     using ReduceOperation = typename reduce_binary_operator<ReduceOpId>::opType;
     using InElementwiseOperation =
@@ -128,29 +130,31 @@ void add_device_reduce_instance_blockwise(
         });
 };
 
-#define ADD_BLOCKWISE_INST(                                                   \
-    inT, compT, outT, ReduceOpId, PropagateNan, UseIndex, Rank, NumReduceDim) \
-    template void add_device_reduce_instance_blockwise<inT,                   \
-                                                       compT,                 \
-                                                       outT,                  \
-                                                       Rank,                  \
-                                                       NumReduceDim,          \
-                                                       ReduceOpId,            \
-                                                       PropagateNan,          \
-                                                       UseIndex>(             \
-        std::vector<deviceReduceBlockWisePtrType<ReduceOpId>> & device_op_instances)
+#define ADD_BLOCKWISE_INST(                                                         \
+    inT, compT, outT, ReduceOpId, PropagateNan, UseIndex, Rank, NumReduceDim)       \
+    template void add_device_reduce_instance_blockwise<inT,                         \
+                                                       compT,                       \
+                                                       outT,                        \
+                                                       Rank,                        \
+                                                       NumReduceDim,                \
+                                                       ReduceOpId,                  \
+                                                       PropagateNan,                \
+                                                       UseIndex>(                   \
+        std::vector<deviceReduceBlockWisePtrType<Rank, NumReduceDim, ReduceOpId>> & \
+        device_op_instances)
 
-#define ADD_BLOCKWISE_INST_REF(                                               \
-    inT, compT, outT, ReduceOpId, PropagateNan, UseIndex, Rank, NumReduceDim) \
-    extern template void add_device_reduce_instance_blockwise<inT,            \
-                                                              compT,          \
-                                                              outT,           \
-                                                              Rank,           \
-                                                              NumReduceDim,   \
-                                                              ReduceOpId,     \
-                                                              PropagateNan,   \
-                                                              UseIndex>(      \
-        std::vector<deviceReduceBlockWisePtrType<ReduceOpId>> & device_op_instances)
+#define ADD_BLOCKWISE_INST_REF(                                                     \
+    inT, compT, outT, ReduceOpId, PropagateNan, UseIndex, Rank, NumReduceDim)       \
+    extern template void add_device_reduce_instance_blockwise<inT,                  \
+                                                              compT,                \
+                                                              outT,                 \
+                                                              Rank,                 \
+                                                              NumReduceDim,         \
+                                                              ReduceOpId,           \
+                                                              PropagateNan,         \
+                                                              UseIndex>(            \
+        std::vector<deviceReduceBlockWisePtrType<Rank, NumReduceDim, ReduceOpId>> & \
+        device_op_instances)
 
 } // namespace instance
 } // namespace device

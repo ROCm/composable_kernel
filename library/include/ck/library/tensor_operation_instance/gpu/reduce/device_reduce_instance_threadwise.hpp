@@ -49,8 +49,10 @@ using reduce_configuration_2_instances_threadwise = std::tuple<
     >;
 #endif
 
-template <ReduceTensorOp ReduceOpId>
+template <index_t Rank, index_t NumReduceDim, ReduceTensorOp ReduceOpId>
 using deviceReduceThreadWisePtrType = DeviceReducePtr<
+    Rank,
+    NumReduceDim,
     typename reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation,
     typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation>;
 
@@ -63,7 +65,7 @@ template <typename InDataType,
           bool PropagateNan,
           bool UseIndex>
 void add_device_reduce_instance_threadwise(
-    std::vector<deviceReduceThreadWisePtrType<ReduceOpId>>& device_op_instances)
+    std::vector<deviceReduceThreadWisePtrType<Rank, NumReduceDim, ReduceOpId>>& device_op_instances)
 {
     using ReduceOperation = typename reduce_binary_operator<ReduceOpId>::opType;
     using InElementwiseOperation =
@@ -105,29 +107,31 @@ void add_device_reduce_instance_threadwise(
         });
 };
 
-#define ADD_THREADWISE_INST(                                                  \
-    inT, compT, outT, ReduceOpId, PropagateNan, UseIndex, Rank, NumReduceDim) \
-    template void add_device_reduce_instance_threadwise<inT,                  \
-                                                        compT,                \
-                                                        outT,                 \
-                                                        Rank,                 \
-                                                        NumReduceDim,         \
-                                                        ReduceOpId,           \
-                                                        PropagateNan,         \
-                                                        UseIndex>(            \
-        std::vector<deviceReduceThreadWisePtrType<ReduceOpId>> & device_op_instances)
+#define ADD_THREADWISE_INST(                                                         \
+    inT, compT, outT, ReduceOpId, PropagateNan, UseIndex, Rank, NumReduceDim)        \
+    template void add_device_reduce_instance_threadwise<inT,                         \
+                                                        compT,                       \
+                                                        outT,                        \
+                                                        Rank,                        \
+                                                        NumReduceDim,                \
+                                                        ReduceOpId,                  \
+                                                        PropagateNan,                \
+                                                        UseIndex>(                   \
+        std::vector<deviceReduceThreadWisePtrType<Rank, NumReduceDim, ReduceOpId>> & \
+        device_op_instances)
 
-#define ADD_THREADWISE_INST_REF(                                              \
-    inT, compT, outT, ReduceOpId, PropagateNan, UseIndex, Rank, NumReduceDim) \
-    extern template void add_device_reduce_instance_threadwise<inT,           \
-                                                               compT,         \
-                                                               outT,          \
-                                                               Rank,          \
-                                                               NumReduceDim,  \
-                                                               ReduceOpId,    \
-                                                               PropagateNan,  \
-                                                               UseIndex>(     \
-        std::vector<deviceReduceThreadWisePtrType<ReduceOpId>> & device_op_instances)
+#define ADD_THREADWISE_INST_REF(                                                     \
+    inT, compT, outT, ReduceOpId, PropagateNan, UseIndex, Rank, NumReduceDim)        \
+    extern template void add_device_reduce_instance_threadwise<inT,                  \
+                                                               compT,                \
+                                                               outT,                 \
+                                                               Rank,                 \
+                                                               NumReduceDim,         \
+                                                               ReduceOpId,           \
+                                                               PropagateNan,         \
+                                                               UseIndex>(            \
+        std::vector<deviceReduceThreadWisePtrType<Rank, NumReduceDim, ReduceOpId>> & \
+        device_op_instances)
 
 } // namespace instance
 } // namespace device
