@@ -240,9 +240,9 @@ int main()
     const auto wei_element_op = WeiElementOp{};
     const auto out_element_op = OutElementOp{0.5f, ActivationOp{}};
 
-    using InLayout  = decltype(ck::tensor_layout::convolution::GNHWC{});
-    using WeiLayout = decltype(ck::tensor_layout::convolution::GKYXC{});
-    using OutLayout = decltype(ck::tensor_layout::convolution::GNHWK{});
+    using InLayout  = ck::tensor_layout::convolution::GNHWC;
+    using WeiLayout = ck::tensor_layout::convolution::GKYXC;
+    using OutLayout = ck::tensor_layout::convolution::GNHWK;
 
     const auto in_g_n_c_wis_desc =
         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_param);
