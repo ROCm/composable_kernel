@@ -75,7 +75,10 @@ struct ThreadwiseWelford
     int max_count_;
 };
 
-template <typename T, typename SrcMeanVarCountThreadDesc_M_K, typename DstMeanVarThreadDesc_M>
+template <typename T,
+          typename SrcMeanVarCountThreadDesc_M_K,
+          typename DstMeanVarThreadDesc_M,
+          bool GetActualVariance = false>
 struct ThreadwiseWelfordMerge
 {
     static constexpr auto src_thread_desc_m_k = SrcMeanVarCountThreadDesc_M_K{};
@@ -122,6 +125,11 @@ struct ThreadwiseWelfordMerge
                       src_var_buf[Number<src_offset>{}],
                       src_count_buf[Number<src_offset>{}]);
             });
+
+            if constexpr(GetActualVariance)
+            {
+                dst_var_buf(iM) = dst_var_buf[iM] / dst_count_buf[iM];
+            };
         });
     };
 };
