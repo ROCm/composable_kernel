@@ -103,19 +103,22 @@ struct GridwiseElementwise_2D
 
         const index_t blockSize      = get_block_size();
         const index_t blockPerGrid_m = get_grid_size();
-        const index_t blockPerGrid_n = gridDim.y;
+        //const index_t blockPerGrid_n = gridDim.y;
         // const index_t block_1d       = get_block_1d_id();
 
         const auto M = in_grid_2d_desc_tuple[I0].GetLength(I0);
         const auto N = in_grid_2d_desc_tuple[I0].GetLength(I1);
 
         const index_t loop_step_m  = blockPerGrid_m * blockSize * MPerThread;
-        const index_t loop_step_n  = blockPerGrid_n * blockSize * NPerThread;
-        const auto loop_step_index = make_multi_index(loop_step_m, loop_step_n);
+        const index_t loop_step_n  = blockPerGrid_m * blockSize * NPerThread;
+        const auto loop_step_index_m = make_multi_index(loop_step_m, 0);
+	const auto loop_step_index_n = make_multi_index(0, loop_step_n);
 
 	const index_t thread_1d_id = get_thread_global_1d_id();
-        index_t tid_m                   = thread_1d_id/N;
-        index_t tid_n                   = thread_1d_id/M;
+        index_t tid_m                   = thread_1d_id/(N/NPerThread);
+        index_t tid_n                   = thread_1d_id%(N/NPerThread);
+	//index_t tid_m = thread_1d_id;
+	//index_t tid_n = blockDim.y * blockIdx.y + threadIdx.y;
         const auto thread_global_offset = make_multi_index(tid_m* MPerThread, tid_n* NPerThread);
         //  make_multi_index(thread_global_id_2d[I0] * MPerThread, thread_global_id_2d[I1] *
         //  NPerThread);
@@ -174,7 +177,7 @@ struct GridwiseElementwise_2D
                                                 in_thread_buf_tuple(I));
 
                     in_global_load_tuple(I).MoveSrcSliceWindow(in_grid_2d_desc_tuple[I],
-                                                               loop_step_index);
+                                                               loop_step_index_n);
                 });
 
                 static_for<0, MPerThread, 1>{}([&](auto iM) {
@@ -208,9 +211,15 @@ struct GridwiseElementwise_2D
                                                   out_global_buf_tuple(I));
 
                     out_global_store_tuple(I).MoveDstSliceWindow(out_grid_2d_desc_tuple[I],
-                                                                 loop_step_index);
+                                                                 loop_step_index_n);
                 });
             } while(--num_iter_n);
+	    static_for<0, NumInput, 1>{}([&](auto I) {
+			    in_global_load_tuple(I).MoveSrcSliceWindow(in_grid_2d_desc_tuple[I], loop_step_index_m);
+	    });
+	    static_for<0, NumOutput, 1>{}([&](auto I){
+			    out_global_store_tuple(I).MoveDstSliceWindow(out_grid_2d_desc_tuple[I], loop_step_index_m);
+	    });
         } while(--num_iter_m);
     }
 };
