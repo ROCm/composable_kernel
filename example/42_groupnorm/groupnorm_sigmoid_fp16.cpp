@@ -55,26 +55,26 @@ using DeviceInstance =
                                                       YElementOp,
                                                       Rank,
                                                       NumReduceDim,
-                                                      256, // BlockSize
-                                                      8,   // ClusterM
-                                                      32,  // ClusterK
-                                                      1,   // SliceM
-                                                      8,   // SliceK
-                                                      1,   // SrcVecDim (0=M, 1=K)
-                                                      8,   // SrcScalarPerVector
-                                                      1,   // GammaVecDim (0=M, 1=K)
-                                                      8,   // GammaScalarPerVector
-                                                      1,   // BetaVecDim (0=M, 1=K)
-                                                      8,   // BetaScalarPerVector
-                                                      8>;  // OutScalarPerVector
+                                                      1024, // BlockSize
+                                                      1,    // ClusterM
+                                                      1024, // ClusterK
+                                                      1,    // SliceM
+                                                      32,   // SliceK
+                                                      1,    // SrcVecDim (0=M, 1=K)
+                                                      2,    // SrcScalarPerVector
+                                                      1,    // GammaVecDim (0=M, 1=K)
+                                                      2,    // GammaScalarPerVector
+                                                      1,    // BetaVecDim (0=M, 1=K)
+                                                      2,    // BetaScalarPerVector
+                                                      2>;   // OutScalarPerVector
 
 int main(int argc, char* argv[])
 {
-    ck::index_t N = 128;
-    ck::index_t H = 16;
-    ck::index_t W = 16;
+    ck::index_t N = 2;
+    ck::index_t H = 32;
+    ck::index_t W = 32;
     ck::index_t G = 32;
-    ck::index_t C = 40;
+    ck::index_t C = 30;
 
     if(argc == 1)
     {
