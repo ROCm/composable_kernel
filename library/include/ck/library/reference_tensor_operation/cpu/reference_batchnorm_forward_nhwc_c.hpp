@@ -154,13 +154,14 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C
                 // update the moving average if required
                 if(arg.resultRunning)
                 {
+                    AccDataType oneMinusAverageFactor =
+                        type_convert<AccDataType>(1.0) - arg.averageFactor_;
                     arg.resultRunningMean_[iC] = type_convert<MeanVarDataType>(
                         type_convert<AccDataType>(arg.resultRunningMean_[iC]) *
-                            (type_convert<AccDataType>(1.0) - arg.averageFactor_) +
+                            oneMinusAverageFactor +
                         mean * arg.averageFactor_);
                     arg.resultRunningVariance_[iC] = type_convert<MeanVarDataType>(
-                        arg.resultRunningVariance_[iC] *
-                            (type_convert<AccDataType>(1.0) - arg.averageFactor_) +
+                        arg.resultRunningVariance_[iC] * oneMinusAverageFactor +
                         variance * arg.averageFactor_);
                 };
 
