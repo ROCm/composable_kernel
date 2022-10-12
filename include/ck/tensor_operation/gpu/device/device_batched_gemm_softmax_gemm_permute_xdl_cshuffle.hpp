@@ -117,7 +117,6 @@ __global__ void
 // Computes C = A * B0 * B1
 //              ^^^^^^ (Acc0)
 //              ^^^^^^^^^^^ (Acc1)
-// TODO ANT: add bias after A * B0
 template <index_t NumDimG,
           index_t NumDimM,
           index_t NumDimN,
@@ -679,12 +678,6 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
              b1_extent_lowest % B1BlockTransferSrcScalarPerVector == 0 &&
              c_extent_lowest % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
         {
-            // printf("a_extent_lowest = %d, b_extent_lowest = %d, b1_extent_lowest = %d, "
-            //        "c_extent_lowest = %d\n",
-            //        a_extent_lowest,
-            //        b_extent_lowest,
-            //        b1_extent_lowest,
-            //        c_extent_lowest);
             return false;
         }
 
@@ -701,12 +694,6 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         if(!(a_stride_lowest == 1 || b_stride_lowest == 1 || b1_stride_lowest == 1 ||
              c_stride_lowest == 1))
         {
-            // printf("a_stride_lowest = %d, b_stride_lowest = %d, b1_stride_lowest = %d, "
-            //        "c_stride_lowest = %d\n",
-            //        a_stride_lowest,
-            //        b_stride_lowest,
-            //        b1_stride_lowest,
-            //        c_stride_lowest);
             return false;
         }
 

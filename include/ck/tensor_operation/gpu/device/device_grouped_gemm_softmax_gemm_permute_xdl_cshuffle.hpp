@@ -694,7 +694,6 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
             const auto& device_arg = arg.group_device_args_[i];
 
             // Check if C permute dimension matches GEMM + GEMM shape
-            // TODO ANT: should outright throw an exception when not match
             const index_t c_m       = device_arg.c_grid_desc_m_n_.GetLength(I0);
             const index_t c_gemm1n  = device_arg.c_grid_desc_m_n_.GetLength(I1);
             const index_t a_m       = kernel_arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
@@ -729,12 +728,6 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                  b1_extent_lowest % B1BlockTransferSrcScalarPerVector == 0 &&
                  c_extent_lowest % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
             {
-                printf("a_extent_lowest = %d, b_extent_lowest = %d, b1_extent_lowest = %d, "
-                       "c_extent_lowest = %d\n",
-                       a_extent_lowest,
-                       b_extent_lowest,
-                       b1_extent_lowest,
-                       c_extent_lowest);
                 return false;
             }
 
@@ -755,12 +748,6 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
             if(!(a_stride_lowest == 1 || b_stride_lowest == 1 || b1_stride_lowest == 1 ||
                  c_stride_lowest == 1))
             {
-                printf("a_stride_lowest = %d, b_stride_lowest = %d, b1_stride_lowest = %d, "
-                       "c_stride_lowest = %d\n",
-                       a_stride_lowest,
-                       b_stride_lowest,
-                       b1_stride_lowest,
-                       c_stride_lowest);
                 return false;
             }
 
