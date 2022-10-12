@@ -277,6 +277,28 @@ struct Activation_Mul_Clamp
     Activation activationOp_;
 };
 
+// For Activation function which is piecewise linear function, such as relu, leaky relu ...etc
+template <typename Activation>
+struct Add_Activation_Mul_Clamp
+{
+    Add_Activation_Mul_Clamp(float multiplier, Activation activationOp)
+        : multiplier_(multiplier), activationOp_(activationOp)
+    {
+    }
+
+    __host__ __device__ constexpr void
+    operator()(int8_t& y, const int32_t& x1, const int32_t& x2) const
+    {
+        float y_fp32 = ck::type_convert<float>(x1 + x2);
+        activationOp_(y_fp32, y_fp32);
+        y_fp32 = math::clamp(multiplier_ * y_fp32, -128.f, 127.f);
+        y      = ck::type_convert<int8_t>(y_fp32);
+    }
+
+    float multiplier_;
+    Activation activationOp_;
+};
+
 } // namespace element_wise
 } // namespace tensor_operation
 } // namespace ck
