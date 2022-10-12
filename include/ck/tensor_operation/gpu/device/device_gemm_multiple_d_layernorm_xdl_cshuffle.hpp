@@ -13,6 +13,7 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_welford_first_half_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_welford_second_half_layernorm2d.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "device_base.hpp"
@@ -98,6 +99,23 @@ __global__ void
     ignore = g_grid_desc_mblock_mperblock_nblock;
     ignore = block_2_etile_map;
 #endif
+}
+
+template <typename GridwiseWelfordLayernorm,
+          typename XDataType,
+          typename YDataType,
+          typename MeanDataType,
+          typename VarDataType>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+        kernel_welford_layernorm2d_second_half(const XDataType* __restrict__ p_x_grid,
+                                               const MeanDataType* __restrict__ p_mean_grid,
+                                               const VarDataType* __restrict__ p_var_grid,
+                                               YDataType* __restrict__ p_y_grid)
+{
+    GridwiseWelfordLayernorm::Run(p_x_grid, p_mean_grid, p_var_grid, p_y_grid);
 }
 
 } // namespace ck
@@ -309,6 +327,9 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
 
     using Block2ETileMap = typename GridwiseGemm::DefaultBlock2ETileMap;
 
+    using GridwiseWelfordLayernorm =
+        GridwiseWelfordSecondHalfLayernorm2d<EDataType, HDataType, FDataType, GDataType>;
+
     // Argument
     struct Argument : public BaseArgument
     {
@@ -459,7 +480,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            // TODO
+            float avg_time = 0;
+
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
                                             arg.b_grid_desc_n_k_,
                                             arg.ds_grid_desc_m_n_,
@@ -480,46 +502,67 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle : public BaseOperator
             auto launch_kernel = [&](auto has_main_k_block_loop) {
                 constexpr bool has_main_loop = has_main_k_block_loop.value;
 
-                const auto kernel = kernel_gemm_multiple_d_welford_first_half_xdl_cshuffle<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    typename GridwiseGemm::DsGridPointer,
-                    EDataType,
-                    FDataType,
-                    GDataType,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CDEElementwiseOperation,
-                    typename GridwiseGemm::DefaultAGridDesc_AK0_M_AK1,
-                    typename GridwiseGemm::DefaultBGridDesc_BK0_N_BK1,
-                    typename GridwiseGemm::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    typename GridwiseGemm::FGridDescriptor_MBlock_MPerBlock_NBlock,
-                    typename GridwiseGemm::GGridDescriptor_MBlock_MPerBlock_NBlock,
-                    typename GridwiseGemm::DefaultBlock2ETileMap,
-                    has_main_loop>;
+                const auto kernel_gemm_welford =
+                    kernel_gemm_multiple_d_welford_first_half_xdl_cshuffle<
+                        GridwiseGemm,
+                        ADataType, // TODO: distiguish A/B datatype
+                        typename GridwiseGemm::DsGridPointer,
+                        EDataType,
+                        FDataType,
+                        GDataType,
+                        AElementwiseOperation,
+                        BElementwiseOperation,
+                        CDEElementwiseOperation,
+                        typename GridwiseGemm::DefaultAGridDesc_AK0_M_AK1,
+                        typename GridwiseGemm::DefaultBGridDesc_BK0_N_BK1,
+                        typename GridwiseGemm::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                        typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                        typename GridwiseGemm::FGridDescriptor_MBlock_MPerBlock_NBlock,
+                        typename GridwiseGemm::GGridDescriptor_MBlock_MPerBlock_NBlock,
+                        typename GridwiseGemm::DefaultBlock2ETileMap,
+                        has_main_loop>;
 
-                return launch_and_time_kernel(stream_config,
-                                              kernel,
-                                              dim3(grid_size),
-                                              dim3(BlockSize),
-                                              0,
-                                              arg.p_a_grid_,
-                                              arg.p_b_grid_,
-                                              arg.p_ds_grid_,
-                                              arg.p_e_grid_,
-                                              arg.p_f_grid_,
-                                              arg.p_g_grid_,
-                                              arg.a_element_op_,
-                                              arg.b_element_op_,
-                                              arg.cde_element_op_,
-                                              arg.a_grid_desc_ak0_m_ak1_,
-                                              arg.b_grid_desc_bk0_n_bk1_,
-                                              arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                              arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                              arg.f_grid_desc_mblock_mperblock_nblock_,
-                                              arg.g_grid_desc_mblock_mperblock_nblock_,
-                                              arg.block_2_etile_map_);
+                const auto kernel_welford_layernorm =
+                    kernel_welford_layernorm2d_second_half<GridwiseWelfordLayernorm,
+                                                           EDataType,
+                                                           HDataType,
+                                                           FDataType,
+                                                           GDataType>;
+
+                avg_time +=
+                    launch_and_time_kernel(stream_config,
+                                           kernel_gemm_welford,
+                                           dim3(grid_size),
+                                           dim3(BlockSize),
+                                           0,
+                                           arg.p_a_grid_,
+                                           arg.p_b_grid_,
+                                           arg.p_ds_grid_,
+                                           arg.p_e_grid_,
+                                           arg.p_f_grid_,
+                                           arg.p_g_grid_,
+                                           arg.a_element_op_,
+                                           arg.b_element_op_,
+                                           arg.cde_element_op_,
+                                           arg.a_grid_desc_ak0_m_ak1_,
+                                           arg.b_grid_desc_bk0_n_bk1_,
+                                           arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                           arg.f_grid_desc_mblock_mperblock_nblock_,
+                                           arg.g_grid_desc_mblock_mperblock_nblock_,
+                                           arg.block_2_etile_map_);
+
+                avg_time += launch_and_time_kernel(stream_config,
+                                                   kernel_welford_layernorm,
+                                                   dim3(grid_size),
+                                                   dim3(BlockSize),
+                                                   0,
+                                                   arg.p_e_grid_,
+                                                   arg.p_f_grid_,
+                                                   arg.p_g_grid_,
+                                                   arg.p_h_grid_);
+
+                return avg_time;
             };
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
