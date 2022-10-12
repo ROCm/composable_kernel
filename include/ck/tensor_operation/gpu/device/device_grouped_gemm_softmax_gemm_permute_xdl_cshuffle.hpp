@@ -55,8 +55,8 @@ __global__ void
     index_t right    = group_count;
     index_t group_id = index_t((left + right) / 2);
 
-    while((!(block_id >= arg_ptr[group_id].block_start_ &&
-             block_id < arg_ptr[group_id].block_end_)))
+    while(
+        (!(block_id >= arg_ptr[group_id].block_start_ && block_id < arg_ptr[group_id].block_end_)))
     {
         if(block_id < arg_ptr[group_id].block_start_)
         {
@@ -217,25 +217,24 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
     static constexpr index_t NumDimGemm1K = NumDimN;
 #endif
 
-    using DeviceOp = DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle;
-    using ProblemDesc =
-        typename DeviceGroupedGemmSoftmaxGemmPermute<NumDimG,
-                                                     NumDimM,
-                                                     NumDimN,
-                                                     NumDimK,
-                                                     NumDimO,
-                                                     ADataType,
-                                                     BDataType,
-                                                     B1DataType,
-                                                     CDataType,
-                                                     Acc0BiasDataType,
-                                                     Acc1BiasDataType,
-                                                     AElementwiseOperation,
-                                                     BElementwiseOperation,
-                                                     AccElementwiseOperation,
-                                                     B1ElementwiseOperation,
-                                                     CElementwiseOperation,
-                                                     MaskingSpec>::ProblemDesc;
+    using DeviceOp    = DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle;
+    using ProblemDesc = typename DeviceGroupedGemmSoftmaxGemmPermute<NumDimG,
+                                                                     NumDimM,
+                                                                     NumDimN,
+                                                                     NumDimK,
+                                                                     NumDimO,
+                                                                     ADataType,
+                                                                     BDataType,
+                                                                     B1DataType,
+                                                                     CDataType,
+                                                                     Acc0BiasDataType,
+                                                                     Acc1BiasDataType,
+                                                                     AElementwiseOperation,
+                                                                     BElementwiseOperation,
+                                                                     AccElementwiseOperation,
+                                                                     B1ElementwiseOperation,
+                                                                     CElementwiseOperation,
+                                                                     MaskingSpec>::ProblemDesc;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -517,9 +516,9 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
 
                 const index_t BlockStart     = grid_size_;
                 const auto block_2_ctile_map = Block2CTileMap(c_grid_desc_m_n, BlockStart);
-                const index_t batch_count = c_grid_desc_g_m_n.GetLength(I0);
-                const index_t grid_size_grp = block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n) *
-                                              batch_count;
+                const index_t batch_count    = c_grid_desc_g_m_n.GetLength(I0);
+                const index_t grid_size_grp =
+                    block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n) * batch_count;
                 const index_t BlockEnd = grid_size_ + grid_size_grp;
 
                 // batch stride
@@ -720,10 +719,10 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
             const auto Gemm1NzRaw = device_arg.raw_lengths_mz_nz_kz_gemm1nz_[3];
 
             // Check scalar per vector requirement
-            const auto a_extent_lowest = ABlockTransferSrcVectorDim == 2 ? KzRaw : MzRaw;
-            const auto b_extent_lowest = BBlockTransferSrcVectorDim == 2 ? KzRaw : NzRaw;
+            const auto a_extent_lowest  = ABlockTransferSrcVectorDim == 2 ? KzRaw : MzRaw;
+            const auto b_extent_lowest  = BBlockTransferSrcVectorDim == 2 ? KzRaw : NzRaw;
             const auto b1_extent_lowest = B1BlockTransferSrcVectorDim == 2 ? NzRaw : Gemm1NzRaw;
-            const auto c_extent_lowest = Gemm1NzRaw;
+            const auto c_extent_lowest  = Gemm1NzRaw;
 
             if(!(a_extent_lowest % ABlockTransferSrcScalarPerVector == 0 &&
                  b_extent_lowest % BBlockTransferSrcScalarPerVector == 0 &&
@@ -740,12 +739,12 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
             }
 
             // Check vector load/store requirement
-            const auto a_stride_lowest  = ABlockTransferSrcVectorDim == 2
-                                              ? device_arg.a_mz_kz_strides_[1]
-                                              : device_arg.a_mz_kz_strides_[0];
-            const auto b_stride_lowest  = BBlockTransferSrcVectorDim == 2
-                                              ? device_arg.b_nz_kz_strides_[1]
-                                              : device_arg.b_nz_kz_strides_[0];
+            const auto a_stride_lowest = ABlockTransferSrcVectorDim == 2
+                                             ? device_arg.a_mz_kz_strides_[1]
+                                             : device_arg.a_mz_kz_strides_[0];
+            const auto b_stride_lowest = BBlockTransferSrcVectorDim == 2
+                                             ? device_arg.b_nz_kz_strides_[1]
+                                             : device_arg.b_nz_kz_strides_[0];
             const auto b1_stride_lowest = B1BlockTransferSrcVectorDim == 2
                                               ? device_arg.b1_nz_kz_strides_[1]
                                               : device_arg.b1_nz_kz_strides_[0];
