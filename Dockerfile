@@ -1,8 +1,8 @@
 FROM ubuntu:20.04
 
-ARG ROCMVERSION=5.2.3
-ARG compiler_version
-ARG compiler_commit
+ARG ROCMVERSION=5.3
+ARG compiler_version="release"
+ARG compiler_commit=""
 
 RUN set -xe
 
@@ -19,6 +19,7 @@ RUN sh -c "echo deb http://mirrors.kernel.org/ubuntu focal main universe | tee -
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     apt-utils \
     build-essential \
+    ccache \
     cmake-data \
     cmake \
     curl \
