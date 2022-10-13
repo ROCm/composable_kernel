@@ -10,7 +10,7 @@
 #include "ck/tensor_operation/gpu/device/device_normalization.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/layernorm.hpp"
+#include "ck/library/tensor_operation_instance/gpu/normalization.hpp"
 
 using XDataType     = ck::half_t;
 using GammaDataType = ck::half_t;
@@ -51,14 +51,14 @@ int main(int argc, char* argv[])
     SimpleDeviceMem beta_device_buf(sizeof(BetaDataType) * N);
     SimpleDeviceMem y_device_buf(sizeof(YDataType) * xy_size);
 
-    using DeviceOp = ck::tensor_operation::device::DeviceLayernorm<XDataType,
-                                                                   GammaDataType,
-                                                                   BetaDataType,
-                                                                   AccDataType,
-                                                                   YDataType,
-                                                                   PassThrough,
-                                                                   Rank,
-                                                                   NumReduceDim>;
+    using DeviceOp = ck::tensor_operation::device::DeviceNormalization<XDataType,
+                                                                       GammaDataType,
+                                                                       BetaDataType,
+                                                                       AccDataType,
+                                                                       YDataType,
+                                                                       PassThrough,
+                                                                       Rank,
+                                                                       NumReduceDim>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
