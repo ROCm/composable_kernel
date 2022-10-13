@@ -273,7 +273,6 @@ int main()
     const auto wei_g_k_c_xs_desc =
         ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(conv_param);
 
-
     // TODO - make_bias_host_tensor_descriptor_g_n_k_wos_packed()
     const auto bias_g_k_desc = HostTensorDescriptor({conv_param.G_,
                                                      conv_param.N_,
