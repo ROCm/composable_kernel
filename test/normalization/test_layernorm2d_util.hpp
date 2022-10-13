@@ -9,7 +9,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/number.hpp"
-#include "ck/tensor_operation/gpu/device/device_normalization_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_normalization_impl.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/host_tensor.hpp"

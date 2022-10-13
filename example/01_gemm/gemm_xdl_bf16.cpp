@@ -3,7 +3,7 @@
 
 #include "common.hpp"
 
-#include "ck/tensor_operation/gpu/device/device_gemm_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle.hpp"
 
 using ADataType        = ck::bhalf_t;
 using BDataType        = ck::bhalf_t;
