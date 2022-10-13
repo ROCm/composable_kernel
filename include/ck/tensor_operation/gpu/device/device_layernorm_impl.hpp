@@ -23,11 +23,10 @@ template <typename GridwiseReduction,
           typename YDataType,
           typename AccDataType,
           typename AccElementwiseOperation,
-          typename GridDesc_M_K,
-          typename GridDesc_K>
+          typename GridDesc_M_K>
 __global__ void kernel_layernorm(const GridDesc_M_K x_grid_desc_m_k,
-                                 const GridDesc_K gamma_grid_desc_k,
-                                 const GridDesc_K beta_grid_desc_k,
+                                 const GridDesc_M_K gamma_grid_desc_m_k,
+                                 const GridDesc_M_K beta_grid_desc_m_k,
                                  const GridDesc_M_K y_grid_desc_m_k,
                                  index_t num_k_block_tile_iteration,
                                  AccDataType epsilon,
@@ -38,8 +37,8 @@ __global__ void kernel_layernorm(const GridDesc_M_K x_grid_desc_m_k,
                                  const AccElementwiseOperation acc_elementwise_op)
 {
     GridwiseReduction::Run(x_grid_desc_m_k,
-                           gamma_grid_desc_k,
-                           beta_grid_desc_k,
+                           gamma_grid_desc_m_k,
+                           beta_grid_desc_m_k,
                            y_grid_desc_m_k,
                            num_k_block_tile_iteration,
                            epsilon,
@@ -71,7 +70,9 @@ template <typename XDataType,
           index_t KThreadSliceSize,
           index_t XYSrcVectorDim,
           index_t XSrcVectorSize,
+          index_t GammaSrcVectorDim,
           index_t GammaSrcVectorSize,
+          index_t BetaSrcVectorDim,
           index_t BetaSrcVectorSize,
           index_t YDstVectorSize>
 struct DeviceLayernormImpl : public DeviceLayernorm<XDataType,
@@ -84,11 +85,13 @@ struct DeviceLayernormImpl : public DeviceLayernorm<XDataType,
                                                     NumReduceDim>
 {
     static_assert(
-        (KThreadSliceSize % GammaSrcVectorSize == 0),
+        ((GammaSrcVectorDim == 0 && MThreadSliceSize % GammaSrcVectorSize == 0) ||
+         (GammaSrcVectorDim == 1 && KThreadSliceSize % GammaSrcVectorSize == 0)),
         "Invalid thread slice sizes and/or gamma vector sizes configuration, please check!");
 
     static_assert(
-        (KThreadSliceSize % BetaSrcVectorSize == 0),
+        ((BetaSrcVectorDim == 0 && MThreadSliceSize % BetaSrcVectorSize == 0) ||
+         (BetaSrcVectorDim == 1 && KThreadSliceSize % BetaSrcVectorSize == 0)),
         "Invalid thread slice sizes and/or beta vector sizes configuration, please check!");
 
     using PassThrough = tensor_operation::element_wise::PassThrough;
@@ -162,38 +165,7 @@ struct DeviceLayernormImpl : public DeviceLayernorm<XDataType,
         return (in_grid_desc_m_k_padded);
     };
 
-    static auto MakeAffine1dDescriptor(const std::vector<index_t>& Lengths,
-                                       const std::vector<index_t>& Strides,
-                                       int blkGroupSize,
-                                       int numBlockTileIteration)
-    {
-        const auto tupleLengths = make_tuple_from_array(Lengths, Number<NumReduceDim>{});
-        const auto tupleStrides = make_tuple_from_array(Strides, Number<NumReduceDim>{});
-
-        auto desc = make_naive_tensor_descriptor(tupleLengths, tupleStrides);
-
-        auto grid_desc_k = transform_tensor_descriptor(
-            desc,
-            make_tuple(make_merge_transform(tupleLengths)),
-            make_tuple(typename arithmetic_sequence_gen<0, NumReduceDim, 1>::type{}),
-            make_tuple(Sequence<0>{}));
-
-        const auto reduceTotalLength = grid_desc_k.GetLength(Number<0>{});
-        const int reduceSizePerBlock = K_BlockTileSize * numBlockTileIteration;
-
-        const auto Pad_K = reduceSizePerBlock * blkGroupSize - reduceTotalLength;
-
-        auto grid_desc_k_padded = transform_tensor_descriptor(
-            grid_desc_k,
-            make_tuple(make_right_pad_transform(reduceTotalLength, Pad_K)),
-            make_tuple(Sequence<0>{}),
-            make_tuple(Sequence<0>{}));
-
-        return (grid_desc_k_padded);
-    };
-
     using GridDesc_M_K = decltype(MakeSrc2dDescriptor({1}, {1}, 1, 1));
-    using GridDesc_K   = decltype(MakeAffine1dDescriptor({1}, {1}, 1, 1));
 
     using GridwiseReduceLayernormGeneric =
         GridwiseLayernormWelfordVariance_mk_to_mk<XDataType,
@@ -203,7 +175,6 @@ struct DeviceLayernormImpl : public DeviceLayernorm<XDataType,
                                                   AccDataType,
                                                   AccElementwiseOperation,
                                                   GridDesc_M_K,
-                                                  GridDesc_K,
                                                   BlockSize,
                                                   MThreadClusterSize,
                                                   KThreadClusterSize,
@@ -211,12 +182,13 @@ struct DeviceLayernormImpl : public DeviceLayernorm<XDataType,
                                                   KThreadSliceSize,
                                                   XYSrcVectorDim,
                                                   XSrcVectorSize,
+                                                  GammaSrcVectorDim,
                                                   GammaSrcVectorSize,
+                                                  BetaSrcVectorDim,
                                                   BetaSrcVectorSize,
                                                   XYSrcVectorDim,
                                                   YDstVectorSize,
                                                   false>;
-
     using GridwiseReduceLayernormSweepOnce =
         GridwiseLayernormWelfordVariance_mk_to_mk<XDataType,
                                                   GammaDataType,
@@ -225,7 +197,6 @@ struct DeviceLayernormImpl : public DeviceLayernorm<XDataType,
                                                   AccDataType,
                                                   AccElementwiseOperation,
                                                   GridDesc_M_K,
-                                                  GridDesc_K,
                                                   BlockSize,
                                                   MThreadClusterSize,
                                                   KThreadClusterSize,
@@ -233,7 +204,9 @@ struct DeviceLayernormImpl : public DeviceLayernorm<XDataType,
                                                   KThreadSliceSize,
                                                   XYSrcVectorDim,
                                                   XSrcVectorSize,
+                                                  GammaSrcVectorDim,
                                                   GammaSrcVectorSize,
+                                                  BetaSrcVectorDim,
                                                   BetaSrcVectorSize,
                                                   XYSrcVectorDim,
                                                   YDstVectorSize,
@@ -258,13 +231,13 @@ struct DeviceLayernormImpl : public DeviceLayernorm<XDataType,
               p_gamma_(p_gamma),
               p_beta_(p_beta),
               p_y_(p_y),
-              gammaStrides_(gammaStrides),
-              betaStrides_(betaStrides),
               acc_elementwise_op_(acc_elementwise_op)
         {
-            Lengths_  = shuffle_tensor_dimensions<Rank, NumReduceDim>(lengths, reduceDims);
-            xStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(xStrides, reduceDims);
-            yStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(yStrides, reduceDims);
+            Lengths_      = shuffle_tensor_dimensions<Rank, NumReduceDim>(lengths, reduceDims);
+            xStrides_     = shuffle_tensor_dimensions<Rank, NumReduceDim>(xStrides, reduceDims);
+            yStrides_     = shuffle_tensor_dimensions<Rank, NumReduceDim>(yStrides, reduceDims);
+            gammaStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(gammaStrides, reduceDims);
+            betaStrides_  = shuffle_tensor_dimensions<Rank, NumReduceDim>(betaStrides, reduceDims);
 
             long_index_t invariant_total_length;
             long_index_t reduce_total_length;
@@ -278,12 +251,17 @@ struct DeviceLayernormImpl : public DeviceLayernorm<XDataType,
             gridSize_ = math::integer_least_multiple(invariant_total_length, M_BlockTileSize) /
                         M_BlockTileSize * blkGroupSize_;
 
-            reduceLengths_.resize(NumReduceDim);
+            x_grid_desc_m_k_ =
+                MakeSrc2dDescriptor(Lengths_, xStrides_, blkGroupSize_, numBlockTileIteration_);
+            gamma_grid_desc_m_k_ =
+                MakeSrc2dDescriptor(Lengths_, gammaStrides_, blkGroupSize_, numBlockTileIteration_);
+            beta_grid_desc_m_k_ =
+                MakeSrc2dDescriptor(Lengths_, betaStrides_, blkGroupSize_, numBlockTileIteration_);
+            y_grid_desc_m_k_ =
+                MakeSrc2dDescriptor(Lengths_, yStrides_, blkGroupSize_, numBlockTileIteration_);
 
-            for(int i = 0; i < NumReduceDim; ++i)
-            {
-                reduceLengths_[i] = lengths[reduceDims[i]];
-            }
+            isSweeponce_ =
+                x_grid_desc_m_k_.GetLength(Number<1>{}) <= KThreadClusterSize * KThreadSliceSize;
         }
 
         AccDataType epsilon_;
@@ -295,7 +273,6 @@ struct DeviceLayernormImpl : public DeviceLayernorm<XDataType,
 
         std::vector<index_t> Lengths_;
         std::vector<index_t> xStrides_;
-        std::vector<index_t> reduceLengths_;
         std::vector<index_t> gammaStrides_;
         std::vector<index_t> betaStrides_;
         std::vector<index_t> yStrides_;
@@ -305,46 +282,35 @@ struct DeviceLayernormImpl : public DeviceLayernorm<XDataType,
         int blkGroupSize_;
         int numBlockTileIteration_;
         size_t gridSize_;
+
+        GridDesc_M_K x_grid_desc_m_k_;
+        GridDesc_M_K gamma_grid_desc_m_k_;
+        GridDesc_M_K beta_grid_desc_m_k_;
+        GridDesc_M_K y_grid_desc_m_k_;
+        bool isSweeponce_;
     };
 
     struct Invoker : public BaseInvoker
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            const auto x_grid_desc_m_k = MakeSrc2dDescriptor(
-                arg.Lengths_, arg.xStrides_, arg.blkGroupSize_, arg.numBlockTileIteration_);
-            const auto gamma_grid_desc_k = MakeAffine1dDescriptor(arg.reduceLengths_,
-                                                                  arg.gammaStrides_,
-                                                                  arg.blkGroupSize_,
-                                                                  arg.numBlockTileIteration_);
-            const auto beta_grid_desc_k  = MakeAffine1dDescriptor(arg.reduceLengths_,
-                                                                 arg.betaStrides_,
-                                                                 arg.blkGroupSize_,
-                                                                 arg.numBlockTileIteration_);
-            const auto y_grid_desc_m_k   = MakeSrc2dDescriptor(
-                arg.Lengths_, arg.yStrides_, arg.blkGroupSize_, arg.numBlockTileIteration_);
-
-            bool sweep_once =
-                x_grid_desc_m_k.GetLength(Number<1>{}) <= KThreadClusterSize * KThreadSliceSize;
-
-            const auto kernel_main = sweep_once ? kernel_layernorm<GridwiseReduceLayernormSweepOnce,
-                                                                   XDataType,
-                                                                   GammaDataType,
-                                                                   BetaDataType,
-                                                                   YDataType,
-                                                                   AccDataType,
-                                                                   AccElementwiseOperation,
-                                                                   GridDesc_M_K,
-                                                                   GridDesc_K>
-                                                : kernel_layernorm<GridwiseReduceLayernormGeneric,
-                                                                   XDataType,
-                                                                   GammaDataType,
-                                                                   BetaDataType,
-                                                                   YDataType,
-                                                                   AccDataType,
-                                                                   AccElementwiseOperation,
-                                                                   GridDesc_M_K,
-                                                                   GridDesc_K>;
+            const auto kernel_main = arg.isSweeponce_
+                                         ? kernel_layernorm<GridwiseReduceLayernormSweepOnce,
+                                                            XDataType,
+                                                            GammaDataType,
+                                                            BetaDataType,
+                                                            YDataType,
+                                                            AccDataType,
+                                                            AccElementwiseOperation,
+                                                            GridDesc_M_K>
+                                         : kernel_layernorm<GridwiseReduceLayernormGeneric,
+                                                            XDataType,
+                                                            GammaDataType,
+                                                            BetaDataType,
+                                                            YDataType,
+                                                            AccDataType,
+                                                            AccElementwiseOperation,
+                                                            GridDesc_M_K>;
 
             float avg_time = 0;
             avg_time += launch_and_time_kernel(stream_config,
@@ -352,10 +318,10 @@ struct DeviceLayernormImpl : public DeviceLayernorm<XDataType,
                                                dim3(arg.gridSize_),
                                                dim3(BlockSize),
                                                0,
-                                               x_grid_desc_m_k,
-                                               gamma_grid_desc_k,
-                                               beta_grid_desc_k,
-                                               y_grid_desc_m_k,
+                                               arg.x_grid_desc_m_k_,
+                                               arg.gamma_grid_desc_m_k_,
+                                               arg.beta_grid_desc_m_k_,
+                                               arg.y_grid_desc_m_k_,
                                                arg.numBlockTileIteration_,
                                                arg.epsilon_,
                                                arg.p_x_,
@@ -409,26 +375,41 @@ struct DeviceLayernormImpl : public DeviceLayernorm<XDataType,
             return false;
         }
 
-        if(p_arg_->gammaStrides_.size() != NumReduceDim ||
-           p_arg_->betaStrides_.size() != NumReduceDim)
-            return false;
+        // if fastest dim is not reduced
+        if constexpr(GammaSrcVectorDim == 0)
+        {
+            if(p_arg_->gammaStrides_[NumInvariantDim - 1] != 1)
+                return (false);
 
-        auto IsScalarPerVectorValid = [](bool isLastDimensionCoalesced, int scalarPerVector) {
-            bool ret = true;
+            if(p_arg_->Lengths_[Rank - 1] % GammaSrcVectorSize != 0)
+                return (false);
+        }
+        else // if fastest dim is reduced
+        {
+            if(p_arg_->gammaStrides_[Rank - 1] != 1)
+                return (false);
 
-            if(!isLastDimensionCoalesced)
-                ret = scalarPerVector == 1;
-            else
-                ret = KThreadSliceSize % scalarPerVector == 0;
+            if(p_arg_->Lengths_[Rank - 1] % GammaSrcVectorSize != 0)
+                return (false);
+        }
 
-            return ret;
-        };
+        // if fastest dim is not reduced
+        if constexpr(BetaSrcVectorDim == 0)
+        {
+            if(p_arg_->betaStrides_[NumInvariantDim - 1] != 1)
+                return (false);
 
-        if(!IsScalarPerVectorValid(p_arg_->gammaStrides_.back() == 1, GammaSrcVectorSize))
-            return false;
+            if(p_arg_->invariant_lowest_length % BetaSrcVectorSize != 0)
+                return (false);
+        }
+        else // if fastest dim is reduced
+        {
+            if(p_arg_->betaStrides_[Rank - 1] != 1)
+                return (false);
 
-        if(!IsScalarPerVectorValid(p_arg_->betaStrides_.back() == 1, BetaSrcVectorSize))
-            return false;
+            if(p_arg_->Lengths_[Rank - 1] % BetaSrcVectorSize != 0)
+                return (false);
+        }
 
         return true;
     };

@@ -234,6 +234,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
             Number<NumDTensor>{});
     }
 
+    // desc for problem definition
     using AGridDesc_M_K  = decltype(MakeAGridDescriptor_M_K(1, 1, 1));
     using BGridDesc_N_K  = decltype(MakeBGridDescriptor_N_K(1, 1, 1));
     using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}, {}))>;
@@ -250,10 +251,6 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         BElementwiseOperation,
         CDEElementwiseOperation,
         InMemoryDataOperationEnum::Set,
-        AGridDesc_M_K,
-        BGridDesc_N_K,
-        DsGridDesc_M_N,
-        EGridDesc_M_N,
         NumGemmKPrefetchStage,
         BlockSize,
         MPerBlock,
@@ -287,10 +284,19 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         CDEBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
 
-    using AGridDesc_AK0_M_AK1 = remove_cvref_t<decltype(
+    // desc for blockwise copy
+    using AGridDesc_AK0_M_AK1                          = remove_cvref_t<decltype(
         GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(AGridDesc_M_K{}))>;
-    using BGridDesc_BK0_N_BK1 = remove_cvref_t<decltype(
+    using BGridDesc_BK0_N_BK1                          = remove_cvref_t<decltype(
         GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(BGridDesc_N_K{}))>;
+    using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
+        GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(DsGridDesc_M_N{}))>;
+    using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock  = remove_cvref_t<decltype(
+        GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(EGridDesc_M_N{}))>;
+
+    // block-to-e-tile map
+    using Block2ETileMap =
+        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -326,7 +332,10 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
               block_2_etile_map_{GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
-              cde_element_op_{cde_element_op}
+              cde_element_op_{cde_element_op},
+              MRaw_{MRaw},
+              NRaw_{NRaw},
+              KRaw_{KRaw}
         {
             // populate pointer, desc for Ds
             static_for<0, NumDTensor, 1>{}([&](auto i) {
@@ -383,18 +392,22 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         // tensor descriptors for block/thread-wise copy
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
-        typename GridwiseGemm::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+        DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
             ds_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-            e_grid_desc_mblock_mperblock_nblock_nperblock_;
+        EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock e_grid_desc_mblock_mperblock_nblock_nperblock_;
 
         // block-to-e-tile map
-        typename GridwiseGemm::DefaultBlock2ETileMap block_2_etile_map_;
+        Block2ETileMap block_2_etile_map_;
 
         // element-wise op
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CDEElementwiseOperation cde_element_op_;
+
+        // for checking vector load/store
+        index_t MRaw_;
+        index_t NRaw_;
+        index_t KRaw_;
     };
 
     // Invoker
@@ -429,9 +442,9 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
                     CDEElementwiseOperation,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
-                    typename GridwiseGemm::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    typename GridwiseGemm::DefaultBlock2ETileMap,
+                    DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                    DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                    DeviceOp::Block2ETileMap,
                     has_main_loop>;
 
                 return launch_and_time_kernel(stream_config,
@@ -478,6 +491,86 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a"))
         {
             return false;
+        }
+
+        // check vector load/store
+        {
+            using Row = ck::tensor_layout::gemm::RowMajor;
+            using Col = ck::tensor_layout::gemm::ColumnMajor;
+
+            // check vector load of A
+            if constexpr(is_same_v<ALayout, Row> && ABlockTransferSrcVectorDim == 2)
+            {
+                if(arg.KRaw_ % ABlockTransferSrcScalarPerVector != 0)
+                {
+                    return false;
+                }
+            }
+            else if constexpr(is_same_v<ALayout, Col> && ABlockTransferSrcVectorDim == 1)
+            {
+                // FIXME: not rigorous
+                if(arg.MRaw_ % ABlockTransferSrcScalarPerVector != 0)
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
+
+            // check vector laod of B
+            if constexpr(is_same_v<BLayout, Col> && BBlockTransferSrcVectorDim == 2)
+            {
+                if(arg.KRaw_ % BBlockTransferSrcScalarPerVector != 0)
+                {
+                    return false;
+                }
+            }
+            else if constexpr(is_same_v<BLayout, Row> && BBlockTransferSrcVectorDim == 1)
+            {
+                // FIXME: not rigorous
+                if(arg.NRaw_ % BBlockTransferSrcScalarPerVector != 0)
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
+
+            // check vector load of Ds
+            // only support RowMajor for now
+            bool all_valid = true;
+
+            static_for<0, NumDTensor, 1>{}([&](auto i) {
+                using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+
+                if constexpr(!is_same_v<DLayout, Row>)
+                {
+                    all_valid = false;
+                }
+            });
+
+            if(!all_valid)
+            {
+                return false;
+            }
+
+            // check vector store of E
+            // only support RowMajor for now
+            if constexpr(is_same_v<ELayout, Row>)
+            {
+                if(arg.NRaw_ % CDEBlockTransferScalarPerVector_NPerBlock != 0)
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
         }
 
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,

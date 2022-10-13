@@ -15,6 +15,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/data_type.hpp"
+#include "ck/utility/span.hpp"
 #include "ck/utility/type.hpp"
 #include "ck/host_utility/io.hpp"
 
@@ -32,7 +33,7 @@ check_err(const std::vector<T>& out,
 {
     if(out.size() != ref.size())
     {
-        std::cout << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
+        std::cerr << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
                   << std::endl;
         return false;
     }
@@ -50,7 +51,7 @@ check_err(const std::vector<T>& out,
             err_count++;
             if(err_count < 5)
             {
-                std::cout << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << out[i] << " != " << ref[i] << std::endl;
             }
             res = false;
@@ -58,7 +59,7 @@ check_err(const std::vector<T>& out,
     }
     if(!res)
     {
-        std::cout << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
+        std::cerr << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
     }
     return res;
 }
@@ -73,7 +74,7 @@ check_err(const std::vector<T>& out,
 {
     if(out.size() != ref.size())
     {
-        std::cout << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
+        std::cerr << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
                   << std::endl;
         return false;
     }
@@ -94,7 +95,7 @@ check_err(const std::vector<T>& out,
             err_count++;
             if(err_count < 5)
             {
-                std::cout << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
             }
             res = false;
@@ -102,22 +103,22 @@ check_err(const std::vector<T>& out,
     }
     if(!res)
     {
-        std::cout << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
+        std::cerr << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
     }
     return res;
 }
 
 template <typename T>
-typename std::enable_if<std::is_same<T, half_t>::value, bool>::type
-check_err(const std::vector<T>& out,
-          const std::vector<T>& ref,
+typename std::enable_if<std::is_same_v<T, half_t>, bool>::type
+check_err(span<const T> out,
+          span<const T> ref,
           const std::string& msg = "Error: Incorrect results!",
           double rtol            = 1e-3,
           double atol            = 1e-3)
 {
     if(out.size() != ref.size())
     {
-        std::cout << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
+        std::cerr << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
                   << std::endl;
         return false;
     }
@@ -137,7 +138,7 @@ check_err(const std::vector<T>& out,
             err_count++;
             if(err_count < 5)
             {
-                std::cout << msg << std::setw(12) << std::setprecision(7) << " out[" << i
+                std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
             }
             res = false;
@@ -145,9 +146,20 @@ check_err(const std::vector<T>& out,
     }
     if(!res)
     {
-        std::cout << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
+        std::cerr << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
     }
     return res;
+}
+
+template <typename T>
+typename std::enable_if<std::is_same<T, half_t>::value, bool>::type
+check_err(const std::vector<T>& out,
+          const std::vector<T>& ref,
+          const std::string& msg = "Error: Incorrect results!",
+          double rtol            = 1e-3,
+          double atol            = 1e-3)
+{
+    return check_err(span<const T>{out}, span<const T>{ref}, msg, rtol, atol);
 }
 
 template <typename T>
@@ -194,7 +206,7 @@ check_err(const std::vector<T>& out,
     }
     if(!res)
     {
-        std::cout << "max err: " << max_err << std::endl;
+        std::cerr << "max err: " << max_err << std::endl;
     }
     return res;
 }

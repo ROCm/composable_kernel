@@ -137,7 +137,7 @@ int main(int argc, char* argv[])
     {
         using InLayout       = ctc::G_NW_C;
         using WeiLayout      = ctc::G_K_X_C;
-        using BiasLayout     = ctc::G_NW_K;
+        using BiasLayout     = ctc::G_K;
         using ResidualLayout = ctc::G_NW_K;
         using OutLayout      = ctc::G_NW_K;
 
@@ -220,7 +220,7 @@ int main(int argc, char* argv[])
     {
         using InLayout       = ctc::G_NHW_C;
         using WeiLayout      = ctc::G_K_YX_C;
-        using BiasLayout     = ctc::G_NHW_K;
+        using BiasLayout     = ctc::G_K;
         using ResidualLayout = ctc::G_NHW_K;
         using OutLayout      = ctc::G_NHW_K;
 
@@ -332,7 +332,7 @@ int main(int argc, char* argv[])
     {
         using InLayout       = ctc::G_NDHW_C;
         using WeiLayout      = ctc::G_K_ZYX_C;
-        using BiasLayout     = ctc::G_NDHW_K;
+        using BiasLayout     = ctc::G_K;
         using ResidualLayout = ctc::G_NDHW_K;
         using OutLayout      = ctc::G_NDHW_K;
 

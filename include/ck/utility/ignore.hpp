@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#ifndef CK_IGNORE_HPP
-#define CK_IGNORE_HPP
+#pragma once
 
 // https://en.cppreference.com/w/cpp/utility/tuple/ignore
 
@@ -21,4 +20,3 @@ struct ignore_t
 inline constexpr detail::ignore_t ignore;
 
 } // namespace ck
-#endif

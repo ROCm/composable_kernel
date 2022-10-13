@@ -6,34 +6,14 @@
 #include <iomanip>
 
 #include "ck/ck.hpp"
-#include "profiler/include/data_type_enum.hpp"
-#include "ck/tensor_operation/gpu/device/device_layernorm_impl.hpp"
+
+#include "ck/library/tensor_operation_instance/gpu/layernorm.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
-
-namespace ck {
-namespace tensor_operation {
-namespace device {
-namespace instance {
-
-using F16         = ck::half_t;
-using F32         = float;
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-
-void add_device_layernorm_f16_rank2_instances(
-    std::vector<DeviceLayernormPtr<F16, F16, F16, F32, F16, PassThrough, 2, 1>>&);
-
-void add_device_layernorm_f32_rank2_instances(
-    std::vector<DeviceLayernormPtr<F32, F32, F32, F32, F32, PassThrough, 2, 1>>&);
-
-} // namespace instance
-} // namespace device
-} // namespace tensor_operation
-} // namespace ck
 
 namespace ck {
 namespace profiler {
@@ -53,8 +33,6 @@ void profile_layernorm_impl(int do_verification,
                             std::vector<index_t> strideGamma,
                             std::vector<index_t> strideBeta)
 {
-    using F16         = ck::half_t;
-    using F32         = float;
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
     if(length.size() < 2)
@@ -103,37 +81,24 @@ void profile_layernorm_impl(int do_verification,
     gamma_dev.ToDevice(gamma.mData.data());
     beta_dev.ToDevice(beta.mData.data());
 
-    // add device normalization instances
     constexpr int NumReduceDim = Rank - 1;
-    std::vector<tensor_operation::device::DeviceLayernormPtr<XDataType,
-                                                             GammaDataType,
-                                                             BetaDataType,
-                                                             AccDataType,
-                                                             YDataType,
-                                                             PassThrough,
-                                                             Rank,
-                                                             NumReduceDim>>
-        instances;
 
-    if constexpr(is_same<XDataType, F16>::value && is_same<GammaDataType, F16>::value &&
-                 is_same<BetaDataType, F16>::value && is_same<YDataType, F16>::value &&
-                 is_same<AccDataType, F32>::value)
-    {
-        if(length.size() == 2)
-            tensor_operation::device::instance::add_device_layernorm_f16_rank2_instances(instances);
-    }
-    else if constexpr(is_same<XDataType, F32>::value && is_same<GammaDataType, F32>::value &&
-                      is_same<BetaDataType, F32>::value && is_same<YDataType, F32>::value &&
-                      is_same<AccDataType, F32>::value)
-    {
-        if(length.size() == 2)
-            tensor_operation::device::instance::add_device_layernorm_f32_rank2_instances(instances);
-    }
+    // add device normalization instances
+    using DeviceOp = ck::tensor_operation::device::DeviceLayernorm<XDataType,
+                                                                   GammaDataType,
+                                                                   BetaDataType,
+                                                                   AccDataType,
+                                                                   YDataType,
+                                                                   PassThrough,
+                                                                   Rank,
+                                                                   NumReduceDim>;
 
-    if(instances.size() <= 0)
-    {
-        throw std::runtime_error("wrong! no device normalization instance found");
-    }
+    // get device op instances
+    const auto instance_ptrs =
+        ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+            DeviceOp>::GetInstances();
+
+    std::cout << "found " << instance_ptrs.size() << " instances" << std::endl;
 
     std::string best_instance_name;
     float best_avg_time   = std::numeric_limits<float>::max();
@@ -157,7 +122,7 @@ void profile_layernorm_impl(int do_verification,
         ref_invoker.Run(ref_argument);
     }
 
-    for(auto& inst_ptr : instances)
+    for(auto& inst_ptr : instance_ptrs)
     {
         auto argument_ptr = inst_ptr->MakeArgumentPointer(length,
                                                           strideXY,
@@ -175,9 +140,9 @@ void profile_layernorm_impl(int do_verification,
         if(!inst_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             std::cout << inst_ptr->GetTypeString() << " skipped due to unsupported argument: ";
-            LogRange(std::cout << "input lengths = [", length, "], ") << std::endl;
+            LogRange(std::cout << "input lengths = ", length, ", ") << std::endl;
 
-            return;
+            continue;
         }
 
         auto invoker_ptr = inst_ptr->MakeInvokerPointer();

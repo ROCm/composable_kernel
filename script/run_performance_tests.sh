@@ -1,12 +1,11 @@
 #!/bin/bash 
 #
 # in order to run this script you'd first need to build the ckProfiler executable in ../build/bin/
-# run the script as "./run_performance_tests.sh <verification> <tag for your test environment> <gpu_arch> <branch name> < node name>
+# run the script as "./run_performance_tests.sh <verification> <tag for your test environment> <branch name> < node name>
 # input arguments: 
 # verification = 0 : do not verify result correctness on CPU
 #              = 1 : verify correctness on CPU (may take a long time)
 # environment tag  : a string describing the specifics of your test environment
-# gpu_arch         : a string for GPU architecture, e.g. "gfx908" or "gfx90a".
 # branch name      : name of the branch in git repo (git status | grep -e 'On branch')
 # node name        : $hostname
 
@@ -15,11 +14,9 @@ export verify=$1
 echo 'Verification: ' $verify
 export env_type=$2
 echo 'Environment type: ' $env_type
-export gpu_arch=$3
-echo 'GPU architecture: ' $gpu_arch
-export branch=$4
+export branch=$3
 echo 'Branch name: ' $branch
-export host_name=$5
+export host_name=$4
 echo 'Host name: ' $host_name
 
 function print_log_header(){
@@ -35,7 +32,7 @@ function print_log_header(){
 }
 
 #run gemm tests
-export gemm_log="perf_gemm_${gpu_arch}.log"
+export gemm_log="perf_gemm.log"
 print_log_header $gemm_log $env_type $branch $host_name
 ./profile_gemm.sh gemm 0 0 $verify 1 0 1 | tee -a $gemm_log
 ./profile_gemm.sh gemm 1 0 $verify 1 0 1 | tee -a $gemm_log
@@ -55,9 +52,9 @@ print_log_header $gemm_log $env_type $branch $host_name
 ./profile_gemm.sh gemm 3 3 $verify 1 0 1 | tee -a $gemm_log
 
 #run resnet50 tests
-export resnet256_log="perf_resnet50_N256_${gpu_arch}.log"
+export resnet256_log="perf_resnet50_N256.log"
 print_log_header $resnet256_log $env_type $branch $host_name
 ./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 $verify 1 0 1 256 | tee -a $resnet256_log
-export resnet4_log="perf_resnet50_N4_${gpu_arch}.log"
+export resnet4_log="perf_resnet50_N4.log"
 print_log_header $resnet4_log $env_type $branch $host_name
 ./profile_resnet50.sh conv_fwd_bias_relu 1 1 1 1 $verify 1 0 1 4 | tee -a $resnet4_log

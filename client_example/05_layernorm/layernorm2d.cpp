@@ -81,8 +81,8 @@ int main(int argc, char* argv[])
 
         auto argument_ptr = op_ptr->MakeArgumentPointer({M, N},      // lengths
                                                         {Stride, 1}, // xStrides
-                                                        {1},         // gammaStrides
-                                                        {1},         // betaStrides
+                                                        {0, 1},      // gammaStrides
+                                                        {0, 1},      // betaStrides
                                                         {Stride, 1}, // yStrides
                                                         {1},         // reduceDims
                                                         1e-4,

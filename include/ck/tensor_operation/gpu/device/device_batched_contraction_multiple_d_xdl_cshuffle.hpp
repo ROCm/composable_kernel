@@ -506,12 +506,12 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
 
         __host__ __device__ constexpr long_index_t GetAPtrOffset(index_t g_idx) const
         {
-            return g_idx * static_cast<long_index_t>(batch_stride_A_);
+            return static_cast<long_index_t>(g_idx) * batch_stride_A_;
         }
 
         __host__ __device__ constexpr long_index_t GetBPtrOffset(index_t g_idx) const
         {
-            return g_idx * static_cast<long_index_t>(batch_stride_B_);
+            return static_cast<long_index_t>(g_idx) * batch_stride_B_;
         }
 
         __host__ __device__ constexpr auto GetDsPtrOffset(index_t g_idx) const
@@ -519,8 +519,8 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
             std::array<long_index_t, NumDTensor> ds_offset;
 
             static_for<0, NumDTensor, 1>{}([&](auto i) {
-                ds_offset[i] =
-                    ds_grid_desc_g_m_n_[i].CalculateOffset(make_multi_index(g_idx, 0, 0));
+                ds_offset[i] = static_cast<long_index_t>(g_idx) *
+                               ds_grid_desc_g_m_n_[i].CalculateOffset(make_multi_index(1, 0, 0));
             });
 
             return ds_offset;
@@ -528,7 +528,8 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
 
         __host__ __device__ constexpr long_index_t GetEPtrOffset(index_t g_idx) const
         {
-            return e_grid_desc_g_m_n_.CalculateOffset(make_multi_index(g_idx, 0, 0));
+            return static_cast<long_index_t>(g_idx) *
+                   e_grid_desc_g_m_n_.CalculateOffset(make_multi_index(1, 0, 0));
         }
 
         private:
@@ -549,10 +550,6 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
         BElementwiseOperation,
         CDEElementwiseOperation,
         InMemoryDataOperationEnum::Set,
-        AGridDesc_M_K,
-        BGridDesc_N_K,
-        DsGridDesc_M_N,
-        EGridDesc_M_N,
         NumGemmKPrefetchStage,
         BlockSize,
         MPerBlock,
@@ -586,12 +583,19 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
         CDEBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
 
-    using AGridDesc_AK0_M_AK1 = remove_cvref_t<decltype(
+    // desc for blockwise copy
+    using AGridDesc_AK0_M_AK1                          = remove_cvref_t<decltype(
         GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(AGridDesc_M_K{}))>;
-    using BGridDesc_BK0_N_BK1 = remove_cvref_t<decltype(
+    using BGridDesc_BK0_N_BK1                          = remove_cvref_t<decltype(
         GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(BGridDesc_N_K{}))>;
+    using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
+        GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(DsGridDesc_M_N{}))>;
+    using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock  = remove_cvref_t<decltype(
+        GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(EGridDesc_M_N{}))>;
 
-    using Block2ETileMap = typename GridwiseGemm::DefaultBlock2ETileMap;
+    // block-to-e-tile map
+    using Block2ETileMap =
+        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -719,10 +723,9 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
         // tensor descriptors for block/thread-wise copy
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
-        typename GridwiseGemm::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+        DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
             ds_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-            e_grid_desc_mblock_mperblock_nblock_nperblock_;
+        EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock e_grid_desc_mblock_mperblock_nblock_nperblock_;
 
         // block-to-e-tile map
         Block2ETileMap block_2_etile_map_;
@@ -786,10 +789,10 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
                     CDEElementwiseOperation,
                     DeviceOp::AGridDesc_AK0_M_AK1,
                     DeviceOp::BGridDesc_BK0_N_BK1,
-                    typename GridwiseGemm::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
-                    typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
+                    DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                    DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                     ComputePtrOffsetOfStridedBatch,
-                    typename GridwiseGemm::DefaultBlock2ETileMap,
+                    DeviceOp::Block2ETileMap,
                     has_main_loop>;
 
                 return launch_and_time_kernel(stream_config,
