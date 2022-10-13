@@ -3,8 +3,8 @@
 
 #include "common.hpp"
 
-#include "ck/tensor_operation/gpu/device/device_gemm_xdl.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_xdl_skip_b_lds.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_skip_b_lds.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;
