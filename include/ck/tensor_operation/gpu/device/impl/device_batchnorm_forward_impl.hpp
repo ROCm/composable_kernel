@@ -8,7 +8,7 @@
 
 #include "ck/utility/reduction_operator.hpp"
 #include "ck/tensor_operation/gpu/device/device_batchnorm_forward.hpp"
-#include "ck/tensor_operation/gpu/device/device_reduce_common.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_reduce_common.hpp"
 #include "ck/tensor_operation/gpu/device/welford_helper.hpp"
 #include "ck/tensor_operation/gpu/grid/batchnorm_multiblock/gridwise_multiblock_welford_first_half.hpp"
 #include "ck/tensor_operation/gpu/grid/batchnorm_multiblock/gridwise_multiblock_welford_second_half_batchnorm_forward_final.hpp"

@@ -7,7 +7,7 @@
 #include "ck/utility/reduction_operator.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/device_batched_gemm_reduce_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_reduce_xdl_cshuffle.hpp"
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
 namespace ck {

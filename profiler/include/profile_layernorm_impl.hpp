@@ -6,9 +6,7 @@
 #include <iomanip>
 
 #include "ck/ck.hpp"
-
-#include "ck/library/tensor_operation_instance/gpu/layernorm.hpp"
-
+#include "ck/library/tensor_operation_instance/gpu/normalization.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -28,27 +26,29 @@ void profile_layernorm_impl(int do_verification,
                             int init_method,
                             bool do_log,
                             bool time_kernel,
-                            std::vector<index_t> length,
-                            std::vector<index_t> strideXY,
-                            std::vector<index_t> strideGamma,
-                            std::vector<index_t> strideBeta)
+                            std::vector<index_t> length)
 {
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
     if(length.size() < 2)
         return;
 
-    // Assume normalize dimension except for first dimension
+    // Assume normalize dimension except for batch (first) dimension
     std::vector<index_t> reduce_length{length.begin() + 1, length.end()};
     std::vector<index_t> reduce_dim;
     for(int i = 1; i < Rank; ++i)
         reduce_dim.push_back(i);
 
     Tensor<XDataType> x(length);
-    Tensor<GammaDataType> gamma(reduce_length, strideGamma);
-    Tensor<BetaDataType> beta(reduce_length, strideBeta);
-    Tensor<YDataType> y(length, strideXY);
-    Tensor<YDataType> host_y(length, strideXY);
+    Tensor<GammaDataType> gamma(reduce_length);
+    Tensor<BetaDataType> beta(reduce_length);
+    Tensor<YDataType> y(length);
+    Tensor<YDataType> host_y(length);
+
+    std::vector<index_t> strideXY =
+        std::vector<ck::index_t>{x.mDesc.GetStrides().begin(), x.mDesc.GetStrides().end()};
+    std::vector<index_t> strideGammaBeta = strideXY;
+    strideGammaBeta[0]                   = 0;
 
     switch(init_method)
     {
@@ -84,14 +84,14 @@ void profile_layernorm_impl(int do_verification,
     constexpr int NumReduceDim = Rank - 1;
 
     // add device normalization instances
-    using DeviceOp = ck::tensor_operation::device::DeviceLayernorm<XDataType,
-                                                                   GammaDataType,
-                                                                   BetaDataType,
-                                                                   AccDataType,
-                                                                   YDataType,
-                                                                   PassThrough,
-                                                                   Rank,
-                                                                   NumReduceDim>;
+    using DeviceOp = ck::tensor_operation::device::DeviceNormalization<XDataType,
+                                                                       GammaDataType,
+                                                                       BetaDataType,
+                                                                       AccDataType,
+                                                                       YDataType,
+                                                                       PassThrough,
+                                                                       Rank,
+                                                                       NumReduceDim>;
 
     // get device op instances
     const auto instance_ptrs =
@@ -126,8 +126,8 @@ void profile_layernorm_impl(int do_verification,
     {
         auto argument_ptr = inst_ptr->MakeArgumentPointer(length,
                                                           strideXY,
-                                                          strideGamma,
-                                                          strideBeta,
+                                                          strideGammaBeta,
+                                                          strideGammaBeta,
                                                           strideXY,
                                                           reduce_dim,
                                                           1e-4,
