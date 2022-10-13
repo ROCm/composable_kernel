@@ -25,7 +25,7 @@ set(PROFILER_SOURCE
     src/profile_reduce.cpp
     src/profile_groupnorm.cpp
     src/profile_layernorm.cpp
-    src/profile_normalization.cpp
+    src/profile_softmax.cpp
 )
 
 add_executable(ckProfiler ${PROFILER_SOURCE})
@@ -55,4 +55,5 @@ target_link_libraries(ckProfiler PRIVATE device_conv3d_bwd_weight_instance)
 target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_bias_relu_instance)
 target_link_libraries(ckProfiler PRIVATE device_conv2d_fwd_bias_relu_add_instance)
 target_link_libraries(ckProfiler PRIVATE device_normalization_instance)
+target_link_libraries(ckProfiler PRIVATE device_softmax_instance)
 target_link_libraries(ckProfiler PRIVATE device_reduce_instance)
