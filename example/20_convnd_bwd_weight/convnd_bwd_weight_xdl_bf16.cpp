@@ -3,7 +3,7 @@
 
 #include "convnd_bwd_weight_common.hpp"
 
-#include "ck/tensor_operation/gpu/device/device_convnd_bwd_weight_nwc_kxc_nwk_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_convnd_bwd_weight_nwc_kxc_nwk_xdl_cshuffle.hpp"
 
 using InDataType = ck::bhalf_t;
 // bf16 kernel use fp32 atomic add to accumulate Weight tensor into global memory

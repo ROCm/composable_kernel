@@ -5,7 +5,7 @@
 
 #include <vector>
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/device_batched_gemm_gemm_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_gemm_xdl_cshuffle.hpp"
 #include "profiler/include/profile_batched_gemm_gemm_impl.hpp"
 
 using ck::tensor_operation::device::GemmSpecialization;

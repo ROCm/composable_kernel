@@ -3,8 +3,8 @@
 
 #include "common.hpp"
 
-#include "ck/tensor_operation/gpu/device/device_gemm_xdl.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle.hpp"
 
 using ADataType        = ck::half_t;
 using BDataType        = ck::half_t;

@@ -3,7 +3,7 @@
 
 #include "common.hpp"
 
-#include "ck/tensor_operation/gpu/device/device_gemm_xdl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl.hpp"
 
 using ADataType   = double;
 using BDataType   = double;
