@@ -200,6 +200,8 @@ bool run_grouped_conv_fwd(bool do_verification,
     std::cout << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << conv.GetTypeString() << std::endl;
 
+    bool pass = true;
+
     if(do_verification)
     {
         Tensor<CShuffleDataType> c_host(out_g_n_k_wos_desc);
@@ -232,10 +234,11 @@ bool run_grouped_conv_fwd(bool do_verification,
 
         out_device_buf.FromDevice(out_device.mData.data());
 
-        return ck::utils::check_err(
+        pass &= ck::utils::check_err(
             out_device.mData, out_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
     }
-    return true;
+
+    return (pass ? 0 : 1);
 }
 
 int main()
