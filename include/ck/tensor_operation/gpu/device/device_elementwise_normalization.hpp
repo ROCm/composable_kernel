@@ -21,7 +21,7 @@ template <typename InDataTypeTuple,
           typename AccElementwiseOperation,
           index_t Rank,
           index_t NumReduceDim>
-struct DeviceElementwiseLayernorm : public BaseOperator
+struct DeviceElementwiseNormalization : public BaseOperator
 {
     static constexpr int NumInput = InDataTypeTuple::Size();
 
@@ -52,16 +52,16 @@ template <typename InDataTypeTuple,
           typename AccElementwiseOperation,
           index_t Rank,
           index_t NumReduceDim>
-using DeviceElementwiseLayernormPtr =
-    std::unique_ptr<DeviceElementwiseLayernorm<InDataTypeTuple,
-                                               GammaDataType,
-                                               BetaDataType,
-                                               AccDataType,
-                                               YDataType,
-                                               ElementwiseOperation,
-                                               AccElementwiseOperation,
-                                               Rank,
-                                               NumReduceDim>>;
+using DeviceElementwiseNormalizationPtr =
+    std::unique_ptr<DeviceElementwiseNormalization<InDataTypeTuple,
+                                                   GammaDataType,
+                                                   BetaDataType,
+                                                   AccDataType,
+                                                   YDataType,
+                                                   ElementwiseOperation,
+                                                   AccElementwiseOperation,
+                                                   Rank,
+                                                   NumReduceDim>>;
 
 } // namespace device
 } // namespace tensor_operation

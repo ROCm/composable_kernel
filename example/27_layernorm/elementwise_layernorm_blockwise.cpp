@@ -9,7 +9,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/reduction_enums.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_elementwise_layernorm_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_normalization_impl.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -33,27 +33,27 @@ constexpr int Rank         = 2;
 constexpr int NumReduceDim = 1;
 
 using DeviceInstance =
-    ck::tensor_operation::device::DeviceElementwiseLayernormImpl<ck::Tuple<ADataType, BDataType>,
-                                                                 GammaDataType,
-                                                                 BetaDataType,
-                                                                 AccDataType,
-                                                                 YDataType,
-                                                                 Add,
-                                                                 PassThrough,
-                                                                 Rank,
-                                                                 NumReduceDim,
-                                                                 256, // BlockSize
-                                                                 8,   // ClusterM
-                                                                 32,  // ClusterK
-                                                                 1,   // SliceM
-                                                                 32,  // SliceK
-                                                                 1,   // SrcVecDim (0=M, 1=K)
-                                                                 8,   // SrcScalarPerVector
-                                                                 1,   // GammaVecDim (0=M, 1=K)
-                                                                 8,   // GammaScalarPerVector
-                                                                 1,   // BetaVecDim (0=M, 1=K)
-                                                                 8,   // BetaScalarPerVector
-                                                                 8>;  // OutScalarPerVector
+    ck::tensor_operation::device::DeviceElementwiseNormalizationImpl<ck::Tuple<ADataType, BDataType>,
+                                                                     GammaDataType,
+                                                                     BetaDataType,
+                                                                     AccDataType,
+                                                                     YDataType,
+                                                                     Add,
+                                                                     PassThrough,
+                                                                     Rank,
+                                                                     NumReduceDim,
+                                                                     256, // BlockSize
+                                                                     8,   // ClusterM
+                                                                     32,  // ClusterK
+                                                                     1,   // SliceM
+                                                                     32,  // SliceK
+                                                                     1,   // SrcVecDim (0=M, 1=K)
+                                                                     8,   // SrcScalarPerVector
+                                                                     1,   // GammaVecDim (0=M, 1=K)
+                                                                     8,   // GammaScalarPerVector
+                                                                     1,   // BetaVecDim (0=M, 1=K)
+                                                                     8,   // BetaScalarPerVector
+                                                                     8>;  // OutScalarPerVector
 
 template <typename HostTensorA, typename HostTensorB, typename HostTensorC, typename Functor>
 void host_elementwise2D(HostTensorC& C,

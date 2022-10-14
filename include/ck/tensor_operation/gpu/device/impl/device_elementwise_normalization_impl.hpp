@@ -90,15 +90,15 @@ template <typename InDataTypeTuple, // Datatype of A & B
           index_t BetaSrcVectorDim,   // Dimension for beta to do reduce
           index_t BetaSrcVectorSize,  // Size to fetch source beta
           index_t YDstVectorSize>     // Size to write destination Y
-struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InDataTypeTuple,
-                                                                          GammaDataType,
-                                                                          BetaDataType,
-                                                                          AccDataType,
-                                                                          YDataType,
-                                                                          ElementwiseOperation,
-                                                                          AccElementwiseOperation,
-                                                                          Rank,
-                                                                          NumReduceDim>
+struct DeviceElementwiseNormalizationImpl : public DeviceElementwiseNormalization<InDataTypeTuple,
+                                                                                  GammaDataType,
+                                                                                  BetaDataType,
+                                                                                  AccDataType,
+                                                                                  YDataType,
+                                                                                  ElementwiseOperation,
+                                                                                  AccElementwiseOperation,
+                                                                                  Rank,
+                                                                                  NumReduceDim>
 {
     static constexpr int NumInput = InDataTypeTuple::Size();
 
@@ -574,7 +574,7 @@ struct DeviceElementwiseLayernormImpl : public DeviceElementwiseLayernorm<InData
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceAddLayernormImpl<" << BlockSize << ",";
+        str << "DeviceAddNormalizationImpl<" << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
         str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
         str << "XYSrcVectorDim_" << XYSrcVectorDim  << ",";
