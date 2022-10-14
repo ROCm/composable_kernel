@@ -10,11 +10,11 @@ namespace device {
 namespace instance {
 
 // clang-format off
-// InDataType | AccDataType | OutDataType | ReduceOpId | PropagateNan | UseIndex | Rank | NumReduceDim
-ADD_MULTIBLOCK_ATOMIC_ADD_INST(bhalf_t, float, float, ReduceTensorOp::AVG, false, false, 4, 3); // for AVG
-ADD_MULTIBLOCK_ATOMIC_ADD_INST(bhalf_t, float, float, ReduceTensorOp::AVG, false, false, 4, 4);       
-ADD_MULTIBLOCK_ATOMIC_ADD_INST(bhalf_t, float, float, ReduceTensorOp::AVG, false, false, 4, 1);       
-ADD_MULTIBLOCK_ATOMIC_ADD_INST(bhalf_t, float, float, ReduceTensorOp::AVG, false, false, 2, 1);
+// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOpId | PropagateNan | UseIndex 
+template void add_device_reduce_instance_multiblock_atomic_add<bhalf_t, float, float, 4, 3, ReduceTensorOp::AVG, false, false>(std::vector<deviceReduceMultiBlockAtomicAddPtrType<4, 3, ReduceTensorOp::AVG>>&); 
+template void add_device_reduce_instance_multiblock_atomic_add<bhalf_t, float, float, 4, 4, ReduceTensorOp::AVG, false, false>(std::vector<deviceReduceMultiBlockAtomicAddPtrType<4, 4, ReduceTensorOp::AVG>>&); 
+template void add_device_reduce_instance_multiblock_atomic_add<bhalf_t, float, float, 4, 1, ReduceTensorOp::AVG, false, false>(std::vector<deviceReduceMultiBlockAtomicAddPtrType<4, 1, ReduceTensorOp::AVG>>&); 
+template void add_device_reduce_instance_multiblock_atomic_add<bhalf_t, float, float, 2, 1, ReduceTensorOp::AVG, false, false>(std::vector<deviceReduceMultiBlockAtomicAddPtrType<2, 1, ReduceTensorOp::AVG>>&);
 // clang-format on
 
 } // namespace instance

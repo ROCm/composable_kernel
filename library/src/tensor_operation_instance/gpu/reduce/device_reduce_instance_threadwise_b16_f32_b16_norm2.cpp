@@ -10,11 +10,11 @@ namespace device {
 namespace instance {
 
 // clang-format off
-// InDataType | AccDataType | OutDataType | ReduceOpId | PropagateNan | UseIndex | Rank | NumReduceDim
-ADD_THREADWISE_INST(bhalf_t, float, bhalf_t, ReduceTensorOp::NORM2, 0, 0, 4, 3); // for NORM2
-ADD_THREADWISE_INST(bhalf_t, float, bhalf_t, ReduceTensorOp::NORM2, 0, 0, 4, 4);       
-ADD_THREADWISE_INST(bhalf_t, float, bhalf_t, ReduceTensorOp::NORM2, 0, 0, 4, 1);       
-ADD_THREADWISE_INST(bhalf_t, float, bhalf_t, ReduceTensorOp::NORM2, 0, 0, 2, 1);
+// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOpId | PropagateNan | UseIndex 
+template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 4, 3, ReduceTensorOp::NORM2, false, false>(std::vector<deviceReduceThreadWisePtrType<4, 3, ReduceTensorOp::NORM2>>&); 
+template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 4, 4, ReduceTensorOp::NORM2, false, false>(std::vector<deviceReduceThreadWisePtrType<4, 4, ReduceTensorOp::NORM2>>&); 
+template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 4, 1, ReduceTensorOp::NORM2, false, false>(std::vector<deviceReduceThreadWisePtrType<4, 1, ReduceTensorOp::NORM2>>&); 
+template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 2, 1, ReduceTensorOp::NORM2, false, false>(std::vector<deviceReduceThreadWisePtrType<2, 1, ReduceTensorOp::NORM2>>&);
 // clang-format on
 
 } // namespace instance

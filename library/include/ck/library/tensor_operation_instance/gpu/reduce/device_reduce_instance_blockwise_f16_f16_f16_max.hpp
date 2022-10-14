@@ -14,15 +14,15 @@ namespace device {
 namespace instance {
 
 // clang-format off
-// InDataType | AccDataType | OutDataType | ReduceOpId | PropagateNan | UseIndex | Rank | NumReduceDim 
-ADD_BLOCKWISE_INST_REF(half_t, half_t, half_t, ReduceTensorOp::MAX, false, false, 4, 3); // for MAX
-ADD_BLOCKWISE_INST_REF(half_t, half_t, half_t, ReduceTensorOp::MAX, false, false, 4, 4);       
-ADD_BLOCKWISE_INST_REF(half_t, half_t, half_t, ReduceTensorOp::MAX, false, false, 4, 1);       
-ADD_BLOCKWISE_INST_REF(half_t, half_t, half_t, ReduceTensorOp::MAX, false, false, 2, 1);       
-ADD_BLOCKWISE_INST_REF(half_t, half_t, half_t, ReduceTensorOp::MAX, false, true, 4, 3); // for MAX
-ADD_BLOCKWISE_INST_REF(half_t, half_t, half_t, ReduceTensorOp::MAX, false, true, 4, 4);       
-ADD_BLOCKWISE_INST_REF(half_t, half_t, half_t, ReduceTensorOp::MAX, false, true, 4, 1);       
-ADD_BLOCKWISE_INST_REF(half_t, half_t, half_t, ReduceTensorOp::MAX, false, true, 2, 1);
+// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOpId | PropagateNan | UseIndex 
+extern template void add_device_reduce_instance_blockwise<half_t, half_t, half_t, 4, 3, ReduceTensorOp::MAX, false, false>(std::vector<deviceReduceBlockWisePtrType<4, 3, ReduceTensorOp::MAX>>&);
+extern template void add_device_reduce_instance_blockwise<half_t, half_t, half_t, 4, 4, ReduceTensorOp::MAX, false, false>(std::vector<deviceReduceBlockWisePtrType<4, 4, ReduceTensorOp::MAX>>&);
+extern template void add_device_reduce_instance_blockwise<half_t, half_t, half_t, 4, 1, ReduceTensorOp::MAX, false, false>(std::vector<deviceReduceBlockWisePtrType<4, 1, ReduceTensorOp::MAX>>&);
+extern template void add_device_reduce_instance_blockwise<half_t, half_t, half_t, 2, 1, ReduceTensorOp::MAX, false, false>(std::vector<deviceReduceBlockWisePtrType<2, 1, ReduceTensorOp::MAX>>&);
+extern template void add_device_reduce_instance_blockwise<half_t, half_t, half_t, 4, 3, ReduceTensorOp::MAX, false, true>(std::vector<deviceReduceBlockWisePtrType<4, 3, ReduceTensorOp::MAX>>&);
+extern template void add_device_reduce_instance_blockwise<half_t, half_t, half_t, 4, 4, ReduceTensorOp::MAX, false, true>(std::vector<deviceReduceBlockWisePtrType<4, 4, ReduceTensorOp::MAX>>&);
+extern template void add_device_reduce_instance_blockwise<half_t, half_t, half_t, 4, 1, ReduceTensorOp::MAX, false, true>(std::vector<deviceReduceBlockWisePtrType<4, 1, ReduceTensorOp::MAX>>&);
+extern template void add_device_reduce_instance_blockwise<half_t, half_t, half_t, 2, 1, ReduceTensorOp::MAX, false, true>(std::vector<deviceReduceBlockWisePtrType<2, 1, ReduceTensorOp::MAX>>&);
 // clang-format on
 
 } // namespace instance

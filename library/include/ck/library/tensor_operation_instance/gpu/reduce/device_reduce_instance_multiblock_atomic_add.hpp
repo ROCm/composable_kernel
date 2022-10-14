@@ -150,32 +150,6 @@ void add_device_reduce_instance_multiblock_atomic_add(
     }
 };
 
-#define ADD_MULTIBLOCK_ATOMIC_ADD_INST(                                                       \
-    inT, compT, outT, ReduceOpId, PropagateNan, UseIndex, Rank, NumReduceDim)                 \
-    template void add_device_reduce_instance_multiblock_atomic_add<inT,                       \
-                                                                   compT,                     \
-                                                                   outT,                      \
-                                                                   Rank,                      \
-                                                                   NumReduceDim,              \
-                                                                   ReduceOpId,                \
-                                                                   PropagateNan,              \
-                                                                   UseIndex>(                 \
-        std::vector<deviceReduceMultiBlockAtomicAddPtrType<Rank, NumReduceDim, ReduceOpId>> & \
-        device_op_instances)
-
-#define ADD_MULTIBLOCK_ATOMIC_ADD_INST_REF(                                                   \
-    inT, compT, outT, ReduceOpId, PropagateNan, UseIndex, Rank, NumReduceDim)                 \
-    extern template void add_device_reduce_instance_multiblock_atomic_add<inT,                \
-                                                                          compT,              \
-                                                                          outT,               \
-                                                                          Rank,               \
-                                                                          NumReduceDim,       \
-                                                                          ReduceOpId,         \
-                                                                          PropagateNan,       \
-                                                                          UseIndex>(          \
-        std::vector<deviceReduceMultiBlockAtomicAddPtrType<Rank, NumReduceDim, ReduceOpId>> & \
-        device_op_instances)
-
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation

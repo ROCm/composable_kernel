@@ -10,15 +10,15 @@ namespace device {
 namespace instance {
 
 // clang-format off
-// InDataType | AccDataType | OutDataType | ReduceOpId | PropagateNan | UseIndex | Rank | NumReduceDim
-ADD_THREADWISE_INST(float, float, float, ReduceTensorOp::MAX, false, false, 4, 3); // for MAX
-ADD_THREADWISE_INST(float, float, float, ReduceTensorOp::MAX, false, false, 4, 4);       
-ADD_THREADWISE_INST(float, float, float, ReduceTensorOp::MAX, false, false, 4, 1);       
-ADD_THREADWISE_INST(float, float, float, ReduceTensorOp::MAX, false, false, 2, 1);       
-ADD_THREADWISE_INST(float, float, float, ReduceTensorOp::MAX, false, true, 4, 3); // for MAX
-ADD_THREADWISE_INST(float, float, float, ReduceTensorOp::MAX, false, true, 4, 4);       
-ADD_THREADWISE_INST(float, float, float, ReduceTensorOp::MAX, false, true, 4, 1);       
-ADD_THREADWISE_INST(float, float, float, ReduceTensorOp::MAX, false, true, 2, 1);
+// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOpId | PropagateNan | UseIndex 
+template void add_device_reduce_instance_threadwise<float, float, float, 4, 3, ReduceTensorOp::MAX, false, false>(std::vector<deviceReduceThreadWisePtrType<4, 3, ReduceTensorOp::MAX>>&);
+template void add_device_reduce_instance_threadwise<float, float, float, 4, 4, ReduceTensorOp::MAX, false, false>(std::vector<deviceReduceThreadWisePtrType<4, 4, ReduceTensorOp::MAX>>&);
+template void add_device_reduce_instance_threadwise<float, float, float, 4, 1, ReduceTensorOp::MAX, false, false>(std::vector<deviceReduceThreadWisePtrType<4, 1, ReduceTensorOp::MAX>>&);
+template void add_device_reduce_instance_threadwise<float, float, float, 2, 1, ReduceTensorOp::MAX, false, false>(std::vector<deviceReduceThreadWisePtrType<2, 1, ReduceTensorOp::MAX>>&);
+template void add_device_reduce_instance_threadwise<float, float, float, 4, 3, ReduceTensorOp::MAX, false, true>(std::vector<deviceReduceThreadWisePtrType<4, 3, ReduceTensorOp::MAX>>&);
+template void add_device_reduce_instance_threadwise<float, float, float, 4, 4, ReduceTensorOp::MAX, false, true>(std::vector<deviceReduceThreadWisePtrType<4, 4, ReduceTensorOp::MAX>>&);
+template void add_device_reduce_instance_threadwise<float, float, float, 4, 1, ReduceTensorOp::MAX, false, true>(std::vector<deviceReduceThreadWisePtrType<4, 1, ReduceTensorOp::MAX>>&);
+template void add_device_reduce_instance_threadwise<float, float, float, 2, 1, ReduceTensorOp::MAX, false, true>(std::vector<deviceReduceThreadWisePtrType<2, 1, ReduceTensorOp::MAX>>&);
 // clang-format on
 
 } // namespace instance

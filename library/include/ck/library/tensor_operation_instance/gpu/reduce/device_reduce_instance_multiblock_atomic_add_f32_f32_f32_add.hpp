@@ -14,11 +14,11 @@ namespace device {
 namespace instance {
 
 // clang-format off
-// InDataType | AccDataType | OutDataType | ReduceOpId | PropagateNan | UseIndex | Rank | NumReduceDim 
-ADD_MULTIBLOCK_ATOMIC_ADD_INST_REF(float, float, float, ReduceTensorOp::ADD, false, false, 4, 3); // for ADD
-ADD_MULTIBLOCK_ATOMIC_ADD_INST_REF(float, float, float, ReduceTensorOp::ADD, false, false, 4, 4);
-ADD_MULTIBLOCK_ATOMIC_ADD_INST_REF(float, float, float, ReduceTensorOp::ADD, false, false, 4, 1);
-ADD_MULTIBLOCK_ATOMIC_ADD_INST_REF(float, float, float, ReduceTensorOp::ADD, false, false, 2, 1);
+// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOpId | PropagateNan | UseIndex 
+extern template void add_device_reduce_instance_multiblock_atomic_add<float, float, float, 4, 3, ReduceTensorOp::ADD, false, false>(std::vector<deviceReduceMultiBlockAtomicAddPtrType<4, 3, ReduceTensorOp::ADD>>&); 
+extern template void add_device_reduce_instance_multiblock_atomic_add<float, float, float, 4, 4, ReduceTensorOp::ADD, false, false>(std::vector<deviceReduceMultiBlockAtomicAddPtrType<4, 4, ReduceTensorOp::ADD>>&); 
+extern template void add_device_reduce_instance_multiblock_atomic_add<float, float, float, 4, 1, ReduceTensorOp::ADD, false, false>(std::vector<deviceReduceMultiBlockAtomicAddPtrType<4, 1, ReduceTensorOp::ADD>>&); 
+extern template void add_device_reduce_instance_multiblock_atomic_add<float, float, float, 2, 1, ReduceTensorOp::ADD, false, false>(std::vector<deviceReduceMultiBlockAtomicAddPtrType<2, 1, ReduceTensorOp::ADD>>&);
 // clang-format on
 
 } // namespace instance

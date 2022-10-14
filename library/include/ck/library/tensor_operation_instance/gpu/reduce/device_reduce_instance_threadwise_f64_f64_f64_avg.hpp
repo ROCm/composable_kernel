@@ -14,11 +14,11 @@ namespace device {
 namespace instance {
 
 // clang-format off
-// InDataType | AccDataType | OutDataType | ReduceOpId | PropagateNan | UseIndex | Rank | NumReduceDim 
-ADD_THREADWISE_INST_REF(double, double, double, ReduceTensorOp::AVG, false, false, 4, 3); // for AVG
-ADD_THREADWISE_INST_REF(double, double, double, ReduceTensorOp::AVG, false, false, 4, 4);       
-ADD_THREADWISE_INST_REF(double, double, double, ReduceTensorOp::AVG, false, false, 4, 1);       
-ADD_THREADWISE_INST_REF(double, double, double, ReduceTensorOp::AVG, false, false, 2, 1);
+// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOpId | PropagateNan | UseIndex 
+extern template void add_device_reduce_instance_threadwise<double, double, double, 4, 3, ReduceTensorOp::AVG, false, false>(std::vector<deviceReduceThreadWisePtrType<4, 3, ReduceTensorOp::AVG>>&); 
+extern template void add_device_reduce_instance_threadwise<double, double, double, 4, 4, ReduceTensorOp::AVG, false, false>(std::vector<deviceReduceThreadWisePtrType<4, 4, ReduceTensorOp::AVG>>&); 
+extern template void add_device_reduce_instance_threadwise<double, double, double, 4, 1, ReduceTensorOp::AVG, false, false>(std::vector<deviceReduceThreadWisePtrType<4, 1, ReduceTensorOp::AVG>>&); 
+extern template void add_device_reduce_instance_threadwise<double, double, double, 2, 1, ReduceTensorOp::AVG, false, false>(std::vector<deviceReduceThreadWisePtrType<2, 1, ReduceTensorOp::AVG>>&);
 // clang-format on
 
 } // namespace instance

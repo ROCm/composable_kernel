@@ -14,11 +14,11 @@ namespace device {
 namespace instance {
 
 // clang-format off
-// InDataType | AccDataType | OutDataType | ReduceOpId | PropagateNan | UseIndex | Rank | NumReduceDim 
-ADD_BLOCKWISE_INST_REF(float, double, float, ReduceTensorOp::NORM2, false, false, 4, 3); // for NORM2
-ADD_BLOCKWISE_INST_REF(float, double, float, ReduceTensorOp::NORM2, false, false, 4, 4);       
-ADD_BLOCKWISE_INST_REF(float, double, float, ReduceTensorOp::NORM2, false, false, 4, 1);       
-ADD_BLOCKWISE_INST_REF(float, double, float, ReduceTensorOp::NORM2, false, false, 2, 1);
+// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOpId | PropagateNan | UseIndex 
+extern template void add_device_reduce_instance_blockwise<float, double, float, 4, 3, ReduceTensorOp::NORM2, false, false>(std::vector<deviceReduceBlockWisePtrType<4, 3, ReduceTensorOp::NORM2>>&); 
+extern template void add_device_reduce_instance_blockwise<float, double, float, 4, 4, ReduceTensorOp::NORM2, false, false>(std::vector<deviceReduceBlockWisePtrType<4, 4, ReduceTensorOp::NORM2>>&); 
+extern template void add_device_reduce_instance_blockwise<float, double, float, 4, 1, ReduceTensorOp::NORM2, false, false>(std::vector<deviceReduceBlockWisePtrType<4, 1, ReduceTensorOp::NORM2>>&); 
+extern template void add_device_reduce_instance_blockwise<float, double, float, 2, 1, ReduceTensorOp::NORM2, false, false>(std::vector<deviceReduceBlockWisePtrType<2, 1, ReduceTensorOp::NORM2>>&);
 // clang-format on
 
 } // namespace instance

@@ -10,15 +10,15 @@ namespace device {
 namespace instance {
 
 // clang-format off
-// InDataType | AccDataType | OutDataType | ReduceOpId | PropagateNan | UseIndex | Rank | NumReduceDim
-ADD_THREADWISE_INST(bhalf_t, float, bhalf_t, ReduceTensorOp::MIN, 0, 0, 4, 3); // for MIN
-ADD_THREADWISE_INST(bhalf_t, float, bhalf_t, ReduceTensorOp::MIN, 0, 0, 4, 4);
-ADD_THREADWISE_INST(bhalf_t, float, bhalf_t, ReduceTensorOp::MIN, 0, 0, 4, 1);
-ADD_THREADWISE_INST(bhalf_t, float, bhalf_t, ReduceTensorOp::MIN, 0, 0, 2, 1);
-ADD_THREADWISE_INST(bhalf_t, float, bhalf_t, ReduceTensorOp::MIN, 0, 1, 4, 3); // for MIN
-ADD_THREADWISE_INST(bhalf_t, float, bhalf_t, ReduceTensorOp::MIN, 0, 1, 4, 4);
-ADD_THREADWISE_INST(bhalf_t, float, bhalf_t, ReduceTensorOp::MIN, 0, 1, 4, 1);
-ADD_THREADWISE_INST(bhalf_t, float, bhalf_t, ReduceTensorOp::MIN, 0, 1, 2, 1);
+// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOpId | PropagateNan | UseIndex 
+template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 4, 3, ReduceTensorOp::MIN, false, false>(std::vector<deviceReduceThreadWisePtrType<4, 3, ReduceTensorOp::MIN>>&);
+template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 4, 4, ReduceTensorOp::MIN, false, false>(std::vector<deviceReduceThreadWisePtrType<4, 4, ReduceTensorOp::MIN>>&);
+template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 4, 1, ReduceTensorOp::MIN, false, false>(std::vector<deviceReduceThreadWisePtrType<4, 1, ReduceTensorOp::MIN>>&);
+template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 2, 1, ReduceTensorOp::MIN, false, false>(std::vector<deviceReduceThreadWisePtrType<2, 1, ReduceTensorOp::MIN>>&);
+template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 4, 3, ReduceTensorOp::MIN, false, true>(std::vector<deviceReduceThreadWisePtrType<4, 3, ReduceTensorOp::MIN>>&);
+template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 4, 4, ReduceTensorOp::MIN, false, true>(std::vector<deviceReduceThreadWisePtrType<4, 4, ReduceTensorOp::MIN>>&);
+template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 4, 1, ReduceTensorOp::MIN, false, true>(std::vector<deviceReduceThreadWisePtrType<4, 1, ReduceTensorOp::MIN>>&);
+template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 2, 1, ReduceTensorOp::MIN, false, true>(std::vector<deviceReduceThreadWisePtrType<2, 1, ReduceTensorOp::MIN>>&);
 // clang-format on
 
 } // namespace instance

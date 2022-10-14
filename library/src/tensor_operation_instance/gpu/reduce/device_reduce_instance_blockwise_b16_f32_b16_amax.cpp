@@ -10,15 +10,15 @@ namespace device {
 namespace instance {
 
 // clang-format off
-// InDataType | AccDataType | OutDataType | ReduceOpId | PropagateNan | UseIndex | Rank | NumReduceDim
-ADD_BLOCKWISE_INST(bhalf_t, float, bhalf_t, ReduceTensorOp::AMAX, false, false, 4, 3); // for AMAX
-ADD_BLOCKWISE_INST(bhalf_t, float, bhalf_t, ReduceTensorOp::AMAX, false, false, 4, 4);
-ADD_BLOCKWISE_INST(bhalf_t, float, bhalf_t, ReduceTensorOp::AMAX, false, false, 4, 1);
-ADD_BLOCKWISE_INST(bhalf_t, float, bhalf_t, ReduceTensorOp::AMAX, false, false, 2, 1);
-ADD_BLOCKWISE_INST(bhalf_t, float, bhalf_t, ReduceTensorOp::AMAX, false, true, 4, 3); // for AMAX
-ADD_BLOCKWISE_INST(bhalf_t, float, bhalf_t, ReduceTensorOp::AMAX, false, true, 4, 4);
-ADD_BLOCKWISE_INST(bhalf_t, float, bhalf_t, ReduceTensorOp::AMAX, false, true, 4, 1);
-ADD_BLOCKWISE_INST(bhalf_t, float, bhalf_t, ReduceTensorOp::AMAX, false, true, 2, 1);
+// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOpId | PropagateNan | UseIndex 
+template void add_device_reduce_instance_blockwise<bhalf_t, float, bhalf_t, 4, 3, ReduceTensorOp::AMAX, false, false>(std::vector<deviceReduceBlockWisePtrType<4, 3, ReduceTensorOp::AMAX>>&);
+template void add_device_reduce_instance_blockwise<bhalf_t, float, bhalf_t, 4, 4, ReduceTensorOp::AMAX, false, false>(std::vector<deviceReduceBlockWisePtrType<4, 4, ReduceTensorOp::AMAX>>&);
+template void add_device_reduce_instance_blockwise<bhalf_t, float, bhalf_t, 4, 1, ReduceTensorOp::AMAX, false, false>(std::vector<deviceReduceBlockWisePtrType<4, 1, ReduceTensorOp::AMAX>>&);
+template void add_device_reduce_instance_blockwise<bhalf_t, float, bhalf_t, 2, 1, ReduceTensorOp::AMAX, false, false>(std::vector<deviceReduceBlockWisePtrType<2, 1, ReduceTensorOp::AMAX>>&);
+template void add_device_reduce_instance_blockwise<bhalf_t, float, bhalf_t, 4, 3, ReduceTensorOp::AMAX, false, true>(std::vector<deviceReduceBlockWisePtrType<4, 3, ReduceTensorOp::AMAX>>&);
+template void add_device_reduce_instance_blockwise<bhalf_t, float, bhalf_t, 4, 4, ReduceTensorOp::AMAX, false, true>(std::vector<deviceReduceBlockWisePtrType<4, 4, ReduceTensorOp::AMAX>>&);
+template void add_device_reduce_instance_blockwise<bhalf_t, float, bhalf_t, 4, 1, ReduceTensorOp::AMAX, false, true>(std::vector<deviceReduceBlockWisePtrType<4, 1, ReduceTensorOp::AMAX>>&);
+template void add_device_reduce_instance_blockwise<bhalf_t, float, bhalf_t, 2, 1, ReduceTensorOp::AMAX, false, true>(std::vector<deviceReduceBlockWisePtrType<2, 1, ReduceTensorOp::AMAX>>&);
 // clang-format on
 
 } // namespace instance
