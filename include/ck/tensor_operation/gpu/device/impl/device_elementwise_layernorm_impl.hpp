@@ -12,7 +12,7 @@
 
 #include "ck/tensor_operation/gpu/device/device_elementwise_normalization.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce.hpp"
-#include "ck/tensor_operation/gpu/device/device_reduce_common.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_reduce_common.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_elementwise_layernorm_welford_variance.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_set_buffer_value.hpp"
 #include "ck/host_utility/device_prop.hpp"
