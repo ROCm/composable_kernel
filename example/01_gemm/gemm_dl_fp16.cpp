@@ -3,7 +3,7 @@
 
 #include "common.hpp"
 
-#include "ck/tensor_operation/gpu/device/device_gemm_dl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_dl.hpp"
 
 using ADataType   = ck::half_t;
 using BDataType   = ck::half_t;

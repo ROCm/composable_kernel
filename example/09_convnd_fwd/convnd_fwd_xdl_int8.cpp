@@ -3,7 +3,7 @@
 
 #include "convnd_fwd_common.hpp"
 
-#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_d_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_d_xdl_cshuffle.hpp"
 
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 
