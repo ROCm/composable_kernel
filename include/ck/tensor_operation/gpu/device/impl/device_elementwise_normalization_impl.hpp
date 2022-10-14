@@ -90,15 +90,16 @@ template <typename InDataTypeTuple, // Datatype of A & B
           index_t BetaSrcVectorDim,   // Dimension for beta to do reduce
           index_t BetaSrcVectorSize,  // Size to fetch source beta
           index_t YDstVectorSize>     // Size to write destination Y
-struct DeviceElementwiseNormalizationImpl : public DeviceElementwiseNormalization<InDataTypeTuple,
-                                                                                  GammaDataType,
-                                                                                  BetaDataType,
-                                                                                  AccDataType,
-                                                                                  YDataType,
-                                                                                  ElementwiseOperation,
-                                                                                  AccElementwiseOperation,
-                                                                                  Rank,
-                                                                                  NumReduceDim>
+struct DeviceElementwiseNormalizationImpl
+    : public DeviceElementwiseNormalization<InDataTypeTuple,
+                                            GammaDataType,
+                                            BetaDataType,
+                                            AccDataType,
+                                            YDataType,
+                                            ElementwiseOperation,
+                                            AccElementwiseOperation,
+                                            Rank,
+                                            NumReduceDim>
 {
     static constexpr int NumInput = InDataTypeTuple::Size();
 
