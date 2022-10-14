@@ -326,14 +326,16 @@ struct GridwiseBatchNormForwardWithBlockwiseWelford
                 AccDataType multiplier =
                     scale_thread_buf[Number<iM>{}] / sqrt(var_thread_buf[iM] + epsilon);
 
+                AccDataType fused_mean_bias =
+                    bias_thread_buf[Number<iM>{}] - mean_thread_buf[iM] * multiplier;
+
                 static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
                     constexpr auto offset =
                         thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK));
 
                     // normalize
                     y_thread_buf(Number<offset>{}) =
-                        (x_thread_buf[Number<offset>{}] - mean_thread_buf[iM]) * multiplier +
-                        bias_thread_buf[Number<iM>{}];
+                        x_thread_buf[Number<offset>{}] * multiplier + fused_mean_bias;
                 });
             });
 
