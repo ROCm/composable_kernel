@@ -34,7 +34,7 @@ CK is released under the MIT license. [License File](/LICENSE)
 
 ## Build docker image
 ```bash
-DOCKER_BUILDKIT=1 docker build -t ck:latest -f Dockerfile .
+DOCKER_BUILDKIT=1 docker build --network=host -t ck:latest -f Dockerfile .
 ```
 
 ## Launch docker
