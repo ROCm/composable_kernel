@@ -9,7 +9,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/utility/number.hpp"
-#include "ck/tensor_operation/gpu/device/device_layernorm_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_normalization_impl.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -65,26 +65,26 @@ class TestLayernorm2d : public ::testing::Test
                                                                          Rank,
                                                                          NumReduceDim>;
 
-    using DeviceInstance = tensor_operation::device::DeviceLayernormImpl<XDataType,
-                                                                         GammaDataType,
-                                                                         BetaDataType,
-                                                                         AccDataType,
-                                                                         YDataType,
-                                                                         PassThrough,
-                                                                         Rank,
-                                                                         NumReduceDim,
-                                                                         BlockSize,
-                                                                         MThreadClusterSize,
-                                                                         KThreadClusterSize,
-                                                                         MThreadSliceSize,
-                                                                         KThreadSliceSize,
-                                                                         XYSrcVectorDim,
-                                                                         XSrcVectorSize,
-                                                                         GammaSrcVectorDim,
-                                                                         GammaSrcVectorSize,
-                                                                         BetaSrcVectorDim,
-                                                                         BetaSrcVectorSize,
-                                                                         YDstVectorSize>;
+    using DeviceInstance = tensor_operation::device::DeviceNormalizationImpl<XDataType,
+                                                                             GammaDataType,
+                                                                             BetaDataType,
+                                                                             AccDataType,
+                                                                             YDataType,
+                                                                             PassThrough,
+                                                                             Rank,
+                                                                             NumReduceDim,
+                                                                             BlockSize,
+                                                                             MThreadClusterSize,
+                                                                             KThreadClusterSize,
+                                                                             MThreadSliceSize,
+                                                                             KThreadSliceSize,
+                                                                             XYSrcVectorDim,
+                                                                             XSrcVectorSize,
+                                                                             GammaSrcVectorDim,
+                                                                             GammaSrcVectorSize,
+                                                                             BetaSrcVectorDim,
+                                                                             BetaSrcVectorSize,
+                                                                             YDstVectorSize>;
 
     TestLayernorm2d() : ref_instance_invoker_(ReferenceInstance{}.MakeInvoker()) {}
 

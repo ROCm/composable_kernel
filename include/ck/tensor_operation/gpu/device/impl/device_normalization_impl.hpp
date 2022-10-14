@@ -9,7 +9,7 @@
 #include "ck/utility/reduction_operator.hpp"
 #include "ck/tensor_operation/gpu/device/device_normalization.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce.hpp"
-#include "ck/tensor_operation/gpu/device/device_reduce_common.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_reduce_common.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_layernorm_welford_variance.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_set_buffer_value.hpp"
 #include "ck/host_utility/device_prop.hpp"
@@ -75,14 +75,14 @@ template <typename XDataType,
           index_t BetaSrcVectorDim,
           index_t BetaSrcVectorSize,
           index_t YDstVectorSize>
-struct DeviceLayernormImpl : public DeviceLayernorm<XDataType,
-                                                    GammaDataType,
-                                                    BetaDataType,
-                                                    AccDataType,
-                                                    YDataType,
-                                                    AccElementwiseOperation,
-                                                    Rank,
-                                                    NumReduceDim>
+struct DeviceNormalizationImpl : public DeviceNormalization<XDataType,
+                                                            GammaDataType,
+                                                            BetaDataType,
+                                                            AccDataType,
+                                                            YDataType,
+                                                            AccElementwiseOperation,
+                                                            Rank,
+                                                            NumReduceDim>
 {
     static_assert(
         ((GammaSrcVectorDim == 0 && MThreadSliceSize % GammaSrcVectorSize == 0) ||
@@ -452,7 +452,7 @@ struct DeviceLayernormImpl : public DeviceLayernorm<XDataType,
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceLayernormImpl<" << BlockSize << ",";
+        str << "DeviceNormalizationImpl<" << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
         str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
         str << "XYSrcVectorDim_" << XYSrcVectorDim  << ",";
