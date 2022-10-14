@@ -20,20 +20,24 @@ namespace device {
 template <typename InDataTypeTuple,
           typename OutDataTypeTuple,
           typename ElementwiseOperation,
-          index_t NumDim,
           index_t NumDim_m,
           index_t NumDim_n,
           index_t MPerThread,
           index_t NPerThread,
           typename InScalarPerVectorSeq,
           typename OutScalarPerVectorSeq>
-struct DeviceElementwise
-    : public DeviceElementwiseBase<InDataTypeTuple, OutDataTypeTuple, ElementwiseOperation, NumDim>
+struct DeviceElementwise : public DeviceElementwiseBase<InDataTypeTuple,
+                                                        OutDataTypeTuple,
+                                                        ElementwiseOperation,
+                                                        NumDim_m + NumDim_n>
 {
+    static constexpr index_t NumDim = NumDim_m + NumDim_n;
+
     static constexpr int NumInput  = InDataTypeTuple::Size();
     static constexpr int NumOutput = OutDataTypeTuple::Size();
 
-    // const index_t NumDim = NumDim_m + NumDim_n;
+    static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
 
     static_assert(NumInput == InScalarPerVectorSeq::Size() &&
                       NumOutput == OutScalarPerVectorSeq::Size(),
@@ -67,16 +71,17 @@ struct DeviceElementwise
     template <typename Desc_MN>
     static auto PadDescriptor_MN_2d(Desc_MN desc_mn, index_t gridSize, index_t blockSize)
     {
-        constexpr auto I0 = Number<0>{};
-        constexpr auto I1 = Number<1>{};
-
         const auto m              = desc_mn.GetLength(I0);
         const auto n              = desc_mn.GetLength(I1);
-        const index_t loop_step_m = gridSize * blockSize * MPerThread;
+        const index_t loop_step_m = MPerThread;
         const index_t loop_step_n = gridSize * blockSize * NPerThread;
         const auto pad_m          = math::integer_least_multiple(m, loop_step_m) - m;
         const auto pad_n          = math::integer_least_multiple(n, loop_step_n) - n;
-        const auto desc_mn_pad    = transform_tensor_descriptor(
+        std::cout << NumDim_m << " m: " << m << " loop_step_m: " << loop_step_m
+                  << " pad_m: " << pad_m << std::endl;
+        std::cout << NumDim_n << " n: " << n << " loop_step_n: " << loop_step_n
+                  << " pad_n: " << pad_n << std::endl;
+        const auto desc_mn_pad = transform_tensor_descriptor(
             desc_mn,
             make_tuple(make_right_pad_transform(m, pad_m), make_right_pad_transform(n, pad_n)),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
@@ -137,7 +142,6 @@ struct DeviceElementwise
 
     using OutGrid2dDescTuple = decltype(GenerateInOutGrid2dDescTuple(Number<NumOutput>{}));
     using InGrid2dDescTuple  = decltype(GenerateInOutGrid2dDescTuple(Number<NumInput>{}));
-    // using OutGrid2dDescTuple = decltype(GenerateInOutGrid2dDescTuple(Number<NumOutput>{}));
 
     using GridwiseElementwise = GridwiseElementwise_2D<InGrid2dDescTuple,
                                                        OutGrid2dDescTuple,
@@ -165,6 +169,9 @@ struct DeviceElementwise
               blockSize_(256),
               gridSize_(120) // FIXME - Calculate the grid size by number of CU in the future
         {
+            static_assert(NumDim_m > 0, "");
+            static_assert(NumDim_n > 0, "");
+
             in_dev_buffers_ = generate_tuple(
                 [&](auto I) {
                     using DataType = remove_cvref_t<decltype(InDataTypeTuple{}[I])>;
@@ -256,30 +263,32 @@ struct DeviceElementwise
         auto IsScalarPerVectorValid = [&](const std::array<index_t, NumDim>& lengths,
                                           const std::array<index_t, NumDim>& strides,
                                           index_t scalarPerVector,
-					  index_t vectorDim) {
-            std::cout << "scalarPerVector: " << scalarPerVector << std::endl;
-            std::cout << "stride back: " << strides.back() << std::endl;
-            std::cout << "len back: " << lengths.back() << std::endl;
-            std::cout << "NumDim-1: " << NumDim - 1 << std::endl;
-            std::cout << "stride[nd-1]: " << strides[NumDim - 1] << std::endl;
-            std::cout << "NumDim_m-1: " << NumDim_m - 1 << std::endl;
-	    std::cout << std::endl;
-            std::cout << "ISPVV Check 1 starting" << std::endl;
-            if(strides[vectorDim] == 1 && (lengths[vectorDim] % scalarPerVector == 0 || lengths[vectorDim]%scalarPerVector == lengths[vectorDim]))
+                                          index_t vectorDim) {
+            // std::cout << "scalarPerVector: " << scalarPerVector << std::endl;
+            // std::cout << "stride back: " << strides.back() << std::endl;
+            // std::cout << "len back: " << lengths.back() << std::endl;
+            // std::cout << "NumDim-1: " << NumDim - 1 << std::endl;
+            // std::cout << "stride[nd-1]: " << strides[NumDim - 1] << std::endl;
+            // std::cout << "NumDim_m-1: " << NumDim_m - 1 << std::endl;
+            // std::cout << std::endl;
+            // std::cout << "ISPVV Check 1 starting" << std::endl;
+            if(strides[vectorDim] == 1 &&
+               (lengths[vectorDim] % scalarPerVector == 0 ||
+                lengths[vectorDim] % scalarPerVector == lengths[vectorDim]))
             {
-                std::cout << "Check 1 passed" << std::endl;
+                // std::cout << "Check 1 passed" << std::endl;
                 return true;
             }
-            std::cout << "Check 1 failed " << std::endl;
+            // std::cout << "Check 1 failed " << std::endl;
 
-            std::cout << "ISPVV Check 2 starting" << std::endl;
-	    std::cout << "strides[vectorDim]: " << strides[vectorDim] << std::endl;
+            // std::cout << "ISPVV Check 2 starting" << std::endl;
+            // std::cout << "strides[vectorDim]: " << strides[vectorDim] << std::endl;
             if(strides[vectorDim] != 1 && scalarPerVector == strides[vectorDim])
             {
-                std::cout << "Check 2 passed " << std::endl;
+                // std::cout << "Check 2 passed " << std::endl;
                 return true;
             }
-            std::cout << "Check 2 failed" << std::endl;
+            // std::cout << "Check 2 failed" << std::endl;
 
             return false;
         };
@@ -300,19 +309,23 @@ struct DeviceElementwise
         bool valid = true;
         static_for<0, NumInput, 1>{}([&](auto I) {
             std::cout << "running: " << I << std::endl;
-            if(!IsScalarPerVectorValid(
-                   pArg->lengths_, pArg->inStridesArray_[I.value], InScalarPerVectorSeq::At(I), NumDim_m - 1))
+            if(!IsScalarPerVectorValid(pArg->lengths_,
+                                       pArg->inStridesArray_[I.value],
+                                       InScalarPerVectorSeq::At(I),
+                                       NumDim_m - 1))
                 valid = false;
         });
-	std::cout << "valid after loop through input: " << valid << std::endl;
+        std::cout << "valid after loop through input: " << valid << std::endl;
 
         static_for<0, NumOutput, 1>{}([&](auto I) {
             std::cout << "running 2: " << I << std::endl;
-            if(!IsScalarPerVectorValid(
-                   pArg->lengths_, pArg->outStridesArray_[I.value], OutScalarPerVectorSeq::At(I), NumDim - 1))
+            if(!IsScalarPerVectorValid(pArg->lengths_,
+                                       pArg->outStridesArray_[I.value],
+                                       OutScalarPerVectorSeq::At(I),
+                                       NumDim - 1))
                 valid = false;
         });
-	std::cout << "valid after loop through output: " << valid << std::endl;
+        std::cout << "valid after loop through output: " << valid << std::endl;
 
         return valid;
     };
