@@ -38,9 +38,9 @@ namespace device {
  * \note Using \p ComputePtrOffsetOfBatch gives us the flexibility that 2 workgroups can compute 2
  * tiles from different matrices. Keep in mind that these 2 matrices can share the same grid
  * descriptor (like in BatchedGEMM), or use their own grid descriptors (in GroupedGemm). \link
- * device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk.hpp kernel_gemm_xdlops_v2r3_for_conv3d \endlink for \link
- * DeviceConv3d \endlink uses the same concept, but currently does NOT encapsulate the computing of
- * pointer offset into \p ComputePtrOffsetOfStridedBatch.
+ * impl/device_conv3d_fwd_xdl_ndhwc_kzyxc_ndhwk.hpp kernel_gemm_xdlops_v2r3_for_conv3d \endlink for
+ * \link DeviceConv3d \endlink uses the same concept, but currently does NOT encapsulate the
+ * computing of pointer offset into \p ComputePtrOffsetOfStridedBatch.
  *
  * \note \p Block2ETileMap allows customized mapping between a workgroup and the C-tile it computes.
  * Together with \p ComputePtrOffsetOfBatch, we can reuse GridwiseGemm (and GridwiseGemm fusion ) to
