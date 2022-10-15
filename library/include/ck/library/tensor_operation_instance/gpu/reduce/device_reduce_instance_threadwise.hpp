@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
-#include "ck/tensor_operation/gpu/device/device_reduce_threadwise.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_reduce_threadwise.hpp"
 #include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance_impl_common.hpp"
 
 namespace ck {
