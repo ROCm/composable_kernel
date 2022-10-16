@@ -49,6 +49,49 @@ using reduce_configuration_2_instances_threadwise = std::tuple<
     >;
 #endif
 
+template <typename InDataType,
+          typename AccDataType,
+          typename OutDataType,
+          int Rank,
+          int NumReduceDim,
+          typename ReduceOperation,
+          typename InElementwiseOp,
+          typename AccElementwiseOp,
+          bool PropagateNan,
+          bool OutputIndex>
+void add_device_reduce_instance_threadwise_0(
+    std::vector<DeviceReducePtr<Rank, NumReduceDim, InElementwiseOp, AccElementwiseOp>>&
+        device_op_instances)
+{
+    using cfg1 = ReductionConfiguration_1<256, 256, 1>;
+
+    static_for<0, std::tuple_size<reduce_configuration_2_instances_threadwise>::value, 1>{}(
+        [&](auto j) {
+            using cfg2 = remove_cvref_t<decltype(
+                std::get<j.value>(reduce_configuration_2_instances_threadwise{}))>;
+
+            using ReduceOpInstance = DeviceReduceThreadWise<InDataType,
+                                                            AccDataType,
+                                                            OutDataType,
+                                                            Rank,
+                                                            NumReduceDim,
+                                                            ReduceOperation,
+                                                            InElementwiseOp,
+                                                            AccElementwiseOp,
+                                                            PropagateNan,
+                                                            OutputIndex,
+                                                            false, // HaveIndexInputIfOutputIndex
+                                                            cfg1::BlockSize_,
+                                                            cfg2::MThreadSliceSize_,
+                                                            cfg2::KThreadSliceSize_,
+                                                            cfg2::InSrcVectorDim_,
+                                                            cfg2::InSrcVectorSize_,
+                                                            cfg2::OutDstVectorSize_>;
+
+            device_op_instances.push_back(std::make_unique<ReduceOpInstance>(ReduceOpInstance{}));
+        });
+};
+
 template <index_t Rank, index_t NumReduceDim, ReduceTensorOp ReduceOpId>
 using deviceReduceThreadWisePtrType = DeviceReducePtr<
     Rank,
@@ -68,9 +111,9 @@ void add_device_reduce_instance_threadwise(
     std::vector<deviceReduceThreadWisePtrType<Rank, NumReduceDim, ReduceOpId>>& device_op_instances)
 {
     using ReduceOperation = typename reduce_binary_operator<ReduceOpId>::opType;
-    using InElementwiseOperation =
+    using InElementwiseOp =
         typename reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation;
-    using AccElementwiseOperation =
+    using AccElementwiseOp =
         typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation;
 
     constexpr bool Indexable =
@@ -78,33 +121,16 @@ void add_device_reduce_instance_threadwise(
          ReduceOpId == ReduceTensorOp::AMAX);
     constexpr bool OutputIndex = Indexable && UseIndex;
 
-    using cfg1 = ReductionConfiguration_1<256, 256, 1>;
-
-    static_for<0, std::tuple_size<reduce_configuration_2_instances_threadwise>::value, 1>{}(
-        [&](auto j) {
-            using cfg2 = remove_cvref_t<decltype(
-                std::get<j.value>(reduce_configuration_2_instances_threadwise{}))>;
-
-            using ReduceOpInstance = DeviceReduceThreadWise<InDataType,
-                                                            AccDataType,
-                                                            OutDataType,
-                                                            Rank,
-                                                            NumReduceDim,
-                                                            ReduceOperation,
-                                                            InElementwiseOperation,
-                                                            AccElementwiseOperation,
-                                                            PropagateNan,
-                                                            OutputIndex,
-                                                            false, // HaveIndexInputIfOutputIndex
-                                                            cfg1::BlockSize_,
-                                                            cfg2::MThreadSliceSize_,
-                                                            cfg2::KThreadSliceSize_,
-                                                            cfg2::InSrcVectorDim_,
-                                                            cfg2::InSrcVectorSize_,
-                                                            cfg2::OutDstVectorSize_>;
-
-            device_op_instances.push_back(std::make_unique<ReduceOpInstance>(ReduceOpInstance{}));
-        });
+    add_device_reduce_instance_threadwise_0<InDataType,
+                                            AccDataType,
+                                            OutDataType,
+                                            Rank,
+                                            NumReduceDim,
+                                            ReduceOperation,
+                                            InElementwiseOp,
+                                            AccElementwiseOp,
+                                            PropagateNan,
+                                            OutputIndex>(device_op_instances);
 };
 
 } // namespace instance
