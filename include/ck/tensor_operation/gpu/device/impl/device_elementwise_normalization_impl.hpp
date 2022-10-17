@@ -18,21 +18,22 @@
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
-// Y = layernorm( A + B, Beta, Gamma )
+// C = Elementwise(input1, input2, input3, ...)
+// Y = Layernorm(C, beta, gamma)
 namespace ck {
 template <typename GridwiseElementwiseReduction,
-          typename InDataTypePointerTuple,  // Datatype tuple of A & B
-          typename CDataType,               // Datatype of A + B
-          typename GammaDataType,           // Datatype of Gamma
-          typename BetaDataType,            // Datatype of Beta
-          typename YDataType,               // Datatype of input Y
-          typename AccDataType,             // AccDatatype
-          typename ElementwiseOperation,    // Operation of A & B -> Add
-          typename AccElementwiseOperation, // Operation Passthrough
-          typename InGrid2dDescTuple,       // Descriptor tuple of A & B
-          typename GridDesc_M_K>            // Descriptor of A & B Gamma, Beta
+          typename InDataTypePointerTuple, // Datatype tuple of inputs
+          typename CDataType,              // Datatype of C
+          typename GammaDataType,          // Datatype of Gamma
+          typename BetaDataType,           // Datatype of Beta
+          typename YDataType,              // Datatype of input Y
+          typename AccDataType,            // AccDatatype
+          typename CElementwiseOperation,  // Operation of input
+          typename YElementwiseOperation,  // Operation Passthrough
+          typename InGrid2dDescTuple,      // Descriptor tuple of inputs
+          typename GridDesc_M_K>           // Descriptor of inputs, Gamma, Beta
 __global__ void kernel_elementwise_layernorm(
-    const InGrid2dDescTuple in_grid_2d_desc_tuple,          // Descriptor tuple of A & B
+    const InGrid2dDescTuple in_grid_2d_desc_tuple,          // Descriptor tuple of inputs
     const GridDesc_M_K c_grid_desc_m_k,                     // Descriptor of C
     const GridDesc_M_K gamma_grid_desc_m_k,                 // Descriptor of gamma
     const GridDesc_M_K beta_grid_desc_m_k,                  // Descriptor of beta
@@ -44,23 +45,23 @@ __global__ void kernel_elementwise_layernorm(
     const GammaDataType* const __restrict__ p_gamma_global, // Ptr of gamma
     const BetaDataType* const __restrict__ p_beta_global,   // Ptr of beta
     YDataType* const __restrict__ p_y_global,               // Ptr of y
-    const ElementwiseOperation elementwise_op,              // Operation Add
-    const AccElementwiseOperation acc_elementwise_op)       // Operation Passthrough
+    const CElementwiseOperation c_elementwise_op,           // Operation Add
+    const YElementwiseOperation y_elementwise_op)           // Operation Passthrough
 {
-    GridwiseElementwiseReduction::Run(in_grid_2d_desc_tuple,      // Descriptor tuple of A & B
+    GridwiseElementwiseReduction::Run(in_grid_2d_desc_tuple,      // Descriptor tuple of inputs
                                       c_grid_desc_m_k,            // Descriptor of C
                                       gamma_grid_desc_m_k,        // Descriptor of Gamma
                                       beta_grid_desc_m_k,         // Descriptor of Beta
                                       y_grid_desc_m_k,            // Descriptor of Y
                                       num_k_block_tile_iteration, // arg.numBlockTileIteration_
                                       epsilon,                    // epsilon
-                                      p_in_global_tuple,          // Ptr tuple of A & B
+                                      p_in_global_tuple,          // Ptr tuple of inputs
                                       p_c_global,                 // Ptr of C
                                       p_gamma_global,             // Ptr of gamma
                                       p_beta_global,              // Ptr of beta
                                       p_y_global,                 // Ptr of Y
-                                      elementwise_op,             // Add
-                                      acc_elementwise_op);        // Passthrough
+                                      c_elementwise_op,           // Add
+                                      y_elementwise_op);          // Passthrough
 };
 } // namespace ck
 
@@ -74,8 +75,8 @@ template <typename InDataTypeTuple, // Datatype of A & B
           typename BetaDataType,
           typename AccDataType,
           typename YDataType,
-          typename ElementwiseOperation,
-          typename AccElementwiseOperation,
+          typename CElementwiseOperation,
+          typename YElementwiseOperation,
           index_t Rank,               //
           index_t NumReduceDim,       //
           index_t BlockSize,          //
@@ -96,8 +97,8 @@ struct DeviceElementwiseNormalizationImpl
                                             BetaDataType,
                                             AccDataType,
                                             YDataType,
-                                            ElementwiseOperation,
-                                            AccElementwiseOperation,
+                                            CElementwiseOperation,
+                                            YElementwiseOperation,
                                             Rank,
                                             NumReduceDim>
 {
@@ -113,7 +114,7 @@ struct DeviceElementwiseNormalizationImpl
         (KThreadSliceSize % BetaSrcVectorSize == 0),
         "Invalid thread slice sizes and/or beta vector sizes configuration, please check!");
 
-    using PassThrough = tensor_operation::element_wise::PassThrough;
+    // using PassThrough = tensor_operation::element_wise::PassThrough;
 
     static constexpr index_t M_BlockTileSize =
         MThreadClusterSize * MThreadSliceSize; // num of rows calculated in a block
@@ -216,8 +217,8 @@ struct DeviceElementwiseNormalizationImpl
                                                              BetaDataType,
                                                              YDataType,
                                                              AccDataType,
-                                                             ElementwiseOperation,
-                                                             AccElementwiseOperation,
+                                                             CElementwiseOperation,
+                                                             YElementwiseOperation,
                                                              InGrid2dDescTuple,
                                                              GridDesc_M_K,
                                                              BlockSize,
@@ -242,8 +243,8 @@ struct DeviceElementwiseNormalizationImpl
                                                              BetaDataType,
                                                              YDataType,
                                                              AccDataType,
-                                                             ElementwiseOperation,
-                                                             AccElementwiseOperation,
+                                                             CElementwiseOperation,
+                                                             YElementwiseOperation,
                                                              InGrid2dDescTuple,
                                                              GridDesc_M_K,
                                                              BlockSize,
@@ -269,8 +270,8 @@ struct DeviceElementwiseNormalizationImpl
                  const std::vector<index_t> betaStrides,
                  const std::vector<index_t> yStrides,
                  const std::vector<index_t> reduceDims,
-                 ElementwiseOperation elementwise_op,
-                 AccElementwiseOperation acc_elementwise_op,
+                 CElementwiseOperation c_elementwise_op,
+                 YElementwiseOperation y_elementwise_op,
                  AccDataType epsilon,
                  const std::array<const void*, NumInput> in_dev_buffers,
                  const GammaDataType* p_gamma,
@@ -280,8 +281,8 @@ struct DeviceElementwiseNormalizationImpl
               p_gamma_(p_gamma),
               p_beta_(p_beta),
               p_y_(p_y),
-              elementwise_op_(elementwise_op),
-              acc_elementwise_op_(acc_elementwise_op)
+              c_elementwise_op_(c_elementwise_op),
+              y_elementwise_op_(y_elementwise_op)
         {
 
             Lengths_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(lengths, reduceDims);
@@ -360,8 +361,8 @@ struct DeviceElementwiseNormalizationImpl
         std::vector<index_t> betaStrides_;
         std::vector<index_t> yStrides_;
 
-        ElementwiseOperation elementwise_op_;
-        AccElementwiseOperation acc_elementwise_op_;
+        CElementwiseOperation c_elementwise_op_;
+        YElementwiseOperation y_elementwise_op_;
 
         int blkGroupSize_;
         int numBlockTileIteration_;
@@ -387,8 +388,8 @@ struct DeviceElementwiseNormalizationImpl
                                                                BetaDataType,
                                                                YDataType,
                                                                AccDataType,
-                                                               ElementwiseOperation,
-                                                               AccElementwiseOperation,
+                                                               CElementwiseOperation,
+                                                               YElementwiseOperation,
                                                                InGrid2dDescTuple,
                                                                GridDesc_M_K>
                                 : kernel_elementwise_layernorm<GridwiseReduceLayernormGeneric,
@@ -398,8 +399,8 @@ struct DeviceElementwiseNormalizationImpl
                                                                BetaDataType,
                                                                YDataType,
                                                                AccDataType,
-                                                               ElementwiseOperation,
-                                                               AccElementwiseOperation,
+                                                               CElementwiseOperation,
+                                                               YElementwiseOperation,
                                                                InGrid2dDescTuple,
                                                                GridDesc_M_K>;
 
@@ -421,8 +422,8 @@ struct DeviceElementwiseNormalizationImpl
                                                arg.p_gamma_,
                                                arg.p_beta_,
                                                arg.p_y_,
-                                               arg.elementwise_op_,
-                                               arg.acc_elementwise_op_);
+                                               arg.c_elementwise_op_,
+                                               arg.y_elementwise_op_);
 
             return (avg_time);
         };
@@ -547,8 +548,8 @@ struct DeviceElementwiseNormalizationImpl
                         const void* p_gamma,
                         const void* p_beta,
                         void* p_y,
-                        ElementwiseOperation elementwise_op,
-                        AccElementwiseOperation acc_elementwise_op) override
+                        CElementwiseOperation c_elementwise_op,
+                        YElementwiseOperation y_elementwise_op) override
     {
         return std::make_unique<Argument>(lengths,
                                           inStridesArray,
@@ -556,8 +557,8 @@ struct DeviceElementwiseNormalizationImpl
                                           betaStrides,
                                           yStrides,
                                           reduceDims,
-                                          elementwise_op,
-                                          acc_elementwise_op,
+                                          c_elementwise_op,
+                                          y_elementwise_op,
                                           epsilon,
                                           in_dev_buffers,
                                           static_cast<const GammaDataType*>(p_gamma),

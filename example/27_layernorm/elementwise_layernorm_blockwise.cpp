@@ -19,34 +19,36 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
 
-using ADataType     = ck::half_t;
-using BDataType     = ck::half_t;
-using CDataType     = ck::half_t;
-using GammaDataType = ck::half_t;
-using BetaDataType  = ck::half_t;
-using YDataType     = ck::half_t;
-using AccDataType   = float;
-using Add           = ck::tensor_operation::element_wise::Add;
-using PassThrough   = ck::tensor_operation::element_wise::PassThrough;
+using ADataType             = ck::half_t;
+using BDataType             = ck::half_t;
+using CDataType             = ck::half_t;
+using GammaDataType         = ck::half_t;
+using BetaDataType          = ck::half_t;
+using YDataType             = ck::half_t;
+using AccDataType           = float;
+using CElementwiseOperation = ck::tensor_operation::element_wise::Add;
+using YElementwiseOperation = ck::tensor_operation::element_wise::PassThrough;
 
 constexpr int Rank         = 2;
 constexpr int NumReduceDim = 1;
 
+// X = Elementwise(input1, input2, input3, ...)
+// Y = Layernorm(C, beta, gamma)
 using DeviceInstance = ck::tensor_operation::device::DeviceElementwiseNormalizationImpl<
     ck::Tuple<ADataType, BDataType>,
     GammaDataType,
     BetaDataType,
     AccDataType,
     YDataType,
-    Add,
-    PassThrough,
+    CElementwiseOperation,
+    YElementwiseOperation,
     Rank,
     NumReduceDim,
     256, // BlockSize
     8,   // ClusterM
     32,  // ClusterK
     1,   // SliceM
-    32,  // SliceK
+    16,  // SliceK
     1,   // SrcVecDim (0=M, 1=K)
     8,   // SrcScalarPerVector
     1,   // GammaVecDim (0=M, 1=K)
@@ -133,8 +135,8 @@ int main()
         gamma_dev.GetDeviceBuffer(),
         beta_dev.GetDeviceBuffer(),
         y_dev.GetDeviceBuffer(),
-        Add{},
-        PassThrough{});
+        CElementwiseOperation{},
+        YElementwiseOperation{});
 
     if(!device_instance.IsSupportedArgument(argument_ptr.get()))
     {
@@ -159,22 +161,25 @@ int main()
         std::vector<std::size_t> mn = {static_cast<unsigned long>(M),
                                        static_cast<unsigned long>(N)};
         Tensor<CDataType> x(f_host_tensor_descriptor2d(M, N, Stride));
-        host_elementwise2D<Tensor<ADataType>, Tensor<BDataType>, Tensor<CDataType>, Add>(
-            x, a, b, mn, Add{});
+        host_elementwise2D<Tensor<ADataType>,
+                           Tensor<BDataType>,
+                           Tensor<CDataType>,
+                           CElementwiseOperation>(x, a, b, mn, CElementwiseOperation{});
 
         Tensor<YDataType> host_y(f_host_tensor_descriptor2d(M, N, Stride));
-        using ReferenceInstance = ck::tensor_operation::host::ReferenceLayernorm<CDataType,
-                                                                                 GammaDataType,
-                                                                                 BetaDataType,
-                                                                                 YDataType,
-                                                                                 AccDataType,
-                                                                                 PassThrough,
-                                                                                 Rank,
-                                                                                 NumReduceDim>;
+        using ReferenceInstance =
+            ck::tensor_operation::host::ReferenceLayernorm<CDataType,
+                                                           GammaDataType,
+                                                           BetaDataType,
+                                                           YDataType,
+                                                           AccDataType,
+                                                           YElementwiseOperation,
+                                                           Rank,
+                                                           NumReduceDim>;
 
         ReferenceInstance ref;
         auto ref_argument =
-            ref.MakeArgument(x, gamma, beta, host_y, PassThrough{}, {M, N}, {1}, 1e-4);
+            ref.MakeArgument(x, gamma, beta, host_y, YElementwiseOperation{}, {M, N}, {1}, 1e-4);
         auto ref_invoker = ref.MakeInvoker();
         ref_invoker.Run(ref_argument);
 

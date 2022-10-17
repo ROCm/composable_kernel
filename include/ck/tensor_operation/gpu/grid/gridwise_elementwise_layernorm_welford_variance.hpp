@@ -12,15 +12,16 @@
 
 namespace ck {
 
-// Y = LayerNorm(A + B, Beta, Gamma)
+// C = Elementwise(input1, input2, input3, ...)
+// Y = Layernorm(C, beta, gamma)
 template <typename InDataTypePointerTuple,
           typename CDataType,
           typename GammaDataType,
           typename BetaDataType,
           typename YDataType,
           typename AccDataType,
-          typename ElementwiseOperation,
-          typename AccElementwiseOperation,
+          typename CElementwiseOperation,
+          typename YElementwiseOperation,
           typename InGrid2dDescTuple,
           typename GridDesc_M_K,
           index_t BlockSize,
@@ -122,8 +123,8 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
                                const GammaDataType* const __restrict__ p_gamma_global,
                                const BetaDataType* const __restrict__ p_beta_global,
                                YDataType* const __restrict__ p_y_global,
-                               const ElementwiseOperation elementwise_op,
-                               const AccElementwiseOperation acc_elementwise_op)
+                               const CElementwiseOperation c_elementwise_op,
+                               const YElementwiseOperation y_elementwise_op)
     {
         if constexpr(SweepOnce)
         {
@@ -281,12 +282,14 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
                                      thread_m_cluster_id * MThreadSliceSize,
                                  thread_k_cluster_id * BetaSrcVectorSize));
 
+        using PassThrough = tensor_operation::element_wise::PassThrough;
+        PassThrough pass_through_op;
         auto threadwise_c_store =
             ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
                                                CDataType,
                                                decltype(thread_buffer_desc_m_k),
                                                GridDesc_M_K,
-                                               AccElementwiseOperation,
+                                               YElementwiseOperation,
                                                ThreadBufferLengths_M_K,
                                                ThreadBufferDimAccessOrder,
                                                XSrcVectorDim,
@@ -298,14 +301,14 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
                 make_multi_index(block_global_id * M_BlockTileSize +
                                      thread_m_cluster_id * MThreadSliceSize,
                                  thread_k_cluster_id * XSrcVectorSize),
-                acc_elementwise_op);
+                pass_through_op);
 
         auto threadwise_y_store =
             ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
                                                YDataType,
                                                decltype(thread_buffer_desc_m_k),
                                                GridDesc_M_K,
-                                               AccElementwiseOperation,
+                                               YElementwiseOperation,
                                                ThreadBufferLengths_M_K,
                                                ThreadBufferDimAccessOrder,
                                                YDstVectorDim,
@@ -317,7 +320,7 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
                 make_multi_index(block_global_id * M_BlockTileSize +
                                      thread_m_cluster_id * MThreadSliceSize,
                                  thread_k_cluster_id * YDstVectorSize),
-                acc_elementwise_op);
+                y_elementwise_op);
 
         // Copy x from Cache
         // one pass: fwd, second pass: bwd
@@ -372,7 +375,7 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
                             [&](auto) -> auto& { return c_thread_buf(iK0)(Number<offset_m_k>{}); },
                             I1);
 
-                        unpack2(elementwise_op, out_data_refs, in_data_refs);
+                        unpack2(c_elementwise_op, out_data_refs, in_data_refs);
                     });
                 });
                 threadwise_welford.Run(c_thread_buf[iK0], mean_thread_buf, var_thread_buf);

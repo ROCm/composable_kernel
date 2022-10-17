@@ -17,8 +17,8 @@ template <typename InDataTypeTuple,
           typename BetaDataType,
           typename AccDataType,
           typename YDataType,
-          typename ElementwiseOperation,
-          typename AccElementwiseOperation,
+          typename CElementwiseOperation,
+          typename YElementwiseOperation,
           index_t Rank,
           index_t NumReduceDim>
 struct DeviceElementwiseNormalization : public BaseOperator
@@ -37,8 +37,8 @@ struct DeviceElementwiseNormalization : public BaseOperator
                         const void* p_gamma,
                         const void* p_beta,
                         void* p_y,
-                        ElementwiseOperation elementwise_op,
-                        AccElementwiseOperation acc_elementwise_op) = 0;
+                        CElementwiseOperation c_elementwise_op,
+                        YElementwiseOperation y_elementwise_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
@@ -48,8 +48,8 @@ template <typename InDataTypeTuple,
           typename BetaDataType,
           typename AccDataType,
           typename YDataType,
-          typename ElementwiseOperation,
-          typename AccElementwiseOperation,
+          typename CElementwiseOperation,
+          typename YElementwiseOperation,
           index_t Rank,
           index_t NumReduceDim>
 using DeviceElementwiseNormalizationPtr =
@@ -58,8 +58,8 @@ using DeviceElementwiseNormalizationPtr =
                                                    BetaDataType,
                                                    AccDataType,
                                                    YDataType,
-                                                   ElementwiseOperation,
-                                                   AccElementwiseOperation,
+                                                   CElementwiseOperation,
+                                                   YElementwiseOperation,
                                                    Rank,
                                                    NumReduceDim>>;
 
