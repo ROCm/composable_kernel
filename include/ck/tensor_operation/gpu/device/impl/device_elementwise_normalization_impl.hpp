@@ -41,13 +41,13 @@ __global__ void kernel_elementwise_layernorm(
     index_t num_k_block_tile_iteration,                     // arg.numBlockTileIteration_
     AccDataType epsilon,                                    // Datatype of epsilon
     const InDataTypePointerTuple p_in_global_tuple,         // Ptr tuple of input matrixs
-    CDataType* const __restrict__ p_c_global,               // Ptr of C
     const GammaDataType* const __restrict__ p_gamma_global, // Ptr of gamma
     const BetaDataType* const __restrict__ p_beta_global,   // Ptr of beta
     YDataType* const __restrict__ p_y_global,               // Ptr of y
     const CElementwiseOperation c_elementwise_op,           // Operation Add
     const YElementwiseOperation y_elementwise_op)           // Operation Passthrough
 {
+    extern __shared__ CDataType p_c_lds[];
     GridwiseElementwiseReduction::Run(in_grid_2d_desc_tuple,      // Descriptor tuple of inputs
                                       c_grid_desc_m_k,            // Descriptor of C
                                       gamma_grid_desc_m_k,        // Descriptor of Gamma
@@ -56,7 +56,7 @@ __global__ void kernel_elementwise_layernorm(
                                       num_k_block_tile_iteration, // arg.numBlockTileIteration_
                                       epsilon,                    // epsilon
                                       p_in_global_tuple,          // Ptr tuple of inputs
-                                      p_c_global,                 // Ptr of C
+                                      p_c_lds,                    // Ptr of C
                                       p_gamma_global,             // Ptr of gamma
                                       p_beta_global,              // Ptr of beta
                                       p_y_global,                 // Ptr of Y
@@ -70,27 +70,27 @@ namespace tensor_operation {
 namespace device {
 
 // Y = LayerNorm(A + B, Beta, Gamma)
-template <typename InDataTypeTuple, // Datatype of A & B
-          typename GammaDataType,   //
-          typename BetaDataType,
-          typename AccDataType,
-          typename YDataType,
-          typename CElementwiseOperation,
-          typename YElementwiseOperation,
-          index_t Rank,               //
-          index_t NumReduceDim,       //
-          index_t BlockSize,          //
-          index_t MThreadClusterSize, // Num of threads in a block on M direction
-          index_t KThreadClusterSize, // Num of threads in a block on N direction
-          index_t MThreadSliceSize,   // Each thread calculate rows
-          index_t KThreadSliceSize,   // Each thread calculate columns
-          index_t XYSrcVectorDim,     // Dimension to do reduce
-          index_t XSrcVectorSize,     // Size to fetch source x
-          index_t GammaSrcVectorDim,  // Dimension for gamma to do reduce
-          index_t GammaSrcVectorSize, // Size to fetch source gamma
-          index_t BetaSrcVectorDim,   // Dimension for beta to do reduce
-          index_t BetaSrcVectorSize,  // Size to fetch source beta
-          index_t YDstVectorSize>     // Size to write destination Y
+template <typename InDataTypeTuple,       // Datatype of inputs
+          typename GammaDataType,         // Datatype of gamma
+          typename BetaDataType,          // Datatype of beta
+          typename AccDataType,           //
+          typename YDataType,             //
+          typename CElementwiseOperation, //
+          typename YElementwiseOperation, //
+          index_t Rank,                   //
+          index_t NumReduceDim,           //
+          index_t BlockSize,              //
+          index_t MThreadClusterSize,     // Num of threads in a block on M direction
+          index_t KThreadClusterSize,     // Num of threads in a block on N direction
+          index_t MThreadSliceSize,       // Each thread calculate rows
+          index_t KThreadSliceSize,       // Each thread calculate columns
+          index_t XYSrcVectorDim,         // Dimension to do reduce
+          index_t XSrcVectorSize,         // Size to fetch source x
+          index_t GammaSrcVectorDim,      // Dimension for gamma to do reduce
+          index_t GammaSrcVectorSize,     // Size to fetch source gamma
+          index_t BetaSrcVectorDim,       // Dimension for beta to do reduce
+          index_t BetaSrcVectorSize,      // Size to fetch source beta
+          index_t YDstVectorSize>         // Size to write destination Y
 struct DeviceElementwiseNormalizationImpl
     : public DeviceElementwiseNormalization<InDataTypeTuple,
                                             GammaDataType,
@@ -113,8 +113,6 @@ struct DeviceElementwiseNormalizationImpl
     static_assert(
         (KThreadSliceSize % BetaSrcVectorSize == 0),
         "Invalid thread slice sizes and/or beta vector sizes configuration, please check!");
-
-    // using PassThrough = tensor_operation::element_wise::PassThrough;
 
     static constexpr index_t M_BlockTileSize =
         MThreadClusterSize * MThreadSliceSize; // num of rows calculated in a block
@@ -341,9 +339,10 @@ struct DeviceElementwiseNormalizationImpl
 
             if(!sweep_once_) // if not sweep once, malloc memory for matrix c in global memory for
                              // store Intermediate results
-                hip_check_error(
-                    hipMalloc(reinterpret_cast<void**>(&p_c_),
-                              sizeof(CDataType) * c_grid_desc_m_k_.GetElementSpaceSize()));
+                c_lds_size_ =
+                    sizeof(CDataType) * c_grid_desc_m_k_.GetElementSpaceSize() / gridSize_;
+            else
+                c_lds_size_ = 0;
         }
 
         AccDataType epsilon_;
@@ -374,6 +373,7 @@ struct DeviceElementwiseNormalizationImpl
         GridDesc_M_K beta_grid_desc_m_k_;
         GridDesc_M_K y_grid_desc_m_k_;
         bool sweep_once_;
+        int c_lds_size_;
     };
 
     struct Invoker : public BaseInvoker
@@ -409,7 +409,7 @@ struct DeviceElementwiseNormalizationImpl
                                                kernel_main,
                                                dim3(arg.gridSize_),
                                                dim3(BlockSize),
-                                               0,
+                                               arg.c_lds_size_,
                                                arg.in_grid_2d_desc_tuple_,
                                                arg.c_grid_desc_m_k_,
                                                arg.gamma_grid_desc_m_k_,
@@ -418,7 +418,6 @@ struct DeviceElementwiseNormalizationImpl
                                                arg.numBlockTileIteration_,
                                                arg.epsilon_,
                                                arg.in_dev_buffers_,
-                                               arg.p_c_,
                                                arg.p_gamma_,
                                                arg.p_beta_,
                                                arg.p_y_,
