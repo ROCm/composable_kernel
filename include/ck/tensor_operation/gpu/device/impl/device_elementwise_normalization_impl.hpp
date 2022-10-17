@@ -18,23 +18,23 @@
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
-// C = Elementwise(input1, input2, input3, ...)
-// Y = Layernorm(C, beta, gamma)
+// X = Elementwise(input1, input2, input3, ...)
+// Y = Normalization(X, beta, gamma)
 namespace ck {
 template <typename GridwiseElementwiseReduction,
           typename InDataTypePointerTuple, // Datatype tuple of inputs
-          typename CDataType,              // Datatype of C
+          typename XDataType,              // Datatype of X
           typename GammaDataType,          // Datatype of Gamma
           typename BetaDataType,           // Datatype of Beta
           typename YDataType,              // Datatype of input Y
           typename AccDataType,            // AccDatatype
-          typename CElementwiseOperation,  // Operation of input
+          typename XElementwiseOperation,  // Operation of input
           typename YElementwiseOperation,  // Operation Passthrough
           typename InGrid2dDescTuple,      // Descriptor tuple of inputs
           typename GridDesc_M_K>           // Descriptor of inputs, Gamma, Beta
 __global__ void kernel_elementwise_layernorm(
     const InGrid2dDescTuple in_grid_2d_desc_tuple,          // Descriptor tuple of inputs
-    const GridDesc_M_K c_grid_desc_m_k,                     // Descriptor of C
+    const GridDesc_M_K x_grid_desc_m_k,                     // Descriptor of X
     const GridDesc_M_K gamma_grid_desc_m_k,                 // Descriptor of gamma
     const GridDesc_M_K beta_grid_desc_m_k,                  // Descriptor of beta
     const GridDesc_M_K y_grid_desc_m_k,                     // Descriptor of Y
@@ -44,23 +44,23 @@ __global__ void kernel_elementwise_layernorm(
     const GammaDataType* const __restrict__ p_gamma_global, // Ptr of gamma
     const BetaDataType* const __restrict__ p_beta_global,   // Ptr of beta
     YDataType* const __restrict__ p_y_global,               // Ptr of y
-    const CElementwiseOperation c_elementwise_op,           // Operation Add
+    const XElementwiseOperation x_elementwise_op,           // Operation Add
     const YElementwiseOperation y_elementwise_op)           // Operation Passthrough
 {
-    extern __shared__ CDataType p_c_lds[];
+    extern __shared__ XDataType p_x_lds[];
     GridwiseElementwiseReduction::Run(in_grid_2d_desc_tuple,      // Descriptor tuple of inputs
-                                      c_grid_desc_m_k,            // Descriptor of C
+                                      x_grid_desc_m_k,            // Descriptor of X
                                       gamma_grid_desc_m_k,        // Descriptor of Gamma
                                       beta_grid_desc_m_k,         // Descriptor of Beta
                                       y_grid_desc_m_k,            // Descriptor of Y
                                       num_k_block_tile_iteration, // arg.numBlockTileIteration_
                                       epsilon,                    // epsilon
                                       p_in_global_tuple,          // Ptr tuple of inputs
-                                      p_c_lds,                    // Ptr of C
+                                      p_x_lds,                    // Ptr of X
                                       p_gamma_global,             // Ptr of gamma
                                       p_beta_global,              // Ptr of beta
                                       p_y_global,                 // Ptr of Y
-                                      c_elementwise_op,           // Add
+                                      x_elementwise_op,           // Add
                                       y_elementwise_op);          // Passthrough
 };
 } // namespace ck
@@ -75,7 +75,7 @@ template <typename InDataTypeTuple,       // Datatype of inputs
           typename BetaDataType,          // Datatype of beta
           typename AccDataType,           //
           typename YDataType,             //
-          typename CElementwiseOperation, //
+          typename XElementwiseOperation, //
           typename YElementwiseOperation, //
           index_t Rank,                   //
           index_t NumReduceDim,           //
@@ -97,14 +97,14 @@ struct DeviceElementwiseNormalizationImpl
                                             BetaDataType,
                                             AccDataType,
                                             YDataType,
-                                            CElementwiseOperation,
+                                            XElementwiseOperation,
                                             YElementwiseOperation,
                                             Rank,
                                             NumReduceDim>
 {
     static constexpr int NumInput = InDataTypeTuple::Size();
 
-    using CDataType = YDataType;
+    using XDataType = YDataType;
 
     static_assert(
         (KThreadSliceSize % GammaSrcVectorSize == 0),
@@ -210,12 +210,12 @@ struct DeviceElementwiseNormalizationImpl
 
     using GridwiseReduceLayernormGeneric =
         GridwiseElementwiseLayernormWelfordVariance_mk_to_mk<InDataTypePointerTuple,
-                                                             CDataType,
+                                                             XDataType,
                                                              GammaDataType,
                                                              BetaDataType,
                                                              YDataType,
                                                              AccDataType,
-                                                             CElementwiseOperation,
+                                                             XElementwiseOperation,
                                                              YElementwiseOperation,
                                                              InGrid2dDescTuple,
                                                              GridDesc_M_K,
@@ -236,12 +236,12 @@ struct DeviceElementwiseNormalizationImpl
 
     using GridwiseReduceLayernormSweepOnce =
         GridwiseElementwiseLayernormWelfordVariance_mk_to_mk<InDataTypePointerTuple,
-                                                             CDataType,
+                                                             XDataType,
                                                              GammaDataType,
                                                              BetaDataType,
                                                              YDataType,
                                                              AccDataType,
-                                                             CElementwiseOperation,
+                                                             XElementwiseOperation,
                                                              YElementwiseOperation,
                                                              InGrid2dDescTuple,
                                                              GridDesc_M_K,
@@ -268,7 +268,7 @@ struct DeviceElementwiseNormalizationImpl
                  const std::vector<index_t> betaStrides,
                  const std::vector<index_t> yStrides,
                  const std::vector<index_t> reduceDims,
-                 CElementwiseOperation c_elementwise_op,
+                 XElementwiseOperation x_elementwise_op,
                  YElementwiseOperation y_elementwise_op,
                  AccDataType epsilon,
                  const std::array<const void*, NumInput> in_dev_buffers,
@@ -279,7 +279,7 @@ struct DeviceElementwiseNormalizationImpl
               p_gamma_(p_gamma),
               p_beta_(p_beta),
               p_y_(p_y),
-              c_elementwise_op_(c_elementwise_op),
+              x_elementwise_op_(x_elementwise_op),
               y_elementwise_op_(y_elementwise_op)
         {
 
@@ -291,7 +291,7 @@ struct DeviceElementwiseNormalizationImpl
             }
 
             yStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(yStrides, reduceDims);
-            cStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(yStrides, reduceDims);
+            xStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(yStrides, reduceDims);
 
             gammaStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(gammaStrides, reduceDims);
             betaStrides_  = shuffle_tensor_dimensions<Rank, NumReduceDim>(betaStrides, reduceDims);
@@ -322,8 +322,8 @@ struct DeviceElementwiseNormalizationImpl
                 },
                 Number<NumInput>{});
 
-            c_grid_desc_m_k_ =
-                MakeSrc2dDescriptor(Lengths_, cStrides_, blkGroupSize_, numBlockTileIteration_);
+            x_grid_desc_m_k_ =
+                MakeSrc2dDescriptor(Lengths_, xStrides_, blkGroupSize_, numBlockTileIteration_);
 
             gamma_grid_desc_m_k_ =
                 MakeSrc2dDescriptor(Lengths_, gammaStrides_, blkGroupSize_, numBlockTileIteration_);
@@ -335,32 +335,31 @@ struct DeviceElementwiseNormalizationImpl
                 MakeSrc2dDescriptor(Lengths_, yStrides_, blkGroupSize_, numBlockTileIteration_);
 
             sweep_once_ =
-                c_grid_desc_m_k_.GetLength(Number<1>{}) <= KThreadClusterSize * KThreadSliceSize;
+                x_grid_desc_m_k_.GetLength(Number<1>{}) <= KThreadClusterSize * KThreadSliceSize;
 
             if(!sweep_once_) // if not sweep once, malloc memory for matrix c in global memory for
                              // store Intermediate results
-                c_lds_size_ =
-                    sizeof(CDataType) * c_grid_desc_m_k_.GetElementSpaceSize() / gridSize_;
+                x_lds_size_ =
+                    sizeof(XDataType) * x_grid_desc_m_k_.GetElementSpaceSize() / gridSize_;
             else
-                c_lds_size_ = 0;
+                x_lds_size_ = 0;
         }
 
         AccDataType epsilon_;
 
         InDataTypePointerTuple in_dev_buffers_;
-        CDataType* p_c_;
         const GammaDataType* p_gamma_;
         const BetaDataType* p_beta_;
         YDataType* p_y_;
 
         std::vector<index_t> Lengths_;
         std::array<std::vector<index_t>, NumInput> inStridesArray_;
-        std::vector<index_t> cStrides_;
+        std::vector<index_t> xStrides_;
         std::vector<index_t> gammaStrides_;
         std::vector<index_t> betaStrides_;
         std::vector<index_t> yStrides_;
 
-        CElementwiseOperation c_elementwise_op_;
+        XElementwiseOperation x_elementwise_op_;
         YElementwiseOperation y_elementwise_op_;
 
         int blkGroupSize_;
@@ -368,12 +367,12 @@ struct DeviceElementwiseNormalizationImpl
         size_t gridSize_;
 
         InGrid2dDescTuple in_grid_2d_desc_tuple_;
-        GridDesc_M_K c_grid_desc_m_k_;
+        GridDesc_M_K x_grid_desc_m_k_;
         GridDesc_M_K gamma_grid_desc_m_k_;
         GridDesc_M_K beta_grid_desc_m_k_;
         GridDesc_M_K y_grid_desc_m_k_;
         bool sweep_once_;
-        int c_lds_size_;
+        int x_lds_size_;
     };
 
     struct Invoker : public BaseInvoker
@@ -383,23 +382,23 @@ struct DeviceElementwiseNormalizationImpl
             const auto kernel_main =
                 arg.sweep_once_ ? kernel_elementwise_layernorm<GridwiseReduceLayernormSweepOnce,
                                                                InDataTypePointerTuple,
-                                                               CDataType,
+                                                               XDataType,
                                                                GammaDataType,
                                                                BetaDataType,
                                                                YDataType,
                                                                AccDataType,
-                                                               CElementwiseOperation,
+                                                               XElementwiseOperation,
                                                                YElementwiseOperation,
                                                                InGrid2dDescTuple,
                                                                GridDesc_M_K>
                                 : kernel_elementwise_layernorm<GridwiseReduceLayernormGeneric,
                                                                InDataTypePointerTuple,
-                                                               CDataType,
+                                                               XDataType,
                                                                GammaDataType,
                                                                BetaDataType,
                                                                YDataType,
                                                                AccDataType,
-                                                               CElementwiseOperation,
+                                                               XElementwiseOperation,
                                                                YElementwiseOperation,
                                                                InGrid2dDescTuple,
                                                                GridDesc_M_K>;
@@ -409,9 +408,9 @@ struct DeviceElementwiseNormalizationImpl
                                                kernel_main,
                                                dim3(arg.gridSize_),
                                                dim3(BlockSize),
-                                               arg.c_lds_size_,
+                                               arg.x_lds_size_,
                                                arg.in_grid_2d_desc_tuple_,
-                                               arg.c_grid_desc_m_k_,
+                                               arg.x_grid_desc_m_k_,
                                                arg.gamma_grid_desc_m_k_,
                                                arg.beta_grid_desc_m_k_,
                                                arg.y_grid_desc_m_k_,
@@ -421,7 +420,7 @@ struct DeviceElementwiseNormalizationImpl
                                                arg.p_gamma_,
                                                arg.p_beta_,
                                                arg.p_y_,
-                                               arg.c_elementwise_op_,
+                                               arg.x_elementwise_op_,
                                                arg.y_elementwise_op_);
 
             return (avg_time);
@@ -547,7 +546,7 @@ struct DeviceElementwiseNormalizationImpl
                         const void* p_gamma,
                         const void* p_beta,
                         void* p_y,
-                        CElementwiseOperation c_elementwise_op,
+                        XElementwiseOperation x_elementwise_op,
                         YElementwiseOperation y_elementwise_op) override
     {
         return std::make_unique<Argument>(lengths,
@@ -556,7 +555,7 @@ struct DeviceElementwiseNormalizationImpl
                                           betaStrides,
                                           yStrides,
                                           reduceDims,
-                                          c_elementwise_op,
+                                          x_elementwise_op,
                                           y_elementwise_op,
                                           epsilon,
                                           in_dev_buffers,

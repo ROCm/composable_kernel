@@ -19,9 +19,9 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
 
-using ADataType             = ck::half_t;
-using BDataType             = ck::half_t;
-using CDataType             = ck::half_t;
+using ADataType             = ck::half_t; // Input 1
+using BDataType             = ck::half_t; // Input 2
+using XDataType             = ck::half_t;
 using GammaDataType         = ck::half_t;
 using BetaDataType          = ck::half_t;
 using YDataType             = ck::half_t;
@@ -33,7 +33,7 @@ constexpr int Rank         = 2;
 constexpr int NumReduceDim = 1;
 
 // X = Elementwise(input1, input2, input3, ...)
-// Y = Layernorm(C, beta, gamma)
+// Y = Layernorm(X, beta, gamma)
 using DeviceInstance = ck::tensor_operation::device::DeviceElementwiseNormalizationImpl<
     ck::Tuple<ADataType, BDataType>,
     GammaDataType,
@@ -48,7 +48,7 @@ using DeviceInstance = ck::tensor_operation::device::DeviceElementwiseNormalizat
     8,   // ClusterM
     32,  // ClusterK
     1,   // SliceM
-    16,  // SliceK
+    32,  // SliceK
     1,   // SrcVecDim (0=M, 1=K)
     8,   // SrcScalarPerVector
     1,   // GammaVecDim (0=M, 1=K)
@@ -160,15 +160,15 @@ int main()
     {
         std::vector<std::size_t> mn = {static_cast<unsigned long>(M),
                                        static_cast<unsigned long>(N)};
-        Tensor<CDataType> x(f_host_tensor_descriptor2d(M, N, Stride));
+        Tensor<XDataType> x(f_host_tensor_descriptor2d(M, N, Stride));
         host_elementwise2D<Tensor<ADataType>,
                            Tensor<BDataType>,
-                           Tensor<CDataType>,
+                           Tensor<XDataType>,
                            CElementwiseOperation>(x, a, b, mn, CElementwiseOperation{});
 
         Tensor<YDataType> host_y(f_host_tensor_descriptor2d(M, N, Stride));
         using ReferenceInstance =
-            ck::tensor_operation::host::ReferenceLayernorm<CDataType,
+            ck::tensor_operation::host::ReferenceLayernorm<XDataType,
                                                            GammaDataType,
                                                            BetaDataType,
                                                            YDataType,

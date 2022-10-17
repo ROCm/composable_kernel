@@ -17,7 +17,7 @@ template <typename InDataTypeTuple,
           typename BetaDataType,
           typename AccDataType,
           typename YDataType,
-          typename CElementwiseOperation,
+          typename XElementwiseOperation,
           typename YElementwiseOperation,
           index_t Rank,
           index_t NumReduceDim>
@@ -37,7 +37,7 @@ struct DeviceElementwiseNormalization : public BaseOperator
                         const void* p_gamma,
                         const void* p_beta,
                         void* p_y,
-                        CElementwiseOperation c_elementwise_op,
+                        XElementwiseOperation x_elementwise_op,
                         YElementwiseOperation y_elementwise_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
@@ -48,7 +48,7 @@ template <typename InDataTypeTuple,
           typename BetaDataType,
           typename AccDataType,
           typename YDataType,
-          typename CElementwiseOperation,
+          typename XElementwiseOperation,
           typename YElementwiseOperation,
           index_t Rank,
           index_t NumReduceDim>
@@ -58,7 +58,7 @@ using DeviceElementwiseNormalizationPtr =
                                                    BetaDataType,
                                                    AccDataType,
                                                    YDataType,
-                                                   CElementwiseOperation,
+                                                   XElementwiseOperation,
                                                    YElementwiseOperation,
                                                    Rank,
                                                    NumReduceDim>>;
