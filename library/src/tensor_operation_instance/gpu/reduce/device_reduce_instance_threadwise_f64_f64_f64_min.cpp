@@ -10,15 +10,15 @@ namespace device {
 namespace instance {
 
 // clang-format off
-// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOpId | PropagateNan | UseIndex 
-template void add_device_reduce_instance_threadwise<double, double, double, 4, 3, ReduceTensorOp::MIN, false, false>(std::vector<deviceReduceThreadWisePtrType<4, 3, ReduceTensorOp::MIN>>&);
-template void add_device_reduce_instance_threadwise<double, double, double, 4, 4, ReduceTensorOp::MIN, false, false>(std::vector<deviceReduceThreadWisePtrType<4, 4, ReduceTensorOp::MIN>>&);
-template void add_device_reduce_instance_threadwise<double, double, double, 4, 1, ReduceTensorOp::MIN, false, false>(std::vector<deviceReduceThreadWisePtrType<4, 1, ReduceTensorOp::MIN>>&);
-template void add_device_reduce_instance_threadwise<double, double, double, 2, 1, ReduceTensorOp::MIN, false, false>(std::vector<deviceReduceThreadWisePtrType<2, 1, ReduceTensorOp::MIN>>&);
-template void add_device_reduce_instance_threadwise<double, double, double, 4, 3, ReduceTensorOp::MIN, false, true>(std::vector<deviceReduceThreadWisePtrType<4, 3, ReduceTensorOp::MIN>>&);
-template void add_device_reduce_instance_threadwise<double, double, double, 4, 4, ReduceTensorOp::MIN, false, true>(std::vector<deviceReduceThreadWisePtrType<4, 4, ReduceTensorOp::MIN>>&);
-template void add_device_reduce_instance_threadwise<double, double, double, 4, 1, ReduceTensorOp::MIN, false, true>(std::vector<deviceReduceThreadWisePtrType<4, 1, ReduceTensorOp::MIN>>&);
-template void add_device_reduce_instance_threadwise<double, double, double, 2, 1, ReduceTensorOp::MIN, false, true>(std::vector<deviceReduceThreadWisePtrType<2, 1, ReduceTensorOp::MIN>>&);
+// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOperation | InElementwiseOp | AccElementwiseOp | PropagateNan | UseIndex 
+template void add_device_reduce_instance_threadwise<F64, F64, F64, 4, 3, ReduceMin, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 3, PassThrough, PassThrough>>&);
+template void add_device_reduce_instance_threadwise<F64, F64, F64, 4, 4, ReduceMin, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 4, PassThrough, PassThrough>>&);
+template void add_device_reduce_instance_threadwise<F64, F64, F64, 4, 1, ReduceMin, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 1, PassThrough, PassThrough>>&);
+template void add_device_reduce_instance_threadwise<F64, F64, F64, 2, 1, ReduceMin, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<2, 1, PassThrough, PassThrough>>&);
+template void add_device_reduce_instance_threadwise<F64, F64, F64, 4, 3, ReduceMin, PassThrough, PassThrough, false, true>(std::vector<DeviceReducePtr<4, 3, PassThrough, PassThrough>>&);
+template void add_device_reduce_instance_threadwise<F64, F64, F64, 4, 4, ReduceMin, PassThrough, PassThrough, false, true>(std::vector<DeviceReducePtr<4, 4, PassThrough, PassThrough>>&);
+template void add_device_reduce_instance_threadwise<F64, F64, F64, 4, 1, ReduceMin, PassThrough, PassThrough, false, true>(std::vector<DeviceReducePtr<4, 1, PassThrough, PassThrough>>&);
+template void add_device_reduce_instance_threadwise<F64, F64, F64, 2, 1, ReduceMin, PassThrough, PassThrough, false, true>(std::vector<DeviceReducePtr<2, 1, PassThrough, PassThrough>>&);
 // clang-format on
 
 } // namespace instance

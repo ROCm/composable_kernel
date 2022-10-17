@@ -6,6 +6,7 @@
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_reduce_multiblock.hpp"
 
+#include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
 #include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance_impl_common.hpp"
 
 namespace ck {
@@ -74,7 +75,7 @@ template <typename InDataType,
           typename AccElementwiseOp,
           bool PropagateNan,
           bool OutputIndex>
-void add_device_reduce_instance_multiblock_atomic_add_0(
+void add_device_reduce_instance_multiblock_atomic_add(
     std::vector<DeviceReducePtr<Rank, NumReduceDim, InElementwiseOp, AccElementwiseOp>>&
         device_op_instances)
 {
@@ -114,63 +115,6 @@ void add_device_reduce_instance_multiblock_atomic_add_0(
             device_op_instances.push_back(std::make_unique<ReduceOpInstance>(ReduceOpInstance{}));
         });
     });
-};
-
-template <index_t Rank, index_t NumReduceDim, ReduceTensorOp ReduceOperation>
-using deviceReduceMultiBlockAtomicAddPtrType = DeviceReducePtr<
-    Rank,
-    NumReduceDim,
-    typename reduce_unary_operator<ReduceOperation, true, true>::InElementwiseOperation,
-    typename reduce_unary_operator<ReduceOperation, true, true>::AccElementwiseOperation>;
-
-template <typename InDataType,
-          typename AccDataType,
-          typename OutDataType,
-          int Rank,
-          int NumReduceDim,
-          ReduceTensorOp ReduceOpId,
-          bool PropagateNan,
-          bool UseIndex>
-void add_device_reduce_instance_multiblock_atomic_add(
-    std::vector<deviceReduceMultiBlockAtomicAddPtrType<Rank, NumReduceDim, ReduceOpId>>&
-        device_op_instances)
-{
-    using ReduceOperation = typename reduce_binary_operator<ReduceOpId>::opType;
-    using InElementwiseOp =
-        typename reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation;
-    using AccElementwiseOp =
-        typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation;
-
-    constexpr bool Indexable =
-        (ReduceOpId == ReduceTensorOp::MIN || ReduceOpId == ReduceTensorOp::MAX ||
-         ReduceOpId == ReduceTensorOp::AMAX);
-    constexpr bool OutputIndex = Indexable && UseIndex;
-
-    static_assert(UseIndex == false,
-                  "AtomicAdd can only be used with reduction operations using no index!");
-
-    constexpr bool op_acceptable =
-        (ReduceOpId == ReduceTensorOp::ADD || ReduceOpId == ReduceTensorOp::MUL ||
-         ReduceOpId == ReduceTensorOp::AVG || ReduceOpId == ReduceTensorOp::NORM1);
-
-    constexpr bool out_type_acceptable =
-        (std::is_same<OutDataType, float>::value || std::is_same<OutDataType, double>::value);
-
-    if constexpr(!op_acceptable || !out_type_acceptable)
-        return;
-    else
-    {
-        add_device_reduce_instance_multiblock_atomic_add_0<InDataType,
-                                                           AccDataType,
-                                                           OutDataType,
-                                                           Rank,
-                                                           NumReduceDim,
-                                                           ReduceOperation,
-                                                           InElementwiseOp,
-                                                           AccElementwiseOp,
-                                                           PropagateNan,
-                                                           OutputIndex>(device_op_instances);
-    }
 };
 
 } // namespace instance

@@ -14,15 +14,15 @@ namespace device {
 namespace instance {
 
 // clang-format off
-// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOpId | PropagateNan | UseIndex 
-extern template void add_device_reduce_instance_blockwise<int8_t, int8_t, int8_t, 4, 3, ReduceTensorOp::MAX, false, false>(std::vector<deviceReduceBlockWisePtrType<4, 3, ReduceTensorOp::MAX>>&);
-extern template void add_device_reduce_instance_blockwise<int8_t, int8_t, int8_t, 4, 4, ReduceTensorOp::MAX, false, false>(std::vector<deviceReduceBlockWisePtrType<4, 4, ReduceTensorOp::MAX>>&);
-extern template void add_device_reduce_instance_blockwise<int8_t, int8_t, int8_t, 4, 1, ReduceTensorOp::MAX, false, false>(std::vector<deviceReduceBlockWisePtrType<4, 1, ReduceTensorOp::MAX>>&);
-extern template void add_device_reduce_instance_blockwise<int8_t, int8_t, int8_t, 2, 1, ReduceTensorOp::MAX, false, false>(std::vector<deviceReduceBlockWisePtrType<2, 1, ReduceTensorOp::MAX>>&);
-extern template void add_device_reduce_instance_blockwise<int8_t, int8_t, int8_t, 4, 3, ReduceTensorOp::MAX, false, true>(std::vector<deviceReduceBlockWisePtrType<4, 3, ReduceTensorOp::MAX>>&);
-extern template void add_device_reduce_instance_blockwise<int8_t, int8_t, int8_t, 4, 4, ReduceTensorOp::MAX, false, true>(std::vector<deviceReduceBlockWisePtrType<4, 4, ReduceTensorOp::MAX>>&);
-extern template void add_device_reduce_instance_blockwise<int8_t, int8_t, int8_t, 4, 1, ReduceTensorOp::MAX, false, true>(std::vector<deviceReduceBlockWisePtrType<4, 1, ReduceTensorOp::MAX>>&);
-extern template void add_device_reduce_instance_blockwise<int8_t, int8_t, int8_t, 2, 1, ReduceTensorOp::MAX, false, true>(std::vector<deviceReduceBlockWisePtrType<2, 1, ReduceTensorOp::MAX>>&);
+// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOperation | InElementwiseOp | AccElementwiseOp | PropagateNan | UseIndex 
+extern template void add_device_reduce_instance_blockwise<I8, I8, I8, 4, 3, ReduceMax, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 3, PassThrough, PassThrough>>&);
+extern template void add_device_reduce_instance_blockwise<I8, I8, I8, 4, 4, ReduceMax, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 4, PassThrough, PassThrough>>&);
+extern template void add_device_reduce_instance_blockwise<I8, I8, I8, 4, 1, ReduceMax, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 1, PassThrough, PassThrough>>&);
+extern template void add_device_reduce_instance_blockwise<I8, I8, I8, 2, 1, ReduceMax, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<2, 1, PassThrough, PassThrough>>&);
+extern template void add_device_reduce_instance_blockwise<I8, I8, I8, 4, 3, ReduceMax, PassThrough, PassThrough, false, true>(std::vector<DeviceReducePtr<4, 3, PassThrough, PassThrough>>&);
+extern template void add_device_reduce_instance_blockwise<I8, I8, I8, 4, 4, ReduceMax, PassThrough, PassThrough, false, true>(std::vector<DeviceReducePtr<4, 4, PassThrough, PassThrough>>&);
+extern template void add_device_reduce_instance_blockwise<I8, I8, I8, 4, 1, ReduceMax, PassThrough, PassThrough, false, true>(std::vector<DeviceReducePtr<4, 1, PassThrough, PassThrough>>&);
+extern template void add_device_reduce_instance_blockwise<I8, I8, I8, 2, 1, ReduceMax, PassThrough, PassThrough, false, true>(std::vector<DeviceReducePtr<2, 1, PassThrough, PassThrough>>&);
 // clang-format on
 
 } // namespace instance

@@ -14,11 +14,11 @@ namespace device {
 namespace instance {
 
 // clang-format off
-// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOpId | PropagateNan | UseIndex 
-extern template void add_device_reduce_instance_blockwise<half_t, float, half_t, 4, 3, ReduceTensorOp::ADD, false, false>(std::vector<deviceReduceBlockWisePtrType<4, 3, ReduceTensorOp::ADD>>&); 
-extern template void add_device_reduce_instance_blockwise<half_t, float, half_t, 4, 4, ReduceTensorOp::ADD, false, false>(std::vector<deviceReduceBlockWisePtrType<4, 4, ReduceTensorOp::ADD>>&); 
-extern template void add_device_reduce_instance_blockwise<half_t, float, half_t, 4, 1, ReduceTensorOp::ADD, false, false>(std::vector<deviceReduceBlockWisePtrType<4, 1, ReduceTensorOp::ADD>>&); 
-extern template void add_device_reduce_instance_blockwise<half_t, float, half_t, 2, 1, ReduceTensorOp::ADD, false, false>(std::vector<deviceReduceBlockWisePtrType<2, 1, ReduceTensorOp::ADD>>&);
+// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOperation | InElementwiseOp | AccElementwiseOp | PropagateNan | UseIndex 
+extern template void add_device_reduce_instance_blockwise<F16, F32, F16, 4, 3, ReduceAdd, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 3, PassThrough, PassThrough>>&); 
+extern template void add_device_reduce_instance_blockwise<F16, F32, F16, 4, 4, ReduceAdd, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 4, PassThrough, PassThrough>>&); 
+extern template void add_device_reduce_instance_blockwise<F16, F32, F16, 4, 1, ReduceAdd, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 1, PassThrough, PassThrough>>&); 
+extern template void add_device_reduce_instance_blockwise<F16, F32, F16, 2, 1, ReduceAdd, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<2, 1, PassThrough, PassThrough>>&);
 // clang-format on
 
 } // namespace instance

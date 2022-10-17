@@ -10,15 +10,15 @@ namespace device {
 namespace instance {
 
 // clang-format off
-// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOpId | PropagateNan | UseIndex 
-template void add_device_reduce_instance_blockwise<double, double, double, 4, 3, ReduceTensorOp::AMAX, false, false>(std::vector<deviceReduceBlockWisePtrType<4, 3, ReduceTensorOp::AMAX>>&);
-template void add_device_reduce_instance_blockwise<double, double, double, 4, 4, ReduceTensorOp::AMAX, false, false>(std::vector<deviceReduceBlockWisePtrType<4, 4, ReduceTensorOp::AMAX>>&);
-template void add_device_reduce_instance_blockwise<double, double, double, 4, 1, ReduceTensorOp::AMAX, false, false>(std::vector<deviceReduceBlockWisePtrType<4, 1, ReduceTensorOp::AMAX>>&);
-template void add_device_reduce_instance_blockwise<double, double, double, 2, 1, ReduceTensorOp::AMAX, false, false>(std::vector<deviceReduceBlockWisePtrType<2, 1, ReduceTensorOp::AMAX>>&);
-template void add_device_reduce_instance_blockwise<double, double, double, 4, 3, ReduceTensorOp::AMAX, false, true>(std::vector<deviceReduceBlockWisePtrType<4, 3, ReduceTensorOp::AMAX>>&);
-template void add_device_reduce_instance_blockwise<double, double, double, 4, 4, ReduceTensorOp::AMAX, false, true>(std::vector<deviceReduceBlockWisePtrType<4, 4, ReduceTensorOp::AMAX>>&);
-template void add_device_reduce_instance_blockwise<double, double, double, 4, 1, ReduceTensorOp::AMAX, false, true>(std::vector<deviceReduceBlockWisePtrType<4, 1, ReduceTensorOp::AMAX>>&);
-template void add_device_reduce_instance_blockwise<double, double, double, 2, 1, ReduceTensorOp::AMAX, false, true>(std::vector<deviceReduceBlockWisePtrType<2, 1, ReduceTensorOp::AMAX>>&);
+// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOperation | InElementwiseOp | AccElementwiseOp | PropagateNan | UseIndex 
+template void add_device_reduce_instance_blockwise<F64, F64, F64, 4, 3, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 3, UnaryAbs, PassThrough>>&);
+template void add_device_reduce_instance_blockwise<F64, F64, F64, 4, 4, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 4, UnaryAbs, PassThrough>>&);
+template void add_device_reduce_instance_blockwise<F64, F64, F64, 4, 1, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 1, UnaryAbs, PassThrough>>&);
+template void add_device_reduce_instance_blockwise<F64, F64, F64, 2, 1, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<2, 1, UnaryAbs, PassThrough>>&);
+template void add_device_reduce_instance_blockwise<F64, F64, F64, 4, 3, ReduceAMax, UnaryAbs, PassThrough, false, true>(std::vector<DeviceReducePtr<4, 3, UnaryAbs, PassThrough>>&);
+template void add_device_reduce_instance_blockwise<F64, F64, F64, 4, 4, ReduceAMax, UnaryAbs, PassThrough, false, true>(std::vector<DeviceReducePtr<4, 4, UnaryAbs, PassThrough>>&);
+template void add_device_reduce_instance_blockwise<F64, F64, F64, 4, 1, ReduceAMax, UnaryAbs, PassThrough, false, true>(std::vector<DeviceReducePtr<4, 1, UnaryAbs, PassThrough>>&);
+template void add_device_reduce_instance_blockwise<F64, F64, F64, 2, 1, ReduceAMax, UnaryAbs, PassThrough, false, true>(std::vector<DeviceReducePtr<2, 1, UnaryAbs, PassThrough>>&);
 // clang-format on
 
 } // namespace instance

@@ -10,11 +10,11 @@ namespace device {
 namespace instance {
 
 // clang-format off
-// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOpId | PropagateNan | UseIndex 
-template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 4, 3, ReduceTensorOp::NORM2, false, false>(std::vector<deviceReduceThreadWisePtrType<4, 3, ReduceTensorOp::NORM2>>&); 
-template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 4, 4, ReduceTensorOp::NORM2, false, false>(std::vector<deviceReduceThreadWisePtrType<4, 4, ReduceTensorOp::NORM2>>&); 
-template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 4, 1, ReduceTensorOp::NORM2, false, false>(std::vector<deviceReduceThreadWisePtrType<4, 1, ReduceTensorOp::NORM2>>&); 
-template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 2, 1, ReduceTensorOp::NORM2, false, false>(std::vector<deviceReduceThreadWisePtrType<2, 1, ReduceTensorOp::NORM2>>&);
+// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOperation | InElementwiseOp | AccElementwiseOp | PropagateNan | UseIndex 
+template void add_device_reduce_instance_threadwise<BF16, F32, BF16, 4, 3, ReduceAdd, UnarySquare, UnarySqrt, false, false>(std::vector<DeviceReducePtr<4, 3, UnarySquare, UnarySqrt>>&); 
+template void add_device_reduce_instance_threadwise<BF16, F32, BF16, 4, 4, ReduceAdd, UnarySquare, UnarySqrt, false, false>(std::vector<DeviceReducePtr<4, 4, UnarySquare, UnarySqrt>>&); 
+template void add_device_reduce_instance_threadwise<BF16, F32, BF16, 4, 1, ReduceAdd, UnarySquare, UnarySqrt, false, false>(std::vector<DeviceReducePtr<4, 1, UnarySquare, UnarySqrt>>&); 
+template void add_device_reduce_instance_threadwise<BF16, F32, BF16, 2, 1, ReduceAdd, UnarySquare, UnarySqrt, false, false>(std::vector<DeviceReducePtr<2, 1, UnarySquare, UnarySqrt>>&);
 // clang-format on
 
 } // namespace instance

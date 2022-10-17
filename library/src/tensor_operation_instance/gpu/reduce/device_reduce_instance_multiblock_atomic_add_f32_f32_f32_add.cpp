@@ -10,11 +10,11 @@ namespace device {
 namespace instance {
 
 // clang-format off
-// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOpId | PropagateNan | UseIndex 
-template void add_device_reduce_instance_multiblock_atomic_add<float, float, float, 4, 3, ReduceTensorOp::ADD, false, false>(std::vector<deviceReduceMultiBlockAtomicAddPtrType<4, 3, ReduceTensorOp::ADD>>&); 
-template void add_device_reduce_instance_multiblock_atomic_add<float, float, float, 4, 4, ReduceTensorOp::ADD, false, false>(std::vector<deviceReduceMultiBlockAtomicAddPtrType<4, 4, ReduceTensorOp::ADD>>&); 
-template void add_device_reduce_instance_multiblock_atomic_add<float, float, float, 4, 1, ReduceTensorOp::ADD, false, false>(std::vector<deviceReduceMultiBlockAtomicAddPtrType<4, 1, ReduceTensorOp::ADD>>&); 
-template void add_device_reduce_instance_multiblock_atomic_add<float, float, float, 2, 1, ReduceTensorOp::ADD, false, false>(std::vector<deviceReduceMultiBlockAtomicAddPtrType<2, 1, ReduceTensorOp::ADD>>&);
+// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOperation | InElementwiseOp | AccElementwiseOp | PropagateNan | UseIndex 
+template void add_device_reduce_instance_multiblock_atomic_add<F32, F32, F32, 4, 3, ReduceAdd, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 3, PassThrough, PassThrough>>&); 
+template void add_device_reduce_instance_multiblock_atomic_add<F32, F32, F32, 4, 4, ReduceAdd, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 4, PassThrough, PassThrough>>&); 
+template void add_device_reduce_instance_multiblock_atomic_add<F32, F32, F32, 4, 1, ReduceAdd, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 1, PassThrough, PassThrough>>&); 
+template void add_device_reduce_instance_multiblock_atomic_add<F32, F32, F32, 2, 1, ReduceAdd, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<2, 1, PassThrough, PassThrough>>&);
 // clang-format on
 
 } // namespace instance

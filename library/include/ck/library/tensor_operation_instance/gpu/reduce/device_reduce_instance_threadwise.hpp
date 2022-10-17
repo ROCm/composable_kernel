@@ -5,6 +5,8 @@
 
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_reduce_threadwise.hpp"
+
+#include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
 #include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance_impl_common.hpp"
 
 namespace ck {
@@ -59,7 +61,7 @@ template <typename InDataType,
           typename AccElementwiseOp,
           bool PropagateNan,
           bool OutputIndex>
-void add_device_reduce_instance_threadwise_0(
+void add_device_reduce_instance_threadwise(
     std::vector<DeviceReducePtr<Rank, NumReduceDim, InElementwiseOp, AccElementwiseOp>>&
         device_op_instances)
 {
@@ -90,47 +92,6 @@ void add_device_reduce_instance_threadwise_0(
 
             device_op_instances.push_back(std::make_unique<ReduceOpInstance>(ReduceOpInstance{}));
         });
-};
-
-template <index_t Rank, index_t NumReduceDim, ReduceTensorOp ReduceOpId>
-using deviceReduceThreadWisePtrType = DeviceReducePtr<
-    Rank,
-    NumReduceDim,
-    typename reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation,
-    typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation>;
-
-template <typename InDataType,
-          typename AccDataType,
-          typename OutDataType,
-          int Rank,
-          int NumReduceDim,
-          ReduceTensorOp ReduceOpId,
-          bool PropagateNan,
-          bool UseIndex>
-void add_device_reduce_instance_threadwise(
-    std::vector<deviceReduceThreadWisePtrType<Rank, NumReduceDim, ReduceOpId>>& device_op_instances)
-{
-    using ReduceOperation = typename reduce_binary_operator<ReduceOpId>::opType;
-    using InElementwiseOp =
-        typename reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation;
-    using AccElementwiseOp =
-        typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation;
-
-    constexpr bool Indexable =
-        (ReduceOpId == ReduceTensorOp::MIN || ReduceOpId == ReduceTensorOp::MAX ||
-         ReduceOpId == ReduceTensorOp::AMAX);
-    constexpr bool OutputIndex = Indexable && UseIndex;
-
-    add_device_reduce_instance_threadwise_0<InDataType,
-                                            AccDataType,
-                                            OutDataType,
-                                            Rank,
-                                            NumReduceDim,
-                                            ReduceOperation,
-                                            InElementwiseOp,
-                                            AccElementwiseOp,
-                                            PropagateNan,
-                                            OutputIndex>(device_op_instances);
 };
 
 } // namespace instance

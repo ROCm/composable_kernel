@@ -10,15 +10,15 @@ namespace device {
 namespace instance {
 
 // clang-format off
-// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOpId | PropagateNan | UseIndex 
-template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 4, 3, ReduceTensorOp::MAX, false, false>(std::vector<deviceReduceThreadWisePtrType<4, 3, ReduceTensorOp::MAX>>&);
-template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 4, 4, ReduceTensorOp::MAX, false, false>(std::vector<deviceReduceThreadWisePtrType<4, 4, ReduceTensorOp::MAX>>&);
-template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 4, 1, ReduceTensorOp::MAX, false, false>(std::vector<deviceReduceThreadWisePtrType<4, 1, ReduceTensorOp::MAX>>&);
-template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 2, 1, ReduceTensorOp::MAX, false, false>(std::vector<deviceReduceThreadWisePtrType<2, 1, ReduceTensorOp::MAX>>&);
-template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 4, 3, ReduceTensorOp::MAX, false, true>(std::vector<deviceReduceThreadWisePtrType<4, 3, ReduceTensorOp::MAX>>&);
-template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 4, 4, ReduceTensorOp::MAX, false, true>(std::vector<deviceReduceThreadWisePtrType<4, 4, ReduceTensorOp::MAX>>&);
-template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 4, 1, ReduceTensorOp::MAX, false, true>(std::vector<deviceReduceThreadWisePtrType<4, 1, ReduceTensorOp::MAX>>&);
-template void add_device_reduce_instance_threadwise<bhalf_t, float, bhalf_t, 2, 1, ReduceTensorOp::MAX, false, true>(std::vector<deviceReduceThreadWisePtrType<2, 1, ReduceTensorOp::MAX>>&);
+// InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOperation | InElementwiseOp | AccElementwiseOp | PropagateNan | UseIndex 
+template void add_device_reduce_instance_threadwise<BF16, F32, BF16, 4, 3, ReduceMax, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 3, PassThrough, PassThrough>>&);
+template void add_device_reduce_instance_threadwise<BF16, F32, BF16, 4, 4, ReduceMax, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 4, PassThrough, PassThrough>>&);
+template void add_device_reduce_instance_threadwise<BF16, F32, BF16, 4, 1, ReduceMax, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<4, 1, PassThrough, PassThrough>>&);
+template void add_device_reduce_instance_threadwise<BF16, F32, BF16, 2, 1, ReduceMax, PassThrough, PassThrough, false, false>(std::vector<DeviceReducePtr<2, 1, PassThrough, PassThrough>>&);
+template void add_device_reduce_instance_threadwise<BF16, F32, BF16, 4, 3, ReduceMax, PassThrough, PassThrough, false, true>(std::vector<DeviceReducePtr<4, 3, PassThrough, PassThrough>>&);
+template void add_device_reduce_instance_threadwise<BF16, F32, BF16, 4, 4, ReduceMax, PassThrough, PassThrough, false, true>(std::vector<DeviceReducePtr<4, 4, PassThrough, PassThrough>>&);
+template void add_device_reduce_instance_threadwise<BF16, F32, BF16, 4, 1, ReduceMax, PassThrough, PassThrough, false, true>(std::vector<DeviceReducePtr<4, 1, PassThrough, PassThrough>>&);
+template void add_device_reduce_instance_threadwise<BF16, F32, BF16, 2, 1, ReduceMax, PassThrough, PassThrough, false, true>(std::vector<DeviceReducePtr<2, 1, PassThrough, PassThrough>>&);
 // clang-format on
 
 } // namespace instance

@@ -295,7 +295,9 @@ bool profile_reduce_impl_impl(bool do_verification,
                                               OutDataType,
                                               Rank,
                                               NumReduceDim,
-                                              ReduceOpId,
+                                              ReduceOperation,
+                                              InElementwiseOperation,
+                                              AccElementwiseOperation,
                                               PropagateNan,
                                               UseIndex>(reduce_ptrs);
 
@@ -304,7 +306,9 @@ bool profile_reduce_impl_impl(bool do_verification,
                                              OutDataType,
                                              Rank,
                                              NumReduceDim,
-                                             ReduceOpId,
+                                             ReduceOperation,
+                                             InElementwiseOperation,
+                                             AccElementwiseOperation,
                                              PropagateNan,
                                              UseIndex>(reduce_ptrs);
 
@@ -315,7 +319,9 @@ bool profile_reduce_impl_impl(bool do_verification,
                                                              OutDataType,
                                                              Rank,
                                                              NumReduceDim,
-                                                             ReduceOpId,
+                                                             ReduceOperation,
+                                                             InElementwiseOperation,
+                                                             AccElementwiseOperation,
                                                              PropagateNan,
                                                              UseIndex>(reduce_ptrs);
         }
