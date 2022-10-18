@@ -42,7 +42,7 @@ void host_elementwise4D(HostTensorB& B_nhwc, const HostTensorA& A_nchw, Functor 
 int main()
 {
     bool do_verification = true;
-    bool time_kernel     = false;
+    bool time_kernel     = true;
 
     std::vector<std::size_t> nchw = {16, 128, 32, 64};
     std::vector<std::size_t> nhwc = {16, 32, 64, 128};
@@ -55,7 +55,6 @@ int main()
     DeviceMem b_device_buf(sizeof(BDataType) * b.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a.mData.data());
-    // LogRangeAsType<float>(std::cout << "Tensor a  : ", a.mData, ",") << std::endl;
 
     std::array<const void*, 1> input = {a_device_buf.GetDeviceBuffer()};
     std::array<void*, 1> output      = {b_device_buf.GetDeviceBuffer()};
@@ -81,22 +80,33 @@ int main()
         throw std::runtime_error(
             "The runtime parameters seems not supported by the device instance, exiting!");
     };
+
+    std::cout << "A (nchw): " << a.mDesc << std::endl;
+    std::cout << "B (nhwc): " << b.mDesc << std::endl;
+
     auto broadcastPermute_invoker_ptr = broadcastPermute.MakeInvokerPointer();
     float ave_time =
         broadcastPermute_invoker_ptr->Run(argument.get(), StreamConfig{nullptr, time_kernel});
+    std::size_t flop = std::size_t(2) * nchw[0] * nchw[1] * nchw[2] * nchw[3];
 
-    std::cout << "Perf: " << ave_time << " ms" << std::endl;
+    std::size_t num_btype = sizeof(ADataType) * (nchw[0] * nchw[1] * nchw[2] * nchw[3]) +
+                            sizeof(BDataType) * (nchw[0] * nchw[1] * nchw[2] * nchw[3]);
+
+    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+
+    float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
+              << std::endl;
 
     bool pass = true;
 
     if(do_verification)
     {
         b_device_buf.FromDevice(b.mData.data());
-        // LogRangeAsType<float>(std::cout << "Tensor b  : ", b.mData, ",") << std::endl;
         Tensor<BDataType> host_b(nhwc);
         host_elementwise4D(host_b, a, PassThrough{});
 
-        // LogRangeAsType<float>(std::cout << "Host b  : ", host_b.mData, ",") << std::endl;
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
     }
