@@ -26,7 +26,7 @@ using GammaDataType         = ck::half_t;
 using BetaDataType          = ck::half_t;
 using YDataType             = ck::half_t;
 using AccDataType           = float;
-using CElementwiseOperation = ck::tensor_operation::element_wise::Add;
+using XElementwiseOperation = ck::tensor_operation::element_wise::Add;
 using YElementwiseOperation = ck::tensor_operation::element_wise::PassThrough;
 
 constexpr int Rank         = 2;
@@ -40,7 +40,7 @@ using DeviceInstance = ck::tensor_operation::device::DeviceElementwiseNormalizat
     BetaDataType,
     AccDataType,
     YDataType,
-    CElementwiseOperation,
+    XElementwiseOperation,
     YElementwiseOperation,
     Rank,
     NumReduceDim,
@@ -135,7 +135,7 @@ int main()
         gamma_dev.GetDeviceBuffer(),
         beta_dev.GetDeviceBuffer(),
         y_dev.GetDeviceBuffer(),
-        CElementwiseOperation{},
+        XElementwiseOperation{},
         YElementwiseOperation{});
 
     if(!device_instance.IsSupportedArgument(argument_ptr.get()))
@@ -164,7 +164,7 @@ int main()
         host_elementwise2D<Tensor<ADataType>,
                            Tensor<BDataType>,
                            Tensor<XDataType>,
-                           CElementwiseOperation>(x, a, b, mn, CElementwiseOperation{});
+                           XElementwiseOperation>(x, a, b, mn, XElementwiseOperation{});
 
         Tensor<YDataType> host_y(f_host_tensor_descriptor2d(M, N, Stride));
         using ReferenceInstance =
