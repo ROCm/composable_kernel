@@ -1,2 +1,1 @@
 add_example_executable(example_layernorm_blockwise layernorm_blockwise.cpp)
-add_example_executable(example_elementwise_layernorm_blockwise elementwise_layernorm_blockwise.cpp)
