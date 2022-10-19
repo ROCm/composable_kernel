@@ -117,6 +117,7 @@ int main(int argc, char* argv[])
         return 0;
     }
 
+    bool pass = true;
     for(auto& p : problems)
     {
         GemmParams& problem_size          = std::get<0>(p);
@@ -132,28 +133,29 @@ int main(int argc, char* argv[])
         if(!layout_config.ARowMajor && !layout_config.BRowMajor)
         {
             auto op_ptr = dynamic_cast<DeviceGemmNN*>(ops[0].get());
-            ck::gemm_util::TestGemm<AccDataType>{}(
+            pass &= ck::gemm_util::TestGemm<AccDataType>{}(
                 op_ptr, problem_size, do_verification, time_kernel);
         }
         else if(!layout_config.ARowMajor && layout_config.BRowMajor)
         {
             auto op_ptr = dynamic_cast<DeviceGemmNT*>(ops[0].get());
-            ck::gemm_util::TestGemm<AccDataType>{}(
+            pass &= ck::gemm_util::TestGemm<AccDataType>{}(
                 op_ptr, problem_size, do_verification, time_kernel);
         }
         else if(layout_config.ARowMajor && !layout_config.BRowMajor)
         {
             auto op_ptr = dynamic_cast<DeviceGemmTN*>(ops[0].get());
-            ck::gemm_util::TestGemm<AccDataType>{}(
+            pass &= ck::gemm_util::TestGemm<AccDataType>{}(
                 op_ptr, problem_size, do_verification, time_kernel);
         }
         else if(layout_config.ARowMajor && layout_config.BRowMajor)
         {
             auto op_ptr = dynamic_cast<DeviceGemmTT*>(ops[0].get());
-            ck::gemm_util::TestGemm<AccDataType>{}(
+            pass &= ck::gemm_util::TestGemm<AccDataType>{}(
                 op_ptr, problem_size, do_verification, time_kernel);
         }
     }
 
-    return 0;
+    std::cout << (pass ? "ALL TESTS PASSED" : "SOME TESTS FAILED") << std::endl;
+    return pass ? 0 : 1;
 }
