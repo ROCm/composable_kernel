@@ -62,17 +62,32 @@ int main()
     std::array<ck::index_t, NumDimSpatial + 3> out_lengths{G, N, Ho, Wo, K};
     std::array<ck::index_t, NumDimSpatial + 3> out_strides{0, 0, 0, 0, 1};
 
-    std::partial_sum(rbegin(in_lengths), std::prev(rend(in_lengths)), std::next(rbegin(in_strides)), std::multiplies<>{});
-    std::partial_sum(rbegin(wei_lengths), std::prev(rend(wei_lengths)), std::next(rbegin(wei_strides)), std::multiplies<>{});
-    std::partial_sum(rbegin(out_lengths), std::prev(rend(out_lengths)), std::next(rbegin(out_strides)), std::multiplies<>{});
+    std::partial_sum(rbegin(in_lengths),
+                     std::prev(rend(in_lengths)),
+                     std::next(rbegin(in_strides)),
+                     std::multiplies<>{});
+    std::partial_sum(rbegin(wei_lengths),
+                     std::prev(rend(wei_lengths)),
+                     std::next(rbegin(wei_strides)),
+                     std::multiplies<>{});
+    std::partial_sum(rbegin(out_lengths),
+                     std::prev(rend(out_lengths)),
+                     std::next(rbegin(out_strides)),
+                     std::multiplies<>{});
 
     // transpose GNHWC/GKYXC/GNHWK to GNCHW/GKCYX/GNCHW
-    std::rotate(rbegin(in_lengths), std::next(rbegin(in_lengths)), std::next(rbegin(in_lengths), 3));
-    std::rotate(rbegin(in_strides), std::next(rbegin(in_strides)), std::next(rbegin(in_strides), 3));
-    std::rotate(rbegin(wei_lengths), std::next(rbegin(wei_lengths)), std::next(rbegin(wei_lengths), 3));
-    std::rotate(rbegin(wei_strides), std::next(rbegin(wei_strides)), std::next(rbegin(wei_strides), 3));
-    std::rotate(rbegin(out_lengths), std::next(rbegin(out_lengths)), std::next(rbegin(out_lengths), 3));
-    std::rotate(rbegin(out_strides), std::next(rbegin(out_strides)), std::next(rbegin(out_strides), 3));
+    std::rotate(
+        rbegin(in_lengths), std::next(rbegin(in_lengths)), std::next(rbegin(in_lengths), 3));
+    std::rotate(
+        rbegin(in_strides), std::next(rbegin(in_strides)), std::next(rbegin(in_strides), 3));
+    std::rotate(
+        rbegin(wei_lengths), std::next(rbegin(wei_lengths)), std::next(rbegin(wei_lengths), 3));
+    std::rotate(
+        rbegin(wei_strides), std::next(rbegin(wei_strides)), std::next(rbegin(wei_strides), 3));
+    std::rotate(
+        rbegin(out_lengths), std::next(rbegin(out_lengths)), std::next(rbegin(out_lengths), 3));
+    std::rotate(
+        rbegin(out_strides), std::next(rbegin(out_strides)), std::next(rbegin(out_strides), 3));
 
     std::array<ck::index_t, NumDimSpatial> filter_strides{1, 1};
     std::array<ck::index_t, NumDimSpatial> filter_dilations{1, 1};
@@ -84,15 +99,15 @@ int main()
     SimpleDeviceMem out(sizeof(OutDataType) * G * N * Ho * Wo * K);
 
     using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvBwdData<NumDimSpatial,
-                                                                 InLayout,
-                                                                 WeiLayout,
-                                                                 OutLayout,
-                                                                 InDataType,
-                                                                 WeiDataType,
-                                                                 OutDataType,
-                                                                 PassThrough,
-                                                                 PassThrough,
-                                                                 PassThrough>;
+                                                                            InLayout,
+                                                                            WeiLayout,
+                                                                            OutLayout,
+                                                                            InDataType,
+                                                                            WeiDataType,
+                                                                            OutDataType,
+                                                                            PassThrough,
+                                                                            PassThrough,
+                                                                            PassThrough>;
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
@@ -160,7 +175,8 @@ int main()
         }
     }
 
-    if (best_op_id < 0) {
+    if(best_op_id < 0)
+    {
         std::cerr << "no suitable instance" << std::endl;
         return EXIT_FAILURE;
     }

@@ -78,18 +78,18 @@ using device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_f16_instances = st
 
 void add_device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdData<3,
-                                                  GNDHWC,
-                                                  GKZYXC,
-                                                  GNDHWK,
-                                                  F16,
-                                                  F16,
-                                                  F16,
-                                                  PassThrough,
-                                                  PassThrough,
-                                                  PassThrough>>>& instances)
+                                                         GNDHWC,
+                                                         GKZYXC,
+                                                         GNDHWK,
+                                                         F16,
+                                                         F16,
+                                                         F16,
+                                                         PassThrough,
+                                                         PassThrough,
+                                                         PassThrough>>>& instances)
 {
-    add_device_operation_instances(instances,
-                                   device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_f16_instances{});
+    add_device_operation_instances(
+        instances, device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_f16_instances{});
 }
 
 } // namespace instance

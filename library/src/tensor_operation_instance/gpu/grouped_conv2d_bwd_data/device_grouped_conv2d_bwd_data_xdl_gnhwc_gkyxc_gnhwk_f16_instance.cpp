@@ -35,8 +35,7 @@ static constexpr auto ConvBwdDataDefault =
 static constexpr auto ConvBwdDataFilter1x1Stride1Pad0 =
     ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0;
 
-using device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_f16_instances =
-    std::tuple<
+using device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_f16_instances = std::tuple<
     // clang-format off
         // 1. Default
         // ##############################################|    NDim| ALayout| BLayout|   DsLayout| ELayout| AData| BData| AccData| CShuffle|     DsData| EData| AElementwise| BElementwise| CDEElementwise| ConvolutionBackward| DoPad| DoPad|      NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer|    MXdl|    NXdl|    ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|    BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CShuffleMXdl| CShuffleNXdl|   CDEBlockTransfer| CDEBlockTransfer|
@@ -80,18 +79,18 @@ using device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_f16_instances =
 
 void add_device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdData<2,
-                                                  GNHWC,
-                                                  GKYXC,
-                                                  GNHWK,
-                                                  F16,
-                                                  F16,
-                                                  F16,
-                                                  PassThrough,
-                                                  PassThrough,
-                                                  PassThrough>>>& instances)
+                                                         GNHWC,
+                                                         GKYXC,
+                                                         GNHWK,
+                                                         F16,
+                                                         F16,
+                                                         F16,
+                                                         PassThrough,
+                                                         PassThrough,
+                                                         PassThrough>>>& instances)
 {
-    add_device_operation_instances(instances,
-                                   device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_f16_instances{});
+    add_device_operation_instances(
+        instances, device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_f16_instances{});
 }
 
 } // namespace instance
