@@ -576,7 +576,7 @@ struct DeviceElementwiseNormalizationImpl
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceAddNormalizationImpl<" << BlockSize << ",";
+        str << "DeviceElementwiseNormalizationImpl<" << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
         str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
         str << "XYSrcVectorDim_" << XYSrcVectorDim  << ",";

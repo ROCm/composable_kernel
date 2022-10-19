@@ -343,8 +343,8 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
 
         for(index_t reducedTiles = 0; reducedTiles < num_k_block_tile_iteration; ++reducedTiles)
         {
-            static_for<0, XThreadBufferNumber, 1>{}([&](auto iK0) { // Thread buffer number
-                static_for<0, NumInput, 1>{}([&](auto I) {          // input load loop
+            static_for<0, XThreadBufferNumber, 1>{}([&](auto iK0) {
+                static_for<0, NumInput, 1>{}([&](auto I) { // input load loop
                     in_global_load_tuple(I).Run(in_grid_2d_desc_tuple[I],
                                                 in_global_buf_tuple[I],
                                                 thread_buffer_desc_m_k,
@@ -389,7 +389,6 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
                     threadwise_x_store.MoveDstSliceWindow(x_grid_desc_m_k,
                                                           thread_copy_fwd_step_m_k);
                 }
-
             });
         }
 
@@ -404,7 +403,7 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
         auto thread_copy_tail_m_k =
             (num_k_block_tile_iteration - 1) * XThreadBufferNumber * thread_copy_fwd_step_m_k;
 
-        if constexpr(!SweepOnce) // if not sweeponce, store c into global memory for reuse in the
+        if constexpr(!SweepOnce)
             threadwise_x_load.MoveSrcSliceWindow(x_grid_desc_m_k, thread_copy_tail_m_k);
         threadwise_gamma_load.MoveSrcSliceWindow(gamma_grid_desc_m_k, thread_copy_tail_m_k);
         threadwise_beta_load.MoveSrcSliceWindow(beta_grid_desc_m_k, thread_copy_tail_m_k);
