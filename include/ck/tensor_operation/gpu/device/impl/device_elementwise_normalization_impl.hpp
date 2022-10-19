@@ -26,10 +26,10 @@ template <typename GridwiseElementwiseReduction,
           typename XDataType,              // Datatype of X
           typename GammaDataType,          // Datatype of Gamma
           typename BetaDataType,           // Datatype of Beta
-          typename YDataType,              // Datatype of input Y
+          typename YDataType,              // Datatype of Y
           typename AccDataType,            // AccDatatype
           typename XElementwiseOperation,  // Operation of input
-          typename YElementwiseOperation,  // Operation Passthrough
+          typename YElementwiseOperation,  // Operation of output of normalization
           typename InGrid2dDescTuple,      // Descriptor tuple of inputs
           typename GridDesc_M_K>           // Descriptor of inputs, Gamma, Beta
 __global__ void kernel_elementwise_layernorm(
@@ -38,14 +38,14 @@ __global__ void kernel_elementwise_layernorm(
     const GridDesc_M_K gamma_grid_desc_m_k,                 // Descriptor of gamma
     const GridDesc_M_K beta_grid_desc_m_k,                  // Descriptor of beta
     const GridDesc_M_K y_grid_desc_m_k,                     // Descriptor of Y
-    index_t num_k_block_tile_iteration,                     // arg.numBlockTileIteration_
+    index_t num_k_block_tile_iteration,                     //
     AccDataType epsilon,                                    // Datatype of epsilon
     const InDataTypePointerTuple p_in_global_tuple,         // Ptr tuple of input matrixs
     const GammaDataType* const __restrict__ p_gamma_global, // Ptr of gamma
     const BetaDataType* const __restrict__ p_beta_global,   // Ptr of beta
     YDataType* const __restrict__ p_y_global,               // Ptr of y
-    const XElementwiseOperation x_elementwise_op,           // Operation Add
-    const YElementwiseOperation y_elementwise_op)           // Operation Passthrough
+    const XElementwiseOperation x_elementwise_op,           // Operation of input
+    const YElementwiseOperation y_elementwise_op)           // Operation of output of normalization
 {
     extern __shared__ XDataType p_x_lds[];
     GridwiseElementwiseReduction::Run(in_grid_2d_desc_tuple,      // Descriptor tuple of inputs
@@ -53,15 +53,15 @@ __global__ void kernel_elementwise_layernorm(
                                       gamma_grid_desc_m_k,        // Descriptor of Gamma
                                       beta_grid_desc_m_k,         // Descriptor of Beta
                                       y_grid_desc_m_k,            // Descriptor of Y
-                                      num_k_block_tile_iteration, // arg.numBlockTileIteration_
+                                      num_k_block_tile_iteration, //
                                       epsilon,                    // epsilon
                                       p_in_global_tuple,          // Ptr tuple of inputs
                                       p_x_lds,                    // Ptr of X
                                       p_gamma_global,             // Ptr of gamma
                                       p_beta_global,              // Ptr of beta
                                       p_y_global,                 // Ptr of Y
-                                      x_elementwise_op,           // Add
-                                      y_elementwise_op);          // Passthrough
+                                      x_elementwise_op,           // Operation of input
+                                      y_elementwise_op); // Operation of output of normalization
 };
 } // namespace ck
 

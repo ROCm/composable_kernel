@@ -219,20 +219,20 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
                 using DataTypePointer = remove_cvref_t<decltype(InDataTypePointerTuple{}[I])>;
                 using DataType        = remove_cv_t<remove_pointer_t<DataTypePointer>>;
 
-                return ThreadwiseTensorSliceTransfer_v2<
-                    DataType,
-                    AccDataType,
-                    decltype(in_grid_2d_desc_tuple[I]),
-                    decltype(thread_buffer_desc_m_k),
-                    ThreadBufferLengths_M_K,    //
-                    ThreadBufferDimAccessOrder, // DimAccessOrder
-                    XSrcVectorDim,              // SrcVectorDim
-                    XSrcVectorSize,
-                    1,
-                    false>{in_grid_2d_desc_tuple[I],
-                           make_multi_index(block_global_id * M_BlockTileSize +
-                                                thread_m_cluster_id * MThreadSliceSize,
-                                            thread_k_cluster_id * XSrcVectorSize)};
+                return ThreadwiseTensorSliceTransfer_v2<DataType,
+                                                        AccDataType,
+                                                        decltype(in_grid_2d_desc_tuple[I]),
+                                                        decltype(thread_buffer_desc_m_k),
+                                                        ThreadBufferLengths_M_K,
+                                                        ThreadBufferDimAccessOrder,
+                                                        XSrcVectorDim,
+                                                        XSrcVectorSize,
+                                                        1,
+                                                        false>{
+                    in_grid_2d_desc_tuple[I],
+                    make_multi_index(block_global_id * M_BlockTileSize +
+                                         thread_m_cluster_id * MThreadSliceSize,
+                                     thread_k_cluster_id * XSrcVectorSize)};
             },
             Number<NumInput>{});
 
@@ -401,7 +401,7 @@ struct GridwiseElementwiseLayernormWelfordVariance_mk_to_mk
             BlockwiseWelford::Run(mean_thread_buf(I), var_thread_buf(I), count);
         });
 
-        auto thread_copy_tail_m_k = //(num_k_block_tile_iteration - 1) * thread_copy_fwd_step_m_k;
+        auto thread_copy_tail_m_k =
             (num_k_block_tile_iteration - 1) * XThreadBufferNumber * thread_copy_fwd_step_m_k;
 
         if constexpr(!SweepOnce) // if not sweeponce, store c into global memory for reuse in the
