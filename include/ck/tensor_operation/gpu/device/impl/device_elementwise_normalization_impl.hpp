@@ -337,10 +337,12 @@ struct DeviceElementwiseNormalizationImpl
             sweep_once_ =
                 x_grid_desc_m_k_.GetLength(Number<1>{}) <= KThreadClusterSize * KThreadSliceSize;
 
-            if(!sweep_once_) // if not sweep once, malloc memory for matrix c in global memory for
+            if(!sweep_once_) // if not sweep once, compute memory size for matrix X in lds for
                              // store Intermediate results
-                x_lds_size_ = (x_grid_desc_m_k_.GetElementSpaceSize() + gridSize_ - 1) / gridSize_ *
-                              sizeof(XDataType);
+            {
+                int block_TileSize = M_BlockTileSize * reduce_total_length;
+                x_lds_size_        = block_TileSize * sizeof(XDataType);
+            }
             else
                 x_lds_size_ = 0;
         }
