@@ -24,7 +24,7 @@ using OutLayout   = ck::tensor_layout::convolution::GNHWK;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr ck::index_t NumDimSpatial = 2;
-static constexpr ck::index_t G             = 192;
+static constexpr ck::index_t G             = 32;
 static constexpr ck::index_t N             = 256;
 static constexpr ck::index_t K             = 192;
 static constexpr ck::index_t C             = 192;
@@ -51,7 +51,7 @@ struct SimpleDeviceMem
     void* p_mem_;
 };
 
-int main(int argc, char* argv[])
+int main()
 {
     std::array<ck::index_t, NumDimSpatial + 3> in_lengths{G, N, Hi, Wi, C};
     std::array<ck::index_t, NumDimSpatial + 3> in_strides{0, 0, 0, 0, 1};
@@ -79,9 +79,9 @@ int main(int argc, char* argv[])
     std::array<ck::index_t, NumDimSpatial> input_left_pads{1, 1};
     std::array<ck::index_t, NumDimSpatial> input_right_pads{1, 1};
 
-    SimpleDeviceMem in(sizeof(InDataType) * in_lengths.front() * in_strides.front());
-    SimpleDeviceMem wei(sizeof(WeiDataType) * wei_lengths.front() * wei_strides.front());
-    SimpleDeviceMem out(sizeof(OutDataType) * out_lengths.front() * out_strides.front());
+    SimpleDeviceMem in(sizeof(InDataType) * G * N * Hi * Wi * C);
+    SimpleDeviceMem wei(sizeof(WeiDataType) * G * K * Y * X * C);
+    SimpleDeviceMem out(sizeof(OutDataType) * G * N * Ho * Wo * K);
 
     using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvBwdData<NumDimSpatial,
                                                                  InLayout,
