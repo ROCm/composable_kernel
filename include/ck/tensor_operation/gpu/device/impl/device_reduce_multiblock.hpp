@@ -40,8 +40,16 @@ template <typename InDataType,
           index_t InSrcVectorDim,
           index_t InSrcVectorSize,
           index_t OutDstVectorSize>
-struct DeviceReduceMultiBlock
-    : public DeviceReduce<Rank, NumReduceDim, InElementwiseOperation, AccElementwiseOperation>
+struct DeviceReduceMultiBlock : public DeviceReduce<InDataType,
+                                                    AccDataType,
+                                                    OutDataType,
+                                                    Rank,
+                                                    NumReduceDim,
+                                                    ReduceOperation,
+                                                    InElementwiseOperation,
+                                                    AccElementwiseOperation,
+                                                    PropagateNan,
+                                                    OutputIndex>
 {
     static_assert(Rank <= 6, "Bigger Rank size is not supported!");
     static_assert(BlockSize == MThreadClusterSize * KThreadClusterSize,

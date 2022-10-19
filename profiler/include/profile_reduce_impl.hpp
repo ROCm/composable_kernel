@@ -285,8 +285,16 @@ bool profile_reduce_impl_impl(bool do_verification,
             reduce_unary_operator<ReduceOpId, true, true>::GetElementwiseOperator(
                 static_cast<int32_t>(reduce_total_length));
 
-        using DeviceReduceInstPtr =
-            DeviceReducePtr<Rank, NumReduceDim, InElementwiseOperation, AccElementwiseOperation>;
+        using DeviceReduceInstPtr = DeviceReducePtr<InDataType,
+                                                    AccDataType,
+                                                    OutDataType,
+                                                    Rank,
+                                                    NumReduceDim,
+                                                    ReduceOperation,
+                                                    InElementwiseOperation,
+                                                    AccElementwiseOperation,
+                                                    PropagateNan,
+                                                    OutputIndex>;
 
         std::vector<DeviceReduceInstPtr> reduce_ptrs;
 
@@ -299,7 +307,7 @@ bool profile_reduce_impl_impl(bool do_verification,
                                               InElementwiseOperation,
                                               AccElementwiseOperation,
                                               PropagateNan,
-                                              UseIndex>(reduce_ptrs);
+                                              OutputIndex>(reduce_ptrs);
 
         add_device_reduce_instance_blockwise<InDataType,
                                              AccDataType,
@@ -310,7 +318,7 @@ bool profile_reduce_impl_impl(bool do_verification,
                                              InElementwiseOperation,
                                              AccElementwiseOperation,
                                              PropagateNan,
-                                             UseIndex>(reduce_ptrs);
+                                             OutputIndex>(reduce_ptrs);
 
         if constexpr(use_atomic_add)
         {
@@ -323,7 +331,7 @@ bool profile_reduce_impl_impl(bool do_verification,
                                                              InElementwiseOperation,
                                                              AccElementwiseOperation,
                                                              PropagateNan,
-                                                             UseIndex>(reduce_ptrs);
+                                                             OutputIndex>(reduce_ptrs);
         }
 
         if(reduce_ptrs.empty())
