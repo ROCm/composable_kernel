@@ -22,7 +22,8 @@ class TestElementwiseLayernorm : public ::testing::Test
     void Run()
     {
         // M, N
-        std::vector<std::vector<ck::index_t>> lengths = {{1024, 1024}};
+        std::vector<std::vector<ck::index_t>> lengths = {
+            {1, 8}, {25, 16}, {25, 24}, {100, 200}, {1024, 1024}, {48 * 256, 2048}};
 
         for(auto length : lengths)
         {
@@ -40,6 +41,11 @@ class TestElementwiseLayernorm : public ::testing::Test
 
 using KernelTypes = ::testing::Types<
     // ADataType, BDataType, GammaDataType, BetaDataType, AccDataType, YDataType>
+    std::tuple<F16, F16, F16, F16, F32, F16>,
+    std::tuple<F16, F16, F16, F16, F32, F16>,
+    std::tuple<F16, F16, F16, F16, F32, F16>,
+    std::tuple<F16, F16, F16, F16, F32, F16>,
+    std::tuple<F16, F16, F16, F16, F32, F16>,
     std::tuple<F16, F16, F16, F16, F32, F16>>;
 
 TYPED_TEST_SUITE(TestElementwiseLayernorm, KernelTypes);
