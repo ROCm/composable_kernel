@@ -339,8 +339,8 @@ struct DeviceElementwiseNormalizationImpl
 
             if(!sweep_once_) // if not sweep once, malloc memory for matrix c in global memory for
                              // store Intermediate results
-                x_lds_size_ =
-                    sizeof(XDataType) * x_grid_desc_m_k_.GetElementSpaceSize() / gridSize_;
+                x_lds_size_ = (x_grid_desc_m_k_.GetElementSpaceSize() + gridSize_ - 1) / gridSize_ *
+                              sizeof(XDataType);
             else
                 x_lds_size_ = 0;
         }
