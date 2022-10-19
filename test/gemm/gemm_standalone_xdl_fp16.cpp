@@ -3,8 +3,6 @@
 
 #include "gemm_util.hpp"
 
-#include "ck/library/utility/fill.hpp"
-
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle.hpp"
 
