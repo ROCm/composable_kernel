@@ -1,0 +1,3 @@
+add_instance_library(device_grouped_conv3d_bwd_data_instance
+   device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_f16_instance.cpp
+)
