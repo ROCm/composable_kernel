@@ -62,39 +62,39 @@ int main(int argc, char* argv[])
     std::vector<std::tuple<GemmParams, LayoutConfig, OpFactoryFn>> problems = {
         // clang-format off
     // 104 tiles
-    {GemmParams{2048, 3328, 4096, -1, -1, -1}, LayoutConfig{false, false, true}, add_gemm_f16_nn_256x256},
-    {GemmParams{2048, 1664, 4096, -1, -1, -1}, LayoutConfig{false, false, true}, add_gemm_f16_nn_256x128},
-    {GemmParams{1024, 1664, 4096, -1, -1, -1}, LayoutConfig{false, false, true}, add_gemm_f16_nn_128x128},
-    {GemmParams{1024,  832, 4096, -1, -1, -1}, LayoutConfig{false, false, true}, add_gemm_f16_nn_128x64},
-    {GemmParams{2048, 3328, 4096, -1, -1, -1}, LayoutConfig{false, true, true}, add_gemm_f16_nt_256x256},
-    {GemmParams{2048, 1664, 4096, -1, -1, -1}, LayoutConfig{false, true, true}, add_gemm_f16_nt_256x128},
-    {GemmParams{1024, 1664, 4096, -1, -1, -1}, LayoutConfig{false, true, true}, add_gemm_f16_nt_128x128},
-    {GemmParams{1024,  832, 4096, -1, -1, -1}, LayoutConfig{false, true, true}, add_gemm_f16_nt_128x64},
-    {GemmParams{2048, 3328, 4096, -1, -1, -1}, LayoutConfig{true, false, true}, add_gemm_f16_tn_256x128},
-    {GemmParams{2048, 1664, 4096, -1, -1, -1}, LayoutConfig{true, false, true}, add_gemm_f16_tn_256x128},
-    {GemmParams{1024, 1664, 4096, -1, -1, -1}, LayoutConfig{true, false, true}, add_gemm_f16_tn_128x128},
-    {GemmParams{1024,  832, 4096, -1, -1, -1}, LayoutConfig{true, false, true}, add_gemm_f16_tn_128x64},
-    {GemmParams{2048, 3328, 4096, -1, -1, -1}, LayoutConfig{true, true, true}, add_gemm_f16_tt_256x256},
-    {GemmParams{2048, 1664, 4096, -1, -1, -1}, LayoutConfig{true, true, true}, add_gemm_f16_tt_256x128},
-    {GemmParams{1024, 1664, 4096, -1, -1, -1}, LayoutConfig{true, true, true}, add_gemm_f16_tt_128x128},
-    {GemmParams{1024,  832, 4096, -1, -1, -1}, LayoutConfig{true, true, true}, add_gemm_f16_tt_128x64},
+    {GemmParams{2048, 3328, 4096}, LayoutConfig{false, false, true}, add_gemm_f16_nn_256x256},
+    {GemmParams{2048, 1664, 4096}, LayoutConfig{false, false, true}, add_gemm_f16_nn_256x128},
+    {GemmParams{1024, 1664, 4096}, LayoutConfig{false, false, true}, add_gemm_f16_nn_128x128},
+    {GemmParams{1024,  832, 4096}, LayoutConfig{false, false, true}, add_gemm_f16_nn_128x64},
+    {GemmParams{2048, 3328, 4096}, LayoutConfig{false, true, true}, add_gemm_f16_nt_256x256},
+    {GemmParams{2048, 1664, 4096}, LayoutConfig{false, true, true}, add_gemm_f16_nt_256x128},
+    {GemmParams{1024, 1664, 4096}, LayoutConfig{false, true, true}, add_gemm_f16_nt_128x128},
+    {GemmParams{1024,  832, 4096}, LayoutConfig{false, true, true}, add_gemm_f16_nt_128x64},
+    {GemmParams{2048, 3328, 4096}, LayoutConfig{true, false, true}, add_gemm_f16_tn_256x128},
+    {GemmParams{2048, 1664, 4096}, LayoutConfig{true, false, true}, add_gemm_f16_tn_256x128},
+    {GemmParams{1024, 1664, 4096}, LayoutConfig{true, false, true}, add_gemm_f16_tn_128x128},
+    {GemmParams{1024,  832, 4096}, LayoutConfig{true, false, true}, add_gemm_f16_tn_128x64},
+    {GemmParams{2048, 3328, 4096}, LayoutConfig{true, true, true}, add_gemm_f16_tt_256x256},
+    {GemmParams{2048, 1664, 4096}, LayoutConfig{true, true, true}, add_gemm_f16_tt_256x128},
+    {GemmParams{1024, 1664, 4096}, LayoutConfig{true, true, true}, add_gemm_f16_tt_128x128},
+    {GemmParams{1024,  832, 4096}, LayoutConfig{true, true, true}, add_gemm_f16_tt_128x64},
     // 110 tiles
-    {GemmParams{2560, 2816, 4096, -1, -1, -1}, LayoutConfig{false, false, true}, add_gemm_f16_nn_256x256},
-    {GemmParams{2560, 1408, 4096, -1, -1, -1}, LayoutConfig{false, false, true}, add_gemm_f16_nn_256x128},
-    {GemmParams{1280, 1408, 4096, -1, -1, -1}, LayoutConfig{false, false, true}, add_gemm_f16_nn_128x128},
-    {GemmParams{1280,  704, 4096, -1, -1, -1}, LayoutConfig{false, false, true}, add_gemm_f16_nn_128x64},
-    {GemmParams{2560, 2816, 4096, -1, -1, -1}, LayoutConfig{false, true, true}, add_gemm_f16_nt_256x256},
-    {GemmParams{2560, 1408, 4096, -1, -1, -1}, LayoutConfig{false, true, true}, add_gemm_f16_nt_256x128},
-    {GemmParams{1280, 1408, 4096, -1, -1, -1}, LayoutConfig{false, true, true}, add_gemm_f16_nt_128x128},
-    {GemmParams{1280,  704, 4096, -1, -1, -1}, LayoutConfig{false, true, true}, add_gemm_f16_nt_128x64},
-    {GemmParams{2560, 2816, 4096, -1, -1, -1}, LayoutConfig{true, false, true}, add_gemm_f16_tn_256x128},
-    {GemmParams{2560, 1408, 4096, -1, -1, -1}, LayoutConfig{true, false, true}, add_gemm_f16_tn_256x128},
-    {GemmParams{1280, 1408, 4096, -1, -1, -1}, LayoutConfig{true, false, true}, add_gemm_f16_tn_128x128},
-    {GemmParams{1280,  704, 4096, -1, -1, -1}, LayoutConfig{true, false, true}, add_gemm_f16_tn_128x64},
-    {GemmParams{2560, 2816, 4096, -1, -1, -1}, LayoutConfig{true, true, true}, add_gemm_f16_tt_256x256},
-    {GemmParams{2560, 1408, 4096, -1, -1, -1}, LayoutConfig{true, true, true}, add_gemm_f16_tt_256x128},
-    {GemmParams{1280, 1408, 4096, -1, -1, -1}, LayoutConfig{true, true, true}, add_gemm_f16_tt_128x128},
-    {GemmParams{1280,  704, 4096, -1, -1, -1}, LayoutConfig{true, true, true}, add_gemm_f16_tt_128x64},
+    {GemmParams{2560, 2816, 4096}, LayoutConfig{false, false, true}, add_gemm_f16_nn_256x256},
+    {GemmParams{2560, 1408, 4096}, LayoutConfig{false, false, true}, add_gemm_f16_nn_256x128},
+    {GemmParams{1280, 1408, 4096}, LayoutConfig{false, false, true}, add_gemm_f16_nn_128x128},
+    {GemmParams{1280,  704, 4096}, LayoutConfig{false, false, true}, add_gemm_f16_nn_128x64},
+    {GemmParams{2560, 2816, 4096}, LayoutConfig{false, true, true}, add_gemm_f16_nt_256x256},
+    {GemmParams{2560, 1408, 4096}, LayoutConfig{false, true, true}, add_gemm_f16_nt_256x128},
+    {GemmParams{1280, 1408, 4096}, LayoutConfig{false, true, true}, add_gemm_f16_nt_128x128},
+    {GemmParams{1280,  704, 4096}, LayoutConfig{false, true, true}, add_gemm_f16_nt_128x64},
+    {GemmParams{2560, 2816, 4096}, LayoutConfig{true, false, true}, add_gemm_f16_tn_256x128},
+    {GemmParams{2560, 1408, 4096}, LayoutConfig{true, false, true}, add_gemm_f16_tn_256x128},
+    {GemmParams{1280, 1408, 4096}, LayoutConfig{true, false, true}, add_gemm_f16_tn_128x128},
+    {GemmParams{1280,  704, 4096}, LayoutConfig{true, false, true}, add_gemm_f16_tn_128x64},
+    {GemmParams{2560, 2816, 4096}, LayoutConfig{true, true, true}, add_gemm_f16_tt_256x256},
+    {GemmParams{2560, 1408, 4096}, LayoutConfig{true, true, true}, add_gemm_f16_tt_256x128},
+    {GemmParams{1280, 1408, 4096}, LayoutConfig{true, true, true}, add_gemm_f16_tt_128x128},
+    {GemmParams{1280,  704, 4096}, LayoutConfig{true, true, true}, add_gemm_f16_tt_128x64},
         // clang-format on
     };
 
@@ -126,6 +126,7 @@ int main(int argc, char* argv[])
         std::vector<std::unique_ptr<BaseOperator>> ops;
         factory(ops);
 
+        // overwrite strides
         problem_size.StrideA = layout_config.ARowMajor ? problem_size.K : problem_size.M;
         problem_size.StrideB = layout_config.BRowMajor ? problem_size.N : problem_size.K;
         problem_size.StrideC = layout_config.CRowMajor ? problem_size.N : problem_size.M;
