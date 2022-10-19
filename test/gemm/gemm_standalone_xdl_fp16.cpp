@@ -121,6 +121,7 @@ int main(int argc, char* argv[])
     {
         std::cerr << "arg1: verification (0=no, 1=yes)" << std::endl
                   << "arg2: time kernel (0=no, 1=yes)" << std::endl;
+        return 0;
     }
 
     for(auto& p : problems)
