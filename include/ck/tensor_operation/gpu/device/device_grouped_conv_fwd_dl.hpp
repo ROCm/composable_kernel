@@ -31,10 +31,8 @@ namespace {
 
 struct ComputePtrOffsetOfStridedBatch
 {
-    ComputePtrOffsetOfStridedBatch() = default;
-
-    ComputePtrOffsetOfStridedBatch(index_t BatchStrideA, index_t BatchStrideB, index_t BatchStrideE)
-        : BatchStrideA_(BatchStrideA), BatchStrideB_(BatchStrideB), BatchStrideE_(BatchStrideE)
+    ComputePtrOffsetOfStridedBatch(index_t BatchStrideA, index_t BatchStrideB, index_t BatchStrideC)
+        : BatchStrideA_(BatchStrideA), BatchStrideB_(BatchStrideB), BatchStrideC_(BatchStrideC)
     {
     }
 
@@ -50,12 +48,12 @@ struct ComputePtrOffsetOfStridedBatch
 
     __host__ __device__ constexpr long_index_t GetCPtrOffset(index_t g_idx) const
     {
-        return g_idx * static_cast<long_index_t>(BatchStrideE_);
+        return g_idx * static_cast<long_index_t>(BatchStrideC_);
     }
 
     index_t BatchStrideA_;
     index_t BatchStrideB_;
-    index_t BatchStrideE_;
+    index_t BatchStrideC_;
 };
 
 /*
@@ -86,35 +84,29 @@ struct ComputePtrOffsetOfStridedBatch
 template <typename GridwiseGemm,
           typename ABDataType,
           typename CDataType,
-          typename AElementwiseOperation,
-          typename BElementwiseOperation,
-          typename CElementwiseOperation,
-          typename AGridDesc_AK0_M_AK1,
-          typename BGridDesc_BK0_N_BK1,
-          typename CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-          typename Block2ETileMap,
+          typename AGridDesc_K0_M0_M1_K1,
+          typename BGridDesc_K0_N0_N1_K1,
+          typename CGridDesc_M0_M10_M11_N0_N10_N11,
+          typename Block2CTileMap,
           typename ComputePtrOffsetOfBatch,
-          bool HasMainKBlockLoop>
+          bool HasMainKBlockLoop,
+          bool HasDoubleTailKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_conv_fwd_multiple_d_xdl(
+        kernel_grouped_conv_fwd_dl(
             const ABDataType* __restrict__ p_a_grid,
             const ABDataType* __restrict__ p_b_grid,
             CDataType* __restrict__ p_c_grid,
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const CElementwiseOperation c_element_op,
             const index_t batch_count,
-            const AGridDesc_AK0_M_AK1 a_grid_desc_k0_m_k1,
-            const BGridDesc_BK0_N_BK1 b_grid_desc_k0_n_k1,
-            const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-                c_grid_desc_mblock_mperblock_nblock_nperblock_,
-            const Block2ETileMap block_2_ctile_map,
+            const AGridDesc_K0_M0_M1_K1 a_grid_desc_k0_m0_m1_k1,
+            const BGridDesc_K0_N0_N1_K1 b_grid_desc_k0_n0_n1_k1,
+            const CGridDesc_M0_M10_M11_N0_N10_N11 c_grid_desc_m0_m10_m11_n0_n10_n11,
+            const Block2CTileMap block_2_ctile_map,
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx1030__))
     // offset base pointer for each work-group
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -127,22 +119,21 @@ __global__ void
     const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_ptr_offset_of_batch.GetCPtrOffset(g_idx)));
 
-    const auto ds_batch_offset = compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
+    constexpr index_t shared_block_size =
+        GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(ABDataType);
 
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+    __shared__ ABDataType p_shared[shared_block_size];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
-                                                  p_b_grid + b_batch_offset,
-                                                  p_c_grid + c_batch_offset,
-                                                  p_shared,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  c_element_op,
-                                                  a_grid_desc_k0_m_k1,
-                                                  b_grid_desc_k0_n_k1,
-                                                  ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                                  block_2_ctile_map);
+    GridwiseGemm::Run(p_a_grid + a_batch_offset,
+                      p_b_grid + b_batch_offset,
+                      p_c_grid + c_batch_offset,
+                      p_shared,
+                      a_grid_desc_k0_m0_m1_k1,
+                      b_grid_desc_k0_n0_n1_k1,
+                      c_grid_desc_m0_m10_m11_n0_n10_n11,
+                      block_2_ctile_map,
+                      integral_constant<bool, HasMainKBlockLoop>{},
+                      integral_constant<bool, HasDoubleTailKBlockLoop>{});
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -150,7 +141,7 @@ __global__ void
     ignore = batch_count;
     ignore = a_grid_desc_k0_m_k1;
     ignore = b_grid_desc_k0_n_k1;
-    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock_;
+    ignore = c_grid_desc_m0_m10_m11_n0_n10_n11;
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = c_element_op;
@@ -415,7 +406,8 @@ struct DeviceGroupedConvFwd_dl : public DeviceGroupedConvFwd<NDimSpatial,
               b_grid_desc_k0_n0_n1_k1_{},
               c_grid_desc_m0_m10_m11_n0_n10_n11_{},
               block_2_ctile_map_{},
-              compute_ptr_offset_of_batch_{},
+              compute_ptr_offset_of_batch_{
+                  a_g_n_c_wis_strides[0], b_g_k_c_xs_strides[0], c_g_n_k_wos_strides[0]},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op},
@@ -433,7 +425,7 @@ struct DeviceGroupedConvFwd_dl : public DeviceGroupedConvFwd<NDimSpatial,
             // A/B/E Batch Stride
             compute_ptr_offset_of_batch_.BatchStrideA_ = a_g_n_c_wis_strides[0];
             compute_ptr_offset_of_batch_.BatchStrideB_ = b_g_k_c_xs_strides[0];
-            compute_ptr_offset_of_batch_.BatchStrideE_ = c_g_n_k_wos_strides[0];
+            compute_ptr_offset_of_batch_.BatchStrideC_ = c_g_n_k_wos_strides[0];
 
             // populate desc for Ds/E
             if(GridwiseGemm::CheckValidity(
@@ -519,27 +511,24 @@ struct DeviceGroupedConvFwd_dl : public DeviceGroupedConvFwd<NDimSpatial,
             }
 
             const index_t grid_size =
-                arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * arg.num_group_;
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_) * arg.num_group_;
 
-            const auto K =
-                arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
+            auto launch_kernel = [&](auto has_main_k_block_loop,
+                                     auto has_double_tail_k_block_loop) {
+                constexpr bool has_main_loop   = has_main_k_block_loop.value;
+                constexpr bool has_double_loop = has_double_tail_k_block_loop;
 
-            auto launch_kernel = [&](auto has_main_k_block_loop) {
-                constexpr bool has_main_loop = has_main_k_block_loop.value;
-
-                const auto kernel = kernel_grouped_conv_fwd_multiple_d_xdl<
-                    GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
-                    CDataType,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CElementwiseOperation,
-                    DeviceOp::AGridDesc_AK0_M_AK1,
-                    DeviceOp::BGridDesc_BK0_N_BK1,
-                    DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                    DefaultBlock2CTileMap,
-                    ComputePtrOffsetOfStridedBatch,
-                    has_main_loop>;
+                const auto kernel =
+                    kernel_grouped_conv_fwd_dl<GridwiseGemm,
+                                               ADataType, // TODO: distiguish A/B datatype
+                                               CDataType,
+                                               DeviceOp::AGridDesc_K0_M0_M1_K1,
+                                               DeviceOp::BGridDesc_K0_N0_N1_K1,
+                                               DeviceOp::CGridDesc_M0_M10_M11_N0_N10_N11,
+                                               DefaultBlock2CTileMap,
+                                               ComputePtrOffsetOfStridedBatch,
+                                               has_main_loop,
+                                               has_double_loop>;
 
                 return launch_and_time_kernel(stream_config,
                                               kernel,
@@ -549,24 +538,38 @@ struct DeviceGroupedConvFwd_dl : public DeviceGroupedConvFwd<NDimSpatial,
                                               arg.p_a_grid_,
                                               arg.p_b_grid_,
                                               arg.p_c_grid_,
-                                              arg.a_element_op_,
-                                              arg.b_element_op_,
-                                              arg.c_element_op_,
                                               arg.a_g_n_c_wis_lengths_[0], // Group count
-                                              arg.a_grid_desc_ak0_m_ak1_,
-                                              arg.b_grid_desc_bk0_n_bk1_,
-                                              arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                              arg.block_2_etile_map_,
+                                              arg.a_grid_desc_k0_m0_m1_k1_,
+                                              arg.b_grid_desc_k0_n0_n1_k1_,
+                                              arg.c_grid_desc_m0_m10_m11_n0_n10_n11_,
+                                              arg.block_2_ctile_map_,
                                               arg.compute_ptr_offset_of_batch_);
             };
 
-            if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
+            const auto K0                    = arg.a_grid_desc_k0_m0_m1_k1_.GetLength(I0);
+            const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K0);
+            const bool has_double_tail_k_block_loop =
+                GridwiseGemm::CalculateHasDoubleTailKBlockLoop(K0);
+
+            if(has_main_k_block_loop && has_double_tail_k_block_loop)
             {
-                return launch_kernel(integral_constant<bool, true>{});
+                return launch_kernel(integral_constant<bool, true>{},
+                                     integral_constant<bool, true>{});
+            }
+            else if(has_main_k_block_loop && !has_double_tail_k_block_loop)
+            {
+                return launch_kernel(integral_constant<bool, true>{},
+                                     integral_constant<bool, false>{});
+            }
+            else if(!has_main_k_block_loop && has_double_tail_k_block_loop)
+            {
+                return launch_kernel(integral_constant<bool, false>{},
+                                     integral_constant<bool, true>{});
             }
             else
             {
-                return launch_kernel(integral_constant<bool, false>{});
+                return launch_kernel(integral_constant<bool, false>{},
+                                     integral_constant<bool, false>{});
             }
         }
 
