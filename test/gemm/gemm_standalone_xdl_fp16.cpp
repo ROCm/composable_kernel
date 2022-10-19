@@ -11,19 +11,15 @@
 #include "gemm_f16_tn_instance.hpp"
 #include "gemm_f16_tt_instance.hpp"
 
-template <ck::index_t... Is>
-using S = ck::Sequence<Is...>;
-
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using PassThrough      = ck::tensor_operation::element_wise::PassThrough;
-using F16              = ck::half_t;
-using ADataType        = F16;
-using BDataType        = F16;
-using AccDataType      = float;
-using CShuffleDataType = float;
-using CDataType        = F16;
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+using F16         = ck::half_t;
+using ADataType   = F16;
+using BDataType   = F16;
+using AccDataType = float;
+using CDataType   = F16;
 
 using ALayout = Row;
 using BLayout = Col;
@@ -32,9 +28,6 @@ using CLayout = Row;
 using AElementOp = PassThrough;
 using BElementOp = PassThrough;
 using CElementOp = PassThrough;
-
-using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
 
 using ck::gemm_util::GemmParams;
 using ck::tensor_operation::device::BaseOperator;
