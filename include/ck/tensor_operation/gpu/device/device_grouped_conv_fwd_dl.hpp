@@ -647,11 +647,18 @@ struct DeviceGroupedConvFwd_dl : public DeviceGroupedConvFwd<NDimSpatial,
                      is_same_v<ALayout, ctc::NDHWGC>)
         {
             auto srcVectorLengths = ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1{};
-            if(srcVectorLengths[I0] != 1 || srcVectorLengths[I1] != 1 || srcVectorLengths[I2] != 1)
+            if(srcVectorLengths[I1] != 1 || srcVectorLengths[I2] != 1)
             {
                 return false;
             }
-            if(K1 % srcVectorLengths[I3] != 0)
+            if(K1 % srcVectorLengths[I3] != 0 || K0PerBlock % srcVectorLengths[I0] != 0)
+            {
+                return false;
+            }
+
+            const index_t C = arg.a_g_n_c_wis_lengths_[2];
+
+            if(C % (srcVectorLengths[I0] * srcVectorLengths[I3]) != 0)
             {
                 return false;
             }
@@ -671,11 +678,18 @@ struct DeviceGroupedConvFwd_dl : public DeviceGroupedConvFwd<NDimSpatial,
 
         {
             auto srcVectorLengths = BBlockTransferSrcVectorTensorLengths_K0_N0_N1_K1{};
-            if(srcVectorLengths[I0] != 1 || srcVectorLengths[I1] != 1 || srcVectorLengths[I2] != 1)
+            if(srcVectorLengths[I1] != 1 || srcVectorLengths[I2] != 1)
             {
                 return false;
             }
-            if(K1 % srcVectorLengths[I3] != 0)
+            if(K1 % srcVectorLengths[I3] != 0 || K0PerBlock % srcVectorLengths[I0] != 0)
+            {
+                return false;
+            }
+
+            const index_t C = arg.b_g_k_c_xs_lengths_[2];
+
+            if(C % (srcVectorLengths[I0] * srcVectorLengths[I3]) != 0)
             {
                 return false;
             }

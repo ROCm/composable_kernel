@@ -11,7 +11,7 @@ bool run_convnd_fwd_dl_example(int argc, char* argv[])
     bool time_kernel     = false;
 
     ck::utils::conv::ConvParam conv_param{
-        2, 1, 128, 256, 192, {3, 3}, {7, 7}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
+        2, 1, 128, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
 
     if(argc == 1)
     {
