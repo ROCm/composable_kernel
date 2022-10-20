@@ -28,19 +28,6 @@ void add_device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_f16_instances(
                                                          PassThrough,
                                                          PassThrough>>>& instances);
 
-// conv3d backward data
-void add_device_grouped_conv3d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_f16_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdData<3,
-                                                         GNDHWC,
-                                                         GKZYXC,
-                                                         GNDHWK,
-                                                         F16,
-                                                         F16,
-                                                         F16,
-                                                         PassThrough,
-                                                         PassThrough,
-                                                         PassThrough>>>& instances);
-
 template <ck::index_t NumDimSpatial,
           typename InLayout,
           typename WeiLayout,
@@ -82,15 +69,6 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, F16>)
             {
                 add_device_grouped_conv2d_bwd_data_xdl_gnhwc_gkyxc_gnhwk_f16_instances(op_ptrs);
-            }
-        }
-        else if constexpr(NumDimSpatial == 3 && is_same_v<InLayout, GNDHWC> &&
-                          is_same_v<WeiLayout, GKZYXC> && is_same_v<OutLayout, GNDHWK>)
-        {
-            if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
-                         is_same_v<OutDataType, F16>)
-            {
-                add_device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_f16_instances(op_ptrs);
             }
         }
 
