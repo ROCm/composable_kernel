@@ -645,7 +645,17 @@ struct DeviceGroupedConvFwd_dl : public DeviceGroupedConvFwd<NDimSpatial,
                      is_same_v<ALayout, ctc::GNHWC> || is_same_v<ALayout, ctc::GNDHWC> ||
                      is_same_v<ALayout, ctc::NWGC> || is_same_v<ALayout, ctc::NHWGC> ||
                      is_same_v<ALayout, ctc::NDHWGC>)
-        {}
+        {
+            auto srcVectorLengths = ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1{};
+            if(srcVectorLengths[I0] != 1 || srcVectorLengths[I1] != 1 || srcVectorLengths[I2] != 1)
+            {
+                return false;
+            }
+            if(K1 % srcVectorLengths[I3] != 0)
+            {
+                return false;
+            }
+        }
         else
         {
             return false;
@@ -659,27 +669,17 @@ struct DeviceGroupedConvFwd_dl : public DeviceGroupedConvFwd<NDimSpatial,
                      is_same_v<BLayout, ctc::KXGC> || is_same_v<BLayout, ctc::KYXGC> ||
                      is_same_v<BLayout, ctc::KZYXGC>)
 
-        {}
-        else
         {
-            return false;
+            auto srcVectorLengths = BBlockTransferSrcVectorTensorLengths_K0_N0_N1_K1{};
+            if(srcVectorLengths[I0] != 1 || srcVectorLengths[I1] != 1 || srcVectorLengths[I2] != 1)
+            {
+                return false;
+            }
+            if(K1 % srcVectorLengths[I3] != 0)
+            {
+                return false;
+            }
         }
-
-        //  check vector access of Ds
-        bool valid = true;
-
-        if(!valid)
-        {
-            return false;
-        }
-
-        // check vector access of E
-        if constexpr(is_same_v<CLayout, ctc::G_NW_K> || is_same_v<CLayout, ctc::G_NHW_K> ||
-                     is_same_v<CLayout, ctc::G_NDHW_K> || is_same_v<CLayout, ctc::GNWK> ||
-                     is_same_v<CLayout, ctc::GNHWK> || is_same_v<CLayout, ctc::GNDHWK> ||
-                     is_same_v<CLayout, ctc::NWGK> || is_same_v<CLayout, ctc::NHWGK> ||
-                     is_same_v<CLayout, ctc::NDHWGK>)
-        {}
         else
         {
             return false;
