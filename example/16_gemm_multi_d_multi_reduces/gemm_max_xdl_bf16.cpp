@@ -4,7 +4,7 @@
 #include "gemm_reduce_xdl_common.hpp"
 
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_multiple_r_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_multiple_r_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 
 // DataType

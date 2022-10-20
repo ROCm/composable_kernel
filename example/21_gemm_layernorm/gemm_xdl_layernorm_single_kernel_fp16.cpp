@@ -11,7 +11,7 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_xdl_layernorm_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_layernorm_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/utility/reduction_operator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm_layernorm.hpp"
