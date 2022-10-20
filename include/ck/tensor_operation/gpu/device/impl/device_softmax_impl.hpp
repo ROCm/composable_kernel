@@ -265,28 +265,28 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
         {
             if constexpr(NumInvariantDim == 0)
             {
-                return (false);
+                return false;
             }
             else
             {
                 if(p_arg_->inStrides_[NumInvariantDim - 1] != 1)
-                    return (false);
+                    return false;
 
                 if(p_arg_->invariant_lowest_length_ % InSrcVectorSize != 0)
-                    return (false);
+                    return false;
             };
         }
         else
         {
             if(p_arg_->inStrides_[Rank - 1] != 1)
-                return (false);
+                return false;
 
             if(p_arg_->inLengths_[Rank - 1] % InSrcVectorSize != 0)
-                return (false);
+                return false;
         };
 
         if(p_arg_->invariant_lowest_length_ % OutDstVectorSize != 0)
-            return (false);
+            return false;
 
         return true;
     };
