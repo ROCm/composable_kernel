@@ -445,9 +445,15 @@ struct DeviceGroupedConvFwd_dl : public DeviceGroupedConvFwd<NDimSpatial,
 
         void Print() const
         {
-            std::cout << "A[M, K]: " << a_grid_desc_ak0_m_ak1_ << std::endl;
-            std::cout << "B[N, K]: " << b_grid_desc_bk0_n_bk1_ << std::endl;
+            std::cout << "A[K0, M, K1]: " << a_grid_desc_ak0_m_ak1_ << std::endl;
+            std::cout << "B[K0, N, K1]: " << b_grid_desc_bk0_n_bk1_ << std::endl;
             std::cout << "C[M, N]: " << c_grid_desc_m_n_ << std::endl;
+            std::cout << "num_group: " << num_group_ << std::endl;
+
+            std::cout << "A[k0, m0, m1, k1]: " << a_grid_desc_k0_m0_m1_k1_ << std::endl;
+            std::cout << "B[k0, n0, n1, k1]: " << b_grid_desc_k0_n0_n1_k1_ << std::endl;
+            std::cout << "A[m0, m10, m11, n0, n10, n11]: " << c_grid_desc_m0_m10_m11_n0_n10_n11_
+                      << std::endl;
         }
 
         //  private:
@@ -498,7 +504,7 @@ struct DeviceGroupedConvFwd_dl : public DeviceGroupedConvFwd<NDimSpatial,
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            if(stream_config.log_level_ > 0)
+            // if(stream_config.log_level_ > 0)
             {
                 arg.Print();
             }
@@ -506,12 +512,13 @@ struct DeviceGroupedConvFwd_dl : public DeviceGroupedConvFwd<NDimSpatial,
             if(!GridwiseGemm::CheckValidity(
                    arg.a_grid_desc_ak0_m_ak1_, arg.b_grid_desc_bk0_n_bk1_, arg.c_grid_desc_m_n_))
             {
-                throw std::runtime_error(
-                    "wrong! GridwiseGemmMultipleD_xdl_cshuffle has invalid setting");
+                throw std::runtime_error("wrong! DeviceGroupedConvFwd_dl has invalid setting");
             }
 
             const index_t grid_size =
-                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_) * arg.num_group_;
+                GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_.GetLength(I0),
+                                                arg.c_grid_desc_m_n_.GetLength(I1)) *
+                arg.num_group_;
 
             auto launch_kernel = [&](auto has_main_k_block_loop,
                                      auto has_double_tail_k_block_loop) {

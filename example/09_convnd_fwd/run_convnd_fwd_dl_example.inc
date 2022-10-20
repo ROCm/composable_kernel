@@ -5,8 +5,6 @@
 
 bool run_convnd_fwd_dl_example(int argc, char* argv[])
 {
-    print_helper_msg();
-
     bool do_verification = true;
     int init_method      = 1;
     bool time_kernel     = false;
@@ -24,7 +22,7 @@ bool run_convnd_fwd_dl_example(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
     }
-    else
+    else if(argc == 5)
     {
         do_verification                   = std::stoi(argv[1]);
         init_method                       = std::stoi(argv[2]);
@@ -32,6 +30,10 @@ bool run_convnd_fwd_dl_example(int argc, char* argv[])
         const ck::index_t num_dim_spatial = std::stoi(argv[4]);
 
         conv_param = ck::utils::conv::parse_conv_param(num_dim_spatial, 5, argv);
+    }
+    else
+    {
+        print_helper_msg();
     }
 
     const auto in_element_op  = InElementOp{};
