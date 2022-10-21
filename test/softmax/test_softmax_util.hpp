@@ -3,18 +3,16 @@
 
 #pragma once
 
+#include <string>
+#include <sstream>
+#include <tuple>
 #include <vector>
-#include <iostream>
 #include <gtest/gtest.h>
 
 #include "ck/ck.hpp"
-#include "ck/utility/number.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_softmax_impl.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/host_tensor.hpp"
-#include "ck/library/utility/device_memory.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
+#include "include/ck/utility/data_type.hpp"
 #include "profiler/include/profile_softmax_impl.hpp"
 
 namespace ck {
@@ -85,21 +83,21 @@ class TestSoftmax : public ::testing::Test
     }
 };
 
-template <ck::index_t Rank,
-          ck::index_t NumReduceDim,
-          ck::index_t BlockSize,
-          ck::index_t MThreadClusterSize,
-          ck::index_t KThreadClusterSize,
-          ck::index_t MThreadSliceSize,
-          ck::index_t KThreadSliceSize,
-          ck::index_t InSrcVectorDim,
-          ck::index_t InSrcVectorSize,
-          ck::index_t OutDstVectorSize>
+template <index_t Rank,
+          index_t NumReduceDim,
+          index_t BlockSize,
+          index_t MThreadClusterSize,
+          index_t KThreadClusterSize,
+          index_t MThreadSliceSize,
+          index_t KThreadSliceSize,
+          index_t InSrcVectorDim,
+          index_t InSrcVectorSize,
+          index_t OutDstVectorSize>
 struct DeviceSoftmaxInstanceWrapper
 {
-    using F16  = ck::half_t;
+    using F16  = half_t;
     using F32  = float;
-    using Pass = ck::tensor_operation::element_wise::PassThrough;
+    using Pass = tensor_operation::element_wise::PassThrough;
 
     using InDataType   = F16;
     using AccDataType  = F32;
@@ -107,22 +105,21 @@ struct DeviceSoftmaxInstanceWrapper
     using InElementOp  = Pass;
     using AccElementOp = Pass;
 
-    using DeviceSoftmaxInstance =
-        ck::tensor_operation::device::DeviceSoftmaxImpl<InDataType,
-                                                        AccDataType,
-                                                        OutDataType,
-                                                        InElementOp,
-                                                        AccElementOp,
-                                                        Rank,
-                                                        NumReduceDim,
-                                                        BlockSize,
-                                                        MThreadClusterSize,
-                                                        KThreadClusterSize,
-                                                        MThreadSliceSize,
-                                                        KThreadSliceSize,
-                                                        InSrcVectorDim,
-                                                        InSrcVectorSize,
-                                                        OutDstVectorSize>;
+    using DeviceSoftmaxInstance = tensor_operation::device::DeviceSoftmaxImpl<InDataType,
+                                                                              AccDataType,
+                                                                              OutDataType,
+                                                                              InElementOp,
+                                                                              AccElementOp,
+                                                                              Rank,
+                                                                              NumReduceDim,
+                                                                              BlockSize,
+                                                                              MThreadClusterSize,
+                                                                              KThreadClusterSize,
+                                                                              MThreadSliceSize,
+                                                                              KThreadSliceSize,
+                                                                              InSrcVectorDim,
+                                                                              InSrcVectorSize,
+                                                                              OutDstVectorSize>;
 
     bool IsSupported(const std::vector<index_t> in_lengths,
                      const std::vector<index_t> in_strides,
