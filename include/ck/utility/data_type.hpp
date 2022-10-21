@@ -942,6 +942,11 @@ using int8x16_t = typename vector_type<int8_t, 16>::type;
 using int8x32_t = typename vector_type<int8_t, 32>::type;
 using int8x64_t = typename vector_type<int8_t, 64>::type;
 
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+// i4
+using int4x16_t = typename vector_type<int4_t, 16>::type;
+#endif
+
 // Convert X to Y
 template <typename Y, typename X>
 __host__ __device__ constexpr Y type_convert(X x)
