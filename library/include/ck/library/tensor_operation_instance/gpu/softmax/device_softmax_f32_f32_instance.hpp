@@ -3,8 +3,8 @@
 
 #pragma once
 
+#include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
 #include "ck/tensor_operation/gpu/device/device_softmax.hpp"
-#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -12,19 +12,9 @@ namespace device {
 namespace instance {
 
 void add_device_softmax_f32_f32_rank3_instances(
-    std::vector<DeviceSoftmaxPtr<float,
-                                 float,
-                                 float,
-                                 element_wise::PassThrough,
-                                 element_wise::PassThrough,
-                                 3>>& instances);
+    std::vector<DeviceSoftmaxPtr<F32, F32, F32, PassThrough, PassThrough, 3>>& instances);
 void add_device_softmax_f32_f32_rank4_instances(
-    std::vector<DeviceSoftmaxPtr<float,
-                                 float,
-                                 float,
-                                 element_wise::PassThrough,
-                                 element_wise::PassThrough,
-                                 4>>& instances);
+    std::vector<DeviceSoftmaxPtr<F32, F32, F32, PassThrough, PassThrough, 4>>& instances);
 
 } // namespace instance
 } // namespace device

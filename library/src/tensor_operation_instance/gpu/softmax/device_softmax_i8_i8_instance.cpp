@@ -17,14 +17,8 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-namespace {
-using I8   = int8_t;
-using F32  = float;
-using Pass = ck::tensor_operation::element_wise::PassThrough;
-} // namespace
-
 void add_device_softmax_i8_i8_rank3_instances(
-    std::vector<DeviceSoftmaxPtr<I8, F32, I8, Pass, Pass, 3>>& instances)
+    std::vector<DeviceSoftmaxPtr<I8, F32, I8, PassThrough, PassThrough, 3>>& instances)
 {
     add_device_softmax_i8_i8_rank3_reduce1_instances(instances);
     add_device_softmax_i8_i8_rank3_reduce2_instances(instances);
@@ -32,7 +26,7 @@ void add_device_softmax_i8_i8_rank3_instances(
 }
 
 void add_device_softmax_i8_i8_rank4_instances(
-    std::vector<DeviceSoftmaxPtr<I8, F32, I8, Pass, Pass, 4>>& instances)
+    std::vector<DeviceSoftmaxPtr<I8, F32, I8, PassThrough, PassThrough, 4>>& instances)
 {
     add_device_softmax_i8_i8_rank4_reduce1_instances(instances);
     add_device_softmax_i8_i8_rank4_reduce2_instances(instances);

@@ -5,9 +5,8 @@
 
 #include <vector>
 
+#include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
 #include "ck/tensor_operation/gpu/device/device_softmax.hpp"
-#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
-#include "ck/utility/data_type.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -15,12 +14,7 @@ namespace device {
 namespace instance {
 
 void add_device_softmax_i8_i8_rank4_reduce1_instances(
-    std::vector<DeviceSoftmaxPtr<int8_t,
-                                 float,
-                                 int8_t,
-                                 element_wise::PassThrough,
-                                 element_wise::PassThrough,
-                                 4>>& instances);
+    std::vector<DeviceSoftmaxPtr<I8, F32, I8, PassThrough, PassThrough, 4>>& instances);
 
 } // namespace instance
 } // namespace device

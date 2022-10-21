@@ -20,6 +20,7 @@ using F64  = double;
 using F32  = float;
 using F16  = ck::half_t;
 using BF16 = ck::bhalf_t;
+using I8   = int8_t;
 
 using Empty_Tuple = ck::Tuple<>;
 
