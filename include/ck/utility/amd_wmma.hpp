@@ -5,7 +5,7 @@
 #define CK_AMD_WMMA_HPP
 
 #include "data_type.hpp"
-
+// TODO: Add arch limitation
 namespace ck {
 
 // wave32 only
