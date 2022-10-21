@@ -214,18 +214,18 @@ template <
             is_same_v<BElementwiseOperation, ck::tensor_operation::element_wise::PassThrough> &&
             is_same_v<CElementwiseOperation, ck::tensor_operation::element_wise::PassThrough>,
         bool> = false>
-struct DeviceGroupedConvFwd_dl : public DeviceGroupedConvFwd<NDimSpatial,
-                                                             ALayout,
-                                                             BLayout,
-                                                             CLayout,
-                                                             ADataType,
-                                                             BDataType,
-                                                             CDataType,
-                                                             AElementwiseOperation,
-                                                             BElementwiseOperation,
-                                                             CElementwiseOperation>
+struct DeviceGroupedConvFwdDl_NHWC_KYXC_NHWK : public DeviceGroupedConvFwd<NDimSpatial,
+                                                                           ALayout,
+                                                                           BLayout,
+                                                                           CLayout,
+                                                                           ADataType,
+                                                                           BDataType,
+                                                                           CDataType,
+                                                                           AElementwiseOperation,
+                                                                           BElementwiseOperation,
+                                                                           CElementwiseOperation>
 {
-    using DeviceOp = DeviceGroupedConvFwd_dl;
+    using DeviceOp = DeviceGroupedConvFwdDl_NHWC_KYXC_NHWK;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -518,7 +518,8 @@ struct DeviceGroupedConvFwd_dl : public DeviceGroupedConvFwd<NDimSpatial,
             if(!GridwiseGemm::CheckValidity(
                    arg.a_grid_desc_ak0_m_ak1_, arg.b_grid_desc_bk0_n_bk1_, arg.c_grid_desc_m_n_))
             {
-                throw std::runtime_error("wrong! DeviceGroupedConvFwd_dl has invalid setting");
+                throw std::runtime_error(
+                    "wrong! DeviceGroupedConvFwdDl_NHWC_KYXC_NHWK has invalid setting");
             }
 
             const index_t grid_size =
@@ -792,7 +793,7 @@ struct DeviceGroupedConvFwd_dl : public DeviceGroupedConvFwd<NDimSpatial,
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGroupedConvFwd_dl"
+        str << "DeviceGroupedConvFwdDl_NHWC_KYXC_NHWK"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
