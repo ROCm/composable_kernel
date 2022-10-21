@@ -700,6 +700,24 @@ struct DeviceGroupedConvFwdDl_NHWC_KYXC_NHWK : public DeviceGroupedConvFwd<NDimS
             return false;
         }
 
+        // check vector access of C
+        if constexpr(is_same_v<CLayout, ctc::G_NW_K> || is_same_v<CLayout, ctc::G_NHW_K> ||
+                     is_same_v<CLayout, ctc::G_NDHW_K> || is_same_v<CLayout, ctc::GNWK> ||
+                     is_same_v<CLayout, ctc::GNHWK> || is_same_v<CLayout, ctc::GNDHWK> ||
+                     is_same_v<CLayout, ctc::NWGK> || is_same_v<CLayout, ctc::NHWGK> ||
+                     is_same_v<CLayout, ctc::NDHWGK>)
+        {
+            const index_t K = arg.c_g_n_k_wos_lengths_[2];
+
+            if(!(K % CThreadTransferDstScalarPerVector == 0 && CThreadTransferSrcDstVectorDim == 5))
+            {
+                return false;
+            }
+        }
+        else
+        {
+            return false;
+        }
         // check Gridwise GEMM
         return GridwiseGemm::CheckValidity(
             arg.a_grid_desc_ak0_m_ak1_, arg.b_grid_desc_bk0_n_bk1_, arg.c_grid_desc_m_n_);
