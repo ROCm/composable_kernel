@@ -105,18 +105,16 @@ using device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_f32_instances =
         >;
 
 void add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_f32_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
-                                                              GNDHWC,
-                                                              GKZYXC,
-                                                              Empty_Tuple,
-                                                              GNDHWK,
-                                                              F32,
-                                                              F32,
-                                                              Empty_Tuple,
-                                                              F32,
-                                                              PassThrough,
-                                                              PassThrough,
-                                                              PassThrough>>>& instances)
+    std::vector<std::unique_ptr<DeviceGroupedConvFwd<3,
+                                                     GNDHWC,
+                                                     GKZYXC,
+                                                     GNDHWK,
+                                                     F32,
+                                                     F32,
+                                                     F32,
+                                                     PassThrough,
+                                                     PassThrough,
+                                                     PassThrough>>>& instances)
 {
     add_device_operation_instances(
         instances, device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_f32_instances{});

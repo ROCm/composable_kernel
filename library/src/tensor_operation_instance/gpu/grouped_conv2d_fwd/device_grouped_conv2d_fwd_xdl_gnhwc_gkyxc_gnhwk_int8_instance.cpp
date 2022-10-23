@@ -102,18 +102,16 @@ using device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_int8_instances = std::tupl
     >;
 
 void add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_int8_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
-                                                              GNHWC,
-                                                              GKYXC,
-                                                              Empty_Tuple,
-                                                              GNHWK,
-                                                              int8_t,
-                                                              int8_t,
-                                                              Empty_Tuple,
-                                                              int8_t,
-                                                              PassThrough,
-                                                              PassThrough,
-                                                              PassThrough>>>& instances)
+    std::vector<std::unique_ptr<DeviceGroupedConvFwd<2,
+                                                     GNHWC,
+                                                     GKYXC,
+                                                     GNHWK,
+                                                     int8_t,
+                                                     int8_t,
+                                                     int8_t,
+                                                     PassThrough,
+                                                     PassThrough,
+                                                     PassThrough>>>& instances)
 {
     add_device_operation_instances(
         instances, device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_int8_instances{});
