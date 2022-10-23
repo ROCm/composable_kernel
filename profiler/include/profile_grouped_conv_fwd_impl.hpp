@@ -136,18 +136,16 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         ref_invoker.Run(ref_argument);
     }
 
-    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD<NDimSpatial,
-                                                                                 InLayout,
-                                                                                 WeiLayout,
-                                                                                 ck::Tuple<>,
-                                                                                 OutLayout,
-                                                                                 InDataType,
-                                                                                 WeiDataType,
-                                                                                 ck::Tuple<>,
-                                                                                 OutDataType,
-                                                                                 InElementOp,
-                                                                                 WeiElementOp,
-                                                                                 OutElementOp>;
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwd<NDimSpatial,
+                                                                        InLayout,
+                                                                        WeiLayout,
+                                                                        OutLayout,
+                                                                        InDataType,
+                                                                        WeiDataType,
+                                                                        OutDataType,
+                                                                        InElementOp,
+                                                                        WeiElementOp,
+                                                                        OutElementOp>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -165,26 +163,22 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 
     for(auto& op_ptr : op_ptrs)
     {
-        auto argument_ptr =
-            op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
-                                        wei_device_buf.GetDeviceBuffer(),
-                                        std::array<const void*, 0>{},
-                                        out_device_buf.GetDeviceBuffer(),
-                                        a_g_n_c_wis_lengths,
-                                        a_g_n_c_wis_strides,
-                                        b_g_k_c_xs_lengths,
-                                        b_g_k_c_xs_strides,
-                                        std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{{}},
-                                        std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{{}},
-                                        e_g_n_k_wos_lengths,
-                                        e_g_n_k_wos_strides,
-                                        conv_filter_strides,
-                                        conv_filter_dilations,
-                                        input_left_pads,
-                                        input_right_pads,
-                                        in_element_op,
-                                        wei_element_op,
-                                        out_element_op);
+        auto argument_ptr = op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
+                                                        wei_device_buf.GetDeviceBuffer(),
+                                                        out_device_buf.GetDeviceBuffer(),
+                                                        a_g_n_c_wis_lengths,
+                                                        a_g_n_c_wis_strides,
+                                                        b_g_k_c_xs_lengths,
+                                                        b_g_k_c_xs_strides,
+                                                        e_g_n_k_wos_lengths,
+                                                        e_g_n_k_wos_strides,
+                                                        conv_filter_strides,
+                                                        conv_filter_dilations,
+                                                        input_left_pads,
+                                                        input_right_pads,
+                                                        in_element_op,
+                                                        wei_element_op,
+                                                        out_element_op);
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
