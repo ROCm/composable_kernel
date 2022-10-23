@@ -6,3 +6,6 @@ add_example_executable(example_grouped_conv_fwd_bias_relu_add_xdl_int8 grouped_c
 if(USE_BITINT_EXTENSION_INT4)
   add_example_executable(example_grouped_conv_fwd_bias_relu_add_xdl_int4 grouped_conv_fwd_bias_relu_add_xdl_int4.cpp)
 endif() # USE_BITINT_EXTENSION_INT4
+
+
+add_example_executable(example_grouped_conv_fwd_xdl_fp16 grouped_conv_fwd_xdl_fp16.cpp)
