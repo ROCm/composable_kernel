@@ -205,8 +205,7 @@ bool run_grouped_conv_fwd(const ExecutionConfig& config,
 bool run_grouped_conv_fwd_example(int argc, char* argv[])
 {
     ExecutionConfig config;
-    ck::utils::conv::ConvParam conv_param{
-        2, 1, 128, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
+    ck::utils::conv::ConvParam conv_param = DefaultConvParam;
 
     if(!parse_cmd_args(argc, argv, config, conv_param))
     {
