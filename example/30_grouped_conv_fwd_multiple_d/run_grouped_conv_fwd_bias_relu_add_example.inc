@@ -1,59 +1,110 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
-#include <cstdlib>
-#include <iostream>
-#include <numeric>
-#include <type_traits>
-
-#include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-
-#include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/device_memory.hpp"
-#include "ck/library/utility/host_tensor.hpp"
-#include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/utility/convolution_parameter.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
-
-void print_helper_msg()
+template <typename BiasLay, typename ResidualLay>
+struct LayoutSetting
 {
-    std::cout << "arg1: verification (0=no, 1=yes)\n"
-              << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
-              << "arg3: time kernel (0=no, 1=yes)\n"
-              << ck::utils::conv::get_conv_param_parser_helper_msg() << std::endl;
-}
+    using BiasLayout  = BiasLay;
+    using ResidualLayout = ResidualLay;
+};
 
-template <ck::index_t NDimSpatial,
-          typename InKernelDataType,
-          typename WeiKernelDataType,
-          typename CShuffleDataType,
-          typename OutKernelDataType,
-          typename InElementOp,
-          typename WeiElementOp,
-          typename OutElementOp,
-          typename InUserDataType,
-          typename WeiUserDataType,
-          typename OutUserDataType,
-          typename DeviceConvNDFwdInstance>
-int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
-                                       int init_method,
-                                       bool time_kernel,
-                                       const ck::utils::conv::ConvParam& conv_param,
-                                       const HostTensorDescriptor& in_g_n_c_wis_desc,
-                                       const HostTensorDescriptor& wei_g_k_c_xs_desc,
-                                       const HostTensorDescriptor& bias_g_n_k_wos_desc,
-                                       const HostTensorDescriptor& residual_g_n_k_wos_desc,
-                                       const HostTensorDescriptor& out_g_n_k_wos_desc,
-                                       const InElementOp& in_element_op,
-                                       const WeiElementOp& wei_element_op,
-                                       const OutElementOp& out_element_op)
+template <ck::index_t NDimSpatial>
+struct LayoutSettingSelector;
+
+template <>
+struct LayoutSettingSelector<1> final : LayoutSetting<ctl::G_K, ctl::G_NW_K>
 {
+};
+
+template <>
+struct LayoutSettingSelector<2> final : LayoutSetting<ctl::G_K, ctl::G_NHW_K>
+{
+};
+
+template <>
+struct LayoutSettingSelector<3> final : LayoutSetting<ctl::G_K, ctl::G_NDHW_K>
+{
+};
+
+template <ck::index_t NDimSpatial>
+using BiasLayout = typename LayoutSettingSelector<NDimSpatial>::BiasLayout;
+
+template <ck::index_t NDimSpatial>
+using ResidualLayout = typename LayoutSettingSelector<NDimSpatial>::ResidualLayout;
+
+template <ck::index_t NDimSpatial>
+using DeviceConvFwdInstance =
+    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<
+        NDimSpatial,
+        InputLayout<NDimSpatial>,
+        WeightLayout<NDimSpatial>,
+        ck::Tuple<BiasLayout<NDimSpatial>, ResidualLayout<NDimSpatial>>,
+        OutputLayout<NDimSpatial>,
+        InKernelDataType,
+        WeiKernelDataType,
+        AccDataType,
+        CShuffleDataType,
+        ck::Tuple<BiasKernelDataType, ResidualKernelDataType>,
+        OutKernelDataType,
+        InElementOp,
+        WeiElementOp,
+        OutElementOp,
+        ConvSpec,    // ConvForwardSpecialization
+        GemmSpec,    // GemmSpecialization
+        1,           //
+        256,         // BlockSize
+        128,         // MPerBlock
+        256,         // NPerBlock
+        16,          // KPerBlock
+        4,           // AK1
+        4,           // BK1
+        32,          // MPerXdl
+        32,          // NPerXdl
+        2,           // MXdlPerWave
+        4,           // NXdlPerWave
+        S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
+        S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
+        2,           // ABlockTransferSrcVectorDim
+        4,           // ABlockTransferSrcScalarPerVector
+        4,           // ABlockTransferDstScalarPerVector_AK1
+        1,           // ABlockLdsExtraM
+        S<4, 64, 1>, // BBlockTransferThreadClusterLengths_BK0_N_BK1
+        S<1, 0, 2>,  // BBlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,  // BBlockTransferSrcAccessOrder
+        2,           // BBlockTransferSrcVectorDim
+        4,           // BBlockTransferSrcScalarPerVector
+        4,           // BBlockTransferDstScalarPerVector_BK1
+        1,           // BBlockLdsExtraN
+        1,
+        1,
+        S<1, 16, 1, 16>,
+        4>;
+
+template <ck::index_t NDimSpatial>
+using HostConvFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
+                                                                     InUserDataType,
+                                                                     WeiUserDataType,
+                                                                     CShuffleDataType,
+                                                                     InElementOp,
+                                                                     WeiElementOp,
+                                                                     PassThrough>;
+
+template <ck::index_t NDimSpatial>
+bool run_grouped_conv_fwd_bias_relu_add(const ExecutionConfig& config,
+                                       const ck::utils::conv::ConvParam& conv_param)
+{
+    static_assert(1 <= NDimSpatial && NDimSpatial <= 3, "Unsupported NDimSpatial");
+
+    const auto in_g_n_c_wis_desc = make_input_descriptor(conv_param);
+    const auto wei_g_k_c_xs_desc = make_weight_descriptor(conv_param);
+    const auto bias_g_n_k_wos_desc = make_bias_descriptor(conv_param);
+    const auto out_g_n_k_wos_desc = make_output_descriptor(conv_param);
+
     Tensor<InUserDataType> in(in_g_n_c_wis_desc);
     Tensor<WeiUserDataType> wei(wei_g_k_c_xs_desc);
     Tensor<OutUserDataType> bias(bias_g_n_k_wos_desc);
-    Tensor<OutUserDataType> residual(residual_g_n_k_wos_desc);
+    Tensor<OutUserDataType> residual(bias_g_n_k_wos_desc);
     Tensor<OutUserDataType> out_host(out_g_n_k_wos_desc);
     Tensor<OutKernelDataType> out_device(out_g_n_k_wos_desc);
 
@@ -63,7 +114,7 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
     std::cout << "residual: " << residual.mDesc << std::endl;
     std::cout << "out: " << out_host.mDesc << std::endl;
 
-    switch(init_method)
+    switch(config.init_method)
     {
     case 0: break;
     case 1:
@@ -83,7 +134,7 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
     DeviceMem residual_device_buf(sizeof(OutKernelDataType) * residual.mDesc.GetElementSpaceSize());
     DeviceMem out_device_buf(sizeof(OutKernelDataType) * out_device.mDesc.GetElementSpaceSize());
 
-#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+#ifdef BUILD_INT4_EXAMPLE
     const Tensor<InKernelDataType> in_converted(in);
     const Tensor<WeiKernelDataType> wei_converted(wei);
     const Tensor<OutKernelDataType> bias_converted(bias);
@@ -93,12 +144,12 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
     wei_device_buf.ToDevice(wei_converted.mData.data());
     bias_device_buf.ToDevice(bias_converted.mData.data());
     residual_device_buf.ToDevice(residual_converted.mData.data());
-#else  // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+#else
     in_device_buf.ToDevice(in.mData.data());
     wei_device_buf.ToDevice(wei.mData.data());
     bias_device_buf.ToDevice(bias.mData.data());
     residual_device_buf.ToDevice(residual.mData.data());
-#endif //  CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+#endif
 
     std::array<ck::index_t, NDimSpatial + 3> a_g_n_c_wis_lengths{};
     std::array<ck::index_t, NDimSpatial + 3> a_g_n_c_wis_strides{};
@@ -123,8 +174,8 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
     copy(wei_g_k_c_xs_desc.GetStrides(), b_g_k_c_xs_strides);
     copy(bias_g_n_k_wos_desc.GetLengths(), d0_g_n_k_wos_lengths);
     copy(bias_g_n_k_wos_desc.GetStrides(), d0_g_n_k_wos_strides);
-    copy(residual_g_n_k_wos_desc.GetLengths(), d1_g_n_k_wos_lengths);
-    copy(residual_g_n_k_wos_desc.GetStrides(), d1_g_n_k_wos_strides);
+    copy(bias_g_n_k_wos_desc.GetLengths(), d1_g_n_k_wos_lengths);
+    copy(bias_g_n_k_wos_desc.GetStrides(), d1_g_n_k_wos_strides);
     copy(out_g_n_k_wos_desc.GetLengths(), e_g_n_k_wos_lengths);
     copy(out_g_n_k_wos_desc.GetStrides(), e_g_n_k_wos_strides);
     copy(conv_param.conv_filter_strides_, conv_filter_strides);
@@ -133,7 +184,7 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
     copy(conv_param.input_right_pads_, input_right_pads);
 
     // do Conv
-    auto conv    = DeviceConvNDFwdInstance{};
+    auto conv    = DeviceConvFwdInstance<NDimSpatial>{};
     auto invoker = conv.MakeInvoker();
     auto argument =
         conv.MakeArgument(in_device_buf.GetDeviceBuffer(),
@@ -155,9 +206,9 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
                           conv_filter_dilations,
                           input_left_pads,
                           input_right_pads,
-                          in_element_op,
-                          wei_element_op,
-                          out_element_op);
+                          InElementOp{},
+                          WeiElementOp{},
+                          OutElementOp{});
 
     if(!conv.IsSupportedArgument(argument))
     {
@@ -166,7 +217,7 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
             "not support this Conv problem");
     }
 
-    float avg_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
+    float avg_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
 
     std::size_t flop      = conv_param.GetFlops();
     std::size_t num_btype = conv_param.GetByte<InUserDataType, WeiUserDataType, OutUserDataType>();
@@ -176,20 +227,11 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
     std::cout << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << conv.GetTypeString() << std::endl;
 
-    if(do_verification)
+    if(config.do_verification)
     {
-        using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-
         Tensor<CShuffleDataType> c_host(out_g_n_k_wos_desc);
 
-        auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
-                                                                     InUserDataType,
-                                                                     WeiUserDataType,
-                                                                     CShuffleDataType,
-                                                                     InElementOp,
-                                                                     WeiElementOp,
-                                                                     PassThrough>();
-
+        auto ref_conv = HostConvFwdInstance<NDimSpatial>{};
         auto ref_invoker  = ref_conv.MakeInvoker();
         auto ref_argument = ref_conv.MakeArgument(in,
                                                   wei,
@@ -198,36 +240,53 @@ int run_grouped_conv_fwd_bias_relu_add(bool do_verification,
                                                   conv_param.conv_filter_dilations_,
                                                   conv_param.input_left_pads_,
                                                   conv_param.input_right_pads_,
-                                                  in_element_op,
-                                                  wei_element_op,
+                                                  InElementOp{},
+                                                  WeiElementOp{},
                                                   PassThrough{});
 
         ref_invoker.Run(ref_argument);
 
         // TODO: implement elementwise operation for host
         out_host.ForEach([&](auto&, auto idx) {
-            out_element_op(out_host(idx), c_host(idx), bias(idx), residual(idx));
+            OutElementOp{}(out_host(idx), c_host(idx), bias(idx), residual(idx));
         });
 
         out_device_buf.FromDevice(out_device.mData.data());
 
-#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+#ifdef BUILD_INT4_EXAMPLE
         const Tensor<OutUserDataType> out_device_converted(out_device);
 
         return ck::utils::check_err(out_device_converted.mData,
                                     out_host.mData,
                                     "Error: incorrect results!",
                                     1e-5f,
-                                    1e-4f)
-                   ? 0
-                   : 1;
-#else  // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+                                    1e-4f);
+#else
         return ck::utils::check_err(
-                   out_device.mData, out_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f)
-                   ? 0
-                   : 1;
-#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+                   out_device.mData, out_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
+#endif
     }
 
-    return 0;
+    return true;
+}
+
+bool run_grouped_conv_fwd_bias_relu_add_example(int argc, char* argv[])
+{
+    ExecutionConfig config;
+    ck::utils::conv::ConvParam conv_param{
+        2, 1, 128, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
+
+    if(!parse_cmd_args(argc, argv, config, conv_param))
+    {
+        return false;
+    }
+
+    switch(conv_param.num_dim_spatial_)
+    {
+    case 1: return run_grouped_conv_fwd_bias_relu_add<1>(config, conv_param);
+    case 2: return run_grouped_conv_fwd_bias_relu_add<2>(config, conv_param);
+    case 3: return run_grouped_conv_fwd_bias_relu_add<3>(config, conv_param);
+    }
+
+    return false;
 }
