@@ -32,7 +32,7 @@ using I32 = std::int32_t;
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using PassThrough  = ck::tensor_operation::element_wise::PassThrough;
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr auto ConvSpec =
     ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
@@ -53,17 +53,20 @@ struct CommonLayoutSettingSelector;
 namespace ctl = ck::tensor_layout::convolution;
 
 template <>
-struct CommonLayoutSettingSelector<1> final : CommonLayoutSetting<ctl::G_NW_C, ctl::G_K_X_C, ctl::G_NW_K>
+struct CommonLayoutSettingSelector<1> final
+    : CommonLayoutSetting<ctl::G_NW_C, ctl::G_K_X_C, ctl::G_NW_K>
 {
 };
 
 template <>
-struct CommonLayoutSettingSelector<2> final : CommonLayoutSetting<ctl::G_NHW_C, ctl::G_K_YX_C, ctl::G_NHW_K>
+struct CommonLayoutSettingSelector<2> final
+    : CommonLayoutSetting<ctl::G_NHW_C, ctl::G_K_YX_C, ctl::G_NHW_K>
 {
 };
 
 template <>
-struct CommonLayoutSettingSelector<3> final : CommonLayoutSetting<ctl::G_NDHW_C, ctl::G_K_ZYX_C, ctl::G_NDHW_K>
+struct CommonLayoutSettingSelector<3> final
+    : CommonLayoutSetting<ctl::G_NDHW_C, ctl::G_K_ZYX_C, ctl::G_NDHW_K>
 {
 };
 
@@ -123,7 +126,7 @@ inline bool parse_cmd_args(int argc,
         config.time_kernel     = std::stoi(argv[3]);
 
         const ck::index_t num_dim_spatial = std::stoi(argv[4]);
-        conv_param                      = ck::utils::conv::parse_conv_param(
+        conv_param                        = ck::utils::conv::parse_conv_param(
             num_dim_spatial, threshold_to_catch_partial_args, argv);
     }
     else
@@ -137,7 +140,8 @@ inline bool parse_cmd_args(int argc,
 
 inline HostTensorDescriptor make_input_descriptor(const ck::utils::conv::ConvParam& conv_param)
 {
-    switch(conv_param.num_dim_spatial_) {
+    switch(conv_param.num_dim_spatial_)
+    {
     case 1:
         return HostTensorDescriptor(
             {conv_param.G_, conv_param.N_, conv_param.C_, conv_param.input_spatial_lengths_[0]},
@@ -189,7 +193,8 @@ inline HostTensorDescriptor make_input_descriptor(const ck::utils::conv::ConvPar
 
 inline HostTensorDescriptor make_weight_descriptor(const ck::utils::conv::ConvParam& conv_param)
 {
-    switch(conv_param.num_dim_spatial_) {
+    switch(conv_param.num_dim_spatial_)
+    {
     case 1:
         return HostTensorDescriptor(
             {conv_param.G_, conv_param.K_, conv_param.C_, conv_param.filter_spatial_lengths_[0]},
@@ -200,20 +205,21 @@ inline HostTensorDescriptor make_weight_descriptor(const ck::utils::conv::ConvPa
                 conv_param.C_                                                          // x
             });
     case 2:
-        return HostTensorDescriptor({conv_param.G_,
-                                  conv_param.K_,
-                                  conv_param.C_,
-                                  conv_param.filter_spatial_lengths_[0],
-                                  conv_param.filter_spatial_lengths_[1]},
-                                 {
-                                     conv_param.K_ * conv_param.filter_spatial_lengths_[0] *
-                                         conv_param.filter_spatial_lengths_[1] * conv_param.C_, // g
-                                     conv_param.filter_spatial_lengths_[0] *
-                                         conv_param.filter_spatial_lengths_[1] * conv_param.C_, // k
-                                     1,                                                         // c
-                                     conv_param.filter_spatial_lengths_[1] * conv_param.C_,     // y
-                                     conv_param.C_                                              // x
-                                 });
+        return HostTensorDescriptor(
+            {conv_param.G_,
+             conv_param.K_,
+             conv_param.C_,
+             conv_param.filter_spatial_lengths_[0],
+             conv_param.filter_spatial_lengths_[1]},
+            {
+                conv_param.K_ * conv_param.filter_spatial_lengths_[0] *
+                    conv_param.filter_spatial_lengths_[1] * conv_param.C_, // g
+                conv_param.filter_spatial_lengths_[0] * conv_param.filter_spatial_lengths_[1] *
+                    conv_param.C_,                                     // k
+                1,                                                     // c
+                conv_param.filter_spatial_lengths_[1] * conv_param.C_, // y
+                conv_param.C_                                          // x
+            });
     case 3:
         return HostTensorDescriptor(
             {conv_param.G_,
@@ -239,10 +245,10 @@ inline HostTensorDescriptor make_weight_descriptor(const ck::utils::conv::ConvPa
     throw std::runtime_error("unsuppored # dim spatial");
 }
 
-
 inline HostTensorDescriptor make_bias_descriptor(const ck::utils::conv::ConvParam& conv_param)
 {
-    switch(conv_param.num_dim_spatial_) {
+    switch(conv_param.num_dim_spatial_)
+    {
     case 1:
         return HostTensorDescriptor(
             {conv_param.G_, conv_param.N_, conv_param.K_, conv_param.output_spatial_lengths_[0]},
@@ -254,32 +260,32 @@ inline HostTensorDescriptor make_bias_descriptor(const ck::utils::conv::ConvPara
             });
     case 2:
         return HostTensorDescriptor({conv_param.G_,
-                                  conv_param.N_,
-                                  conv_param.K_,
-                                  conv_param.output_spatial_lengths_[0],
-                                  conv_param.output_spatial_lengths_[1]},
-                                 {
-                                     conv_param.K_, // g
-                                     0,             // n
-                                     1,             // k
-                                     0,             // ho
-                                     0              // wo
-                                 });
+                                     conv_param.N_,
+                                     conv_param.K_,
+                                     conv_param.output_spatial_lengths_[0],
+                                     conv_param.output_spatial_lengths_[1]},
+                                    {
+                                        conv_param.K_, // g
+                                        0,             // n
+                                        1,             // k
+                                        0,             // ho
+                                        0              // wo
+                                    });
     case 3:
         return HostTensorDescriptor({conv_param.G_,
-                                  conv_param.N_,
-                                  conv_param.K_,
-                                  conv_param.output_spatial_lengths_[0],
-                                  conv_param.output_spatial_lengths_[1],
-                                  conv_param.output_spatial_lengths_[2]},
-                                 {
-                                     conv_param.K_, // g
-                                     0,             // n
-                                     1,             // k
-                                     0,             // z
-                                     0,             // y
-                                     0              // x
-                                 });
+                                     conv_param.N_,
+                                     conv_param.K_,
+                                     conv_param.output_spatial_lengths_[0],
+                                     conv_param.output_spatial_lengths_[1],
+                                     conv_param.output_spatial_lengths_[2]},
+                                    {
+                                        conv_param.K_, // g
+                                        0,             // n
+                                        1,             // k
+                                        0,             // z
+                                        0,             // y
+                                        0              // x
+                                    });
     }
 
     throw std::runtime_error("unsuppored # dim spatial");
@@ -288,7 +294,8 @@ inline HostTensorDescriptor make_bias_descriptor(const ck::utils::conv::ConvPara
 inline HostTensorDescriptor make_output_descriptor(const ck::utils::conv::ConvParam& conv_param)
 {
 
-    switch(conv_param.num_dim_spatial_) {
+    switch(conv_param.num_dim_spatial_)
+    {
     case 1:
         return HostTensorDescriptor(
             {conv_param.G_, conv_param.N_, conv_param.K_, conv_param.output_spatial_lengths_[0]},
