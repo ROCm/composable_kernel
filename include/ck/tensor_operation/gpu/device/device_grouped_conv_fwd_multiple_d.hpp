@@ -7,6 +7,7 @@
 
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd.hpp"
+#include "ck/utility/tuple.hpp"
 
 namespace ck {
 namespace tensor_operation {
