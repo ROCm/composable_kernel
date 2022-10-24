@@ -12,6 +12,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
+using Empty_Tuple = ck::Tuple<>;
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
@@ -26,17 +27,35 @@ using Relu_Mul_Clamp = ck::tensor_operation::element_wise::Activation_Mul_Clamp<
 
 static constexpr ck::index_t NDimSpatial = 2;
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
+static constexpr auto ConvFwdDefault =
+    ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
+static constexpr auto ConvFwd1x1P0 =
+    ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0;
+static constexpr auto ConvFwd1x1S1P0 =
+    ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0;
 
 // TODO - Add more instances
-template <typename OutElementOp, ConvolutionForwardSpecialization ConvForwardSpecialization>
+template <typename OutElementOp, ConvolutionForwardSpecialization ConvSpec>
 // clang-format off
 using device_conv2d_int8_instances =
     std::tuple <
-        //########################################| NDimSpatial| InLayout| WeiLayout|    DsLayout| OutLayout|  InData| WeiData| AccData| CShuffle|      DsData|OutData|          In|         Wei|          CDE|               ConvForward|           Gemm|       NumGemm|  Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|   CDEBlockTransferClusterLengths| CDEBlockTransfer|
-        //########################################|            |         |          |            |          |    Type|    Type|    Type|     Type|        Type|   Type| Elementwise| Elementwise|  Elementwise|            Specialization| Specialization|             K|   Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave| _MBlock_MXdlPerWave_MWaveMPerXdl|  ScalarPerVector|
-        //########################################|            |         |          |            |          |        |        |        |         |            |       |   Operation|   Operation|    Operation|                          |               | PrefetchStage|       |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|  PerVector_AK1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|  PerVector_BK1|          |  PerShuffle|  PerShuffle| _NBlock_NXdlPerWave_NWaveNPerXdl|    _NWaveNPerXdl|
-        //########################################|            |         |          |            |          |        |        |        |         |            |       |            |            |             |                          |               |              |       |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                                 |                 |
-        DeviceGroupedConvFwdMultipleD_Xdl_CShuffle< NDimSpatial,    GNHWC,     GKYXC, ck::Tuple<>,     GNHWK,  int8_t,  int8_t, int32_t,  int32_t, ck::Tuple<>, int8_t, PassThrough, PassThrough, OutElementOp, ConvForwardSpecialization,       GemmSpec,             1,    256,   128,   256,    64,  16,  16,   32,   32,    2,    4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,             16,             16,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,             16,             16,         1,           1,           1,                   S<1, 64, 1, 4>,               16>
+        //########################################|  NumDim|      A|      B|          Ds|      E|  AData|  BData| AccData| CShuffle|          Ds|  EData|           A|           B|          CDE|    ConvForward|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
+        //########################################| Spatial| Layout| Layout|      Layout| Layout|   Type|   Type|    Type| DataType|    DataType|   Type| Elementwise| Elementwise|  Elementwise| Specialization| Specialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
+        //########################################|        |       |       |            |       |       |       |        |         |            |       |   Operation|   Operation|    Operation|               |               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
+        //########################################|        |       |       |            |       |       |       |        |         |            |       |            |            |             |               |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
+        DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<       2,  GNHWC,  GKYXC, Empty_Tuple,  GNHWK, int8_t, int8_t, int32_t,  int32_t, Empty_Tuple, int8_t, PassThrough, PassThrough, OutElementOp,       ConvSpec,       GemmSpec,        1,   256,   256,   128,    64,  16,  16,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,             16,             16,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,             16,             16,         1,           1,           1,               S<1, 64, 1, 4>,               16>,
+        DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<       2,  GNHWC,  GKYXC, Empty_Tuple,  GNHWK, int8_t, int8_t, int32_t,  int32_t, Empty_Tuple, int8_t, PassThrough, PassThrough, OutElementOp,       ConvSpec,       GemmSpec,        1,   256,   128,   256,    64,  16,  16,   32,   32,    2,    4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,             16,             16,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,             16,             16,         1,           1,           1,               S<1, 64, 1, 4>,               16>,
+        DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<       2,  GNHWC,  GKYXC, Empty_Tuple,  GNHWK, int8_t, int8_t, int32_t,  int32_t, Empty_Tuple, int8_t, PassThrough, PassThrough, OutElementOp,       ConvSpec,       GemmSpec,        1,   128,   128,   128,    64,  16,  16,   32,   32,    4,    2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,             16,             16,         1,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,             16,             16,         1,           1,           1,               S<1, 32, 1, 4>,               16>,
+        DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<       2,  GNHWC,  GKYXC, Empty_Tuple,  GNHWK, int8_t, int8_t, int32_t,  int32_t, Empty_Tuple, int8_t, PassThrough, PassThrough, OutElementOp,       ConvSpec,       GemmSpec,        1,   256,   128,   128,    64,  16,  16,   32,   32,    2,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,             16,             16,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,             16,             16,         1,           1,           1,               S<1, 64, 1, 4>,               16>,
+        DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<       2,  GNHWC,  GKYXC, Empty_Tuple,  GNHWK, int8_t, int8_t, int32_t,  int32_t, Empty_Tuple, int8_t, PassThrough, PassThrough, OutElementOp,       ConvSpec,       GemmSpec,        1,   128,   128,    64,    64,  16,  16,   32,   32,    2,    2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,             16,             16,         1,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,             16,             16,         1,           1,           1,               S<1, 64, 1, 2>,               16>,
+        DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<       2,  GNHWC,  GKYXC, Empty_Tuple,  GNHWK, int8_t, int8_t, int32_t,  int32_t, Empty_Tuple, int8_t, PassThrough, PassThrough, OutElementOp,       ConvSpec,       GemmSpec,        1,   128,    64,   128,    64,  16,  16,   32,   32,    2,    2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,             16,             16,         1,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,             16,             16,         1,           1,           1,               S<1, 32, 1, 4>,               16>,
+        DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<       2,  GNHWC,  GKYXC, Empty_Tuple,  GNHWK, int8_t, int8_t, int32_t,  int32_t, Empty_Tuple, int8_t, PassThrough, PassThrough, OutElementOp,       ConvSpec,       GemmSpec,        1,    64,    64,    64,    64,  16,  16,   32,   32,    2,    2,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,             16,             16,         1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,             16,             16,         1,           1,           1,               S<1, 32, 1, 2>,               16>,
+        DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<       2,  GNHWC,  GKYXC, Empty_Tuple,  GNHWK, int8_t, int8_t, int32_t,  int32_t, Empty_Tuple, int8_t, PassThrough, PassThrough, OutElementOp,       ConvSpec,       GemmSpec,        1,   256,   128,    64,    64,  16,  16,   32,   32,    2,    1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,             16,             16,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,             16,             16,         1,           1,           1,               S<1, 64, 1, 4>,               16>,
+        DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<       2,  GNHWC,  GKYXC, Empty_Tuple,  GNHWK, int8_t, int8_t, int32_t,  int32_t, Empty_Tuple, int8_t, PassThrough, PassThrough, OutElementOp,       ConvSpec,       GemmSpec,        1,   256,    64,   128,    64,  16,  16,   32,   32,    1,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,             16,             16,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,             16,             16,         1,           1,           1,               S<1, 64, 1, 4>,               16>,
+        DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<       2,  GNHWC,  GKYXC, Empty_Tuple,  GNHWK, int8_t, int8_t, int32_t,  int32_t, Empty_Tuple, int8_t, PassThrough, PassThrough, OutElementOp,       ConvSpec,       GemmSpec,        1,   128,   128,    32,    64,  16,  16,   32,   32,    2,    1,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,             16,             16,         1,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,             16,             16,         1,           1,           1,               S<1, 64, 1, 2>,               16>,
+        DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<       2,  GNHWC,  GKYXC, Empty_Tuple,  GNHWK, int8_t, int8_t, int32_t,  int32_t, Empty_Tuple, int8_t, PassThrough, PassThrough, OutElementOp,       ConvSpec,       GemmSpec,        1,   128,    32,   128,    64,  16,  16,   32,   32,    1,    2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,             16,             16,         1,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,             16,             16,         1,           1,           1,               S<1, 32, 1, 4>,               16>,
+        DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<       2,  GNHWC,  GKYXC, Empty_Tuple,  GNHWK, int8_t, int8_t, int32_t,  int32_t, Empty_Tuple, int8_t, PassThrough, PassThrough, OutElementOp,       ConvSpec,       GemmSpec,        1,    64,    64,    32,    64,  16,  16,   32,   32,    2,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,             16,             16,         1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,             16,             16,         1,           1,           1,               S<1, 32, 1, 2>,               16>,
+        DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<       2,  GNHWC,  GKYXC, Empty_Tuple,  GNHWK, int8_t, int8_t, int32_t,  int32_t, Empty_Tuple, int8_t, PassThrough, PassThrough, OutElementOp,       ConvSpec,       GemmSpec,        1,    64,    32,    64,    64,  16,  16,   32,   32,    1,    2,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,             16,             16,         1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,             16,             16,         1,           1,           1,               S<1, 32, 1, 2>,               16>
     >;
 // clang-format on
 
@@ -44,41 +63,44 @@ void add_device_conv2d_perlayer_quantization_int8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<NDimSpatial,
                                                               GNHWC,
                                                               GKYXC,
-                                                              ck::Tuple<>,
+                                                              Empty_Tuple,
                                                               GNHWK,
                                                               int8_t,
                                                               int8_t,
-                                                              ck::Tuple<>,
+                                                              Empty_Tuple,
                                                               int8_t,
                                                               PassThrough,
                                                               PassThrough,
                                                               Mul_Clamp>>>& instances)
 {
-    static constexpr auto ConvSpec =
-        ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
-
-    add_device_operation_instances(instances, device_conv2d_int8_instances<Mul_Clamp, ConvSpec>{});
+    add_device_operation_instances(instances,
+                                   device_conv2d_int8_instances<Mul_Clamp, ConvFwdDefault>{});
+    add_device_operation_instances(instances,
+                                   device_conv2d_int8_instances<Mul_Clamp, ConvFwd1x1P0>{});
+    add_device_operation_instances(instances,
+                                   device_conv2d_int8_instances<Mul_Clamp, ConvFwd1x1S1P0>{});
 }
 
 void add_device_conv2d_relu_perlayer_quantization_int8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<NDimSpatial,
                                                               GNHWC,
                                                               GKYXC,
-                                                              ck::Tuple<>,
+                                                              Empty_Tuple,
                                                               GNHWK,
                                                               int8_t,
                                                               int8_t,
-                                                              ck::Tuple<>,
+                                                              Empty_Tuple,
                                                               int8_t,
                                                               PassThrough,
                                                               PassThrough,
                                                               Relu_Mul_Clamp>>>& instances)
 {
-    static constexpr auto ConvSpec =
-        ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
-
     add_device_operation_instances(instances,
-                                   device_conv2d_int8_instances<Relu_Mul_Clamp, ConvSpec>{});
+                                   device_conv2d_int8_instances<Relu_Mul_Clamp, ConvFwdDefault>{});
+    add_device_operation_instances(instances,
+                                   device_conv2d_int8_instances<Relu_Mul_Clamp, ConvFwd1x1P0>{});
+    add_device_operation_instances(instances,
+                                   device_conv2d_int8_instances<Relu_Mul_Clamp, ConvFwd1x1S1P0>{});
 }
 
 } // namespace instance
