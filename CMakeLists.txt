@@ -253,9 +253,27 @@ rocm_package_setup_component(tests
 )
 
 add_subdirectory(library)
-add_subdirectory(example)
-add_subdirectory(test)
-add_subdirectory(profiler)
+
+option(BUILD_ALL, "Whether to build all targets, such as examples, tests, and profiler." OFF)
+option(WITH_EXAMPLES, "Whether to build examples." OFF)
+option(WITH_TESTS, "Whether to build tests." OFF)
+option(WITH_PROFILER, "Whether to build profiler." OFF)
+
+if(BUILD_ALL)
+    add_subdirectory(example)
+    add_subdirectory(test)
+    add_subdirectory(profiler)
+else()
+    if(WITH_EXAMPLES)
+        add_subdirectory(example)
+    endif()
+    if(WITH_TESTS)
+        add_subdirectory(test)
+    endif()
+    if(WITH_PROFILER)
+        add_subdirectory(profiler)
+    endif()
+endif()
 
 #Create an interface target for the include only files and call it "composablekernels"
 include(CMakePackageConfigHelpers)
