@@ -22,6 +22,10 @@ include(TargetFlags)
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip)
 
 option(USE_BITINT_EXTENSION_INT4, "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
+option(BUILD_ALL, "Whether to build all targets, such as examples, tests, and profiler." OFF)
+option(WITH_EXAMPLES, "Whether to build examples." OFF)
+option(WITH_TESTS, "Whether to build tests." OFF)
+option(WITH_PROFILER, "Whether to build profiler." OFF)
 
 if(USE_BITINT_EXTENSION_INT4)
     add_compile_definitions(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
@@ -253,11 +257,6 @@ rocm_package_setup_component(tests
 )
 
 add_subdirectory(library)
-
-option(BUILD_ALL, "Whether to build all targets, such as examples, tests, and profiler." OFF)
-option(WITH_EXAMPLES, "Whether to build examples." OFF)
-option(WITH_TESTS, "Whether to build tests." OFF)
-option(WITH_PROFILER, "Whether to build profiler." OFF)
 
 if(BUILD_ALL)
     set(WITH_EXAMPLES ON)
