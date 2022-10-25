@@ -96,10 +96,9 @@ struct ReductionHost
     static constexpr int NumInvariantDim = Rank - NumReduceDim;
 
     std::vector<size_t> outStrides;
-    std::vector<int> invariantDims;
-    std::vector<int> reduceDims;
 
     IndexDataType divider;
+
     std::array<size_t, NumReduceDim> reduceLengths;
     std::array<size_t, NumReduceDim> reduceStrides;
     std::array<size_t, NumInvariantDim> invariantLengths;
@@ -110,14 +109,11 @@ struct ReductionHost
 
     ReductionHost(HostTensorDescriptor& inDesc,
                   HostTensorDescriptor& outDesc,
-                  const std::vector<int>& invariantDims_,
-                  const std::vector<int>& reduceDims_)
+                  const std::array<int, NumInvariantDim> invariantDims,
+                  const std::array<int, NumReduceDim> reduceDims)
     {
         // this->outLengths = to_int_vector(outDesc.GetLengths());
         this->outStrides = outDesc.GetStrides();
-
-        this->invariantDims = invariantDims_;
-        this->reduceDims    = reduceDims_;
 
         int product = 1;
 

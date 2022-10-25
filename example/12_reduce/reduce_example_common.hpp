@@ -5,11 +5,10 @@
 
 #include "ck/ck.hpp"
 
-template <ck::index_t Rank, ck::index_t NumReduceDim>
-std::vector<int> get_invariant_dims(const std::vector<int>& reduceDims)
+template <int Rank, int NumReduceDim>
+static inline std::array<int, Rank - NumReduceDim>
+get_invariant_dims(const std::array<int, NumReduceDim>& reduceDims)
 {
-    assert(NumReduceDim == reduceDims.size());
-
     int reduceFlag = 0;
 
     // flag the bits for the reduceDims
@@ -18,13 +17,15 @@ std::vector<int> get_invariant_dims(const std::vector<int>& reduceDims)
         reduceFlag |= 1 << reduceDims[i];
     };
 
-    std::vector<int> invariantDims;
+    std::array<int, Rank - NumReduceDim> invariantDims;
 
     // collect invariant dimensions
+    int dim = 0;
     for(int i = 0; i < Rank; i++)
         if((reduceFlag & (1 << i)) == 0)
         {
-            invariantDims.push_back(i);
+            invariantDims[dim] = i;
+            dim++;
         };
 
     return invariantDims;
