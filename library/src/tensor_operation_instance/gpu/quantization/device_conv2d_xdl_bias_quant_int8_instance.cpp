@@ -81,8 +81,7 @@ void add_device_conv2d_bias_perlayer_quantization_int8_instances(
     add_device_operation_instances(instances,
                                    device_conv2d_int8_instances<Add_Mul_Clamp, ConvFwd1x1P0>{});
     add_device_operation_instances(instances,
-                                   device_conv2d_int8_instances<Add_Mul_Clamp,
-                                   ConvFwd1x1S1P0>{});
+                                   device_conv2d_int8_instances<Add_Mul_Clamp, ConvFwd1x1S1P0>{});
 }
 
 void add_device_conv2d_bias_relu_perlayer_quantization_int8_instances(
