@@ -27,7 +27,7 @@ void add_device_conv2d_bias_perlayer_quantization_int8_instances(
                                                       GNHWK,
                                                       int8_t,
                                                       int8_t,
-                                                      INT32_Tuple,
+                                                      I32_Tuple,
                                                       int8_t,
                                                       PassThrough,
                                                       PassThrough,
@@ -42,7 +42,7 @@ void add_device_conv2d_bias_relu_perlayer_quantization_int8_instances(
                                                               GNHWK,
                                                               int8_t,
                                                               int8_t,
-                                                              INT32_Tuple,
+                                                              I32_Tuple,
                                                               int8_t,
                                                               PassThrough,
                                                               PassThrough,
@@ -95,7 +95,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                      is_same_v<OutLayout, GNHWK>)
         {
             if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
-                         is_same_v<DsDataType, INT32_Tuple> && is_same_v<OutDataType, int8_t>)
+                         is_same_v<DsDataType, I32_Tuple> && is_same_v<OutDataType, int8_t>)
             {
                 if constexpr(is_same_v<Activation, PassThrough>)
                     add_device_conv2d_bias_perlayer_quantization_int8_instances(op_ptrs);

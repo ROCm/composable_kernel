@@ -28,7 +28,7 @@ using F16_F16_Tuple = ck::Tuple<F16, F16>;
 
 using F32_Tuple = ck::Tuple<F32>;
 
-using INT32_Tuple = ck::Tuple<INT32>;
+using I32_Tuple = ck::Tuple<I32>;
 
 // GEMM layout
 using Row = ck::tensor_layout::gemm::RowMajor;
