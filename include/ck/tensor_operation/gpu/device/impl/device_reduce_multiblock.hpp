@@ -75,8 +75,8 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InDataType,
     static constexpr bool use_multiblock =
         (OutMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd);
 
-    static_assert(ck::reduce::InMemoryDataOperatonSupportedOnDataType<OutMemoryDataOperation,
-                                                                      OutDataType>::value,
+    static_assert(ck::reduce::InMemoryDataOperationSupportedOnDataType<OutMemoryDataOperation,
+                                                                       OutDataType>::value,
                   "The OutDataType must support the specified OutMemoryDataOperation!");
 
     static_assert(!use_multiblock || (use_multiblock && !OutputIndex),

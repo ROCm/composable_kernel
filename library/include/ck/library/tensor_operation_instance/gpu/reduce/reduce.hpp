@@ -61,9 +61,10 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceReduce
     {
         std::vector<DeviceOpPtr> op_ptrs;
 
-        constexpr bool out_support_atomic_add = ck::reduce::InMemoryDataOperatonSupportedOnDataType<
-            InMemoryDataOperationEnum::AtomicAdd,
-            OutDataType>::value;
+        constexpr bool out_support_atomic_add =
+            ck::reduce::InMemoryDataOperationSupportedOnDataType<
+                InMemoryDataOperationEnum::AtomicAdd,
+                OutDataType>::value;
         constexpr bool op_support_atomic_add =
             std::is_same<ReduceOperation, ReduceAdd>::value &&
             (std::is_same<AccElementwiseOp, PassThrough>::value ||
