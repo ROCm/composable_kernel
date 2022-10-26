@@ -22,10 +22,6 @@ include(TargetFlags)
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip)
 
 option(USE_BITINT_EXTENSION_INT4, "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
-option(BUILD_ALL, "Whether to build all targets, such as examples, tests, and profiler." OFF)
-option(WITH_EXAMPLES, "Whether to build examples." OFF)
-option(WITH_TESTS, "Whether to build tests." OFF)
-option(WITH_PROFILER, "Whether to build profiler." OFF)
 
 if(USE_BITINT_EXTENSION_INT4)
     add_compile_definitions(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
@@ -251,27 +247,25 @@ message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
 
+file(GLOB_RECURSE INSTANCE_FILES "${PROJECT_SOURCE_DIR}/*/device_*_instance.cpp")
+file(GLOB dir_list RELATIVE ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/*)
+set(CK_DEVICE_INSTANCES)
+FOREACH(subdir_path ${dir_list})
+    IF(IS_DIRECTORY "${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/${subdir_path}")
+       list(APPEND CK_DEVICE_INSTANCES device_${subdir_path}_instance)
+    ENDIF()
+ENDFOREACH()
+add_custom_target(instances DEPENDS utility;${CK_DEVICE_INSTANCES}  SOURCES ${INSTANCE_FILES})
+
 rocm_package_setup_component(tests
         LIBRARY_NAME composablekernel
         PACKAGE_NAME tests # Prevent -static suffix on package name
 )
 
 add_subdirectory(library)
-
-if(BUILD_ALL)
-    set(WITH_EXAMPLES ON)
-    set(WITH_TESTS ON)
-    set(WITH_PROFILER ON)
-endif()
-if(WITH_EXAMPLES)
-    add_subdirectory(example)
-endif()
-if(WITH_TESTS)
-    add_subdirectory(test)
-endif()
-if(WITH_PROFILER)
-    add_subdirectory(profiler)
-endif()
+add_subdirectory(example)
+add_subdirectory(test)
+add_subdirectory(profiler)
 
 #Create an interface target for the include only files and call it "composablekernels"
 include(CMakePackageConfigHelpers)
