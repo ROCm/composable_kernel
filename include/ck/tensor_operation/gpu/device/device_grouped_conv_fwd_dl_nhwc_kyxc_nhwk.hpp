@@ -139,12 +139,9 @@ __global__ void
     ignore = p_b_grid;
     ignore = p_c_grid;
     ignore = batch_count;
-    ignore = a_grid_desc_k0_m_k1;
-    ignore = b_grid_desc_k0_n_k1;
+    ignore = a_grid_desc_k0_m0_m1_k1;
+    ignore = b_grid_desc_k0_n0_n1_k1;
     ignore = c_grid_desc_m0_m10_m11_n0_n10_n11;
-    ignore = a_element_op;
-    ignore = b_element_op;
-    ignore = c_element_op;
     ignore = compute_ptr_offset_of_batch;
     ignore = block_2_ctile_map;
 #endif
