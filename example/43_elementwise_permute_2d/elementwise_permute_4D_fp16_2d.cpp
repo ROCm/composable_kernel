@@ -87,11 +87,24 @@ int main()
             "The runtime parameters seems not supported by the device instance, exiting!");
     };
 
+    std::cout << "A (nchw): " << a.mDesc << std::endl;
+    std::cout << "B (nhwc): " << b.mDesc << std::endl;
+
     auto broadcastPermute_invoker_ptr = broadcastPermute.MakeInvokerPointer();
     float ave_time =
         broadcastPermute_invoker_ptr->Run(argument.get(), StreamConfig{nullptr, time_kernel});
 
-    std::cout << "Perf: " << ave_time << " ms" << std::endl;
+    std::size_t flop = std::size_t(2) * nchw[0] * nchw[1] * nchw[2] * nchw[3];
+
+    std::size_t num_btype = sizeof(ADataType) * (nchw[0] * nchw[1] * nchw[2] * nchw[3]) +
+                            sizeof(BDataType) * (nchw[0] * nchw[1] * nchw[2] * nchw[3]);
+
+    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+
+    float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
+              << std::endl;
 
     bool pass = true;
 
