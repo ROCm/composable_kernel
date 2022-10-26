@@ -1,0 +1,7 @@
+add_custom_target(example_conv_bwd_weight)
+
+add_example_executable(example_conv_bwd_weight_xdl_fp16 conv_bwd_weight_xdl_fp16.cpp)
+add_example_executable(example_conv_bwd_weight_xdl_bf16 conv_bwd_weight_xdl_bf16.cpp)
+
+add_dependencies(example_conv_bwd_weight example_conv_bwd_weight_xdl_fp16)
+add_dependencies(example_conv_bwd_weight example_conv_bwd_weight_xdl_bf16)
