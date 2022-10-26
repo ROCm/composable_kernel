@@ -10,7 +10,7 @@
 #include "ck/utility/sequence.hpp"
 #include "ck/utility/tuple.hpp"
 #include "ck/utility/reduction_operator.hpp"
-#include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise.hpp"
 
 #include "batchnorm_common.hpp"
 

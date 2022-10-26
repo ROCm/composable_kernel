@@ -1,9 +1,9 @@
 # Composable Kernel
 
 ## Methodology
-Composable Kernel (CK) library aims to provide a programming model for writing performance critical kernels for Machine Learning workloads across multiple architectures including GPUs, CPUs, etc, through general purpose kernel languages, like HIP C++.
+Composable Kernel (CK) library aims to provide a programming model for writing performance critical kernels for machine learning workloads across multiple architectures including GPUs, CPUs, etc, through general purpose kernel languages, like HIP C++.
 
-CK utilizes two concepts to achieve performance portabilatity and code maintainbility:
+CK utilizes two concepts to achieve performance portability and code maintainability:
 * A tile-based programming model
 * Algorithm complexity reduction for complex ML operators, using innovative technique we call "Tensor Coordinate Transformation".
 
@@ -11,7 +11,7 @@ CK utilizes two concepts to achieve performance portabilatity and code maintainb
 
 ## Code Structure
 Current CK library are structured into 4 layers:
-* "Templated Tile Operators"
+* "Templated Tile Operators" layer
 * "Templated Kernel and Invoker" layer
 * "Instantiated Kernel and Invoker" layer
 * "Client API" layer
@@ -90,7 +90,7 @@ Instructions for using CK as a pre-built kernel library are under [client_exampl
 ### Kernel Timing and Verification
 CK's own kernel timer will warn up kernel once, and then run it multiple times
 to get average kernel time. For some kernels that use atomic add, this will cause
-output buffer to be accumulated multiple times, causing verfication failure.
+output buffer to be accumulated multiple times, causing verification failure.
 To work around it, do not use CK's own timer and do verification at the same time.
 CK's own timer and verification in each example and ckProfiler can be enabled or
 disabled from command line.
