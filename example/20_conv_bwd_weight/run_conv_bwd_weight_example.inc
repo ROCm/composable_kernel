@@ -54,7 +54,7 @@ template <ck::index_t NDimSpatial>
 bool run_conv_bwd_weight(const ExecutionConfig& config,
                          const ck::utils::conv::ConvParam& conv_param)
 {
-    constexpr ck::index_t split_k = 4;
+    constexpr ck::index_t split_k = 2;
 
     const auto in_g_n_c_wis_desc =
         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<
