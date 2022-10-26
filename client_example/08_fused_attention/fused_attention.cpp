@@ -19,10 +19,10 @@ using CElementOp    = ck::tensor_operation::element_wise::PassThrough;
 constexpr static auto MaskingSpec =
     ck::tensor_operation::device::MaskingSpecialization::MaskDisabled;
 
-using ADataType = ck::half_t;
-using B0DataType = ck::half_t;
-using B1DataType = ck::half_t;
-using CDataType = ck::half_t;
+using ADataType   = ck::half_t;
+using B0DataType  = ck::half_t;
+using B1DataType  = ck::half_t;
+using CDataType   = ck::half_t;
 using AccDataType = float;
 
 struct SimpleDeviceMem
@@ -45,10 +45,10 @@ int main(int argc, char* argv[])
 {
     int G0 = 48;
     int G1 = 16;
-    int M = 1024;
-    int N = 1024;
-    int K = 64;
-    int O = 64;
+    int M  = 1024;
+    int N  = 1024;
+    int K  = 64;
+    int O  = 64;
 
     // A layout [G0, M, G1, K]
     std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M, K};
@@ -65,7 +65,6 @@ int main(int argc, char* argv[])
     // C layout [G0, M, G1, O]
     std::vector<ck::index_t> c_gs_ms_os_lengths{G0, G1, M, O};
     std::vector<ck::index_t> c_gs_ms_os_strides{M * G1 * O, O, G1 * O, 1};
-
 
     SimpleDeviceMem a_device_buf(sizeof(ADataType) * G0 * G1 * M * K);
     SimpleDeviceMem b0_device_buf(sizeof(B0DataType) * G0 * G1 * N * K);
@@ -129,18 +128,17 @@ int main(int argc, char* argv[])
                                                         {}, // acc1_biases_gs_ms_os_strides
                                                         AElementOp{},
                                                         B0ElementOp{},
-                                                        Acc0ElementOp{1/sqrtf(K)},
+                                                        Acc0ElementOp{1 / sqrtf(K)},
                                                         B1ElementOp{},
                                                         CElementOp{});
 
-        auto invoker_ptr = op_ptr->MakeInvokerPointer();
+        auto invoker_ptr    = op_ptr->MakeInvokerPointer();
         std::string op_name = op_ptr->GetTypeString();
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
 
-            float ave_time =
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
+            float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
 
             std::size_t flop      = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * G0 * G1;
             std::size_t num_btype = (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
@@ -197,7 +195,7 @@ int main(int argc, char* argv[])
                                                         {}, // acc1_biases_gs_ms_os_strides
                                                         AElementOp{},
                                                         B0ElementOp{},
-                                                        Acc0ElementOp{1/sqrtf(K)},
+                                                        Acc0ElementOp{1 / sqrtf(K)},
                                                         B1ElementOp{},
                                                         CElementOp{});
 
