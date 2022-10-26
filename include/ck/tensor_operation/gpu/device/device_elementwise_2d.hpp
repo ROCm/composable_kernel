@@ -115,7 +115,7 @@ struct DeviceElementwise : public DeviceElementwiseBase<InDataTypeTuple,
                 desc,
                 make_tuple(make_merge_transform(mLengths), make_merge_transform(nLengths)),
                 make_tuple(mDimIds, nDimIds),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
+                make_tuple(Sequence<1>{}, Sequence<0>{}));
 
             return PadDescriptor_MN_2d(desc_mn, gridSize, blockSize);
         }
