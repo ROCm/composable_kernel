@@ -272,7 +272,7 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
                 {
                     return false;
                 }
-                if(arg.invariant_lowest_length % InSrcVectorSize != 0)
+                if(arg.invariant_lowest_length_ % InSrcVectorSize != 0)
                 {
                     return false;
                 }
@@ -284,14 +284,14 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
             {
                 return false;
             }
-            if(arg.reduce_lowest_length % InSrcVectorSize != 0)
+            if(arg.inLengths_[Rank - 1] % InSrcVectorSize != 0)
             {
                 return false;
             }
         }
 
         // To improve
-        if(kNumInvariantDim > 0 && arg.invariant_lowest_length % OutDstVectorSize != 0)
+        if(kNumInvariantDim > 0 && arg.invariant_lowest_length_ % OutDstVectorSize != 0)
         {
             return false;
         }
