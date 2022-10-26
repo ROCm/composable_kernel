@@ -3,7 +3,9 @@
 
 #pragma once
 
+#include <algorithm>
 #include <iostream>
+#include <iterator>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"

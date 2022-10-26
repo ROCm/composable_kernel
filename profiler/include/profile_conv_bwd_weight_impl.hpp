@@ -3,9 +3,10 @@
 
 #pragma once
 
-#include "ck/ck.hpp"
+#include <algorithm>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #include <typeinfo>
 
 #include "ck/ck.hpp"
@@ -114,16 +115,14 @@ bool profile_conv_bwd_weight_impl(int do_verification,
 
     if(do_verification)
     {
-        auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
+        auto ref_conv     = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
                                                                            InDataType,
                                                                            WeiDataType,
                                                                            OutDataType,
                                                                            InElementOp,
                                                                            WeiElementOp,
                                                                            OutElementOp>{};
-
-        auto ref_invoker = ref_conv.MakeInvoker();
-
+        auto ref_invoker  = ref_conv.MakeInvoker();
         auto ref_argument = ref_conv.MakeArgument(input,
                                                   weight_host_result,
                                                   output,
@@ -163,6 +162,24 @@ bool profile_conv_bwd_weight_impl(int do_verification,
     // profile device Conv instances
     bool all_pass = true;
 
+    std::array<ck::index_t, NDimSpatial> input_spatial_lengths{};
+    std::array<ck::index_t, NDimSpatial> filter_spatial_lengths{};
+    std::array<ck::index_t, NDimSpatial> output_spatial_lengths{};
+    std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
+    std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
+    std::array<ck::index_t, NDimSpatial> input_left_pads{};
+    std::array<ck::index_t, NDimSpatial> input_right_pads{};
+
+    auto range_copy = [](const auto& from, auto to) { std::copy(begin(from), end(from), to); };
+
+    range_copy(conv_param.input_spatial_lengths_, begin(input_spatial_lengths));
+    range_copy(conv_param.filter_spatial_lengths_, begin(filter_spatial_lengths));
+    range_copy(conv_param.output_spatial_lengths_, begin(output_spatial_lengths));
+    range_copy(conv_param.conv_filter_strides_, begin(conv_filter_strides));
+    range_copy(conv_param.conv_filter_dilations_, begin(conv_filter_dilations));
+    range_copy(conv_param.input_left_pads_, begin(input_left_pads));
+    range_copy(conv_param.input_right_pads_, begin(input_right_pads));
+
     for(auto& op_ptr : op_ptrs)
     {
         auto argument_ptr =
@@ -172,13 +189,13 @@ bool profile_conv_bwd_weight_impl(int do_verification,
                                         conv_param.N_,
                                         conv_param.K_,
                                         conv_param.C_,
-                                        conv_param.input_spatial_lengths_,
-                                        conv_param.filter_spatial_lengths_,
-                                        conv_param.output_spatial_lengths_,
-                                        conv_param.conv_filter_strides_,
-                                        conv_param.conv_filter_dilations_,
-                                        conv_param.input_left_pads_,
-                                        conv_param.input_right_pads_,
+                                        input_spatial_lengths,
+                                        filter_spatial_lengths,
+                                        output_spatial_lengths,
+                                        conv_filter_strides,
+                                        conv_filter_dilations,
+                                        input_left_pads,
+                                        input_right_pads,
                                         in_element_op,
                                         wei_element_op,
                                         out_element_op,

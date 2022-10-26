@@ -99,6 +99,24 @@ bool run_conv_bwd_weight(const ExecutionConfig& config,
     // init to 0
     wei_device_buf.SetZero();
 
+    std::array<ck::index_t, NDimSpatial> input_spatial_lengths{};
+    std::array<ck::index_t, NDimSpatial> filter_spatial_lengths{};
+    std::array<ck::index_t, NDimSpatial> output_spatial_lengths{};
+    std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
+    std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
+    std::array<ck::index_t, NDimSpatial> input_left_pads{};
+    std::array<ck::index_t, NDimSpatial> input_right_pads{};
+
+    auto range_copy = [](const auto& from, auto to) { std::copy(begin(from), end(from), to); };
+
+    range_copy(conv_param.input_spatial_lengths_, begin(input_spatial_lengths));
+    range_copy(conv_param.filter_spatial_lengths_, begin(filter_spatial_lengths));
+    range_copy(conv_param.output_spatial_lengths_, begin(output_spatial_lengths));
+    range_copy(conv_param.conv_filter_strides_, begin(conv_filter_strides));
+    range_copy(conv_param.conv_filter_dilations_, begin(conv_filter_dilations));
+    range_copy(conv_param.input_left_pads_, begin(input_left_pads));
+    range_copy(conv_param.input_right_pads_, begin(input_right_pads));
+
     // do GEMM
     auto conv     = DeviceConvBwdWeightInstance<NDimSpatial>{};
     auto invoker  = conv.MakeInvoker();
@@ -108,13 +126,13 @@ bool run_conv_bwd_weight(const ExecutionConfig& config,
                                       conv_param.N_,
                                       conv_param.K_,
                                       conv_param.C_,
-                                      conv_param.input_spatial_lengths_,
-                                      conv_param.filter_spatial_lengths_,
-                                      conv_param.output_spatial_lengths_,
-                                      conv_param.conv_filter_strides_,
-                                      conv_param.conv_filter_dilations_,
-                                      conv_param.input_left_pads_,
-                                      conv_param.input_right_pads_,
+                                      input_spatial_lengths,
+                                      filter_spatial_lengths,
+                                      output_spatial_lengths,
+                                      conv_filter_strides,
+                                      conv_filter_dilations,
+                                      input_left_pads,
+                                      input_right_pads,
                                       InElementOp{},
                                       WeiElementOp{},
                                       OutElementOp{},

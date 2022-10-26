@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <array>
 #include <vector>
 
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
@@ -11,7 +12,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <ck::index_t NumDimSpatial,
+template <ck::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout,
@@ -30,13 +31,13 @@ struct DeviceConvBwdWeight : public BaseOperator
                         ck::index_t N,
                         ck::index_t K,
                         ck::index_t C,
-                        std::vector<ck::index_t> input_spatial_lengths,
-                        std::vector<ck::index_t> filter_spatial_lengths,
-                        std::vector<ck::index_t> output_spatial_lengths,
-                        std::vector<ck::index_t> conv_filter_strides,
-                        std::vector<ck::index_t> conv_filter_dilations,
-                        std::vector<ck::index_t> input_left_pads,
-                        std::vector<ck::index_t> input_right_pads,
+                        std::array<ck::index_t, NDimSpatial> input_spatial_lengths,
+                        std::array<ck::index_t, NDimSpatial> filter_spatial_lengths,
+                        std::array<ck::index_t, NDimSpatial> output_spatial_lengths,
+                        std::array<ck::index_t, NDimSpatial> conv_filter_strides,
+                        std::array<ck::index_t, NDimSpatial> conv_filter_dilations,
+                        std::array<ck::index_t, NDimSpatial> input_left_pads,
+                        std::array<ck::index_t, NDimSpatial> input_right_pads,
                         InElementwiseOperation in_element_op,
                         WeiElementwiseOperation wei_element_op,
                         OutElementwiseOperation out_element_op,
