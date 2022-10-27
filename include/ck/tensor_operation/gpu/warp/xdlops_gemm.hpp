@@ -593,7 +593,8 @@ struct XdlopsGemm
     static constexpr auto I4 = Number<4>{};
     static constexpr auto I5 = Number<5>{};
 
-    using CIndex = MultiIndex<2>;
+    using CIndex   = MultiIndex<2>;
+    using CIndex4D = MultiIndex<4>;
 
     __device__ static constexpr index_t GetNumBlks() { return mfma_instr.num_output_blks; }
 
@@ -820,6 +821,16 @@ struct XdlopsGemm
         index_t m_offset = xdlops_i * mfma_instr.m_per_blk + blk_id * mfma_instr.group_size;
 
         return TransposeC ? CIndex{n_offset, m_offset} : CIndex{m_offset, n_offset};
+    }
+
+    __device__ static CIndex4D GetBeginOfThreadBlk4D(index_t /* xdlops_i */, index_t /* blk_i */)
+    {
+        const auto blk_idx = GetBlkIdx();
+
+        const auto blk_id = blk_idx[I0];
+        const auto blk_td = blk_idx[I1];
+
+        return TransposeC ? CIndex4D{blk_td, I0, blk_id, I0} : CIndex4D{I0, blk_id, I0, blk_td};
     }
 
     static constexpr auto mfma = MfmaSelector<base_type, MPerXdlops, NPerXdlops>{};

@@ -4,10 +4,14 @@
 #include <iostream>
 
 #include <vector>
+#include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_softmax_gemm_permute_xdl_cshuffle.hpp"
-#include "profiler/include/profile_batched_gemm_masking_scale_softmax_gemm_permute_impl.hpp"
+#include "profiler/include/profile_batched_gemm_softmax_gemm_permute_impl.hpp"
+
 using ck::tensor_operation::device::GemmSpecialization;
+using ck::tensor_operation::device::MaskingSpecialization;
+using ck::tensor_operation::device::TensorSpecialization;
 
 template <ck::index_t N>
 using I = ck::Number<N>;
@@ -20,14 +24,18 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 template <typename Tuple>
 struct TestBatchedGemmMaskingScaleSoftmaxGemmPermute : public ::testing::Test
 {
-    using ADataType             = std::tuple_element_t<0, Tuple>;
-    using B0DataType            = std::tuple_element_t<1, Tuple>;
-    using B1DataType            = std::tuple_element_t<2, Tuple>;
-    using CDataType             = std::tuple_element_t<3, Tuple>;
-    using ALayout               = std::tuple_element_t<4, Tuple>;
-    using B0Layout              = std::tuple_element_t<5, Tuple>;
-    using B1Layout              = std::tuple_element_t<6, Tuple>;
-    using CPermuteNumDims_G_M_O = std::tuple_element_t<7, Tuple>;
+    using NumDimGType      = std::tuple_element_t<0, Tuple>;
+    using NumDimMType      = std::tuple_element_t<1, Tuple>;
+    using NumDimNType      = std::tuple_element_t<2, Tuple>;
+    using NumDimKType      = std::tuple_element_t<3, Tuple>;
+    using NumDimOType      = std::tuple_element_t<4, Tuple>;
+    using ADataType        = std::tuple_element_t<5, Tuple>;
+    using B0DataType       = std::tuple_element_t<6, Tuple>;
+    using B1DataType       = std::tuple_element_t<7, Tuple>;
+    using CDataType        = std::tuple_element_t<8, Tuple>;
+    using Acc0BiasDataType = std::tuple_element_t<9, Tuple>;
+    using Acc1BiasDataType = std::tuple_element_t<10, Tuple>;
+    using MaskingType      = std::tuple_element_t<11, Tuple>;
 
     std::vector<std::vector<int>> lengths_ = {
         {256, 256, 64, 64, 6, 4},
@@ -42,15 +50,20 @@ struct TestBatchedGemmMaskingScaleSoftmaxGemmPermute : public ::testing::Test
 
     void RunSingle(int M, int N, int K, int O, int G0, int G1)
     {
-        bool pass = ck::profiler::profile_batched_gemm_masking_scale_softmax_gemm_permute_impl<
-            ADataType,
-            B0DataType,
-            B1DataType,
-            CDataType,
-            ALayout,
-            B0Layout,
-            B1Layout,
-            CPermuteNumDims_G_M_O>(verify_, 1, false, bench_, M, N, K, O, G0, G1);
+        bool pass =
+            ck::profiler::profile_batched_gemm_softmax_gemm_permute_impl<NumDimGType::value,
+                                                                         NumDimMType::value,
+                                                                         NumDimNType::value,
+                                                                         NumDimKType::value,
+                                                                         NumDimOType::value,
+                                                                         ADataType,
+                                                                         B0DataType,
+                                                                         B1DataType,
+                                                                         CDataType,
+                                                                         ck::Tuple<>,
+                                                                         ck::Tuple<>,
+                                                                         MaskingType::value>(
+                verify_, 1, false, bench_, M, N, K, O, G0, G1);
 
         EXPECT_TRUE(pass);
     }
@@ -72,19 +85,13 @@ struct TestBatchedGemmMaskingScaleSoftmaxGemmPermute : public ::testing::Test
 };
 
 template <GemmSpecialization GemmSpec>
-struct DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128
+struct DeviceInstanceWrapper_G2M1N1K1O1_TNTT_FP16_M128_N128_K32_O128
 {
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
     using Scale       = ck::tensor_operation::element_wise::Scale;
 
-    using ALayout  = Row;
-    using B0Layout = Col;
-    using B1Layout = Row;
-
     template <ck::index_t... Is>
     using S = ck::Sequence<Is...>;
-    using CPermuteNumDims_G_M_O =
-        S<2, 1, 1>; // "using CLayout = Row" has been replaced by CPermuteNumDims_G_M_O
 
     using ADataType        = F16;
     using B0DataType       = F16;
@@ -103,14 +110,17 @@ struct DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128
 
     using DeviceGemmGemmInstance =
         ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle<
-            ALayout,
-            B0Layout,
-            B1Layout,
-            CPermuteNumDims_G_M_O,
+            2,
+            1,
+            1,
+            1,
+            1,
             ADataType,
             B0DataType,
             B1DataType,
             CDataType,
+            ck::Tuple<>,
+            ck::Tuple<>,
             AccDataType,
             CShuffleDataType,
             AElementOp,
@@ -119,6 +129,10 @@ struct DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128
             B1ElementOp,
             CElementOp,
             GemmSpec,
+            TensorSpecialization::Default, // ATensorSpec
+            TensorSpecialization::Default, // B0TensorSpec
+            TensorSpecialization::Default, // B1TensorSpec
+            TensorSpecialization::Default, // CTensorSpec
             1,
             256,
             128,         // MPerBlock
@@ -159,29 +173,48 @@ struct DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128
             2,              // CShuffleNXdlPerWavePerShuffle
             S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
             8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
-            true>;          // Masking
+            MaskingSpecialization::MaskOutUpperTriangle>; // MaskOutUpperTriangle
 
     bool IsSupported(int M, int N, int K, int O)
     {
+        const int G0 = 1, G1 = 1;
+
+        // A layout [G0, M, G1, K]
+        std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M, K};
+        std::vector<ck::index_t> a_gs_ms_ks_strides{M * G1 * K, K, G1 * K, 1};
+
+        // B0 layout [G0, N, G1, K]
+        std::vector<ck::index_t> b0_gs_ns_ks_lengths{G0, G1, N, K};
+        std::vector<ck::index_t> b0_gs_ns_ks_strides{N * G1 * K, K, G1 * K, 1};
+
+        // B1 layout [G0, N, G1, O]
+        std::vector<ck::index_t> b1_gs_os_ns_lengths{G0, G1, O, N};
+        std::vector<ck::index_t> b1_gs_os_ns_strides{N * G1 * O, O, 1, G1 * O};
+
+        // C layout [G0, M, G1, O]
+        std::vector<ck::index_t> c_gs_ms_os_lengths{G0, G1, M, O};
+        std::vector<ck::index_t> c_gs_ms_os_strides{M * G1 * O, O, G1 * O, 1};
+
         auto gemm     = DeviceGemmGemmInstance{};
         auto invoker  = gemm.MakeInvoker();
         auto argument = gemm.MakeArgument(static_cast<ADataType*>(nullptr),
                                           static_cast<B0DataType*>(nullptr),
                                           static_cast<B1DataType*>(nullptr),
                                           static_cast<CDataType*>(nullptr),
-                                          M,
-                                          N,
-                                          K,
-                                          O,
-                                          0,              // BatchCount
-                                          {0, 0, M, O},   // gs ms ns lengths
-                                          {0, O, 0, 1},   // gs ms ns strides
-                                          0,              // StrideA
-                                          0,              // StrideB0
-                                          0,              // StrideB1
-                                          0,              // BatchStrideA
-                                          0,              // BatchStrideB0
-                                          0,              // BatchStrideB1
+                                          {}, // p_acc0_biases
+                                          {}, // p_acc1_biases
+                                          a_gs_ms_ks_lengths,
+                                          a_gs_ms_ks_strides,
+                                          b0_gs_ns_ks_lengths,
+                                          b0_gs_ns_ks_strides,
+                                          b1_gs_os_ns_lengths,
+                                          b1_gs_os_ns_strides,
+                                          c_gs_ms_os_lengths,
+                                          c_gs_ms_os_strides,
+                                          {},             // acc0_biases_gs_ms_ns_lengths
+                                          {},             // acc0_biases_gs_ms_ns_strides
+                                          {},             // acc1_biases_gs_ms_os_lengths
+                                          {},             // acc1_biases_gs_ms_os_strides
                                           PassThrough{},  // a_element_op
                                           PassThrough{},  // b0_element_op
                                           Scale{1.f},     // acc0_element_op

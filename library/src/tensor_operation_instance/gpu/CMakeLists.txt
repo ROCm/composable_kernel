@@ -6,6 +6,7 @@ function(add_instance_library INSTANCE_NAME)
     clang_tidy_check(${INSTANCE_NAME})
 endfunction(add_instance_library INSTANCE_NAME)
 
+
 file(GLOB dir_list LIST_DIRECTORIES true *)
 set(CK_DEVICE_INSTANCES)
 FOREACH(subdir_path ${dir_list})
