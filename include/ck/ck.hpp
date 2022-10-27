@@ -159,6 +159,11 @@
 // tuning parameter
 #define CK_WORKAROUND_SWDEV_325164 0
 
+// workaround: disable broken fused attention kernel instance that does not pass validation
+// issue found on mi100/#10738 combo when irregular KPerBlock attention kernel has acc0 scaling
+// enabled
+#define CK_WORKAROUND_DISABLE_BROKEN_ATTN_KERNEL_INSTANCE 1
+
 namespace ck {
 
 enum struct InMemoryDataOperationEnum

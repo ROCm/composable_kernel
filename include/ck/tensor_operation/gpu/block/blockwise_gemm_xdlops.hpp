@@ -151,6 +151,27 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
         return make_tuple(c_thread_m, c_thread_n);
     }
 
+    template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
+    __device__ static auto
+        CalculateCThreadOriginDataIndex8D(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
+    {
+        const auto wave_idx = GetWaveIdx();
+
+        const auto waveId_m = wave_idx[I0];
+        const auto waveId_n = wave_idx[I1];
+
+        const auto blk_idx = xdlops_gemm.GetBeginOfThreadBlk4D(xdlops_i, blk_i);
+
+        return make_tuple(Number<m0>{},
+                          Number<n0>{},
+                          waveId_m,
+                          waveId_n,
+                          blk_idx[I0],
+                          blk_idx[I1],
+                          blk_idx[I2],
+                          blk_idx[I3]);
+    }
+
     __host__ __device__ BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1()
     {
         static_assert(AK0MK1BlockDesc::IsKnownAtCompileTime() &&
@@ -722,6 +743,21 @@ struct BlockwiseGemmXdlops_v2
             make_tuple(n0, waveId_n, blk_idx[I1]))[I0];
 
         return make_tuple(c_thread_m, c_thread_n);
+    }
+
+    template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
+    __device__ static auto
+        CalculateCThreadOriginDataIndex8D(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
+    {
+        const auto wave_idx = GetWaveIdx();
+
+        const auto waveId_m = wave_idx[I0];
+        const auto waveId_n = wave_idx[I1];
+
+        const auto blk_idx = xdlops_gemm.GetBeginOfThreadBlk4D(xdlops_i, blk_i);
+
+        return make_tuple(
+            m0, n0, waveId_m, waveId_n, blk_idx[I0], blk_idx[I1], blk_idx[I2], blk_idx[I3]);
     }
 
     using Tuple4 = decltype(CalculateAThreadOriginDataIndex());

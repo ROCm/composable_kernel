@@ -14,7 +14,8 @@ namespace ck {
 
 template <typename TensorLengths,
           typename DimAccessOrder,
-          typename ScalarsPerAccess> // # of scalars per access in each dimension
+          typename ScalarsPerAccess,
+          bool SnakeCurved = true> // # of scalars per access in each dimension
 struct SpaceFillingCurve
 {
     static constexpr index_t nDim = TensorLengths::Size();
@@ -136,9 +137,10 @@ struct SpaceFillingCurve
             Index ordered_idx;
 
             static_for<0, nDim, 1>{}([&](auto idim) {
-                ordered_idx(idim) = forward_sweep[idim] ? ordered_access_idx[idim]
-                                                        : ordered_access_lengths[idim] - 1 -
-                                                              ordered_access_idx[idim];
+                ordered_idx(idim) =
+                    !SnakeCurved || forward_sweep[idim]
+                        ? ordered_access_idx[idim]
+                        : ordered_access_lengths[idim] - 1 - ordered_access_idx[idim];
             });
 
             return container_reorder_given_old2new(ordered_idx, dim_access_order) *

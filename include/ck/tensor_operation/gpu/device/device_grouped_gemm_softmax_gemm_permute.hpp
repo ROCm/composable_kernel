@@ -7,46 +7,50 @@
 #include <vector>
 
 #include "device_base.hpp"
+#include "ck/tensor_operation/gpu/device/masking_specialization.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename ALayout,
-          typename B0Layout,
-          typename B1Layout,
-          typename CPermuteNumDims_G_M_Gemm1N, // Sequence<>
+template <index_t NumDimG,
+          index_t NumDimM,
+          index_t NumDimN,
+          index_t NumDimK,
+          index_t NumDimO,
           typename ADataType,
           typename B0DataType,
           typename B1DataType,
           typename CDataType,
+          typename Acc0BiasDataType,
+          typename Acc1BiasDataType,
           typename AElementwiseOperation,
           typename B0ElementwiseOperation,
           typename Acc0ElementwiseOperation,
           typename B1ElementwiseOperation,
-          typename CElementwiseOperation>
+          typename CElementwiseOperation,
+          MaskingSpecialization MaskingSpec>
 struct DeviceGroupedGemmSoftmaxGemmPermute : public BaseOperator
 {
     struct ProblemDesc
     {
-        // Overall problem shape
-        index_t M;
-        index_t N;
-        index_t K;
-        index_t O;
-        index_t Batch;
+        std::vector<index_t> a_gs_ms_ks_lengths;
+        std::vector<index_t> a_gs_ms_ks_strides;
 
-        // Stride for A/B0/B1; layout determined by template args
-        index_t StrideA;
-        index_t StrideB0;
-        index_t StrideB1;
-        index_t BatchStrideA;
-        index_t BatchStrideB0;
-        index_t BatchStrideB1;
+        std::vector<index_t> b0_gs_ns_ks_lengths;
+        std::vector<index_t> b0_gs_ns_ks_strides;
 
-        // Lengths and strides for output C
+        std::vector<index_t> b1_gs_os_ns_lengths;
+        std::vector<index_t> b1_gs_os_ns_strides;
+
         std::vector<index_t> c_gs_ms_os_lengths;
         std::vector<index_t> c_gs_ms_os_strides;
+
+        std::vector<std::vector<index_t>> acc0_biases_gs_ms_ns_lengths;
+        std::vector<std::vector<index_t>> acc0_biases_gs_ms_ns_strides;
+
+        std::vector<std::vector<index_t>> acc1_biases_gs_ms_os_lengths;
+        std::vector<std::vector<index_t>> acc1_biases_gs_ms_os_strides;
     };
 
     virtual std::unique_ptr<BaseArgument>
@@ -54,6 +58,8 @@ struct DeviceGroupedGemmSoftmaxGemmPermute : public BaseOperator
                         std::vector<const void*> p_b0_vec,
                         std::vector<const void*> p_b1_vec,
                         std::vector<void*> p_c_vec,
+                        std::vector<std::vector<const void*>> p_acc0_biases_vec,
+                        std::vector<std::vector<const void*>> p_acc1_biases_vec,
                         std::vector<ProblemDesc> problem_desc_vec,
                         AElementwiseOperation a_element_op,
                         B0ElementwiseOperation b0_element_op,

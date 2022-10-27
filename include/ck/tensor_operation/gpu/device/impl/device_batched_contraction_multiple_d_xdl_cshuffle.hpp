@@ -130,8 +130,11 @@ namespace device {
 //   D[G0, G1, ..., M0, M1, M2, ..., N0, N1, N2, ...]
 //   E[G0, G1, ..., M0, M1, M2, ..., N0, N1, N2, ...]
 
-// FIXME: TensorSpecialization::Packed specialization does not cover all packed tensor cases, it
-// merely degenerates into TensorSpecialization::Default with NumDimG/M/N/K = 1
+// NOTE: TensorSpecialization::Packed specialized tensor is "packed" in a sense that each inner
+// dimension in a dimension group (eg [G0, G1] in Gs, [M0, M1, M2] in Ms, etc.) are contiguous and
+// ordered. Not in a sense that the tensor [G0, G1, ..., M0, M1, ..., N0, N1...] can be permuted
+// while still being a contiguous, unpadded tensor. In other words, it merely degenerates into
+// TensorSpecialization::Default with NumDimG/M/N/K = 1
 //
 // Detail- Packed tensor satisfies
 //   stride_0 = 1
@@ -147,7 +150,7 @@ namespace device {
 // essentially a degenerated case of TensorSpecialization::Default with NumDimG/M/N/K = 1.
 //
 // Might need to expose dimension order to the interface to fully support
-// TensorSpecialization::Packed.
+// TensorSpecialization::Packed in a traditional sense of "packed" tensor
 template <index_t NumDimG,
           index_t NumDimM,
           index_t NumDimN,
