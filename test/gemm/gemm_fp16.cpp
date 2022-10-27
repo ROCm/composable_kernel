@@ -24,56 +24,11 @@
 
 #include "test/gemm/gemm_util.hpp"
 
-int main()
-{
-    using ADataType   = ck::half_t;
-    using BDataType   = ck::half_t;
-    using CDataType   = ck::half_t;
-    using AccDataType = float;
+using ADataType   = ck::half_t;
+using BDataType   = ck::half_t;
+using CDataType   = ck::half_t;
+using AccDataType = float;
 
-    using Row = ck::tensor_layout::gemm::RowMajor;
-    using Col = ck::tensor_layout::gemm::ColumnMajor;
+#include "run_gemm_test.inc"
 
-    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-
-    auto test = [&](auto a_layout, auto b_layout, auto c_layout) {
-        bool pass = true;
-
-        using DeviceOp = ck::tensor_operation::device::DeviceGemm<decltype(a_layout),
-                                                                  decltype(b_layout),
-                                                                  decltype(c_layout),
-                                                                  ADataType,
-                                                                  BDataType,
-                                                                  CDataType,
-                                                                  PassThrough,
-                                                                  PassThrough,
-                                                                  PassThrough>;
-
-        const auto gemmPtrs =
-            ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
-                DeviceOp>::GetInstances();
-
-        for(auto& gemmPtr : gemmPtrs)
-        {
-            pass &= ck::gemm_util::TestGemm<std::unique_ptr<DeviceOp>,
-                                            ADataType,
-                                            BDataType,
-                                            CDataType,
-                                            AccDataType,
-                                            decltype(a_layout),
-                                            decltype(b_layout),
-                                            decltype(c_layout),
-                                            PassThrough,
-                                            PassThrough,
-                                            PassThrough>{}(gemmPtr);
-        }
-
-        return pass;
-    };
-
-    bool pass = test(Row{}, Row{}, Row{}) && test(Row{}, Col{}, Row{}) &&
-                test(Col{}, Row{}, Row{}) && test(Col{}, Col{}, Row{});
-
-    std::cout << "TestGemm ..... " << (pass ? "SUCCESS" : "FAILURE") << std::endl;
-    return pass ? 0 : 1;
-}
+int main() { return run_gemm_test(); }
