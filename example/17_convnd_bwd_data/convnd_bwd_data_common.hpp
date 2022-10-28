@@ -61,9 +61,13 @@ int run_conv_bwd_data(bool do_verification,
         out.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
         wei.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
         break;
-    default:
+    case 2:
         out.GenerateTensorValue(GeneratorTensor_3<OutDataType>{0.0, 1.0});
         wei.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
+        break;
+    default:
+        out.GenerateTensorValue(GeneratorTensor_1<OutDataType>{1});
+        wei.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * in_device.mDesc.GetElementSpaceSize());
