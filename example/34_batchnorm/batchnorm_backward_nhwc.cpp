@@ -12,7 +12,7 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/host_common_util.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_backward_nhwc_c.hpp"
-#include "ck/tensor_operation/gpu/device/device_batchnorm_backward_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batchnorm_backward_impl.hpp"
 
 static struct option long_options[] = {{"inOutLengths", required_argument, nullptr, 'D'},
                                        {"verify", required_argument, nullptr, 'v'},
