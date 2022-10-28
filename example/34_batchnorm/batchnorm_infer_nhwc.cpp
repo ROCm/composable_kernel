@@ -18,11 +18,6 @@
 
 #include "batchnorm_infer_impl.hpp"
 
-template <typename InOutDataType, typename AccDataType>
-using ReferenceBatchNormInferInstance =
-    ck::tensor_operation::host::ReferenceBatchNormInfer_Input_N_H_W_C_Output_C<InOutDataType,
-                                                                               AccDataType>;
-
 static struct option long_options[] = {{"inOutLengths", required_argument, nullptr, 'D'},
                                        {"verify", required_argument, nullptr, 'v'},
                                        {"help", no_argument, nullptr, '?'},
@@ -236,21 +231,30 @@ bool bnorm_infer_nhwc_test(bool do_verification,
 
     int result = 0;
 
-    result = bnorm_infer<InOutDataType, AccDataType, Rank, NumReduceDim, false>(
-        time_kernel,
-        {0, 1, 2},
-        i_inOutLengths,
-        i_inOutStrides,
-        i_inOutStrides,
-        i_scaleBiasMeanVarLengths,
-        i_scaleBiasMeanVarStrides,
-        x_dev.GetDeviceBuffer(),
-        bnScale_dev.GetDeviceBuffer(),
-        bnBias_dev.GetDeviceBuffer(),
-        epsilon,
-        estimatedMean_dev.GetDeviceBuffer(),
-        estimatedVariance_dev.GetDeviceBuffer(),
-        y_dev.GetDeviceBuffer());
+    result = bnorm_infer<InOutDataType,
+                         InOutDataType,
+                         AccDataType,
+                         AccDataType,
+                         AccDataType,
+                         AccDataType,
+                         Rank,
+                         NumReduceDim,
+                         false>(time_kernel,
+                                {0, 1, 2},
+                                i_inOutLengths,
+                                i_inOutStrides,
+                                i_inOutStrides,
+                                i_scaleBiasMeanVarLengths,
+                                i_scaleBiasMeanVarStrides,
+                                i_scaleBiasMeanVarStrides,
+                                i_scaleBiasMeanVarStrides,
+                                x_dev.GetDeviceBuffer(),
+                                bnScale_dev.GetDeviceBuffer(),
+                                bnBias_dev.GetDeviceBuffer(),
+                                epsilon,
+                                estimatedMean_dev.GetDeviceBuffer(),
+                                estimatedVariance_dev.GetDeviceBuffer(),
+                                y_dev.GetDeviceBuffer());
 
     if(result < 0)
         return (false);
@@ -259,13 +263,23 @@ bool bnorm_infer_nhwc_test(bool do_verification,
 
     if(do_verification)
     {
-        auto batchNormInfer_ref = ReferenceBatchNormInferInstance<InOutDataType, AccDataType>{};
+        using ReferenceBatchNormInferInstance =
+            ck::tensor_operation::host::ReferenceBatchNormInfer_Input_N_H_W_C_Output_C<
+                InOutDataType,
+                InOutDataType,
+                AccDataType,
+                AccDataType,
+                AccDataType,
+                AccDataType>;
+        auto batchNormInfer_ref = ReferenceBatchNormInferInstance{};
 
         auto argument_ptr_ref =
             batchNormInfer_ref.MakeArgumentPointer(i_inOutLengths,
                                                    i_inOutStrides,
                                                    i_inOutStrides,
                                                    i_scaleBiasMeanVarLengths,
+                                                   i_scaleBiasMeanVarStrides,
+                                                   i_scaleBiasMeanVarStrides,
                                                    i_scaleBiasMeanVarStrides,
                                                    x.mData.data(),
                                                    bnScale.mData.data(),
