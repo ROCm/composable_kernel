@@ -3,7 +3,10 @@
 
 #pragma once
 
-#include <cstdlib>
+#include "ck/utility/data_type.hpp"
+#include "ck/utility/tuple.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -15,6 +18,8 @@ using F64  = double;
 using F32  = float;
 using F16  = ck::half_t;
 using BF16 = ck::bhalf_t;
+using I8   = int8_t;
+using I32  = int32_t;
 
 using Empty_Tuple = ck::Tuple<>;
 
