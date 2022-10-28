@@ -9,46 +9,61 @@
 #include <algorithm>
 #include <thread>
 
+#include "ck/utility/math_v2.hpp"
+#include "ck/utility/ignore.hpp"
 #include "ck/tensor_operation/gpu/device/device_batchnorm_forward.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace host {
 
-template <typename InOutDataType, typename AccDataType>
-struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatchNormFwd<4, 3>
+template <typename XDataType,
+          typename YDataType,
+          typename AccDataType,
+          typename ScaleDataType,
+          typename BiasDataType,
+          typename MeanVarDataType,
+          typename YElementwiseOp>
+struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C
+    : public device::DeviceBatchNormFwd<4, 3, YElementwiseOp>
 {
     struct Argument : public device::BaseArgument
     {
         Argument(const std::array<index_t, 4> xyLengths,
                  const std::array<index_t, 4> xStrides,
                  const std::array<index_t, 4> yStrides,
+                 const std::array<int, 3> reduceDims,
                  const std::array<index_t, 1> bnScaleBiasMeanVarLengths,
-                 const std::array<index_t, 1> bnScaleBiasMeanVarStrides,
-                 const InOutDataType* p_x,
-                 const AccDataType* bnScale,
-                 const AccDataType* bnBias,
-                 InOutDataType* p_y,
-                 double exponentialAverageFactor,
-                 AccDataType* resultRunningMean,
-                 AccDataType* resultRunningVariance,
+                 const std::array<index_t, 1> bnScaleStrides,
+                 const std::array<index_t, 1> bnBiasStrides,
+                 const std::array<index_t, 1> bnMeanVarStrides,
+                 const XDataType* p_x,
+                 const ScaleDataType* bnScale,
+                 const BiasDataType* bnBias,
                  double epsilon,
-                 AccDataType* resultSaveMean,
-                 AccDataType* resultSaveInvVariance)
+                 const YElementwiseOp y_elementwise_op,
+                 YDataType* p_y,
+                 MeanVarDataType* resultSaveMean,
+                 MeanVarDataType* resultSaveInvVariance,
+                 double averageFactor,
+                 MeanVarDataType* resultRunningMean,
+                 MeanVarDataType* resultRunningVariance)
             : p_x_(p_x),
               bnScale_(bnScale),
               bnBias_(bnBias),
+              y_elementwise_op_(y_elementwise_op),
               p_y_(p_y),
-              resultRunningMean_(resultRunningMean),
-              resultRunningVariance_(resultRunningVariance),
               resultSaveMean_(resultSaveMean),
               resultSaveInvVariance_(resultSaveInvVariance),
-              exponentialAverageFactor_(exponentialAverageFactor),
-              epsilon_(epsilon)
+              resultRunningMean_(resultRunningMean),
+              resultRunningVariance_(resultRunningVariance)
         {
-            (void)xStrides;
-            (void)yStrides;
-            (void)bnScaleBiasMeanVarStrides;
+            ignore = xStrides;
+            ignore = yStrides;
+            ignore = bnScaleStrides;
+            ignore = bnBiasStrides;
+            ignore = bnMeanVarStrides;
+            ignore = reduceDims;
 
             if(xyLengths.size() != 4 || bnScaleBiasMeanVarLengths.size() != 1 ||
                bnScaleBiasMeanVarLengths[0] != xyLengths[3])
@@ -59,26 +74,30 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
             w = xyLengths[2];
             c = xyLengths[3];
 
+            epsilon_       = type_convert<AccDataType>(epsilon);
+            averageFactor_ = type_convert<AccDataType>(averageFactor);
+
             resultSave    = (resultSaveMean != nullptr && resultSaveInvVariance != nullptr);
             resultRunning = (resultRunningMean != nullptr && resultRunningVariance != nullptr);
         }
 
-        const InOutDataType* p_x_;
-        const AccDataType* bnScale_;
-        const AccDataType* bnBias_;
-        InOutDataType* p_y_;
+        const XDataType* p_x_;
+        const ScaleDataType* bnScale_;
+        const BiasDataType* bnBias_;
+        const YElementwiseOp y_elementwise_op_;
+        YDataType* p_y_;
 
-        AccDataType* resultRunningMean_;
-        AccDataType* resultRunningVariance_;
-        AccDataType* resultSaveMean_;
-        AccDataType* resultSaveInvVariance_;
+        MeanVarDataType* resultSaveMean_;
+        MeanVarDataType* resultSaveInvVariance_;
+        MeanVarDataType* resultRunningMean_;
+        MeanVarDataType* resultRunningVariance_;
 
         bool resultSave, resultRunning;
 
         index_t n, h, w, c;
 
-        double exponentialAverageFactor_;
-        double epsilon_;
+        AccDataType averageFactor_;
+        AccDataType epsilon_;
     };
 
     struct Invoker : public device::BaseInvoker
@@ -86,14 +105,12 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
         float Run(const Argument& arg)
         {
             auto thread_reduce_func = [&](auto iC) {
-                AccDataType reduceSize = type_convert<AccDataType>(arg.n) *
-                                         type_convert<AccDataType>(arg.h) *
-                                         type_convert<AccDataType>(arg.w);
-                index_t offset_C       = iC;
-                AccDataType mean       = type_convert<AccDataType>(0.0f);
-                AccDataType meansquare = type_convert<AccDataType>(0.0f);
+                index_t offset_C     = iC;
+                AccDataType mean     = type_convert<AccDataType>(0.0f);
+                AccDataType variance = type_convert<AccDataType>(0.0f);
+                int32_t curr_count   = 0;
 
-                // compute mean, meanquare, variance, invVariance
+                // compute mean, variance using welford method
                 for(index_t iN = 0; iN < arg.n; iN++)
                 {
                     index_t offset_N = iN * arg.h * arg.w * arg.c;
@@ -106,40 +123,46 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
 
                             auto offset = offset_N + offset_H + offset_W + offset_C;
 
+                            curr_count++;
+
                             AccDataType x = type_convert<AccDataType>(arg.p_x_[offset]);
 
-                            mean += x;
-                            meansquare += x * x;
+                            AccDataType delta = x - mean;
+
+                            mean += delta / curr_count;
+
+                            AccDataType delta2 = x - mean;
+
+                            variance += delta * delta2;
                         };
                     }
                 };
 
-                mean       = mean / reduceSize;
-                meansquare = meansquare / reduceSize;
+                // actual variance
+                variance = variance / curr_count;
 
-                AccDataType variance = meansquare - mean * mean;
                 AccDataType invVariance =
-                    type_convert<AccDataType>(1.0f) /
-                    std::sqrt(type_convert<AccDataType>(arg.epsilon_) + variance);
+                    type_convert<AccDataType>(1.0f) / ck::math::sqrt(arg.epsilon_ + variance);
 
                 // save the mean/invVariance if required
                 if(arg.resultSave)
                 {
-                    arg.resultSaveMean_[iC]        = mean;
-                    arg.resultSaveInvVariance_[iC] = invVariance;
+                    arg.resultSaveMean_[iC]        = type_convert<MeanVarDataType>(mean);
+                    arg.resultSaveInvVariance_[iC] = type_convert<MeanVarDataType>(invVariance);
                 };
 
                 // update the moving average if required
                 if(arg.resultRunning)
                 {
-                    arg.resultRunningMean_[iC] =
-                        arg.resultRunningMean_[iC] *
-                            type_convert<AccDataType>(1.0 - arg.exponentialAverageFactor_) +
-                        mean * arg.exponentialAverageFactor_;
-                    arg.resultRunningVariance_[iC] =
-                        arg.resultRunningVariance_[iC] *
-                            type_convert<AccDataType>(1.0 - arg.exponentialAverageFactor_) +
-                        variance * arg.exponentialAverageFactor_;
+                    AccDataType oneMinusAverageFactor =
+                        type_convert<AccDataType>(1.0) - arg.averageFactor_;
+                    arg.resultRunningMean_[iC] = type_convert<MeanVarDataType>(
+                        type_convert<AccDataType>(arg.resultRunningMean_[iC]) *
+                            oneMinusAverageFactor +
+                        mean * arg.averageFactor_);
+                    arg.resultRunningVariance_[iC] = type_convert<MeanVarDataType>(
+                        arg.resultRunningVariance_[iC] * oneMinusAverageFactor +
+                        variance * arg.averageFactor_);
                 };
 
                 // Normalization
@@ -160,7 +183,7 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
                             AccDataType norm_x =
                                 arg.bnScale_[iC] * (x - mean) * invVariance + arg.bnBias_[iC];
 
-                            arg.p_y_[offset] = type_convert<InOutDataType>(norm_x);
+                            arg.p_y_[offset] = type_convert<YDataType>(norm_x);
                         };
                     }
                 };
@@ -207,34 +230,42 @@ struct ReferenceBatchNormFwd_Input_N_H_W_C_Output_C : public device::DeviceBatch
     MakeArgumentPointer(const std::array<index_t, 4> xyLengths,
                         const std::array<index_t, 4> xStrides,
                         const std::array<index_t, 4> yStrides,
+                        const std::array<int, 3> reduceDims,
                         const std::array<index_t, 1> bnScaleBiasMeanVarLengths,
-                        const std::array<index_t, 1> bnScaleBiasMeanVarStrides,
+                        const std::array<index_t, 1> bnScaleStrides,
+                        const std::array<index_t, 1> bnBiasStrides,
+                        const std::array<index_t, 1> bnMeanVarStrides,
                         const void* p_x,
                         const void* bnScale,
                         const void* bnBias,
-                        void* p_y,
-                        double exponentialAverageFactor,
-                        void* resultRunningMean,
-                        void* resultRunningVariance,
                         double epsilon,
+                        const YElementwiseOp y_elementwise_op,
+                        void* p_y,
                         void* resultSaveMean,
-                        void* resultSaveInvVariance) override
+                        void* resultSaveInvVariance,
+                        double averageFactor,
+                        void* resultRunningMean,
+                        void* resultRunningVariance) override
     {
         return std::make_unique<Argument>(xyLengths,
                                           xStrides,
                                           yStrides,
+                                          reduceDims,
                                           bnScaleBiasMeanVarLengths,
-                                          bnScaleBiasMeanVarStrides,
-                                          static_cast<const InOutDataType*>(p_x),
-                                          static_cast<const AccDataType*>(bnScale),
-                                          static_cast<const AccDataType*>(bnBias),
-                                          static_cast<InOutDataType*>(p_y),
-                                          exponentialAverageFactor,
-                                          static_cast<AccDataType*>(resultRunningMean),
-                                          static_cast<AccDataType*>(resultRunningVariance),
+                                          bnScaleStrides,
+                                          bnBiasStrides,
+                                          bnMeanVarStrides,
+                                          static_cast<const XDataType*>(p_x),
+                                          static_cast<const ScaleDataType*>(bnScale),
+                                          static_cast<const BiasDataType*>(bnBias),
                                           epsilon,
-                                          static_cast<AccDataType*>(resultSaveMean),
-                                          static_cast<AccDataType*>(resultSaveInvVariance));
+                                          y_elementwise_op,
+                                          static_cast<YDataType*>(p_y),
+                                          static_cast<MeanVarDataType*>(resultSaveMean),
+                                          static_cast<MeanVarDataType*>(resultSaveInvVariance),
+                                          averageFactor,
+                                          static_cast<MeanVarDataType*>(resultRunningMean),
+                                          static_cast<MeanVarDataType*>(resultRunningVariance));
     };
 
     std::unique_ptr<device::BaseInvoker> MakeInvokerPointer() override
