@@ -34,6 +34,18 @@ builtin_wmma_naive_selector<half16_t,
 
 template <>
 __device__ void
+builtin_wmma_naive_selector<bhalf16_t,
+                            StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr, float, 1, 8, true>>(
+    const bhalf16_t& reg_a,
+    const bhalf16_t& reg_b,
+    StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr, float, 1, 8, true>& reg_c)
+{
+    intrin_wmma_f32_16x16x16_bf16_w32<16, 16>::Run(
+        reg_a, reg_b, reg_c.GetVectorTypeReference(Number<0>{}));
+}
+
+template <>
+__device__ void
 builtin_wmma_naive_selector<half16_t,
                             StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr, half_t, 1, 16, true>>(
     const half16_t& reg_a,
