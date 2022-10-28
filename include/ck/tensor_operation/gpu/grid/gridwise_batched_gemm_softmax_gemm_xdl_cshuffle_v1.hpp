@@ -691,12 +691,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                                   FloatGemmAcc,
                                                   decltype(threadid_to_m_n_thread_cluster_adaptor),
                                                   decltype(thread_cluster_desc_m_n),
-                                                  decltype(thread_slice_desc_m_n)
-#if CK_WORKAROUND_SWDEV_XXXXXX_ATTN_KERNEL_CLANG_CANNOT_SCAVENGE_REGISTER
-                                                      ,
-                                                  true
-#endif
-                                                  >{};
+                                                  decltype(thread_slice_desc_m_n)>{};
 
         const index_t num_gemm1_k_block_outer_loop =
             b_grid_desc_bk0_n_bk1.GetLength(I1) / NPerBlock;
