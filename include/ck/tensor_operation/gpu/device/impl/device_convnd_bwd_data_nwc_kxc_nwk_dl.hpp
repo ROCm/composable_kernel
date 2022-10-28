@@ -1316,11 +1316,11 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Dl
                 const index_t grid_size = arg.block_2_ctile_map_container_[i].CalculateGridSize(
                     arg.c_grid_desc_m_n_container_[i]);
 
-                const auto K = arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I0) *
-                               arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I2);
+                auto launch_kernel = [&](auto has_main_k_block_loop,
+                                         auto has_double_tail_k_block_loop) {
+                    constexpr bool has_main_loop   = has_main_k_block_loop.value;
+                    constexpr bool has_double_loop = has_double_tail_k_block_loop;
 
-                if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
-                {
                     const auto kernel = kernel_gemm_dl_v1r3<
                         GridwiseGemm,
                         ADataType, // TODO: distiguish A/B datatype
@@ -1329,8 +1329,8 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Dl
                         remove_reference_t<DeviceOp::BGridDesc_K0_N0_N1_K1>,
                         remove_reference_t<DeviceOp::CGridDesc_M0_M10_M11_N0_N10_N11>,
                         remove_reference_t<DeviceOp::DefaultBlock2CTileMap>,
-                        true,
-                        true>;
+                        has_main_loop,
+                        has_double_loop>;
 
                     ave_time +=
                         launch_and_time_kernel(stream_config,
@@ -1345,33 +1345,31 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Dl
                                                arg.b_grid_desc_k0_n0_n1_k1_container_[i],
                                                arg.c_grid_desc_m0_m10_m11_n0_n10_n11_container_[i],
                                                arg.block_2_ctile_map_container_[i]);
+                };
+
+                const auto K0 = arg.a_grid_desc_k0_m0_m1_k1_container_[i].GetLength(I0);
+                const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K0);
+                const bool has_double_tail_k_block_loop =
+                    GridwiseGemm::CalculateHasDoubleTailKBlockLoop(K0);
+
+                if(has_main_k_block_loop && has_double_tail_k_block_loop)
+                {
+                    launch_kernel(integral_constant<bool, true>{}, integral_constant<bool, true>{});
+                }
+                else if(has_main_k_block_loop && !has_double_tail_k_block_loop)
+                {
+                    launch_kernel(integral_constant<bool, true>{},
+                                  integral_constant<bool, false>{});
+                }
+                else if(!has_main_k_block_loop && has_double_tail_k_block_loop)
+                {
+                    launch_kernel(integral_constant<bool, false>{},
+                                  integral_constant<bool, true>{});
                 }
                 else
                 {
-                    const auto kernel = kernel_gemm_dl_v1r3<
-                        GridwiseGemm,
-                        ADataType, // TODO: distiguish A/B datatype
-                        CDataType,
-                        remove_reference_t<DeviceOp::AGridDesc_K0_M0_M1_K1>,
-                        remove_reference_t<DeviceOp::BGridDesc_K0_N0_N1_K1>,
-                        remove_reference_t<DeviceOp::CGridDesc_M0_M10_M11_N0_N10_N11>,
-                        remove_reference_t<DeviceOp::DefaultBlock2CTileMap>,
-                        false,
-                        false>;
-
-                    ave_time +=
-                        launch_and_time_kernel(stream_config,
-                                               kernel,
-                                               dim3(grid_size),
-                                               dim3(BlockSize),
-                                               0,
-                                               arg.p_a_grid_,
-                                               arg.p_b_grid_,
-                                               arg.p_c_grid_,
-                                               arg.a_grid_desc_k0_m0_m1_k1_container_[i],
-                                               arg.b_grid_desc_k0_n0_n1_k1_container_[i],
-                                               arg.c_grid_desc_m0_m10_m11_n0_n10_n11_container_[i],
-                                               arg.block_2_ctile_map_container_[i]);
+                    launch_kernel(integral_constant<bool, false>{},
+                                  integral_constant<bool, false>{});
                 }
             }
             return ave_time;
