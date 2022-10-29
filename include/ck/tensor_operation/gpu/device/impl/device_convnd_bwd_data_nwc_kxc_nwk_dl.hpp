@@ -1404,6 +1404,47 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Dl
             }
         }
 
+        // matrix A
+        {
+            auto srcVectorLengths = ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1{};
+            if(srcVectorLengths[I1] != 1 || srcVectorLengths[I2] != 1)
+            {
+                return false;
+            }
+            if(K1 % srcVectorLengths[I3] != 0 || K0PerBlock % srcVectorLengths[I0] != 0)
+            {
+                return false;
+            }
+
+            const index_t K = arg.Conv_K_;
+
+            if(K % (srcVectorLengths[I0] * srcVectorLengths[I3]) != 0)
+            {
+                return false;
+            }
+        }
+
+        // matrix B
+        {
+            auto srcLoadLenghts   = BBlockTransferThreadSliceLengths_K0_N0_N1_K1{};
+            auto srcVectorLengths = BBlockTransferSrcVectorTensorLengths_K0_N0_N1_K1{};
+            if(srcVectorLengths[I0] != 1 || srcVectorLengths[I3] != 1)
+            {
+                return false;
+            }
+            if(srcLoadLenghts[I1] % srcVectorLengths[I1] != 0 ||
+               srcLoadLenghts[I2] % srcVectorLengths[I2] != 0)
+            {
+                return false;
+            }
+
+            const index_t C = arg.Conv_K_;
+
+            if(C % (srcVectorLengths[I1] * srcVectorLengths[I2]) != 0)
+            {
+                return false;
+            }
+        }
         // vector store C matrix into global memory
         if(!(arg.Conv_C_ % CThreadTransferDstScalarPerVector == 0))
         {
