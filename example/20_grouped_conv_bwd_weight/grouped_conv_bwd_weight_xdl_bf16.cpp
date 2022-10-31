@@ -13,6 +13,6 @@ using InElementOp  = PassThrough;
 using WeiElementOp = PassThrough;
 using OutElementOp = PassThrough;
 
-#include "run_conv_bwd_weight_example.inc"
+#include "run_grouped_conv_bwd_weight_example.inc"
 
-int main(int argc, char* argv[]) { return !run_conv_bwd_weight_example(argc, argv); }
+int main(int argc, char* argv[]) { return !run_grouped_conv_bwd_weight_example(argc, argv); }
