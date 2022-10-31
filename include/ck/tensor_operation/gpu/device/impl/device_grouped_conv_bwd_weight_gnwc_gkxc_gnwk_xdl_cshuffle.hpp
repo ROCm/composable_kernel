@@ -1018,7 +1018,7 @@ struct DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Xdl_CShuffle
             }
 
             const index_t grid_size =
-                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_);
+                arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_) * arg.Conv_G_;
 
             const auto K0 = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I1);
 
