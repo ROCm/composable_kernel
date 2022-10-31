@@ -34,16 +34,16 @@ __global__ void kernel_reduce_second_half_batchnorm_backward_final(
     long_index_t reduce_size,
     index_t num_xy_k_block_tile_iteration,
     index_t num_scale_bias_diff_k_block_tile_iteration,
-    const ScaleDataType* const __restrict__ p_reduce_scale_diff,
-    const BiasDataType* const __restrict__ p_reduce_bias_diff,
+    const ScaleDataType* const __restrict__ p_reduce_dscale,
+    const BiasDataType* const __restrict__ p_reduce_dbias,
     const MeanVarDataType* const __restrict__ p_mean,
     const MeanVarDataType* const __restrict__ p_inv_var,
     const XDataType* const __restrict__ p_x,
     const DyDataType* const __restrict__ p_dy,
     const ScaleDataType* const __restrict__ p_scale,
     DxDataType* const __restrict__ p_dx,
-    ScaleDataType* const __restrict__ p_scale_diff,
-    BiasDataType* const __restrict__ p_bias_diff)
+    ScaleDataType* const __restrict__ p_dscale,
+    BiasDataType* const __restrict__ p_dbias)
 {
     GridwiseReduceSecondHalfBatchNormBackwardFinal_::Run(x_grid_desc_m_k,
                                                          dy_grid_desc_m_k,
@@ -56,16 +56,16 @@ __global__ void kernel_reduce_second_half_batchnorm_backward_final(
                                                          reduce_size,
                                                          num_xy_k_block_tile_iteration,
                                                          num_scale_bias_diff_k_block_tile_iteration,
-                                                         p_reduce_scale_diff,
-                                                         p_reduce_bias_diff,
+                                                         p_reduce_dscale,
+                                                         p_reduce_dbias,
                                                          p_mean,
                                                          p_inv_var,
                                                          p_x,
                                                          p_dy,
                                                          p_scale,
                                                          p_dx,
-                                                         p_scale_diff,
-                                                         p_bias_diff);
+                                                         p_dscale,
+                                                         p_dbias);
 };
 
 template <typename XDataType,
@@ -151,16 +151,16 @@ struct GridwiseReduceSecondHalfBatchNormBackwardFinal
                                long_index_t reduce_size,
                                index_t num_xy_k_block_tile_iteration,
                                index_t num_scale_bias_diff_k_block_tile_iteration,
-                               const ScaleDataType* const __restrict__ p_reduce_scale_diff,
-                               const BiasDataType* const __restrict__ p_reduce_bias_diff,
+                               const ScaleDataType* const __restrict__ p_reduce_dscale,
+                               const BiasDataType* const __restrict__ p_reduce_dbias,
                                const MeanVarDataType* const __restrict__ p_mean,
                                const MeanVarDataType* const __restrict__ p_inv_var,
                                const XDataType* const __restrict__ p_x,
                                const DyDataType* const __restrict__ p_dy,
                                const ScaleDataType* const __restrict__ p_scale,
                                DxDataType* const __restrict__ p_dx,
-                               ScaleDataType* const __restrict__ p_scale_diff,
-                               BiasDataType* const __restrict__ p_bias_diff)
+                               ScaleDataType* const __restrict__ p_dscale,
+                               BiasDataType* const __restrict__ p_dbias)
     {
         __shared__ AccDataType p_reduce_work_buffer[BlockSize];
 
@@ -281,16 +281,16 @@ struct GridwiseReduceSecondHalfBatchNormBackwardFinal
                 PassThroughOp{});
 
         const auto reduce_scale_diff_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_reduce_scale_diff, scale_bias_diff_grid_desc_m_k.GetElementSpaceSize());
+            p_reduce_dscale, scale_bias_diff_grid_desc_m_k.GetElementSpaceSize());
 
         const auto reduce_bias_diff_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_reduce_bias_diff, scale_bias_diff_grid_desc_m_k.GetElementSpaceSize());
+            p_reduce_dbias, scale_bias_diff_grid_desc_m_k.GetElementSpaceSize());
 
         auto scale_diff_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_scale_diff, scale_grid_desc_m.GetElementSpaceSize());
+            p_dscale, scale_grid_desc_m.GetElementSpaceSize());
 
         auto bias_diff_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_bias_diff, bias_grid_desc_m.GetElementSpaceSize());
+            p_dbias, bias_grid_desc_m.GetElementSpaceSize());
 
         constexpr auto scale_bias_diff_thread_copy_step_m_k =
             make_multi_index(0, KThreadClusterSize * 1);

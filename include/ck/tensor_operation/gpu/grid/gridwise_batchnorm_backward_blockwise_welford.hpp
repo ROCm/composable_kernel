@@ -45,8 +45,8 @@ __global__ void kernel_batchnorm_backward_with_blockwise_welford(
     const MeanVarDataType* const __restrict__ p_savedMean,
     const MeanVarDataType* const __restrict__ p_savedInvVar,
     DxDataType* const __restrict__ p_dx,
-    ScaleDataType* const __restrict__ p_scale_diff,
-    BiasDataType* const __restrict__ p_bias_diff)
+    ScaleDataType* const __restrict__ p_dscale,
+    BiasDataType* const __restrict__ p_dbias)
 {
     GridwiseBatchrNormBackwardWithBlockwiseWelford_::Run(x_grid_desc_m_k,
                                                          dy_grid_desc_m_k,
@@ -65,8 +65,8 @@ __global__ void kernel_batchnorm_backward_with_blockwise_welford(
                                                          p_savedMean,
                                                          p_savedInvVar,
                                                          p_dx,
-                                                         p_scale_diff,
-                                                         p_bias_diff);
+                                                         p_dscale,
+                                                         p_dbias);
 };
 
 template <typename XDataType,
@@ -166,8 +166,8 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
                                const MeanVarDataType* const __restrict__ p_savedMean,
                                const MeanVarDataType* const __restrict__ p_savedInvVar,
                                DxDataType* const __restrict__ p_dx,
-                               ScaleDataType* const __restrict__ p_scale_diff,
-                               BiasDataType* const __restrict__ p_bias_diff)
+                               ScaleDataType* const __restrict__ p_dscale,
+                               BiasDataType* const __restrict__ p_dbias)
     {
         using ck::math::sqrt;
 
@@ -333,10 +333,10 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
             p_scale, scale_grid_desc_m.GetElementSpaceSize());
 
         auto scale_diff_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_scale_diff, scale_grid_desc_m.GetElementSpaceSize());
+            p_dscale, scale_grid_desc_m.GetElementSpaceSize());
 
         auto bias_diff_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_bias_diff, bias_grid_desc_m.GetElementSpaceSize());
+            p_dbias, bias_grid_desc_m.GetElementSpaceSize());
 
         if(haveSavedMeanInvVar)
         {

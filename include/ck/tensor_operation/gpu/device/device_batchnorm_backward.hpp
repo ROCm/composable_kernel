@@ -35,8 +35,8 @@ struct DeviceBatchNormBwd : public BaseOperator
                         const void* p_savedInvVar,
                         double epsilon,
                         void* p_dx,
-                        void* p_scaleDiff,
-                        void* p_biasDiff) = 0;
+                        void* p_dscale,
+                        void* p_dbias) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };

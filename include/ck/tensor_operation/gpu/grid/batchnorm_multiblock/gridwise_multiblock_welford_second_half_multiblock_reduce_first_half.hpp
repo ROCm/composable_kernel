@@ -43,8 +43,8 @@ __global__ void kernel_welford_second_half_reduce_first_half(
     MeanVarDataType* const __restrict__ p_out_welford_inv_variance,
     const XDataType* const __restrict__ p_x,
     const DyDataType* const __restrict__ p_dy,
-    ScaleDataType* const __restrict__ p_reduce_scale_diff,
-    BiasDataType* const __restrict__ p_reduce_bias_diff)
+    ScaleDataType* const __restrict__ p_reduce_dscale,
+    BiasDataType* const __restrict__ p_reduce_dbias)
 {
     GridwiseWelfordSecondHalfReduceFirstHalf_::Run(x_grid_desc_m_k,
                                                    dy_grid_desc_m_k,
@@ -65,8 +65,8 @@ __global__ void kernel_welford_second_half_reduce_first_half(
                                                    p_out_welford_inv_variance,
                                                    p_x,
                                                    p_dy,
-                                                   p_reduce_scale_diff,
-                                                   p_reduce_bias_diff);
+                                                   p_reduce_dscale,
+                                                   p_reduce_dbias);
 };
 
 template <typename XDataType,
@@ -164,8 +164,8 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
                                MeanVarDataType* const __restrict__ p_out_welford_inv_variance,
                                const XDataType* const __restrict__ p_x,
                                const DyDataType* const __restrict__ p_dy,
-                               ScaleDataType* const __restrict__ p_reduce_scale_diff,
-                               BiasDataType* const __restrict__ p_reduce_bias_diff)
+                               ScaleDataType* const __restrict__ p_reduce_dscale,
+                               BiasDataType* const __restrict__ p_reduce_dbias)
     {
         __shared__ AccDataType p_reduce_work_buffer[BlockSize];
 
@@ -531,10 +531,10 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
                 PassThroughOp{});
 
         auto reduce_scale_diff_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_reduce_scale_diff, scale_bias_diff_grid_desc_m_g.GetElementSpaceSize());
+            p_reduce_dscale, scale_bias_diff_grid_desc_m_g.GetElementSpaceSize());
 
         auto reduce_bias_diff_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_reduce_bias_diff, scale_bias_diff_grid_desc_m_g.GetElementSpaceSize());
+            p_reduce_dbias, scale_bias_diff_grid_desc_m_g.GetElementSpaceSize());
 
         if(thread_k_cluster_id == 0)
         {

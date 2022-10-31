@@ -201,8 +201,8 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                  const MeanVarDataType* p_savedInvVar,
                  double epsilon,
                  DxDataType* p_dx,
-                 ScaleDataType* p_scaleDiff,
-                 BiasDataType* p_biasDiff)
+                 ScaleDataType* p_dscale,
+                 BiasDataType* p_dbias)
             : bnScaleBiasMeanVarLengths_(bnScaleBiasMeanVarLengths),
               bnScaleStrides_(bnScaleStrides),
               bnBiasStrides_(bnBiasStrides),
@@ -213,8 +213,8 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
               p_savedMean_(p_savedMean),
               p_savedInvVar_(p_savedInvVar),
               p_dx_(p_dx),
-              p_scaleDiff_(p_scaleDiff),
-              p_biasDiff_(p_biasDiff)
+              p_dscale_(p_dscale),
+              p_dbias_(p_dbias)
         {
             xyLengths_ =
                 shuffle_tensor_dimensions<Rank, NumBatchNormReduceDim>(xyLengths, reduceDims);
@@ -294,8 +294,8 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
         const MeanVarDataType* p_savedMean_;
         const MeanVarDataType* p_savedInvVar_;
         DxDataType* p_dx_;
-        ScaleDataType* p_scaleDiff_;
-        BiasDataType* p_biasDiff_;
+        ScaleDataType* p_dscale_;
+        BiasDataType* p_dbias_;
 
         long_index_t invariant_length;
         long_index_t reduce_length;
@@ -318,8 +318,8 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
         void* workspace_savedMean;
         void* workspace_savedInvVar;
 
-        void* workspace_reduce_scale_diff;
-        void* workspace_reduce_bias_diff;
+        void* workspace_reduce_dscale;
+        void* workspace_reduce_dbias;
     };
 
     size_t GetWorkSpaceSize(const BaseArgument* pArg) const override
@@ -372,14 +372,14 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
         index_t space_sz;
 
         // setup buffer for the partial reduced result for scale_diff
-        pArg_->workspace_reduce_scale_diff = pArg_->p_workspace_;
+        pArg_->workspace_reduce_dscale = pArg_->p_workspace_;
 
         space_sz = pArg_->invariant_length * pArg_->blkGroupSize * sizeof(ScaleDataType);
         space_sz = math::integer_least_multiple(space_sz, 64);
 
         // setup buffer for the partial reduced result for bias_diff
-        pArg_->workspace_reduce_bias_diff =
-            reinterpret_cast<char*>(pArg_->workspace_reduce_scale_diff) + space_sz;
+        pArg_->workspace_reduce_dbias =
+            reinterpret_cast<char*>(pArg_->workspace_reduce_dscale) + space_sz;
 
         if(UseMultiblockInK && pArg_->blkGroupSize > 1)
         {
@@ -388,7 +388,7 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
 
             // setup buffer for welford intermediate mean
             pArg_->workspace_mean =
-                reinterpret_cast<char*>(pArg_->workspace_reduce_bias_diff) + space_sz;
+                reinterpret_cast<char*>(pArg_->workspace_reduce_dbias) + space_sz;
 
             space_sz = pArg_->invariant_length * pArg_->blkGroupSize * sizeof(MeanVarDataType);
             space_sz = math::integer_least_multiple(space_sz, 64);
@@ -604,8 +604,8 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                         : static_cast<MeanVarDataType*>(arg.workspace_savedInvVar),
                     arg.p_x_,
                     arg.p_dy_,
-                    static_cast<ScaleDataType*>(arg.workspace_reduce_scale_diff),
-                    static_cast<BiasDataType*>(arg.workspace_reduce_bias_diff));
+                    static_cast<ScaleDataType*>(arg.workspace_reduce_dscale),
+                    static_cast<BiasDataType*>(arg.workspace_reduce_dbias));
 
                 avg_time += launch_and_time_kernel(
                     stream_config,
@@ -624,8 +624,8 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                     arg.reduce_length,
                     arg.numBlockTileIteration,
                     numScaleBiasDiffBlockTileIteration,
-                    static_cast<const ScaleDataType*>(arg.workspace_reduce_scale_diff),
-                    static_cast<const BiasDataType*>(arg.workspace_reduce_bias_diff),
+                    static_cast<const ScaleDataType*>(arg.workspace_reduce_dscale),
+                    static_cast<const BiasDataType*>(arg.workspace_reduce_dbias),
                     arg.haveSavedMeanInvVar_
                         ? arg.p_savedMean_
                         : static_cast<const MeanVarDataType*>(arg.workspace_savedMean),
@@ -636,8 +636,8 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                     arg.p_dy_,
                     arg.p_scale_,
                     arg.p_dx_,
-                    arg.p_scaleDiff_,
-                    arg.p_biasDiff_);
+                    arg.p_dscale_,
+                    arg.p_dbias_);
             }
             else
             {
@@ -708,8 +708,8 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                                                    arg.p_savedMean_,
                                                    arg.p_savedInvVar_,
                                                    arg.p_dx_,
-                                                   arg.p_scaleDiff_,
-                                                   arg.p_biasDiff_);
+                                                   arg.p_dscale_,
+                                                   arg.p_dbias_);
             };
 
             return (avg_time);
@@ -801,8 +801,8 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                         const void* p_savedInvVar,
                         double epsilon,
                         void* p_dx,
-                        void* p_scaleDiff,
-                        void* p_biasDiff) override
+                        void* p_dscale,
+                        void* p_dbias) override
     {
         return std::make_unique<Argument>(xyLengths,
                                           xStrides,
@@ -820,8 +820,8 @@ struct DeviceBatchNormBwdImpl : public DeviceBatchNormBwd<Rank, NumBatchNormRedu
                                           static_cast<const MeanVarDataType*>(p_savedInvVar),
                                           epsilon,
                                           static_cast<DxDataType*>(p_dx),
-                                          static_cast<ScaleDataType*>(p_scaleDiff),
-                                          static_cast<BiasDataType*>(p_biasDiff));
+                                          static_cast<ScaleDataType*>(p_dscale),
+                                          static_cast<BiasDataType*>(p_dbias));
     };
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
