@@ -204,10 +204,8 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true>&
             inv_var_thread_buf = var_thread_buf;
 
-        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true>
-            scale_diff_thread_buf;
-        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true>
-            bias_diff_thread_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> dscale_thread_buf;
+        StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true> dbias_thread_buf;
 
         const index_t thread_local_id = get_thread_local_1d_id();
         const index_t block_global_id = get_block_1d_id();
@@ -289,7 +287,7 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
                 make_multi_index(block_global_id * M_BlockTileSize +
                                  thread_m_cluster_id * MThreadSliceSize));
 
-        auto threadwise_scale_diff_store =
+        auto threadwise_dscale_store =
             ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
                                                ScaleDataType,
                                                decltype(thread_buffer_desc_m),
@@ -307,7 +305,7 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
                                  thread_m_cluster_id * MThreadSliceSize),
                 PassThroughOp{});
 
-        auto threadwise_bias_diff_store =
+        auto threadwise_dbias_store =
             ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
                                                BiasDataType,
                                                decltype(thread_buffer_desc_m),
@@ -328,30 +326,30 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
         constexpr auto thread_copy_fwd_step_m_k = make_multi_index(0, K_BlockTileSize);
         constexpr auto thread_copy_bwd_step_m_k = make_multi_index(0, -K_BlockTileSize);
 
-        const auto x_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        const auto x_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_x, x_grid_desc_m_k.GetElementSpaceSize());
 
-        const auto dy_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        const auto dy_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_dy, dy_grid_desc_m_k.GetElementSpaceSize());
 
-        auto dx_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        auto dx_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_dx, dx_grid_desc_m_k.GetElementSpaceSize());
 
-        const auto scale_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        const auto scale_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_scale, scale_grid_desc_m.GetElementSpaceSize());
 
-        auto scale_diff_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        auto dscale_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_dscale, scale_grid_desc_m.GetElementSpaceSize());
 
-        auto bias_diff_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        auto dbias_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_dbias, bias_grid_desc_m.GetElementSpaceSize());
 
         if(haveSavedMeanInvVar)
         {
-            const auto mean_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            const auto mean_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
                 p_savedMean, mean_var_grid_desc_m.GetElementSpaceSize());
 
-            const auto inv_var_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            const auto inv_var_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
                 p_savedInvVar, mean_var_grid_desc_m.GetElementSpaceSize());
 
             auto threadwise_mean_inv_var_load =
@@ -370,13 +368,13 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
                                      thread_m_cluster_id * MThreadSliceSize));
 
             threadwise_mean_inv_var_load.Run(mean_var_grid_desc_m,
-                                             mean_global_val_buf,
+                                             mean_global_buf,
                                              thread_buffer_desc_m,
                                              make_tuple(I0),
                                              mean_thread_buf);
 
             threadwise_mean_inv_var_load.Run(mean_var_grid_desc_m,
-                                             inv_var_global_val_buf,
+                                             inv_var_global_buf,
                                              thread_buffer_desc_m,
                                              make_tuple(I0),
                                              inv_var_thread_buf);
@@ -395,7 +393,7 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
             {
 
                 threadwise_x_load.Run(x_grid_desc_m_k,
-                                      x_global_val_buf,
+                                      x_global_buf,
                                       thread_buffer_desc_m_k,
                                       make_tuple(I0, I0),
                                       x_thread_buf);
@@ -425,20 +423,20 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
         };
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-            scale_diff_thread_buf(I) = type_convert<AccDataType>(0);
-            bias_diff_thread_buf(I)  = type_convert<AccDataType>(0);
+            dscale_thread_buf(I) = type_convert<AccDataType>(0);
+            dbias_thread_buf(I)  = type_convert<AccDataType>(0);
         });
 
         for(index_t reducedTiles = 0; reducedTiles < num_k_block_tile_iteration; ++reducedTiles)
         {
             threadwise_x_load.Run(x_grid_desc_m_k,
-                                  x_global_val_buf,
+                                  x_global_buf,
                                   thread_buffer_desc_m_k,
                                   make_tuple(I0, I0),
                                   x_thread_buf);
 
             threadwise_dy_load.Run(dx_grid_desc_m_k,
-                                   dy_global_val_buf,
+                                   dy_global_buf,
                                    thread_buffer_desc_m_k,
                                    make_tuple(I0, I0),
                                    dy_thread_buf);
@@ -455,36 +453,36 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
                 });
             });
 
-            ThreadwiseReduce::Reduce(tmp1_thread_buf, scale_diff_thread_buf);
-            ThreadwiseReduce::Reduce(dy_thread_buf, bias_diff_thread_buf);
+            ThreadwiseReduce::Reduce(tmp1_thread_buf, dscale_thread_buf);
+            ThreadwiseReduce::Reduce(dy_thread_buf, dbias_thread_buf);
 
             threadwise_x_load.MoveSrcSliceWindow(x_grid_desc_m_k, thread_copy_fwd_step_m_k);
             threadwise_dy_load.MoveSrcSliceWindow(dy_grid_desc_m_k, thread_copy_fwd_step_m_k);
         };
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-            BlockwiseReduce::Reduce(reduce_work_buf, scale_diff_thread_buf(I));
+            BlockwiseReduce::Reduce(reduce_work_buf, dscale_thread_buf(I));
             block_sync_lds();
-            BlockwiseReduce::Reduce(reduce_work_buf, bias_diff_thread_buf(I));
+            BlockwiseReduce::Reduce(reduce_work_buf, dbias_thread_buf(I));
         });
 
         if(thread_k_cluster_id == 0)
         {
-            threadwise_scale_diff_store.Run(thread_buffer_desc_m,
-                                            make_tuple(I0),
-                                            scale_diff_thread_buf,
-                                            scale_grid_desc_m,
-                                            scale_diff_global_val_buf);
+            threadwise_dscale_store.Run(thread_buffer_desc_m,
+                                        make_tuple(I0),
+                                        dscale_thread_buf,
+                                        scale_grid_desc_m,
+                                        dscale_global_buf);
 
-            threadwise_bias_diff_store.Run(thread_buffer_desc_m,
-                                           make_tuple(I0),
-                                           bias_diff_thread_buf,
-                                           bias_grid_desc_m,
-                                           bias_diff_global_val_buf);
+            threadwise_dbias_store.Run(thread_buffer_desc_m,
+                                       make_tuple(I0),
+                                       dbias_thread_buf,
+                                       bias_grid_desc_m,
+                                       dbias_global_buf);
         };
 
         threadwise_scale_load.Run(scale_grid_desc_m,
-                                  scale_global_val_buf,
+                                  scale_global_buf,
                                   thread_buffer_desc_m,
                                   make_tuple(I0),
                                   scale_thread_buf);
@@ -498,13 +496,13 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
         for(index_t reducedTiles = 0; reducedTiles < num_k_block_tile_iteration; ++reducedTiles)
         {
             threadwise_x_load.Run(x_grid_desc_m_k,
-                                  x_global_val_buf,
+                                  x_global_buf,
                                   thread_buffer_desc_m_k,
                                   make_tuple(I0, I0),
                                   x_thread_buf);
 
             threadwise_dy_load.Run(dy_grid_desc_m_k,
-                                   dy_global_val_buf,
+                                   dy_global_buf,
                                    thread_buffer_desc_m_k,
                                    make_tuple(I0, I0),
                                    dy_thread_buf);
@@ -517,13 +515,13 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
                     AccDataType norm_x = (x_thread_buf[Number<offset>{}] - mean_thread_buf[iM]) *
                                          inv_var_thread_buf[iM];
 
-                    AccDataType tmpVal = norm_x * scale_diff_thread_buf[iM];
+                    AccDataType tmpVal = norm_x * dscale_thread_buf[iM];
 
                     dx_thread_buf(Number<offset>{}) =
                         type_convert<AccDataType>(1.0) / type_convert<AccDataType>(reduce_size) *
                         inv_var_thread_buf[iM] * scale_thread_buf[iM] *
                         (type_convert<AccDataType>(reduce_size) * dy_thread_buf[Number<offset>{}] -
-                         bias_diff_thread_buf[iM] - tmpVal);
+                         dbias_thread_buf[iM] - tmpVal);
                 });
             });
 
@@ -531,7 +529,7 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
                                     make_tuple(I0, I0),
                                     dx_thread_buf,
                                     dx_grid_desc_m_k,
-                                    dx_global_val_buf);
+                                    dx_global_buf);
 
             threadwise_x_load.MoveSrcSliceWindow(x_grid_desc_m_k, thread_copy_bwd_step_m_k);
             threadwise_dy_load.MoveSrcSliceWindow(dy_grid_desc_m_k, thread_copy_bwd_step_m_k);

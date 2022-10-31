@@ -28,7 +28,7 @@ __global__ void kernel_welford_second_half_reduce_first_half(
     const XYGridDesc_M_K dy_grid_desc_m_k,
     const MeanVarGridDesc_M mean_var_grid_desc_m,
     const MeanVarCountGridDesc_M_K mean_var_count_grid_desc_m_k,
-    const ScaleBiasDiffGridDesc_M_G scale_bias_grid_desc_m_g,
+    const ScaleBiasDiffGridDesc_M_G dscale_dbias_grid_desc_m_g,
     index_t blkgroup_size,
     index_t num_xy_k_block_tile_iteration,
     index_t num_mean_var_count_k_block_tile_iteration,
@@ -50,7 +50,7 @@ __global__ void kernel_welford_second_half_reduce_first_half(
                                                    dy_grid_desc_m_k,
                                                    mean_var_grid_desc_m,
                                                    mean_var_count_grid_desc_m_k,
-                                                   scale_bias_grid_desc_m_g,
+                                                   dscale_dbias_grid_desc_m_g,
                                                    blkgroup_size,
                                                    num_xy_k_block_tile_iteration,
                                                    num_mean_var_count_k_block_tile_iteration,
@@ -149,7 +149,7 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
                                const XYGridDesc_M_K& dy_grid_desc_m_k,
                                const MeanVarGridDesc_M& mean_var_grid_desc_m,
                                const MeanVarCountGridDesc_M_K& mean_var_count_grid_desc_m_k,
-                               const ScaleBiasDiffGridDesc_M_G& scale_bias_diff_grid_desc_m_g,
+                               const ScaleBiasDiffGridDesc_M_G& dscale_dbias_grid_desc_m_g,
                                index_t blkgroup_size,
                                index_t num_xy_k_block_tile_iteration,
                                index_t num_mean_var_count_k_block_tile_iteration,
@@ -201,9 +201,9 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
             tmp1_thread_buf;
 
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true>
-            reduce_scale_diff_thread_buf;
+            reduce_dscale_thread_buf;
         StaticBuffer<AddressSpaceEnum::Vgpr, AccDataType, MThreadSliceSize, true>
-            reduce_bias_diff_thread_buf;
+            reduce_dbias_thread_buf;
 
         const index_t thread_local_id = get_thread_local_1d_id();
         const index_t block_global_id = get_block_1d_id();
@@ -231,10 +231,10 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
 
         if(haveSavedMeanInvVar)
         {
-            const auto mean_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            const auto mean_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
                 p_savedMean, mean_var_grid_desc_m.GetElementSpaceSize());
 
-            const auto inv_var_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            const auto inv_var_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
                 p_savedInvVar, mean_var_grid_desc_m.GetElementSpaceSize());
 
             auto threadwise_mean_inv_var_load =
@@ -253,26 +253,26 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
                                      thread_m_cluster_id * MThreadSliceSize));
 
             threadwise_mean_inv_var_load.Run(mean_var_grid_desc_m,
-                                             mean_global_val_buf,
+                                             mean_global_buf,
                                              thread_buffer_desc_m,
                                              make_tuple(I0),
                                              mean_thread_buf);
 
             threadwise_mean_inv_var_load.Run(mean_var_grid_desc_m,
-                                             inv_var_global_val_buf,
+                                             inv_var_global_buf,
                                              thread_buffer_desc_m,
                                              make_tuple(I0),
                                              inv_var_thread_buf);
         }
         else
         {
-            const auto welford_mean_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            const auto welford_mean_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
                 p_in_welford_mean, mean_var_count_grid_desc_m_k.GetElementSpaceSize());
 
-            const auto welford_var_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            const auto welford_var_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
                 p_in_welford_variance, mean_var_count_grid_desc_m_k.GetElementSpaceSize());
 
-            const auto welford_count_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            const auto welford_count_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
                 p_in_welford_count, mean_var_count_grid_desc_m_k.GetElementSpaceSize());
 
             auto threadwise_mean_var_load_m_k =
@@ -320,19 +320,19 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
                 ++reducedTiles)
             {
                 threadwise_mean_var_load_m_k.Run(mean_var_count_grid_desc_m_k,
-                                                 welford_mean_global_val_buf,
+                                                 welford_mean_global_buf,
                                                  thread_buffer_desc_m_1,
                                                  make_tuple(I0, I0),
                                                  in_welford_mean_thread_buf);
 
                 threadwise_mean_var_load_m_k.Run(mean_var_count_grid_desc_m_k,
-                                                 welford_var_global_val_buf,
+                                                 welford_var_global_buf,
                                                  thread_buffer_desc_m_1,
                                                  make_tuple(I0, I0),
                                                  in_welford_var_thread_buf);
 
                 threadwise_count_load_m_k.Run(mean_var_count_grid_desc_m_k,
-                                              welford_count_global_val_buf,
+                                              welford_count_global_buf,
                                               thread_buffer_desc_m_1,
                                               make_tuple(I0, I0),
                                               in_welford_count_thread_buf);
@@ -386,23 +386,23 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
                                          thread_m_cluster_id * MThreadSliceSize),
                         PassThroughOp{});
 
-                auto mean_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+                auto mean_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
                     p_out_welford_mean, mean_var_grid_desc_m.GetElementSpaceSize());
 
-                auto inv_var_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+                auto inv_var_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
                     p_out_welford_inv_variance, mean_var_grid_desc_m.GetElementSpaceSize());
 
                 threadwise_mean_inv_var_store.Run(thread_buffer_desc_m,
                                                   make_tuple(I0),
                                                   mean_thread_buf,
                                                   mean_var_grid_desc_m,
-                                                  mean_global_val_buf);
+                                                  mean_global_buf);
 
                 threadwise_mean_inv_var_store.Run(thread_buffer_desc_m,
                                                   make_tuple(I0),
                                                   inv_var_thread_buf,
                                                   mean_var_grid_desc_m,
-                                                  inv_var_global_val_buf);
+                                                  inv_var_global_buf);
             };
         };
 
@@ -438,17 +438,17 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
                              workSizePerBlock * block_local_id +
                                  thread_k_cluster_id * KThreadSliceSize));
 
-        const auto x_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        const auto x_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_x, x_grid_desc_m_k.GetElementSpaceSize());
 
-        const auto dy_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        const auto dy_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_dy, dy_grid_desc_m_k.GetElementSpaceSize());
 
         constexpr auto xy_thread_copy_step_m_k = make_multi_index(0, K_BlockTileSize);
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-            reduce_scale_diff_thread_buf(I) = type_convert<AccDataType>(0);
-            reduce_bias_diff_thread_buf(I)  = type_convert<AccDataType>(0);
+            reduce_dscale_thread_buf(I) = type_convert<AccDataType>(0);
+            reduce_dbias_thread_buf(I)  = type_convert<AccDataType>(0);
         });
 
         // Step 2: do first-half reduction on dy and dy * (x-mean) * inv-variance
@@ -456,13 +456,13 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
         for(index_t reducedTiles = 0; reducedTiles < num_xy_k_block_tile_iteration; ++reducedTiles)
         {
             threadwise_x_load.Run(x_grid_desc_m_k,
-                                  x_global_val_buf,
+                                  x_global_buf,
                                   thread_buffer_desc_m_k,
                                   make_tuple(I0, I0),
                                   x_thread_buf);
 
             threadwise_dy_load.Run(dy_grid_desc_m_k,
-                                   dy_global_val_buf,
+                                   dy_global_buf,
                                    thread_buffer_desc_m_k,
                                    make_tuple(I0, I0),
                                    dy_thread_buf);
@@ -479,20 +479,20 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
                 });
             });
 
-            ThreadwiseReduce::Reduce(tmp1_thread_buf, reduce_scale_diff_thread_buf);
-            ThreadwiseReduce::Reduce(dy_thread_buf, reduce_bias_diff_thread_buf);
+            ThreadwiseReduce::Reduce(tmp1_thread_buf, reduce_dscale_thread_buf);
+            ThreadwiseReduce::Reduce(dy_thread_buf, reduce_dbias_thread_buf);
 
             threadwise_x_load.MoveSrcSliceWindow(x_grid_desc_m_k, xy_thread_copy_step_m_k);
             threadwise_dy_load.MoveSrcSliceWindow(dy_grid_desc_m_k, xy_thread_copy_step_m_k);
         };
 
         static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-            BlockwiseReduce::Reduce(reduce_work_buf, reduce_scale_diff_thread_buf(I));
+            BlockwiseReduce::Reduce(reduce_work_buf, reduce_dscale_thread_buf(I));
             block_sync_lds();
-            BlockwiseReduce::Reduce(reduce_work_buf, reduce_bias_diff_thread_buf(I));
+            BlockwiseReduce::Reduce(reduce_work_buf, reduce_dbias_thread_buf(I));
         });
 
-        auto threadwise_scale_diff_store =
+        auto threadwise_dscale_store =
             ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
                                                ScaleDataType,
                                                decltype(thread_buffer_desc_m_1),
@@ -505,13 +505,13 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
                                                InMemoryDataOperationEnum::Set,
                                                1,
                                                true>(
-                scale_bias_diff_grid_desc_m_g,
+                dscale_dbias_grid_desc_m_g,
                 make_multi_index(blkgroup_id * M_BlockTileSize +
                                      thread_m_cluster_id * MThreadSliceSize,
                                  block_local_id),
                 PassThroughOp{});
 
-        auto threadwise_bias_diff_store =
+        auto threadwise_dbias_store =
             ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
                                                BiasDataType,
                                                decltype(thread_buffer_desc_m_1),
@@ -524,31 +524,31 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
                                                InMemoryDataOperationEnum::Set,
                                                1,
                                                true>(
-                scale_bias_diff_grid_desc_m_g,
+                dscale_dbias_grid_desc_m_g,
                 make_multi_index(blkgroup_id * M_BlockTileSize +
                                      thread_m_cluster_id * MThreadSliceSize,
                                  block_local_id),
                 PassThroughOp{});
 
-        auto reduce_scale_diff_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_reduce_dscale, scale_bias_diff_grid_desc_m_g.GetElementSpaceSize());
+        auto reduce_dscale_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_reduce_dscale, dscale_dbias_grid_desc_m_g.GetElementSpaceSize());
 
-        auto reduce_bias_diff_global_val_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_reduce_dbias, scale_bias_diff_grid_desc_m_g.GetElementSpaceSize());
+        auto reduce_dbias_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_reduce_dbias, dscale_dbias_grid_desc_m_g.GetElementSpaceSize());
 
         if(thread_k_cluster_id == 0)
         {
-            threadwise_scale_diff_store.Run(thread_buffer_desc_m_1,
-                                            make_tuple(I0, I0),
-                                            reduce_scale_diff_thread_buf,
-                                            scale_bias_diff_grid_desc_m_g,
-                                            reduce_scale_diff_global_val_buf);
+            threadwise_dscale_store.Run(thread_buffer_desc_m_1,
+                                        make_tuple(I0, I0),
+                                        reduce_dscale_thread_buf,
+                                        dscale_dbias_grid_desc_m_g,
+                                        reduce_dscale_global_buf);
 
-            threadwise_bias_diff_store.Run(thread_buffer_desc_m_1,
-                                           make_tuple(I0, I0),
-                                           reduce_bias_diff_thread_buf,
-                                           scale_bias_diff_grid_desc_m_g,
-                                           reduce_bias_diff_global_val_buf);
+            threadwise_dbias_store.Run(thread_buffer_desc_m_1,
+                                       make_tuple(I0, I0),
+                                       reduce_dbias_thread_buf,
+                                       dscale_dbias_grid_desc_m_g,
+                                       reduce_dbias_global_buf);
         };
     };
 };
