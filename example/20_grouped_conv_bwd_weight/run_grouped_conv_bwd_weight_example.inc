@@ -157,7 +157,8 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
     float gb_per_sec = num_btype / 1.E6 / avg_time;
 
     std::cerr << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
-              << conv.GetTypeString() << std::endl;
+              << std::endl
+              << "DeviceOp: " << conv.GetTypeString() << std::endl;
 
     if(config.do_verification)
     {
