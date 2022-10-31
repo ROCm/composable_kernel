@@ -39,7 +39,7 @@ using DeviceConvBwdWeightInstance =
         1,                    // CShuffleMXdlPerWavePerShuffle
         1,                    // CShuffleNXdlPerWavePerShuffle
         S<1, 32, 1, 4>,       // CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        4>;                   // CBlockTransferScalarPerVector_NWaveNPerXdl
+        128 / (sizeof(WeiDataType) * CHAR_BIT)>; // CBlockTransferScalarPerVector_NWaveNPerXdl
 
 template <ck::index_t NDimSpatial>
 using HostConvBwdWeightInstance = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
@@ -54,7 +54,7 @@ template <ck::index_t NDimSpatial>
 bool run_conv_bwd_weight(const ExecutionConfig& config,
                          const ck::utils::conv::ConvParam& conv_param)
 {
-    constexpr ck::index_t split_k = 4;
+    constexpr ck::index_t split_k = 2;
 
     const auto in_g_n_c_wis_desc =
         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<

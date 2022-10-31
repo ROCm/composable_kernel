@@ -75,14 +75,14 @@ using OutputLayout = typename CommonLayoutSettingSelector<NDimSpatial>::OutputLa
 struct ExecutionConfig final
 {
     bool do_verification = true;
-    int init_method      = 0;
-    bool time_kernel     = true;
+    int init_method      = 1;
+    bool time_kernel     = false;
 };
 
-#define DefaultConvParam                                                        \
-    ck::utils::conv::ConvParam                                                  \
-    {                                                                           \
-        2, 1, 32, 256, 1024, {3, 3}, {14, 14}, {2, 2}, {1, 1}, {1, 1}, { 1, 1 } \
+#define DefaultConvParam                                                       \
+    ck::utils::conv::ConvParam                                                 \
+    {                                                                          \
+        2, 1, 32, 128, 256, {3, 3}, {14, 14}, {1, 1}, {1, 1}, {1, 1}, { 1, 1 } \
     }
 
 inline void print_help_msg()
