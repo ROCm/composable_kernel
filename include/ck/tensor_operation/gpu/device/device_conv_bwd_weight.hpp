@@ -4,7 +4,6 @@
 #pragma once
 
 #include <array>
-#include <vector>
 
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 
