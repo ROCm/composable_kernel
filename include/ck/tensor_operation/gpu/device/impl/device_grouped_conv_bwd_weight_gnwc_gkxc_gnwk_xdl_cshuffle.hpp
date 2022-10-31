@@ -940,11 +940,6 @@ struct DeviceGroupedConvBwdWeightGnwcGkxcGnwk_Xdl_CShuffle
                                 index_t{1},
                                 std::multiplies<>{});
 
-            std::cout << "Stride A: " << compute_ptr_offset_of_batch_.BatchStrideA_ << std::endl;
-            std::cout << "Stride B: " << compute_ptr_offset_of_batch_.BatchStrideB_ << std::endl;
-            std::cout << "Stride C: " << compute_ptr_offset_of_batch_.BatchStrideC_ << std::endl;
-            std::cout << "Conv_G: " << Conv_G_ << std::endl;
-
             if(GridwiseGemm::CheckValidity(a_grid_desc_kbatch_k0_m_k1_,
                                            b_grid_desc_kbatch_k0_n_k1_,
                                            c_grid_desc_m_n_,
