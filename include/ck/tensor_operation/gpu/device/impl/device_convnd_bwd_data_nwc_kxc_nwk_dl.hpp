@@ -1390,6 +1390,12 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Dl
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        // check device
+        if(!(ck::get_device_name() == "gfx906" || ck::get_device_name() == "gfx1030"))
+        {
+            return false;
+        }
+        
         if constexpr(ConvBackwardDataSpecialization ==
                      ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0)
         {
