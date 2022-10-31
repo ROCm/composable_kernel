@@ -508,6 +508,10 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
                                    dy_thread_buf);
 
             static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
+                AccDataType multiplier = type_convert<AccDataType>(1.0) /
+                                         type_convert<AccDataType>(reduce_size) *
+                                         inv_var_thread_buf[iM] * scale_thread_buf[iM];
+
                 static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
                     constexpr auto offset =
                         thread_buffer_desc_m_k.CalculateOffset(make_tuple(iM, iK));
@@ -518,8 +522,7 @@ struct GridwiseBatchNormBackwardWithBlockwiseWelford
                     AccDataType tmpVal = norm_x * dscale_thread_buf[iM];
 
                     dx_thread_buf(Number<offset>{}) =
-                        type_convert<AccDataType>(1.0) / type_convert<AccDataType>(reduce_size) *
-                        inv_var_thread_buf[iM] * scale_thread_buf[iM] *
+                        multiplier *
                         (type_convert<AccDataType>(reduce_size) * dy_thread_buf[Number<offset>{}] -
                          dbias_thread_buf[iM] - tmpVal);
                 });
